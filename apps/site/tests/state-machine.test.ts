@@ -22,7 +22,7 @@ describe("mode-specific order state machine", () => {
     const harness = await createSiteHarness();
     try {
       const submission = await submitThroughHttp(harness, "self-hosted");
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       expect((await completeMockCheckout(harness, checkoutSessionId)).finalStatus).toBe("READY");
 
       expect(currentStatus(harness, submission.submissionId)).toBe("READY");
@@ -74,7 +74,7 @@ describe("mode-specific order state machine", () => {
     const harness = await createSiteHarness();
     try {
       const submission = await submitThroughHttp(harness, "client-owned");
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       expect((await completeMockCheckout(harness, checkoutSessionId)).finalStatus).toBe("NEEDS_CREDENTIALS");
 
       expect(canTransition("client-owned", "MANIFEST_LOCKED", "GENERATING")).toBe(false);

@@ -14,6 +14,7 @@
     "typecheck": "bunx tsc --noEmit",
     "check": "bun scripts/check.ts",
     "migrate": "bun scripts/migrate.ts",
+    "backup": "bun scripts/backup.ts",
     "generate-secrets": "bun scripts/generate-secrets.ts",
     "operator": "bun scripts/operator.ts"
   },

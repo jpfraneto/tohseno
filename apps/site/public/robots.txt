@@ -1,6 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /c
 Disallow: /c/
+Disallow: /status
 Disallow: /status/
 Disallow: /checkout/

@@ -1,4 +1,4 @@
-.PHONY: dev start test typecheck check migrate secrets operator
+.PHONY: dev start test typecheck check migrate backup secrets operator
 
 dev:
 	bun run dev
@@ -17,6 +17,9 @@ check:
 
 migrate:
 	bun run migrate
+
+backup:
+	bun run backup -- $(ARGS)
 
 secrets:
 	bun run generate-secrets

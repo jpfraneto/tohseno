@@ -4,6 +4,7 @@ import type { OrderState } from "../src/state-machine.ts";
 import type { SubmissionRow } from "../src/submissions.ts";
 import {
   beginHttpCheckout,
+  capabilityAuthorization,
   createSiteHarness,
   submitThroughHttp,
   testConfig,
@@ -40,11 +41,13 @@ describe("privacy-boundary regressions", () => {
       ).run(submission.submissionId);
 
       for (const path of [
-        `/status/${submission.token}`,
-        `/c/${submission.token}`,
-        `/c/${submission.token}/MASTER_PROMPT.md`,
+        `/status/${submission.submissionId}`,
+        `/c/${submission.submissionId}`,
+        `/c/${submission.submissionId}/MASTER_PROMPT.md`,
       ]) {
-        const response = await harness.request(path, { headers: { Accept: "application/json" } });
+        const response = await harness.request(path, {
+          headers: { Accept: "application/json", ...capabilityAuthorization(submission.token) },
+        });
         expect(response.status).toBe(404);
         expect(response.headers.get("cache-control")).toBe("no-store, private");
         expect(await response.json()).toEqual({ error: "Not found" });
@@ -64,8 +67,10 @@ describe("privacy-boundary regressions", () => {
       expect(row).not.toBeNull();
       expect(row?.content_hash).toMatch(/^[a-f0-9]{64}$/);
 
-      for (const path of [`/status/${row?.content_hash}`, `/c/${row?.content_hash}`]) {
-        const response = await harness.request(path, { headers: { Accept: "application/json" } });
+      for (const path of [`/status/${submission.submissionId}`, `/c/${submission.submissionId}`]) {
+        const response = await harness.request(path, {
+          headers: { Accept: "application/json", ...capabilityAuthorization(row?.content_hash ?? "") },
+        });
         expect(response.status).toBe(404);
         expect(await response.json()).toEqual({ error: "Not found" });
       }
@@ -80,7 +85,7 @@ describe("operator-boundary regressions", () => {
     const harness = await createSiteHarness();
     try {
       const submission = await submitThroughHttp(harness);
-      await beginHttpCheckout(harness, submission.token);
+      await beginHttpCheckout(harness, submission.token, submission.submissionId);
       const before = harness.application.database.query<{ count: number }, [string]>(
         "SELECT count(*) AS count FROM order_events WHERE submission_id = ?",
       ).get(submission.submissionId)?.count;

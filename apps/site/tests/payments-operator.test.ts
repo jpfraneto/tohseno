@@ -4,6 +4,7 @@ import { buildStripeCheckoutParams } from "../src/payments.ts";
 import type { SubmissionRow } from "../src/submissions.ts";
 import {
   beginHttpCheckout,
+  capabilityAuthorization,
   createSiteHarness,
   submitThroughHttp,
   syntheticMarkdown,
@@ -101,7 +102,7 @@ describe("verified payment event processing", () => {
     const harness = await createSiteHarness({ paymentProvider });
     try {
       const submission = await submitThroughHttp(harness, "self-hosted");
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       const rawBody = JSON.stringify({
         eventId: "evt_verified_once",
         checkoutSessionId,
@@ -264,7 +265,9 @@ describe("authenticated operator boundary", () => {
       );
       expect(revoke.status).toBe(200);
       expect(await revoke.json()).toEqual({ submissionId: submission.submissionId, revoked: true });
-      expect((await harness.request(`/status/${submission.token}`)).status).toBe(404);
+      expect((await harness.request(`/status/${submission.submissionId}`, {
+        headers: capabilityAuthorization(submission.token),
+      })).status).toBe(404);
 
       const persisted = harness.persistedBytes();
       expect(persisted.includes(Buffer.from(customerMessage))).toBe(false);

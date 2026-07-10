@@ -392,6 +392,16 @@ input[type="email"] {
   display: none;
 }
 
+.payment-boundary {
+  margin: -0.5rem 0 1.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
 .primary-button {
   display: flex;
   width: 100%;

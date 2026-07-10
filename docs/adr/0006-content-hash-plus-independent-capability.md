@@ -11,16 +11,19 @@ Customer Markdown needs a stable integrity identifier for order/contracts, but p
 
 The intake computes a SHA-256 content hash over the accepted Markdown bytes. Access is protected by an independently generated bearer capability containing at least 256 bits of cryptographically secure randomness. Only a one-way hash of the capability is persisted.
 
+The returned private link carries the raw capability only in its `#capability=` URL fragment. Fragments are not part of HTTP request paths and are not sent in referrers. A first-party browser bootstrap exchanges the fragment and safe submission ID in a bounded `POST` body for an expiry-bounded, host-only cookie dedicated to that submission and marked `Secure`, `HttpOnly`, and `SameSite=Strict`. Coding agents extract the fragment locally and send it in an `Authorization: Bearer` header to the matching safe-ID-scoped route. The safe ID is not authorization; every transport is bound back to the capability-resolved submission. No supported transport places the raw capability in a request path or query string.
+
 The Markdown is encrypted at rest. It is never served from a public content-hash route, and the content hash is never sufficient to retrieve it.
 
 ## Consequences
 
 - The same content can retain a known integrity digest while access is revoked or expires.
 - A leaked database does not directly reveal raw capability URLs.
-- The raw capability is returned/delivered only at creation and must not enter logs, payment metadata, analytics, subjects, or referrers.
+- The raw capability is returned/delivered only at creation and must not enter HTTP paths, query strings, logs, payment metadata, analytics, subjects, or referrers.
+- Platform request logs observe safe path families such as `/status/<submission-id>`, `/c/<submission-id>`, and `/c/<submission-id>/MASTER_PROMPT.md`, while application logs use the corresponding `:id` route templates. Neither contains bearer values.
 - Invalid, revoked, and expired capabilities share a `404` response.
 - Hash/digest migrations and capability rotation have independent lifecycles.
 
 ## Non-goals
 
-This ADR does not claim capability URLs resist disclosure by a compromised recipient/browser/server. Bearer possession is authorization until revocation or expiry.
+This ADR does not claim capability links, browser sessions, or Authorization headers resist disclosure by a compromised recipient/browser/server. Bearer possession is authorization until revocation or expiry.

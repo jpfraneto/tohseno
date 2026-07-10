@@ -42,18 +42,24 @@ Markdown is sent in the request body, never in a query string or content-hash UR
 
 Encryption uses Web Crypto AES-256-GCM with a unique random nonce for every value and a base64-encoded 32-byte deployment key. Each envelope authenticates a record/field context as additional data, so swapping a valid contact, Markdown, or message envelope into another record fails authentication. Decrypted Markdown is also checked against its stored content hash before operator/capsule release. Authentication or integrity failure is fatal for that value; ciphertext is never treated as plaintext. The envelope is versioned for future algorithm/key migration. The current deployment uses one active data key and requires a deliberate rotation migration; see [Key rotation](KEY_ROTATION.md).
 
-## Capability URLs
+## Capability transport
 
-A capability URL is a private bearer credential. Anyone who possesses it can exercise the access it grants until expiration or revocation.
+A capability is a private bearer credential. Anyone who possesses it can exercise the access it grants until expiration or revocation. It must never appear in an HTTP request path or query string: managed platforms and proxies commonly record those values before application-level log redaction can run.
 
 The model is deliberately two-part:
 
 - The **content hash** says which bytes were submitted and detects changes.
 - The **capability token** says who can retrieve the private status/capsule.
 
-The token contains at least 256 bits of cryptographically secure randomness. The database stores only its SHA-256 hash, so a database reader cannot directly recover the URL. Equality checks operate on hashes. Invalid, expired, and revoked tokens return indistinguishable `404` responses.
+The token contains at least 256 bits of cryptographically secure randomness. The database stores only its SHA-256 hash, so a database reader cannot directly recover the bearer. Equality checks operate on hashes. Invalid, expired, and revoked tokens return indistinguishable `404` responses.
 
-Private routes send `Cache-Control: no-store`, a strict referrer policy, search-engine exclusion, content-type protection, and a CSP that prevents framing. The token must not appear in logs, analytics, payment metadata, email subjects, error messages, or outbound referrers. The status/capsule HTML must not load third-party assets.
+Browser handoff URLs use a safe identifier plus a fragment, such as `/status/<submission-id>#capability=…`. Fragments are handled locally by the browser and are not included in the HTTP request. On every scoped private document load with a fragment, the external same-origin script hides private content while it reconciles `{ submissionId, token }` in a bounded JSON body through `POST /api/capability/session`. The server verifies that the token resolves to the named submission before setting a cookie. Invalid or mismatched fragments reveal only a generic error, never content from a prior cookie.
+
+A valid exchange sets a submission-specific HttpOnly, `SameSite=Strict`, `Path=/` cookie; HTTPS and production use a `Secure` `__Host-tohseno-capability-<submission-id>` name. Initial form submission sets the same scoped cookie before its `303` redirect, preserving the no-framework fallback. Separate names let several private handoffs coexist without cross-submission cookie replacement. The fragment remains in the private handoff URL so the owner can give the same bearer to a chosen coding agent; it still never enters a request URL. The browser uses safe-ID-scoped `GET /status/<submission-id>`, `GET /c/<submission-id>`, and `GET /c/<submission-id>/MASTER_PROMPT.md` routes.
+
+Coding agents do not need a cookie: they send the bearer in the `Authorization` header to the same safe-ID-scoped routes. Checkout requires the safe submission ID and accepts the matching bearer header, scoped cookie, or bounded request-body token. Resolved authorization must match that ID. Old token-in-path routes are deliberately unsupported. Capability cookies are functional private-access credentials, not marketing or analytics cookies.
+
+Private routes send `Cache-Control: no-store`, a strict referrer policy, search-engine exclusion, content-type protection, and a CSP that prevents framing. The token must not appear in infrastructure or application request URLs, logs, analytics, payment metadata, email subjects, public error messages, or outbound referrers. The status/capsule HTML loads only same-origin external JavaScript and no third-party assets.
 
 The same bearer may currently identify the private status and eventual capsule authorization. Possession should therefore be limited to the owner and explicitly chosen agent. If it is disclosed, revoke it through the operator interface and handle any replacement as a new capability—not as a content-hash change.
 
@@ -79,7 +85,7 @@ Server logs are structured around request ID, route template, status, duration, 
 
 - Markdown or derived excerpts;
 - decrypted contact details;
-- raw capability URLs/tokens;
+- raw capability handoff URLs/tokens;
 - encryption keys and operator tokens;
 - Stripe/Resend secrets;
 - message bodies;

@@ -4,6 +4,7 @@ export const SECURITY_HEADERS = Object.freeze({
   "Referrer-Policy": "no-referrer",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
   "Cross-Origin-Opener-Policy": "same-origin",
+  "Strict-Transport-Security": "max-age=31536000",
 });
 
 export function withSecurityHeaders(response: Response, privateResponse = false): Response {

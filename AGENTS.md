@@ -30,8 +30,8 @@ Never commit or log customer Markdown, contact details, capability tokens, crede
 - A content hash identifies bytes; it never authorizes access.
 - A capability token authorizes access; store only its one-way hash.
 - Encrypt submitted Markdown, contact details, and messages with authenticated encryption before persistence.
-- Never put private content or bearer capabilities in URLs other than the intended capability path, query strings, payment metadata, email subjects, transition metadata, analytics, or error text.
-- Treat capability URLs as bearer secrets: no caching, indexing, or referrer leakage.
+- Never put private content or bearer capabilities in request paths, query strings, payment metadata, email subjects, transition metadata, analytics, or error text. Browser handoff URLs may carry a capability only in the fragment, which is not sent in the HTTP request.
+- Treat capability handoff URLs as bearer secrets. Scope private paths and cookies by the safe submission ID, exchange the fragment through the bounded same-origin bootstrap, and require the resolved bearer to match that ID. Then use the submission-specific HttpOnly strict cookie or an explicit Authorization header; private responses remain uncached, unindexed, and referrer-free.
 - Record operator access without recording the inspected content.
 - Future app-runtime content stays local or encrypted by default. Do not route it through this control plane.
 

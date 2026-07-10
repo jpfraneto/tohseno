@@ -24,11 +24,12 @@ The full compiler does not exist yet. Today, TOHSENO provides an honest doorway 
 - A raw, responsive landing page for pasted Markdown or a browser-loaded `.md` file.
 - Deterministic intake validation with a 256 KiB maximum, UTF-8 and binary-like checks, a minimum useful length, conservative email validation, and explicit operating modes.
 - AES-256-GCM encryption at rest for Markdown, contact details, and operator messages.
-- SHA-256 content integrity plus an independent, revocable 256-bit bearer capability.
+- SHA-256 content integrity plus an independent, revocable 256-bit bearer capability transported outside request URLs.
 - A normalized SQLite store, raw migrations, append-only order events, and mode-specific legal transitions.
 - Disabled, local mock, and Stripe Checkout payment providers with verified, idempotent webhooks.
 - Disabled, metadata-only console, and Resend email providers.
 - Private status and capsule routes, with the production capsule withheld until the applicable payment or approval boundary.
+- Upfront payment-availability disclosure, canonical-host handling, and bearer-free infrastructure log paths scoped by safe submission IDs.
 - A narrow bearer-authenticated operator API and CLI instead of an admin dashboard.
 - A small continuity manifest schema, two materially different examples, and language-neutral contract fixtures.
 - A coding-agent skill that protects the one action, tests invariants, prepares deployment, and produces an ejection package.
@@ -42,7 +43,7 @@ This repository does not yet generate complete native iOS or Android application
 
 1. A person pastes `MASTER_PROMPT.md` or loads a local `.md` file, enters an email address, and chooses an operating mode.
 2. The server validates only deterministic intake properties. It does not claim to understand or compile the idea semantically.
-3. The server hashes and encrypts the document and contact details, stores only a hash of a random capability token, appends the initial order events, and redirects to a private status URL.
+3. The server hashes and encrypts the document and contact details, stores only a hash of a random capability token, appends the initial order events, sets a strict HttpOnly capability cookie, and returns a private status handoff whose bearer exists only in the URL fragment.
 4. Self-hosted and client-owned orders are offered Checkout only when their payment provider and prices are configured. Anky-operated applications enter selective review and never create Checkout automatically.
 5. Verified payment events advance the state machine. A browser success redirect is never proof of payment.
 6. A paid self-hosted order reaches `READY`, exposing its private capsule. A paid client-owned order reaches `NEEDS_CREDENTIALS`, with customer-ownership and scoped-access instructions. An Anky-operated order exposes only review status until accepted.
@@ -70,7 +71,7 @@ examples                  Anky and daily-observation source/manifest examples
 templates/continuity-app  honest handoff and operator/ejection starter contract
 skills/continuity-app     coding-agent workflow and refusal rules
 docs                      doctrine, privacy, architecture, ADRs, operations, research
-scripts                   checks, migrations/secrets through package scripts, operator CLI
+scripts                   checks, migrations/backups/secrets, operator CLI
 ```
 
 The runtime path is intentionally short:
@@ -86,7 +87,7 @@ See [System architecture](docs/SYSTEM_ARCHITECTURE.md) and the accepted [archite
 
 ## Privacy model
 
-The source document and contact details are encrypted at rest with a deployment-supplied data key. The content hash is an integrity identifier, never a public address or credential. Access uses an independent random bearer capability; only its one-way hash is stored. Private responses use no-store caching, restrictive referrer and search directives, and invalid, expired, or revoked capabilities return the same `404` response.
+The source document and contact details are encrypted at rest with a deployment-supplied data key. The content hash is an integrity identifier, never a public address or credential. Access uses an independent random bearer capability; only its one-way hash is stored. Browser handoffs use safe submission-ID paths such as `/status/<submission-id>#capability=…`. Every private fragment is reconciled through a bounded same-origin POST with that safe ID, then stored in a separate HttpOnly `SameSite=Strict` cookie for that submission. Multiple owner handoffs can therefore coexist without one cookie authorizing or overwriting another. The fragment remains the owner's private coding-agent handoff and is never transmitted in an HTTP request. Coding agents use the safe-ID-scoped raw route with an `Authorization: Bearer` header. Bearers never belong in request paths or query strings. Private responses use no-store caching, restrictive referrer and search directives, and invalid, expired, mismatched, or revoked capabilities return the same `404` response.
 
 Submitted source documents are intake data, not the private continuity data produced by future users of an app. The future control plane is designed to receive operational health metadata without receiving that end-user content. Payment providers receive only safe order identifiers and necessary commerce fields—not Markdown, contact details, or capabilities.
 

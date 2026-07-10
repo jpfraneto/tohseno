@@ -1,6 +1,72 @@
 (() => {
   "use strict";
 
+  const bootstrapCapability = async () => {
+    const privateDocument = document.body;
+    const submissionId = privateDocument.dataset.privateSubmission;
+    if (typeof submissionId !== "string" || !/^sub_[A-Za-z0-9_-]{24}$/.test(submissionId)) return;
+    const parameters = new URLSearchParams(window.location.hash.slice(1));
+    const token = parameters.get("capability");
+    if (token === null) return;
+
+    const content = document.querySelector("[data-private-content]");
+    const progress = document.querySelector("[data-private-progress]");
+    const error = document.querySelector("[data-private-error]");
+    if (!(content instanceof HTMLElement) || !(progress instanceof HTMLElement) || !(error instanceof HTMLElement)) return;
+    const onBootstrap = privateDocument.hasAttribute("data-capability-bootstrap");
+    content.hidden = true;
+    progress.hidden = false;
+    error.hidden = true;
+
+    const showError = () => {
+      content.hidden = true;
+      progress.hidden = true;
+      error.hidden = false;
+    };
+
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      showError();
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/capability/session", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ submissionId, token }),
+        credentials: "same-origin",
+        redirect: "error"
+      });
+      if (!response.ok) {
+        showError();
+        return;
+      }
+      const result = await response.json();
+      if (
+        typeof result !== "object" || result === null ||
+        result.authenticated !== true || typeof result.changed !== "boolean"
+      ) {
+        showError();
+        return;
+      }
+      // Preserve the fragment as the owner's private coding-agent handoff.
+      // URL fragments are never included in the reload's HTTP request.
+      if (result.changed || onBootstrap) {
+        window.location.reload();
+        return;
+      }
+      progress.hidden = true;
+      content.hidden = false;
+    } catch {
+      showError();
+    }
+  };
+
+  void bootstrapCapability();
+
   const form = document.querySelector("[data-enhanced-form]");
   if (!(form instanceof HTMLFormElement)) return;
 

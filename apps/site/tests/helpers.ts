@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { AppConfig } from "../config.ts";
 import { createApplication } from "../server.ts";
 import type { TohsenoApplication } from "../server.ts";
+import { capabilityCookieName } from "../src/capabilities.ts";
 import { openMigratedDatabase } from "../src/database.ts";
 import type { EmailMessage, EmailProvider } from "../src/email.ts";
 import { createPaymentProvider } from "../src/payments.ts";
@@ -208,6 +209,18 @@ export interface HttpSubmission {
   expiresAt: string;
 }
 
+export function capabilityAuthorization(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
+export function capabilityCookieHeader(
+  token: string,
+  config: AppConfig,
+  submissionId: string,
+): Record<string, string> {
+  return { Cookie: `${capabilityCookieName(config, submissionId)}=${token}` };
+}
+
 export function syntheticMarkdown(label = "practice"): string {
   return `# ${label}\n\nThe person records one deliberate observation, reflects briefly, and returns tomorrow.`;
 }
@@ -233,14 +246,19 @@ export async function submitThroughHttp(
     throw new Error(`Submission failed with ${response.status}: ${await response.text()}`);
   }
   const body = await response.json() as Omit<HttpSubmission, "token">;
-  const token = new URL(body.statusUrl).pathname.split("/").at(-1);
-  if (!token) throw new Error("Status URL did not contain a capability token");
+  const statusUrl = new URL(body.statusUrl);
+  if (statusUrl.pathname !== `/status/${body.submissionId}` || statusUrl.search !== "") {
+    throw new Error("Status URL must use the token-free status path");
+  }
+  const token = new URLSearchParams(statusUrl.hash.slice(1)).get("capability");
+  if (!token) throw new Error("Status URL fragment did not contain a capability token");
   return { ...body, token };
 }
 
 export async function beginHttpCheckout(
   harness: SiteHarness,
   token: string,
+  submissionId: string,
 ): Promise<string> {
   const response = await harness.request("/api/checkout", {
     method: "POST",
@@ -248,7 +266,7 @@ export async function beginHttpCheckout(
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ submissionId, token }),
   });
   if (response.status !== 201) {
     throw new Error(`Checkout failed with ${response.status}: ${await response.text()}`);

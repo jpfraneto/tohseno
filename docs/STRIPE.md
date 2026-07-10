@@ -4,11 +4,13 @@ Stripe is an optional payment adapter around the order state machine. It never r
 
 ## Payment modes
 
-- `PAYMENTS_MODE=disabled`: no Checkout is created; status explains that payment is unavailable.
+- `PAYMENTS_MODE=disabled`: no Checkout is created; the landing page says this before private intake and status repeats that payment is unavailable.
 - `PAYMENTS_MODE=mock`: local/test success path using no network. Startup fails if `NODE_ENV=production`.
 - `PAYMENTS_MODE=stripe`: Stripe Checkout plus raw-body, signature-verified webhooks.
 
 Missing Stripe configuration never falls back to a fake success.
+
+Stripe test credentials are for explicit internal verification. A test-mode Checkout that is reachable from a public deployment must be labeled as internal testing, never presented as the live $88 founding purchase. If that distinction cannot be shown reliably, return the service to `PAYMENTS_MODE=disabled` after the test journey.
 
 ## Required Stripe configuration
 
@@ -48,7 +50,7 @@ Completed, asynchronous-success, asynchronous-failure, and expiry events are rec
 
 Stored Checkout URLs are offered for resumption only while the same provider is configured and its verified-webhook boundary is currently available. Disabling payments or removing webhook configuration pauses new and resumed Checkout links instead of asking a customer to pay while reconciliation is offline.
 
-The browser's `/checkout/success` route is informational. It states that the return from Checkout is not payment proof and directs the person back to the private status URL they already hold. It never marks an order paid or receives a capability token from Stripe.
+The browser's `/checkout/success` route is informational. It states that the return from Checkout is not payment proof and directs the person back to the private status link they already hold. It never marks an order paid or receives a capability token from Stripe. The capability remains in the owner-held URL fragment and expiry-bounded browser capability cookie; Stripe success/cancel URLs and metadata never receive it.
 
 ## Metadata policy
 

@@ -203,7 +203,7 @@ describe("durable email outbox", () => {
       const submission = await submitThroughHttp(harness);
       await waitForEmailCount(provider, 1);
       provider.completedTemplates.length = 0;
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       await completeMockCheckout(harness, checkoutSessionId);
       await waitForEmailCount(provider, 3);
       expect(provider.completedTemplates).toEqual(["payment-confirmed", "self-hosted-ready"]);
@@ -219,7 +219,7 @@ describe("durable email outbox", () => {
     try {
       const submission = await submitThroughHttp(harness);
       for (let attempt = 0; attempt < 1_000 && provider.attempts.length < 1; attempt += 1) await Bun.sleep(1);
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       await completeMockCheckout(harness, checkoutSessionId);
       expect(provider.attempts.map((message) => message.template)).toEqual(["submission-received"]);
 

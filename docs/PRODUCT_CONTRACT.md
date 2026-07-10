@@ -42,7 +42,9 @@ The server enforces:
 - conservative structural email validation;
 - accepted form or JSON content type and bounded request size.
 
-The server must not echo the document into errors or logs. It calculates a SHA-256 integrity hash, encrypts the Markdown and contact, creates an unguessable capability, stores only the capability hash, appends order events, and sends the customer to a private status route.
+The server must not echo the document into errors or logs. It calculates a SHA-256 integrity hash, encrypts the Markdown and contact, creates an unguessable capability, stores only the capability hash, appends order events, and returns a private status link. The raw capability appears only in that link's `#capability=` URL fragment; it is never placed in an HTTP path or query string and is not sent as a referrer.
+
+For browser access, a small first-party bootstrap exchanges the fragment and its safe submission ID through a size-limited JSON `POST` body and receives an expiry-bounded, submission-specific cookie with `Secure`, `HttpOnly`, `SameSite=Strict`, and host-only scope. Human status, Checkout, and capsule requests then use safe-ID-scoped routes. Coding agents extract the fragment locally and send it as `Authorization: Bearer` to the matching safe-ID-scoped capsule route. The server binds every cookie, header, session exchange, and Checkout request back to that named submission. A capability must never be copied from the fragment into a request path, query, application log, platform path log, or payment request.
 
 ## Delivery contract by state
 
@@ -71,6 +73,8 @@ An eligible capsule contains:
 - the original `MASTER_PROMPT.md`;
 - an explicit warning to ask before creating paid resources, changing DNS, rotating production credentials, or submitting to stores.
 
+The human capsule view uses the browser's private session cookie. A coding agent retrieves the raw Markdown capsule from its stable route with the capability in the `Authorization` header. Both transports authorize through the same stored capability hash and preserve identical expiry and revocation behavior.
+
 Self-hosted capsules ask the owner's agent to scaffold, validate, and prepare/deploy only with required approvals, preserve the manifest, and return repositories, credentials, URLs, ownership details, and ejection instructions.
 
 Client-owned instructions additionally preserve customer ownership of bundle IDs, package IDs, source, domains, developer accounts, and infrastructure. They require readiness checks for Apple Developer, Google Play Console, DNS, and the desired infrastructure account, using scoped access rather than shared passwords.
@@ -93,6 +97,8 @@ TOHSENO sells a repeatable product flow, not unlimited custom development.
 
 - Prices and customer-facing copy come from one configuration module.
 - Payment unlocks an operating step, not a false claim of generated software.
+- When Checkout is disabled, the landing page must say so before a person submits private Markdown; the status page must repeat the unavailable state and no payment may be implied.
+- Stripe test mode is an internal verification boundary, not a public founding-product purchase path, and must be labeled as such whenever it is reachable.
 - Checkout metadata contains safe submission identifiers only.
 - No store approval timeline is guaranteed; Apple and Google control review.
 - Paid infrastructure, DNS changes, store submissions, and credential rotation always require explicit owner approval.

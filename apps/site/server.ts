@@ -1,7 +1,16 @@
 import { join } from "node:path";
+import { isIP } from "node:net";
 import type { AppConfig } from "./config.ts";
 import { loadConfig, PRODUCT, safeStartupSummary } from "./config.ts";
-import { buildCapsuleMarkdown, capsuleIsAvailable, resolveCapability } from "./src/capabilities.ts";
+import {
+  buildCapsuleMarkdown,
+  capabilityCookie,
+  capabilityHandoffUrl,
+  capsuleIsAvailable,
+  requestCapabilityCredentials,
+  requestCapabilityToken,
+  resolveCapability,
+} from "./src/capabilities.ts";
 import type { TohsenoDatabase } from "./src/database.ts";
 import { openMigratedDatabase } from "./src/database.ts";
 import { createEmailProvider, deliverQueuedEmails, recoverInterruptedEmailDeliveries } from "./src/email.ts";
@@ -44,6 +53,7 @@ const MAX_API_BODY_BYTES = PRODUCT.maxMarkdownBytes * 4 + 16 * 1024;
 // escapes control characters. The decoded message is independently capped.
 const MAX_OPERATOR_BODY_BYTES = 416 * 1024;
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const MAX_CAPABILITY_BOOTSTRAP_BYTES = 1024;
 
 export interface ApplicationOptions {
   config?: AppConfig;
@@ -91,18 +101,34 @@ function html(content: string, status = 200, privateResponse = false): Response 
   }), privateResponse);
 }
 
-function documentPage(title: string, body: string): string {
+function documentPage(
+  title: string,
+  body: string,
+  options: { capabilityBootstrap?: boolean; submissionId?: string } = {},
+): string {
+  const privateAttributes = [
+    options.capabilityBootstrap ? "data-capability-bootstrap" : "",
+    options.submissionId ? `data-private-submission="${htmlEscape(options.submissionId)}"` : "",
+  ].filter(Boolean).join(" ");
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${htmlEscape(title)} — TOHSENO</title><link rel="stylesheet" href="/styles.css"></head>
-<body><header class="site-header"><a class="wordmark" href="/">TOHSENO</a><span class="header-note">PRIVATE OPERATING PATH</span></header>
-<main class="document-main"><article class="document"><header class="document-header"><p class="eyebrow">TOHSENO / PRIVATE</p><h1>${htmlEscape(title)}</h1></header>${body}</article></main>
+<title>${htmlEscape(title)} — TOHSENO</title><link rel="stylesheet" href="/styles.css"><script src="/app.js" defer></script></head>
+<body${privateAttributes ? ` ${privateAttributes}` : ""}><header class="site-header"><a class="wordmark" href="/">TOHSENO</a><span class="header-note">PRIVATE OPERATING PATH</span></header>
+<main class="document-main"><p data-private-progress role="status" aria-live="polite" hidden>Opening private access…</p><p data-private-error role="alert" hidden>The private capability is invalid, expired, or revoked.</p><article class="document" data-private-content><header class="document-header"><p class="eyebrow">TOHSENO / PRIVATE</p><h1>${htmlEscape(title)}</h1></header>${body}</article></main>
 <footer class="site-footer"><span>ANKY, INC.</span><span>NO-STORE / NO-REFERRER</span></footer></body></html>`;
 }
 
-function renderLanding(template: string): string {
+function renderLanding(template: string, provider: PaymentProvider, config: AppConfig): string {
+  const checkoutAvailable = provider.availability("self-hosted").available ||
+    provider.availability("client-owned").available;
+  const paymentNotice = !checkoutAvailable
+    ? PRODUCT.copy.PAYMENT_DISABLED_NOTICE
+    : config.paymentsMode === "mock" || config.stripeSecretKey?.startsWith("sk_test_")
+      ? PRODUCT.copy.PAYMENT_TEST_NOTICE
+      : PRODUCT.copy.PAYMENT_BOUNDARY_NOTICE;
   const values: Record<string, string> = {
     ...PRODUCT.copy,
+    PAYMENT_AVAILABILITY_NOTICE: paymentNotice,
     MAX_MARKDOWN_BYTES: String(PRODUCT.maxMarkdownBytes),
     SELF_HOSTED_PRICE: PRODUCT.prices.selfHosted.display,
     CLIENT_PRICE: PRODUCT.prices.clientOwned.display,
@@ -123,7 +149,8 @@ function requestWantsJson(request: Request): boolean {
 
 function clientKey(request: Request, config: AppConfig): string {
   if (!config.trustProxy) return "direct-client";
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "proxied-client";
+  const railwayClientIp = request.headers.get("x-real-ip")?.trim() ?? "";
+  return isIP(railwayClientIp) > 0 ? railwayClientIp : "proxied-client";
 }
 
 function contentType(request: Request): string {
@@ -158,20 +185,95 @@ function stringField(body: Record<string, unknown>, key: string): string {
   return value;
 }
 
+function headResponse(response: Response, method: string): Response {
+  if (method !== "HEAD") return response;
+  return new Response(null, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+function methodNotAllowed(allow: readonly string[]): Response {
+  const response = json({ error: "Method not allowed" }, 405, true);
+  const headers = new Headers(response.headers);
+  headers.set("Allow", allow.join(", "));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function allowedMethods(pathname: string): readonly string[] | null {
+  if ([
+    "/", "/privacy", "/healthz", "/styles.css", "/app.js", "/robots.txt",
+    "/checkout/success", "/checkout/cancel",
+  ].includes(pathname) ||
+    /^\/status\/sub_[A-Za-z0-9_-]{24}$/.test(pathname) ||
+    /^\/c\/sub_[A-Za-z0-9_-]{24}(?:\/MASTER_PROMPT\.md)?$/.test(pathname) ||
+    /^\/mock-checkout\/[^/]+$/.test(pathname)) return ["GET", "HEAD"];
+  if ([
+    "/api/submissions", "/api/capability/session", "/api/checkout",
+    "/api/webhooks/stripe", "/api/payments/mock/complete",
+  ].includes(pathname)) return ["POST"];
+  if (pathname === "/api/operator/submissions" || /^\/api\/operator\/submissions\/sub_[A-Za-z0-9_-]+$/.test(pathname)) {
+    return ["GET"];
+  }
+  if (/^\/api\/operator\/submissions\/sub_[A-Za-z0-9_-]+\/(transition|summary|message|revoke-capability|inspect-source|retry-email)$/.test(pathname)) {
+    return ["POST"];
+  }
+  return null;
+}
+
+function externalRequestHostname(request: Request, config: AppConfig): string {
+  if (config.trustProxy) {
+    const forwarded = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
+    if (forwarded) {
+      try {
+        return new URL(`https://${forwarded}`).hostname.toLowerCase();
+      } catch {
+        return "";
+      }
+    }
+  }
+  return new URL(request.url).hostname.toLowerCase();
+}
+
+function canonicalBoundary(request: Request, config: AppConfig): Response | null {
+  const canonical = new URL(config.baseUrl);
+  const aliasHost = canonical.hostname.startsWith("www.")
+    ? canonical.hostname.slice(4)
+    : `www.${canonical.hostname}`;
+  const requestedHostname = externalRequestHostname(request, config);
+  const method = request.method.toUpperCase();
+  const forwardedProtocol = config.trustProxy
+    ? request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase()
+    : undefined;
+  const insecureProductionRequest = config.nodeEnv === "production" && forwardedProtocol === "http";
+  const canonicalAlias = requestedHostname === aliasHost;
+  if (!canonicalAlias && !insecureProductionRequest) return null;
+  if (method !== "GET" && method !== "HEAD") return methodNotAllowed(["GET", "HEAD"]);
+  const source = new URL(request.url);
+  const destination = new URL(`${source.pathname}${source.search}`, config.baseUrl);
+  return headResponse(withSecurityHeaders(Response.redirect(destination, 308)), method);
+}
+
 function routeLabel(method: string, pathname: string): string {
   if (pathname === "/") return `${method} /`;
   if (pathname === "/privacy") return `${method} /privacy`;
   if (pathname === "/healthz") return `${method} /healthz`;
   if (pathname === "/api/submissions") return `${method} /api/submissions`;
+  if (pathname === "/api/capability/session") return `${method} /api/capability/session`;
   if (pathname === "/api/checkout") return `${method} /api/checkout`;
   if (pathname === "/api/webhooks/stripe") return `${method} /api/webhooks/stripe`;
   if (pathname === "/api/payments/mock/complete") return `${method} /api/payments/mock/complete`;
   if (pathname === "/checkout/success") return `${method} /checkout/success`;
   if (pathname === "/checkout/cancel") return `${method} /checkout/cancel`;
   if (/^\/mock-checkout\/[^/]+$/.test(pathname)) return `${method} /mock-checkout/:id`;
-  if (/^\/status\/[^/]+$/.test(pathname)) return `${method} /status/:token`;
-  if (/^\/c\/[^/]+\/MASTER_PROMPT\.md$/.test(pathname)) return `${method} /c/:token/MASTER_PROMPT.md`;
-  if (/^\/c\/[^/]+$/.test(pathname)) return `${method} /c/:token`;
+  if (/^\/status\/sub_[A-Za-z0-9_-]{24}$/.test(pathname)) return `${method} /status/:id`;
+  if (/^\/c\/sub_[A-Za-z0-9_-]{24}\/MASTER_PROMPT\.md$/.test(pathname)) return `${method} /c/:id/MASTER_PROMPT.md`;
+  if (/^\/c\/sub_[A-Za-z0-9_-]{24}$/.test(pathname)) return `${method} /c/:id`;
   if (/^\/api\/operator\/submissions\/[^/]+\/(transition|summary|message|revoke-capability|inspect-source|retry-email)$/.test(pathname)) {
     return `${method} /api/operator/submissions/:id/${pathname.split("/").at(-1)}`;
   }
@@ -192,7 +294,6 @@ function statusExplanation(submission: SubmissionRow): string {
 
 function renderStatus(
   submission: SubmissionRow,
-  token: string,
   provider: PaymentProvider,
   activeCheckoutUrl?: string,
 ): string {
@@ -203,7 +304,7 @@ function renderStatus(
       ? `Continue to payment — ${PRODUCT.prices.selfHosted.display}`
       : `Continue to payment — ${PRODUCT.prices.clientOwned.display}`;
     action = availability.available
-      ? `<form method="post" action="/api/checkout"><input type="hidden" name="token" value="${htmlEscape(token)}"><button class="primary-button" type="submit">${htmlEscape(label)}</button></form>`
+      ? `<form method="post" action="/api/checkout"><input type="hidden" name="submissionId" value="${htmlEscape(submission.id)}"><button class="primary-button" type="submit">${htmlEscape(label)}</button></form>`
       : `<section><h2>Payment unavailable</h2><p>${htmlEscape(availability.reason ?? "Payment configuration is incomplete.")}</p></section>`;
   }
   if (submission.status === "PAYMENT_PENDING") {
@@ -212,7 +313,7 @@ function renderStatus(
       : `<section><h2>Payment reconciliation paused</h2><p>${htmlEscape(availability.reason ?? "The configured payment provider is unavailable. Do not start or resume payment until the operator restores verified webhook handling.")}</p></section>`;
   }
   if (capsuleIsAvailable(submission)) {
-    action += `<p><a class="primary-button" href="/c/${htmlEscape(token)}">OPEN PRIVATE AGENT CAPSULE</a></p>`;
+    action += `<p><a class="primary-button" href="/c/${htmlEscape(submission.id)}">OPEN PRIVATE AGENT CAPSULE</a></p>`;
   }
   return documentPage("Application status", `
     <dl><dt>Submission</dt><dd><code>${htmlEscape(submission.id)}</code></dd>
@@ -220,7 +321,9 @@ function renderStatus(
     <dt>Order state</dt><dd><strong>${htmlEscape(submission.status)}</strong></dd>
     <dt>Content SHA-256</dt><dd><code>${htmlEscape(submission.content_hash)}</code></dd></dl>
     <p>${htmlEscape(statusExplanation(submission))}</p>${action}
-    <p><small>This private status capability expires ${htmlEscape(submission.capability_expires_at)}. Contact <a href="mailto:support@anky.app">support@anky.app</a> for revocation or deletion requests.</small></p>`);
+    <p><small>This private status capability expires ${htmlEscape(submission.capability_expires_at)}. Contact <a href="mailto:support@anky.app">support@anky.app</a> for revocation or deletion requests.</small></p>`, {
+      submissionId: submission.id,
+    });
 }
 
 function activeCheckoutUrl(
@@ -236,8 +339,36 @@ function activeCheckoutUrl(
   `).get(submission.id, provider.name)?.checkout_url;
 }
 
-function renderCapsule(capsuleMarkdown: string, token: string): string {
-  return documentPage("Private agent capsule", `<p><a href="/c/${htmlEscape(token)}/MASTER_PROMPT.md">Open as raw Markdown</a></p><pre class="capsule-source">${htmlEscape(capsuleMarkdown)}</pre>`);
+function renderCapsule(capsuleMarkdown: string, submissionId: string): string {
+  return documentPage(
+    "Private agent capsule",
+    `<p><a href="/c/${htmlEscape(submissionId)}/MASTER_PROMPT.md">Open as raw Markdown</a></p><pre class="capsule-source">${htmlEscape(capsuleMarkdown)}</pre>`,
+    { submissionId },
+  );
+}
+
+function renderCapabilityBootstrap(submissionId: string): string {
+  return documentPage(
+    "Private access",
+    "<p>Open the complete private handoff URL, or provide the capability through the Authorization header.</p>",
+    { capabilityBootstrap: true, submissionId },
+  );
+}
+
+function withCapabilityCookie(
+  response: Response,
+  token: string,
+  expiresAt: string,
+  config: AppConfig,
+  submissionId: string,
+): Response {
+  const headers = new Headers(response.headers);
+  headers.append("Set-Cookie", capabilityCookie(token, expiresAt, config, submissionId));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function bearerToken(request: Request): string | null {
@@ -257,7 +388,7 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
     Bun.file(join(PUBLIC_DIRECTORY, "index.html")).text(),
     Bun.file(join(PUBLIC_DIRECTORY, "privacy.html")).text(),
   ]);
-  const landingPage = renderLanding(landingTemplate);
+  const landingPage = renderLanding(landingTemplate, paymentProvider, config);
   const backgroundEmailTasks = new Set<Promise<void>>();
   let closing = false;
   const scheduleEmailDrain = (
@@ -302,12 +433,18 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method.toUpperCase();
+    const canonicalResponse = canonicalBoundary(request, config);
+    if (canonicalResponse) return { response: canonicalResponse };
 
-    if (method === "GET" && pathname === "/") return { response: html(landingPage) };
-    if (method === "GET" && pathname === "/privacy") return { response: html(privacyPage) };
-    if (method === "GET" && pathname === "/healthz") {
+    if ((method === "GET" || method === "HEAD") && pathname === "/") {
+      return { response: headResponse(html(landingPage), method) };
+    }
+    if ((method === "GET" || method === "HEAD") && pathname === "/privacy") {
+      return { response: headResponse(html(privacyPage), method) };
+    }
+    if ((method === "GET" || method === "HEAD") && pathname === "/healthz") {
       database.query("SELECT 1").get();
-      return { response: json({ status: "ok", service: "tohseno" }) };
+      return { response: headResponse(json({ status: "ok", service: "tohseno" }), method) };
     }
 
     const staticFiles: Record<string, { file: string; type: string }> = {
@@ -316,11 +453,16 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
       "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
     };
     const staticFile = staticFiles[pathname];
-    if (method === "GET" && staticFile) {
+    if ((method === "GET" || method === "HEAD") && staticFile) {
       const response = new Response(Bun.file(join(PUBLIC_DIRECTORY, staticFile.file)), {
-        headers: { "Content-Type": staticFile.type, "Cache-Control": "public, max-age=3600" },
+        headers: {
+          "Content-Type": staticFile.type,
+          "Cache-Control": pathname === "/app.js"
+            ? "public, max-age=0, must-revalidate"
+            : "public, max-age=3600",
+        },
       });
-      return { response: withSecurityHeaders(response) };
+      return { response: headResponse(withSecurityHeaders(response), method) };
     }
 
     if (method === "POST" && pathname === "/api/submissions") {
@@ -332,33 +474,93 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
         operatingMode: stringField(body, "operatingMode"),
       };
       const created = await createSubmission(database, config, input);
-      const statusUrl = `${config.baseUrl}/status/${created.capabilityToken}`;
+      const statusUrl = capabilityHandoffUrl(config, "/status", created.id, created.capabilityToken);
       scheduleEmailDrain(created.id);
       if (!requestWantsJson(request)) {
-        return { response: withSecurityHeaders(Response.redirect(statusUrl, 303), true), submissionId: created.id };
+        const response = withSecurityHeaders(Response.redirect(statusUrl, 303), true);
+        return {
+          response: withCapabilityCookie(
+            response,
+            created.capabilityToken,
+            created.capabilityExpiresAt,
+            config,
+            created.id,
+          ),
+          submissionId: created.id,
+        };
       }
+      const response = json({
+        submissionId: created.id,
+        status: created.status,
+        statusUrl,
+        expiresAt: created.capabilityExpiresAt,
+      }, 201, true);
       return {
-        response: json({ submissionId: created.id, status: created.status, statusUrl, expiresAt: created.capabilityExpiresAt }, 201, true),
+        response: withCapabilityCookie(
+          response,
+          created.capabilityToken,
+          created.capabilityExpiresAt,
+          config,
+          created.id,
+        ),
         submissionId: created.id,
       };
     }
 
-    const statusMatch = /^\/status\/([A-Za-z0-9_-]+)$/.exec(pathname);
-    if (method === "GET" && statusMatch?.[1]) {
-      const token = statusMatch[1];
+    if (method === "POST" && pathname === "/api/capability/session") {
+      const body = await parseObjectBody(request, MAX_CAPABILITY_BOOTSTRAP_BYTES);
+      const submissionId = stringField(body, "submissionId");
+      if (!/^sub_[A-Za-z0-9_-]{24}$/.test(submissionId)) throw new HttpError(404, "Not found");
+      const token = stringField(body, "token");
       const submission = await resolveCapability(database, token);
-      if (!submission) throw new HttpError(404, "Not found");
+      if (!submission || submission.id !== submissionId) throw new HttpError(404, "Not found");
+      const current = requestCapabilityCredentials(request, config, submissionId);
+      if (current.conflict) throw new HttpError(404, "Not found");
+      const changed = current.token === null || !constantTimeEqual(current.token, token);
       return {
-        response: html(renderStatus(submission, token, paymentProvider, activeCheckoutUrl(database, submission, paymentProvider)), 200, true),
+        response: withCapabilityCookie(
+          json({ authenticated: true, changed }, 200, true),
+          token,
+          submission.capability_expires_at,
+          config,
+          submissionId,
+        ),
+        submissionId: submission.id,
+      };
+    }
+
+    const statusMatch = /^\/status\/(sub_[A-Za-z0-9_-]{24})$/.exec(pathname);
+    if ((method === "GET" || method === "HEAD") && statusMatch?.[1]) {
+      const submissionId = statusMatch[1];
+      const credentials = requestCapabilityCredentials(request, config, submissionId);
+      if (credentials.token === null) {
+        return { response: headResponse(html(renderCapabilityBootstrap(submissionId), 404, true), method) };
+      }
+      const submission = await resolveCapability(database, credentials.token);
+      if (!submission || submission.id !== submissionId) {
+        if (!credentials.authorizationPresent) {
+          return { response: headResponse(html(renderCapabilityBootstrap(submissionId), 404, true), method) };
+        }
+        throw new HttpError(404, "Not found");
+      }
+      return {
+        response: headResponse(html(renderStatus(submission, paymentProvider, activeCheckoutUrl(database, submission, paymentProvider)), 200, true), method),
         submissionId: submission.id,
       };
     }
 
     if (method === "POST" && pathname === "/api/checkout") {
       const body = await parseObjectBody(request, 16 * 1024, true);
-      const token = stringField(body, "token");
+      const submissionId = stringField(body, "submissionId");
+      if (!/^sub_[A-Za-z0-9_-]{24}$/.test(submissionId)) throw new HttpError(404, "Not found");
+      const bodyToken = body.token;
+      if (bodyToken !== undefined && typeof bodyToken !== "string") {
+        throw new HttpError(400, "token must be a string when supplied");
+      }
+      const token = requestCapabilityToken(request, config, submissionId) ?? bodyToken;
+      if (typeof token !== "string") throw new HttpError(404, "Not found");
       const submission = await resolveCapability(database, token);
-      if (!submission) throw new HttpError(404, "Not found");
+      if (!submission || submission.id !== submissionId) throw new HttpError(404, "Not found");
       if (submission.operating_mode === "anky-operated") throw new HttpError(409, "Anky-operated applications do not use automatic Checkout");
       const checkout = await beginCheckout(database, paymentProvider, submission);
       if (!requestWantsJson(request)) {
@@ -373,11 +575,11 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
     }
 
     const mockCheckoutMatch = /^\/mock-checkout\/([A-Za-z0-9_-]+)$/.exec(pathname);
-    if (method === "GET" && mockCheckoutMatch?.[1] && paymentProvider.name === "mock" && config.nodeEnv !== "production") {
+    if ((method === "GET" || method === "HEAD") && mockCheckoutMatch?.[1] && paymentProvider.name === "mock" && config.nodeEnv !== "production") {
       const session = mockCheckoutMatch[1];
       const page = documentPage("Mock Checkout", `<p>This development-only page simulates a verified payment event. It is unavailable in production.</p>
         <form method="post" action="/api/payments/mock/complete"><input type="hidden" name="checkoutSessionId" value="${htmlEscape(session)}"><button class="primary-button" type="submit">COMPLETE MOCK PAYMENT</button></form>`);
-      return { response: html(page, 200, true) };
+      return { response: headResponse(html(page, 200, true), method) };
     }
 
     if (method === "POST" && pathname === "/api/payments/mock/complete" && paymentProvider.name === "mock" && config.nodeEnv !== "production") {
@@ -403,18 +605,22 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
       return { response: json({ received: true, processed: result.processed }), submissionId: result.submissionId };
     }
 
-    if (method === "GET" && pathname === "/checkout/success") {
-      return { response: html(documentPage("Checkout returned", "<p>The browser returned from Checkout. This is not proof of payment. TOHSENO will change the private status only after a verified provider webhook.</p>"), 200, true) };
+    if ((method === "GET" || method === "HEAD") && pathname === "/checkout/success") {
+      return { response: headResponse(html(documentPage("Checkout returned", "<p>The browser returned from Checkout. This is not proof of payment. TOHSENO will change the private status only after a verified provider webhook.</p>"), 200, true), method) };
     }
-    if (method === "GET" && pathname === "/checkout/cancel") {
-      return { response: html(documentPage("Checkout cancelled", "<p>No payment was confirmed. Return to your private status URL when you are ready.</p>"), 200, true) };
+    if ((method === "GET" || method === "HEAD") && pathname === "/checkout/cancel") {
+      return { response: headResponse(html(documentPage("Checkout cancelled", "<p>No payment was confirmed. Return to your private status URL when you are ready.</p>"), 200, true), method) };
     }
 
-    const rawCapsuleMatch = /^\/c\/([A-Za-z0-9_-]+)\/MASTER_PROMPT\.md$/.exec(pathname);
-    if (method === "GET" && rawCapsuleMatch?.[1]) {
-      const token = rawCapsuleMatch[1];
+    const rawCapsuleMatch = /^\/c\/(sub_[A-Za-z0-9_-]{24})\/MASTER_PROMPT\.md$/.exec(pathname);
+    if ((method === "GET" || method === "HEAD") && rawCapsuleMatch?.[1]) {
+      const submissionId = rawCapsuleMatch[1];
+      const token = requestCapabilityToken(request, config, submissionId);
+      if (token === null) throw new HttpError(404, "Not found");
       const submission = await resolveCapability(database, token);
-      if (!submission || !capsuleIsAvailable(submission)) throw new HttpError(404, "Not found");
+      if (!submission || submission.id !== submissionId || !capsuleIsAvailable(submission)) {
+        throw new HttpError(404, "Not found");
+      }
       const capsule = await buildCapsuleMarkdown(submission, token, config);
       const response = new Response(capsule, {
         headers: {
@@ -422,25 +628,37 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
           "Content-Disposition": "inline; filename=MASTER_PROMPT.md",
         },
       });
-      return { response: withSecurityHeaders(response, true), submissionId: submission.id };
+      return { response: headResponse(withSecurityHeaders(response, true), method), submissionId: submission.id };
     }
 
-    const capsuleMatch = /^\/c\/([A-Za-z0-9_-]+)$/.exec(pathname);
-    if (method === "GET" && capsuleMatch?.[1]) {
-      const token = capsuleMatch[1];
-      const submission = await resolveCapability(database, token);
-      if (!submission) throw new HttpError(404, "Not found");
+    const capsuleMatch = /^\/c\/(sub_[A-Za-z0-9_-]{24})$/.exec(pathname);
+    if ((method === "GET" || method === "HEAD") && capsuleMatch?.[1]) {
+      const submissionId = capsuleMatch[1];
+      const credentials = requestCapabilityCredentials(request, config, submissionId);
+      if (credentials.token === null) {
+        return { response: headResponse(html(renderCapabilityBootstrap(submissionId), 404, true), method) };
+      }
+      const submission = await resolveCapability(database, credentials.token);
+      if (!submission || submission.id !== submissionId) {
+        if (!credentials.authorizationPresent) {
+          return { response: headResponse(html(renderCapabilityBootstrap(submissionId), 404, true), method) };
+        }
+        throw new HttpError(404, "Not found");
+      }
       if (!capsuleIsAvailable(submission)) {
         if (submission.operating_mode === "anky-operated") {
           return {
-            response: html(renderStatus(submission, token, paymentProvider, activeCheckoutUrl(database, submission, paymentProvider)), 200, true),
+            response: headResponse(html(renderStatus(submission, paymentProvider, activeCheckoutUrl(database, submission, paymentProvider)), 200, true), method),
             submissionId: submission.id,
           };
         }
         throw new HttpError(404, "Not found");
       }
-      const capsule = await buildCapsuleMarkdown(submission, token, config);
-      return { response: html(renderCapsule(capsule, token), 200, true), submissionId: submission.id };
+      const capsule = await buildCapsuleMarkdown(submission, credentials.token, config);
+      return {
+        response: headResponse(html(renderCapsule(capsule, submission.id), 200, true), method),
+        submissionId: submission.id,
+      };
     }
 
     if (pathname.startsWith("/api/operator/")) {
@@ -501,6 +719,8 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
       }
     }
 
+    const allow = allowedMethods(pathname);
+    if (allow && !allow.includes(method)) return { response: methodNotAllowed(allow) };
     throw new HttpError(404, "Not found");
   }
 

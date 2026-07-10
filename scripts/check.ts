@@ -210,7 +210,7 @@ async function validateStaticSurface(): Promise<void> {
   ]) {
     assert(privacy.includes(phrase), `Privacy page is missing required disclosure: ${phrase}`);
   }
-  for (const privateRoute of ["Disallow: /api/", "Disallow: /c/", "Disallow: /status/"]) {
+  for (const privateRoute of ["Disallow: /api/", "Disallow: /c", "Disallow: /status"]) {
     assert(robots.includes(privateRoute), `robots.txt is missing: ${privateRoute}`);
   }
 
@@ -220,6 +220,7 @@ async function validateStaticSurface(): Promise<void> {
     "PORT",
     "BASE_URL",
     "DATABASE_PATH",
+    "TOHSENO_BACKUP_PATH",
     "TRUST_PROXY",
     "TOHSENO_DATA_KEY",
     "TOHSENO_OPERATOR_TOKEN",
@@ -259,7 +260,10 @@ async function validateStaticSurface(): Promise<void> {
   assert(isRecord(railwayConfig.build), "railway.toml must contain [build]");
   assert(isRecord(railwayConfig.deploy), "railway.toml must contain [deploy]");
   assert(railwayConfig.build.builder === "DOCKERFILE", "Railway must use the Dockerfile builder");
-  assert(railwayConfig.deploy.startCommand === "bun run start", "Railway start command is incorrect");
+  assert(
+    railwayConfig.deploy.startCommand === undefined,
+    "Railway must preserve the Docker ENTRYPOINT instead of overriding it with a start command",
+  );
   assert(railwayConfig.deploy.healthcheckPath === "/healthz", "Railway health check path is incorrect");
   assert(railwayConfig.deploy.restartPolicyType === "ON_FAILURE", "Railway restart policy is incorrect");
 }

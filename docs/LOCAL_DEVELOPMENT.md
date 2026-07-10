@@ -50,6 +50,7 @@ Open `http://localhost:3000`. The normal HTML form remains the simplest end-to-e
 | `bun run dev` | Start the server with development watching/reload behavior |
 | `bun run start` | Start the server without the development wrapper |
 | `bun run migrate` | Apply pending raw SQLite migrations |
+| `bun run backup` | Create and verify a WAL-consistent encrypted-state SQLite snapshot |
 | `bun run test` | Run all network-independent tests |
 | `bun run typecheck` | Check strict TypeScript |
 | `bun run check` | Run the full safe pre-commit validation |
@@ -68,12 +69,15 @@ curl -i http://localhost:3000/
 curl -i http://localhost:3000/privacy
 ```
 
-For an intake smoke test, use synthetic Markdown and an example-domain address. A normal form submission is preferred because it also checks progressive enhancement and redirects. If using `curl`, follow the exact content type accepted by `POST /api/submissions` and keep the response private: it contains a bearer status URL that must not be pasted into logs or tickets.
+For an intake smoke test, use synthetic Markdown and an example-domain address. A normal form submission is preferred because it also checks progressive enhancement, the strict HttpOnly cookie, and redirects. If using `curl`, follow the exact content type accepted by `POST /api/submissions` and keep the response private: it contains a bearer status handoff whose token exists only after `#capability=`. Do not paste it into logs or tickets.
+
+Browser JavaScript reconciles that fragment through the bounded same-origin bootstrap and then uses safe-ID-scoped `/status/<submission-id>` and `/c/<submission-id>` paths. Each submission has its own strict cookie, so several handoffs can coexist. A coding agent instead retrieves `/c/<submission-id>/MASTER_PROMPT.md` with `Authorization: Bearer <capability-token>`. The safe submission ID belongs in the path; the bearer does not. For a real capability, prefer a permission-restricted curl header file so the value does not become a command-line argument, and remove the file immediately afterward.
 
 Verify that a random capability is indistinguishable from expired/revoked credentials:
 
 ```sh
-curl -i http://localhost:3000/c/not-a-real-capability
+curl -i -H 'Authorization: Bearer not-a-real-capability' \
+  http://localhost:3000/c/sub_000000000000000000000000
 ```
 
 It should return `404` without explaining which capability check failed.

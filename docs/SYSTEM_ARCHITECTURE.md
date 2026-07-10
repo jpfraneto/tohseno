@@ -70,12 +70,12 @@ Examples demonstrate contracts without claiming shipped applications. The contin
 | Boundary | Routes | Response type |
 |---|---|---|
 | Public pages | `GET /`, `GET /privacy`, `GET /healthz` | HTML/text or health JSON |
-| Intake/status | `POST /api/submissions`, `GET /status/:token` | JSON/form redirect; private HTML |
+| Intake/status | `POST /api/submissions`, `POST /api/capability/session`, `GET /status/<submission-id>` | JSON/form fragment handoff; bounded scoped browser exchange; private HTML |
 | Payment | `POST /api/checkout`, `GET /checkout/success`, `GET /checkout/cancel`, `POST /api/webhooks/stripe` | JSON/same-origin continuation page/webhook acknowledgement |
-| Capsule | `GET /c/:token`, `GET /c/:token/MASTER_PROMPT.md` | Private HTML/Markdown |
+| Capsule | `GET /c/<submission-id>`, `GET /c/<submission-id>/MASTER_PROMPT.md` | Private HTML/Markdown via matching scoped cookie or bearer header |
 | Operator | `/api/operator/submissions...` list/detail/inspect-source/transition/summary/message/retry-email/revoke | JSON behind bearer authentication |
 
-The route template—not a raw token-bearing URL—is used in logs. Capability routes are no-store and produce `404` for unknown, expired, or revoked credentials. Raw Markdown is available only on its explicit sub-route or declared Markdown response, never embedded in a log or public page.
+Capability tokens never enter a request path or query string. Private paths contain only the safe submission ID. Browser handoffs use a fragment, then a bounded same-origin bootstrap verifies the token-to-ID binding and installs a separate HttpOnly strict cookie for that submission; coding agents use an Authorization header. The fragment is absent from HTTP and platform access logs, and the application records only route templates. Every private read and Checkout requires the resolved credential's submission to equal the safe path/body ID. Capability routes are no-store and produce `404` for unknown, expired, mismatched, or revoked credentials. Raw Markdown is available only on its explicit scoped sub-route, never embedded in a log or public page.
 
 ## Submission transaction
 
@@ -89,11 +89,12 @@ bounded body
      insert submission
      append creation/submission event(s)
      advance to READY_FOR_PAYMENT or ANKY_REVIEW
-→ return private status URL containing the raw capability once
+→ set the strict HttpOnly capability cookie
+→ return private status handoff with the raw capability only in its URL fragment
 → attempt configured transactional email outside private logs
 ```
 
-The raw bearer must be returned because it cannot be recovered from the database. A failure after commit must not cause the server to print it. Retry behavior must avoid duplicate payments and state corruption.
+The raw bearer must be returned because it cannot be recovered from the database. It is never placed in the request path or query. Every private fragment load reconciles the bearer and safe submission ID through a bounded JSON body while hiding any stale content; the browser reloads only when the scoped cookie changed or the page was a bootstrap shell. Per-submission cookie names prevent handoffs in separate tabs from replacing one another. Non-browser agents send the bearer in an Authorization header with the same safe-ID-scoped route. A failure after commit must not cause the server to print it. Retry behavior must avoid duplicate payments and state corruption.
 
 ## Persistence model
 
@@ -160,7 +161,7 @@ Email is a side effect of committed order state, not a state authority. The inte
 
 ## Security boundary
 
-All responses receive a content security policy, content-type protection, referrer policy, permissions policy, cross-origin opener policy, and CSP `frame-ancestors`. Private routes additionally disable caching and indexing. Static files are selected through an allowlist/safe path resolution rather than arbitrary filesystem joining.
+All responses receive a content security policy, content-type protection, referrer policy, permissions policy, cross-origin opener policy, and CSP `frame-ancestors`. Scripts are same-origin external files; no inline-script exception is needed for capability bootstrap. Private routes additionally disable caching and indexing. Static files are selected through an allowlist/safe path resolution rather than arbitrary filesystem joining.
 
 Submission creation and failed operator authentication have simple in-memory limits. This is suitable for the intended single process; it is not a distributed defense. Proxy-provided client addresses are ignored unless `TRUST_PROXY` is explicitly configured for the deployment topology.
 

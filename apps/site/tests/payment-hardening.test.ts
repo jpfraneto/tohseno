@@ -5,6 +5,7 @@ import type { OrderState } from "../src/state-machine.ts";
 import { transitionOrder } from "../src/state-machine.ts";
 import {
   beginHttpCheckout,
+  capabilityAuthorization,
   createSiteHarness,
   submitThroughHttp,
   waitForEmailCount,
@@ -63,7 +64,7 @@ describe("payment-integrity regressions", () => {
       const response = await harness.request("/api/checkout", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ token: submission.token }),
+        body: JSON.stringify({ submissionId: submission.submissionId, token: submission.token }),
       });
       const body = await response.text();
 
@@ -88,7 +89,7 @@ describe("payment-integrity regressions", () => {
     try {
       const submission = await submitThroughHttp(harness);
       await waitForEmailCount(harness.emailProvider, 1);
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       const emailsBeforeEvent = harness.emailProvider.messages.length;
       const event = verifiedEvent(
         "evt_amount_mismatch",
@@ -138,7 +139,7 @@ describe("payment-integrity regressions", () => {
     const harness = await createSiteHarness({ paymentProvider });
     try {
       const submission = await submitThroughHttp(harness);
-      const firstSession = await beginHttpCheckout(harness, submission.token);
+      const firstSession = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       const firstFailure = processVerifiedPaymentEvent(
         harness.application.database,
         verifiedEvent("evt_first_failed", firstSession, submission.submissionId, {
@@ -148,7 +149,7 @@ describe("payment-integrity regressions", () => {
       );
       expect(firstFailure.finalStatus).toBe("READY_FOR_PAYMENT");
 
-      const secondSession = await beginHttpCheckout(harness, submission.token);
+      const secondSession = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       expect(secondSession).not.toBe(firstSession);
       expect(orderStatus(harness, submission.submissionId)).toBe("PAYMENT_PENDING");
 
@@ -200,7 +201,7 @@ describe("payment-integrity regressions", () => {
     try {
       const submission = await submitThroughHttp(harness);
       await waitForEmailCount(harness.emailProvider, 1);
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       const emailsBeforeEvent = harness.emailProvider.messages.length;
       transitionOrder(
         harness.application.database,
@@ -247,7 +248,7 @@ describe("payment-integrity regressions", () => {
     const harness = await createSiteHarness();
     try {
       const submission = await submitThroughHttp(harness);
-      const checkoutSessionId = await beginHttpCheckout(harness, submission.token);
+      const checkoutSessionId = await beginHttpCheckout(harness, submission.token, submission.submissionId);
       processVerifiedPaymentEvent(
         harness.application.database,
         verifiedEvent("evt_integrity_failure", checkoutSessionId, submission.submissionId, {
@@ -264,7 +265,9 @@ describe("payment-integrity regressions", () => {
       expect(harness.application.database.query<{ capsule_released_at: string | null }, [string]>(
         "SELECT capsule_released_at FROM submissions WHERE id = ?",
       ).get(submission.submissionId)?.capsule_released_at).toBeNull();
-      expect((await harness.request(`/c/${submission.token}/MASTER_PROMPT.md`)).status).toBe(404);
+      expect((await harness.request(`/c/${submission.submissionId}/MASTER_PROMPT.md`, {
+        headers: capabilityAuthorization(submission.token),
+      })).status).toBe(404);
     } finally {
       await harness.close();
     }

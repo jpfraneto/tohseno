@@ -48,11 +48,20 @@
             as authorization and does not become a public document URL.
           </p>
           <p>
-            Private status and capsule URLs are bearer capabilities: anyone who has the complete
-            URL may use it. Treat one like a password. Do not publish it, paste it into public issue
-            trackers, or send it through systems you do not trust. Capability tokens are stored by
+            Private status and capsule links are bearer capabilities: anyone who has the complete
+            link may use it. Treat one like a password. The returned link carries its secret only
+            after the <code>#capability=</code> fragment, which browsers do not send in an HTTP path or referrer.
+            TOHSENO never asks you to put that secret in a path or query string.
+          </p>
+          <p>
+            To open a link in a browser, a small first-party script reconciles the secret and the safe
+            submission ID in a size-limited request body and receives an essential, expiry-bounded cookie
+            dedicated to that submission and marked Secure, HttpOnly, SameSite=Strict, and host-only. A coding
+            agent instead sends the secret in an Authorization header to the documented safe-ID-scoped capsule
+            route. Capability tokens are stored by
             TOHSENO only as one-way hashes, and private responses are sent with no-store and strict
-            referrer protections.
+            referrer protections. Do not publish a capability, paste it into a public issue tracker,
+            or send it through a system you do not trust.
           </p>
         </section>
 
