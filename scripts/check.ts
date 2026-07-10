@@ -247,7 +247,10 @@ async function validateStaticSurface(): Promise<void> {
   const entrypoint = await readText("scripts/container-entrypoint.sh");
   assert(entrypoint.includes("chown -R bun:bun /data"), "Container entrypoint must initialize mounted-volume ownership recursively");
   assert(entrypoint.includes('exec su-exec bun "$@"'), "Container entrypoint must run Bun as the non-root user");
-  assert(dockerfile.includes('VOLUME ["/data"]'), "Production container must declare the persistent /data volume");
+  assert(
+    !/^\s*VOLUME\b/m.test(dockerfile),
+    "Dockerfile must use the Railway-mounted volume instead of an unsupported Docker VOLUME declaration",
+  );
 
   const railway = await readText("railway.toml");
   let railwayConfig: unknown;

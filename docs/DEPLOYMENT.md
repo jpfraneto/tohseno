@@ -72,7 +72,7 @@ The included `railway.toml` selects the Dockerfile builder and defines the `/hea
 7. Configure the Stripe webhook only after the stable HTTPS endpoint exists.
 8. Confirm the volume survives a restart before accepting real submissions.
 
-Railway attaches a newly mounted volume with platform ownership rather than the image-layer `/data` ownership. Keep the included Docker `ENTRYPOINT` intact: it corrects that single directory and drops privileges before starting Bun. Do not configure a Railway `startCommand` for this Dockerfile. Railway Docker start commands replace the image `ENTRYPOINT`, which would bypass both volume initialization and the non-root runtime boundary. The image's `CMD` already runs `bun run start`.
+Railway attaches the configured service volume at `/data` with platform ownership rather than image-layer ownership. The Dockerfile deliberately has no Docker `VOLUME` instruction because Railway's builder rejects it; the mount belongs in the Railway service configuration. Keep the included Docker `ENTRYPOINT` intact: it corrects that single directory and drops privileges before starting Bun. Do not configure a Railway `startCommand` for this Dockerfile. Railway Docker start commands replace the image `ENTRYPOINT`, which would bypass both volume initialization and the non-root runtime boundary. The image's `CMD` already runs `bun run start`.
 
 ### Capability transport and Railway HTTP logs
 

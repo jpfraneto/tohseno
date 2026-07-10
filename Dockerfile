@@ -25,7 +25,6 @@ RUN apk add --no-cache su-exec \
     && chmod 0755 /app/scripts/container-entrypoint.sh
 
 EXPOSE 3000
-VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD ["bun", "-e", "const port = process.env.PORT ?? '3000'; const response = await fetch('http://127.0.0.1:' + port + '/healthz'); if (!response.ok) process.exit(1);"]
