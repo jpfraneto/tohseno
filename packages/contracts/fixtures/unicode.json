@@ -1,0 +1,70 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Freeze exact UTF-8 bytes and distinct SHA-256 digests for visually similar NFC and NFD Unicode without normalization.",
+  "cases": [
+    {
+      "name": "unicode-nfc-cafe-seedling",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "exactText": "Café 🌱",
+      "exactBytesBase64": "Q2Fmw6kg8J+MsQ==",
+      "expectedByteLength": 10,
+      "expectedSha256": "02febefd5adca864103acd2c3fc9e8a1c61753fa0d1d07b5fc9b41aa1d9dfa7b",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000101",
+        "eventId": "evt_01J0000000000000000000101",
+        "mediaType": "text/plain",
+        "codec": "fixture.utf8.exact.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "Q2Fmw6kg8J+MsQ==",
+          "byteLength": 10
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "02febefd5adca864103acd2c3fc9e8a1c61753fa0d1d07b5fc9b41aa1d9dfa7b"
+        },
+        "createdAt": "2026-07-10T11:00:00.000Z",
+        "sealedAt": "2026-07-10T11:00:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.utf8.exact.v1",
+          "immutable": true
+        }
+      }
+    },
+    {
+      "name": "unicode-nfd-cafe-seedling",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "exactText": "Café 🌱",
+      "exactBytesBase64": "Q2FmZcyBIPCfjLE=",
+      "expectedByteLength": 11,
+      "expectedSha256": "8eb4172b1bbd128ae182f6809c020e30355723cb8fe8b24391f6ef2be2dd3246",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000102",
+        "eventId": "evt_01J0000000000000000000102",
+        "mediaType": "text/plain",
+        "codec": "fixture.utf8.exact.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "Q2FmZcyBIPCfjLE=",
+          "byteLength": 11
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "8eb4172b1bbd128ae182f6809c020e30355723cb8fe8b24391f6ef2be2dd3246"
+        },
+        "createdAt": "2026-07-10T11:00:00.000Z",
+        "sealedAt": "2026-07-10T11:00:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.utf8.exact.v1",
+          "immutable": true
+        }
+      }
+    }
+  ]
+}

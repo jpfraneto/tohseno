@@ -1,0 +1,38 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Freeze exact canonical application bytes independently of JSON object reserialization.",
+  "cases": [
+    {
+      "name": "exact-observation-json-bytes",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "exactText": "{\"observation\":\"Araucaria 🌱\",\"count\":1}",
+      "exactBytesBase64": "eyJvYnNlcnZhdGlvbiI6IkFyYXVjYXJpYSDwn4yxIiwiY291bnQiOjF9",
+      "expectedByteLength": 42,
+      "expectedSha256": "d1dd3f508892d57432347fd2ee5c3ee1961598aa0cb2863a756baa59d42464cf",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000401",
+        "eventId": "evt_01J0000000000000000000401",
+        "mediaType": "application/json",
+        "codec": "fixture.exact-json.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "eyJvYnNlcnZhdGlvbiI6IkFyYXVjYXJpYSDwn4yxIiwiY291bnQiOjF9",
+          "byteLength": 42
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "d1dd3f508892d57432347fd2ee5c3ee1961598aa0cb2863a756baa59d42464cf"
+        },
+        "createdAt": "2026-07-10T12:10:00.000Z",
+        "sealedAt": "2026-07-10T12:10:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.exact-json.v1",
+          "immutable": true
+        }
+      }
+    }
+  ]
+}

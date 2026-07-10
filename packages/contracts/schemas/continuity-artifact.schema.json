@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/contracts/continuity-artifact/0.1.0",
+  "title": "ContinuityArtifact",
+  "description": "Immutable sealed bytes, or an immutable reference to bytes, with a digest that identifies content integrity but not event identity or authorship.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactId",
+    "eventId",
+    "mediaType",
+    "codec",
+    "content",
+    "digest",
+    "createdAt",
+    "sealedAt",
+    "seal"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1.0" },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^art_[A-Za-z0-9_-]{16,}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]{16,}$"
+    },
+    "mediaType": {
+      "type": "string",
+      "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
+    },
+    "codec": { "$ref": "#/$defs/contractId" },
+    "content": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "encoding", "bytes", "byteLength"],
+          "properties": {
+            "kind": { "const": "embedded" },
+            "encoding": { "const": "base64" },
+            "bytes": {
+              "type": "string",
+              "contentEncoding": "base64"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16777216
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "uri", "byteLength"],
+          "properties": {
+            "kind": { "const": "reference" },
+            "uri": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 2048,
+              "pattern": "^[a-z][a-z0-9+.-]*:"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1099511627776
+            }
+          }
+        }
+      ]
+    },
+    "digest": { "$ref": "#/$defs/digest" },
+    "createdAt": { "$ref": "#/$defs/timestamp" },
+    "sealedAt": { "$ref": "#/$defs/timestamp" },
+    "seal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sealedBy", "immutable"],
+      "properties": {
+        "sealedBy": { "$ref": "#/$defs/contractId" },
+        "immutable": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "contractId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "digest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "value"],
+      "properties": {
+        "algorithm": { "const": "sha-256" },
+        "value": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

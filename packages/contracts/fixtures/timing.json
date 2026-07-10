@@ -1,0 +1,100 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Require startedAt <= endedAt <= sealedAt <= createdAt and artifact createdAt <= sealedAt.",
+  "cases": [
+    {
+      "name": "event-timing-boundaries-valid",
+      "contract": "ContinuityEvent",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "eventId": "evt_01J0000000000000000000301",
+        "applicationId": "org.tohseno.fixture",
+        "practiceContextId": "practice_fixture_timing_01",
+        "actionPolicy": {
+          "id": "fixture.action.v1",
+          "version": "1"
+        },
+        "lifecycle": {
+          "startedAt": "2026-07-10T12:00:00.000Z",
+          "endedAt": "2026-07-10T12:00:05.000Z",
+          "sealedAt": "2026-07-10T12:00:05.000Z"
+        },
+        "completion": {
+          "state": "completed",
+          "conditionId": "five-seconds",
+          "reason": "The active-duration threshold was reached."
+        },
+        "artifactRefs": [
+          {
+            "artifactId": "art_01J0000000000000000000301",
+            "relation": "primary"
+          }
+        ],
+        "createdAt": "2026-07-10T12:00:05.001Z"
+      }
+    },
+    {
+      "name": "event-ended-before-start-invalid",
+      "contract": "ContinuityEvent",
+      "expectedValid": false,
+      "expectedIssueCode": "timing.order",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "eventId": "evt_01J0000000000000000000302",
+        "applicationId": "org.tohseno.fixture",
+        "practiceContextId": "practice_fixture_timing_01",
+        "actionPolicy": {
+          "id": "fixture.action.v1",
+          "version": "1"
+        },
+        "lifecycle": {
+          "startedAt": "2026-07-10T12:00:05.000Z",
+          "endedAt": "2026-07-10T12:00:00.000Z",
+          "sealedAt": "2026-07-10T12:00:06.000Z"
+        },
+        "completion": {
+          "state": "interrupted",
+          "conditionId": "lifecycle-exit",
+          "reason": "This fixture deliberately reverses start and end."
+        },
+        "artifactRefs": [
+          {
+            "artifactId": "art_01J0000000000000000000302",
+            "relation": "primary"
+          }
+        ],
+        "createdAt": "2026-07-10T12:00:06.001Z"
+      }
+    },
+    {
+      "name": "artifact-sealed-before-created-invalid",
+      "contract": "ContinuityArtifact",
+      "expectedValid": false,
+      "expectedIssueCode": "timing.order",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000303",
+        "eventId": "evt_01J0000000000000000000303",
+        "mediaType": "application/octet-stream",
+        "codec": "fixture.empty.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "",
+          "byteLength": 0
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "createdAt": "2026-07-10T12:00:05.000Z",
+        "sealedAt": "2026-07-10T12:00:04.999Z",
+        "seal": {
+          "sealedBy": "fixture.action.v1",
+          "immutable": true
+        }
+      }
+    }
+  ]
+}

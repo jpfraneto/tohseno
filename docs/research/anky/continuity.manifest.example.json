@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "0.1",
+  "app": {
+    "id": "app.anky.mobile",
+    "name": "Anky",
+    "oneLine": "Anky: write forward continuously until stillness seals the session, then optionally receive a private reflection and return to write again."
+  },
+  "runtime": {
+    "action": {
+      "kind": "timed-forward-writing",
+      "input": {
+        "adapter": "anky.forward-grapheme.v0",
+        "mediaTypes": [
+          "text/anky"
+        ],
+        "restrictions": [
+          "append-one-grapheme",
+          "no-newline",
+          "no-paste",
+          "backspace-disabled-by-default"
+        ]
+      },
+      "completion": {
+        "kind": "active-duration",
+        "thresholdMs": 480000
+      },
+      "interruption": {
+        "kind": "inactivity",
+        "afterMs": 8000
+      },
+      "checkpoint": "on-progress",
+      "interruptedOutcome": "persist"
+    },
+    "feedback": {
+      "onProgress": "silence-ring-and-companion-presence",
+      "onCompletion": "eight-minute-haptic-and-companion-acknowledgement",
+      "afterSeal": "offer-private-reflection",
+      "returnInvitation": "painting-home-reminder-and-optional-write-before-scroll"
+    },
+    "continuity": {
+      "accumulates": [
+        "active-writing-seconds",
+        "completed-session-count",
+        "practice-days",
+        "anky-painting-journey"
+      ],
+      "artifact": {
+        "codec": "anky.dot-anky.v0",
+        "export": "user-selected"
+      },
+      "proof": {
+        "mode": "none",
+        "export": "none",
+        "revealsArtifact": false
+      }
+    },
+    "reflection": {
+      "mode": "monorepo-server",
+      "trigger": "after-seal-opt-in",
+      "policy": "anky.mirror.tiered.v1",
+      "inputDisclosure": "private-artifact",
+      "endpointCapability": "anky.reflection.v1"
+    },
+    "privacy": {
+      "localProtection": "platform-private",
+      "publicByDefault": false,
+      "serverDisclosure": [
+        "exact-artifact-only-after-reflection-consent",
+        "artifact-hash-and-active-seconds-for-continuity-ledger",
+        "accumulated-writing-only-when-requesting-dynamic-painting",
+        "pseudonymous-account-and-operational-metadata"
+      ],
+      "telemetry": "minimal-pseudonymous"
+    },
+    "identity": {
+      "mode": "local-practice",
+      "create": "first-launch",
+      "suite": "anky.base.eoa.v1",
+      "crossAppLinking": "explicit-consent-only"
+    },
+    "recovery": {
+      "offer": "after-first-value",
+      "identity": "opt-in-cloud",
+      "data": "opt-in-encrypted-backup"
+    },
+    "sync": {
+      "mode": "none"
+    },
+    "payments": {
+      "mode": "optional-entitlement",
+      "mayGate": [
+        "server-reflection",
+        "dynamic-painting",
+        "additional-screen-time-unlocks"
+      ],
+      "mustNotGate": [
+        "writing",
+        "local-draft",
+        "local-continuity-event",
+        "private-export",
+        "identity-recovery"
+      ]
+    }
+  },
+  "agent": {
+    "targetHuman": "A person who reaches for scrolling before hearing their own mind.",
+    "longing": "To encounter their own uncensored thought before the world's feed shapes the next moment.",
+    "accumulatedContinuity": "Private writing sessions become practiced days, time, reflections, and an Anky painting journey.",
+    "whatWouldRuinTheRitual": [
+      "A dashboard before the writing surface",
+      "An account form before the first sentence",
+      "Editing tools that turn the stream into polished content",
+      "Automatic public sharing",
+      "An unrelated chatbot",
+      "A reflection request that silently uploads writing"
+    ],
+    "forbiddenPatterns": [
+      "profile-before-practice",
+      "social-feed",
+      "generic-crud",
+      "public-writing-by-default",
+      "generic-ai-chat",
+      "analytics-that-capture-raw-writing",
+      "blockchain-required-for-local-value"
+    ],
+    "tone": [
+      "intimate",
+      "playful",
+      "mythic",
+      "non-clinical",
+      "direct"
+    ],
+    "visualDirection": [
+      "one dominant writing surface",
+      "dark quiet field",
+      "handmade companion presence",
+      "progress felt through ritual rather than dashboards"
+    ],
+    "implementationNotes": [
+      "Preserve .anky v0 bytes and anky.base.eoa.v1 identity during migration.",
+      "Current iOS reflection is opt-in; current Android post-seal reflection auto-starts for entitled users and must be reconciled deliberately.",
+      "Current Android recovery is not equivalent to iOS opt-in cloud recovery.",
+      "Eight minutes marks completeness, while inactivity performs sealing."
+    ]
+  }
+}
+

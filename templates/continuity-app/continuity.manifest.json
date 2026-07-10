@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.1.0",
+  "application": {
+    "id": "org.tohseno.one-quiet-mark",
+    "name": "One Quiet Mark",
+    "targetHuman": "A person who wants one private, non-competitive acknowledgement that they returned today.",
+    "coreAction": "Hold one quiet mark for a full breath and release it to record today's return."
+  },
+  "runtime": {
+    "properties": {
+      "offlineCoreAction": true,
+      "actionBeforeAccount": true,
+      "localFirstRecord": true,
+      "continuityWithoutAi": true,
+      "stableEventIdentity": true,
+      "immutableSealedArtifacts": true
+    },
+    "action": {
+      "input": {
+        "kind": "press-and-hold",
+        "mediaTypes": ["application/json"],
+        "constraints": [
+          "Only uninterrupted active holding counts toward completion.",
+          "Do not display a competitive timer or public streak."
+        ]
+      },
+      "completion": {
+        "kind": "active-duration",
+        "thresholdMs": 5000
+      },
+      "interruption": {
+        "condition": {
+          "kind": "lifecycle-exit"
+        },
+        "partialAction": "preserve",
+        "resumption": "start-new"
+      },
+      "checkpoint": {
+        "intervalMs": 500
+      }
+    },
+    "feedback": {
+      "onProgress": "Let the mark become present without scores or copy competing with the action.",
+      "onCompletion": "Acknowledge one private return with a quiet local change.",
+      "onInterruption": "End the partial hold gently without pretending it was completed."
+    },
+    "returnInvitation": "Invite another return on the next local day without penalizing missed days.",
+    "continuity": {
+      "accumulated": {
+        "description": "Completed returns form a sparse private trace rather than a performance streak.",
+        "projections": ["private completed return dates"]
+      },
+      "artifacts": [
+        {
+          "id": "quiet-mark",
+          "mediaType": "application/json",
+          "codec": "one-quiet-mark.event.v1",
+          "export": "owner-selected"
+        }
+      ]
+    },
+    "privacy": {
+      "localStorage": "application-encrypted",
+      "publicByDefault": false,
+      "controlPlaneReceives": [],
+      "externalDisclosure": [],
+      "telemetry": "none"
+    },
+    "identity": {
+      "mode": "local-contextual",
+      "creation": "first-committed-event",
+      "suite": "one-quiet-mark.practice.v1",
+      "crossAppLinking": "never"
+    },
+    "recovery": {
+      "offer": "after-first-value",
+      "identity": "manual",
+      "content": "manual-export"
+    }
+  },
+  "guidance": {
+    "forbiddenPatterns": [
+      "dashboard before the mark",
+      "profile or login before first value",
+      "social feed",
+      "generic CRUD",
+      "unrelated AI chat",
+      "analytics containing event content",
+      "manipulative streak pressure"
+    ],
+    "visualDirection": [
+      "one centered tactile mark",
+      "warm low-contrast field with accessible text",
+      "continuity shown as a sparse trace rather than charts"
+    ],
+    "tonalDirection": ["quiet", "direct", "compassionate", "non-competitive"],
+    "implementationNotes": [
+      "Replace the illustrative identity suite with an explicitly selected and tested versioned suite before production.",
+      "Derive projections from immutable events; never make a projection the canonical record."
+    ]
+  },
+  "operations": {
+    "operatingMode": "self-hosted",
+    "deploymentTargets": ["native-ios", "native-android"],
+    "requiresServer": false,
+    "ejectionRequired": true,
+    "approvalRequiredFor": [
+      "paid-infrastructure",
+      "dns-change",
+      "store-submission",
+      "production-credential-rotation"
+    ],
+    "operatorNotes": [
+      "Replace every illustrative application identifier and policy before production.",
+      "No remote service is justified by this template ritual."
+    ]
+  }
+}

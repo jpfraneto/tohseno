@@ -1,0 +1,93 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Reject mutated embedded bytes under an old digest and reject any artifact that is not sealed immutable.",
+  "cases": [
+    {
+      "name": "original-exact-artifact-valid",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000501",
+        "eventId": "evt_01J0000000000000000000501",
+        "mediaType": "application/json",
+        "codec": "fixture.exact-json.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "eyJvYnNlcnZhdGlvbiI6IkFyYXVjYXJpYSDwn4yxIiwiY291bnQiOjF9",
+          "byteLength": 42
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "d1dd3f508892d57432347fd2ee5c3ee1961598aa0cb2863a756baa59d42464cf"
+        },
+        "createdAt": "2026-07-10T12:20:00.000Z",
+        "sealedAt": "2026-07-10T12:20:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.exact-json.v1",
+          "immutable": true
+        }
+      }
+    },
+    {
+      "name": "one-glyph-mutation-under-old-digest-invalid",
+      "contract": "ContinuityArtifact",
+      "expectedValid": false,
+      "expectedIssueCode": "artifact.digest-mismatch",
+      "mutatedSha256": "b2f2ee4ac67f7093c1d62d7f9c87b5ffc18ce11c10f1fb7611d635ba353cfd44",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000501",
+        "eventId": "evt_01J0000000000000000000501",
+        "mediaType": "application/json",
+        "codec": "fixture.exact-json.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "eyJvYnNlcnZhdGlvbiI6IkFyYXVjYXJpYSDwn4y/IiwiY291bnQiOjF9",
+          "byteLength": 42
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "d1dd3f508892d57432347fd2ee5c3ee1961598aa0cb2863a756baa59d42464cf"
+        },
+        "createdAt": "2026-07-10T12:20:00.000Z",
+        "sealedAt": "2026-07-10T12:20:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.exact-json.v1",
+          "immutable": true
+        }
+      }
+    },
+    {
+      "name": "mutable-seal-invalid",
+      "contract": "ContinuityArtifact",
+      "expectedValid": false,
+      "expectedIssueCode": "const",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000502",
+        "eventId": "evt_01J0000000000000000000502",
+        "mediaType": "application/octet-stream",
+        "codec": "fixture.empty.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "",
+          "byteLength": 0
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "createdAt": "2026-07-10T12:20:00.000Z",
+        "sealedAt": "2026-07-10T12:20:00.001Z",
+        "seal": {
+          "sealedBy": "fixture.empty.v1",
+          "immutable": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Characterize freshness windows and signer-scoped nonce replay independently of suite-specific signature verification.",
+  "cases": [
+    {
+      "name": "fresh-request-first-nonce-use",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "evaluatedAt": "2026-07-10T12:35:00.000Z",
+      "maxClockSkewMs": 300000,
+      "expectedFresh": true,
+      "replaySequence": 1,
+      "expectedReplay": false,
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/events",
+        "bodyHash": { "algorithm": "sha-256", "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "freshNonce00000000000000001",
+        "signer": { "suite": "fixture.ed25519.v1", "keyId": "practice_fixture_key_01", "publicKey": "fixture-public-key-01" },
+        "signature": { "encoding": "base64url", "value": "fixtureSignatureFresh000001" }
+      }
+    },
+    {
+      "name": "expired-request-rejected-by-policy",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "evaluatedAt": "2026-07-10T12:35:00.000Z",
+      "maxClockSkewMs": 300000,
+      "expectedFresh": false,
+      "replaySequence": 2,
+      "expectedReplay": false,
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/events",
+        "bodyHash": { "algorithm": "sha-256", "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+        "timestamp": "2026-07-10T12:20:00.000Z",
+        "nonce": "expiredNonce000000000000001",
+        "signer": { "suite": "fixture.ed25519.v1", "keyId": "practice_fixture_key_01", "publicKey": "fixture-public-key-01" },
+        "signature": { "encoding": "base64url", "value": "fixtureSignatureExpired0001" }
+      }
+    },
+    {
+      "name": "future-request-rejected-by-policy",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "evaluatedAt": "2026-07-10T12:35:00.000Z",
+      "maxClockSkewMs": 300000,
+      "expectedFresh": false,
+      "replaySequence": 3,
+      "expectedReplay": false,
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/events",
+        "bodyHash": { "algorithm": "sha-256", "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+        "timestamp": "2026-07-10T12:45:00.001Z",
+        "nonce": "futureNonce00000000000000001",
+        "signer": { "suite": "fixture.ed25519.v1", "keyId": "practice_fixture_key_01", "publicKey": "fixture-public-key-01" },
+        "signature": { "encoding": "base64url", "value": "fixtureSignatureFuture00001" }
+      }
+    },
+    {
+      "name": "fresh-request-replayed-nonce-rejected",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "evaluatedAt": "2026-07-10T12:35:00.000Z",
+      "maxClockSkewMs": 300000,
+      "expectedFresh": true,
+      "replaySequence": 4,
+      "expectedReplay": true,
+      "value": {
+        "protocolVersion": "1",
+        "method": "DELETE",
+        "path": "/v1/events/evt_fixture",
+        "bodyHash": { "algorithm": "sha-256", "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+        "timestamp": "2026-07-10T12:35:01.000Z",
+        "nonce": "freshNonce00000000000000001",
+        "signer": { "suite": "fixture.ed25519.v1", "keyId": "practice_fixture_key_01", "publicKey": "fixture-public-key-01" },
+        "signature": { "encoding": "base64url", "value": "fixtureSignatureReplay00001" }
+      }
+    }
+  ]
+}

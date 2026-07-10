@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/contracts/continuity-event/0.1.0",
+  "title": "ContinuityEvent",
+  "description": "An immutable lifecycle fact whose stable eventId is independent of every artifact digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "eventId",
+    "applicationId",
+    "practiceContextId",
+    "actionPolicy",
+    "lifecycle",
+    "completion",
+    "artifactRefs",
+    "createdAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1.0" },
+    "eventId": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]{16,}$"
+    },
+    "applicationId": { "$ref": "#/$defs/contractId" },
+    "practiceContextId": {
+      "type": "string",
+      "pattern": "^practice_[A-Za-z0-9_-]{8,}$"
+    },
+    "actionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contractId" },
+        "version": { "$ref": "#/$defs/version" }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "endedAt", "sealedAt"],
+      "properties": {
+        "startedAt": { "$ref": "#/$defs/timestamp" },
+        "endedAt": { "$ref": "#/$defs/timestamp" },
+        "sealedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "conditionId", "reason"],
+      "properties": {
+        "state": { "enum": ["completed", "interrupted"] },
+        "conditionId": { "$ref": "#/$defs/contractId" },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "artifactRefs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifactId", "relation"],
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "pattern": "^art_[A-Za-z0-9_-]{16,}$"
+          },
+          "relation": { "enum": ["primary", "attachment", "derived"] }
+        }
+      },
+      "contains": {
+        "type": "object",
+        "properties": { "relation": { "const": "primary" } },
+        "required": ["relation"]
+      }
+    },
+    "createdAt": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "contractId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

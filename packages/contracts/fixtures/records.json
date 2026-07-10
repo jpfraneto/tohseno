@@ -1,0 +1,200 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Golden valid and invalid records for each initial continuity contract.",
+  "cases": [
+    {
+      "name": "completed-event-with-stable-id",
+      "contract": "ContinuityEvent",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "eventId": "evt_01J0000000000000000000001",
+        "applicationId": "org.tohseno.daily-observation",
+        "practiceContextId": "practice_daily_observation_01",
+        "actionPolicy": {
+          "id": "daily-observation.capture.v1",
+          "version": "1.0.0"
+        },
+        "lifecycle": {
+          "startedAt": "2026-07-10T10:00:00.000Z",
+          "endedAt": "2026-07-10T10:02:30.000Z",
+          "sealedAt": "2026-07-10T10:02:30.100Z"
+        },
+        "completion": {
+          "state": "completed",
+          "conditionId": "photo-and-sentence",
+          "reason": "One photo and one concrete observation sentence were explicitly submitted."
+        },
+        "artifactRefs": [
+          {
+            "artifactId": "art_01J0000000000000000000001",
+            "relation": "primary"
+          },
+          {
+            "artifactId": "art_01J0000000000000000000002",
+            "relation": "attachment"
+          }
+        ],
+        "createdAt": "2026-07-10T10:02:30.100Z"
+      }
+    },
+    {
+      "name": "referenced-photo-artifact",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000001",
+        "eventId": "evt_01J0000000000000000000001",
+        "mediaType": "image/jpeg",
+        "codec": "daily-observation.jpeg.v1",
+        "content": {
+          "kind": "reference",
+          "uri": "local-blob:observations/01J0000000000000000000001.jpg",
+          "byteLength": 2048000
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "d1dd3f508892d57432347fd2ee5c3ee1961598aa0cb2863a756baa59d42464cf"
+        },
+        "createdAt": "2026-07-10T10:00:02.000Z",
+        "sealedAt": "2026-07-10T10:02:30.100Z",
+        "seal": {
+          "sealedBy": "daily-observation.capture.v1",
+          "immutable": true
+        }
+      }
+    },
+    {
+      "name": "remote-reflection-with-per-event-consent",
+      "contract": "ContinuityReflection",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "reflectionId": "ref_01J0000000000000000000001",
+        "eventId": "evt_01J0000000000000000000001",
+        "artifactId": "art_01J0000000000000000000002",
+        "provider": {
+          "kind": "remote",
+          "id": "fixture.reflection-provider",
+          "policyVersion": "1.0.0",
+          "model": "fixture-no-network-model"
+        },
+        "consent": {
+          "basis": "per-event-opt-in",
+          "recordedAt": "2026-07-10T10:03:00.000Z",
+          "disclosure": [
+            "The exact observation sentence for this event was sent to the fixture provider."
+          ]
+        },
+        "generatedAt": "2026-07-10T10:03:01.000Z",
+        "output": {
+          "text": "You noticed how the new growth changed direction toward the light."
+        },
+        "deletion": {
+          "independentlyDeletable": true
+        }
+      }
+    },
+    {
+      "name": "minimal-practice-key-attestation",
+      "contract": "ContinuityProof",
+      "expectedValid": true,
+      "value": {
+        "schemaVersion": "0.1.0",
+        "proofId": "prf_01J0000000000000000000001",
+        "eventId": "evt_01J0000000000000000000001",
+        "proofVersion": "1",
+        "statement": {
+          "type": "practice-key-attestation",
+          "text": "The holder of this contextual practice key attests that the referenced event was recorded as completed by the application policy.",
+          "claims": {
+            "applicationId": "org.tohseno.daily-observation",
+            "completionState": "completed",
+            "actionPolicyId": "daily-observation.capture.v1"
+          }
+        },
+        "disclosure": {
+          "fields": [
+            "eventId",
+            "applicationId",
+            "completionState",
+            "actionPolicyId"
+          ],
+          "artifactContentIncluded": false
+        },
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "verification": {
+          "algorithm": "Ed25519",
+          "signature": "Zml4dHVyZS1zaWduYXR1cmUtbm90LWNyeXB0b2dyYXBoaWM",
+          "material": "Canonical proof bytes are fixture-defined; this signature is deliberately non-production."
+        },
+        "generatedAt": "2026-07-10T10:03:02.000Z"
+      }
+    },
+    {
+      "name": "remote-reflection-cannot-claim-local-only-consent",
+      "contract": "ContinuityReflection",
+      "expectedValid": false,
+      "expectedIssueCode": "reflection.remote-consent",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "reflectionId": "ref_01J0000000000000000000002",
+        "eventId": "evt_01J0000000000000000000001",
+        "provider": {
+          "kind": "remote",
+          "id": "fixture.reflection-provider",
+          "policyVersion": "1.0.0"
+        },
+        "consent": {
+          "basis": "not-required-local",
+          "recordedAt": "2026-07-10T10:03:00.000Z",
+          "disclosure": []
+        },
+        "generatedAt": "2026-07-10T10:03:01.000Z",
+        "output": "This output must be rejected.",
+        "deletion": {
+          "independentlyDeletable": true
+        }
+      }
+    },
+    {
+      "name": "proof-cannot-include-artifact-content",
+      "contract": "ContinuityProof",
+      "expectedValid": false,
+      "expectedIssueCode": "const",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "proofId": "prf_01J0000000000000000000002",
+        "eventId": "evt_01J0000000000000000000001",
+        "proofVersion": "1",
+        "statement": {
+          "type": "practice-key-attestation",
+          "text": "The key holder claims the application marked this event completed.",
+          "claims": {
+            "completionState": "completed"
+          }
+        },
+        "disclosure": {
+          "fields": ["eventId", "artifactContent"],
+          "artifactContentIncluded": true
+        },
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "fixture-public-key"
+        },
+        "verification": {
+          "algorithm": "Ed25519",
+          "signature": "fixture-signature",
+          "material": "fixture-material"
+        },
+        "generatedAt": "2026-07-10T10:03:02.000Z"
+      }
+    }
+  ]
+}

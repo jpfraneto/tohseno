@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "0.1.0",
+  "application": {
+    "id": "org.tohseno.daily-observation",
+    "name": "Daily Observation",
+    "targetHuman": "A person who wants to become more attentive to nearby life without maintaining a public nature profile.",
+    "coreAction": "Photograph one living thing and add one sentence about what was actually noticed today."
+  },
+  "runtime": {
+    "properties": {
+      "offlineCoreAction": true,
+      "actionBeforeAccount": true,
+      "localFirstRecord": true,
+      "continuityWithoutAi": true,
+      "stableEventIdentity": true,
+      "immutableSealedArtifacts": true
+    },
+    "action": {
+      "input": {
+        "kind": "photo-and-observation",
+        "mediaTypes": ["image/jpeg", "application/json"],
+        "constraints": [
+          "Exactly one locally captured or deliberately selected photo belongs to an event.",
+          "The sentence must describe a concrete observed detail rather than classify a species.",
+          "No network or account is required to capture and seal the observation."
+        ]
+      },
+      "completion": {
+        "kind": "explicit",
+        "predicate": "One image is locally available and the trimmed observation contains one non-empty sentence."
+      },
+      "interruption": {
+        "condition": {
+          "kind": "lifecycle-exit"
+        },
+        "partialAction": "preserve",
+        "resumption": "resume"
+      },
+      "checkpoint": "on-progress"
+    },
+    "feedback": {
+      "onProgress": "Keep the selected image and unfinished sentence recoverable on the device.",
+      "onCompletion": "Show the sealed photo and sentence together once, without scoring the observation.",
+      "onInterruption": "Preserve the unfinished observation and offer to resume it without creating a completed day."
+    },
+    "returnInvitation": "At the person's chosen local time on another day, invite them to notice one living thing again without shaming a gap.",
+    "continuity": {
+      "accumulated": {
+        "description": "A private field notebook grows through distinct observations, seasonal return, and the owner's own words rather than a competitive streak.",
+        "projections": [
+          "private observation cards",
+          "locally grouped seasons",
+          "places generalized on device when the owner chooses"
+        ]
+      },
+      "artifacts": [
+        {
+          "id": "observation-photo",
+          "mediaType": "image/jpeg",
+          "codec": "daily-observation.jpeg.v1",
+          "export": "owner-selected"
+        },
+        {
+          "id": "observation-note",
+          "mediaType": "application/json",
+          "codec": "daily-observation.note.v1",
+          "export": "owner-selected"
+        }
+      ]
+    },
+    "reflection": {
+      "mode": "local-deterministic",
+      "trigger": "after-event-automatic",
+      "eventEligibility": "completed-only",
+      "consent": "standing-explicit",
+      "inputDisclosure": "none",
+      "policyId": "daily-observation.seasonal-return.v1",
+      "fallback": "continue-without-reflection"
+    },
+    "privacy": {
+      "localStorage": "application-encrypted",
+      "publicByDefault": false,
+      "controlPlaneReceives": [
+        "release-version",
+        "deployment-health"
+      ],
+      "externalDisclosure": [],
+      "telemetry": "operational-metadata-only"
+    },
+    "identity": {
+      "mode": "local-contextual",
+      "creation": "first-committed-event",
+      "suite": "daily-observation.practice.v1",
+      "crossAppLinking": "never"
+    },
+    "recovery": {
+      "offer": "after-first-value",
+      "identity": "manual",
+      "content": "manual-export"
+    }
+  },
+  "guidance": {
+    "forbiddenPatterns": [
+      "species leaderboard or observation streak shame",
+      "public map of private photo locations",
+      "social feed or follower profile",
+      "generic media library CRUD",
+      "mandatory classifier or AI chat",
+      "account before the first observation",
+      "automatic cloud upload of photos or sentences",
+      "dashboard replacing the daily observation action"
+    ],
+    "visualDirection": [
+      "camera and one-sentence field are the only primary surface",
+      "quiet field-note typography",
+      "the owner's photograph remains visually primary",
+      "seasonal continuity appears as a small local trace, not charts"
+    ],
+    "tonalDirection": [
+      "observant",
+      "specific",
+      "unhurried",
+      "non-competitive",
+      "non-authoritative about species identification"
+    ],
+    "implementationNotes": [
+      "Store full-resolution media as immutable encrypted blobs referenced by the event rather than inline JSON.",
+      "Strip or preserve image metadata only through an explicit owner-visible policy; do not silently publish location.",
+      "The named identity suite is an application contract identifier, not a claim that TOHSENO has selected its first generic cryptographic suite.",
+      "The local reflection selects a prior observation by deterministic seasonal policy and never requires AI."
+    ]
+  },
+  "operations": {
+    "operatingMode": "client-owned",
+    "deploymentTargets": ["native-ios", "native-android"],
+    "requiresServer": false,
+    "ejectionRequired": true,
+    "approvalRequiredFor": [
+      "paid-infrastructure",
+      "dns-change",
+      "store-submission",
+      "production-credential-rotation"
+    ],
+    "operatorNotes": [
+      "The client retains source, bundle and package identifiers, store identities, signing assets, and every data plane.",
+      "Do not add a server solely to centralize observations."
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Characterize a sealed zero-byte artifact without equating empty content with a completed event.",
+  "cases": [
+    {
+      "name": "empty-embedded-artifact",
+      "contract": "ContinuityArtifact",
+      "expectedValid": true,
+      "exactBytesBase64": "",
+      "expectedByteLength": 0,
+      "expectedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "value": {
+        "schemaVersion": "0.1.0",
+        "artifactId": "art_01J0000000000000000000201",
+        "eventId": "evt_01J0000000000000000000201",
+        "mediaType": "application/octet-stream",
+        "codec": "fixture.empty.v1",
+        "content": {
+          "kind": "embedded",
+          "encoding": "base64",
+          "bytes": "",
+          "byteLength": 0
+        },
+        "digest": {
+          "algorithm": "sha-256",
+          "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "createdAt": "2026-07-10T11:10:00.000Z",
+        "sealedAt": "2026-07-10T11:10:00.000Z",
+        "seal": {
+          "sealedBy": "fixture.interruption.v1",
+          "immutable": true
+        }
+      }
+    }
+  ]
+}

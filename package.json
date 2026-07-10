@@ -1,0 +1,30 @@
+{
+  "name": "tohseno",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun --watch apps/site/server.ts",
+    "start": "bun apps/site/server.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "check": "bun scripts/check.ts",
+    "migrate": "bun scripts/migrate.ts",
+    "generate-secrets": "bun scripts/generate-secrets.ts",
+    "operator": "bun scripts/operator.ts"
+  },
+  "dependencies": {
+    "stripe": "^22.3.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.18",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "bun": ">=1.2.18"
+  }
+}

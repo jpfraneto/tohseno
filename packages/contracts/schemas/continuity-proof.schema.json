@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/contracts/continuity-proof/0.1.0",
+  "title": "ContinuityProof",
+  "description": "An optional minimal-disclosure attestation with an explicit claim. It does not imply independent proof of human action or honest duration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "proofId",
+    "eventId",
+    "proofVersion",
+    "statement",
+    "disclosure",
+    "signer",
+    "verification",
+    "generatedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1.0" },
+    "proofId": {
+      "type": "string",
+      "pattern": "^prf_[A-Za-z0-9_-]{16,}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]{16,}$"
+    },
+    "proofVersion": { "const": "1" },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text", "claims"],
+      "properties": {
+        "type": {
+          "enum": ["practice-key-attestation", "server-witness"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "claims": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 12,
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        }
+      }
+    },
+    "disclosure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "artifactContentIncluded"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        },
+        "artifactContentIncluded": { "const": false }
+      }
+    },
+    "signer": { "$ref": "#/$defs/signer" },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "signature", "material"],
+      "properties": {
+        "algorithm": { "$ref": "#/$defs/token" },
+        "signature": { "$ref": "#/$defs/nonEmpty" },
+        "material": { "$ref": "#/$defs/nonEmpty" }
+      }
+    },
+    "generatedAt": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "token": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 120,
+      "pattern": "^[A-Za-z0-9._+-]+$"
+    },
+    "nonEmpty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "\\S"
+    },
+    "singleLine": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^[^\\r\\n]+$"
+    },
+    "signer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suite", "keyId", "publicKey"],
+      "properties": {
+        "suite": { "$ref": "#/$defs/token" },
+        "keyId": { "$ref": "#/$defs/singleLine" },
+        "publicKey": { "$ref": "#/$defs/singleLine" }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

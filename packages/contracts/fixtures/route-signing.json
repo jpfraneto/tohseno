@@ -1,0 +1,162 @@
+{
+  "fixtureVersion": "1",
+  "purpose": "Bind a version-one signing envelope to the request's actual method, path, and exact body bytes.",
+  "cases": [
+    {
+      "name": "actual-post-reflection-route",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "expectedBinding": true,
+      "actualRequest": {
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyBase64": "eyJldmVudElkIjoiZXZ0XzAxSjAwMDAwMDAwMDAwMDAwMDAwMDAwMDEiLCJyZXF1ZXN0IjoicmVmbGVjdCJ9"
+      },
+      "expectedCanonicalText": "TOHSENO-SIGNED-REQUEST-V1\nPOST\n/v1/reflections\nsha-256:68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7\n2026-07-10T12:34:56.000Z\n0123456789abcdef0123456789abcdef\nfixture.ed25519.v1\npractice_fixture_key_01\nZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5",
+      "expectedCanonicalBytesBase64": "VE9IU0VOTy1TSUdORUQtUkVRVUVTVC1WMQpQT1NUCi92MS9yZWZsZWN0aW9ucwpzaGEtMjU2OjY4ZjM4MzMwMDU2YzIwMzEwZTgzOWQyZGQxNzc1NGMwMDVmYTY3ZWI2MWYzN2EzYzgzZjFkYzgyMWE5MjVmZDcKMjAyNi0wNy0xMFQxMjozNDo1Ni4wMDBaCjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmCmZpeHR1cmUuZWQyNTUxOS52MQpwcmFjdGljZV9maXh0dXJlX2tleV8wMQpabUZyWlMxd2RXSnNhV010YTJWNUxXWnZjaTFtYVhoMGRYSmxjeTF2Ym14NQ==",
+      "expectedCanonicalSha256": "f7512e3942e8915b3ea4464876962cb0eb04e2716de017fe96c36447bfa80828",
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyHash": {
+          "algorithm": "sha-256",
+          "value": "68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7"
+        },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "0123456789abcdef0123456789abcdef",
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "signature": {
+          "encoding": "base64url",
+          "value": "fixtureSignatureValue_0123456789"
+        }
+      }
+    },
+    {
+      "name": "method-substitution-rejected",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "expectedBinding": false,
+      "expectedMismatches": ["method"],
+      "actualRequest": {
+        "method": "DELETE",
+        "path": "/v1/reflections",
+        "bodyBase64": "eyJldmVudElkIjoiZXZ0XzAxSjAwMDAwMDAwMDAwMDAwMDAwMDAwMDEiLCJyZXF1ZXN0IjoicmVmbGVjdCJ9"
+      },
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyHash": {
+          "algorithm": "sha-256",
+          "value": "68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7"
+        },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "0123456789abcdef0123456789abcdef",
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "signature": {
+          "encoding": "base64url",
+          "value": "fixtureSignatureValue_0123456789"
+        }
+      }
+    },
+    {
+      "name": "path-substitution-rejected",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "expectedBinding": false,
+      "expectedMismatches": ["path"],
+      "actualRequest": {
+        "method": "POST",
+        "path": "/v1/proofs",
+        "bodyBase64": "eyJldmVudElkIjoiZXZ0XzAxSjAwMDAwMDAwMDAwMDAwMDAwMDAwMDEiLCJyZXF1ZXN0IjoicmVmbGVjdCJ9"
+      },
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyHash": {
+          "algorithm": "sha-256",
+          "value": "68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7"
+        },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "0123456789abcdef0123456789abcdef",
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "signature": {
+          "encoding": "base64url",
+          "value": "fixtureSignatureValue_0123456789"
+        }
+      }
+    },
+    {
+      "name": "body-mutation-rejected",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": true,
+      "expectedBinding": false,
+      "expectedMismatches": ["bodyHash"],
+      "actualRequest": {
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyBase64": "eyJldmVudElkIjoiZXZ0XzAxSjAwMDAwMDAwMDAwMDAwMDAwMDAwMDEiLCJyZXF1ZXN0IjoiZGVsZXRlIn0="
+      },
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/reflections",
+        "bodyHash": {
+          "algorithm": "sha-256",
+          "value": "68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7"
+        },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "0123456789abcdef0123456789abcdef",
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "signature": {
+          "encoding": "base64url",
+          "value": "fixtureSignatureValue_0123456789"
+        }
+      }
+    },
+    {
+      "name": "query-string-not-part-of-origin-path-field",
+      "contract": "SignedRequestEnvelopeV1",
+      "expectedValid": false,
+      "expectedIssueCode": "string.pattern",
+      "value": {
+        "protocolVersion": "1",
+        "method": "POST",
+        "path": "/v1/reflections?event=secret",
+        "bodyHash": {
+          "algorithm": "sha-256",
+          "value": "68f38330056c20310e839d2dd17754c005fa67eb61f37a3c83f1dc821a925fd7"
+        },
+        "timestamp": "2026-07-10T12:34:56.000Z",
+        "nonce": "0123456789abcdef0123456789abcdef",
+        "signer": {
+          "suite": "fixture.ed25519.v1",
+          "keyId": "practice_fixture_key_01",
+          "publicKey": "ZmFrZS1wdWJsaWMta2V5LWZvci1maXh0dXJlcy1vbmx5"
+        },
+        "signature": {
+          "encoding": "base64url",
+          "value": "fixtureSignatureValue_0123456789"
+        }
+      }
+    }
+  ]
+}

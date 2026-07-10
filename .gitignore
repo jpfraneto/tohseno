@@ -1,0 +1,22 @@
+# Dependencies and generated outputs
+node_modules/
+dist/
+coverage/
+
+# Runtime data and local configuration
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+
+# Local test and diagnostic output
+tmp/
+*.log

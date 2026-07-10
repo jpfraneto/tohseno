@@ -1,0 +1,571 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/continuity.manifest/0.1.0",
+  "title": "TOHSENO Continuity Manifest",
+  "description": "A deliberately small contract for one continuity action. Runtime-enforced behavior, coding-agent guidance, and operator/deployment metadata are separated so prose cannot silently change runtime guarantees.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "application",
+    "runtime",
+    "guidance",
+    "operations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1.0"
+    },
+    "application": {
+      "$ref": "#/$defs/application"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "guidance": {
+      "$ref": "#/$defs/guidance"
+    },
+    "operations": {
+      "$ref": "#/$defs/operations"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "\\S"
+    },
+    "contractId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "targetHuman", "coreAction"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 120,
+          "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "targetHuman": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 500,
+          "pattern": "\\S"
+        },
+        "coreAction": {
+          "description": "One sentence naming one observable action and why the person returns to it.",
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 240,
+          "pattern": "^[^\\r\\n]+$"
+        }
+      }
+    },
+    "completionCondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "thresholdMs"],
+          "properties": {
+            "kind": { "const": "active-duration" },
+            "thresholdMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "threshold", "unit"],
+          "properties": {
+            "kind": { "const": "count" },
+            "threshold": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "unit": { "$ref": "#/$defs/contractId" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate"],
+          "properties": {
+            "kind": { "const": "explicit" },
+            "predicate": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "interruptionCondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "afterMs"],
+          "properties": {
+            "kind": { "const": "inactivity" },
+            "afterMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "const": "lifecycle-exit" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "predicate"],
+          "properties": {
+            "kind": { "const": "explicit" },
+            "predicate": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "completion", "interruption", "checkpoint"],
+      "properties": {
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "mediaTypes"],
+          "properties": {
+            "kind": { "$ref": "#/$defs/contractId" },
+            "mediaTypes": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
+              }
+            },
+            "constraints": {
+              "$ref": "#/$defs/nonEmptyStringArray"
+            }
+          }
+        },
+        "completion": {
+          "$ref": "#/$defs/completionCondition"
+        },
+        "interruption": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["condition", "partialAction", "resumption"],
+          "properties": {
+            "condition": {
+              "$ref": "#/$defs/interruptionCondition"
+            },
+            "partialAction": {
+              "enum": ["preserve", "discard-with-explicit-consent"]
+            },
+            "resumption": {
+              "enum": ["resume", "start-new"]
+            }
+          }
+        },
+        "checkpoint": {
+          "oneOf": [
+            { "const": "on-progress" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["intervalMs"],
+              "properties": {
+                "intervalMs": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 3600000
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "runtimeProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "offlineCoreAction",
+        "actionBeforeAccount",
+        "localFirstRecord",
+        "continuityWithoutAi",
+        "stableEventIdentity",
+        "immutableSealedArtifacts"
+      ],
+      "properties": {
+        "offlineCoreAction": { "const": true },
+        "actionBeforeAccount": { "const": true },
+        "localFirstRecord": { "const": true },
+        "continuityWithoutAi": { "const": true },
+        "stableEventIdentity": { "const": true },
+        "immutableSealedArtifacts": { "const": true }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onCompletion", "onInterruption"],
+      "properties": {
+        "onProgress": { "$ref": "#/$defs/nonEmptyString" },
+        "onCompletion": { "$ref": "#/$defs/nonEmptyString" },
+        "onInterruption": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mediaType", "codec", "export"],
+      "properties": {
+        "id": { "$ref": "#/$defs/contractId" },
+        "mediaType": {
+          "type": "string",
+          "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$"
+        },
+        "codec": { "$ref": "#/$defs/contractId" },
+        "export": {
+          "enum": ["owner-selected", "private-by-default", "none"]
+        }
+      }
+    },
+    "reflection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "trigger",
+        "eventEligibility",
+        "consent",
+        "inputDisclosure",
+        "policyId",
+        "fallback"
+      ],
+      "properties": {
+        "mode": {
+          "enum": ["local-deterministic", "local-ai", "remote-service"]
+        },
+        "trigger": {
+          "enum": ["after-event-opt-in", "after-event-automatic"]
+        },
+        "eventEligibility": {
+          "enum": ["completed-only", "completed-or-interrupted"]
+        },
+        "consent": {
+          "enum": ["per-event", "standing-explicit"]
+        },
+        "inputDisclosure": {
+          "enum": ["none", "derived-features", "private-artifact"]
+        },
+        "policyId": { "$ref": "#/$defs/contractId" },
+        "fallback": { "const": "continue-without-reflection" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "localStorage",
+        "publicByDefault",
+        "controlPlaneReceives",
+        "externalDisclosure",
+        "telemetry"
+      ],
+      "properties": {
+        "localStorage": {
+          "enum": ["platform-private", "application-encrypted"]
+        },
+        "publicByDefault": { "const": false },
+        "controlPlaneReceives": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "none",
+              "release-version",
+              "deployment-health",
+              "migration-health",
+              "opaque-application-id",
+              "pseudonymous-request-authorization",
+              "minimal-payment-and-order-state"
+            ]
+          }
+        },
+        "externalDisclosure": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "telemetry": {
+          "enum": [
+            "none",
+            "operational-metadata-only",
+            "minimal-pseudonymous"
+          ]
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "creation", "crossAppLinking"],
+      "properties": {
+        "mode": { "enum": ["none", "local-contextual"] },
+        "creation": {
+          "enum": ["first-action", "first-committed-event", "first-launch"]
+        },
+        "suite": { "$ref": "#/$defs/contractId" },
+        "crossAppLinking": {
+          "enum": ["never", "explicit-consent-only"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "mode": { "const": "local-contextual" } },
+            "required": ["mode"]
+          },
+          "then": { "required": ["suite"] }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "none" } },
+            "required": ["mode"]
+          },
+          "then": { "not": { "required": ["suite"] } }
+        }
+      ]
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offer", "identity", "content"],
+      "properties": {
+        "offer": {
+          "enum": ["after-first-value", "settings-only", "never"]
+        },
+        "identity": {
+          "enum": ["none", "manual", "opt-in-encrypted-backup"]
+        },
+        "content": {
+          "enum": ["none", "manual-export", "opt-in-encrypted-backup"]
+        }
+      }
+    },
+    "proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "statement",
+        "disclosure",
+        "artifactDisclosure",
+        "export"
+      ],
+      "properties": {
+        "mode": {
+          "enum": ["practice-key-attestation", "server-witnessed"]
+        },
+        "statement": { "$ref": "#/$defs/nonEmptyString" },
+        "disclosure": { "const": "minimal" },
+        "artifactDisclosure": { "enum": ["none", "digest"] },
+        "export": { "const": "owner-selected" }
+      }
+    },
+    "synchronization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "conflictPolicy"],
+      "properties": {
+        "mode": { "const": "opt-in-encrypted" },
+        "conflictPolicy": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "payments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "mayGate", "mustNotGate"],
+      "properties": {
+        "mode": { "const": "optional-entitlement" },
+        "mayGate": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contractId" }
+        },
+        "mustNotGate": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/contractId" },
+          "allOf": [
+            { "contains": { "const": "core-action" } },
+            { "contains": { "const": "local-record" } },
+            { "contains": { "const": "recovery" } },
+            { "contains": { "const": "owner-export" } }
+          ]
+        }
+      }
+    },
+    "runtime": {
+      "description": "Behavior and privacy properties a generated application must enforce and test.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "properties",
+        "action",
+        "feedback",
+        "returnInvitation",
+        "continuity",
+        "privacy",
+        "identity",
+        "recovery"
+      ],
+      "properties": {
+        "properties": { "$ref": "#/$defs/runtimeProperties" },
+        "action": { "$ref": "#/$defs/action" },
+        "feedback": { "$ref": "#/$defs/feedback" },
+        "returnInvitation": { "$ref": "#/$defs/nonEmptyString" },
+        "continuity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["accumulated", "artifacts"],
+          "properties": {
+            "accumulated": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["description", "projections"],
+              "properties": {
+                "description": { "$ref": "#/$defs/nonEmptyString" },
+                "projections": {
+                  "$ref": "#/$defs/nonEmptyStringArray"
+                }
+              }
+            },
+            "artifacts": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": { "$ref": "#/$defs/artifact" }
+            }
+          }
+        },
+        "reflection": { "$ref": "#/$defs/reflection" },
+        "privacy": { "$ref": "#/$defs/privacy" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "recovery": { "$ref": "#/$defs/recovery" },
+        "proofs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/proof" }
+        },
+        "synchronization": { "$ref": "#/$defs/synchronization" },
+        "payments": { "$ref": "#/$defs/payments" }
+      }
+    },
+    "guidance": {
+      "description": "Non-executable judgment constraints for a coding agent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "forbiddenPatterns",
+        "visualDirection",
+        "tonalDirection"
+      ],
+      "properties": {
+        "forbiddenPatterns": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "visualDirection": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "tonalDirection": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "implementationNotes": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        }
+      }
+    },
+    "operations": {
+      "description": "Operator and deployment metadata. It cannot weaken runtime guarantees.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operatingMode",
+        "deploymentTargets",
+        "requiresServer",
+        "ejectionRequired",
+        "approvalRequiredFor"
+      ],
+      "properties": {
+        "operatingMode": {
+          "enum": ["self-hosted", "client-owned", "anky-operated"]
+        },
+        "deploymentTargets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["native-ios", "native-android", "web", "server"]
+          }
+        },
+        "requiresServer": { "type": "boolean" },
+        "ejectionRequired": { "const": true },
+        "approvalRequiredFor": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "paid-infrastructure",
+              "dns-change",
+              "store-submission",
+              "production-credential-rotation"
+            ]
+          }
+        },
+        "operatorNotes": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/contracts/continuity-reflection/0.1.0",
+  "title": "ContinuityReflection",
+  "description": "An independently deletable derived record linked to a stable event and, when relevant, the exact artifact used as input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reflectionId",
+    "eventId",
+    "provider",
+    "consent",
+    "generatedAt",
+    "output",
+    "deletion"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1.0" },
+    "reflectionId": {
+      "type": "string",
+      "pattern": "^ref_[A-Za-z0-9_-]{16,}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9_-]{16,}$"
+    },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^art_[A-Za-z0-9_-]{16,}$"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "policyVersion"],
+      "properties": {
+        "kind": { "enum": ["local", "remote"] },
+        "id": { "$ref": "#/$defs/contractId" },
+        "policyVersion": { "$ref": "#/$defs/version" },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "consent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "recordedAt", "disclosure"],
+      "properties": {
+        "basis": {
+          "enum": [
+            "not-required-local",
+            "per-event-opt-in",
+            "standing-explicit"
+          ]
+        },
+        "recordedAt": { "$ref": "#/$defs/timestamp" },
+        "disclosure": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "generatedAt": { "$ref": "#/$defs/timestamp" },
+    "output": {},
+    "deletion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["independentlyDeletable"],
+      "properties": {
+        "independentlyDeletable": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "contractId": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
