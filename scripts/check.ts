@@ -246,6 +246,8 @@ async function validateStaticSurface(): Promise<void> {
   assert(dockerfile.includes("su-exec"), "Production container must drop privileges before the Bun process starts");
   const entrypoint = await readText("scripts/container-entrypoint.sh");
   assert(entrypoint.includes("chown -R bun:bun /data"), "Container entrypoint must initialize mounted-volume ownership recursively");
+  assert(entrypoint.includes("chmod -R go-rwx /data"), "Container entrypoint must remove group/world access from persisted data");
+  assert(entrypoint.includes("umask 0077"), "Container entrypoint must create persisted data as owner-only");
   assert(entrypoint.includes('exec su-exec bun "$@"'), "Container entrypoint must run Bun as the non-root user");
   assert(
     !/^\s*VOLUME\b/m.test(dockerfile),
