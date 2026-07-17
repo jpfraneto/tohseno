@@ -1,6 +1,6 @@
 # Continuity app source-contract template
 
-This directory is a valid, deliberately small starting contract. Copy all four
+This directory is a valid, deliberately small starting contract. Copy all five
 files into a new application repository, then replace the illustrative “One
 Quiet Mark” ritual through the TOHSENO continuity-app skill.
 
@@ -9,9 +9,12 @@ Do not begin by adding screens. First make these changes together:
 1. Rewrite `MASTER_PROMPT.md` around one observable repeated action.
 2. Update `continuity.manifest.json` and validate it against
    `packages/manifest/continuity.manifest.schema.json`.
-3. Confirm the completion, interruption, partial-action, reflection-consent,
+3. Start `EVOLUTION.md` as a content-free index from owner intent to manifest
+   and release evidence. Keep exact owner requests in an owner-approved private
+   location, not in this safe index by default.
+4. Confirm the completion, interruption, partial-action, reflection-consent,
    privacy, recovery, export, and forbidden-pattern decisions with the owner.
-4. Update `OPERATOR.md` with real build, test, migration, backup, rollback, and
+5. Update `OPERATOR.md` with real build, test, migration, backup, rollback, and
    ejection commands as implementation evidence becomes available.
 
 The manifest separates runtime-enforced properties from coding-agent guidance

@@ -12,7 +12,8 @@ For client-owned mode, the customer already owns the production accounts and ide
 
 A complete generated-application ejection package should contain:
 
-- original `MASTER_PROMPT.md` and the locked/current manifest history;
+- original `MASTER_PROMPT.md`, owner-authorized private evolution history, and
+  the locked/current manifest and release lineage;
 - all source repositories at specific commits, including generated and handwritten changes;
 - dependency manifests/locks and third-party license notices;
 - reproducible local build, test, migration, and release commands;

@@ -54,6 +54,24 @@ manifest and runbook files, and the contract schemas in
 changes. Inventory target platforms, existing code, ownership mode, data
 locations, services, and known open decisions.
 
+For an existing application, record the evolution boundary before changing
+source. Preserve the owner's exact request only in an owner-approved private
+location. Create or update a safe `EVOLUTION.md` index using
+`templates/continuity-app/EVOLUTION.md`, with a stable revision ID, parent,
+sanitized intent summary, current manifest/release references, open or
+unsupported requirements, approval needs, and later implementation evidence.
+Never paste the raw request, a capability, a secret-bearing private reference,
+or model chain-of-thought into that index. Do not publish a private prompt digest
+by default; a digest identifies bytes but does not authorize access and may
+create correlation or guessing risk.
+
+Distill an evolution request into a proposed manifest diff before code. Preserve
+the current manifest and release as ancestors; rollback creates a new revision
+rather than erasing history. Obtain owner confirmation before a revision changes
+the core ritual, privacy, disclosure, identity, recovery, ownership, cost, or
+external authority. Keep owner/update authority distinct from runtime practice
+identity unless an accepted contract explicitly relates them.
+
 If the capsule is Anky-operated but not approved, stop at an application-status
 and review package. Do not infer production authorization.
 
@@ -290,7 +308,8 @@ approval before production work; selective review is not automatic publishing.
 Return:
 
 - every source repository and exact commit;
-- original prompt, locked manifest, generated acceptance tests, and runbook;
+- original prompt, owner-authorized evolution history, locked/current manifest
+  history, generated acceptance tests, and runbook;
 - ownership map for source, bundle/package IDs, domains, stores, services,
   databases, signing identities, and data;
 - build, test, migration, backup/restore, deployment, rollback, and deletion
@@ -308,7 +327,9 @@ Customers stay because the system works, not because leaving is impossible.
 Call the application deployment-ready only when the manifest is confirmed,
 privacy inventory agrees with code, the local ritual works offline, invariants
 are green on each claimed target, ownership is recorded, and deployment,
-rollback, deletion, recovery, and ejection instructions are executable. Report
+rollback, deletion, recovery, and ejection instructions are executable. For an
+evolved application, require a safe trace from owner intent through manifest
+revision to verified release evidence. Report
 store review and external-provider behavior as outside TOHSENO's control.
 
 End with an honest list of what works, what remains unimplemented or unverified,

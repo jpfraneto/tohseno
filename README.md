@@ -17,6 +17,10 @@ a private-by-default native application, reflection service, landing page, infra
 Current repository status:
 the first product shell, manifest contract, private intake, operator workflow, agent capsule, and architectural contract harness.
 
+As of 2026-07-17, this shell is deployed at [tohseno.com](https://tohseno.com).
+That live control-plane doorway does not change the repository's current scope or
+mean that a complete native application compiler is live.
+
 The full compiler does not exist yet. Today, TOHSENO provides an honest doorway and operating spine: it accepts a private source document, records an explicit ownership mode and order lifecycle, takes payment where configured, and releases a private coding-agent capsule when the applicable gate is satisfied. In self-hosted mode, `READY` means that capsule and source contract are available; it does not mean a native application has already been generated.
 
 ## What works now
@@ -70,7 +74,8 @@ packages/contracts        draft language-neutral event/artifact/reflection/proof
 examples                  Anky and daily-observation source/manifest examples
 templates/continuity-app  honest handoff and operator/ejection starter contract
 skills/continuity-app     coding-agent workflow and refusal rules
-docs                      doctrine, privacy, architecture, ADRs, operations, research
+docs                      doctrine, roadmap, proposals, intent distillations,
+                          privacy, architecture, ADRs, operations, research
 scripts                   checks, migrations/backups/secrets, operator CLI
 ```
 
@@ -130,7 +135,7 @@ Configure a public HTTPS `BASE_URL`, strong data/operator secrets, production St
 
 ## Product and contribution contract
 
-Start with [Doctrine](docs/DOCTRINE.md), [Product contract](docs/PRODUCT_CONTRACT.md), and [Open questions](docs/OPEN_QUESTIONS.md). Any feature must be expressible as a valid manifest diff. Otherwise it is unsupported, not an invitation to quietly become a custom software agency.
+Start with [Doctrine](docs/DOCTRINE.md), [Product contract](docs/PRODUCT_CONTRACT.md), [Product roadmap](docs/PRODUCT_ROADMAP.md), and [Open questions](docs/OPEN_QUESTIONS.md). New protocol work remains in [Proposals](docs/proposals/README.md) until its decisions and tests support an ADR. Sanitized [public intent distillations](docs/intent/README.md) demonstrate the intended evolution record without committing raw owner prompts. Any feature must be expressible as a valid manifest diff. Otherwise it is unsupported, not an invitation to quietly become a custom software agency.
 
 The Anky architectural study is preserved verbatim under [docs/research/anky](docs/research/anky/README.md). No Anky production implementation code was copied.
 
