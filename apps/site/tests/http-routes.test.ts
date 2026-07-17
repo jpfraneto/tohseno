@@ -66,6 +66,37 @@ describe("public HTTP surface", () => {
     }
   });
 
+  test("serves the oneshot bootstrap as a pinned, revalidated, syntactically valid shell script", async () => {
+    const harness = await createSiteHarness();
+    try {
+      const response = await harness.request("/oneshot.sh");
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/x-shellscript");
+      expect(response.headers.get("cache-control")).toBe("public, max-age=0, must-revalidate");
+
+      // Trust and partial-download boundaries: an exact pinned commit, all
+      // work inside main() invoked on the final line, and no secret intake.
+      expect(body).toMatch(/^TOHSENO_PIN="[0-9a-f]{40}"$/m);
+      expect(body.trimEnd().endsWith('main "$@"')).toBe(true);
+      expect(body).toContain("set -euo pipefail");
+      expect(body).toContain("refusing to overwrite");
+      expect(body).toContain("secrets and capabilities are never accepted as arguments");
+      expect(body.toLowerCase()).not.toContain("password");
+      expect(body).not.toContain("sk_");
+
+      const syntax = Bun.spawnSync(["bash", "-n", new URL("../public/oneshot.sh", import.meta.url).pathname]);
+      expect(syntax.exitCode).toBe(0);
+
+      const head = await harness.request("/oneshot.sh", { method: "HEAD" });
+      expect(head.status).toBe(200);
+      expect(await head.text()).toBe("");
+    } finally {
+      await harness.close();
+    }
+  });
+
   test("discloses disabled Checkout before a visitor submits private Markdown", async () => {
     const harness = await createSiteHarness({ config: { paymentsMode: "disabled" } });
     try {

@@ -207,7 +207,7 @@ function methodNotAllowed(allow: readonly string[]): Response {
 
 function allowedMethods(pathname: string): readonly string[] | null {
   if ([
-    "/", "/privacy", "/healthz", "/styles.css", "/app.js", "/robots.txt",
+    "/", "/privacy", "/healthz", "/styles.css", "/app.js", "/robots.txt", "/oneshot.sh",
     "/checkout/success", "/checkout/cancel",
   ].includes(pathname) ||
     /^\/status\/sub_[A-Za-z0-9_-]{24}$/.test(pathname) ||
@@ -279,7 +279,7 @@ function routeLabel(method: string, pathname: string): string {
   }
   if (/^\/api\/operator\/submissions\/[^/]+$/.test(pathname)) return `${method} /api/operator/submissions/:id`;
   if (pathname === "/api/operator/submissions") return `${method} /api/operator/submissions`;
-  if (["/styles.css", "/app.js", "/robots.txt"].includes(pathname)) return `${method} ${pathname}`;
+  if (["/styles.css", "/app.js", "/robots.txt", "/oneshot.sh"].includes(pathname)) return `${method} ${pathname}`;
   return `${method} unmatched`;
 }
 
@@ -451,13 +451,16 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
       "/styles.css": { file: "styles.css", type: "text/css; charset=utf-8" },
       "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
       "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
+      // The bootstrap embeds a pinned rails commit; a stale cached copy would
+      // point installers at a superseded release, so it must revalidate.
+      "/oneshot.sh": { file: "oneshot.sh", type: "text/x-shellscript; charset=utf-8" },
     };
     const staticFile = staticFiles[pathname];
     if ((method === "GET" || method === "HEAD") && staticFile) {
       const response = new Response(Bun.file(join(PUBLIC_DIRECTORY, staticFile.file)), {
         headers: {
           "Content-Type": staticFile.type,
-          "Cache-Control": pathname === "/app.js"
+          "Cache-Control": pathname === "/app.js" || pathname === "/oneshot.sh"
             ? "public, max-age=0, must-revalidate"
             : "public, max-age=3600",
         },
