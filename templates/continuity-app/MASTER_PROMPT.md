@@ -1,3 +1,7 @@
+<!-- tohseno:template-prompt — placeholder. A coding agent that finds this
+     marker must interview the owner (SKILL.md step 2) and co-write the real
+     MASTER_PROMPT.md instead of building this illustrative prompt. -->
+
 # One Quiet Mark — illustrative source prompt
 
 This prompt exists to keep the template's manifest valid. Replace it with the

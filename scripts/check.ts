@@ -319,6 +319,10 @@ async function validateOneshotPin(): Promise<void> {
     "templates/continuity-app/EVOLUTION.md",
     "templates/continuity-app/OPERATOR.md",
     "templates/continuity-app/README.md",
+    "examples/anky/MASTER_PROMPT.md",
+    "examples/anky/continuity.manifest.json",
+    "examples/daily-observation/MASTER_PROMPT.md",
+    "examples/daily-observation/continuity.manifest.json",
     "skills/continuity-app/SKILL.md",
   ]) {
     try {

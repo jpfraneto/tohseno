@@ -16,12 +16,12 @@ One command, from any machine with git and a coding agent:
 curl -fsSL https://tohseno.com/oneshot.sh | bash
 ```
 
-It clones these rails at an exact pinned commit, creates a fresh app workspace from `templates/continuity-app`, and prints the next step. It accepts no secrets, sends no telemetry, creates no accounts, and deploys nothing. Read it first if you prefer: `curl -fsSL https://tohseno.com/oneshot.sh | less`.
+It clones these rails at an exact pinned commit, asks whether you want to start blank or from a shipped working example (`anky` or `daily-observation`), creates a fresh app workspace, and prints the one command to hand your coding agent. It accepts no secrets, sends no telemetry, creates no accounts, and deploys nothing. Read it first if you prefer: `curl -fsSL https://tohseno.com/oneshot.sh | less`.
 
 Then the loop is:
 
-1. **Distill.** Rewrite `MASTER_PROMPT.md` in the new workspace around one repeated action — the thing your app makes durable.
-2. **Hand off.** Start your coding agent in the workspace and tell it: *read `AGENTS.md`, then build this continuity app by following `skills/continuity-app/SKILL.md`.*
+1. **Hand off.** Start your coding agent in the workspace: *read `AGENTS.md` and begin.*
+2. **Distill.** If you started blank, the agent does not build the placeholder prompt — it interviews you (one question at a time) about the one repeated action your app protects, then writes `MASTER_PROMPT.md` with you and gets your confirmation. If you started from an example, `MASTER_PROMPT.md` and the manifest are already complete and the agent builds immediately.
 3. **Build inside the rails.** The skill walks the agent through interview, manifest, privacy inventory, smallest offline vertical slice, invariant tests, deployment preparation, and the ejection package. The manifest schema in `packages/manifest` is the boundary: a feature that cannot be expressed as a valid manifest diff is unsupported, not quietly improvised.
 
 ## If you are a coding agent reading this
