@@ -172,14 +172,29 @@ async function validateStaticSurface(): Promise<void> {
   console.log("\n[check] static and deployment surface");
 
   const index = await readText("apps/site/public/index.html");
+  const intake = await readText("apps/site/public/intake.html");
   const privacy = await readText("apps/site/public/privacy.html");
   const robots = await readText("apps/site/public/robots.txt");
-  const publicSources = [
-    index,
-    privacy,
+  const htmlPages: Array<[string, string]> = [
+    ["landing", index],
+    ["intake", intake],
+    ["privacy", privacy],
+  ];
+  const codeAssets = [
     await readText("apps/site/public/styles.css"),
     await readText("apps/site/public/app.js"),
   ];
+
+  for (const required of [
+    "{{ONESHOT_COMMAND}}",
+    "data-copy-command",
+    "{{REPOSITORY_URL}}",
+    'href="/intake"',
+    'href="/privacy"',
+  ]) {
+    assert(index.includes(required), `Landing page is missing required hero contract: ${required}`);
+  }
+  assert(!index.includes("<form"), "Landing page must stay a single hero without an intake form");
 
   for (const required of [
     'action="/api/submissions"',
@@ -191,15 +206,22 @@ async function validateStaticSurface(): Promise<void> {
     'value="anky-operated"',
     'href="/privacy"',
   ]) {
-    assert(index.includes(required), `Landing page is missing required form contract: ${required}`);
+    assert(intake.includes(required), `Intake page is missing required form contract: ${required}`);
+  }
+  for (const [label, page] of htmlPages) {
+    assert(!/<script(?![^>]*\bsrc=)[^>]*>/iu.test(page), `The ${label} page must not use inline scripts`);
+    assert(
+      !/<(?:script|link|img|iframe|frame|embed|object|source|video|audio|form)\b[^>]*\b(?:src|href|action|data)\s*=\s*["'](?:https?:)?\/\//iu.test(page),
+      `The ${label} page must not load resources from or submit to another origin`,
+    );
   }
   assert(index.includes('src="/app.js"'), "Landing JavaScript must be a separate same-origin asset");
-  assert(!/<script(?![^>]*\bsrc=)[^>]*>/iu.test(index), "Landing page must not use inline scripts");
+  assert(intake.includes('src="/app.js"'), "Intake JavaScript must be a separate same-origin asset");
   assert(
-    !publicSources.some((source) =>
+    !codeAssets.some((source) =>
       /\bhttps?:\/\/|(?:src|href)\s*=\s*["']\/\/|url\(\s*["']?\/\//iu.test(source)
     ),
-    "Public assets must not load or call third-party origins",
+    "Public style and script assets must not reference other origins",
   );
 
   for (const phrase of [

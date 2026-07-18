@@ -31,10 +31,32 @@ function expectPrivateSecurity(response: Response): void {
 }
 
 describe("public HTTP surface", () => {
-  test("serves the raw landing page with centralized prices, all modes, and security headers", async () => {
+  test("serves the one-command hero landing page without any intake form", async () => {
     const harness = await createSiteHarness();
     try {
       const response = await harness.request("/");
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+      expectBaselineSecurity(response);
+      expect(body).toContain("curl -fsSL https://tohseno.com/oneshot.sh | bash");
+      expect(body).toContain("data-copy-command");
+      expect(body).toContain("https://github.com/jpfraneto/tohseno");
+      expect(body).toContain('href="/intake"');
+      expect(body).toContain('href="/privacy"');
+      expect(body).not.toContain('action="/api/submissions"');
+      expect(body).not.toContain("<form");
+      expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("serves the intake page with centralized prices, all modes, and security headers", async () => {
+    const harness = await createSiteHarness();
+    try {
+      const response = await harness.request("/intake");
       const body = await response.text();
 
       expect(response.status).toBe(200);
@@ -100,7 +122,7 @@ describe("public HTTP surface", () => {
   test("discloses disabled Checkout before a visitor submits private Markdown", async () => {
     const harness = await createSiteHarness({ config: { paymentsMode: "disabled" } });
     try {
-      const response = await harness.request("/");
+      const response = await harness.request("/intake");
       const body = await response.text();
       expect(response.status).toBe(200);
       expect(body).toContain("Private intake is open");

@@ -99,6 +99,96 @@ a:hover {
   color: var(--muted);
 }
 
+.hero-page {
+  display: grid;
+  min-height: 100dvh;
+  grid-template-rows: auto 1fr auto;
+}
+
+.hero {
+  display: flex;
+  width: min(100% - 2rem, 62rem);
+  margin-inline: auto;
+  padding: clamp(1.5rem, 4vh, 4rem) 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hero .cycle {
+  margin: 0 0 1.5rem;
+}
+
+.hero h1 {
+  max-width: 16ch;
+  margin: 0 0 1.25rem;
+  font-size: clamp(2.4rem, 5.4vw, 5rem);
+}
+
+.hero-lede {
+  max-width: 44rem;
+}
+
+.command-block {
+  display: flex;
+  margin: clamp(1.75rem, 4vh, 3rem) 0 0;
+  align-items: stretch;
+  border: 1px solid var(--ink);
+  background: rgb(255 252 245 / 62%);
+}
+
+.command-line {
+  display: block;
+  padding: 1.1rem 1.25rem;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: clamp(0.82rem, 1.6vw, 1rem);
+  line-height: 1.5;
+  white-space: nowrap;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.copy-button {
+  flex: 0 0 auto;
+  padding: 0 1.4rem;
+  border: 0;
+  border-left: 1px solid var(--accent-dark);
+  border-radius: 0;
+  background: var(--accent);
+  color: #fffaf0;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.copy-button:hover {
+  background: var(--accent-dark);
+}
+
+.copy-button[data-copied="true"] {
+  background: var(--ink);
+}
+
+.command-note {
+  max-width: 44rem;
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.hero-links {
+  display: flex;
+  margin-top: clamp(1.75rem, 4vh, 3rem);
+  flex-wrap: wrap;
+  gap: 0.6rem 2rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
 .intake-shell {
   display: grid;
   width: min(100% - 2rem, var(--max-width));
@@ -624,6 +714,20 @@ input[type="email"] {
 
   h1 {
     font-size: clamp(2.6rem, 15vw, 4.25rem);
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 11vw, 3.2rem);
+  }
+
+  .command-block {
+    flex-direction: column;
+  }
+
+  .copy-button {
+    padding: 0.85rem;
+    border-top: 1px solid var(--accent-dark);
+    border-left: 0;
   }
 
   .field-heading,

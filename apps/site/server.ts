@@ -133,6 +133,8 @@ function renderLanding(template: string, provider: PaymentProvider, config: AppC
     SELF_HOSTED_PRICE: PRODUCT.prices.selfHosted.display,
     CLIENT_PRICE: PRODUCT.prices.clientOwned.display,
     ANKY_PRICE: PRODUCT.prices.ankyOperated.display,
+    ONESHOT_COMMAND: PRODUCT.oneshotCommand,
+    REPOSITORY_URL: PRODUCT.repositoryUrl,
   };
   const rendered = template.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_match, key: string) => {
     const value = values[key];
@@ -207,7 +209,7 @@ function methodNotAllowed(allow: readonly string[]): Response {
 
 function allowedMethods(pathname: string): readonly string[] | null {
   if ([
-    "/", "/privacy", "/healthz", "/styles.css", "/app.js", "/robots.txt", "/oneshot.sh",
+    "/", "/intake", "/privacy", "/healthz", "/styles.css", "/app.js", "/robots.txt", "/oneshot.sh",
     "/checkout/success", "/checkout/cancel",
   ].includes(pathname) ||
     /^\/status\/sub_[A-Za-z0-9_-]{24}$/.test(pathname) ||
@@ -261,6 +263,7 @@ function canonicalBoundary(request: Request, config: AppConfig): Response | null
 
 function routeLabel(method: string, pathname: string): string {
   if (pathname === "/") return `${method} /`;
+  if (pathname === "/intake") return `${method} /intake`;
   if (pathname === "/privacy") return `${method} /privacy`;
   if (pathname === "/healthz") return `${method} /healthz`;
   if (pathname === "/api/submissions") return `${method} /api/submissions`;
@@ -384,11 +387,13 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
   const paymentProvider = options.paymentProvider ?? createPaymentProvider(config);
   const emailProvider = options.emailProvider ?? createEmailProvider(config);
   recoverInterruptedEmailDeliveries(database);
-  const [landingTemplate, privacyPage] = await Promise.all([
+  const [landingTemplate, intakeTemplate, privacyPage] = await Promise.all([
     Bun.file(join(PUBLIC_DIRECTORY, "index.html")).text(),
+    Bun.file(join(PUBLIC_DIRECTORY, "intake.html")).text(),
     Bun.file(join(PUBLIC_DIRECTORY, "privacy.html")).text(),
   ]);
   const landingPage = renderLanding(landingTemplate, paymentProvider, config);
+  const intakePage = renderLanding(intakeTemplate, paymentProvider, config);
   const backgroundEmailTasks = new Set<Promise<void>>();
   let closing = false;
   const scheduleEmailDrain = (
@@ -438,6 +443,9 @@ export async function createApplication(options: ApplicationOptions = {}): Promi
 
     if ((method === "GET" || method === "HEAD") && pathname === "/") {
       return { response: headResponse(html(landingPage), method) };
+    }
+    if ((method === "GET" || method === "HEAD") && pathname === "/intake") {
+      return { response: headResponse(html(intakePage), method) };
     }
     if ((method === "GET" || method === "HEAD") && pathname === "/privacy") {
       return { response: headResponse(html(privacyPage), method) };
