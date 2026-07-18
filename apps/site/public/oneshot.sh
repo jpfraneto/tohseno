@@ -38,7 +38,7 @@ set -euo pipefail
 
 TOHSENO_PIN="fc047fc4f67dfd4860298f55fdae6ec7fc89bac9"
 DEFAULT_REPO="https://github.com/jpfraneto/tohseno.git"
-ONESHOT_VERSION="0.2.0"
+ONESHOT_VERSION="0.2.1"
 
 # Colors only when stdout is a terminal.
 if [ -t 1 ]; then
@@ -259,6 +259,10 @@ In both cases:
 4. Do not create paid infrastructure, alter DNS, submit to stores, publish
    packages, or deploy production without the owner's explicit approval.
 AGENTS_ENTRY
+  cat > "$target/.gitignore" <<'GITIGNORE'
+# MASTER_PROMPT.md is private product input. It must never enter git history.
+MASTER_PROMPT.md
+GITIGNORE
   git -C "$target" init --quiet
   git -C "$target" add -A
   git -C "$target" -c user.name="tohseno-oneshot" -c user.email="oneshot@tohseno.com" \

@@ -332,5 +332,35 @@ evolved application, require a safe trace from owner intent through manifest
 revision to verified release evidence. Report
 store review and external-provider behavior as outside TOHSENO's control.
 
-End with an honest list of what works, what remains unimplemented or unverified,
-which approvals are still required, and the single next action for the owner.
+## Completion report
+
+Every build or evolution ends with the TOHSENO completion report — never a
+generic agent summary. Use exactly this shape:
+
+```text
+━━━ TOHSENO · <app name> · <manifest revision> ━━━
+
+VERIFIED    manifest VALID · <n>/<n> invariant tests · <each target that builds>
+            (only claims you actually ran, naming the commands you used)
+
+RUN IT NOW
+  $ <command 1>
+  $ <command 2>
+  ...
+  then: <the one physical instruction that performs the ritual once>
+
+NOT YET     <unimplemented or unverified, one line each>
+OPEN        <undecided decisions preserved in EVOLUTION.md, one line each>
+APPROVALS   <which closed boundaries the next step would need opened, or "none">
+
+NEXT        <the single decision or action for the owner, one sentence>
+```
+
+RUN IT NOW is the heart of the report. It is literal, copy-paste,
+command-by-command from the workspace root to the owner performing the ritual
+once. Every command must be one you executed yourself or the exact documented
+invocation — "open it in Xcode" is not a command; `open apps/ios/App.xcodeproj`
+is. When a step cannot be a command (a physical-device install, a permission
+dialog), write the exact click path in one line. Do not pad any section with
+generic advice, and do not bury the report under prose — it is the last thing
+you output.
