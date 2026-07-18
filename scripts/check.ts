@@ -295,6 +295,40 @@ async function validateStaticSurface(): Promise<void> {
   assert(railwayConfig.deploy.restartPolicyType === "ON_FAILURE", "Railway restart policy is incorrect");
 }
 
+async function validateOneshotPin(): Promise<void> {
+  console.log("\n[check] oneshot bootstrap pin");
+
+  const script = await readText("apps/site/public/oneshot.sh");
+  const pinMatch = script.match(/^TOHSENO_PIN="([0-9a-f]{40})"$/m);
+  assert(pinMatch !== null, "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash");
+  const pin = pinMatch[1]!;
+
+  try {
+    await capture(["git", "merge-base", "--is-ancestor", pin, "HEAD"]);
+  } catch {
+    fail(
+      `TOHSENO_PIN ${pin} is not an ancestor of HEAD. The pin must reference a ` +
+        "released rails commit that is already part of this history; bump it only " +
+        "in a follow-up commit after the release it points to.",
+    );
+  }
+
+  for (const required of [
+    "templates/continuity-app/MASTER_PROMPT.md",
+    "templates/continuity-app/continuity.manifest.json",
+    "templates/continuity-app/EVOLUTION.md",
+    "templates/continuity-app/OPERATOR.md",
+    "templates/continuity-app/README.md",
+    "skills/continuity-app/SKILL.md",
+  ]) {
+    try {
+      await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
+    } catch {
+      fail(`Pinned rails commit ${pin} is missing ${required}; the oneshot workspace would be incomplete`);
+    }
+  }
+}
+
 async function validateRepositoryHygiene(): Promise<void> {
   console.log("\n[check] tracked/unignored file and secret hygiene");
   const output = await capture(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
@@ -330,6 +364,7 @@ async function main(): Promise<void> {
   await run("test suite", [process.execPath, "test"]);
   await validateRepositoryJson();
   await validateStaticSurface();
+  await validateOneshotPin();
   await validateRepositoryHygiene();
   await run("unstaged whitespace errors", ["git", "diff", "--check"]);
   await run("staged whitespace errors", ["git", "diff", "--cached", "--check"]);
