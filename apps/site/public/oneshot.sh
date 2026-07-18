@@ -36,7 +36,7 @@
 
 set -euo pipefail
 
-TOHSENO_PIN="358adcf2ecd3bfebd53056684d837a273303d1b6"
+TOHSENO_PIN="fc047fc4f67dfd4860298f55fdae6ec7fc89bac9"
 DEFAULT_REPO="https://github.com/jpfraneto/tohseno.git"
 ONESHOT_VERSION="0.2.0"
 
