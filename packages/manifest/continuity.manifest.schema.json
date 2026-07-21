@@ -475,6 +475,27 @@
             "enabled": { "const": false },
             "status": { "const": "reserved" }
           }
+        },
+        "extensions": {
+          "description": "App-specific modules beyond the named indie stack, declared instead of narrated in implementationNotes. Each key is the extension's contract id; each value is flag-gated, key-slotted, and honest about the network. An enabled network-touching extension must be reflected in the external disclosure inventory.",
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 16,
+          "propertyNames": { "$ref": "#/$defs/contractId" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["enabled", "description"],
+            "properties": {
+              "enabled": { "type": "boolean" },
+              "description": { "$ref": "#/$defs/nonEmptyString" },
+              "keySlot": {
+                "description": "The AppConfig slot name that holds the extension's public identifier. Never the key itself.",
+                "$ref": "#/$defs/contractId"
+              },
+              "requiresNetwork": { "type": "boolean" }
+            }
+          }
         }
       }
     },

@@ -251,6 +251,40 @@ describe("continuity manifest", () => {
     expect(codes).toContain("synchronization.recovery");
   });
 
+  test("app-specific modules are declared extensions, not implementation notes", async () => {
+    const manifest = await template();
+    manifest.runtime.modules.extensions = {
+      "realtime-host": {
+        enabled: true,
+        description: "Live AI game-show host over a realtime voice session.",
+        keySlot: "realtime-host-endpoint",
+        requiresNetwork: true,
+      },
+    };
+    expect(validateManifest(manifest).valid).toBe(true);
+
+    manifest.runtime.privacy.externalDisclosure = [];
+    expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
+      "modules.extension-disclosure",
+    );
+
+    const badName = await template();
+    badName.runtime.modules.extensions = {
+      "Bad Name!": { enabled: false, description: "nope" },
+    };
+    expect(validateManifest(badName).errors.map((issue) => issue.code)).toContain(
+      "extension.name",
+    );
+
+    const badShape = await template();
+    (badShape.runtime.modules as unknown as Record<string, unknown>).extensions = {
+      "realtime-host": { enabled: true, description: "x", apiKey: "sk-live" },
+    };
+    expect(validateManifest(badShape).errors.map((issue) => issue.code)).toContain(
+      "additional-property",
+    );
+  });
+
   test("unknown fields are rejected instead of becoming silent custom work", async () => {
     const invalid: unknown = {
       ...(await template()),

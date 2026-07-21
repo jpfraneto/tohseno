@@ -148,6 +148,22 @@ export interface ModulePolicies {
     enabled: false;
     status: "reserved";
   };
+  /**
+   * App-specific modules beyond the named indie stack, keyed by contract id.
+   * Declared instead of narrated: flag-gated, key-slotted, honest about the
+   * network. An enabled network-touching extension must be reflected in the
+   * external disclosure inventory.
+   */
+  extensions?: Record<string, ExtensionModule>;
+}
+
+/** A declared app-specific module. */
+export interface ExtensionModule {
+  enabled: boolean;
+  description: string;
+  /** The AppConfig slot name holding the extension's public identifier. Never the key itself. */
+  keySlot?: string;
+  requiresNetwork?: boolean;
 }
 
 /**

@@ -792,15 +792,20 @@ function validateSynchronization(
   stringValue(object.conflictPolicy, `${path}.conflictPolicy`, issues, { max: 1000 });
 }
 
+interface ModulesResult {
+  enabledNetworkExtensions: string[];
+}
+
 function validateModules(
   value: unknown,
   issues: ManifestValidationIssue[],
-): void {
+): ModulesResult {
+  const enabledNetworkExtensions: string[] = [];
   const path = "$.runtime.modules";
   const object = objectValue(value, path, issues);
-  if (object === undefined) return;
+  if (object === undefined) return { enabledNetworkExtensions };
   const keys = ["paywall", "shareCard", "notifications", "sessionLink", "tokenMint"] as const;
-  checkShape(object, path, keys, keys, issues);
+  checkShape(object, path, keys, [...keys, "extensions"], issues);
 
   const paywallPath = `${path}.paywall`;
   const paywall = objectValue(object.paywall, paywallPath, issues);
@@ -851,6 +856,50 @@ function validateModules(
       addIssue(issues, `${reservedPath}.status`, `modules.${code}.status`, "must be reserved");
     }
   }
+
+  if (hasOwn(object, "extensions")) {
+    const extensionsPath = `${path}.extensions`;
+    const extensions = objectValue(object.extensions, extensionsPath, issues);
+    if (extensions !== undefined) {
+      const names = Object.keys(extensions);
+      if (names.length < 1 || names.length > 16) {
+        addIssue(issues, extensionsPath, "object.range", "must declare between 1 and 16 extensions");
+      }
+      for (const name of names) {
+        const extensionPath = pathFor(extensionsPath, name);
+        if (name.length < 3 || name.length > 120 || !CONTRACT_ID.test(name)) {
+          addIssue(issues, extensionPath, "extension.name", "extension names are contract ids");
+        }
+        const extension = objectValue(extensions[name], extensionPath, issues);
+        if (extension === undefined) continue;
+        checkShape(
+          extension,
+          extensionPath,
+          ["enabled", "description"],
+          ["enabled", "description", "keySlot", "requiresNetwork"],
+          issues,
+        );
+        if (typeof extension.enabled !== "boolean") {
+          addIssue(issues, `${extensionPath}.enabled`, "type.boolean", "must be a boolean");
+        }
+        stringValue(extension.description, `${extensionPath}.description`, issues, { max: 1000 });
+        if (hasOwn(extension, "keySlot")) {
+          stringValue(extension.keySlot, `${extensionPath}.keySlot`, issues, {
+            min: 3,
+            max: 120,
+            pattern: CONTRACT_ID,
+          });
+        }
+        if (hasOwn(extension, "requiresNetwork") && typeof extension.requiresNetwork !== "boolean") {
+          addIssue(issues, `${extensionPath}.requiresNetwork`, "type.boolean", "must be a boolean");
+        }
+        if (extension.enabled === true && extension.requiresNetwork === true) {
+          enabledNetworkExtensions.push(name);
+        }
+      }
+    }
+  }
+  return { enabledNetworkExtensions };
 }
 
 function validateRuntime(
@@ -884,7 +933,7 @@ function validateRuntime(
   const privacy = validatePrivacy(object.privacy, issues);
   const identity = validateIdentity(object.identity, issues);
   const recovery = validateRecovery(object.recovery, issues);
-  validateModules(object.modules, issues);
+  const modules = validateModules(object.modules, issues);
   if (hasOwn(object, "synchronization")) {
     validateSynchronization(object.synchronization, issues);
     if (privacy.localStorage !== "application-encrypted") {
@@ -915,6 +964,18 @@ function validateRuntime(
       "$.runtime.privacy.externalDisclosure",
       "offline.network-disclosure",
       "a network-dependent core action requires an explicit external disclosure inventory",
+    );
+  }
+
+  if (
+    modules.enabledNetworkExtensions.length > 0 &&
+    (privacy.externalDisclosure?.length ?? 0) === 0
+  ) {
+    addIssue(
+      issues,
+      "$.runtime.privacy.externalDisclosure",
+      "modules.extension-disclosure",
+      `enabled network extensions (${modules.enabledNetworkExtensions.join(", ")}) require an explicit external disclosure inventory`,
     );
   }
 
