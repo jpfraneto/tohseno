@@ -121,9 +121,14 @@ function canonicalBoundary(request: Request, config: AppConfig): Response | null
 
 export async function createApplication(options: ApplicationOptions = {}): Promise<TohsenoApplication> {
   const config = options.config ?? loadConfig();
+  // Social scrapers and the CDN cache /og.png aggressively; a content-hash
+  // query makes every new image a new URL so previews update on deploy.
+  const ogImageBytes = await Bun.file(join(PUBLIC_DIRECTORY, "og.png")).bytes();
+  const ogImageVersion = new Bun.CryptoHasher("sha256").update(ogImageBytes).digest("hex").slice(0, 8);
   const renderPage = async (file: string): Promise<string> =>
     renderTemplate(await Bun.file(join(PUBLIC_DIRECTORY, file)).text(), {
       CANONICAL_ORIGIN: config.baseUrl,
+      OG_IMAGE_URL: `${config.baseUrl}/og.png?v=${ogImageVersion}`,
     });
   const [landingPage, docsPage, privacyPage] = await Promise.all([
     renderPage("index.html"),

@@ -25,7 +25,7 @@ describe("public pages", () => {
     const body = await response.text();
     expect(body).toContain("curl -fsSL https://tohseno.com/oneshot.sh | bash");
     expect(body).toContain("One command. One sentence. One app.");
-    expect(body).toContain('property="og:image" content="http://localhost:3000/og.png"');
+    expect(body).toMatch(/property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/);
     expect(body).toContain('name="twitter:card" content="summary_large_image"');
     expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
