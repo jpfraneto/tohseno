@@ -276,15 +276,18 @@ async function validateOneshotPin(): Promise<void> {
   }
 
   for (const required of [
-    "templates/continuity-app/MASTER_PROMPT.md",
     "templates/continuity-app/continuity.manifest.json",
-    "templates/continuity-app/EVOLUTION.md",
-    "templates/continuity-app/OPERATOR.md",
+    "templates/continuity-app/project.yml",
+    "templates/continuity-app/Writing.xcodeproj/project.pbxproj",
+    "templates/continuity-app/App/WritingApp.swift",
+    "templates/continuity-app/App/AppConfig.swift",
+    "templates/continuity-app/App/Identity/BIP39.swift",
+    "templates/continuity-app/App/Resources/bip39-english.txt",
+    "templates/continuity-app/Tests/BIP39Tests.swift",
+    "templates/continuity-app/site/index.html",
+    "templates/continuity-app/scripts/setup.ts",
+    "templates/continuity-app/fastlane/Fastfile",
     "templates/continuity-app/README.md",
-    "examples/anky/MASTER_PROMPT.md",
-    "examples/anky/continuity.manifest.json",
-    "examples/daily-observation/MASTER_PROMPT.md",
-    "examples/daily-observation/continuity.manifest.json",
     "skills/continuity-app/SKILL.md",
   ]) {
     try {
