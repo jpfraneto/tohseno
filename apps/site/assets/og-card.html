@@ -3,97 +3,121 @@
 <head>
 <meta charset="utf-8">
 <style>
+  @font-face {
+    font-family: "Fraunces";
+    font-weight: 100 900;
+    src: url("../public/fonts/fraunces-latin.woff2") format("woff2");
+  }
+  @font-face {
+    font-family: "IBM Plex Mono";
+    font-weight: 400;
+    src: url("../public/fonts/plex-mono-latin.woff2") format("woff2");
+  }
   * { margin: 0; box-sizing: border-box; }
-  html, body { width: 1200px; height: 630px; overflow: hidden; background: #f3eee3; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; background: #F5F0E6; }
   body {
-    --paper: #f3eee3;
-    --ink: #1d1c18;
-    --muted: #646056;
-    --accent: #bd3f24;
-    --accent-dark: #8e2a16;
+    --paper: #F5F0E6;
+    --paper-deep: #EDE6D6;
+    --ink: #2B2926;
+    --stone: #8A8577;
+    --seal: #B3341E;
     display: flex;
     flex-direction: column;
-    padding: 56px 64px 48px;
-    background:
-      linear-gradient(90deg, transparent calc(100% - 1px), rgb(29 28 24 / 5%) 1px) 0 0 / 64px 100%,
-      var(--paper);
+    padding: 48px 64px 44px;
+    background-color: var(--paper);
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(43, 41, 38, .025) 0 .65px, transparent .85px),
+      radial-gradient(circle at 72% 67%, rgba(43, 41, 38, .018) 0 .55px, transparent .8px);
+    background-size: 7px 7px, 11px 11px;
     color: var(--ink);
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
   }
-  .mono { font-family: "SFMono-Regular", Menlo, Consolas, monospace; }
+  .mono { font-family: "IBM Plex Mono", Menlo, monospace; font-weight: 400; }
   .top {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    padding-bottom: 22px;
-    border-bottom: 2px solid var(--ink);
   }
-  .wordmark { font-size: 30px; font-weight: 800; letter-spacing: 0.24em; }
-  .note { color: var(--muted); font-size: 17px; letter-spacing: 0.08em; }
-  .middle { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-  .cycle { font-size: 22px; letter-spacing: 0.03em; margin-bottom: 26px; }
-  .cycle .arrow { color: var(--accent); padding: 0 8px; }
-  h1 {
-    font-size: 84px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.02;
-    max-width: 20ch;
+  .wordmark { font-size: 40px; letter-spacing: -.055em; }
+  .reverse-note {
+    color: var(--stone);
+    font-size: 18px;
+    transform: scaleX(-1);
   }
-  .command {
+  .middle {
+    flex: 1;
     display: flex;
-    align-items: stretch;
-    margin-top: 44px;
-    border: 2px solid var(--ink);
-    background: rgb(255 252 245 / 62%);
-    width: fit-content;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
   }
-  .command code {
-    display: block;
-    padding: 22px 30px;
-    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-    font-size: 25px;
-    white-space: nowrap;
+  .eyebrow {
+    color: var(--stone);
+    font-size: 16px;
+    letter-spacing: .08em;
+    margin-bottom: 30px;
   }
-  .command .chip {
+  h1 {
+    font-size: 108px;
+    font-weight: 300;
+    letter-spacing: -.065em;
+    line-height: .94;
+    margin-bottom: 42px;
+  }
+  .command-wrap {
     display: flex;
     align-items: center;
-    padding: 0 30px;
-    border-left: 2px solid var(--accent-dark);
-    background: var(--accent);
-    color: #fffaf0;
-    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-    font-size: 19px;
-    font-weight: 750;
-    letter-spacing: 0.08em;
+    gap: 18px;
+    padding: 20px 28px;
+    border-radius: 12px;
+    background: var(--paper-deep);
   }
+  .command-wrap code { font-family: "IBM Plex Mono", Menlo, monospace; font-size: 21px; }
+  .command-wrap .copy { color: var(--stone); font-size: 16px; }
   .bottom {
     display: flex;
+    align-items: flex-end;
     justify-content: space-between;
+    border-top: 1px solid rgba(43, 41, 38, .18);
     padding-top: 22px;
-    border-top: 1px solid var(--muted);
-    color: var(--muted);
-    font-size: 17px;
-    letter-spacing: 0.06em;
+    color: var(--stone);
+    font-size: 15px;
   }
+  .seal {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1.5px solid var(--seal);
+    border-radius: 7px;
+    color: var(--seal);
+    font-size: 27px;
+    line-height: 1;
+    transform: rotate(.7deg);
+    font-family: "Fraunces", Georgia, serif;
+  }
+  .seal span { transform: scaleX(-1); }
 </style>
 </head>
 <body>
   <div class="top">
-    <span class="wordmark">TOHSENO</span>
-    <span class="note mono">one command &middot; your agent &middot; your app</span>
+    <span class="wordmark">tohseno</span>
+    <span class="reverse-note mono">one shot</span>
   </div>
   <div class="middle">
-    <p class="cycle mono">no logins<span class="arrow">&middot;</span>seed phrase identity<span class="arrow">&middot;</span>data on device</p>
-    <h1>One command.<br>One sentence. One app.</h1>
-    <div class="command">
+    <p class="eyebrow mono">open rails for continuity apps</p>
+    <h1>Name the action.<br>Build around it.</h1>
+    <div class="command-wrap">
       <code>curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
-      <span class="chip">COPY</span>
+      <span class="copy mono">copy</span>
     </div>
   </div>
   <div class="bottom mono">
-    <span>tohseno.com</span>
-    <span>No accounts. No feeds. Yours from birth.</span>
+    <span>tohseno.com &middot; one app &middot; one primary action &middot; ejectable from birth</span>
+    <span class="seal"><span>t</span></span>
   </div>
 </body>
 </html>

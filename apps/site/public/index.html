@@ -1,74 +1,237 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="{{HERO_META_DESCRIPTION}}">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="{{BRAND}}">
-    <meta property="og:title" content="{{BRAND}} — {{HERO_HEADLINE}}">
-    <meta property="og:description" content="{{HERO_META_DESCRIPTION}}">
-    <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
-    <meta property="og:image" content="{{OG_IMAGE_URL}}">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="{{BRAND}} — {{HERO_HEADLINE}} No logins, seed phrase identity, data on device — with the one-line install command.">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{BRAND}} — {{HERO_HEADLINE}}">
-    <meta name="twitter:description" content="{{HERO_META_DESCRIPTION}}">
-    <meta name="twitter:image" content="{{OG_IMAGE_URL}}">
-    <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
-    <title>{{BRAND}} — {{HERO_HEADLINE}}</title>
-    <link rel="stylesheet" href="/styles.css">
-    <script src="/app.js" defer></script>
-  </head>
-  <body class="hero-page">
-    <header class="site-header">
-      <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
-      <span class="header-note">{{HEADER_NOTE}}</span>
-    </header>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Open rails for continuity apps: software built around one meaningful action that a person returns to over time.">
+  <meta name="theme-color" content="#F5F0E6">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{BRAND}}">
+  <meta property="og:title" content="tohseno — name the action. build around it.">
+  <meta property="og:description" content="Open rails for continuity apps: software built around one meaningful action that a person returns to over time.">
+  <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
+  <meta property="og:image" content="{{OG_IMAGE_URL}}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="tohseno — Name the action. Build around it. Open rails for continuity apps, with the one-line install command.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="tohseno — name the action. build around it.">
+  <meta name="twitter:description" content="Open rails for continuity apps: software built around one meaningful action that a person returns to over time.">
+  <meta name="twitter:image" content="{{OG_IMAGE_URL}}">
+  <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
+  <title>tohseno — name the action. build around it.</title>
+  <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/landing.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header shell">
+    <a class="wordmark" href="#top" aria-label="tohseno home">tohseno</a>
+    <span class="reverse-note" aria-label="one shot, reversed">one shot</span>
+  </header>
 
-    <main class="hero" aria-labelledby="page-title">
-      <p class="cycle">
-        <span>no logins</span><span>·</span><span>seed phrase identity</span><span>·</span><span>data on device</span>
-      </p>
-      <h1 id="page-title">{{HERO_HEADLINE}}</h1>
-      <p class="lede hero-lede">
-        {{HERO_LEDE}}
-      </p>
+  <main id="top">
+    <section class="hero shell" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <p class="eyebrow">open rails for continuity apps</p>
+        <h1 id="hero-title">Name the action.<br>Build around it.</h1>
+        <p class="hero-lede">One command creates the rails.<br>Your coding agent builds the app.</p>
 
-      <div class="command-block">
-        <code class="command-line" id="oneshot-command" data-oneshot-command>{{ONESHOT_COMMAND}}</code>
-        <button
-          class="copy-button"
-          type="button"
-          hidden
-          data-copy-command
-          data-copied-label="{{HERO_COPIED_LABEL}}"
-          aria-describedby="oneshot-command"
-        >{{HERO_COPY_LABEL}}</button>
+        <div class="command-wrap" role="group" aria-label="TOHSENO one-shot command">
+          <code class="command" id="oneshot-command" data-oneshot-command>{{ONESHOT_COMMAND}}</code>
+          <button class="copy-button" type="button" hidden data-copy-command data-copied-label="copied" aria-describedby="oneshot-command">copy</button>
+        </div>
+        <p class="microcopy">needs git and a coding agent · no account · no telemetry · no secrets sent · nothing deployed</p>
+        <nav class="hero-links" aria-label="Primary links">
+          <a class="text-link" href="{{REPOSITORY_URL}}" rel="noopener">view the source</a>
+          <a class="text-link" href="/intake">open managed intake</a>
+          <a class="text-link" href="#doctrine">read the doctrine</a>
+        </nav>
       </div>
+    </section>
 
-      <ol class="hero-steps">
-        <li>{{HERO_STEP_1}}</li>
-        <li>{{HERO_STEP_2}}</li>
-        <li>{{HERO_STEP_3}}</li>
-      </ol>
+    <section class="section shell" id="document" aria-labelledby="document-title">
+      <div class="section-grid">
+        <div class="section-index">01 / intention</div>
+        <div>
+          <h2 id="document-title">Most generated apps begin with screens.</h2>
+          <p class="body-copy">TOHSENO begins with <strong>one repeated human action</strong>. Your agent interviews you one question at a time, distills the application into a master prompt, and builds the smallest working loop first.</p>
 
-      <p class="command-note">
-        {{HERO_REQUIREMENTS}}
-      </p>
+          <div class="document" aria-label="Example master prompt excerpt">
+            <code class="markdown"># MASTER_PROMPT.md
 
-      <nav class="hero-links" aria-label="{{HERO_LINKS_ARIA_LABEL}}">
-        <a href="{{REPOSITORY_URL}}" rel="noopener">{{HERO_REPO_LINK}}</a>
-        <a href="/docs">{{HERO_DOCS_LINK}}</a>
-        <a href="/privacy">{{PRIVACY_LINK}}</a>
-      </nav>
-    </main>
+## the action
+what is the one meaningful thing
+a person returns here to do?
 
-    <footer class="site-footer">
-      <span>{{FOOTER_OPERATOR}}</span>
-      <span>{{FOOTER_DOCTRINE}}</span>
-    </footer>
-  </body>
+## completion
+how does the app know it happened?
+
+## continuity
+what makes returning feel natural?</code>
+          </div>
+
+          <div class="sequence" aria-label="Eight build stations">
+            <span>1</span><span>2</span><span>3</span><span>4</span>
+            <span>5</span><span>6</span><span>7</span><span>8</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="loop" aria-labelledby="loop-title">
+      <div class="section-grid">
+        <div class="section-index">02 / loop</div>
+        <div>
+          <h2 id="loop-title">One app.<br>One primary action.</h2>
+          <p class="body-copy">Not a dashboard. Not a feed. Not a feature pile. A continuity app makes one meaningful practice durable.</p>
+
+          <div class="loop">
+            <article class="loop-step">
+              <h3>act</h3>
+              <p>One observable action is reachable quickly.</p>
+            </article>
+            <article class="loop-step">
+              <h3>record</h3>
+              <p>Progress survives locally, without a provider.</p>
+            </article>
+            <article class="loop-step">
+              <h3>reflect</h3>
+              <p>Feedback helps the person recognize what happened.</p>
+            </article>
+            <article class="loop-step">
+              <h3>continue</h3>
+              <p>A respectful return path makes continuity natural.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="doctrine" aria-labelledby="doctrine-title">
+      <div class="section-grid">
+        <div class="section-index">03 / rails</div>
+        <div>
+          <h2 id="doctrine-title">Deterministic underneath the magic.</h2>
+          <p class="body-copy">AI may translate intention and enrich reflection. It does not quietly decide storage, completion, identity, payment, deployment, or ownership.</p>
+
+          <div class="laws">
+            <article class="law">
+              <h3>Local first</h3>
+              <p>The essential action and its history remain useful without a network or model provider.</p>
+              <span class="manifest-line">action_before_account: true</span>
+            </article>
+            <article class="law">
+              <h3>Private by default</h3>
+              <p>Private practice data stays local or application-encrypted unless a boundary is explicitly named.</p>
+              <span class="manifest-line">private_content: local</span>
+            </article>
+            <article class="law">
+              <h3>Manifest bounded</h3>
+              <p>A feature that cannot be expressed as a valid manifest diff is unsupported—not quietly improvised.</p>
+              <span class="manifest-line">unsupported ≠ bespoke</span>
+            </article>
+            <article class="law">
+              <h3>Ejectable from birth</h3>
+              <p>Source, manifests, runbooks, identifiers, migrations, and credentials remain transferable.</p>
+              <span class="manifest-line">ownership: yours</span>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="refusal shell" aria-labelledby="refusal-title">
+      <h2 id="refusal-title">Aim longer.<br>Fire once.</h2>
+      <p>TOHSENO is not a generic app generator. It refuses complexity that competes with the action the app exists to protect.</p>
+      <div class="not-list" aria-label="Default refusals">
+        <span>no dashboard as home</span>
+        <span>no feed</span>
+        <span>no account before value</span>
+        <span>no unrelated ai chat</span>
+        <span>no manipulative streaks</span>
+        <span>no speculative modules</span>
+      </div>
+    </section>
+
+    <section class="section shell" id="state" aria-labelledby="state-title">
+      <div class="section-grid">
+        <div class="section-index">04 / evidence</div>
+        <div>
+          <h2 id="state-title">The rails exist.<br>The compiler is your agent.</h2>
+          <p class="body-copy">The repository is deliberately honest about the boundary between what works now and where the managed product is heading.</p>
+
+          <div class="state-box">
+            <article class="state-column">
+              <span class="state-label">implemented now</span>
+              <p>One-shot bootstrap, agent protocol, manifest schema, contract fixtures, working examples, encrypted intake, order lifecycle, private capsules, and deployment preparation.</p>
+            </article>
+            <article class="state-column">
+              <span class="state-label">not claimed yet</span>
+              <p>A complete native app compiler, automatic infrastructure creation, store submission, production reflection provider, end-user continuity sync, or universal identity package.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell" id="paths" aria-labelledby="paths-title">
+      <div class="section-grid">
+        <div class="section-index">05 / paths</div>
+        <div>
+          <h2 id="paths-title">Choose who holds the keys.</h2>
+          <p class="body-copy">The product can remain entirely yours, arrive through a managed doorway, or be operated through explicitly scoped access.</p>
+
+          <div class="paths">
+            <article class="path">
+              <h3>Open rails</h3>
+              <span class="price">free · apache-2.0</span>
+              <p>Your agent. Your machine. Your app. Your keys.</p>
+              <a class="text-link" href="{{REPOSITORY_URL}}" rel="noopener">view repository</a>
+            </article>
+            <article class="path">
+              <h3>Managed intake</h3>
+              <span class="price">$88 once</span>
+              <p>A private encrypted intake, order lifecycle, and released agent capsule.</p>
+              <a class="text-link" href="/intake">begin intake</a>
+            </article>
+            <article class="path">
+              <h3>Client-owned</h3>
+              <span class="price">$888 setup + $88/month</span>
+              <p>You own source, accounts, domain, infrastructure, identities, and the data plane. TOHSENO operates through scoped access.</p>
+              <a class="text-link" href="/intake">describe the app</a>
+            </article>
+            <article class="path">
+              <h3>Anky-operated</h3>
+              <span class="price">selective</span>
+              <p>Anky, Inc. may adopt the application as a first-party product after review.</p>
+              <a class="text-link" href="/intake">submit an intention</a>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing shell" aria-labelledby="closing-title">
+      <div>
+        <h2 id="closing-title">Build less.<br>Return more.</h2>
+        <p>One meaningful action.<br>Made durable.</p>
+        <div class="command-wrap" role="group" aria-label="TOHSENO one-shot command">
+          <code class="command" data-oneshot-command>{{ONESHOT_COMMAND}}</code>
+          <button class="copy-button" type="button" hidden data-copy-command data-copied-label="copied">copy</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer shell">
+    <div class="footer-copy">
+      <span>compiled on open rails</span>
+      <span>one app · one primary action · ejectable from birth</span>
+      <span><a class="text-link" href="/docs">docs</a> · <a class="text-link" href="/privacy">privacy</a></span>
+    </div>
+    <div class="seal" aria-label="tohseno mirrored t seal"><span>t</span></div>
+  </footer>
+</body>
 </html>

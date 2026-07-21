@@ -78,6 +78,9 @@ const PAGE_PATHS = ["/", "/docs", "/privacy", "/healthz"] as const;
 
 const STATIC_FILES: Record<string, { file: string; type: string; revalidate?: boolean }> = {
   "/styles.css": { file: "styles.css", type: "text/css; charset=utf-8" },
+  "/landing.css": { file: "landing.css", type: "text/css; charset=utf-8", revalidate: true },
+  "/fonts/fraunces-latin.woff2": { file: "fonts/fraunces-latin.woff2", type: "font/woff2" },
+  "/fonts/plex-mono-latin.woff2": { file: "fonts/plex-mono-latin.woff2", type: "font/woff2" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8", revalidate: true },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/og.png": { file: "og.png", type: "image/png" },
