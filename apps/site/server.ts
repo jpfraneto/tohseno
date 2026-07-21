@@ -38,11 +38,12 @@ function htmlEscape(value: string): string {
   })[character] ?? character);
 }
 
-function renderTemplate(template: string): string {
+function renderTemplate(template: string, extra: Record<string, string> = {}): string {
   const values: Record<string, string> = {
     ...PRODUCT.copy,
     ONESHOT_COMMAND: PRODUCT.oneshotCommand,
     REPOSITORY_URL: PRODUCT.repositoryUrl,
+    ...extra,
   };
   const rendered = template.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_match, key: string) => {
     const value = values[key];
@@ -79,6 +80,7 @@ const STATIC_FILES: Record<string, { file: string; type: string; revalidate?: bo
   "/styles.css": { file: "styles.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8", revalidate: true },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
+  "/og.png": { file: "og.png", type: "image/png" },
   // The bootstrap embeds a pinned rails commit; a stale cached copy would
   // point installers at a superseded release, so it must revalidate.
   "/oneshot.sh": { file: "oneshot.sh", type: "text/x-shellscript; charset=utf-8", revalidate: true },
@@ -120,7 +122,9 @@ function canonicalBoundary(request: Request, config: AppConfig): Response | null
 export async function createApplication(options: ApplicationOptions = {}): Promise<TohsenoApplication> {
   const config = options.config ?? loadConfig();
   const renderPage = async (file: string): Promise<string> =>
-    renderTemplate(await Bun.file(join(PUBLIC_DIRECTORY, file)).text());
+    renderTemplate(await Bun.file(join(PUBLIC_DIRECTORY, file)).text(), {
+      CANONICAL_ORIGIN: config.baseUrl,
+    });
   const [landingPage, docsPage, privacyPage] = await Promise.all([
     renderPage("index.html"),
     renderPage("docs.html"),
