@@ -799,7 +799,7 @@ function validateModules(
   const path = "$.runtime.modules";
   const object = objectValue(value, path, issues);
   if (object === undefined) return;
-  const keys = ["paywall", "shareCard", "notifications", "sessionLink"] as const;
+  const keys = ["paywall", "shareCard", "notifications", "sessionLink", "tokenMint"] as const;
   checkShape(object, path, keys, keys, issues);
 
   const paywallPath = `${path}.paywall`;
@@ -831,20 +831,24 @@ function validateModules(
     }
   }
 
-  const sessionLinkPath = `${path}.sessionLink`;
-  const sessionLink = objectValue(object.sessionLink, sessionLinkPath, issues);
-  if (sessionLink !== undefined) {
-    checkShape(sessionLink, sessionLinkPath, ["enabled", "status"], ["enabled", "status"], issues);
-    if (sessionLink.enabled !== false) {
+  for (const [moduleKey, code] of [
+    ["sessionLink", "session-link"],
+    ["tokenMint", "token-mint"],
+  ] as const) {
+    const reservedPath = pathFor(path, moduleKey);
+    const reserved = objectValue(object[moduleKey], reservedPath, issues);
+    if (reserved === undefined) continue;
+    checkShape(reserved, reservedPath, ["enabled", "status"], ["enabled", "status"], issues);
+    if (reserved.enabled !== false) {
       addIssue(
         issues,
-        `${sessionLinkPath}.enabled`,
-        "modules.session-link.reserved",
-        `must be false; sessionLink is a reserved primitive and enabling it is unsupported in ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
+        `${reservedPath}.enabled`,
+        `modules.${code}.reserved`,
+        `must be false; ${moduleKey} is a reserved primitive and enabling it is unsupported in ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
       );
     }
-    if (sessionLink.status !== "reserved") {
-      addIssue(issues, `${sessionLinkPath}.status`, "modules.session-link.status", "must be reserved");
+    if (reserved.status !== "reserved") {
+      addIssue(issues, `${reservedPath}.status`, `modules.${code}.status`, "must be reserved");
     }
   }
 }
@@ -959,6 +963,7 @@ function validateGuidance(
 
 interface OperationsResult {
   requiresServer?: boolean | undefined;
+  serverRole?: string | undefined;
   deploymentTargets?: string[] | undefined;
 }
 
@@ -981,6 +986,8 @@ function validateOperations(
     [
       "deploymentTargets",
       "requiresServer",
+      "serverRole",
+      "developmentSecrets",
       "ejectionRequired",
       "approvalRequiredFor",
       "operatorNotes",
@@ -1007,6 +1014,56 @@ function validateOperations(
     addIssue(issues, `${path}.requiresServer`, "type.boolean", "must be a boolean");
   } else {
     requiresServer = object.requiresServer;
+  }
+  let serverRole: string | undefined;
+  if (requiresServer === true) {
+    serverRole = enumValue(
+      object.serverRole,
+      `${path}.serverRole`,
+      ["token-mint-only", "sync-relay", "app-backend"] as const,
+      issues,
+    );
+  } else if (hasOwn(object, "serverRole")) {
+    addIssue(
+      issues,
+      `${path}.serverRole`,
+      "operations.unused-server-role",
+      "must be omitted when requiresServer is false",
+    );
+  }
+  if (hasOwn(object, "developmentSecrets")) {
+    const secretsPath = `${path}.developmentSecrets`;
+    if (!Array.isArray(object.developmentSecrets)) {
+      addIssue(issues, secretsPath, "type.array", "must be an array");
+    } else {
+      if (object.developmentSecrets.length < 1 || object.developmentSecrets.length > 8) {
+        addIssue(issues, secretsPath, "array.range", "must contain between 1 and 8 entries");
+      }
+      const slots: string[] = [];
+      object.developmentSecrets.forEach((entry, index) => {
+        const entryPath = pathFor(secretsPath, index);
+        const secret = objectValue(entry, entryPath, issues);
+        if (secret === undefined) return;
+        checkShape(secret, entryPath, ["slot", "purpose"], ["slot", "purpose"], issues);
+        const slot = stringValue(secret.slot, `${entryPath}.slot`, issues, {
+          min: 3,
+          max: 120,
+          pattern: CONTRACT_ID,
+        });
+        if (slot !== undefined) slots.push(slot);
+        stringValue(secret.purpose, `${entryPath}.purpose`, issues, { max: 1000 });
+      });
+      if (new Set(slots).size !== slots.length) {
+        addIssue(issues, secretsPath, "development-secrets.slot.unique", "slot names must be unique");
+      }
+      addIssue(
+        issues,
+        secretsPath,
+        "operations.development-secrets",
+        "development secrets are prototype-only; replace them with a token-minting server before store submission",
+        "warning",
+      );
+    }
   }
   if (object.ejectionRequired !== true) {
     addIssue(
@@ -1046,7 +1103,7 @@ function validateOperations(
   if (hasOwn(object, "operatorNotes")) {
     stringArrayValue(object.operatorNotes, `${path}.operatorNotes`, issues);
   }
-  return { requiresServer, deploymentTargets };
+  return { requiresServer, serverRole, deploymentTargets };
 }
 
 export function validateManifest(input: unknown): ManifestValidationResult {
@@ -1086,6 +1143,20 @@ export function validateManifest(input: unknown): ManifestValidationResult {
         "$.operations.requiresServer",
         "operations.server-required",
         "must be true when reflection uses a remote service",
+      );
+    }
+    const privacyRecord = runtime !== undefined && isRecord(runtime.privacy)
+      ? runtime.privacy
+      : undefined;
+    const disclosure = Array.isArray(privacyRecord?.externalDisclosure)
+      ? privacyRecord.externalDisclosure
+      : undefined;
+    if (operations.serverRole === "app-backend" && (disclosure?.length ?? 0) === 0) {
+      addIssue(
+        issues,
+        "$.runtime.privacy.externalDisclosure",
+        "operations.app-backend-disclosure",
+        "an app-backend server requires an explicit external disclosure inventory",
       );
     }
     if (

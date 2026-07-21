@@ -92,6 +92,10 @@
       "sessionLink": {
         "enabled": false,
         "status": "reserved"
+      },
+      "tokenMint": {
+        "enabled": false,
+        "status": "reserved"
       }
     }
   },

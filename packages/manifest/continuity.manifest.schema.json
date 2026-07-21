@@ -424,7 +424,7 @@
       "description": "The flag-gated modules of the indie stack. Present in every generated app's code; a module is integrated by flipping its flag in AppConfig, never by rearchitecting.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["paywall", "shareCard", "notifications", "sessionLink"],
+      "required": ["paywall", "shareCard", "notifications", "sessionLink", "tokenMint"],
       "properties": {
         "paywall": {
           "type": "object",
@@ -458,6 +458,16 @@
         },
         "sessionLink": {
           "description": "RESERVED, not implemented: scan a QR on a web page, confirm in the app, and a signed session connects the browser to the app identity. The flag and field exist so the pattern has a name; enabling it is unsupported in 0.3.0.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "status"],
+          "properties": {
+            "enabled": { "const": false },
+            "status": { "const": "reserved" }
+          }
+        },
+        "tokenMint": {
+          "description": "RESERVED, not implemented: a minimal server that mints short-lived third-party credentials (e.g. ephemeral realtime-AI tokens) and never receives user content. The flag exists so the pattern has a name; enabling it is unsupported in 0.3.0 — prototypes declare a development secret in operations.developmentSecrets instead.",
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "status"],
@@ -581,6 +591,26 @@
           }
         },
         "requiresServer": { "type": "boolean" },
+        "serverRole": {
+          "description": "Why the server exists. token-mint-only: mints short-lived third-party credentials and never receives user content. sync-relay: relays application-encrypted blobs it cannot read. app-backend: receives user data and must appear in the external disclosure inventory. Required when requiresServer is true; omitted when false.",
+          "enum": ["token-mint-only", "sync-relay", "app-backend"]
+        },
+        "developmentSecrets": {
+          "description": "Prototype-only secrets that live in gitignored local configuration — never in git, never in key slots. Each entry names the slot and why it exists. Shipping requires replacing these with a token-minting server.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "purpose"],
+            "properties": {
+              "slot": { "$ref": "#/$defs/contractId" },
+              "purpose": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        },
         "ejectionRequired": { "const": true },
         "approvalRequiredFor": {
           "type": "array",
@@ -599,7 +629,43 @@
         "operatorNotes": {
           "$ref": "#/$defs/nonEmptyStringArray"
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "requiresServer": { "const": true } },
+            "required": ["requiresServer"]
+          },
+          "then": { "required": ["serverRole"] },
+          "else": { "not": { "required": ["serverRole"] } }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["operations"],
+        "properties": {
+          "operations": {
+            "required": ["serverRole"],
+            "properties": { "serverRole": { "const": "app-backend" } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "runtime": {
+            "properties": {
+              "privacy": {
+                "properties": {
+                  "externalDisclosure": { "minItems": 1 }
+                }
+              }
+            }
+          }
+        }
       }
     }
-  }
+  ]
 }

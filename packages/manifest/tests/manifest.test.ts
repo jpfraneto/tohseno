@@ -59,6 +59,10 @@ describe("continuity manifest", () => {
       enabled: false,
       status: "reserved",
     });
+    expect(manifest.runtime.modules.tokenMint).toEqual({
+      enabled: false,
+      status: "reserved",
+    });
     expect(manifest.runtime.privacy.externalDisclosure).toEqual([
       "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)",
     ]);
@@ -149,6 +153,59 @@ describe("continuity manifest", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.map((issue) => issue.code)).toContain(
       "modules.session-link.reserved",
+    );
+  });
+
+  test("tokenMint stays reserved: enabling it is a schema error", async () => {
+    const invalid = (await template()) as unknown as {
+      runtime: { modules: { tokenMint: { enabled: boolean } } };
+    };
+    invalid.runtime.modules.tokenMint.enabled = true;
+    const result = validateManifest(invalid);
+    expect(result.valid).toBe(false);
+    expect(result.errors.map((issue) => issue.code)).toContain(
+      "modules.token-mint.reserved",
+    );
+  });
+
+  test("a required server must name its role; app-backend requires disclosure", async () => {
+    const manifest = await template();
+    manifest.operations.requiresServer = true;
+    manifest.operations.deploymentTargets.push("server");
+    let codes = validateManifest(manifest).errors.map((issue) => issue.code);
+    expect(codes).toContain("enum");
+
+    manifest.operations.serverRole = "token-mint-only";
+    expect(validateManifest(manifest).valid).toBe(true);
+
+    manifest.operations.serverRole = "app-backend";
+    manifest.runtime.privacy.externalDisclosure = [];
+    codes = validateManifest(manifest).errors.map((issue) => issue.code);
+    expect(codes).toContain("operations.app-backend-disclosure");
+
+    const roleWithoutServer = await template();
+    roleWithoutServer.operations.serverRole = "token-mint-only";
+    codes = validateManifest(roleWithoutServer).errors.map((issue) => issue.code);
+    expect(codes).toContain("operations.unused-server-role");
+  });
+
+  test("development secrets are declared slots with a prototype-only warning", async () => {
+    const manifest = await template();
+    manifest.operations.developmentSecrets = [
+      { slot: "openai-api-key", purpose: "prototype-only realtime voice; gitignored Local.xcconfig" },
+    ];
+    const result = validateManifest(manifest);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.map((issue) => issue.code)).toContain(
+      "operations.development-secrets",
+    );
+
+    manifest.operations.developmentSecrets.push({
+      slot: "openai-api-key",
+      purpose: "duplicate slot",
+    });
+    expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
+      "development-secrets.slot.unique",
     );
   });
 

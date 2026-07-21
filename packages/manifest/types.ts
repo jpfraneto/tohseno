@@ -134,8 +134,17 @@ export interface ModulePolicies {
   notifications: {
     enabled: boolean;
   };
-  /** Reserved future primitive: QR browser pairing. Enabling it is unsupported in 0.2.0. */
+  /** Reserved future primitive: QR browser pairing. Enabling it is unsupported in 0.3.0. */
   sessionLink: {
+    enabled: false;
+    status: "reserved";
+  };
+  /**
+   * Reserved future primitive: a minimal server that mints short-lived
+   * third-party credentials and never receives user content. Enabling it is
+   * unsupported in 0.3.0; prototypes declare operations.developmentSecrets.
+   */
+  tokenMint: {
     enabled: false;
     status: "reserved";
   };
@@ -188,6 +197,20 @@ export type DeploymentTarget =
   | "web"
   | "server";
 
+/**
+ * Why a server exists. token-mint-only mints short-lived third-party
+ * credentials and never receives user content; sync-relay relays
+ * application-encrypted blobs it cannot read; app-backend receives user data
+ * and must appear in the external disclosure inventory.
+ */
+export type ServerRole = "token-mint-only" | "sync-relay" | "app-backend";
+
+/** A prototype-only secret living in gitignored local configuration — a slot name and its purpose, never a value. */
+export interface DevelopmentSecret {
+  slot: string;
+  purpose: string;
+}
+
 export type ApprovalBoundary =
   | "paid-infrastructure"
   | "dns-change"
@@ -198,6 +221,9 @@ export type ApprovalBoundary =
 export interface OperatorMetadata {
   deploymentTargets: DeploymentTarget[];
   requiresServer: boolean;
+  /** Required when requiresServer is true; omitted when false. */
+  serverRole?: ServerRole;
+  developmentSecrets?: DevelopmentSecret[];
   ejectionRequired: true;
   approvalRequiredFor: ApprovalBoundary[];
   operatorNotes?: string[];
