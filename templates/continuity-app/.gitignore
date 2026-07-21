@@ -1,0 +1,23 @@
+# Private product input: one line or a whole document, never committed.
+MASTER_PROMPT.md
+
+# Machine-local configuration written by `bun run setup`.
+# Contains your identifiers and key *paths* — personal, not for the repo.
+Config/Local.xcconfig
+app.config.json
+
+# Credentials must never enter git.
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+
+# Xcode noise.
+xcuserdata/
+DerivedData/
+build/
+
+# fastlane output.
+fastlane/report.xml
+fastlane/test_output/
+fastlane/builds/

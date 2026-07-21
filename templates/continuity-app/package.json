@@ -1,0 +1,8 @@
+{
+  "name": "continuity-app-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "bun scripts/setup.ts"
+  }
+}

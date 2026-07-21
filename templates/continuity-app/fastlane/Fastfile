@@ -1,0 +1,47 @@
+# The prepared TestFlight path.
+#
+# This lane is PREPARED, never executed by an agent. Uploading to TestFlight
+# is an external action behind explicit owner approval — a coding agent
+# prints `bundle exec fastlane beta` (or `fastlane beta`) and stops.
+#
+# Prerequisites (all collected by `bun run setup`, which writes app.config.json):
+#   - Apple Team ID and bundle ID configured (Config/Local.xcconfig)
+#   - An App Store Connect API key .p8 file, referenced BY PATH ONLY —
+#     the key never enters this repository
+#   - fastlane installed (gem install fastlane, or a Gemfile of your own)
+
+require "json"
+
+default_platform(:ios)
+
+def app_config
+  path = File.expand_path("../app.config.json", __dir__)
+  UI.user_error!("app.config.json not found — run `bun run setup` first") unless File.exist?(path)
+  JSON.parse(File.read(path))
+end
+
+platform :ios do
+  desc "Build and upload to TestFlight (requires explicit owner approval to run)"
+  lane :beta do
+    config = app_config
+    asc = config["appStoreConnect"] || {}
+    UI.user_error!("Setup skipped the App Store Connect key — re-run `bun run setup` with one") if asc["keyPath"].to_s.empty?
+
+    app_store_connect_api_key(
+      key_id: asc["keyId"],
+      issuer_id: asc["issuerId"],
+      key_filepath: asc["keyPath"]
+    )
+
+    build_app(
+      project: "Writing.xcodeproj",
+      scheme: "Writing",
+      output_directory: "fastlane/builds",
+      xcargs: "-allowProvisioningUpdates"
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

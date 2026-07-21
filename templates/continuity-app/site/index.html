@@ -1,0 +1,68 @@
+<!doctype html>
+<!--
+  The app's landing page. One static file, no build step, no framework.
+  Ships in the same package as the app: edit the text, drop in a screenshot,
+  add the App Store badge when the app is live, and host it anywhere that
+  serves a file. The QR slot is reserved for SessionLink.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Writing — open, write, it's yours. No accounts; a seed phrase instead of a signup form.">
+    <title>Writing</title>
+    <style>
+      :root {
+        --ink: #1c1a17;
+        --paper: #fffcf5;
+        --muted: #6f6a60;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 4rem 1.5rem;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+        line-height: 1.6;
+      }
+      main { max-width: 34rem; margin: 0 auto; }
+      h1 { font-size: 3rem; margin: 0 0 0.5rem; }
+      .tagline { font-size: 1.2rem; margin: 0 0 2.5rem; color: var(--muted); }
+      .slot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 1.25rem 0;
+        border: 1px dashed var(--muted);
+        border-radius: 12px;
+        color: var(--muted);
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+      }
+      .screenshot-slot { height: 24rem; }
+      .badge-slot { height: 4rem; }
+      .qr-slot { height: 8rem; width: 8rem; }
+      footer { margin-top: 3rem; font-size: 0.85rem; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Writing</h1>
+      <p class="tagline">Open. Write. It&rsquo;s yours. Nobody asked for your email.</p>
+
+      <div class="slot screenshot-slot">screenshot goes here</div>
+      <div class="slot badge-slot">App Store badge goes here</div>
+
+      <p>Your words live on your phone as plain text files. Your identity is a
+      seed phrase generated on the device — there is no account, no login, and
+      nothing leaves the phone.</p>
+
+      <!-- Reserved for SessionLink: when the pattern ships, this QR connects
+           the browser to the app identity. -->
+      <div class="slot qr-slot" hidden>QR</div>
+
+      <footer>Built on TOHSENO rails. Private by default, ejectable from birth.</footer>
+    </main>
+  </body>
+</html>

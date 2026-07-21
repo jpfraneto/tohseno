@@ -1,27 +1,69 @@
-# Continuity app source-contract template
+# Your continuity app
 
-This directory is a valid, deliberately small starting contract. Copy all five
-files into a new application repository, then replace the illustrative “One
-Quiet Mark” ritual through the TOHSENO continuity-app skill.
+This workspace already contains a working iOS app: a lightweight writing app
+that demonstrates the whole spine — open, write, it's yours, nobody asked for
+your email. Your coding agent mutates this app toward your prompt; it never
+starts from an empty directory.
 
-Do not begin by adding screens. First make these changes together:
+## Run it now
 
-1. Rewrite `MASTER_PROMPT.md` around one observable repeated action.
-2. Update `continuity.manifest.json` and validate it against
-   `packages/manifest/continuity.manifest.schema.json`.
-3. Start `EVOLUTION.md` as a content-free index from owner intent to manifest
-   and release evidence. Keep exact owner requests in an owner-approved private
-   location, not in this safe index by default.
-4. Confirm the completion, interruption, partial-action, reflection-consent,
-   privacy, recovery, export, and forbidden-pattern decisions with the owner.
-5. Update `OPERATOR.md` with real build, test, migration, backup, rollback, and
-   ejection commands as implementation evidence becomes available.
+```sh
+open Writing.xcodeproj
+```
 
-The manifest separates runtime-enforced properties from coding-agent guidance
-and operator metadata. Never move a privacy or lifecycle promise into prose to
-avoid enforcing it. If a requested change is not representable as a valid
-manifest diff, classify it as unsupported instead of silently creating custom
-agency work.
+Press ⌘R with any iPhone simulator selected. Zero API keys, zero
+configuration. For a physical device, select your signing team in
+Signing & Capabilities (or run setup below).
 
-This template is not a native-app compiler and contains no production
-cryptographic suite, store identity, infrastructure account, or secret.
+Run the invariant tests with ⌘U, or:
+
+```sh
+xcodebuild -project Writing.xcodeproj -scheme Writing \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test
+```
+
+## What's inside
+
+```text
+App/                     SwiftUI sources
+  AppConfig.swift        THE configuration seam: feature flags + key slots
+  Identity/              BIP39 seed phrase, keypair, keychain — the no-auth spine
+  Sessions/              atomic local persistence with crash recovery
+  Modules/               paywall (off), share card (on), notifications (off),
+                         SessionLink (reserved)
+  Views/                 writing surface, session log, settings
+Tests/                   the invariant tests that keep the spine honest
+site/index.html          the app's landing page — one static file, ships with the app
+continuity.manifest.json machine-readable record of what this app does
+fastlane/Fastfile        the prepared TestFlight lane
+scripts/setup.ts         one-time credential flow (bun run setup)
+project.yml              XcodeGen source of truth for Writing.xcodeproj
+```
+
+## The spine
+
+- **Identity is a seed phrase.** Silently generated on first launch, stored in
+  the keychain, revealed or restored only from Settings. The derived key's
+  fingerprint is the user ID. No accounts, no logins, no email — for you or
+  your users.
+- **Data is files.** Each kept session is a plain `.txt` plus a small JSON
+  sidecar, written atomically. A killed process never loses committed text.
+- **Modules are flags.** `AppConfig.swift` is the single seam. Flipping a flag
+  is the only integration step; every module compiles cleanly when off.
+- **Ejectable from birth.** Everything here builds and runs without any
+  TOHSENO credential.
+
+## To your phone
+
+```sh
+bun run setup     # app name, bundle ID, Team ID, optional ASC + RevenueCat keys
+fastlane beta     # prepared TestFlight upload — you run this, agents only print it
+```
+
+Setup writes `app.config.json` and `Config/Local.xcconfig` (both gitignored;
+key *paths* and public identifiers only — secret values never enter git).
+
+## Changing the project
+
+Edit `project.yml`, then `xcodegen generate`. If you don't have XcodeGen and
+aren't adding targets, editing the project in Xcode directly is fine too.

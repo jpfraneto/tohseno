@@ -6,12 +6,12 @@
 #
 # This script is a small, inspectable bootstrap. It does exactly four things:
 #
-#   1. checks that git (and optionally bun) exist;
+#   1. checks that git (and optionally bun and Xcode) exist;
 #   2. clones the TOHSENO rails repository and verifies it matches the exact
 #      pinned commit below;
-#   3. creates a new continuity-app workspace — blank, or from a shipped
-#      working example — and asks which you want;
-#   4. prints the one command to hand your coding agent.
+#   3. creates your app workspace as a copy of the base app — a compiling,
+#      running iOS writing app with a seed phrase instead of a signup form;
+#   4. prints the one command to hand your coding agent, plus your sentence.
 #
 # It never asks for or accepts credentials, capabilities, or payment. It sends
 # no telemetry. Its only network calls are the git clone/fetch of the public
@@ -23,8 +23,6 @@
 #   ... | bash                            interactive setup
 #   ... | bash -s -- --dry-run            print the plan, change nothing
 #   ... | bash -s -- --target DIR         choose the new app directory
-#   ... | bash -s -- --example NAME       start from a working example
-#                                         (anky | daily-observation)
 #
 # Environment overrides (for development and mirrors):
 #   TOHSENO_HOME   rails install location   (default: ~/.tohseno)
@@ -38,7 +36,7 @@ set -euo pipefail
 
 TOHSENO_PIN="761a38039c2b746181f334f6ce503b15352bbc51"
 DEFAULT_REPO="https://github.com/jpfraneto/tohseno.git"
-ONESHOT_VERSION="0.2.1"
+ONESHOT_VERSION="0.3.0"
 
 # Colors only when stdout is a terminal.
 if [ -t 1 ]; then
@@ -55,14 +53,13 @@ banner() {
   say ""
   say "  ${C}${B}▀█▀ █▀█ █ █ █▀ █▀▀ █▄ █ █▀█${R}"
   say "  ${C}${B} █  █▄█ █▀█ ▄█ ██▄ █ ▀█ █▄█${R}"
-  say "  ${D}an app for one repeated action · oneshot v${ONESHOT_VERSION}${R}"
+  say "  ${D}one prompt → an iOS app on your phone · oneshot v${ONESHOT_VERSION}${R}"
   say ""
 }
 
 usage() {
   say "TOHSENO oneshot ${ONESHOT_VERSION}"
-  say "  --target DIR     directory to create the new continuity app in"
-  say "  --example NAME   start from a working example (anky | daily-observation)"
+  say "  --target DIR     directory to create the new app in"
   say "  --dry-run        print the exact plan and exit without changing anything"
   say "  --help           this text"
 }
@@ -77,7 +74,7 @@ ask() {
     printf '%s' "$prompt" > /dev/tty
     read -r answer < /dev/tty
   else
-    fail "no terminal available to ask: ${prompt}  (rerun with --target DIR and optionally --example NAME)"
+    fail "no terminal available to ask: ${prompt}  (rerun with --target DIR)"
   fi
   eval "$var=\$answer"
 }
@@ -108,21 +105,15 @@ first_agent() {
 
 main() {
   local target=""
-  local example=""
   local dry_run="no"
   while [ $# -gt 0 ]; do
     case "$1" in
       --target) [ $# -ge 2 ] || fail "--target requires a directory"; target="$2"; shift 2 ;;
-      --example) [ $# -ge 2 ] || fail "--example requires a name (anky | daily-observation)"; example="$2"; shift 2 ;;
       --dry-run) dry_run="yes"; shift ;;
       --help|-h) usage; exit 0 ;;
       *) fail "unknown argument: $1 (secrets and capabilities are never accepted as arguments)" ;;
     esac
   done
-  case "$example" in
-    ""|anky|daily-observation) ;;
-    *) fail "unknown example: $example (available: anky, daily-observation)" ;;
-  esac
 
   local home_dir="${TOHSENO_HOME:-$HOME/.tohseno}"
   local repo_url="${TOHSENO_REPO:-$DEFAULT_REPO}"
@@ -130,8 +121,8 @@ main() {
 
   banner
   say "  ${B}This will${R}   clone the tohseno rails ${D}(pinned commit ${TOHSENO_PIN:0:7})${R} into"
-  say "              ${D}${rails_dir}${R}, create a new app workspace, and hand"
-  say "              you one command for your coding agent."
+  say "              ${D}${rails_dir}${R} and create your app workspace — already"
+  say "              a compiling iOS app you mutate with one sentence."
   say "  ${B}It won't${R}    create accounts, take payment, deploy anything, send"
   say "              telemetry, or touch any file outside those two directories."
   say ""
@@ -140,7 +131,7 @@ main() {
     say "Dry run: nothing was checked, downloaded, created, or modified."
     say "Planned filesystem changes:"
     say "  $rails_dir            (pinned clone, created or fast-forwarded to pin)"
-    say "  ${target:-<target asked interactively>}   (new app workspace)"
+    say "  ${target:-<target asked interactively>}   (new app workspace, copied from the base app)"
     say "Rollback at any time: remove those two directories."
     exit 0
   fi
@@ -150,9 +141,12 @@ main() {
   if command -v bun >/dev/null 2>&1; then
     ok "bun found"
   else
-    say "  ${Y}!${R} bun is not installed — the rails validators need it eventually."
-    say "    ${D}Install it from https://bun.sh when you are ready; this bootstrap${R}"
-    say "    ${D}will not run another vendor's installer for you.${R}"
+    say "  ${Y}!${R} bun is not installed — ${D}bun run setup needs it later; https://bun.sh${R}"
+  fi
+  if command -v xcodebuild >/dev/null 2>&1; then
+    ok "Xcode found"
+  else
+    say "  ${Y}!${R} Xcode is not installed — ${D}the app builds on a Mac with Xcode from the App Store${R}"
   fi
 
   # Acquire the rails at exactly the pinned commit.
@@ -171,15 +165,15 @@ main() {
   [ "$actual" = "$TOHSENO_PIN" ] || fail "checkout is $actual, expected $TOHSENO_PIN — refusing to continue"
   local required
   for required in \
-    "templates/continuity-app/MASTER_PROMPT.md" \
     "templates/continuity-app/continuity.manifest.json" \
-    "templates/continuity-app/EVOLUTION.md" \
-    "templates/continuity-app/OPERATOR.md" \
+    "templates/continuity-app/project.yml" \
+    "templates/continuity-app/App/WritingApp.swift" \
+    "templates/continuity-app/App/AppConfig.swift" \
+    "templates/continuity-app/App/Identity/BIP39.swift" \
+    "templates/continuity-app/Tests/BIP39Tests.swift" \
+    "templates/continuity-app/site/index.html" \
+    "templates/continuity-app/scripts/setup.ts" \
     "templates/continuity-app/README.md" \
-    "examples/anky/MASTER_PROMPT.md" \
-    "examples/anky/continuity.manifest.json" \
-    "examples/daily-observation/MASTER_PROMPT.md" \
-    "examples/daily-observation/continuity.manifest.json" \
     "skills/continuity-app/SKILL.md"; do
     [ -f "$rails_dir/$required" ] || fail "pinned rails are missing $required — the pin predates a required release; report this"
   done
@@ -188,90 +182,47 @@ main() {
 
   # Choose the app workspace.
   if [ -z "$target" ]; then
-    ask "${B}Name your new continuity app (this becomes its directory):${R} " target
+    ask "${B}Name your new app (this becomes its directory):${R} " target
   fi
   [ -n "$target" ] || fail "a target directory is required"
   if [ -e "$target" ] && [ -n "$(ls -A "$target" 2>/dev/null)" ]; then
     fail "$target exists and is not empty — refusing to overwrite. Choose a new directory."
   fi
 
-  # Choose the starting point: a blank prompt the agent will co-write through
-  # an interview, or a shipped working example that builds immediately.
-  if [ -z "$example" ] && { [ -t 0 ] || [ -r /dev/tty ]; }; then
-    say ""
-    say "  ${B}How do you want to start?${R}"
-    say ""
-    say "    ${B}1)${R} my own idea ${D}— your agent interviews you first, then writes${R}"
-    say "       ${D}MASTER_PROMPT.md with you before building anything${R}"
-    say "    ${B}2)${R} example: ${B}anky${R} ${D}— a continuous-writing ritual (8 minutes of${R}"
-    say "       ${D}forward writing seals a session); builds right away${R}"
-    say "    ${B}3)${R} example: ${B}daily-observation${R} ${D}— photograph one living thing and${R}"
-    say "       ${D}write one sentence about it; builds right away${R}"
-    say ""
-    local choice=""
-    ask "  ${B}Choose [1/2/3]${R} (default 1): " choice
-    case "$choice" in
-      ""|1) example="" ;;
-      2) example="anky" ;;
-      3) example="daily-observation" ;;
-      *) fail "unrecognized choice: $choice" ;;
-    esac
-  fi
-
-  # Create the workspace from the pinned template, plus the agent entry point.
+  # The workspace IS the base app: a compiling, running iOS writing app.
+  # The agent mutates it toward your prompt — never an empty directory.
   mkdir -p "$target"
-  if [ -n "$example" ]; then
-    cp "$rails_dir/examples/$example/MASTER_PROMPT.md" "$target/MASTER_PROMPT.md"
-    cp "$rails_dir/examples/$example/continuity.manifest.json" "$target/continuity.manifest.json"
-  else
-    cp "$rails_dir/templates/continuity-app/MASTER_PROMPT.md" "$target/MASTER_PROMPT.md"
-    cp "$rails_dir/templates/continuity-app/continuity.manifest.json" "$target/continuity.manifest.json"
-  fi
-  cp "$rails_dir/templates/continuity-app/EVOLUTION.md" "$target/EVOLUTION.md"
-  cp "$rails_dir/templates/continuity-app/OPERATOR.md" "$target/OPERATOR.md"
-  cp "$rails_dir/templates/continuity-app/README.md" "$target/TEMPLATE_README.md"
+  cp -R "$rails_dir/templates/continuity-app/." "$target/"
   mkdir -p "$target/skills/continuity-app"
   cp "$rails_dir/skills/continuity-app/SKILL.md" "$target/skills/continuity-app/SKILL.md"
   cat > "$target/AGENTS.md" <<AGENTS_ENTRY
 # Agent entry point
 
-You are the coding agent for this continuity application.
+You are the coding agent for this app. The workspace already contains a
+compiling, running iOS writing app — the base app. You never start from an
+empty directory: copy nothing, scaffold nothing, mutate this app toward the
+owner's prompt.
 
-Open MASTER_PROMPT.md first and check for the marker \`tohseno:template-prompt\`.
-
-- If the marker is PRESENT, MASTER_PROMPT.md is still a placeholder. Do not
-  build it. Instead, interview the owner following step 2 of
-  skills/continuity-app/SKILL.md ("Interview for one observable action"), one
-  question at a time. Then write MASTER_PROMPT.md together with the owner,
-  remove the marker, and get their explicit confirmation of the core action,
-  completion, interruption, and ritual-destroyer list before any scaffolding.
-- If the marker is ABSENT, MASTER_PROMPT.md is real product input. Build it.
-
-In both cases:
-
-1. Treat MASTER_PROMPT.md as private product input. Never commit, log, echo,
-   or transmit it, or any credential or capability, anywhere.
-2. Follow skills/continuity-app/SKILL.md in order. It is the build protocol:
-   interview, manifest, privacy inventory, smallest offline vertical slice,
-   invariant tests, deployment preparation, ejection package.
+1. Read skills/continuity-app/SKILL.md and follow it. It is the build
+   protocol: one-line input, at most three questions, sensible defaults
+   recorded as ASSUMED, invariant tests, and the TOHSENO completion report.
+2. The owner's prompt may be one sentence in the conversation, or a
+   MASTER_PROMPT.md file here. Treat any MASTER_PROMPT.md as private product
+   input: it is gitignored and must never be committed, logged, echoed, or
+   transmitted — nor any credential or capability.
 3. The manifest schema and validators live in the pinned rails checkout at
-   $rails_dir (commit $TOHSENO_PIN).
-4. Do not create paid infrastructure, alter DNS, submit to stores, publish
+   $rails_dir (commit $TOHSENO_PIN). Update continuity.manifest.json to
+   record what you build; validate it.
+4. Verify with the invariant tests and a simulator build before reporting.
+5. Do not create paid infrastructure, alter DNS, submit to stores, publish
    packages, or deploy production without the owner's explicit approval.
+   Prepare the TestFlight command; never run it unprompted.
 AGENTS_ENTRY
-  cat > "$target/.gitignore" <<'GITIGNORE'
-# MASTER_PROMPT.md is private product input. It must never enter git history.
-MASTER_PROMPT.md
-GITIGNORE
   git -C "$target" init --quiet
   git -C "$target" add -A
   git -C "$target" -c user.name="tohseno-oneshot" -c user.email="oneshot@tohseno.com" \
     commit --quiet -m "chore: tohseno oneshot workspace at rails ${TOHSENO_PIN}"
-  if [ -n "$example" ]; then
-    ok "workspace created from example ${B}${example}${R}"
-  else
-    ok "workspace created (blank — your agent will interview you)"
-  fi
+  ok "workspace created — a working iOS app, before you say a word"
 
   local agent_cmd
   agent_cmd="$(first_agent)"
@@ -281,18 +232,14 @@ GITIGNORE
   say "  ${G}${B}Workspace ready:${R} ${B}${target}${R}"
   say "  ${D}Coding agents on PATH: $(detect_agents)${R}"
   say ""
-  say "  ${B}Next — start your agent:${R}"
+  say "  ${B}Run the base app right now:${R}"
+  say ""
+  say "      ${C}open ${target}/Writing.xcodeproj${R}   ${D}then ⌘R${R}"
+  say ""
+  say "  ${B}Or make it yours — one sentence:${R}"
   say ""
   say "      ${C}cd ${target}${R}"
-  say "      ${C}${agent_cmd} \"Read AGENTS.md and begin.\"${R}"
-  say ""
-  if [ -n "$example" ]; then
-    say "  It will build the ${example} example right away — MASTER_PROMPT.md"
-    say "  and the manifest are already complete."
-  else
-    say "  It will interview you first — a few questions about the one action"
-    say "  your app protects — then write MASTER_PROMPT.md with you, then build."
-  fi
+  say "      ${C}${agent_cmd} \"Read AGENTS.md. Build this: <your app, in one sentence>\"${R}"
   say ""
   say "  ${D}Undo everything: rm -rf ${target} ${rails_dir}${R}"
   say "  ${D}──────────────────────────────────────────────────────────────${R}"

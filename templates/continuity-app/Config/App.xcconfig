@@ -1,0 +1,16 @@
+// The build configuration the Xcode project reads.
+//
+// These are shippable defaults: the app builds and runs in the simulator
+// exactly as cloned, with zero keys. `bun run setup` writes Config/Local.xcconfig
+// (gitignored) with your own identifiers; it overrides everything here.
+// The only manual step for a device build is selecting your signing team,
+// either via setup or in Xcode's Signing & Capabilities tab.
+
+APP_DISPLAY_NAME = Writing
+APP_BUNDLE_ID = com.tohseno.base-writing
+DEVELOPMENT_TEAM =
+
+// Key slots for flag-gated modules. Public identifiers only — never secrets.
+REVENUECAT_PUBLIC_KEY =
+
+#include? "Local.xcconfig"
