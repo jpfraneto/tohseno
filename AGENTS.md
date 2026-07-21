@@ -1,56 +1,42 @@
 # TOHSENO repository guidance
 
-This file applies to the entire repository. A more local `AGENTS.md`, if one is added later, may narrow implementation details but must not weaken the product, privacy, ownership, or approval boundaries here.
+This file applies to the entire repository. A more local `AGENTS.md`, if one is added later, may narrow implementation details but must not weaken the privacy, ownership, or approval boundaries here.
 
 ## Mission and current status
 
-TOHSENO is an open-source compiler and operating system for continuity apps: software organized around one meaningful action repeated over time.
+TOHSENO is the fastest path from one prompt to an iOS app on a phone. A person runs the oneshot, hands their coding agent one sentence, and gets a working app — a **continuity app**: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
 
-```text
-act → record → reflect → continue
-```
-
-The long-term product accepts `MASTER_PROMPT.md` and produces a private-by-default application and its operating package. This repository currently contains the product shell, private intake, manifest and contract harness, operator workflow, agent capsule, and deployment preparation. It is not yet a complete native continuity-app compiler. Keep that distinction explicit in code, copy, tests, and documentation.
+This repository contains: the public site (hero, docs, privacy, the pinned oneshot bootstrap), the base app in `templates/continuity-app` (a compiling, running iOS writing app that every workspace starts from), the manifest schema and validator, the agent build protocol in `skills/continuity-app/SKILL.md`, and the check gate. The intake/payments product that once lived here is preserved on the `archive/intake-product` branch and is not part of main.
 
 ## Product constraints
 
-- One application has one primary core action.
-- Practice and first value come before profiles or account ceremony.
-- Identity is local, contextual, and unlinkable across apps by default.
-- Continuity must work without AI. AI may only enrich a declared boundary.
-- The control plane observes application health and order state, not end-user continuity content.
-- Unsupported features are refused. Do not turn requests outside the manifest into custom agency work.
-- Do not add generic dashboards, feeds, CRUD surfaces, unrelated chat, premature profiles, manipulative streaks, or broad analytics.
-- Every generated application must be ejectable from birth.
+- **Speed is the product.** Anything that adds a question, a config step, or a ceremony must pay for itself in reliability.
+- **The base app is the starting point.** One-shots mutate `templates/continuity-app`, never an empty directory. It must always build from a fresh clone with only a signing-team selection, run in the simulator with zero keys, and survive process death without losing text.
+- **The manifest is a reliability mechanism, not a moral one.** If a feature cannot be expressed as a valid manifest field, it is unsupported — say so instead of improvising. The builder decides the mechanics (streaks, paywalls, scores are tools, not sins); private-by-default and account-free are defaults, never refusals.
+- **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink stays declared-only until it ships.
+- **Ejectable from birth.** Every app builds and runs without TOHSENO credentials; every landing page ships in the same package as its app.
 
 ## Private data rules
 
-Never commit or log customer Markdown, contact details, capability tokens, credentials, message bodies, production data, encryption keys, operator tokens, or payment secrets.
+Never commit or log owner prompts, contact details, credentials, tokens, message bodies, production data, or encryption keys.
 
-- A content hash identifies bytes; it never authorizes access.
-- A capability token authorizes access; store only its one-way hash.
-- Encrypt submitted Markdown, contact details, and messages with authenticated encryption before persistence.
-- Never put private content or bearer capabilities in request paths, query strings, payment metadata, email subjects, transition metadata, analytics, or error text. Browser handoff URLs may carry a capability only in the fragment, which is not sent in the HTTP request.
-- Treat capability handoff URLs as bearer secrets. Scope private paths and cookies by the safe submission ID, exchange the fragment through the bounded same-origin bootstrap, and require the resolved bearer to match that ID. Then use the submission-specific HttpOnly strict cookie or an explicit Authorization header; private responses remain uncached, unindexed, and referrer-free.
-- Record operator access without recording the inspected content.
-- Future app-runtime content stays local or encrypted by default. Do not route it through this control plane.
+- `MASTER_PROMPT.md` in a workspace is private product input: gitignored, never committed, echoed, or transmitted.
+- Key slots hold public identifiers; setup writes key *paths*, never secret values. `.p8`/`.p12`/`.pem` files never enter git.
+- Keep logs structured and content-free.
+- App-runtime content stays on the person's device. This repository operates no backend for generated apps and must never grow one that receives their users' content.
 
 ## Architecture and implementation
 
-- Use Bun for JavaScript and TypeScript, strict TypeScript, `Bun.serve`, `bun:sqlite`, raw SQL, raw HTML/CSS, and minimal browser JavaScript.
+- Use Bun for JavaScript and TypeScript, strict TypeScript, `Bun.serve`, raw HTML/CSS, and minimal browser JavaScript.
+- The base app is SwiftUI with no third-party dependencies; an SPM dependency is acceptable only if it compiles offline with zero configuration.
 - Keep runtime dependencies and indirection small. Do not add a framework, ORM, component system, analytics SDK, or build system without a demonstrated requirement.
 - Keep runtime-enforced manifest properties separate from coding-agent guidance and operator/deployment metadata.
-- Stable event identity is separate from artifact hashes. Sealed artifacts are immutable. Reflections are separate, independently deletable records.
-- Version signed request envelopes and bind the actual method, path, body hash, timestamp, nonce, signer, and signature.
-- Make state transitions explicit, mode-specific, transactional, and append-only in `order_events`.
-- Keep logs structured and content-free. A safe identifier is not permission to include adjacent private fields.
-- Prefer deterministic behavior at runtime. AI interpretation belongs between human intent and the manifest, not in storage, signing, completion, privacy, or deployment invariants.
+- Prefer deterministic behavior at runtime. AI interpretation belongs between human intent and the manifest, not in storage, identity, or persistence invariants.
+- Do not copy production code from any external application (including Anky or Auramaxxing repositories) into this repository or into generated apps. Documented contracts may be referenced; implementations are original.
 
 ## External actions
 
-Do not create paid infrastructure, spend money, alter DNS, submit to an application store, rotate production credentials, deploy production, or publish packages without explicit owner approval. Preparing commands, configuration, runbooks, and dry-run validation is in scope.
-
-Anky is an architectural input and reference application. Treat its repository as read-only. Do not copy Anky production implementation into TOHSENO; import only the approved study documentation with provenance.
+Do not create paid infrastructure, spend money, alter DNS, submit to an application store, rotate production credentials, deploy production, or publish packages without explicit owner approval. Preparing commands, configuration, runbooks, and dry-run validation is in scope. The fastlane `beta` lane is always prepared and printed, never executed unprompted.
 
 ## Change discipline
 
@@ -64,10 +50,13 @@ Before changing code:
 Before handing off:
 
 1. Run focused tests, then `bun run check`.
-2. Verify migrations against a temporary database.
-3. Exercise relevant HTTP and operator flows without real private data.
-4. Run `git diff --check` and inspect tracked files for secrets and databases.
-5. Report limitations honestly; never equate `READY` with a generated native application in this vertical slice.
+2. If the base app changed: `xcodegen generate` (when project.yml changed) and the simulator test run must be green.
+3. Run `git diff --check` and inspect tracked files for secrets.
+4. Report limitations honestly, including exactly what was and was not verified in this environment.
+
+### Release discipline for the oneshot pin
+
+`apps/site/public/oneshot.sh` embeds `TOHSENO_PIN`, the exact rails commit every new workspace is created from. A release that changes the rails must land first; a follow-up commit bumps the pin to it — the pin always trails the serving commit by one. `bun run check` verifies pin ancestry and that the pinned commit contains the required base-app files. Site deploys go out with `railway up`, not by pushing to GitHub — but the pinned commit must be pushed to the public repository or the oneshot cannot fetch it.
 
 ## Documentation language
 
