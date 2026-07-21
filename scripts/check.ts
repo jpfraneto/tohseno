@@ -296,6 +296,30 @@ async function validateOneshotPin(): Promise<void> {
       fail(`Pinned rails commit ${pin} is missing ${required}; the oneshot workspace would be incomplete`);
     }
   }
+
+  // The oneshot clones the public repository, so a pin that only exists in
+  // local history strands every fresh user at "pinned commit not found".
+  // Network may legitimately be absent (offline dev, CI sandbox): skip with a
+  // warning then, but if the remote answers, the pin must be reachable from
+  // its main.
+  let remoteMain = "";
+  try {
+    await capture(["git", "-c", "core.askPass=true", "fetch", "--quiet", "origin", "main"]);
+    remoteMain = (await capture(["git", "rev-parse", "FETCH_HEAD"])).trim();
+  } catch {
+    console.log("  ! origin unreachable — skipped verifying the pin is published; run again online before releasing");
+  }
+  if (remoteMain !== "") {
+    try {
+      await capture(["git", "merge-base", "--is-ancestor", pin, remoteMain]);
+    } catch {
+      fail(
+        `TOHSENO_PIN ${pin} is not reachable from origin/main (${remoteMain.slice(0, 7)}). ` +
+          "The oneshot clones the public repository, so an unpushed pin breaks every fresh " +
+          "bootstrap. Push the release commit to origin main before bumping the pin or deploying.",
+      );
+    }
+  }
 }
 
 async function validateRepositoryHygiene(): Promise<void> {
