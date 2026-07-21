@@ -24,7 +24,7 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("curl -fsSL https://tohseno.com/oneshot.sh | bash");
-    expect(body).toContain("Open rails for continuity apps.");
+    expect(body).toContain("One command. One sentence. One app.");
     expect(body).toContain('property="og:image" content="http://localhost:3000/og.png"');
     expect(body).toContain('name="twitter:card" content="summary_large_image"');
     expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
