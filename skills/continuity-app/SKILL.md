@@ -76,11 +76,14 @@ account-free, but they are defaults, never refusals.
 
 ## Verify before reporting
 
-Run the invariant tests and build for the simulator:
+Run the invariant tests and build for the simulator. Resolve a device UDID
+first — `name=<device>` fails on machines where that simulator isn't
+installed, while `id=<UDID>` always addresses a device that exists:
 
 ```sh
+UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F-]{36}' | head -1)
 xcodebuild -project Writing.xcodeproj -scheme Writing \
-  -destination 'platform=iOS Simulator,name=<an installed iPhone simulator>' test
+  -destination "platform=iOS Simulator,id=$UDID" test
 ```
 
 A claim in the report must be something you ran. If the environment lacks the
