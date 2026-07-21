@@ -179,6 +179,29 @@ a:hover {
   font-size: 0.82rem;
 }
 
+.hero-steps {
+  display: flex;
+  margin: clamp(1.5rem, 3.5vh, 2.5rem) 0 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 0.6rem 2.5rem;
+  counter-reset: hero-step;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+}
+
+.hero-steps li {
+  counter-increment: hero-step;
+}
+
+.hero-steps li::before {
+  content: counter(hero-step) ". ";
+  color: var(--accent);
+  font-weight: 750;
+}
+
 .hero-links {
   display: flex;
   margin-top: clamp(1.75rem, 4vh, 3rem);

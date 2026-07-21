@@ -172,12 +172,12 @@ async function validateStaticSurface(): Promise<void> {
   console.log("\n[check] static and deployment surface");
 
   const index = await readText("apps/site/public/index.html");
-  const intake = await readText("apps/site/public/intake.html");
+  const docs = await readText("apps/site/public/docs.html");
   const privacy = await readText("apps/site/public/privacy.html");
   const robots = await readText("apps/site/public/robots.txt");
   const htmlPages: Array<[string, string]> = [
     ["landing", index],
-    ["intake", intake],
+    ["docs", docs],
     ["privacy", privacy],
   ];
   const codeAssets = [
@@ -189,34 +189,20 @@ async function validateStaticSurface(): Promise<void> {
     "{{ONESHOT_COMMAND}}",
     "data-copy-command",
     "{{REPOSITORY_URL}}",
-    'href="/intake"',
+    'href="/docs"',
     'href="/privacy"',
   ]) {
     assert(index.includes(required), `Landing page is missing required hero contract: ${required}`);
   }
-  assert(!index.includes("<form"), "Landing page must stay a single hero without an intake form");
-
-  for (const required of [
-    'action="/api/submissions"',
-    'name="markdown"',
-    'name="email"',
-    'name="operatingMode"',
-    'value="self-hosted"',
-    'value="client-owned"',
-    'value="anky-operated"',
-    'href="/privacy"',
-  ]) {
-    assert(intake.includes(required), `Intake page is missing required form contract: ${required}`);
-  }
   for (const [label, page] of htmlPages) {
+    assert(!page.includes("<form"), `The ${label} page must not contain a form; the site has no intake`);
     assert(!/<script(?![^>]*\bsrc=)[^>]*>/iu.test(page), `The ${label} page must not use inline scripts`);
     assert(
       !/<(?:script|link|img|iframe|frame|embed|object|source|video|audio|form)\b[^>]*\b(?:src|href|action|data)\s*=\s*["'](?:https?:)?\/\//iu.test(page),
       `The ${label} page must not load resources from or submit to another origin`,
     );
+    assert(page.includes('src="/app.js"'), `The ${label} page's JavaScript must be a separate same-origin asset`);
   }
-  assert(index.includes('src="/app.js"'), "Landing JavaScript must be a separate same-origin asset");
-  assert(intake.includes('src="/app.js"'), "Intake JavaScript must be a separate same-origin asset");
   assert(
     !codeAssets.some((source) =>
       /\bhttps?:\/\/|(?:src|href)\s*=\s*["']\/\/|url\(\s*["']?\/\//iu.test(source)
@@ -225,55 +211,33 @@ async function validateStaticSurface(): Promise<void> {
   );
 
   for (const phrase of [
-    "encrypted at rest",
-    "bearer capabilities",
+    "no accounts",
+    "no telemetry",
     "Anky, Inc.",
     "support@anky.app",
   ]) {
     assert(privacy.includes(phrase), `Privacy page is missing required disclosure: ${phrase}`);
   }
-  for (const privateRoute of ["Disallow: /api/", "Disallow: /c", "Disallow: /status"]) {
-    assert(robots.includes(privateRoute), `robots.txt is missing: ${privateRoute}`);
-  }
+  assert(robots.includes("Allow: /"), "robots.txt must allow the public surface");
 
   const environmentExample = await readText(".env.example");
-  for (const variable of [
-    "NODE_ENV",
-    "PORT",
-    "BASE_URL",
-    "DATABASE_PATH",
-    "TOHSENO_BACKUP_PATH",
-    "TRUST_PROXY",
-    "TOHSENO_DATA_KEY",
-    "TOHSENO_OPERATOR_TOKEN",
-    "PAYMENTS_MODE",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "STRIPE_SELF_HOSTED_PRICE_ID",
-    "STRIPE_CLIENT_SETUP_PRICE_ID",
-    "STRIPE_CLIENT_MONTHLY_PRICE_ID",
-    "EMAIL_MODE",
-    "RESEND_API_KEY",
-    "EMAIL_FROM",
-  ]) {
+  for (const variable of ["NODE_ENV", "PORT", "BASE_URL", "TRUST_PROXY"]) {
     assert(
       new RegExp(`^${variable}=`, "mu").test(environmentExample),
       `.env.example is missing ${variable}`,
     );
   }
+  assert(
+    !/(?:STRIPE|RESEND|TOHSENO_DATA_KEY|TOHSENO_OPERATOR_TOKEN|DATABASE_PATH)/.test(environmentExample),
+    ".env.example must not reintroduce intake-era configuration",
+  );
 
   const dockerfile = await readText("Dockerfile");
   assert(dockerfile.includes("FROM oven/bun:"), "Dockerfile must use the official Bun image");
-  assert(dockerfile.includes("ENTRYPOINT"), "Production container must initialize its persistent volume through an entrypoint");
-  assert(dockerfile.includes("su-exec"), "Production container must drop privileges before the Bun process starts");
-  const entrypoint = await readText("scripts/container-entrypoint.sh");
-  assert(entrypoint.includes("chown -R bun:bun /data"), "Container entrypoint must initialize mounted-volume ownership recursively");
-  assert(entrypoint.includes("chmod -R go-rwx /data"), "Container entrypoint must remove group/world access from persisted data");
-  assert(entrypoint.includes("umask 0077"), "Container entrypoint must create persisted data as owner-only");
-  assert(entrypoint.includes('exec su-exec bun "$@"'), "Container entrypoint must run Bun as the non-root user");
+  assert(/^USER bun$/m.test(dockerfile), "Production container must run as the non-root bun user");
   assert(
     !/^\s*VOLUME\b/m.test(dockerfile),
-    "Dockerfile must use the Railway-mounted volume instead of an unsupported Docker VOLUME declaration",
+    "The static site needs no volume; a Docker VOLUME declaration is unsupported on Railway",
   );
 
   const railway = await readText("railway.toml");
@@ -340,17 +304,14 @@ async function validateRepositoryHygiene(): Promise<void> {
   for (const path of paths) {
     const name = path.split("/").at(-1) ?? path;
     if (name.startsWith(".env") && name !== ".env.example") fail(`Environment file must not be tracked or unignored: ${path}`);
-    if (/\.(?:sqlite(?:-wal|-shm)?|db|pem|p12|pfx)$/i.test(name) || /(^|\/)data\//.test(path)) {
+    if (/\.(?:sqlite(?:-wal|-shm)?|db|pem|p8|p12|pfx|mobileprovision)$/i.test(name) || /(^|\/)data\//.test(path)) {
       fail(`Private runtime/credential file must not be tracked or unignored: ${path}`);
     }
   }
 
   const secretPatterns: Array<[string, RegExp]> = [
-    ["Stripe live secret", /STRIPE_SECRET_KEY\s*=\s*sk_live_[A-Za-z0-9]{20,}/],
-    ["Stripe webhook secret", /STRIPE_WEBHOOK_SECRET\s*=\s*whsec_[A-Za-z0-9]{24,}/],
-    ["Resend API key", /RESEND_API_KEY\s*=\s*re_[A-Za-z0-9]{24,}/],
-    ["TOHSENO data key", /TOHSENO_DATA_KEY\s*=\s*[A-Za-z0-9+/]{43}=/],
-    ["TOHSENO operator token", /TOHSENO_OPERATOR_TOKEN\s*=\s*[^\s#]{32,}/],
+    ["Stripe live secret", /sk_live_[A-Za-z0-9]{20,}/],
+    ["App Store Connect API key", /AuthKey_[A-Z0-9]{10}\.p8/],
     ["private key block", /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*\n(?:[A-Za-z0-9+/=]{20,}\s*\n){2,}/],
   ];
   for (const path of paths) {

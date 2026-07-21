@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="{{HERO_META_DESCRIPTION}}">
-    <title>{{BRAND}} — {{HERO_HEADLINE_1}} {{HERO_HEADLINE_2}}</title>
+    <title>{{BRAND}} — {{HERO_HEADLINE}}</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="/app.js" defer></script>
   </head>
@@ -15,10 +15,7 @@
     </header>
 
     <main class="hero" aria-labelledby="page-title">
-      <p class="cycle" aria-label="{{CYCLE_ARIA_LABEL}}">
-        <span>{{CYCLE_ACT}}</span><span aria-hidden="true">→</span><span>{{CYCLE_RECORD}}</span><span aria-hidden="true">→</span><span>{{CYCLE_REFLECT}}</span><span aria-hidden="true">→</span><span>{{CYCLE_CONTINUE}}</span>
-      </p>
-      <h1 id="page-title">{{HERO_HEADLINE_1}}<br>{{HERO_HEADLINE_2}}</h1>
+      <h1 id="page-title">{{HERO_HEADLINE}}</h1>
       <p class="lede hero-lede">
         {{HERO_LEDE}}
       </p>
@@ -34,13 +31,20 @@
           aria-describedby="oneshot-command"
         >{{HERO_COPY_LABEL}}</button>
       </div>
+
+      <ol class="hero-steps">
+        <li>{{HERO_STEP_1}}</li>
+        <li>{{HERO_STEP_2}}</li>
+        <li>{{HERO_STEP_3}}</li>
+      </ol>
+
       <p class="command-note">
         {{HERO_REQUIREMENTS}}
       </p>
 
       <nav class="hero-links" aria-label="{{HERO_LINKS_ARIA_LABEL}}">
         <a href="{{REPOSITORY_URL}}" rel="noopener">{{HERO_REPO_LINK}}</a>
-        <a href="/intake">{{HERO_INTAKE_LINK}}</a>
+        <a href="/docs">{{HERO_DOCS_LINK}}</a>
         <a href="/privacy">{{PRIVACY_LINK}}</a>
       </nav>
     </main>

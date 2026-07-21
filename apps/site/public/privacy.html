@@ -3,130 +3,49 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Plain-language privacy notice for the current TOHSENO Markdown intake service.">
-    <title>Privacy — TOHSENO</title>
+    <meta name="description" content="TOHSENO privacy: this site has no accounts, no analytics, and no forms. Generated apps keep data on the device.">
+    <title>Privacy — {{BRAND}}</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
   </head>
   <body>
-    <a class="skip-link" href="#privacy-notice">Skip to the privacy notice</a>
-
     <header class="site-header">
-      <a class="wordmark" href="/" aria-label="TOHSENO home">TOHSENO</a>
-      <span class="header-note">INTAKE PRIVACY / CURRENT SERVICE</span>
+      <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
+      <span class="header-note">{{HEADER_NOTE}}</span>
     </header>
 
-    <main class="document-main" id="privacy-notice">
+    <main class="document-main">
       <article class="document">
         <header class="document-header">
-          <p class="eyebrow">PLAIN-LANGUAGE NOTICE / JULY 10, 2026</p>
-          <h1>Privacy at the doorway.</h1>
-          <p class="lede">
-            This notice describes the current TOHSENO intake service operated by Anky, Inc.
-            It does not describe a finished continuity-app compiler or every future application.
-          </p>
+          <p class="eyebrow">TOHSENO / PRIVACY</p>
+          <h1>Privacy notice</h1>
         </header>
 
-        <section aria-labelledby="collected">
-          <h2 id="collected">What we collect</h2>
-          <p>
-            When you submit an idea, we collect the Markdown document you provide, your email
-            address, your selected ownership and operating mode, and basic operational records
-            such as submission state, timestamps, payment references, and delivery status.
-          </p>
-          <p>
-            We use this information to validate the intake, communicate with you, take payment
-            where applicable, prepare the purchased source contract and private agent capsule,
-            and operate or review the request in the mode you selected.
-          </p>
+        <section>
+          <h2>This website</h2>
+          <p>tohseno.com serves static pages and the oneshot bootstrap script. It has no accounts, no forms, no cookies, no analytics, and no third-party resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
         </section>
 
-        <section aria-labelledby="protected">
-          <h2 id="protected">How the submission is protected</h2>
-          <p>
-            Submitted Markdown and contact details are encrypted at rest. The service identifies
-            document contents with a cryptographic hash for integrity, but that hash is never used
-            as authorization and does not become a public document URL.
-          </p>
-          <p>
-            Private status and capsule links are bearer capabilities: anyone who has the complete
-            link may use it. Treat one like a password. The returned link carries its secret only
-            after the <code>#capability=</code> fragment, which browsers do not send in an HTTP path or referrer.
-            TOHSENO never asks you to put that secret in a path or query string.
-          </p>
-          <p>
-            To open a link in a browser, a small first-party script reconciles the secret and the safe
-            submission ID in a size-limited request body and receives an essential, expiry-bounded cookie
-            dedicated to that submission and marked Secure, HttpOnly, SameSite=Strict, and host-only. A coding
-            agent instead sends the secret in an Authorization header to the documented safe-ID-scoped capsule
-            route. Capability tokens are stored by
-            TOHSENO only as one-way hashes, and private responses are sent with no-store and strict
-            referrer protections. Do not publish a capability, paste it into a public issue tracker,
-            or send it through a system you do not trust.
-          </p>
+        <section>
+          <h2>The oneshot script</h2>
+          <p>The bootstrap script sends no telemetry and accepts no secrets. Its only network call is the git clone of the public repository, pinned to an exact commit. Everything it creates lives on your machine.</p>
         </section>
 
-        <section aria-labelledby="access">
-          <h2 id="access">Operator access</h2>
-          <p>
-            A TOHSENO operator may access a submitted document only when needed to review the
-            application or provide the service you requested. Explicit document access is audited.
-            Operational health can be inspected without exposing the document itself.
-          </p>
-          <p>
-            Your submitted document describes an application. It is not the private continuity data
-            that people may later create inside that application. The future TOHSENO control plane is
-            designed not to receive or warehouse that end-user private continuity content. Generated
-            applications are intended to keep it local or encrypted by default.
-          </p>
+        <section>
+          <h2>Apps built on these rails</h2>
+          <p>A continuity app is private by default: identity is a locally generated seed phrase, and writing lives on the device as plain files. Nothing leaves the device unless the app's manifest declares it. TOHSENO operates no backend for generated apps and never receives their users' content. Every app builds and runs without TOHSENO credentials.</p>
         </section>
 
-        <section aria-labelledby="payments">
-          <h2 id="payments">Payments and service providers</h2>
-          <p>
-            When payments are enabled, the payment provider receives the information necessary to
-            complete and reconcile the transaction. Safe submission identifiers may be included.
-            The submitted Markdown, capability token, and your private document contents are not sent
-            in payment metadata.
-          </p>
-          <p>
-            An email delivery provider may process the delivery address and the message required to
-            provide status or service information. TOHSENO does not add tracking pixels or external
-            analytics to this site.
-          </p>
+        <section>
+          <h2>Contact</h2>
+          <p>This site is operated by Anky, Inc. Questions: <a href="mailto:support@anky.app">support@anky.app</a>.</p>
         </section>
-
-        <section aria-labelledby="control">
-          <h2 id="control">Revocation and deletion requests</h2>
-          <p>
-            A capability can be revoked, after which its private route returns as unavailable. To ask
-            us to revoke a capability, delete a submission, or answer a privacy question, contact
-            <a href="mailto:support@anky.app">support@anky.app</a>. Include enough non-secret context
-            for us to locate your request, but do not send the capability URL in an email subject line.
-            We may need to verify that you control the submission before acting.
-          </p>
-        </section>
-
-        <section aria-labelledby="evolution">
-          <h2 id="evolution">An early service</h2>
-          <p>
-            TOHSENO is early. This notice may evolve as the product, providers, and operating modes
-            change. Material changes should be reflected here in plain language. The enduring design
-            boundary is that private continuity content belongs with the person and application that
-            created it, not in a centralized TOHSENO content warehouse.
-          </p>
-        </section>
-
-        <footer class="document-footer">
-          <p><strong>Current operator:</strong> Anky, Inc.</p>
-          <p><strong>Contact:</strong> <a href="mailto:support@anky.app">support@anky.app</a></p>
-          <p><a href="/">Return to TOHSENO intake</a></p>
-        </footer>
       </article>
     </main>
 
     <footer class="site-footer">
-      <span>TOHSENO / ANKY, INC.</span>
-      <span>PRIVATE BY DEFAULT</span>
+      <span>{{FOOTER_OPERATOR}}</span>
+      <span>{{FOOTER_DOCTRINE}}</span>
     </footer>
   </body>
 </html>

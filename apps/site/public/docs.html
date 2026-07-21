@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="How TOHSENO works: one prompt, one coding agent, one iOS app with a seed phrase instead of a signup form.">
+    <title>Docs — {{BRAND}}</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
+      <span class="header-note">{{HEADER_NOTE}}</span>
+    </header>
+
+    <main class="document-main">
+      <article class="document">
+        <header class="document-header">
+          <p class="eyebrow">TOHSENO / DOCS</p>
+          <h1>From one prompt to an iOS app</h1>
+        </header>
+
+        <section>
+          <h2>The loop</h2>
+          <ol>
+            <li>Run the one-liner. It clones a pinned commit of these rails and creates a workspace that already contains a working iOS app.</li>
+            <li>Start your coding agent in the workspace and hand it one sentence — the app you want.</li>
+            <li>Run the app in the simulator, then on your phone.</li>
+          </ol>
+          <div class="command-block">
+            <code class="command-line" id="oneshot-command" data-oneshot-command>{{ONESHOT_COMMAND}}</code>
+            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="oneshot-command">{{HERO_COPY_LABEL}}</button>
+          </div>
+          <p>The bootstrap is a small, inspectable shell script pinned to an exact commit. It accepts no secrets, sends no telemetry, creates no accounts, and deploys nothing. Read it first if you prefer: <code>curl -fsSL https://tohseno.com/oneshot.sh | less</code>.</p>
+        </section>
+
+        <section>
+          <h2>What a continuity app is</h2>
+          <p>A continuity app is an app where cryptography replaces accounts. On first launch it silently generates a BIP39 seed phrase; a keypair derived from that phrase is the user's identity. Recovery is the phrase. Data lives on the device as plain files. There are no signup forms, no OAuth screens, no email capture — not for you, not for your users.</p>
+        </section>
+
+        <section>
+          <h2>What the workspace contains</h2>
+          <ul>
+            <li><strong>A compiling iOS app</strong> — a lightweight writing app demonstrating the full spine: open, write, it's yours. It builds from a fresh clone with only a signing-team selection and runs in the simulator with zero API keys.</li>
+            <li><strong>Flag-gated modules</strong> — paywall (RevenueCat key slot), share card, notifications — present in code, flipped in one config file.</li>
+            <li><strong>A packaged landing page</strong> — <code>site/index.html</code> ships with the app.</li>
+            <li><strong>The agent protocol</strong> — <code>skills/continuity-app/SKILL.md</code>: your agent copies the base app and mutates it toward your prompt, asks at most three questions, records every assumed default, and ends with a completion report whose RUN IT NOW section is literal copy-paste commands.</li>
+            <li><strong>The manifest</strong> — a machine-readable record of what was built. If a feature can't be expressed as a valid manifest field, it's unsupported and the agent says so instead of improvising.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>To your phone</h2>
+          <p><code>bun run setup</code> in the workspace asks for your app name, bundle ID, and Apple Team ID (one question at a time; App Store Connect key and RevenueCat key are optional), then writes the config the Xcode project reads. A prepared fastlane lane uploads to TestFlight — your agent prints the command and never runs it without your approval.</p>
+        </section>
+
+        <section>
+          <h2>Everything else</h2>
+          <p>Full documentation, doctrine, the manifest schema, and the source live in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>. Apache-2.0. Every app is ejectable from birth: it builds and runs without any TOHSENO credential.</p>
+        </section>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span>{{FOOTER_OPERATOR}}</span>
+      <span>{{FOOTER_DOCTRINE}}</span>
+    </footer>
+  </body>
+</html>

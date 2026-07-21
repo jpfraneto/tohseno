@@ -12,14 +12,7 @@
     "start": "bun apps/site/server.ts",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit",
-    "check": "bun scripts/check.ts",
-    "migrate": "bun scripts/migrate.ts",
-    "backup": "bun scripts/backup.ts",
-    "generate-secrets": "bun scripts/generate-secrets.ts",
-    "operator": "bun scripts/operator.ts"
-  },
-  "dependencies": {
-    "stripe": "^22.3.1"
+    "check": "bun scripts/check.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.2.18",
