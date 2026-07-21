@@ -354,12 +354,16 @@ function validateAction(
   }
 }
 
+interface RuntimePropertiesResult {
+  offlineCoreAction?: string | undefined;
+}
+
 function validateRuntimeProperties(
   value: unknown,
   issues: ManifestValidationIssue[],
-): void {
+): RuntimePropertiesResult {
   const path = "$.runtime.properties";
-  const keys = [
+  const required = [
     "offlineCoreAction",
     "noAccountBeforeValue",
     "localFirstRecord",
@@ -367,9 +371,32 @@ function validateRuntimeProperties(
     "stableEventIdentity",
   ] as const;
   const object = objectValue(value, path, issues);
-  if (object === undefined) return;
-  checkShape(object, path, keys, keys, issues);
-  for (const key of keys) {
+  if (object === undefined) return {};
+  checkShape(object, path, required, [...required, "offlineSurface"], issues);
+  const offlineCoreAction = enumValue(
+    object.offlineCoreAction,
+    `${path}.offlineCoreAction`,
+    ["full", "degraded-readonly", "network-required"] as const,
+    issues,
+  );
+  if (offlineCoreAction === "full") {
+    if (hasOwn(object, "offlineSurface")) {
+      addIssue(
+        issues,
+        `${path}.offlineSurface`,
+        "offline.unused-surface",
+        "must be omitted when offlineCoreAction is full",
+      );
+    }
+  } else if (offlineCoreAction !== undefined) {
+    stringValue(object.offlineSurface, `${path}.offlineSurface`, issues, { max: 1000 });
+  }
+  for (const key of [
+    "noAccountBeforeValue",
+    "localFirstRecord",
+    "crashSafePersistence",
+    "stableEventIdentity",
+  ] as const) {
     if (object[key] !== true) {
       addIssue(
         issues,
@@ -379,6 +406,7 @@ function validateRuntimeProperties(
       );
     }
   }
+  return { offlineCoreAction };
 }
 
 function validateFeedback(
@@ -844,7 +872,7 @@ function validateRuntime(
     "synchronization",
   ] as const;
   checkShape(object, path, required, allowed, issues);
-  validateRuntimeProperties(object.properties, issues);
+  const properties = validateRuntimeProperties(object.properties, issues);
   validateAction(object.action, issues);
   validateFeedback(object.feedback, issues);
   validateContinuity(object.continuity, issues);
@@ -871,6 +899,19 @@ function validateRuntime(
         "encrypted synchronization requires an explicit encrypted content recovery plan",
       );
     }
+  }
+
+  if (
+    properties.offlineCoreAction !== undefined &&
+    properties.offlineCoreAction !== "full" &&
+    (privacy.externalDisclosure?.length ?? 0) === 0
+  ) {
+    addIssue(
+      issues,
+      "$.runtime.privacy.externalDisclosure",
+      "offline.network-disclosure",
+      "a network-dependent core action requires an explicit external disclosure inventory",
+    );
   }
 
   const reflection = isRecord(object.reflection) ? object.reflection : undefined;

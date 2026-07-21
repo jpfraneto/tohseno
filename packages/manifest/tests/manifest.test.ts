@@ -84,6 +84,34 @@ describe("continuity manifest", () => {
     expect(validateManifest(manifest).valid).toBe(true);
   });
 
+  test("a network-dependent core action must declare its offline surface and disclosure", async () => {
+    const manifest = await template();
+    const properties = manifest.runtime.properties as unknown as Record<string, unknown>;
+
+    properties.offlineCoreAction = "network-required";
+    let codes = validateManifest(manifest).errors.map((issue) => issue.code);
+    expect(codes).toContain("type.string");
+
+    properties.offlineSurface =
+      "Past shows stay readable; starting a show needs network.";
+    manifest.runtime.privacy.externalDisclosure = [];
+    codes = validateManifest(manifest).errors.map((issue) => issue.code);
+    expect(codes).toContain("offline.network-disclosure");
+
+    manifest.runtime.privacy.externalDisclosure = [
+      "mic audio streams to a realtime AI provider during a show only",
+    ];
+    expect(validateManifest(manifest).valid).toBe(true);
+  });
+
+  test("a fully offline core action must not carry an offline surface", async () => {
+    const manifest = await template();
+    (manifest.runtime.properties as unknown as Record<string, unknown>).offlineSurface =
+      "everything";
+    const codes = validateManifest(manifest).errors.map((issue) => issue.code);
+    expect(codes).toContain("offline.unused-surface");
+  });
+
   test("reliability invariants cannot be weakened", async () => {
     const invalid = (await template()) as unknown as {
       runtime: { properties: { crashSafePersistence: boolean } };

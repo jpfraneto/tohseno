@@ -1,7 +1,7 @@
 export const PRODUCT = Object.freeze({
   repositoryUrl: "https://github.com/jpfraneto/tohseno",
   skillPath: "skills/continuity-app/SKILL.md",
-  manifestVersion: "0.2.0",
+  manifestVersion: "0.3.0",
   oneshotCommand: "curl -fsSL https://tohseno.com/oneshot.sh | bash",
   copy: {
     BRAND: "TOHSENO",

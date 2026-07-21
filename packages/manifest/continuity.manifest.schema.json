@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tohseno.com/schemas/continuity.manifest/0.2.0",
+  "$id": "https://tohseno.com/schemas/continuity.manifest/0.3.0",
   "title": "TOHSENO Continuity Manifest",
   "description": "The machine-readable record of what a continuity app does. The bounded field space is a reliability mechanism: a feature that cannot be expressed as a valid manifest field is unsupported, and the agent says so instead of improvising. Runtime-enforced behavior, coding-agent guidance, and operator/deployment metadata are separated so prose cannot silently change runtime guarantees.",
   "type": "object",
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "0.2.0"
+      "const": "0.3.0"
     },
     "application": {
       "$ref": "#/$defs/application"
@@ -225,7 +225,14 @@
         "stableEventIdentity"
       ],
       "properties": {
-        "offlineCoreAction": { "const": true },
+        "offlineCoreAction": {
+          "description": "How much of the core action works with no network. full: the entire core action works offline. degraded-readonly: existing records stay readable offline but the core action needs network. network-required: the core action needs network by nature (live AI, realtime multiplayer). Anything but full requires offlineSurface and a non-empty externalDisclosure inventory.",
+          "enum": ["full", "degraded-readonly", "network-required"]
+        },
+        "offlineSurface": {
+          "description": "What a person can still do with no network. Required unless offlineCoreAction is full; omitted when it is.",
+          "$ref": "#/$defs/nonEmptyString"
+        },
         "noAccountBeforeValue": {
           "description": "The core action is reachable from a fresh install without any account, login, or email capture. Identity is a silently generated seed phrase.",
           "const": true
@@ -236,7 +243,17 @@
           "const": true
         },
         "stableEventIdentity": { "const": true }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "offlineCoreAction": { "const": "full" } },
+            "required": ["offlineCoreAction"]
+          },
+          "then": { "not": { "required": ["offlineSurface"] } },
+          "else": { "required": ["offlineSurface"] }
+        }
+      ]
     },
     "feedback": {
       "type": "object",
@@ -440,7 +457,7 @@
           }
         },
         "sessionLink": {
-          "description": "RESERVED, not implemented: scan a QR on a web page, confirm in the app, and a signed session connects the browser to the app identity. The flag and field exist so the pattern has a name; enabling it is unsupported in 0.2.0.",
+          "description": "RESERVED, not implemented: scan a QR on a web page, confirm in the app, and a signed session connects the browser to the app identity. The flag and field exist so the pattern has a name; enabling it is unsupported in 0.3.0.",
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "status"],
@@ -499,7 +516,33 @@
         "recovery": { "$ref": "#/$defs/recovery" },
         "synchronization": { "$ref": "#/$defs/synchronization" },
         "modules": { "$ref": "#/$defs/modules" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["properties"],
+            "properties": {
+              "properties": {
+                "required": ["offlineCoreAction"],
+                "properties": {
+                  "offlineCoreAction": {
+                    "enum": ["degraded-readonly", "network-required"]
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "privacy": {
+                "properties": {
+                  "externalDisclosure": { "minItems": 1 }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "guidance": {
       "description": "Non-executable judgment constraints for a coding agent: look, tone, and notes. The builder decides the mechanics.",

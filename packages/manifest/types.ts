@@ -1,5 +1,5 @@
 /**
- * Public TypeScript representation of continuity.manifest.json version 0.2.0.
+ * Public TypeScript representation of continuity.manifest.json version 0.3.0.
  *
  * The JSON Schema is the language-neutral source of truth. These types make the
  * same boundary convenient to consume from strict TypeScript. The bounded field
@@ -7,7 +7,7 @@
  * unsupported, and an agent says so instead of improvising.
  */
 
-export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.2.0" as const;
+export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.3.0" as const;
 
 export type ContinuityManifestSchemaVersion =
   typeof CONTINUITY_MANIFEST_SCHEMA_VERSION;
@@ -141,9 +141,18 @@ export interface ModulePolicies {
   };
 }
 
+/**
+ * How much of the core action works with no network. `full` is the default the
+ * base app ships with; anything else must say what still works offline and
+ * carry a non-empty external disclosure inventory.
+ */
+export type OfflineCoreAction = "full" | "degraded-readonly" | "network-required";
+
 /** Reliability invariants an implementation must enforce rather than merely describe. */
 export interface RuntimeProperties {
-  offlineCoreAction: true;
+  offlineCoreAction: OfflineCoreAction;
+  /** What a person can still do with no network. Required unless offlineCoreAction is full. */
+  offlineSurface?: string;
   noAccountBeforeValue: true;
   localFirstRecord: true;
   crashSafePersistence: true;

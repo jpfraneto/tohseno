@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "0.2.0",
+  "schemaVersion": "0.3.0",
   "application": {
     "id": "com.tohseno.base-writing",
     "name": "Writing",
@@ -7,7 +7,7 @@
   },
   "runtime": {
     "properties": {
-      "offlineCoreAction": true,
+      "offlineCoreAction": "full",
       "noAccountBeforeValue": true,
       "localFirstRecord": true,
       "crashSafePersistence": true,
