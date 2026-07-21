@@ -24,7 +24,7 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("curl -fsSL https://tohseno.com/oneshot.sh | bash");
-    expect(body).toContain("ONE SHOT.");
+    expect(body).toContain("Open rails for continuity apps.");
     expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
   });

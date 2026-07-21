@@ -82,7 +82,7 @@ a:hover {
 }
 
 .site-header {
-  min-height: 5rem;
+  min-height: clamp(3.25rem, 7vh, 5rem);
   border-bottom: 1px solid var(--ink);
 }
 
@@ -101,27 +101,32 @@ a:hover {
 
 .hero-page {
   display: grid;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
 }
 
 .hero {
   display: flex;
   width: min(100% - 2rem, 62rem);
+  min-height: 0;
   margin-inline: auto;
-  padding: clamp(1.5rem, 4vh, 4rem) 0;
+  padding: clamp(0.75rem, 2.5vh, 2.5rem) 0;
   flex-direction: column;
   justify-content: center;
+  overflow-y: auto;
 }
 
 .hero .cycle {
-  margin: 0 0 1.5rem;
+  margin: 0 0 clamp(0.75rem, 2vh, 1.5rem);
 }
 
 .hero h1 {
-  max-width: 16ch;
-  margin: 0 0 1.25rem;
-  font-size: clamp(2.4rem, 5.4vw, 5rem);
+  max-width: 24ch;
+  margin: 0 0 clamp(0.75rem, 2vh, 1.25rem);
+  font-size: clamp(2rem, 3.6vw + 1vh, 4.2rem);
 }
 
 .hero-lede {
@@ -130,7 +135,7 @@ a:hover {
 
 .command-block {
   display: flex;
-  margin: clamp(1.75rem, 4vh, 3rem) 0 0;
+  margin: clamp(1rem, 3vh, 2.25rem) 0 0;
   align-items: stretch;
   border: 1px solid var(--ink);
   background: rgb(255 252 245 / 62%);
@@ -138,6 +143,7 @@ a:hover {
 
 .command-line {
   display: block;
+  min-width: 0;
   padding: 1.1rem 1.25rem;
   flex: 1 1 auto;
   overflow-x: auto;
@@ -181,7 +187,7 @@ a:hover {
 
 .hero-steps {
   display: flex;
-  margin: clamp(1.5rem, 3.5vh, 2.5rem) 0 0;
+  margin: clamp(1rem, 2.5vh, 2rem) 0 0;
   padding: 0;
   flex-wrap: wrap;
   gap: 0.6rem 2.5rem;
@@ -204,7 +210,7 @@ a:hover {
 
 .hero-links {
   display: flex;
-  margin-top: clamp(1.75rem, 4vh, 3rem);
+  margin-top: clamp(1rem, 3vh, 2.25rem);
   flex-wrap: wrap;
   gap: 0.6rem 2rem;
   font-family: var(--mono);
@@ -561,7 +567,7 @@ input[type="email"] {
 }
 
 .site-footer {
-  min-height: 5rem;
+  min-height: clamp(3.25rem, 7vh, 5rem);
 }
 
 .document-main {
