@@ -83,8 +83,12 @@ final class IdentityManager: ObservableObject {
         self.store = store
     }
 
-    /// Idempotent: returns the existing identity or silently creates one.
+    /// Idempotent: adopts the existing identity or silently creates one.
     /// Never shows UI and never blocks the writing surface.
+    ///
+    /// The read must stay ahead of generation: an identity synced through
+    /// iCloud Keychain from another device (or surviving a reinstall) is
+    /// adopted silently. Generating first would shadow it.
     func loadOrCreate() {
         if let words = store.readMnemonic(), let existing = try? Identity.from(mnemonic: words) {
             identity = existing
@@ -96,7 +100,8 @@ final class IdentityManager: ObservableObject {
         identity = created
     }
 
-    /// Replaces the local identity with one restored from a phrase.
+    /// Replaces the identity with one restored from a phrase, overwriting
+    /// the synchronizable keychain item so every device converges on it.
     /// Session content on this device is untouched; only identity changes.
     func restore(phrase: String) throws {
         let words = BIP39.normalize(phrase)
@@ -106,9 +111,57 @@ final class IdentityManager: ObservableObject {
     }
 }
 
-/// Keychain-backed secret store. Device-only, available after first unlock,
-/// never synchronized to iCloud.
+/// The raw keychain operations for the seed-phrase item, keyed by whether
+/// the item participates in iCloud Keychain sync. Behind a protocol so the
+/// ordering logic above it (adopt-before-generate, legacy migration,
+/// restore-overwrites-sync) is unit-testable with a fake keychain.
+protocol SeedPhraseKeychain {
+    func read(synchronizable: Bool) -> Data?
+    func write(_ data: Data, synchronizable: Bool) throws
+    func delete(synchronizable: Bool)
+}
+
+/// Keychain-backed secret store. The item is synchronizable: it follows the
+/// person through iCloud Keychain, end-to-end encrypted, and survives
+/// reinstalls. With iCloud Keychain off it simply stays local — no
+/// detection, no messaging.
 struct KeychainSecretStore: SecretStore {
+    private let keychain: SeedPhraseKeychain
+
+    init(keychain: SeedPhraseKeychain = SystemSeedPhraseKeychain()) {
+        self.keychain = keychain
+    }
+
+    func readMnemonic() -> [String]? {
+        if let data = keychain.read(synchronizable: true) {
+            return mnemonic(from: data)
+        }
+        // One-time migration: a legacy device-only item is rewritten as
+        // synchronizable so it starts following the person's iCloud Keychain.
+        if let legacy = keychain.read(synchronizable: false) {
+            if (try? keychain.write(legacy, synchronizable: true)) != nil {
+                keychain.delete(synchronizable: false)
+            }
+            return mnemonic(from: legacy)
+        }
+        return nil
+    }
+
+    func writeMnemonic(_ words: [String]) throws {
+        let data = Data(words.joined(separator: " ").utf8)
+        keychain.delete(synchronizable: true)
+        keychain.delete(synchronizable: false)
+        try keychain.write(data, synchronizable: true)
+    }
+
+    private func mnemonic(from data: Data) -> [String]? {
+        String(data: data, encoding: .utf8).map { BIP39.normalize($0) }
+    }
+}
+
+/// The real keychain. Items are available after first unlock and marked
+/// synchronizable; keychain sync needs no entitlements or iCloud capability.
+struct SystemSeedPhraseKeychain: SeedPhraseKeychain {
     enum KeychainError: Error {
         case writeFailed(OSStatus)
     }
@@ -118,33 +171,33 @@ struct KeychainSecretStore: SecretStore {
     }
     private let account = "seed-phrase"
 
-    func readMnemonic() -> [String]? {
-        let query: [String: Any] = [
+    private func baseQuery(synchronizable: Bool) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
+            kSecAttrSynchronizable as String: synchronizable,
         ]
-        var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data,
-              let phrase = String(data: data, encoding: .utf8) else { return nil }
-        return BIP39.normalize(phrase)
     }
 
-    func writeMnemonic(_ words: [String]) throws {
-        let data = Data(words.joined(separator: " ").utf8)
-        let base: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(base as CFDictionary)
-        var attributes = base
+    func read(synchronizable: Bool) -> Data? {
+        var query = baseQuery(synchronizable: synchronizable)
+        query[kSecReturnData as String] = true
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    func write(_ data: Data, synchronizable: Bool) throws {
+        var attributes = baseQuery(synchronizable: synchronizable)
         attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.writeFailed(status) }
+    }
+
+    func delete(synchronizable: Bool) {
+        SecItemDelete(baseQuery(synchronizable: synchronizable) as CFDictionary)
     }
 }
 

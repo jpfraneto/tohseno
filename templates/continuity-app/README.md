@@ -42,10 +42,14 @@ project.yml              XcodeGen source of truth for Writing.xcodeproj
 
 ## The spine
 
-- **Identity is a seed phrase.** Silently generated on first launch, stored in
-  the keychain, revealed or restored only from Settings. The derived key's
-  fingerprint is the user ID. No accounts, no logins, no email — for you or
-  your users.
+- **Identity is a seed phrase.** Silently generated on first launch — unless
+  one already exists in iCloud Keychain, in which case it is adopted silently.
+  The keychain item is synchronizable: identity is backed up automatically
+  through iCloud Keychain, end-to-end encrypted, and survives reinstalls and
+  new devices. Reveal/restore in Settings is the manual fallback. The derived
+  key's fingerprint is the user ID. No accounts, no logins, no email — for
+  you or your users. Identity backup is not content backup: sessions do not
+  sync and stay on the device.
 - **Data is files.** Each kept session is a plain `.txt` plus a small JSON
   sidecar, written atomically. A killed process never loses committed text.
 - **Modules are flags.** `AppConfig.swift` is the single seam. Flipping a flag

@@ -24,6 +24,7 @@
 		C1B75F906EC6892EC206D6BF /* Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B89CADBBF3DA35F148335820 /* Identity.swift */; };
 		CE9849B92CF9E75581A28ADA /* BIP39.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E6D1F5F39A8112B90CDECC /* BIP39.swift */; };
 		DA381775BFB313683AE75166 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38629954D217F401DA0F6CA7 /* AppConfig.swift */; };
+		DF750B6FC7928E7B66C0B4DC /* KeychainSecretStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0D5E0F50A3416E07E16024 /* KeychainSecretStoreTests.swift */; };
 		F71AD0F029C5180DCC642A94 /* ShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F281F5B3887261013BFE9593 /* ShareCard.swift */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +58,7 @@
 		CF5948CF73E55113C7CDE108 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D3177F8176A4B17BEE53A540 /* bip39-english.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "bip39-english.txt"; sourceTree = "<group>"; };
 		D61B33D0554BFEB745EE9E5A /* BIP39Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BIP39Tests.swift; sourceTree = "<group>"; };
+		DB0D5E0F50A3416E07E16024 /* KeychainSecretStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStoreTests.swift; sourceTree = "<group>"; };
 		ECA21B7104FEE36D39F13497 /* Paywall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paywall.swift; sourceTree = "<group>"; };
 		EDB2276CA1E647E1F3635826 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F281F5B3887261013BFE9593 /* ShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCard.swift; sourceTree = "<group>"; };
@@ -141,6 +143,7 @@
 				AF2C7227376D4AF6B959A145 /* AppConfigTests.swift */,
 				D61B33D0554BFEB745EE9E5A /* BIP39Tests.swift */,
 				8C578D2DC659EAE6DB2117DD /* IdentityTests.swift */,
+				DB0D5E0F50A3416E07E16024 /* KeychainSecretStoreTests.swift */,
 				21AEEB82DD11C122DDE3C9D3 /* SessionStoreTests.swift */,
 			);
 			path = Tests;
@@ -279,6 +282,7 @@
 				570C820B45A92C43C01EED2C /* AppConfigTests.swift in Sources */,
 				8E7FFD29B39DF4F0DFD249EA /* BIP39Tests.swift in Sources */,
 				9A95F544E525900532A376F7 /* IdentityTests.swift in Sources */,
+				DF750B6FC7928E7B66C0B4DC /* KeychainSecretStoreTests.swift in Sources */,
 				0DDC4BF2D89698FB85981429 /* SessionStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

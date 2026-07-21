@@ -13,13 +13,18 @@ bounds the feature space — a bounded space is why one-shots land.
 ## 2. Cryptography kills auth
 
 Every generated app ships with a locally generated BIP39 seed phrase as its
-identity. First launch = identity exists, silently. Recovery is the phrase.
-No accounts, ever — unless the builder explicitly demands them, and then the
-agent warns once that this breaks the model, and complies.
+identity. First launch = identity exists, silently — adopted from iCloud
+Keychain when one is already there, generated otherwise. Identity is backed
+up automatically through iCloud Keychain, end-to-end encrypted; the phrase
+is the manual fallback. No accounts, ever — unless the builder explicitly
+demands them, and then the agent warns once that this breaks the model, and
+complies.
 
 ## 3. Private by default, ejectable from birth
 
-Data lives on the device as plain files. Anything that leaves the device is
+Writing lives on the device as plain files; sessions do not sync. The only
+thing that leaves the device by default is the identity seed, end-to-end
+encrypted inside iCloud Keychain. Anything else that leaves the device is
 declared in the manifest. Every app builds and runs without TOHSENO
 credentials; nobody stays because leaving is hard.
 

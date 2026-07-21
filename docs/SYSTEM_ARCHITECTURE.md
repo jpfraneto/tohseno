@@ -16,8 +16,11 @@ creates a workspace as a copy of `templates/continuity-app` — a compiling,
 running iOS app:
 
 - **Identity**: BIP39 seed phrase generated on first launch (canonical
-  wordlist, standard seed derivation), Curve25519 keypair, keychain storage,
-  reveal/restore in Settings.
+  wordlist, standard seed derivation), Curve25519 keypair, synchronizable
+  keychain storage — backed up automatically through iCloud Keychain,
+  end-to-end encrypted, adopted silently on a new device or reinstall —
+  reveal/restore in Settings as the manual fallback. Identity syncs; session
+  content does not.
 - **Persistence**: plain text files plus JSON sidecars, atomic writes, draft
   recovery after process death.
 - **Modules**: paywall (RevenueCat seam, off), share card (on, local

@@ -26,7 +26,7 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    Text("Your identity is a seed phrase generated on this device. There is no account. Whoever holds the phrase holds the identity — it is the only recovery.")
+                    Text("Your identity is backed up automatically through iCloud Keychain, end-to-end encrypted. Your writing stays on this device. There is no account. Whoever holds the phrase holds the identity.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -70,7 +70,7 @@ struct SettingsView: View {
     private var restoreSheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Enter a 12-word recovery phrase. It replaces the identity on this device; the writing stored here stays.")
+                Text("Enter a 12-word recovery phrase. It replaces the identity here and in your iCloud Keychain backup; the writing stored on this device stays.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 TextEditor(text: $restorePhrase)
