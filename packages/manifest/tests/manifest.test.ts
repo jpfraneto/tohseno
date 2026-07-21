@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import {
   assertValidManifest,
   parseManifest,
@@ -304,6 +305,29 @@ describe("continuity manifest", () => {
     expect(result.errors.map((issue) => issue.code)).toContain(
       "artifact.owner-export-required",
     );
+  });
+
+  test("the validate CLI exits 0 on a valid manifest and non-zero otherwise", async () => {
+    const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
+    const rootDir = fileURLToPath(root);
+    const runCli = async (...cliArgs: string[]): Promise<number> => {
+      const child = Bun.spawn(["bun", cli, ...cliArgs], {
+        cwd: rootDir,
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      return child.exited;
+    };
+    expect(await runCli("templates/continuity-app/continuity.manifest.json")).toBe(0);
+    expect(await runCli()).toBe(2);
+    expect(await runCli("no-such-file.json")).toBe(2);
+    const broken = `${rootDir}packages/manifest/tests/.broken-manifest.tmp.json`;
+    await Bun.write(broken, JSON.stringify({ schemaVersion: "0.1.0" }));
+    try {
+      expect(await runCli(broken)).toBe(1);
+    } finally {
+      await Bun.file(broken).delete();
+    }
   });
 
   test("parseManifest rejects malformed JSON and returns validated values", async () => {

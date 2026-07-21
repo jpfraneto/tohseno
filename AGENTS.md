@@ -49,7 +49,9 @@ Before changing code:
 
 Before handing off:
 
-1. Run focused tests, then `bun run check`.
+1. Run focused tests, then `bun run check`. A changed manifest is validated
+   with `bun run validate <path>` (the CLI gate; importing `validate.ts` or
+   running it directly validates nothing).
 2. If the base app changed: `xcodegen generate` (when project.yml changed) and the simulator test run must be green.
 3. Run `git diff --check` and inspect tracked files for secrets.
 4. Report limitations honestly, including exactly what was and was not verified in this environment.

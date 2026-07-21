@@ -46,9 +46,11 @@ must not break:
 8. Setup / TestFlight preparation.
 
 **5. Write the manifest silently.** Update `continuity.manifest.json` as the
-machine-readable record of what you built, and validate it against the schema
-in the pinned rails checkout (`packages/manifest`). The owner never fills out
-a manifest. If a requested feature cannot be expressed as a valid manifest
+machine-readable record of what you built, and validate it from the pinned
+rails checkout with `bun run validate <path-to-manifest>` — it exits non-zero
+with pathed errors. That command is the only validation that counts; running
+`validate.ts` directly executes nothing and proves nothing. The owner never
+fills out a manifest. If a requested feature cannot be expressed as a valid manifest
 field, it is unsupported: say so and name the smallest supported alternative.
 That bounded feature space is why one-shots land — do not improvise around it.
 
