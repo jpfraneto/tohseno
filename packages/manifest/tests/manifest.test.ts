@@ -59,7 +59,11 @@ describe("continuity manifest", () => {
       enabled: false,
       status: "reserved",
     });
-    expect(manifest.runtime.privacy.externalDisclosure).toEqual([]);
+    expect(manifest.runtime.privacy.externalDisclosure).toEqual([
+      "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)",
+    ]);
+    expect(manifest.runtime.recovery.identity).toBe("automatic-encrypted-backup");
+    expect(manifest.runtime.recovery.content).toBe("manual-export");
     expect(manifest.operations.requiresServer).toBe(false);
   });
 
@@ -136,6 +140,7 @@ describe("continuity manifest", () => {
 
   test("remote reflection requires declared disclosure and a server", async () => {
     const manifest = await template();
+    manifest.runtime.privacy.externalDisclosure = [];
     manifest.runtime.reflection = {
       mode: "remote-service",
       trigger: "after-event-opt-in",

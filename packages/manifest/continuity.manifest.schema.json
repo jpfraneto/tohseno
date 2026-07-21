@@ -387,7 +387,7 @@
           "enum": ["after-first-value", "settings-only", "never"]
         },
         "identity": {
-          "enum": ["none", "manual", "opt-in-encrypted-backup"]
+          "enum": ["none", "manual", "automatic-encrypted-backup", "opt-in-encrypted-backup"]
         },
         "content": {
           "enum": ["none", "manual-export", "opt-in-encrypted-backup"]

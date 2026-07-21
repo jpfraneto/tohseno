@@ -112,7 +112,7 @@ export interface IdentityPolicy {
 
 export interface RecoveryPolicy {
   offer: "after-first-value" | "settings-only" | "never";
-  identity: "none" | "manual" | "opt-in-encrypted-backup";
+  identity: "none" | "manual" | "automatic-encrypted-backup" | "opt-in-encrypted-backup";
   content: "none" | "manual-export" | "opt-in-encrypted-backup";
 }
 

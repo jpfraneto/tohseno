@@ -738,7 +738,7 @@ function validateRecovery(
   const identity = enumValue(
     object.identity,
     `${path}.identity`,
-    ["none", "manual", "opt-in-encrypted-backup"] as const,
+    ["none", "manual", "automatic-encrypted-backup", "opt-in-encrypted-backup"] as const,
     issues,
   );
   const content = enumValue(

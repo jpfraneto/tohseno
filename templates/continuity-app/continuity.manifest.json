@@ -61,7 +61,9 @@
     "privacy": {
       "localStorage": "platform-private",
       "publicByDefault": false,
-      "externalDisclosure": [],
+      "externalDisclosure": [
+        "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)"
+      ],
       "telemetry": "none"
     },
     "identity": {
@@ -72,7 +74,7 @@
     },
     "recovery": {
       "offer": "settings-only",
-      "identity": "manual",
+      "identity": "automatic-encrypted-backup",
       "content": "manual-export"
     },
     "modules": {
