@@ -11,12 +11,6 @@ type UnknownRecord = Record<string, unknown>;
 const CONTRACT_ID = /^[a-z0-9][a-z0-9._-]*$/;
 const APPLICATION_ID = /^[a-z0-9]+(?:[.-][a-z0-9]+)+$/;
 const MEDIA_TYPE = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/;
-const REQUIRED_PAYMENT_NON_GATES = [
-  "core-action",
-  "local-record",
-  "recovery",
-  "owner-export",
-] as const;
 const REQUIRED_APPROVALS = [
   "paid-infrastructure",
   "dns-change",
@@ -82,7 +76,7 @@ function checkShape(
         issues,
         pathFor(path, key),
         "additional-property",
-        "is not part of continuity.manifest 0.1.0",
+        `is not part of continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
       );
     }
   }
@@ -207,8 +201,8 @@ function validateApplication(
   checkShape(
     object,
     path,
-    ["id", "name", "targetHuman", "coreAction"],
-    ["id", "name", "targetHuman", "coreAction"],
+    ["id", "name", "coreAction"],
+    ["id", "name", "coreAction"],
     issues,
   );
   stringValue(object.id, `${path}.id`, issues, {
@@ -217,10 +211,6 @@ function validateApplication(
     pattern: APPLICATION_ID,
   });
   stringValue(object.name, `${path}.name`, issues, { max: 80 });
-  stringValue(object.targetHuman, `${path}.targetHuman`, issues, {
-    min: 12,
-    max: 500,
-  });
   const coreAction = stringValue(object.coreAction, `${path}.coreAction`, issues, {
     min: 12,
     max: 240,
@@ -371,11 +361,10 @@ function validateRuntimeProperties(
   const path = "$.runtime.properties";
   const keys = [
     "offlineCoreAction",
-    "actionBeforeAccount",
+    "noAccountBeforeValue",
     "localFirstRecord",
-    "continuityWithoutAi",
+    "crashSafePersistence",
     "stableEventIdentity",
-    "immutableSealedArtifacts",
   ] as const;
   const object = objectValue(value, path, issues);
   if (object === undefined) return;
@@ -386,7 +375,7 @@ function validateRuntimeProperties(
         issues,
         pathFor(path, key),
         "runtime-invariant",
-        "must be true in manifest version 0.1.0",
+        `must be true in manifest version ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
       );
     }
   }
@@ -588,7 +577,6 @@ function validatePrivacy(
   const keys = [
     "localStorage",
     "publicByDefault",
-    "controlPlaneReceives",
     "externalDisclosure",
     "telemetry",
   ] as const;
@@ -599,42 +587,12 @@ function validatePrivacy(
     ["platform-private", "application-encrypted"] as const,
     issues,
   );
-  if (object.publicByDefault !== false) {
+  if (typeof object.publicByDefault !== "boolean") {
     addIssue(
       issues,
       `${path}.publicByDefault`,
-      "privacy.public-default",
-      "must be false",
-    );
-  }
-  const controlPlaneReceives = stringArrayValue(object.controlPlaneReceives, `${path}.controlPlaneReceives`, issues, {
-    allowEmpty: true,
-  });
-  const allowedControlPlaneMetadata = new Set([
-    "none",
-    "release-version",
-    "deployment-health",
-    "migration-health",
-    "opaque-application-id",
-    "pseudonymous-request-authorization",
-    "minimal-payment-and-order-state",
-  ]);
-  for (const [index, field] of (controlPlaneReceives ?? []).entries()) {
-    if (!allowedControlPlaneMetadata.has(field)) {
-      addIssue(
-        issues,
-        `${path}.controlPlaneReceives[${index}]`,
-        "privacy.control-plane-metadata-only",
-        "must be an enumerated operational metadata class; private continuity content is forbidden",
-      );
-    }
-  }
-  if ((controlPlaneReceives ?? []).includes("none") && (controlPlaneReceives ?? []).length > 1) {
-    addIssue(
-      issues,
-      `${path}.controlPlaneReceives`,
-      "privacy.control-plane-none-exclusive",
-      "none cannot be combined with another metadata class",
+      "type.boolean",
+      "must be a boolean",
     );
   }
   const externalDisclosure = stringArrayValue(
@@ -685,16 +643,16 @@ function validateIdentity(
     object,
     path,
     ["mode", "creation", "crossAppLinking"],
-    ["mode", "creation", "suite", "crossAppLinking"],
+    ["mode", "creation", "wordlist", "suite", "crossAppLinking"],
     issues,
   );
   const mode = enumValue(
     object.mode,
     `${path}.mode`,
-    ["none", "local-contextual"] as const,
+    ["none", "seed-phrase", "local-contextual"] as const,
     issues,
   );
-  const creation = enumValue(
+  enumValue(
     object.creation,
     `${path}.creation`,
     ["first-action", "first-committed-event", "first-launch"] as const,
@@ -706,28 +664,54 @@ function validateIdentity(
     ["never", "explicit-consent-only"] as const,
     issues,
   );
-  if (mode === "local-contextual") {
+  if (mode === "seed-phrase") {
+    if (object.wordlist !== "bip39-english") {
+      addIssue(
+        issues,
+        `${path}.wordlist`,
+        "identity.wordlist",
+        "must be bip39-english for seed-phrase identity",
+      );
+    }
+    if (hasOwn(object, "suite")) {
+      addIssue(
+        issues,
+        `${path}.suite`,
+        "identity.unused-suite",
+        "must be omitted when identity mode is seed-phrase",
+      );
+    }
+  } else if (mode === "local-contextual") {
     stringValue(object.suite, `${path}.suite`, issues, {
       min: 3,
       max: 120,
       pattern: CONTRACT_ID,
     });
-  } else if (mode === "none" && hasOwn(object, "suite")) {
-    addIssue(
-      issues,
-      `${path}.suite`,
-      "identity.unused-suite",
-      "must be omitted when identity mode is none",
-    );
-  }
-  if (creation === "first-launch") {
-    addIssue(
-      issues,
-      `${path}.creation`,
-      "identity.early",
-      "prefer contextual identity after action or first value unless compatibility requires first launch",
-      "warning",
-    );
+    if (hasOwn(object, "wordlist")) {
+      addIssue(
+        issues,
+        `${path}.wordlist`,
+        "identity.unused-wordlist",
+        "must be omitted when identity mode is local-contextual",
+      );
+    }
+  } else if (mode === "none") {
+    if (hasOwn(object, "suite")) {
+      addIssue(
+        issues,
+        `${path}.suite`,
+        "identity.unused-suite",
+        "must be omitted when identity mode is none",
+      );
+    }
+    if (hasOwn(object, "wordlist")) {
+      addIssue(
+        issues,
+        `${path}.wordlist`,
+        "identity.unused-wordlist",
+        "must be omitted when identity mode is none",
+      );
+    }
   }
   return { mode };
 }
@@ -745,7 +729,7 @@ function validateRecovery(
   const object = objectValue(value, path, issues);
   if (object === undefined) return {};
   checkShape(object, path, ["offer", "identity", "content"], ["offer", "identity", "content"], issues);
-  const offer = enumValue(
+  enumValue(
     object.offer,
     `${path}.offer`,
     ["after-first-value", "settings-only", "never"] as const,
@@ -763,56 +747,7 @@ function validateRecovery(
     ["none", "manual-export", "opt-in-encrypted-backup"] as const,
     issues,
   );
-  if (offer === "settings-only") {
-    addIssue(
-      issues,
-      `${path}.offer`,
-      "recovery.hidden",
-      "settings-only recovery should be reviewed after first value",
-      "warning",
-    );
-  }
   return { content, identity };
-}
-
-function validateProofs(
-  value: unknown,
-  issues: ManifestValidationIssue[],
-): void {
-  const path = "$.runtime.proofs";
-  if (!Array.isArray(value)) {
-    addIssue(issues, path, "type.array", "must be an array");
-    return;
-  }
-  if (value.length < 1 || value.length > 4) {
-    addIssue(issues, path, "array.range", "must contain between 1 and 4 proof policies");
-  }
-  value.forEach((entry, index) => {
-    const proofPath = pathFor(path, index);
-    const proof = objectValue(entry, proofPath, issues);
-    if (proof === undefined) return;
-    const keys = ["mode", "statement", "disclosure", "artifactDisclosure", "export"] as const;
-    checkShape(proof, proofPath, keys, keys, issues);
-    enumValue(
-      proof.mode,
-      `${proofPath}.mode`,
-      ["practice-key-attestation", "server-witnessed"] as const,
-      issues,
-    );
-    stringValue(proof.statement, `${proofPath}.statement`, issues, { max: 1000 });
-    if (proof.disclosure !== "minimal") {
-      addIssue(issues, `${proofPath}.disclosure`, "proof.disclosure", "must be minimal");
-    }
-    enumValue(
-      proof.artifactDisclosure,
-      `${proofPath}.artifactDisclosure`,
-      ["none", "digest"] as const,
-      issues,
-    );
-    if (proof.export !== "owner-selected") {
-      addIssue(issues, `${proofPath}.export`, "proof.export", "must be owner-selected");
-    }
-  });
 }
 
 function validateSynchronization(
@@ -829,46 +764,59 @@ function validateSynchronization(
   stringValue(object.conflictPolicy, `${path}.conflictPolicy`, issues, { max: 1000 });
 }
 
-function validatePayments(
+function validateModules(
   value: unknown,
   issues: ManifestValidationIssue[],
 ): void {
-  const path = "$.runtime.payments";
+  const path = "$.runtime.modules";
   const object = objectValue(value, path, issues);
   if (object === undefined) return;
-  checkShape(object, path, ["mode", "mayGate", "mustNotGate"], ["mode", "mayGate", "mustNotGate"], issues);
-  if (object.mode !== "optional-entitlement") {
-    addIssue(issues, `${path}.mode`, "payments.mode", "must be optional-entitlement");
-  }
-  const mayGate = stringArrayValue(object.mayGate, `${path}.mayGate`, issues, {
-    allowEmpty: true,
-    pattern: CONTRACT_ID,
-  });
-  const mustNotGate = stringArrayValue(object.mustNotGate, `${path}.mustNotGate`, issues, {
-    min: 4,
-    pattern: CONTRACT_ID,
-  });
-  if (mustNotGate !== undefined) {
-    const protectedCapabilities = new Set(mustNotGate);
-    for (const capability of REQUIRED_PAYMENT_NON_GATES) {
-      if (!protectedCapabilities.has(capability)) {
-        addIssue(
-          issues,
-          `${path}.mustNotGate`,
-          "payments.required-non-gate",
-          `must include ${capability}`,
-        );
-      }
+  const keys = ["paywall", "shareCard", "notifications", "sessionLink"] as const;
+  checkShape(object, path, keys, keys, issues);
+
+  const paywallPath = `${path}.paywall`;
+  const paywall = objectValue(object.paywall, paywallPath, issues);
+  if (paywall !== undefined) {
+    checkShape(paywall, paywallPath, ["enabled", "provider"], ["enabled", "provider", "publicKeySlot"], issues);
+    if (typeof paywall.enabled !== "boolean") {
+      addIssue(issues, `${paywallPath}.enabled`, "type.boolean", "must be a boolean");
     }
-    for (const capability of mayGate ?? []) {
-      if (protectedCapabilities.has(capability)) {
-        addIssue(
-          issues,
-          `${path}.mayGate`,
-          "payments.gate-conflict",
-          `${capability} appears in both mayGate and mustNotGate`,
-        );
-      }
+    if (paywall.provider !== "revenuecat") {
+      addIssue(issues, `${paywallPath}.provider`, "modules.paywall.provider", "must be revenuecat");
+    }
+    if (hasOwn(paywall, "publicKeySlot")) {
+      stringValue(paywall.publicKeySlot, `${paywallPath}.publicKeySlot`, issues, {
+        min: 3,
+        max: 120,
+        pattern: CONTRACT_ID,
+      });
+    }
+  }
+
+  for (const moduleKey of ["shareCard", "notifications"] as const) {
+    const modulePath = pathFor(path, moduleKey);
+    const module = objectValue(object[moduleKey], modulePath, issues);
+    if (module === undefined) continue;
+    checkShape(module, modulePath, ["enabled"], ["enabled"], issues);
+    if (typeof module.enabled !== "boolean") {
+      addIssue(issues, `${modulePath}.enabled`, "type.boolean", "must be a boolean");
+    }
+  }
+
+  const sessionLinkPath = `${path}.sessionLink`;
+  const sessionLink = objectValue(object.sessionLink, sessionLinkPath, issues);
+  if (sessionLink !== undefined) {
+    checkShape(sessionLink, sessionLinkPath, ["enabled", "status"], ["enabled", "status"], issues);
+    if (sessionLink.enabled !== false) {
+      addIssue(
+        issues,
+        `${sessionLinkPath}.enabled`,
+        "modules.session-link.reserved",
+        `must be false; sessionLink is a reserved primitive and enabling it is unsupported in ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
+      );
+    }
+    if (sessionLink.status !== "reserved") {
+      addIssue(issues, `${sessionLinkPath}.status`, "modules.session-link.status", "must be reserved");
     }
   }
 }
@@ -884,30 +832,27 @@ function validateRuntime(
     "properties",
     "action",
     "feedback",
-    "returnInvitation",
     "continuity",
     "privacy",
     "identity",
     "recovery",
+    "modules",
   ] as const;
   const allowed = [
     ...required,
     "reflection",
-    "proofs",
     "synchronization",
-    "payments",
   ] as const;
   checkShape(object, path, required, allowed, issues);
   validateRuntimeProperties(object.properties, issues);
   validateAction(object.action, issues);
   validateFeedback(object.feedback, issues);
-  stringValue(object.returnInvitation, `${path}.returnInvitation`, issues, { max: 1000 });
   validateContinuity(object.continuity, issues);
   if (hasOwn(object, "reflection")) validateReflection(object.reflection, issues);
   const privacy = validatePrivacy(object.privacy, issues);
   const identity = validateIdentity(object.identity, issues);
   const recovery = validateRecovery(object.recovery, issues);
-  if (hasOwn(object, "proofs")) validateProofs(object.proofs, issues);
+  validateModules(object.modules, issues);
   if (hasOwn(object, "synchronization")) {
     validateSynchronization(object.synchronization, issues);
     if (privacy.localStorage !== "application-encrypted") {
@@ -927,7 +872,6 @@ function validateRuntime(
       );
     }
   }
-  if (hasOwn(object, "payments")) validatePayments(object.payments, issues);
 
   const reflection = isRecord(object.reflection) ? object.reflection : undefined;
   if (
@@ -961,11 +905,10 @@ function validateGuidance(
   checkShape(
     object,
     path,
-    ["forbiddenPatterns", "visualDirection", "tonalDirection"],
-    ["forbiddenPatterns", "visualDirection", "tonalDirection", "implementationNotes"],
+    ["visualDirection", "tonalDirection"],
+    ["visualDirection", "tonalDirection", "implementationNotes"],
     issues,
   );
-  stringArrayValue(object.forbiddenPatterns, `${path}.forbiddenPatterns`, issues);
   stringArrayValue(object.visualDirection, `${path}.visualDirection`, issues);
   stringArrayValue(object.tonalDirection, `${path}.tonalDirection`, issues);
   if (hasOwn(object, "implementationNotes")) {
@@ -989,26 +932,18 @@ function validateOperations(
     object,
     path,
     [
-      "operatingMode",
       "deploymentTargets",
       "requiresServer",
       "ejectionRequired",
       "approvalRequiredFor",
     ],
     [
-      "operatingMode",
       "deploymentTargets",
       "requiresServer",
       "ejectionRequired",
       "approvalRequiredFor",
       "operatorNotes",
     ],
-    issues,
-  );
-  enumValue(
-    object.operatingMode,
-    `${path}.operatingMode`,
-    ["self-hosted", "client-owned", "anky-operated"] as const,
     issues,
   );
   const deploymentTargets = stringArrayValue(
@@ -1063,7 +998,7 @@ function validateOperations(
         issues,
         `${path}.approvalRequiredFor`,
         "operations.approval-value",
-        `${approval} is not a version 0.1.0 approval boundary`,
+        `${approval} is not a version ${CONTINUITY_MANIFEST_SCHEMA_VERSION} approval boundary`,
       );
     }
   }

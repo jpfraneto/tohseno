@@ -86,8 +86,6 @@ async function validateRepositoryJson(): Promise<void> {
   console.log("\n[check] manifest examples and JSON contract corpus");
 
   const manifestPaths = [
-    "examples/anky/continuity.manifest.json",
-    "examples/daily-observation/continuity.manifest.json",
     "templates/continuity-app/continuity.manifest.json",
   ];
   for (const path of manifestPaths) {

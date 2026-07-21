@@ -1,12 +1,13 @@
 /**
- * Public TypeScript representation of continuity.manifest.json version 0.1.0.
+ * Public TypeScript representation of continuity.manifest.json version 0.2.0.
  *
  * The JSON Schema is the language-neutral source of truth. These types make the
- * same boundary convenient to consume from strict TypeScript without turning
- * the manifest into a UI builder or deployment configuration language.
+ * same boundary convenient to consume from strict TypeScript. The bounded field
+ * space is a reliability mechanism: a feature that cannot be expressed here is
+ * unsupported, and an agent says so instead of improvising.
  */
 
-export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.1.0" as const;
+export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.2.0" as const;
 
 export type ContinuityManifestSchemaVersion =
   typeof CONTINUITY_MANIFEST_SCHEMA_VERSION;
@@ -42,7 +43,6 @@ export type InterruptionCondition =
 export interface ApplicationIdentity {
   id: string;
   name: string;
-  targetHuman: string;
   coreAction: string;
 }
 
@@ -97,23 +97,15 @@ export interface ReflectionPolicy {
 
 export interface PrivacyBoundary {
   localStorage: "platform-private" | "application-encrypted";
-  publicByDefault: false;
-  controlPlaneReceives: Array<
-    | "none"
-    | "release-version"
-    | "deployment-health"
-    | "migration-health"
-    | "opaque-application-id"
-    | "pseudonymous-request-authorization"
-    | "minimal-payment-and-order-state"
-  >;
+  publicByDefault: boolean;
   externalDisclosure: string[];
   telemetry: "none" | "operational-metadata-only" | "minimal-pseudonymous";
 }
 
-export interface PracticeIdentityPolicy {
-  mode: "none" | "local-contextual";
+export interface IdentityPolicy {
+  mode: "none" | "seed-phrase" | "local-contextual";
   creation: "first-action" | "first-committed-event" | "first-launch";
+  wordlist?: "bip39-english";
   suite?: string;
   crossAppLinking: "never" | "explicit-consent-only";
 }
@@ -124,65 +116,62 @@ export interface RecoveryPolicy {
   content: "none" | "manual-export" | "opt-in-encrypted-backup";
 }
 
-export interface ProofPolicy {
-  mode: "practice-key-attestation" | "server-witnessed";
-  statement: string;
-  disclosure: "minimal";
-  artifactDisclosure: "none" | "digest";
-  export: "owner-selected";
-}
-
 export interface SynchronizationPolicy {
   mode: "opt-in-encrypted";
   conflictPolicy: string;
 }
 
-export interface PaymentPolicy {
-  mode: "optional-entitlement";
-  mayGate: string[];
-  mustNotGate: string[];
+/** The flag-gated indie-stack modules. Flipping a flag is the integration step. */
+export interface ModulePolicies {
+  paywall: {
+    enabled: boolean;
+    provider: "revenuecat";
+    publicKeySlot?: string;
+  };
+  shareCard: {
+    enabled: boolean;
+  };
+  notifications: {
+    enabled: boolean;
+  };
+  /** Reserved future primitive: QR browser pairing. Enabling it is unsupported in 0.2.0. */
+  sessionLink: {
+    enabled: false;
+    status: "reserved";
+  };
 }
 
-/** Properties an implementation must enforce rather than merely describe. */
+/** Reliability invariants an implementation must enforce rather than merely describe. */
 export interface RuntimeProperties {
   offlineCoreAction: true;
-  actionBeforeAccount: true;
+  noAccountBeforeValue: true;
   localFirstRecord: true;
-  continuityWithoutAi: true;
+  crashSafePersistence: true;
   stableEventIdentity: true;
-  immutableSealedArtifacts: true;
 }
 
 export interface ManifestRuntime {
   properties: RuntimeProperties;
   action: ActionRuntime;
   feedback: RuntimeFeedback;
-  returnInvitation: string;
   continuity: {
     accumulated: AccumulatedContinuity;
     artifacts: ArtifactPolicy[];
   };
   reflection?: ReflectionPolicy;
   privacy: PrivacyBoundary;
-  identity: PracticeIdentityPolicy;
+  identity: IdentityPolicy;
   recovery: RecoveryPolicy;
-  proofs?: ProofPolicy[];
   synchronization?: SynchronizationPolicy;
-  payments?: PaymentPolicy;
+  modules: ModulePolicies;
 }
 
-/** Guidance constrains coding-agent judgment; a runtime must not interpret it. */
+/** Guidance constrains coding-agent judgment (look, tone, notes); a runtime must not interpret it. */
 export interface CodingAgentGuidance {
-  forbiddenPatterns: string[];
   visualDirection: string[];
   tonalDirection: string[];
   implementationNotes?: string[];
 }
-
-export type OperatingMode =
-  | "self-hosted"
-  | "client-owned"
-  | "anky-operated";
 
 export type DeploymentTarget =
   | "native-ios"
@@ -196,9 +185,8 @@ export type ApprovalBoundary =
   | "store-submission"
   | "production-credential-rotation";
 
-/** Operator/deployment metadata is explicit and does not alter ritual semantics. */
+/** Operator/deployment metadata is explicit and cannot weaken runtime guarantees. */
 export interface OperatorMetadata {
-  operatingMode: OperatingMode;
   deploymentTargets: DeploymentTarget[];
   requiresServer: boolean;
   ejectionRequired: true;
