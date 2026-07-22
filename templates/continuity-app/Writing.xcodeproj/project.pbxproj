@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0DDC4BF2D89698FB85981429 /* SessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21AEEB82DD11C122DDE3C9D3 /* SessionStoreTests.swift */; };
 		107D09C87DA3E2BD55F036AB /* WritingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B97EB4841EBE6AFAED8358C /* WritingView.swift */; };
+		14D102F744994A328665E9BB /* TokenMint.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A76042C079F878BD5FDAC5 /* TokenMint.swift */; };
 		282C5677D5DCD1B101CBDB53 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E75AFDA40680FF341BA87CF /* SessionStore.swift */; };
 		2E311CDB80F156DA6E4119D9 /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7BA9D82359278A987493BC /* SessionListView.swift */; };
 		4A9A25810D41ED5AB685C731 /* Paywall.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA21B7104FEE36D39F13497 /* Paywall.swift */; };
@@ -61,6 +62,7 @@
 		DB0D5E0F50A3416E07E16024 /* KeychainSecretStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStoreTests.swift; sourceTree = "<group>"; };
 		ECA21B7104FEE36D39F13497 /* Paywall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Paywall.swift; sourceTree = "<group>"; };
 		EDB2276CA1E647E1F3635826 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F0A76042C079F878BD5FDAC5 /* TokenMint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenMint.swift; sourceTree = "<group>"; };
 		F281F5B3887261013BFE9593 /* ShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -87,6 +89,7 @@
 				ECA21B7104FEE36D39F13497 /* Paywall.swift */,
 				506C7FAEF2FD6761631FB05E /* SessionLink.swift */,
 				F281F5B3887261013BFE9593 /* ShareCard.swift */,
+				F0A76042C079F878BD5FDAC5 /* TokenMint.swift */,
 			);
 			path = Modules;
 			sourceTree = "<group>";
@@ -270,6 +273,7 @@
 				282C5677D5DCD1B101CBDB53 /* SessionStore.swift in Sources */,
 				AFB68C14758E3946515CB9B0 /* SettingsView.swift in Sources */,
 				F71AD0F029C5180DCC642A94 /* ShareCard.swift in Sources */,
+				14D102F744994A328665E9BB /* TokenMint.swift in Sources */,
 				A25CE9DF63AF086B8A4E8658 /* WritingApp.swift in Sources */,
 				107D09C87DA3E2BD55F036AB /* WritingView.swift in Sources */,
 			);

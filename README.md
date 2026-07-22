@@ -6,7 +6,7 @@ Open rails for **continuity apps** — auth-less software built around one meani
 act → record → reflect → continue
 ```
 
-A continuity app has one primary action with an observable start, completion, and interruption. Progress is recorded locally and stays useful without a network or a model provider. Reflection helps the person recognize what happened. A respectful return path invites them back. No dashboards-as-homepage, no feeds, no manipulative streaks, no account ceremony before first value. The full rules are in [Doctrine](docs/DOCTRINE.md).
+A continuity app has one primary action with an observable start, completion, and interruption. Progress is recorded locally; the manifest declares whether the core action is fully offline, degraded offline, or network-required, plus exactly what remains available without a network. Reflection helps the person recognize what happened. A respectful return path invites them back. No dashboards-as-homepage, no feeds, no manipulative streaks, no account ceremony before first value. The full rules are in [Doctrine](docs/DOCTRINE.md).
 
 The lineage is [Anky](https://anky.app): eight minutes of writing, no backspace, every day, for four years. TOHSENO is that practice distilled into a framework — and Anky ships in this repository as a working example you can build from.
 
@@ -30,7 +30,7 @@ Then the loop is:
 
 1. **Hand off.** Start your coding agent in the workspace: _read `AGENTS.md` and begin._
 2. **Distill.** If you started blank, the agent does not build the placeholder prompt — it interviews you, one question at a time, about the one repeated action your app protects, then writes `MASTER_PROMPT.md` with you and gets your confirmation. If you started from an example, `MASTER_PROMPT.md` and the manifest are already complete and the agent builds immediately.
-3. **Build inside the rails.** The skill walks the agent through interview, manifest, privacy inventory, smallest offline vertical slice, invariant tests, deployment preparation, and the ejection package. The manifest schema in `packages/manifest` is the boundary: a feature that cannot be expressed as a valid manifest diff is unsupported, not quietly improvised.
+3. **Build inside the rails.** The skill walks the agent through interview, manifest, privacy inventory, the smallest honest vertical slice and offline surface, invariant tests, deployment preparation, and the ejection package. The manifest schema in `packages/manifest` is the boundary: a feature that cannot be expressed as a valid manifest diff is unsupported, not quietly improvised.
 
 ## If you are a coding agent reading this
 
@@ -99,9 +99,14 @@ Use `PAYMENTS_MODE=mock` and `EMAIL_MODE=console` only outside production. Full 
 ## Validation
 
 ```bash
+bun run validate templates/continuity-app/continuity.manifest.json
 bun run check   # the before-commit gate: typecheck, tests, contract corpus,
                 # static surface, oneshot pin ancestry, secret hygiene
 ```
+
+`bun run validate <path>` is the manifest CLI gate and exits nonzero for a
+missing or invalid file. Importing or running `packages/manifest/validate.ts`
+directly validates nothing.
 
 Tests use temporary databases and fake providers; no network access needed.
 

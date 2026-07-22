@@ -25,11 +25,17 @@ Run its invariant tests with ⌘U or:
 
 ```sh
 cd templates/continuity-app
+UDID=$(xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | grep -oE '[0-9A-F-]{36}' | head -1)
+if [ -z "$UDID" ]; then
+  echo "No available iPhone simulator; install one in Xcode → Settings → Platforms." >&2
+  exit 1
+fi
 xcodebuild -project Writing.xcodeproj -scheme Writing \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test
+  -destination "platform=iOS Simulator,id=$UDID" test
 ```
 
-The project file is generated: edit `project.yml`, then `xcodegen generate`
+The project file is generated, not file-system-synced. Run `xcodegen generate`
+after editing `project.yml` or adding, removing, or moving a Swift file
 (`brew install xcodegen`).
 
 ## The oneshot, end to end

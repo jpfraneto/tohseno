@@ -24,6 +24,8 @@
 	<false/>
 	<key>RevenueCatPublicKey</key>
 	<string>$(REVENUECAT_PUBLIC_KEY)</string>
+	<key>DevelopmentSecret</key>
+	<string>$(DEV_SECRET_FOR_BUILD)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

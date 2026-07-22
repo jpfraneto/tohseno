@@ -66,6 +66,13 @@ account-free, but they are defaults, never refusals.
 - **Secrets in code or logs.** Key slots hold public identifiers; secret
   values never enter git, output, or reports. `MASTER_PROMPT.md` is private
   product input — gitignored, never committed, logged, echoed, or transmitted.
+  A prototype that needs a provider secret may use only the base app's
+  `DEV_SECRET` convention in gitignored `Config/Local.xcconfig`: it is for an
+  owner-controlled development device only and is forced empty in simulator
+  and Release builds. Declare it once in `operations.developmentSecrets` with
+  `slot: "dev-secret"` (the manifest id mapped to `DEV_SECRET`); replace it with
+  short-lived credentials from the reserved TokenMint pattern before any
+  distribution.
 - **Auth before value without a warning.** If the owner explicitly demands
   accounts or login, warn once that this breaks the continuity model — then
   comply. Never add auth unprompted.
@@ -76,12 +83,20 @@ account-free, but they are defaults, never refusals.
 
 ## Verify before reporting
 
+`Writing.xcodeproj` is generated, not file-system-synced. If you added,
+removed, or moved a Swift file (or changed `project.yml`), run
+`xcodegen generate` before building.
+
 Run the invariant tests and build for the simulator. Resolve a device UDID
 first — `name=<device>` fails on machines where that simulator isn't
 installed, while `id=<UDID>` always addresses a device that exists:
 
 ```sh
-UDID=$(xcrun simctl list devices available | grep -oE '[0-9A-F-]{36}' | head -1)
+UDID=$(xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | grep -oE '[0-9A-F-]{36}' | head -1)
+if [ -z "$UDID" ]; then
+  echo "No available iPhone simulator; install one in Xcode → Settings → Platforms." >&2
+  exit 1
+fi
 xcodebuild -project Writing.xcodeproj -scheme Writing \
   -destination "platform=iOS Simulator,id=$UDID" test
 ```
@@ -93,6 +108,29 @@ commands in RUN IT NOW instead.
 The finish line of a one-shot: app running in the simulator, invariant tests
 green, and the TestFlight command loaded in RUN IT NOW behind one approval
 (`bun run setup` once, then `fastlane beta` — the owner runs it, you never do).
+
+Setup is interactive by default: it uses prior answers, then the manifest's
+app name and bundle ID, auto-detects an Apple Team ID for confirmation, and
+explains what each skipped answer prevents. With explicit owner approval, an
+agent may run the non-interactive path:
+
+```sh
+bun run setup --from-manifest --team auto
+# Add TestFlight credentials only when the owner supplied them:
+bun run setup --from-manifest --team <TEAM_ID> \
+  --asc-key <absolute-.p8-path> --asc-key-id <KEY_ID> \
+  --asc-issuer-id <ISSUER_UUID>
+```
+
+An enabled paywall may add `--revenuecat-key <public-key>`.
+The App Store Connect key comes from App Store Connect → Users and Access →
+Integrations → App Store Connect API → Team Keys → "+" → role App
+Manager → download once. Setup validates it with a read-only ASC request
+before writing config. Secret material arrives only by path or environment,
+never source or command output. Environment equivalents are
+`TOHSENO_FROM_MANIFEST=1`, `TOHSENO_APPLE_TEAM_ID`, `TOHSENO_ASC_KEY_PATH`,
+`TOHSENO_ASC_KEY_ID`, `TOHSENO_ASC_ISSUER_ID`, and
+`TOHSENO_REVENUECAT_PUBLIC_KEY`.
 
 ## Completion report
 

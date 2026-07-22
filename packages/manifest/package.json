@@ -1,0 +1,13 @@
+{
+  "name": "@tohseno/manifest",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun cli.ts",
+    "test": "bun test tests"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1"
+  }
+}

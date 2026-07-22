@@ -13,7 +13,7 @@ This repository contains: the public site (hero, docs, privacy, the pinned onesh
 - **Speed is the product.** Anything that adds a question, a config step, or a ceremony must pay for itself in reliability.
 - **The base app is the starting point.** One-shots mutate `templates/continuity-app`, never an empty directory. It must always build from a fresh clone with only a signing-team selection, run in the simulator with zero keys, and survive process death without losing text.
 - **The manifest is a reliability mechanism, not a moral one.** If a feature cannot be expressed as a valid manifest field, it is unsupported — say so instead of improvising. The builder decides the mechanics (streaks, paywalls, scores are tools, not sins); private-by-default and account-free are defaults, never refusals.
-- **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink stays declared-only until it ships.
+- **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink and TokenMint stay declared-only until they ship.
 - **Ejectable from birth.** Every app builds and runs without TOHSENO credentials; every landing page ships in the same package as its app.
 
 ## Private data rules
@@ -22,6 +22,11 @@ Never commit or log owner prompts, contact details, credentials, tokens, message
 
 - `MASTER_PROMPT.md` in a workspace is private product input: gitignored, never committed, echoed, or transmitted.
 - Key slots hold public identifiers; setup writes key *paths*, never secret values. `.p8`/`.p12`/`.pem` files never enter git.
+- A prototype provider secret may use only the base app's `DEV_SECRET` seam in
+  gitignored `Config/Local.xcconfig`, declared in the manifest's development
+  secrets as the canonical `dev-secret` slot. It is for an owner-controlled
+  Debug device only, is forced empty in simulator and Release builds, and must
+  become short-lived TokenMint credentials before distribution.
 - Keep logs structured and content-free.
 - App-runtime content stays on the person's device. This repository operates no backend for generated apps and must never grow one that receives their users' content.
 
@@ -52,7 +57,9 @@ Before handing off:
 1. Run focused tests, then `bun run check`. A changed manifest is validated
    with `bun run validate <path>` (the CLI gate; importing `validate.ts` or
    running it directly validates nothing).
-2. If the base app changed: `xcodegen generate` (when project.yml changed) and the simulator test run must be green.
+2. If the base app changed: run `xcodegen generate` after changing
+   `project.yml` or adding/removing/moving Swift files (the project is
+   generated, not file-system-synced), and the simulator test run must be green.
 3. Run `git diff --check` and inspect tracked files for secrets.
 4. Report limitations honestly, including exactly what was and was not verified in this environment.
 

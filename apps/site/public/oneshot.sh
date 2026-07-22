@@ -195,6 +195,8 @@ main() {
   cp -R "$rails_dir/templates/continuity-app/." "$target/"
   mkdir -p "$target/skills/continuity-app"
   cp "$rails_dir/skills/continuity-app/SKILL.md" "$target/skills/continuity-app/SKILL.md"
+  local workspace_dir
+  workspace_dir="$(cd "$target" && pwd -P)"
   cat > "$target/AGENTS.md" <<AGENTS_ENTRY
 # Agent entry point
 
@@ -212,9 +214,42 @@ owner's prompt.
    transmitted — nor any credential or capability.
 3. The manifest schema and validators live in the pinned rails checkout at
    $rails_dir (commit $TOHSENO_PIN). Update continuity.manifest.json to
-   record what you build; validate it.
-4. Verify with the invariant tests and a simulator build before reporting.
-5. Do not create paid infrastructure, alter DNS, submit to stores, publish
+   record what you build. The exact validation gate is:
+
+       (cd "$rails_dir" && bun run validate "$workspace_dir/continuity.manifest.json")
+
+   It must exit zero; importing or running validate.ts directly proves nothing.
+4. Writing.xcodeproj is generated, not file-system-synced. After changing
+   project.yml or adding, removing, or moving Swift files, run:
+
+       xcodegen generate
+
+5. Verify with the invariant tests and a simulator that actually exists:
+
+       UDID=\$(xcrun simctl list devices available | grep -E '^[[:space:]]+iPhone' | grep -oE '[0-9A-F-]{36}' | head -1)
+       if [ -z "\$UDID" ]; then
+         echo "No available iPhone simulator; install one in Xcode > Settings > Platforms." >&2
+         exit 1
+       fi
+       xcodebuild -project Writing.xcodeproj -scheme Writing \\
+         -destination "platform=iOS Simulator,id=\$UDID" test
+
+6. A prototype provider secret may use only DEV_SECRET in gitignored
+   Config/Local.xcconfig. It is for an owner-controlled development device
+   only, is forced empty in simulator and Release builds, and must be replaced
+   by short-lived TokenMint credentials before distribution.
+7. Setup is interactive by default. Only with explicit owner approval may an
+   agent use its non-interactive mode:
+
+       bun run setup --from-manifest --team auto
+
+   App Store Connect credentials add --asc-key <absolute-.p8-path>,
+   --asc-key-id <KEY_ID>, and --asc-issuer-id <ISSUER_UUID>; an enabled paywall
+   may add --revenuecat-key <public-key>. Create the ASC key at
+   App Store Connect > Users and Access > Integrations > App Store Connect API
+   > Team Keys > "+" > role App Manager > download once. Setup validates it
+   read-only before writing config; credential values never enter git.
+8. Do not create paid infrastructure, alter DNS, submit to stores, publish
    packages, or deploy production without the owner's explicit approval.
    Prepare the TestFlight command; never run it unprompted.
 AGENTS_ENTRY

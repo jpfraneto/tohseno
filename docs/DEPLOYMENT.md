@@ -27,4 +27,7 @@ creates paid resources, or submits applications to stores on its own.
 
 Generated apps deploy through their own prepared TestFlight path
 (`bun run setup`, then `fastlane beta` run by the owner) — never through this
-site.
+site. With explicit owner approval, an agent may prepare local config with
+`bun run setup --from-manifest --team auto`; App Store Connect credentials are
+accepted only by path/environment and validated read-only before config is
+written.

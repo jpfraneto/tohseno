@@ -365,6 +365,7 @@ function validateRuntimeProperties(
   const path = "$.runtime.properties";
   const required = [
     "offlineCoreAction",
+    "permissionRequestPolicy",
     "noAccountBeforeValue",
     "localFirstRecord",
     "crashSafePersistence",
@@ -376,7 +377,7 @@ function validateRuntimeProperties(
   const offlineCoreAction = enumValue(
     object.offlineCoreAction,
     `${path}.offlineCoreAction`,
-    ["full", "degraded-readonly", "network-required"] as const,
+    ["full", "degraded", "network-required"] as const,
     issues,
   );
   if (offlineCoreAction === "full") {
@@ -390,6 +391,14 @@ function validateRuntimeProperties(
     }
   } else if (offlineCoreAction !== undefined) {
     stringValue(object.offlineSurface, `${path}.offlineSurface`, issues, { max: 1000 });
+  }
+  if (object.permissionRequestPolicy !== "first-core-action") {
+    addIssue(
+      issues,
+      `${path}.permissionRequestPolicy`,
+      "permission-request-policy",
+      "must be first-core-action: request OS permissions at the first core action that needs them, never at launch",
+    );
   }
   for (const key of [
     "noAccountBeforeValue",
@@ -875,14 +884,13 @@ function validateModules(
         checkShape(
           extension,
           extensionPath,
-          ["enabled", "description"],
-          ["enabled", "description", "keySlot", "requiresNetwork"],
+          ["enabled"],
+          ["enabled", "keySlot", "requiresNetwork", "notes"],
           issues,
         );
         if (typeof extension.enabled !== "boolean") {
           addIssue(issues, `${extensionPath}.enabled`, "type.boolean", "must be a boolean");
         }
-        stringValue(extension.description, `${extensionPath}.description`, issues, { max: 1000 });
         if (hasOwn(extension, "keySlot")) {
           stringValue(extension.keySlot, `${extensionPath}.keySlot`, issues, {
             min: 3,
@@ -892,6 +900,9 @@ function validateModules(
         }
         if (hasOwn(extension, "requiresNetwork") && typeof extension.requiresNetwork !== "boolean") {
           addIssue(issues, `${extensionPath}.requiresNetwork`, "type.boolean", "must be a boolean");
+        }
+        if (hasOwn(extension, "notes")) {
+          stringValue(extension.notes, `${extensionPath}.notes`, issues, { max: 1000 });
         }
         if (extension.enabled === true && extension.requiresNetwork === true) {
           enabledNetworkExtensions.push(name);
@@ -1023,8 +1034,7 @@ function validateGuidance(
 }
 
 interface OperationsResult {
-  requiresServer?: boolean | undefined;
-  serverRole?: string | undefined;
+  requiresServer?: boolean | "credential-minting-only" | undefined;
   deploymentTargets?: string[] | undefined;
 }
 
@@ -1049,6 +1059,7 @@ function validateOperations(
       "requiresServer",
       "serverRole",
       "developmentSecrets",
+      "meteredDependencies",
       "ejectionRequired",
       "approvalRequiredFor",
       "operatorNotes",
@@ -1070,26 +1081,27 @@ function validateOperations(
       );
     }
   }
-  let requiresServer: boolean | undefined;
-  if (typeof object.requiresServer !== "boolean") {
-    addIssue(issues, `${path}.requiresServer`, "type.boolean", "must be a boolean");
+  let requiresServer: boolean | "credential-minting-only" | undefined;
+  if (
+    object.requiresServer !== false &&
+    object.requiresServer !== "credential-minting-only" &&
+    object.requiresServer !== true
+  ) {
+    addIssue(
+      issues,
+      `${path}.requiresServer`,
+      "operations.requires-server",
+      "must be false, credential-minting-only, or true",
+    );
   } else {
     requiresServer = object.requiresServer;
   }
-  let serverRole: string | undefined;
-  if (requiresServer === true) {
-    serverRole = enumValue(
-      object.serverRole,
-      `${path}.serverRole`,
-      ["token-mint-only", "sync-relay", "app-backend"] as const,
-      issues,
-    );
-  } else if (hasOwn(object, "serverRole")) {
+  if (hasOwn(object, "serverRole")) {
     addIssue(
       issues,
       `${path}.serverRole`,
-      "operations.unused-server-role",
-      "must be omitted when requiresServer is false",
+      "operations.server-role-removed",
+      "was removed in 0.4.0; set requiresServer to credential-minting-only for a token mint, true for any broader server, or false for none",
     );
   }
   if (hasOwn(object, "developmentSecrets")) {
@@ -1097,31 +1109,68 @@ function validateOperations(
     if (!Array.isArray(object.developmentSecrets)) {
       addIssue(issues, secretsPath, "type.array", "must be an array");
     } else {
-      if (object.developmentSecrets.length < 1 || object.developmentSecrets.length > 8) {
-        addIssue(issues, secretsPath, "array.range", "must contain between 1 and 8 entries");
+      if (object.developmentSecrets.length !== 1) {
+        addIssue(issues, secretsPath, "array.range", "must contain exactly the canonical dev-secret entry");
       }
-      const slots: string[] = [];
       object.developmentSecrets.forEach((entry, index) => {
         const entryPath = pathFor(secretsPath, index);
         const secret = objectValue(entry, entryPath, issues);
         if (secret === undefined) return;
         checkShape(secret, entryPath, ["slot", "purpose"], ["slot", "purpose"], issues);
-        const slot = stringValue(secret.slot, `${entryPath}.slot`, issues, {
-          min: 3,
-          max: 120,
-          pattern: CONTRACT_ID,
-        });
-        if (slot !== undefined) slots.push(slot);
+        if (secret.slot !== "dev-secret") {
+          addIssue(
+            issues,
+            `${entryPath}.slot`,
+            "development-secrets.slot",
+            "must be dev-secret, the manifest id mapped to DEV_SECRET in gitignored Local.xcconfig",
+          );
+        }
         stringValue(secret.purpose, `${entryPath}.purpose`, issues, { max: 1000 });
       });
-      if (new Set(slots).size !== slots.length) {
-        addIssue(issues, secretsPath, "development-secrets.slot.unique", "slot names must be unique");
-      }
       addIssue(
         issues,
         secretsPath,
         "operations.development-secrets",
         "development secrets are prototype-only; replace them with a token-minting server before store submission",
+        "warning",
+      );
+    }
+  }
+  if (hasOwn(object, "meteredDependencies")) {
+    const dependenciesPath = `${path}.meteredDependencies`;
+    if (!Array.isArray(object.meteredDependencies)) {
+      addIssue(issues, dependenciesPath, "type.array", "must be an array");
+    } else {
+      if (object.meteredDependencies.length < 1 || object.meteredDependencies.length > 16) {
+        addIssue(issues, dependenciesPath, "array.range", "must contain between 1 and 16 entries");
+      }
+      const meters: string[] = [];
+      object.meteredDependencies.forEach((entry, index) => {
+        const entryPath = pathFor(dependenciesPath, index);
+        const dependency = objectValue(entry, entryPath, issues);
+        if (dependency === undefined) return;
+        checkShape(dependency, entryPath, ["provider", "unit"], ["provider", "unit"], issues);
+        const provider = stringValue(dependency.provider, `${entryPath}.provider`, issues, {
+          min: 3,
+          max: 120,
+          pattern: CONTRACT_ID,
+        });
+        const unit = stringValue(dependency.unit, `${entryPath}.unit`, issues, { max: 1000 });
+        if (provider !== undefined && unit !== undefined) meters.push(`${provider}\u0000${unit}`);
+      });
+      if (new Set(meters).size !== meters.length) {
+        addIssue(
+          issues,
+          dependenciesPath,
+          "metered-dependencies.unique",
+          "provider and unit pairs must be unique",
+        );
+      }
+      addIssue(
+        issues,
+        dependenciesPath,
+        "operations.metered-dependencies",
+        "app usage consumes owner-funded third-party credits; review the declared meters before distribution",
         "warning",
       );
     }
@@ -1164,7 +1213,7 @@ function validateOperations(
   if (hasOwn(object, "operatorNotes")) {
     stringArrayValue(object.operatorNotes, `${path}.operatorNotes`, issues);
   }
-  return { requiresServer, serverRole, deploymentTargets };
+  return { requiresServer, deploymentTargets };
 }
 
 export function validateManifest(input: unknown): ManifestValidationResult {
@@ -1179,11 +1228,16 @@ export function validateManifest(input: unknown): ManifestValidationResult {
       issues,
     );
     if (root.schemaVersion !== CONTINUITY_MANIFEST_SCHEMA_VERSION) {
+      const migration = root.schemaVersion === "0.3.0"
+        ? "; migrate 0.3.0 by adding runtime.properties.permissionRequestPolicy = first-core-action, changing degraded-readonly to degraded, moving token-mint-only into operations.requiresServer as credential-minting-only, removing operations.serverRole, and mapping any single development secret to slot dev-secret"
+        : root.schemaVersion === "0.2.0"
+          ? "; migrate the boolean offlineCoreAction to full, degraded, or network-required, add the required 0.4.0 module and permission declarations, and use the bounded operations.requiresServer value"
+          : "";
       addIssue(
         issues,
         "$.schemaVersion",
         "schema-version",
-        `must equal ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`,
+        `must equal ${CONTINUITY_MANIFEST_SCHEMA_VERSION}${migration}`,
       );
     }
     validateApplication(root.application, issues);
@@ -1195,6 +1249,8 @@ export function validateManifest(input: unknown): ManifestValidationResult {
     const reflection = runtime !== undefined && isRecord(runtime.reflection)
       ? runtime.reflection
       : undefined;
+    const synchronizationRequired = runtime !== undefined &&
+      hasOwn(runtime, "synchronization");
     if (
       reflection?.mode === "remote-service" &&
       operations.requiresServer === false
@@ -1203,32 +1259,30 @@ export function validateManifest(input: unknown): ManifestValidationResult {
         issues,
         "$.operations.requiresServer",
         "operations.server-required",
-        "must be true when reflection uses a remote service",
-      );
-    }
-    const privacyRecord = runtime !== undefined && isRecord(runtime.privacy)
-      ? runtime.privacy
-      : undefined;
-    const disclosure = Array.isArray(privacyRecord?.externalDisclosure)
-      ? privacyRecord.externalDisclosure
-      : undefined;
-    if (operations.serverRole === "app-backend" && (disclosure?.length ?? 0) === 0) {
-      addIssue(
-        issues,
-        "$.runtime.privacy.externalDisclosure",
-        "operations.app-backend-disclosure",
-        "an app-backend server requires an explicit external disclosure inventory",
+        "must be credential-minting-only or true when reflection uses a remote service",
       );
     }
     if (
-      operations.requiresServer === true &&
+      synchronizationRequired &&
+      operations.requiresServer !== true
+    ) {
+      addIssue(
+        issues,
+        "$.operations.requiresServer",
+        "operations.sync-server-required",
+        "must be true when encrypted synchronization is enabled; credential-minting-only cannot provide synchronization",
+      );
+    }
+    if (
+      operations.requiresServer !== undefined &&
+      operations.requiresServer !== false &&
       !(operations.deploymentTargets ?? []).includes("server")
     ) {
       addIssue(
         issues,
         "$.operations.deploymentTargets",
         "operations.server-target",
-        "must include server when requiresServer is true",
+        "must include server when requiresServer is credential-minting-only or true",
       );
     }
   }

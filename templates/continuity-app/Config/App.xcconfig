@@ -13,4 +13,17 @@ DEVELOPMENT_TEAM =
 // Key slots for flag-gated modules. Public identifiers only — never secrets.
 REVENUECAT_PUBLIC_KEY =
 
+// Prototype-only provider secret. Put its value only in gitignored
+// Local.xcconfig and only while running on an owner-controlled device.
+// DEV_SECRET_FOR_BUILD is deliberately blank for simulators and every Release
+// build, so TestFlight and App Store archives cannot inherit the local value.
+DEV_SECRET =
+
 #include? "Local.xcconfig"
+
+// Even the raw local setting is cleared outside an owner-device Debug build,
+// keeping it out of simulator and archive build settings as well as Info.plist.
+DEV_SECRET[config=Release] =
+DEV_SECRET[sdk=iphonesimulator*] =
+DEV_SECRET_FOR_BUILD =
+DEV_SECRET_FOR_BUILD[config=Debug][sdk=iphoneos*] = $(DEV_SECRET)

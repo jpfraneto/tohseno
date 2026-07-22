@@ -11,6 +11,9 @@ Every workspace the oneshot creates is already ejected:
 - the whole app — source, project, tests, landing page, manifest — lives in
   the owner's directory under their own git history;
 - it builds and runs with zero TOHSENO credentials and no TOHSENO endpoint;
+- if distribution needs short-lived third-party credentials, the TokenMint
+  service is owner-deployed and receives no user content; TOHSENO is not in
+  that path;
 - identity is a seed phrase on the person's device; content is plain files
   the owner can copy, export, or migrate with `cp`;
 - bundle IDs, signing, and store accounts are the owner's from the moment

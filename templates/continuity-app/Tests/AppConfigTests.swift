@@ -9,11 +9,13 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(AppConfig.shareCardEnabled)
         XCTAssertFalse(AppConfig.notificationsEnabled)
         XCTAssertFalse(AppConfig.sessionLinkEnabled, "SessionLink is reserved; enabling it is unsupported")
+        XCTAssertFalse(AppConfig.tokenMintEnabled, "TokenMint is reserved; enabling it is unsupported")
     }
 
     func testRunsWithNoKeys() {
         // The slot exists; the base app never requires it to be filled.
         XCTAssertEqual(AppConfig.revenueCatPublicKey, "")
+        XCTAssertEqual(AppConfig.developmentSecret, "", "Simulator builds must never expose DEV_SECRET")
         XCTAssertTrue(NoopPaywall().isEntitled)
     }
 

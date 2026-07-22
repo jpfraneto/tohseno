@@ -1,0 +1,7 @@
+// Copy only the line you need into Local.xcconfig; that file is gitignored.
+// This exception is for an owner-controlled development device only. Never use
+// a long-lived provider secret in TestFlight, App Store, or other distributed
+// builds. Before distribution, replace it with short-lived credentials from a
+// TokenMint service and remove the local value. In continuity.manifest.json,
+// declare this exact seam as operations.developmentSecrets slot `dev-secret`.
+DEV_SECRET = paste-local-development-value-here

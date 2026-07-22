@@ -1,5 +1,5 @@
 /**
- * Public TypeScript representation of continuity.manifest.json version 0.3.0.
+ * Public TypeScript representation of continuity.manifest.json version 0.4.0.
  *
  * The JSON Schema is the language-neutral source of truth. These types make the
  * same boundary convenient to consume from strict TypeScript. The bounded field
@@ -7,7 +7,7 @@
  * unsupported, and an agent says so instead of improvising.
  */
 
-export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.3.0" as const;
+export const CONTINUITY_MANIFEST_SCHEMA_VERSION = "0.4.0" as const;
 
 export type ContinuityManifestSchemaVersion =
   typeof CONTINUITY_MANIFEST_SCHEMA_VERSION;
@@ -134,7 +134,7 @@ export interface ModulePolicies {
   notifications: {
     enabled: boolean;
   };
-  /** Reserved future primitive: QR browser pairing. Enabling it is unsupported in 0.3.0. */
+  /** Reserved future primitive: QR browser pairing. Enabling it is unsupported in 0.4.0. */
   sessionLink: {
     enabled: false;
     status: "reserved";
@@ -142,7 +142,7 @@ export interface ModulePolicies {
   /**
    * Reserved future primitive: a minimal server that mints short-lived
    * third-party credentials and never receives user content. Enabling it is
-   * unsupported in 0.3.0; prototypes declare operations.developmentSecrets.
+   * unsupported in 0.4.0; prototypes declare operations.developmentSecrets.
    */
   tokenMint: {
     enabled: false;
@@ -160,10 +160,11 @@ export interface ModulePolicies {
 /** A declared app-specific module. */
 export interface ExtensionModule {
   enabled: boolean;
-  description: string;
   /** The AppConfig slot name holding the extension's public identifier. Never the key itself. */
   keySlot?: string;
   requiresNetwork?: boolean;
+  /** Bounded implementation context; never a secret or private product input. */
+  notes?: string;
 }
 
 /**
@@ -171,18 +172,30 @@ export interface ExtensionModule {
  * base app ships with; anything else must say what still works offline and
  * carry a non-empty external disclosure inventory.
  */
-export type OfflineCoreAction = "full" | "degraded-readonly" | "network-required";
+export type OfflineCoreAction = "full" | "degraded" | "network-required";
 
-/** Reliability invariants an implementation must enforce rather than merely describe. */
-export interface RuntimeProperties {
-  offlineCoreAction: OfflineCoreAction;
-  /** What a person can still do with no network. Required unless offlineCoreAction is full. */
-  offlineSurface?: string;
+interface RuntimePropertyInvariants {
+  /** Request OS permissions at the first core action that needs them, never at launch. */
+  permissionRequestPolicy: "first-core-action";
   noAccountBeforeValue: true;
   localFirstRecord: true;
   crashSafePersistence: true;
   stableEventIdentity: true;
 }
+
+/** Reliability invariants an implementation must enforce rather than merely describe. */
+export type RuntimeProperties = RuntimePropertyInvariants &
+  (
+    | {
+        offlineCoreAction: "full";
+        offlineSurface?: never;
+      }
+    | {
+        offlineCoreAction: Exclude<OfflineCoreAction, "full">;
+        /** What a person can still do with no network. */
+        offlineSurface: string;
+      }
+  );
 
 export interface ManifestRuntime {
   properties: RuntimeProperties;
@@ -214,17 +227,22 @@ export type DeploymentTarget =
   | "server";
 
 /**
- * Why a server exists. token-mint-only mints short-lived third-party
- * credentials and never receives user content; sync-relay relays
- * application-encrypted blobs it cannot read; app-backend receives user data
- * and must appear in the external disclosure inventory.
+ * Whether the owner deploys a server. The bounded middle state exists for a
+ * server that only mints short-lived provider credentials and receives no user
+ * content.
  */
-export type ServerRole = "token-mint-only" | "sync-relay" | "app-backend";
+export type ServerRequirement = false | "credential-minting-only" | true;
 
-/** A prototype-only secret living in gitignored local configuration — a slot name and its purpose, never a value. */
+/** The canonical manifest id for DEV_SECRET in gitignored Local.xcconfig. */
 export interface DevelopmentSecret {
-  slot: string;
+  slot: "dev-secret";
   purpose: string;
+}
+
+/** An owner-funded third-party meter that app usage consumes. */
+export interface MeteredDependency {
+  provider: string;
+  unit: string;
 }
 
 export type ApprovalBoundary =
@@ -236,10 +254,9 @@ export type ApprovalBoundary =
 /** Operator/deployment metadata is explicit and cannot weaken runtime guarantees. */
 export interface OperatorMetadata {
   deploymentTargets: DeploymentTarget[];
-  requiresServer: boolean;
-  /** Required when requiresServer is true; omitted when false. */
-  serverRole?: ServerRole;
+  requiresServer: ServerRequirement;
   developmentSecrets?: DevelopmentSecret[];
+  meteredDependencies?: MeteredDependency[];
   ejectionRequired: true;
   approvalRequiredFor: ApprovalBoundary[];
   operatorNotes?: string[];

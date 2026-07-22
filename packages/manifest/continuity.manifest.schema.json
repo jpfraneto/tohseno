@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tohseno.com/schemas/continuity.manifest/0.3.0",
+  "$id": "https://tohseno.com/schemas/continuity.manifest/0.4.0",
   "title": "TOHSENO Continuity Manifest",
   "description": "The machine-readable record of what a continuity app does. The bounded field space is a reliability mechanism: a feature that cannot be expressed as a valid manifest field is unsupported, and the agent says so instead of improvising. Runtime-enforced behavior, coding-agent guidance, and operator/deployment metadata are separated so prose cannot silently change runtime guarantees.",
   "type": "object",
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "0.3.0"
+      "const": "0.4.0"
     },
     "application": {
       "$ref": "#/$defs/application"
@@ -214,11 +214,12 @@
       }
     },
     "runtimeProperties": {
-      "description": "Reliability invariants every generated app must enforce and test.",
+      "description": "Reliability invariants every generated app must enforce and test. The first-core-action permission request policy means OS permissions are requested only when the person first invokes the action that needs them, never at launch.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "offlineCoreAction",
+        "permissionRequestPolicy",
         "noAccountBeforeValue",
         "localFirstRecord",
         "crashSafePersistence",
@@ -226,12 +227,17 @@
       ],
       "properties": {
         "offlineCoreAction": {
-          "description": "How much of the core action works with no network. full: the entire core action works offline. degraded-readonly: existing records stay readable offline but the core action needs network. network-required: the core action needs network by nature (live AI, realtime multiplayer). Anything but full requires offlineSurface and a non-empty externalDisclosure inventory.",
-          "enum": ["full", "degraded-readonly", "network-required"]
+          "description": "How much of the core action works with no network. full: the entire core action works offline. degraded: a bounded subset works offline. network-required: the core action needs network by nature (live AI, realtime multiplayer). Anything but full requires offlineSurface and a non-empty externalDisclosure inventory.",
+          "enum": ["full", "degraded", "network-required"],
+          "default": "full"
         },
         "offlineSurface": {
           "description": "What a person can still do with no network. Required unless offlineCoreAction is full; omitted when it is.",
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "permissionRequestPolicy": {
+          "description": "Named first-core-action policy: request each OS permission when the person first invokes the core action that needs it, never at app launch.",
+          "const": "first-core-action"
         },
         "noAccountBeforeValue": {
           "description": "The core action is reachable from a fresh install without any account, login, or email capture. Identity is a silently generated seed phrase.",
@@ -457,7 +463,7 @@
           }
         },
         "sessionLink": {
-          "description": "RESERVED, not implemented: scan a QR on a web page, confirm in the app, and a signed session connects the browser to the app identity. The flag and field exist so the pattern has a name; enabling it is unsupported in 0.3.0.",
+          "description": "RESERVED, not implemented: scan a QR on a web page, confirm in the app, and a signed session connects the browser to the app identity. The flag and field exist so the pattern has a name; enabling it is unsupported in 0.4.0.",
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "status"],
@@ -467,7 +473,7 @@
           }
         },
         "tokenMint": {
-          "description": "RESERVED, not implemented: a minimal server that mints short-lived third-party credentials (e.g. ephemeral realtime-AI tokens) and never receives user content. The flag exists so the pattern has a name; enabling it is unsupported in 0.3.0 — prototypes declare a development secret in operations.developmentSecrets instead.",
+          "description": "RESERVED, not implemented: a minimal owner-deployed server that mints short-lived third-party credentials (e.g. ephemeral realtime-AI tokens) and never receives user content. The flag exists so the tokenMint pattern has a stable name; enabling it is unsupported in 0.4.0 — prototypes declare a development secret in operations.developmentSecrets instead.",
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "status"],
@@ -477,7 +483,7 @@
           }
         },
         "extensions": {
-          "description": "App-specific modules beyond the named indie stack, declared instead of narrated in implementationNotes. Each key is the extension's contract id; each value is flag-gated, key-slotted, and honest about the network. An enabled network-touching extension must be reflected in the external disclosure inventory.",
+          "description": "App-specific modules beyond the named indie stack, declared instead of narrated in implementationNotes. Each key is the extension's contract id; each value is flag-gated, optionally key-slotted, and honest about the network. An enabled network-touching extension must be reflected in the external disclosure inventory.",
           "type": "object",
           "minProperties": 1,
           "maxProperties": 16,
@@ -485,15 +491,18 @@
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["enabled", "description"],
+            "required": ["enabled"],
             "properties": {
               "enabled": { "type": "boolean" },
-              "description": { "$ref": "#/$defs/nonEmptyString" },
               "keySlot": {
                 "description": "The AppConfig slot name that holds the extension's public identifier. Never the key itself.",
                 "$ref": "#/$defs/contractId"
               },
-              "requiresNetwork": { "type": "boolean" }
+              "requiresNetwork": { "type": "boolean" },
+              "notes": {
+                "description": "A bounded implementation note for this extension; never a secret or private product input.",
+                "$ref": "#/$defs/nonEmptyString"
+              }
             }
           }
         }
@@ -557,7 +566,7 @@
                 "required": ["offlineCoreAction"],
                 "properties": {
                   "offlineCoreAction": {
-                    "enum": ["degraded-readonly", "network-required"]
+                    "enum": ["degraded", "network-required"]
                   }
                 }
               }
@@ -611,24 +620,39 @@
             "enum": ["native-ios", "native-android", "web", "server"]
           }
         },
-        "requiresServer": { "type": "boolean" },
-        "serverRole": {
-          "description": "Why the server exists. token-mint-only: mints short-lived third-party credentials and never receives user content. sync-relay: relays application-encrypted blobs it cannot read. app-backend: receives user data and must appear in the external disclosure inventory. Required when requiresServer is true; omitted when false.",
-          "enum": ["token-mint-only", "sync-relay", "app-backend"]
+        "requiresServer": {
+          "description": "Whether the owner must deploy a server. false: none. credential-minting-only: the only owner server exchanges a non-secret request for short-lived provider credentials and never receives user content. true: the app needs an owner server for additional behavior; every disclosure still belongs in runtime.privacy.externalDisclosure.",
+          "enum": [false, "credential-minting-only", true]
         },
         "developmentSecrets": {
-          "description": "Prototype-only secrets that live in gitignored local configuration — never in git, never in key slots. Each entry names the slot and why it exists. Shipping requires replacing these with a token-minting server.",
+          "description": "The one prototype-only provider secret exposed by the base app. The manifest id dev-secret maps exactly to DEV_SECRET in gitignored Config/Local.xcconfig and AppConfig.developmentSecret; it is never a public key slot or committed value. Shipping requires replacing it with a token-minting server.",
           "type": "array",
           "minItems": 1,
-          "maxItems": 8,
+          "maxItems": 1,
           "uniqueItems": true,
           "items": {
             "type": "object",
             "additionalProperties": false,
             "required": ["slot", "purpose"],
             "properties": {
-              "slot": { "$ref": "#/$defs/contractId" },
+              "slot": { "const": "dev-secret" },
               "purpose": { "$ref": "#/$defs/nonEmptyString" }
+            }
+          }
+        },
+        "meteredDependencies": {
+          "description": "Third-party services that spend owner-funded metered credits when the app is used. This lets tooling warn the owner before distribution without relying on operatorNotes prose.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "unit"],
+            "properties": {
+              "provider": { "$ref": "#/$defs/contractId" },
+              "unit": { "$ref": "#/$defs/nonEmptyString" }
             }
           }
         },
@@ -650,27 +674,77 @@
         "operatorNotes": {
           "$ref": "#/$defs/nonEmptyStringArray"
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": { "requiresServer": { "const": true } },
-            "required": ["requiresServer"]
-          },
-          "then": { "required": ["serverRole"] },
-          "else": { "not": { "required": ["serverRole"] } }
-        }
-      ]
+      }
     }
   },
   "allOf": [
     {
       "if": {
+        "required": ["runtime"],
+        "properties": {
+          "runtime": { "required": ["synchronization"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "operations": {
+            "properties": {
+              "requiresServer": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
         "required": ["operations"],
         "properties": {
           "operations": {
-            "required": ["serverRole"],
-            "properties": { "serverRole": { "const": "app-backend" } }
+            "required": ["requiresServer"],
+            "properties": {
+              "requiresServer": { "enum": ["credential-minting-only", true] }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operations": {
+            "properties": {
+              "deploymentTargets": { "contains": { "const": "server" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["runtime"],
+        "properties": {
+          "runtime": {
+            "required": ["modules"],
+            "properties": {
+              "modules": {
+                "required": ["extensions"],
+                "properties": {
+                  "extensions": {
+                    "type": "object",
+                    "not": {
+                      "additionalProperties": {
+                        "not": {
+                          "type": "object",
+                          "required": ["enabled", "requiresNetwork"],
+                          "properties": {
+                            "enabled": { "const": true },
+                            "requiresNetwork": { "const": true }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import Ajv2020, { type AnySchema } from "ajv/dist/2020";
 import { fileURLToPath } from "node:url";
 import {
   assertValidManifest,
@@ -39,6 +40,41 @@ describe("continuity manifest", () => {
     ]);
   });
 
+  test("the executable JSON Schema matches new cross-field validator rules", async () => {
+    const schema = await readJson(
+      "packages/manifest/continuity.manifest.schema.json",
+    );
+    const validateSchema = new Ajv2020({ allErrors: true, strict: false }).compile(
+      schema as AnySchema,
+    );
+
+    const base = await template();
+    expect(validateSchema(base)).toBe(true);
+    expect(validateManifest(base).valid).toBe(true);
+
+    const undisclosedNetworkExtension = await template();
+    undisclosedNetworkExtension.runtime.modules.extensions = {
+      "realtime-host": { enabled: true, requiresNetwork: true },
+    };
+    undisclosedNetworkExtension.runtime.privacy.externalDisclosure = [];
+    expect(validateSchema(undisclosedNetworkExtension)).toBe(false);
+    expect(validateManifest(undisclosedNetworkExtension).valid).toBe(false);
+
+    const serverWithoutTarget = await template();
+    serverWithoutTarget.operations.requiresServer = "credential-minting-only";
+    expect(validateSchema(serverWithoutTarget)).toBe(false);
+    expect(validateManifest(serverWithoutTarget).valid).toBe(false);
+
+    const wrongDevelopmentSlot = await template() as unknown as {
+      operations: { developmentSecrets: Array<{ slot: string; purpose: string }> };
+    };
+    wrongDevelopmentSlot.operations.developmentSecrets = [
+      { slot: "openai-api-key", purpose: "prototype provider access" },
+    ];
+    expect(validateSchema(wrongDevelopmentSlot)).toBe(false);
+    expect(validateManifest(wrongDevelopmentSlot).valid).toBe(false);
+  });
+
   test("the base-app template manifest validates without warnings", async () => {
     const manifest = await readJson(
       "templates/continuity-app/continuity.manifest.json",
@@ -53,6 +89,9 @@ describe("continuity manifest", () => {
     expect(manifest.runtime.identity.mode).toBe("seed-phrase");
     expect(manifest.runtime.identity.wordlist).toBe("bip39-english");
     expect(manifest.runtime.identity.creation).toBe("first-launch");
+    expect(manifest.runtime.properties.permissionRequestPolicy).toBe(
+      "first-core-action",
+    );
     expect(manifest.runtime.modules.paywall.enabled).toBe(false);
     expect(manifest.runtime.modules.shareCard.enabled).toBe(true);
     expect(manifest.runtime.modules.notifications.enabled).toBe(false);
@@ -109,12 +148,55 @@ describe("continuity manifest", () => {
     expect(validateManifest(manifest).valid).toBe(true);
   });
 
+  test("degraded core actions use the bounded 0.4.0 value", async () => {
+    const manifest = await template();
+    manifest.runtime.properties = {
+      ...manifest.runtime.properties,
+      offlineCoreAction: "degraded",
+      offlineSurface: "Past records remain readable; creating a new record needs network.",
+    };
+    expect(validateManifest(manifest).valid).toBe(true);
+  });
+
   test("a fully offline core action must not carry an offline surface", async () => {
     const manifest = await template();
     (manifest.runtime.properties as unknown as Record<string, unknown>).offlineSurface =
       "everything";
     const codes = validateManifest(manifest).errors.map((issue) => issue.code);
     expect(codes).toContain("offline.unused-surface");
+  });
+
+  test("OS permission requests stay at first core action, never launch", async () => {
+    const manifest = (await template()) as unknown as {
+      runtime: { properties: { permissionRequestPolicy: string } };
+    };
+    manifest.runtime.properties.permissionRequestPolicy = "at-launch";
+    expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
+      "permission-request-policy",
+    );
+  });
+
+  test("old manifest shapes fail with an explicit 0.4.0 migration message", async () => {
+    const manifest = (await template()) as unknown as {
+      schemaVersion: string;
+      runtime: { properties: Record<string, unknown> };
+      operations: Record<string, unknown>;
+    };
+    manifest.schemaVersion = "0.3.0";
+    manifest.runtime.properties.offlineCoreAction = true;
+    delete manifest.runtime.properties.permissionRequestPolicy;
+    manifest.operations.requiresServer = true;
+    manifest.operations.serverRole = "token-mint-only";
+
+    const result = validateManifest(manifest);
+    const version = result.errors.find((issue) => issue.code === "schema-version");
+    expect(version?.message).toContain("migrate 0.3.0");
+    expect(version?.message).toContain("credential-minting-only");
+    expect(result.errors.find((issue) => issue.path.endsWith("offlineCoreAction"))?.message)
+      .toContain("full, degraded, network-required");
+    expect(result.errors.map((issue) => issue.code)).toContain(
+      "operations.server-role-removed",
+    );
   });
 
   test("reliability invariants cannot be weakened", async () => {
@@ -169,31 +251,25 @@ describe("continuity manifest", () => {
     );
   });
 
-  test("a required server must name its role; app-backend requires disclosure", async () => {
+  test("server requirements distinguish a credential-only mint from broader servers", async () => {
     const manifest = await template();
-    manifest.operations.requiresServer = true;
+    manifest.operations.requiresServer = "credential-minting-only";
     manifest.operations.deploymentTargets.push("server");
-    let codes = validateManifest(manifest).errors.map((issue) => issue.code);
-    expect(codes).toContain("enum");
-
-    manifest.operations.serverRole = "token-mint-only";
     expect(validateManifest(manifest).valid).toBe(true);
 
-    manifest.operations.serverRole = "app-backend";
-    manifest.runtime.privacy.externalDisclosure = [];
-    codes = validateManifest(manifest).errors.map((issue) => issue.code);
-    expect(codes).toContain("operations.app-backend-disclosure");
+    manifest.operations.requiresServer = true;
+    expect(validateManifest(manifest).valid).toBe(true);
 
-    const roleWithoutServer = await template();
-    roleWithoutServer.operations.serverRole = "token-mint-only";
-    codes = validateManifest(roleWithoutServer).errors.map((issue) => issue.code);
-    expect(codes).toContain("operations.unused-server-role");
+    manifest.operations.deploymentTargets = ["native-ios"];
+    expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
+      "operations.server-target",
+    );
   });
 
   test("development secrets are declared slots with a prototype-only warning", async () => {
     const manifest = await template();
     manifest.operations.developmentSecrets = [
-      { slot: "openai-api-key", purpose: "prototype-only realtime voice; gitignored Local.xcconfig" },
+      { slot: "dev-secret", purpose: "prototype-only realtime voice; gitignored Local.xcconfig" },
     ];
     const result = validateManifest(manifest);
     expect(result.valid).toBe(true);
@@ -201,12 +277,9 @@ describe("continuity manifest", () => {
       "operations.development-secrets",
     );
 
-    manifest.operations.developmentSecrets.push({
-      slot: "openai-api-key",
-      purpose: "duplicate slot",
-    });
+    (manifest.operations.developmentSecrets[0] as { slot: string }).slot = "openai-api-key";
     expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
-      "development-secrets.slot.unique",
+      "development-secrets.slot",
     );
   });
 
@@ -252,14 +325,32 @@ describe("continuity manifest", () => {
     expect(codes).toContain("synchronization.recovery");
   });
 
+  test("encrypted synchronization requires a real server, not only a credential mint", async () => {
+    const manifest = await template();
+    manifest.runtime.synchronization = {
+      mode: "opt-in-encrypted",
+      conflictPolicy: "Append immutable events; surface identity collisions.",
+    };
+    manifest.runtime.privacy.localStorage = "application-encrypted";
+    manifest.runtime.recovery.content = "opt-in-encrypted-backup";
+    manifest.operations.requiresServer = "credential-minting-only";
+    manifest.operations.deploymentTargets.push("server");
+    expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
+      "operations.sync-server-required",
+    );
+
+    manifest.operations.requiresServer = true;
+    expect(validateManifest(manifest).valid).toBe(true);
+  });
+
   test("app-specific modules are declared extensions, not implementation notes", async () => {
     const manifest = await template();
     manifest.runtime.modules.extensions = {
       "realtime-host": {
         enabled: true,
-        description: "Live AI game-show host over a realtime voice session.",
         keySlot: "realtime-host-endpoint",
         requiresNetwork: true,
+        notes: "Live AI game-show host over a realtime voice session.",
       },
     };
     expect(validateManifest(manifest).valid).toBe(true);
@@ -271,7 +362,7 @@ describe("continuity manifest", () => {
 
     const badName = await template();
     badName.runtime.modules.extensions = {
-      "Bad Name!": { enabled: false, description: "nope" },
+      "Bad Name!": { enabled: false },
     };
     expect(validateManifest(badName).errors.map((issue) => issue.code)).toContain(
       "extension.name",
@@ -279,9 +370,28 @@ describe("continuity manifest", () => {
 
     const badShape = await template();
     (badShape.runtime.modules as unknown as Record<string, unknown>).extensions = {
-      "realtime-host": { enabled: true, description: "x", apiKey: "sk-live" },
+      "realtime-host": { enabled: true, apiKey: "sk-live" },
     };
     expect(validateManifest(badShape).errors.map((issue) => issue.code)).toContain(
+      "additional-property",
+    );
+  });
+
+  test("metered dependencies are bounded declarations that warn the owner", async () => {
+    const manifest = await template();
+    manifest.operations.meteredDependencies = [
+      { provider: "openai.realtime", unit: "realtime session minute" },
+    ];
+    let result = validateManifest(manifest);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.map((issue) => issue.code)).toContain(
+      "operations.metered-dependencies",
+    );
+
+    (manifest.operations.meteredDependencies[0] as unknown as Record<string, unknown>).price =
+      "secret pricing prose";
+    result = validateManifest(manifest);
+    expect(result.errors.map((issue) => issue.code)).toContain(
       "additional-property",
     );
   });
@@ -307,24 +417,25 @@ describe("continuity manifest", () => {
     );
   });
 
-  test("the validate CLI exits 0 on a valid manifest and non-zero otherwise", async () => {
-    const cli = fileURLToPath(new URL("../cli.ts", import.meta.url));
+  test("the root and package validate CLIs exit 0 only on valid manifests", async () => {
     const rootDir = fileURLToPath(root);
-    const runCli = async (...cliArgs: string[]): Promise<number> => {
-      const child = Bun.spawn(["bun", cli, ...cliArgs], {
-        cwd: rootDir,
+    const packageDir = fileURLToPath(new URL("../", import.meta.url));
+    const runCli = async (cwd: string, ...cliArgs: string[]): Promise<number> => {
+      const child = Bun.spawn(["bun", "run", "validate", ...cliArgs], {
+        cwd,
         stdout: "ignore",
         stderr: "ignore",
       });
       return child.exited;
     };
-    expect(await runCli("templates/continuity-app/continuity.manifest.json")).toBe(0);
-    expect(await runCli()).toBe(2);
-    expect(await runCli("no-such-file.json")).toBe(2);
+    expect(await runCli(rootDir, "templates/continuity-app/continuity.manifest.json")).toBe(0);
+    expect(await runCli(packageDir, "../../templates/continuity-app/continuity.manifest.json")).toBe(0);
+    expect(await runCli(rootDir)).toBe(2);
+    expect(await runCli(rootDir, "no-such-file.json")).toBe(2);
     const broken = `${rootDir}packages/manifest/tests/.broken-manifest.tmp.json`;
     await Bun.write(broken, JSON.stringify({ schemaVersion: "0.1.0" }));
     try {
-      expect(await runCli(broken)).toBe(1);
+      expect(await runCli(rootDir, broken)).toBe(1);
     } finally {
       await Bun.file(broken).delete();
     }

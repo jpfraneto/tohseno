@@ -55,7 +55,7 @@
           <h2>What the workspace contains</h2>
           <ul>
             <li><strong>A compiling iOS app</strong> — a lightweight writing app demonstrating the full spine: open, write, it's yours. It builds from a fresh clone with only a signing-team selection and runs in the simulator with zero API keys.</li>
-            <li><strong>Flag-gated modules</strong> — paywall (RevenueCat key slot), share card, notifications — present in code, flipped in one config file.</li>
+            <li><strong>Flag-gated modules</strong> — paywall, share card, notifications, reserved SessionLink and TokenMint names, plus strict app-specific extensions — declared in the manifest and flipped in one config file.</li>
             <li><strong>A packaged landing page</strong> — <code>site/index.html</code> ships with the app.</li>
             <li><strong>The agent protocol</strong> — <code>skills/continuity-app/SKILL.md</code>: your agent copies the base app and mutates it toward your prompt, asks at most three questions, records every assumed default, and ends with a completion report whose RUN IT NOW section is literal copy-paste commands.</li>
             <li><strong>The manifest</strong> — a machine-readable record of what was built. If a feature can't be expressed as a valid manifest field, it's unsupported and the agent says so instead of improvising.</li>
@@ -64,7 +64,9 @@
 
         <section>
           <h2>To your phone</h2>
-          <p><code>bun run setup</code> in the workspace asks for your app name, bundle ID, and Apple Team ID (one question at a time; App Store Connect key and RevenueCat key are optional), then writes the config the Xcode project reads. A prepared fastlane lane uploads to TestFlight — your agent prints the command and never runs it without your approval.</p>
+          <p><code>bun run setup</code> uses the manifest and previous answers as defaults, auto-detects an Apple Team ID for confirmation, and explains why each answer matters. Skip signing and the simulator still works; skip App Store Connect and there is no TestFlight until setup is rerun. The exact key path is App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys → "+" → role App Manager → download once. Setup validates that key with a read-only API request before writing config.</p>
+          <p>With explicit owner approval, an agent can run <code>bun run setup --from-manifest --team auto</code>. Optional App Store Connect setup takes the private key only by path plus its public key ID and issuer ID. A prepared fastlane lane uploads to TestFlight — your agent prints the command and never runs it without your approval.</p>
+          <p>A networked prototype may put one provider secret in gitignored <code>Config/Local.xcconfig</code> through the base app's <code>DEV_SECRET</code> seam. It works only on an owner-controlled Debug device and is forced empty in simulator and Release builds. Distribution requires short-lived credentials from an owner-deployed TokenMint service that receives no user content.</p>
         </section>
 
         <section>

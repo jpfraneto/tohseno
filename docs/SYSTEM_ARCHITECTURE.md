@@ -24,8 +24,10 @@ running iOS app:
 - **Persistence**: plain text files plus JSON sidecars, atomic writes, draft
   recovery after process death.
 - **Modules**: paywall (RevenueCat seam, off), share card (on, local
-  rendering), notifications (off), SessionLink (reserved) — all behind flags
-  in `AppConfig.swift`.
+  rendering), notifications (off), SessionLink (reserved), and TokenMint
+  (reserved credential-minting service) — all behind flags in
+  `AppConfig.swift`. Strict manifest extensions give app-specific modules the
+  same flag/key-slot/network contract without making them first-class rails.
 - **Packaged landing page**: `site/index.html`, one static file.
 - **Tests**: the invariant suite that keeps all of the above honest.
 
@@ -47,4 +49,7 @@ TOHSENO completion report.
   code.
 - The site never receives user content; generated apps never phone home.
 - Secrets never enter git: key slots hold public identifiers, setup writes
-  key paths only, and the check gate scans for leaked credentials.
+  key paths only, and the check gate scans for leaked credentials. A declared
+  prototype secret may live only in gitignored local config on an
+  owner-controlled development device; Release builds force that slot empty,
+  and distribution requires short-lived credentials from a TokenMint service.

@@ -35,6 +35,7 @@ targets:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
         RevenueCatPublicKey: $(REVENUECAT_PUBLIC_KEY)
+        DevelopmentSecret: $(DEV_SECRET_FOR_BUILD)
   WritingTests:
     type: bundle.unit-test
     platform: iOS
