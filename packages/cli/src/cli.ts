@@ -16,6 +16,7 @@ import { machineCommand } from "./machine.ts";
 import { validateShotSlug } from "./slug.ts";
 
 const HELP = `TOHSENO ${CLI_VERSION} — agent-first app factory
+Take another one.
 
 Usage:
   tohseno

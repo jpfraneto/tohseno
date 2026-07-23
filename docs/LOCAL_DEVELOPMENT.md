@@ -49,7 +49,7 @@ Build the deterministic source artifact without publishing it:
 
 ```sh
 bun run tohseno:release
-cat dist/tohseno-cli-0.2.0.json
+cat dist/tohseno-cli-0.2.1.json
 ```
 
 The installer test builds that artifact in a temporary directory, creates a

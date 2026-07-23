@@ -4,7 +4,7 @@ This file applies to the entire repository. A more local `AGENTS.md`, if one is 
 
 ## Mission and current status
 
-TOHSENO is the fastest path from one prompt to an iOS app on a phone. A person installs the local toolchain once, creates an independent repository called a **shot**, hands its coding agent one sentence, and gets a working continuity app: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
+TOHSENO is the fastest path from one prompt to an iOS app on a phone, then to the next shot. A person installs the local toolchain once, creates an independent repository called a **shot**, hands its coding agent one sentence, and gets a working continuity app: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
 
 This repository contains: the reusable local-first CLI in `packages/cli`, the public site (hero, docs, privacy, and the pinned legacy-oneshot migration endpoint), the base app in `templates/continuity-app` (a compiling, running iOS writing app that every shot starts from), the manifest schema and validator, the agent build protocol in `skills/continuity-app/SKILL.md`, and the check gate. The intake/payments product that once lived here is preserved on the `archive/intake-product` branch and is not part of main.
 
@@ -15,6 +15,29 @@ This repository contains: the reusable local-first CLI in `packages/cli`, the pu
 - **The manifest is a reliability mechanism, not a moral one.** If a feature cannot be expressed as a valid manifest field, it is unsupported — say so instead of improvising. The builder decides the mechanics (streaks, paywalls, scores are tools, not sins); private-by-default and account-free are defaults, never refusals.
 - **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink and TokenMint stay declared-only until they ship.
 - **Ejectable from birth.** Every app builds and runs without TOHSENO credentials; every landing page ships in the same package as its app.
+
+## Brand contract
+
+- **“Take another one.”** is the brand line. TOHSENO makes ideas cheap to try,
+  not disposable: every shot remains independently owned, and taking the next
+  one stays easy.
+- The mirrored `ONE SHOT` wordmark is a discoverable visual reversal. Do not
+  explain the name in the landing-page hero.
+- Put the builder and their idea in the spotlight. Prefer direct verbs such as
+  take, make, run, ship, and continue over claims about TOHSENO itself.
+- Be candid that most shots miss and that the prototype is the payoff. Never
+  promise wealth or make financial mechanics, tokens, urgency, or speculation
+  the reason to build. Describe only mechanics that are implemented now.
+- Public voice is casual, generous, direct, and self-aware. Never use
+  “revolutionary,” “unleash,” or “empower.”
+- Public visual language is a darkroom: near-black, silver-halide grey, one hot
+  signal color, mirrored type, repetition, and contact-sheet frames. Keep it
+  raw and useful rather than decorative.
+- The founder origin story does not belong on the landing page. Internal brand
+  notes do not enter tracked public files.
+- Never fabricate a shots-taken number. A local count must say what it counts;
+  any communal counter remains unimplemented until it has a privacy-preserving,
+  truthful source.
 
 ## Private data rules
 

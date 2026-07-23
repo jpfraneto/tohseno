@@ -8,7 +8,7 @@ Each new shot contains its own minimal API foundation.
 human intention
       │ natural language
       ▼
-Codex or Claude Code inside one shot
+Codex or Claude Code inside each shot
       │ structured local operations
       ▼
 pinned .tohseno/machine.ts ── API / SQLite / tunnel / Xcode / verification

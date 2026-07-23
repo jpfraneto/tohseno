@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +23,7 @@ function request(path: string, init: RequestInit = {}): Request {
 
 const oneshotPath = fileURLToPath(new URL("../public/oneshot.sh", import.meta.url));
 const installerPath = fileURLToPath(new URL("../public/install.sh", import.meta.url));
+const openGraphImagePath = fileURLToPath(new URL("../public/og.png", import.meta.url));
 
 describe("public pages", () => {
   test("serves the local CLI install path and no stale intake surface", async () => {
@@ -34,7 +35,16 @@ describe("public pages", () => {
     expect(body).toContain("Run <code>tohseno</code>");
     expect(body).toContain("Tell your coding agent");
     expect(body).not.toContain("bun run tohseno:link");
-    expect(body).toContain("Install. Run. Tell your agent.");
+    expect(body).toContain("Take another one.");
+    expect(body).toContain("Every idea deserves a body.");
+    expect(body).toContain("Most shots miss.");
+    expect(body).toContain("Every independent shot begins alive");
+    expect(body).toContain(">ONE SHOT</span>");
+    expect(body).toContain("your /shots");
+    expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
+    expect(body).not.toContain("four years");
+    expect(body).not.toContain("$TOHSENO");
+    expect(body).not.toContain("slot machine");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain("Managed intake");
     expect(body).toMatch(/property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/);
@@ -52,8 +62,9 @@ describe("public pages", () => {
       expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
       expect(body).not.toContain('href="/intake"');
       if (path === "/docs") {
-        expect(body).toContain("Your coding agent runs the factory");
-        expect(body).toContain("Create something new");
+        expect(body).toContain("Take another one");
+        expect(body).toContain("Take your first shot");
+        expect(body).toContain("The prototype is the payoff");
         expect(body).toContain("iOS is the only implemented app platform");
       } else {
         expect(body).toContain("downloads only pinned release artifacts");
@@ -87,6 +98,10 @@ describe("public pages", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toContain(type);
     }
+    const openGraphImage = readFileSync(openGraphImagePath);
+    expect(openGraphImage.subarray(1, 4).toString("ascii")).toBe("PNG");
+    expect(openGraphImage.readUInt32BE(16)).toBe(1_200);
+    expect(openGraphImage.readUInt32BE(20)).toBe(630);
   });
 
   test("the oneshot script must revalidate so a stale pin is never served", async () => {
@@ -106,7 +121,7 @@ describe("public pages", () => {
     const response = await application.fetch(request("/install.sh"));
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
     const body = await response.text();
-    expect(body).toContain('CLI_VERSION="0.2.0"');
+    expect(body).toContain('CLI_VERSION="0.2.1"');
     expect(body).toContain("TOHSENO managed installer");
     expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
 

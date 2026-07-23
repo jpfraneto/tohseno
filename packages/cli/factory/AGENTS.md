@@ -4,9 +4,10 @@ This is an independent iOS **shot**: its source, Git history, local runtime,
 tests, manifest tools, and operational playbooks stay usable without the global
 TOHSENO CLI or factory cache.
 
-First ask the owner what they want to build or change. One sentence is enough.
-The launch prompt is intentionally constant; never put the private product idea
-in commands, metadata, logs, or committed files.
+First ask the owner: “What do you want to make?” One sentence is enough. If
+they already arrived with a specific change, use it instead of making them
+repeat themselves. The launch prompt is intentionally constant; never put the
+private product idea in commands, metadata, logs, or committed files.
 
 Then read these local sources completely:
 

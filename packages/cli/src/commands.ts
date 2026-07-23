@@ -232,7 +232,7 @@ export function discoverShots(context: CommandContext): DiscoveredShot[] {
 export function listCommand(context: CommandContext): number {
   const shots = discoverShots(context);
   if (shots.length === 0) {
-    context.io.out(`No shots found in ${context.config.shotsDirectory}`);
+    context.io.out(`No shots yet in ${context.config.shotsDirectory}. Run tohseno and take the first one.`);
     return 0;
   }
   context.io.out("SHOT\tPLATFORM\tFACTORY RELEASE\tPATH");

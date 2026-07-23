@@ -4,12 +4,12 @@
 set -eu
 umask 022
 
-INSTALLER_VERSION="0.2.1"
-CLI_VERSION="0.2.0"
+INSTALLER_VERSION="0.2.2"
+CLI_VERSION="0.2.1"
 CLI_ARTIFACT="tohseno-cli-${CLI_VERSION}.tar.gz"
 CLI_URL_DEFAULT="https://github.com/jpfraneto/tohseno/releases/download/cli-v${CLI_VERSION}/${CLI_ARTIFACT}"
 # Filled from `bun run tohseno:release` before the prepared release is published.
-CLI_SHA256_DEFAULT="b8ae8726b69dbd858149813566dc79755aacc77af56bfac6a214431783b9f5eb"
+CLI_SHA256_DEFAULT="4cf468983a72b34192b10b2d7241e1e637aa0a522aa44f46ab779698f9c30292"
 
 BUN_VERSION="1.2.18"
 BUN_RELEASE_BASE="https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}"

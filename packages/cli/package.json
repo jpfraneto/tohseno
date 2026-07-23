@@ -1,7 +1,7 @@
 {
   "name": "@tohseno/cli",
-  "version": "0.2.0",
-  "description": "Local-first factory for independent TOHSENO app repositories",
+  "version": "0.2.1",
+  "description": "Agent-first iOS app factory for independent shots",
   "type": "module",
   "bin": {
     "tohseno": "./src/bin.ts"

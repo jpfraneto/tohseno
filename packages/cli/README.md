@@ -3,16 +3,18 @@
 The TOHSENO executable is an agent-first launcher and deterministic factory for
 independent iOS **shots**.
 
+Take another one.
+
 The human entry is:
 
 ```sh
 tohseno
 ```
 
-It asks whether to create or continue, shows only the implemented iOS platform,
-selects an installed Codex or Claude Code, enters the independent shot, and
-launches that agent with one constant instruction. Product intention stays in
-the conversation, never in CLI arguments or factory metadata.
+It asks whether to take a new shot or continue one, shows only the implemented
+iOS platform, selects an installed Codex or Claude Code, enters the independent
+shot, and launches that agent with one constant instruction. Product intention
+stays in the conversation, never in CLI arguments or factory metadata.
 
 Coding agents use the machine namespace:
 

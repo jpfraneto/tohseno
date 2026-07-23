@@ -248,6 +248,7 @@ describe("coding-agent detection and selection", () => {
     const io = createMemoryIo();
     expect(await main(["--help"], { io })).toBe(0);
     const help = io.stdout.join("\n");
+    expect(help).toContain("Take another one.");
     expect(help).toContain("--platform ios");
     expect(help).toContain("iOS is the only implemented platform");
     expect(help).not.toContain("--platform android");

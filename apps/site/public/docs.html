@@ -22,20 +22,20 @@
   <body>
     <header class="site-header">
       <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
-      <span class="header-note">{{HEADER_NOTE}}</span>
+      <span class="header-note" aria-hidden="true">{{HEADER_NOTE}}</span>
     </header>
     <main class="document-main">
       <article class="document">
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
-          <h1>Your coding agent runs the factory</h1>
+          <h1>Take another one</h1>
         </header>
 
         <section>
-          <h2>Install, run, speak</h2>
+          <h2>Make the idea exist</h2>
           <pre><code>curl -fsSL https://tohseno.com/install.sh | bash
 tohseno</code></pre>
-          <p>Choose <strong>Create something new</strong> or <strong>Continue a shot</strong>. TOHSENO shows only implemented platforms—currently iOS—and launches an installed Codex or Claude Code inside the selected independent repository. The agent reads local instructions, then asks what you want to build or change.</p>
+          <p>Choose <strong>Take your first shot</strong>, <strong>Take another shot</strong>, or <strong>Continue a shot</strong>. Every app lands as an independent repository under your configured shots directory—<code>~/tohseno/shots</code> by default. TOHSENO shows only implemented platforms—currently iOS—and launches an installed Codex or Claude Code inside it. The agent reads local instructions, then asks what you want to make.</p>
           <p>Your private product intention stays in that conversation. TOHSENO never places it in shell history, process arguments, release metadata, or centralized logs.</p>
           <div class="command-block">
             <code class="command-line" id="install-command" data-install-command>{{INSTALL_COMMAND}}</code>
@@ -47,6 +47,11 @@ tohseno</code></pre>
           <h2>What the agent operates</h2>
           <p>Every new shot pins its operational playbook and machine commands locally. The agent starts a localhost Bun API, initializes its SQLite database, waits for health, configures the Debug iOS endpoint, launches a real simulator when Xcode is available, reads structured logs, verifies changes, and stops only processes owned by that shot.</p>
           <p>For a physical Debug device, the agent may explicitly request a Cloudflare Quick Tunnel. Its random public URL is temporary development reachability—not authentication, uptime, or production infrastructure—and is written only to a gitignored Debug configuration file.</p>
+        </section>
+
+        <section>
+          <h2>The point</h2>
+          <p>The prototype is the payoff: a real thing on your phone that you can touch, change, keep, or leave on the contact sheet. Most shots miss. That is why you can take a lot of them. TOHSENO makes no promise of riches and never turns financial plumbing into the reason to build.</p>
         </section>
 
         <section>

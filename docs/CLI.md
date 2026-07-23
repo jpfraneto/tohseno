@@ -21,11 +21,16 @@ An interactive terminal sees exactly two top-level choices:
 ```text
 What would you like to do?
 
-  1. Create something new
+  1. Take your first shot
   2. Continue a shot
 ```
 
-### Create something new
+When recognized shots already exist, the launcher shows the current local
+count and changes the first choice to `Take another shot`. This is an honest
+count of repositories in the configured shots directory, not a centralized
+ecosystem counter.
+
+### Take a new shot
 
 TOHSENO asks for a human name, derives a safe slug, shows only platforms that
 are actually implemented, detects installed agents, creates the independent

@@ -5,10 +5,10 @@ export const PRODUCT = Object.freeze({
   installCommand: "curl -fsSL https://tohseno.com/install.sh | bash",
   copy: {
     BRAND: "TOHSENO",
-    HEADER_NOTE: "one conversation · independent shots",
-    HERO_META_DESCRIPTION: "Install TOHSENO, run tohseno, and tell your coding agent what iOS app you want to make.",
-    HERO_HEADLINE: "Install. Run. Tell your agent.",
-    HERO_LEDE: "TOHSENO gives Codex or Claude Code the deterministic rails to take an independent iOS app from intention to a running local system.",
+    HEADER_NOTE: "ONE SHOT",
+    HERO_META_DESCRIPTION: "Your app idea deserves a body. Install TOHSENO, run tohseno, and tell your coding agent what you want to make.",
+    HERO_HEADLINE: "Take another one.",
+    HERO_LEDE: "Your idea, your coding agent, and an independent iOS shot you can run, change, and own.",
     HERO_COPY_LABEL: "COPY",
     HERO_COPIED_LABEL: "COPIED",
     HERO_STEP_1: "install TOHSENO",
@@ -20,7 +20,7 @@ export const PRODUCT = Object.freeze({
     HERO_DOCS_LINK: "Docs",
     PRIVACY_LINK: "Privacy",
     FOOTER_OPERATOR: "Currently operated by Anky, Inc.",
-    FOOTER_DOCTRINE: "Private by default. Account-free. Yours from birth.",
+    FOOTER_DOCTRINE: "Private by default. Account-free. Take another one.",
   },
 });
 

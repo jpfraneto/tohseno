@@ -17,8 +17,8 @@ available. These are agent tools, not commands the owner must learn.
 
 ## The lazy-first protocol
 
-**1. Input is one line.** Begin by asking the owner what they want to build. A
-sentence in the conversation is enough. If the
+**1. Input is one line.** Begin by asking the owner: “What do you want to
+make?” A sentence in the conversation is enough. If the
 owner provides a full `MASTER_PROMPT.md` or references, use them — richer
 input, richer output — but never require more than the sentence.
 
@@ -71,8 +71,8 @@ mutable global TOHSENO checkout. Importing or running
 `.tohseno/manifest/validate.ts` directly executes no validation and proves
 nothing. The owner never fills out a manifest. If a requested feature cannot be
 expressed as a valid manifest field, it is unsupported: say so and name the
-smallest supported alternative. That bounded feature space is why one-shots
-land — do not improvise around it.
+smallest supported alternative. That bounded feature space is why shots can
+move fast — do not improvise around it.
 
 **6. The builder decides the mechanics.** Streaks, paywalls, scores, timers,
 virality loops — tools, not sins. The base app doesn't include them; add
@@ -144,7 +144,7 @@ A claim in the report must be something you ran. If the environment lacks the
 iOS toolchain, say so plainly in NOT YET and put the exact verification
 commands in RUN IT NOW instead.
 
-The finish line of a one-shot: app running in the simulator, invariant tests
+The finish line of a shot: app running in the simulator, invariant tests
 green, and the TestFlight command loaded in RUN IT NOW behind one approval
 (`bun run setup` once, then `fastlane beta` — the owner runs it, you never do).
 

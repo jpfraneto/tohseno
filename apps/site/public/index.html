@@ -4,45 +4,72 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="{{HERO_META_DESCRIPTION}}">
-  <meta name="theme-color" content="#F5F0E6">
+  <meta name="theme-color" content="#11100e">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="tohseno — install. run. tell your agent.">
-  <meta property="og:description" content="Install TOHSENO, run tohseno, and tell Codex or Claude Code what iOS app you want to make.">
+  <meta property="og:title" content="TOHSENO — Take another one.">
+  <meta property="og:description" content="Your app idea deserves a body. Install TOHSENO, run tohseno, and tell your coding agent what you want to make.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="TOHSENO — Install. Run. Tell your agent.">
+  <meta property="og:image:alt" content="TOHSENO — Take another one.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="tohseno — install. run. tell your agent.">
-  <meta name="twitter:description" content="One command, then one conversation with your coding agent.">
+  <meta name="twitter:title" content="TOHSENO — Take another one.">
+  <meta name="twitter:description" content="Every idea deserves a body. One command, then one conversation with your coding agent.">
   <meta name="twitter:image" content="{{OG_IMAGE_URL}}">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
-  <title>tohseno — install. run. tell your agent.</title>
-  <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <title>TOHSENO — Take another one.</title>
   <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/landing.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
   <header class="site-header shell">
-    <a class="wordmark" href="#top" aria-label="tohseno home">tohseno</a>
-    <span class="reverse-note" aria-label="{{HEADER_NOTE}}, reversed">{{HEADER_NOTE}}</span>
+    <a class="wordmark" href="#top" aria-label="TOHSENO home">TOHSENO</a>
+    <span class="reverse-note" aria-hidden="true">{{HEADER_NOTE}}</span>
   </header>
 
   <main id="top">
     <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-inner">
-        <p class="eyebrow">one prompt to a running iOS app</p>
+        <p class="eyebrow">one prompt &rarr; one app on your phone</p>
         <h1 id="hero-title">{{HERO_HEADLINE}}</h1>
-        <p class="hero-lede">Install TOHSENO. Run <code>tohseno</code>. Tell your coding agent what you want to make.</p>
+        <p class="hero-lede">That app idea has been sitting in your pocket long enough. Install TOHSENO. Run <code>tohseno</code>. Tell your coding agent what you want to make.</p>
 
         <div class="command-wrap" role="group" aria-label="Install TOHSENO">
           <code class="command" id="install-command" data-install-command>{{INSTALL_COMMAND}}</code>
           <button class="copy-button" type="button" hidden data-copy-command data-copied-label="copied" aria-describedby="install-command">copy</button>
         </div>
         <p class="microcopy">macOS + Xcode for the full iOS flow · Codex or Claude Code · TOHSENO manages Bun and cloudflared</p>
+
+        <div class="contact-label" aria-hidden="true">
+          <span>your /shots</span>
+          <span>001 &mdash; 004+</span>
+        </div>
+        <ol class="contact-sheet" aria-label="A growing contact sheet of independent app shots">
+          <li class="frame frame-crossed">
+            <span class="frame-number">001</span>
+            <span class="frame-screen"><i></i></span>
+            <span class="frame-caption">shot</span>
+          </li>
+          <li class="frame">
+            <span class="frame-number">002</span>
+            <span class="frame-screen"><i></i></span>
+            <span class="frame-caption">shot</span>
+          </li>
+          <li class="frame frame-circled">
+            <span class="frame-number">003</span>
+            <span class="frame-screen"><i></i></span>
+            <span class="frame-caption">keep</span>
+          </li>
+          <li class="frame frame-next">
+            <span class="frame-number">004</span>
+            <span class="frame-plus">+</span>
+            <span class="frame-caption">next</span>
+          </li>
+        </ol>
+
         <nav class="hero-links" aria-label="Primary links">
           <a class="text-link" href="{{REPOSITORY_URL}}" rel="noopener">GitHub</a>
           <a class="text-link" href="/docs">Docs</a>
@@ -53,26 +80,26 @@
 
     <section class="section shell" id="flow" aria-labelledby="flow-title">
       <div class="section-grid">
-        <div class="section-index">01 / flow</div>
+        <div class="section-index">01 / take the shot</div>
         <div>
-          <h2 id="flow-title">One command.<br>Then a conversation.</h2>
-          <p class="body-copy">You describe the product. Your coding agent owns the technical loop.</p>
+          <h2 id="flow-title">Make the idea exist.</h2>
+          <p class="body-copy">Not a promise of riches. A working prototype you can touch, change, and own.</p>
 
           <div class="paths flow-grid">
             <article class="path">
               <span class="price">01 · install</span>
               <h3>Install once</h3>
-              <p>The managed installer brings TOHSENO and its pinned local tools onto the machine.</p>
+              <p>The managed installer brings the factory and its pinned local tools onto your machine.</p>
             </article>
             <article class="path">
-              <span class="price">02 · choose</span>
+              <span class="price">02 · shoot</span>
               <h3>Run <code>tohseno</code></h3>
-              <p>Create a new iOS shot or continue one you already own. TOHSENO launches the selected agent inside it.</p>
+              <p>Take a new iOS shot or continue one you own. Your coding agent opens inside it.</p>
             </article>
             <article class="path">
-              <span class="price">03 · build</span>
+              <span class="price">03 · play</span>
               <h3>Say what you want</h3>
-              <p>The agent starts the API, database, simulator, validation, and an explicit development tunnel when needed.</p>
+              <p>Your agent handles the API, database, simulator, validation, and a development tunnel when needed.</p>
             </article>
           </div>
         </div>
@@ -81,18 +108,18 @@
 
     <section class="section shell" id="result" aria-labelledby="result-title">
       <div class="section-grid">
-        <div class="section-index">02 / result</div>
+        <div class="section-index">02 / the contact sheet</div>
         <div>
-          <h2 id="result-title">A working app.<br>Not an empty repo.</h2>
-          <p class="body-copy">Every independent shot begins with a compiling SwiftUI app and carries the machinery its agent needs to keep it alive.</p>
+          <h2 id="result-title">Every idea deserves a body.</h2>
+          <p class="body-copy">Most shots miss. That is why you take a lot of them. Every independent shot begins alive—not as an empty repo.</p>
 
           <div class="state-box">
             <article class="state-column">
-              <span class="state-label">implemented now</span>
+              <span class="state-label">alive now</span>
               <p>iOS app, local Bun API, SQLite migrations, health checks, supervised processes, simulator launch, optional Quick Tunnels, and pinned verification.</p>
             </article>
             <article class="state-column">
-              <span class="state-label">yours from birth</span>
+              <span class="state-label">yours always</span>
               <p>Independent Git history, source, tests, local data, manifest, runtime playbook, release provenance, and a clean ejection path.</p>
             </article>
           </div>
@@ -101,7 +128,7 @@
     </section>
 
     <section class="refusal shell" aria-labelledby="boundary-title">
-      <h2 id="boundary-title">iOS today.<br>Production honestly.</h2>
+      <h2 id="boundary-title">Play locally.<br>Ship honestly.</h2>
       <p>Local development is implemented. Production inspection names the blockers. Deployment, monitoring, recovery, DNS changes, and TestFlight still require explicit human approval and real infrastructure.</p>
       <div class="not-list" aria-label="Current boundaries">
         <span>no account screens</span>
@@ -114,8 +141,9 @@
 
     <section class="closing shell" aria-labelledby="closing-title">
       <div>
-        <h2 id="closing-title">Start with<br>one sentence.</h2>
-        <p>Install once. Run <code>tohseno</code>. Talk to your agent.</p>
+        <p class="eyebrow">the only question that matters</p>
+        <h2 id="closing-title">What do you want to make?</h2>
+        <p>Take the idea out of your pocket. Take another one.</p>
         <div class="command-wrap" role="group" aria-label="Install TOHSENO">
           <code class="command" data-install-command>{{INSTALL_COMMAND}}</code>
           <button class="copy-button" type="button" hidden data-copy-command data-copied-label="copied">copy</button>
@@ -126,7 +154,7 @@
 
   <footer class="site-footer shell">
     <div class="footer-copy">
-      <span>iOS · local first · account free</span>
+      <span>iOS · local first · account free · take another one</span>
       <span><a class="text-link" href="{{REPOSITORY_URL}}" rel="noopener">GitHub</a> · <a class="text-link" href="/docs">docs</a> · <a class="text-link" href="/privacy">privacy</a></span>
     </div>
     <div class="seal" aria-label="tohseno mirrored t seal"><span>t</span></div>

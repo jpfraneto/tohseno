@@ -4,120 +4,186 @@
 <meta charset="utf-8">
 <style>
   @font-face {
-    font-family: "Fraunces";
-    font-weight: 100 900;
-    src: url("../public/fonts/fraunces-latin.woff2") format("woff2");
-  }
-  @font-face {
     font-family: "IBM Plex Mono";
     font-weight: 400;
     src: url("../public/fonts/plex-mono-latin.woff2") format("woff2");
   }
   * { margin: 0; box-sizing: border-box; }
-  html, body { width: 1200px; height: 630px; overflow: hidden; background: #F5F0E6; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; background: #11100e; }
   body {
-    --paper: #F5F0E6;
-    --paper-deep: #EDE6D6;
-    --ink: #2B2926;
-    --stone: #8A8577;
-    --seal: #B3341E;
+    --black: #11100e;
+    --darkroom: #191815;
+    --halide: #e6e2d7;
+    --silver: #aaa69d;
+    --line: #4a4740;
+    --signal: #ff9d18;
     display: flex;
     flex-direction: column;
-    padding: 48px 64px 44px;
-    background-color: var(--paper);
+    padding: 48px 62px 44px;
+    color: var(--halide);
+    background-color: var(--black);
     background-image:
-      radial-gradient(circle at 18% 22%, rgba(43, 41, 38, .025) 0 .65px, transparent .85px),
-      radial-gradient(circle at 72% 67%, rgba(43, 41, 38, .018) 0 .55px, transparent .8px);
+      radial-gradient(circle at 16% 24%, rgba(230, 226, 215, .05) 0 .55px, transparent .8px),
+      radial-gradient(circle at 77% 64%, rgba(230, 226, 215, .03) 0 .5px, transparent .8px);
     background-size: 7px 7px, 11px 11px;
-    color: var(--ink);
-    font-family: "Fraunces", Georgia, serif;
-    font-weight: 300;
+    font-family: "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  .mono { font-family: "IBM Plex Mono", Menlo, monospace; font-weight: 400; }
+  .mono { font-family: "IBM Plex Mono", Menlo, monospace; }
   .top {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 22px;
   }
-  .wordmark { font-size: 40px; letter-spacing: -.055em; }
+  .wordmark {
+    font-size: 38px;
+    font-weight: 900;
+    letter-spacing: -.055em;
+  }
   .reverse-note {
-    color: var(--stone);
-    font-size: 18px;
+    color: var(--silver);
+    font-size: 16px;
+    letter-spacing: .16em;
+    opacity: .55;
     transform: scaleX(-1);
   }
   .middle {
     flex: 1;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
     align-items: center;
-    justify-content: center;
-    text-align: center;
+    gap: 64px;
   }
   .eyebrow {
-    color: var(--stone);
-    font-size: 16px;
-    letter-spacing: .08em;
-    margin-bottom: 30px;
+    margin-bottom: 24px;
+    color: var(--signal);
+    font-size: 14px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
   }
   h1 {
-    font-size: 108px;
-    font-weight: 300;
-    letter-spacing: -.065em;
-    line-height: .94;
-    margin-bottom: 42px;
+    max-width: 620px;
+    font-size: 94px;
+    font-weight: 900;
+    letter-spacing: -.075em;
+    line-height: .83;
   }
-  .command-wrap {
+  .contact-label {
     display: flex;
-    align-items: center;
-    gap: 18px;
-    padding: 20px 28px;
-    border-radius: 12px;
-    background: var(--paper-deep);
+    justify-content: space-between;
+    margin-bottom: 9px;
+    color: var(--silver);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
   }
-  .command-wrap code { font-family: "IBM Plex Mono", Menlo, monospace; font-size: 21px; }
-  .command-wrap .copy { color: var(--stone); font-size: 16px; }
+  .contact-sheet {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    background: #0b0a09;
+  }
+  .frame {
+    position: relative;
+    padding: 8px;
+    border: 1px solid #3b3933;
+    background: var(--darkroom);
+  }
+  .number {
+    display: block;
+    color: var(--silver);
+    font-size: 9px;
+    letter-spacing: .08em;
+  }
+  .screen {
+    position: relative;
+    display: block;
+    height: 96px;
+    margin-top: 7px;
+    border: 1px solid #504d45;
+    background:
+      linear-gradient(var(--halide), var(--halide)) 12% 15% / 43% 3px no-repeat,
+      linear-gradient(var(--silver), var(--silver)) 12% 28% / 72% 2px no-repeat,
+      linear-gradient(#34312c, #34312c) 12% 48% / 76% 34% no-repeat,
+      #151411;
+  }
+  .screen::after {
+    position: absolute;
+    right: 12%;
+    bottom: 9%;
+    width: 28%;
+    height: 6%;
+    background: var(--signal);
+    content: "";
+  }
+  .crossed::before,
+  .crossed::after {
+    position: absolute;
+    z-index: 2;
+    top: 56%;
+    left: 2%;
+    width: 96%;
+    height: 2px;
+    background: var(--signal);
+    content: "";
+    transform: rotate(28deg);
+  }
+  .crossed::after { transform: rotate(-28deg); }
+  .circled::after {
+    position: absolute;
+    z-index: 2;
+    inset: -5px;
+    border: 3px solid var(--signal);
+    border-radius: 48%;
+    content: "";
+    transform: rotate(-5deg);
+  }
+  .next {
+    display: grid;
+    min-height: 130px;
+    place-items: center;
+    color: var(--signal);
+    font-size: 62px;
+  }
   .bottom {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    border-top: 1px solid rgba(43, 41, 38, .18);
-    padding-top: 22px;
-    color: var(--stone);
-    font-size: 15px;
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    color: var(--silver);
+    font-size: 13px;
   }
-  .seal {
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border: 1.5px solid var(--seal);
-    border-radius: 7px;
-    color: var(--seal);
-    font-size: 27px;
-    line-height: 1;
-    transform: rotate(.7deg);
-    font-family: "Fraunces", Georgia, serif;
-  }
-  .seal span { transform: scaleX(-1); }
+  .tagline { color: var(--signal); }
 </style>
 </head>
 <body>
   <div class="top">
-    <span class="wordmark">tohseno</span>
-    <span class="reverse-note mono">one conversation</span>
+    <span class="wordmark">TOHSENO</span>
+    <span class="reverse-note mono">ONE SHOT</span>
   </div>
   <div class="middle">
-    <p class="eyebrow mono">one prompt to a running iOS app</p>
-    <h1>Install. Run.<br>Tell your agent.</h1>
-    <div class="command-wrap">
-      <code>curl -fsSL https://tohseno.com/install.sh | bash</code>
-      <span class="copy mono">copy</span>
+    <div>
+      <p class="eyebrow mono">one prompt &rarr; one app on your phone</p>
+      <h1>TAKE<br>ANOTHER<br>ONE.</h1>
+    </div>
+    <div>
+      <div class="contact-label mono"><span>your /shots</span><span>001 &mdash; 004+</span></div>
+      <div class="contact-sheet">
+        <div class="frame crossed"><span class="number mono">001</span><span class="screen"></span></div>
+        <div class="frame"><span class="number mono">002</span><span class="screen"></span></div>
+        <div class="frame circled"><span class="number mono">003</span><span class="screen"></span></div>
+        <div class="frame next"><span>+</span></div>
+      </div>
     </div>
   </div>
   <div class="bottom mono">
-    <span>tohseno.com &middot; install &middot; run &middot; tell your agent &middot; own the shot</span>
-    <span class="seal"><span>t</span></span>
+    <span>tohseno.com &middot; install &middot; run &middot; tell your agent</span>
+    <span class="tagline">every idea deserves a body</span>
   </div>
 </body>
 </html>

@@ -1,6 +1,13 @@
 # TOHSENO doctrine
 
-Five pillars. Everything else is implementation.
+**Take another one.**
+
+An app idea is a shot, not a forever bet. Every shot lands in the builder's
+own contact sheet as a working prototype they can touch, change, keep, or move
+past. Most shots miss; the answer is permission and machinery to make the next
+one. The prototype is the payoff. TOHSENO promises no riches.
+
+Five operating pillars. Everything else is implementation.
 
 ## 1. Speed is the product
 
@@ -8,7 +15,7 @@ Prompt to phone, measured in minutes. Every design decision that adds a
 question, a config step, or a ceremony must pay for itself in reliability.
 That is why the workspace is already a compiling app, why the agent asks at
 most three questions and records the rest as `ASSUMED`, and why the manifest
-bounds the feature space — a bounded space is why one-shots land.
+bounds the feature space — a bounded space is why the next shot arrives fast.
 
 ## 2. Cryptography kills auth
 

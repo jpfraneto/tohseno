@@ -1,22 +1,27 @@
 # TOHSENO
 
-One sentence to a running iOS app.
+## Take another one.
+
+Every idea deserves a body. Most shots miss. That is why you take a lot of
+them.
 
 ```sh
 curl -fsSL https://tohseno.com/install.sh | bash
 tohseno
 ```
 
-TOHSENO launches Codex or Claude Code inside an independent app repository,
-then gives that agent deterministic tools to make the app run.
+Tell Codex or Claude Code what you want to make. Your agent opens inside an
+independent iOS **shot** under your shots directory (`~/tohseno/shots` by
+default) and keeps operating until the prototype is alive. You get the source,
+history, data, and the next shot.
 
-You describe the product. The agent handles the technical loop.
+The prototype is the payoff. TOHSENO makes no promise of riches.
 
 ## The flow
 
 1. Install TOHSENO.
 2. Run `tohseno`.
-3. Choose **Create something new** or **Continue a shot**.
+3. Take your first shot, take another, or continue one.
 4. Tell the coding agent what you want to make.
 
 That is the human interface. Commands for APIs, databases, tunnels, simulators,
@@ -50,8 +55,9 @@ The global CLI also exposes them under `tohseno machine ...` for automation.
 
 ## What stays yours
 
-Each shot is its own Git repository. It carries its source, history, tests,
-manifest, runtime playbook, migrations, landing page, and factory provenance.
+Each shot is one frame on your contact sheet and its own Git repository. It
+carries its source, history, tests, manifest, runtime playbook, migrations,
+landing page, and factory provenance.
 It has no symlink back to TOHSENO and remains operable after the global CLI is
 upgraded or removed.
 

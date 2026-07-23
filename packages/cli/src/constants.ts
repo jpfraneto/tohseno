@@ -1,4 +1,4 @@
-export const CLI_VERSION = "0.2.0" as const;
+export const CLI_VERSION = "0.2.1" as const;
 export const FACTORY_RELEASE_SCHEMA_VERSION = 1 as const;
 export const SHOT_SCHEMA_VERSION = 1 as const;
 export const CONFIG_SCHEMA_VERSION = 1 as const;

@@ -1,15 +1,15 @@
 :root {
-  color-scheme: light;
-  --paper: #f3eee3;
-  --paper-deep: #e9e1d3;
-  --ink: #1d1c18;
-  --muted: #646056;
-  --line: #b8b0a2;
-  --line-strong: #777064;
-  --accent: #bd3f24;
-  --accent-dark: #8e2a16;
-  --error: #8f2518;
-  --focus: #175e70;
+  color-scheme: dark;
+  --paper: #11100e;
+  --paper-deep: #191815;
+  --ink: #e6e2d7;
+  --muted: #aaa69d;
+  --line: #3a3833;
+  --line-strong: #5d5951;
+  --accent: #ff9d18;
+  --accent-dark: #d97a00;
+  --error: #ff6d4a;
+  --focus: #ffb647;
   --max-width: 90rem;
   --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -32,7 +32,7 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(90deg, transparent calc(100% - 1px), rgb(29 28 24 / 5%) 1px) 0 0 / 4rem 100%,
+    linear-gradient(90deg, transparent calc(100% - 1px), rgb(230 226 215 / 5%) 1px) 0 0 / 4rem 100%,
     var(--paper);
 }
 
@@ -88,15 +88,21 @@ a:hover {
 
 .wordmark {
   font-family: var(--sans);
-  font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.24em;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   text-decoration: none;
 }
 
 .header-note,
 .site-footer {
   color: var(--muted);
+}
+
+.header-note {
+  opacity: 0.55;
+  transform: scaleX(-1);
+  user-select: none;
 }
 
 .hero-page {
@@ -138,7 +144,7 @@ a:hover {
   margin: clamp(1rem, 3vh, 2.25rem) 0 0;
   align-items: stretch;
   border: 1px solid var(--ink);
-  background: rgb(255 252 245 / 62%);
+  background: var(--paper-deep);
 }
 
 .command-line {
@@ -162,7 +168,7 @@ a:hover {
   border-left: 1px solid var(--accent-dark);
   border-radius: 0;
   background: var(--accent);
-  color: #fffaf0;
+  color: var(--paper);
   cursor: pointer;
   font-family: var(--mono);
   font-size: 0.78rem;
@@ -606,7 +612,7 @@ input[type="email"] {
 .document section p {
   grid-column: 2;
   margin: 0 0 1rem;
-  color: #35332d;
+  color: var(--muted);
 }
 
 .document section p:last-child {
@@ -790,7 +796,7 @@ input[type="email"] {
 
 @media (prefers-contrast: more) {
   :root {
-    --muted: #3c3933;
-    --line: #5f5a50;
+    --muted: #d2cec3;
+    --line: #858077;
   }
 }

@@ -64,6 +64,7 @@ describe("shot creation end to end", () => {
       const shot = join(scratch.shotsDirectory, "the-trenches");
       expect(existsSync(shot)).toBe(true);
       expect(existsSync(join(shot, "AGENTS.md"))).toBe(true);
+      expect(readFileSync(join(shot, "AGENTS.md"), "utf8")).toContain("What do you want to make?");
       expect(existsSync(join(shot, ".tohseno", "verify.ts"))).toBe(true);
       expect(existsSync(join(shot, ".tohseno", "manifest", "validate.ts"))).toBe(true);
 

@@ -55,9 +55,14 @@ export async function interactiveLauncher(context: CommandContext): Promise<numb
       2,
     );
   }
+  const shots = discoverShots(context);
   context.io.out("What would you like to do?");
   context.io.out();
-  context.io.out("  1. Create something new");
+  if (shots.length > 0) {
+    context.io.out(`  Shots here: ${shots.length}`);
+    context.io.out();
+  }
+  context.io.out(`  1. ${shots.length === 0 ? "Take your first shot" : "Take another shot"}`);
   context.io.out("  2. Continue a shot");
   const action = await chooseNumber(context.io, 2, "Choose");
   context.io.out();
@@ -73,9 +78,8 @@ export async function interactiveLauncher(context: CommandContext): Promise<numb
     }, context);
   }
 
-  const shots = discoverShots(context);
   if (shots.length === 0) {
-    throw new CliError(`no shots exist in ${context.config.shotsDirectory}; choose Create something new`, 2);
+    throw new CliError(`no shots exist in ${context.config.shotsDirectory}; choose Take your first shot`, 2);
   }
   context.io.out("Shots:");
   const summaries = await Promise.all(shots.map((shot) => shotSummary(shot, context)));

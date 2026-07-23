@@ -23,9 +23,9 @@ analytics, or generated-app content path.
 The installer expects one immutable artifact:
 
 ```text
-GitHub release tag: cli-v0.2.0
-asset:              tohseno-cli-0.2.0.tar.gz
-metadata:           tohseno-cli-0.2.0.json
+GitHub release tag: cli-v0.2.1
+asset:              tohseno-cli-0.2.1.tar.gz
+metadata:           tohseno-cli-0.2.1.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
@@ -38,8 +38,8 @@ Prepare locally:
 ```sh
 bun run check
 bun run tohseno:release
-shasum -a 256 dist/tohseno-cli-0.2.0.tar.gz
-cat dist/tohseno-cli-0.2.0.json
+shasum -a 256 dist/tohseno-cli-0.2.1.tar.gz
+cat dist/tohseno-cli-0.2.1.json
 ```
 
 Build a second time into another temporary path and compare bytes before
@@ -56,8 +56,8 @@ This repository implementation is **Prepared**, not published. The owner must:
 2. From that exact source, run `bun run check` and `bun run tohseno:release`.
 3. Compare the generated checksum with `CLI_SHA256_DEFAULT` in
    `apps/site/public/install.sh`; if it differs, update it and repeat the gate.
-4. With explicit publishing approval, create GitHub release `cli-v0.2.0` and
-   upload the two unmodified `dist/tohseno-cli-0.2.0.*` files.
+4. With explicit publishing approval, create GitHub release `cli-v0.2.1` and
+   upload the two unmodified `dist/tohseno-cli-0.2.1.*` files.
 5. Download the public tarball, verify its SHA-256, and run the installer in a
    temporary home.
 6. In a follow-up commit, record any required public-release adjustment. Only
@@ -69,11 +69,11 @@ This repository implementation is **Prepared**, not published. The owner must:
 The prepared `gh` shape, to be reviewed rather than run automatically, is:
 
 ```sh
-gh release create cli-v0.2.0 \
-  dist/tohseno-cli-0.2.0.tar.gz \
-  dist/tohseno-cli-0.2.0.json \
-  --title "TOHSENO CLI 0.2.0" \
-  --notes "Agent-first launcher, pinned shot runtime, and managed installer."
+gh release create cli-v0.2.1 \
+  dist/tohseno-cli-0.2.1.tar.gz \
+  dist/tohseno-cli-0.2.1.json \
+  --title "TOHSENO CLI 0.2.1" \
+  --notes "Take another one: agent-first launcher, pinned shot runtime, and managed installer."
 ```
 
 No package registry publication is required by this design.
