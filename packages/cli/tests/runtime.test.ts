@@ -451,6 +451,160 @@ describe("shot-local machine runtime", () => {
   }, 30_000);
 });
 
+describe("token operations", () => {
+  const TOKEN_ADDRESS = "0x1111111111111111111111111111111111111111";
+  const TOKEN_TX = `0x${"2".repeat(64)}`;
+
+  function fakeBankrHome(scratch: ScratchEnvironment): void {
+    mkdirSync(join(scratch.home, ".bankr"), { recursive: true });
+    writeFileSync(join(scratch.home, ".bankr", "config.json"), "{}\n", { mode: 0o600 });
+  }
+
+  test("status, guarded launch, manifest record, key hygiene, and fees passthrough", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const shot = await createShot(scratch, "token-flow");
+
+      const bare = await machine(scratch, shot, ["token", "status"]);
+      expect(bare.exitCode).toBe(0);
+      // CLI availability depends on the host (a real npx may resolve); auth
+      // and the token record are controlled by the scratch environment.
+      expect(bare.envelope.result).toMatchObject({
+        authenticated: false,
+        token: null,
+      });
+      expect(typeof bare.envelope.result.bankrCliAvailable).toBe("boolean");
+
+      const inventory = await machine(scratch, shot, ["operations"]);
+      const operations = (inventory.envelope.result.commands as Array<{ operation: string }>)
+        .map((command) => command.operation);
+      expect(operations).toContain("token.status");
+      expect(operations).toContain("token.launch");
+      expect(operations).toContain("token.fees");
+
+      const noAuth = await machine(scratch, shot, [
+        "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "base", "--yes",
+      ]);
+      expect(noAuth.exitCode).toBe(3);
+      expect(noAuth.envelope.error?.code).toBe("MISSING_DEPENDENCY");
+      expect(noAuth.envelope.error?.message).toContain("npx @bankr/cli login email");
+
+      const sentinel = "bk_token-secret-must-never-appear-9c41";
+      scratch.environment.BANKR_API_KEY = sentinel;
+      fakeBankrHome(scratch);
+      const keyWitness = join(scratch.root, "bankr-saw-key");
+      writeExecutable(scratch.binDirectory, "bankr", [
+        "#!/bin/sh",
+        `if [ -n \"$BANKR_API_KEY\" ]; then printf 'yes' > ${JSON.stringify(keyWitness)}; fi`,
+        "if [ \"$1\" = \"fees\" ]; then printf '{\"claimable\":\"1.5\"}\\n'; exit 0; fi",
+        `printf 'Launched with key %s\\n' \"$BANKR_API_KEY\"`,
+        `printf 'Token: ${TOKEN_ADDRESS}\\n'`,
+        `printf 'Tx: ${TOKEN_TX}\\n'`,
+      ].join("\n"));
+
+      const unapproved = await machine(scratch, shot, [
+        "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "base",
+      ]);
+      expect(unapproved.exitCode).toBe(2);
+      expect(unapproved.envelope.error?.code).toBe("INVALID_CONFIGURATION");
+      expect(unapproved.envelope.error?.message).toContain("--yes");
+      expect(unapproved.envelope.error?.message).toContain("IRREVERSIBLE");
+      expect(unapproved.envelope.error?.message).toContain("0.7% swap fee");
+
+      const badChain = await machine(scratch, shot, [
+        "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "ethereum", "--yes",
+      ]);
+      expect(badChain.exitCode).toBe(2);
+
+      const launched = await machine(scratch, shot, [
+        "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "base",
+        "--fee-recipient", "owner.eth", "--fee-type", "ens", "--yes",
+      ]);
+      expect(launched.exitCode).toBe(0);
+      expect(launched.stderr).toEqual([]);
+      expect(launched.envelope.result).toMatchObject({
+        launched: true,
+        parsed: true,
+        token: {
+          provider: "bankr",
+          chain: "base",
+          name: "Continuity",
+          symbol: "CONT",
+          feeRecipient: "owner.eth",
+          address: TOKEN_ADDRESS,
+          txHash: TOKEN_TX,
+        },
+      });
+
+      const manifestRaw = readFileSync(join(shot, "continuity.manifest.json"), "utf8");
+      expect(JSON.parse(manifestRaw).token.address).toBe(TOKEN_ADDRESS);
+      const validated = await runProcess(
+        [process.execPath, join(shot, ".tohseno", "manifest", "cli.ts"), join(shot, "continuity.manifest.json")],
+        shot,
+        scratch.environment,
+      );
+      expect(validated.exitCode).toBe(0);
+
+      const logPath = join(shot, ".tohseno", "run", "logs", "token.log");
+      const log = readFileSync(logPath, "utf8");
+      expect(log).toContain("bankr_launch");
+      expect(log).toContain("[redacted]");
+      expect(log).not.toContain(sentinel);
+      expect(JSON.stringify(launched.envelope)).not.toContain(sentinel);
+      expect(manifestRaw).not.toContain(sentinel);
+      expect(readFileSync(keyWitness, "utf8")).toBe("yes");
+      expect((await runGit(["check-ignore", "--quiet", "--no-index", ".tohseno/run/logs/token.log"], shot, scratch.environment)).exitCode).toBe(0);
+
+      const again = await machine(scratch, shot, [
+        "token", "launch", "--name", "Second", "--symbol", "TWO", "--chain", "base", "--yes",
+      ]);
+      expect(again.exitCode).toBe(2);
+      expect(again.envelope.error?.message).toContain("already recorded");
+
+      const status = await machine(scratch, shot, ["token", "status"]);
+      expect(status.exitCode).toBe(0);
+      expect(status.envelope.result).toMatchObject({
+        bankrCliAvailable: true,
+        authenticated: true,
+        token: { address: TOKEN_ADDRESS },
+      });
+
+      const fees = await machine(scratch, shot, ["token", "fees"]);
+      expect(fees.exitCode).toBe(0);
+      expect(fees.envelope.result).toMatchObject({
+        address: TOKEN_ADDRESS,
+        fees: { claimable: "1.5" },
+      });
+    });
+  }, 30_000);
+
+  test("a failing bankr launch surfaces the error verbatim and leaves the manifest untouched", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const shot = await createShot(scratch, "token-failure");
+      fakeBankrHome(scratch);
+      writeExecutable(
+        scratch.binDirectory,
+        "bankr",
+        "#!/bin/sh\nprintf 'rate limited: one launch per minute\\n' >&2\nexit 9",
+      );
+      const before = readFileSync(join(shot, "continuity.manifest.json"), "utf8");
+      const failed = await machine(scratch, shot, [
+        "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "robinhood", "--yes",
+      ]);
+      expect(failed.exitCode).toBe(5);
+      expect(failed.envelope.error?.code).toBe("INTERNAL_FAILURE");
+      expect(failed.envelope.error?.message).toContain("rate limited: one launch per minute");
+      expect(failed.envelope.error?.details?.hint).toContain("one launch per minute");
+      expect(failed.stdout).toHaveLength(1);
+      expect(failed.stderr).toEqual([]);
+      expect(readFileSync(join(shot, "continuity.manifest.json"), "utf8")).toBe(before);
+
+      const fees = await machine(scratch, shot, ["token", "fees"]);
+      expect(fees.exitCode).toBe(2);
+      expect(fees.envelope.error?.code).toBe("INVALID_CONFIGURATION");
+    });
+  }, 30_000);
+});
+
 describe("runtime parsing and production endpoint gates", () => {
   test("parses only realistic HTTPS trycloudflare origins", () => {
     expect(parseQuickTunnelUrl("INF Visit https://soft-field-9.trycloudflare.com now"))

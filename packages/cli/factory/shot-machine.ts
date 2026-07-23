@@ -9,6 +9,7 @@ import {
 } from "./runtime/dev.ts";
 import { inspectIos, launchIos } from "./runtime/ios.ts";
 import { inspectProduction } from "./runtime/production.ts";
+import { launchToken, tokenFees, tokenStatus } from "./runtime/token.ts";
 import {
   errorExitCode,
   failure,
@@ -70,6 +71,7 @@ function operationName(arguments_: readonly string[]): string {
   if (arguments_[0] === "dev" && arguments_[1]) return `dev.${arguments_[1]}`;
   if (arguments_[0] === "production" && arguments_[1]) return `production.${arguments_[1]}`;
   if (arguments_[0] === "ios" && arguments_[1]) return `ios.${arguments_[1]}`;
+  if (arguments_[0] === "token" && arguments_[1]) return `token.${arguments_[1]}`;
   return arguments_[0] ?? "unknown";
 }
 
@@ -84,6 +86,9 @@ function operationInventory(): unknown {
       { operation: "dev.stop", mutation: true, idempotent: true },
       { operation: "ios.inspect", mutation: false },
       { operation: "ios.launch", mutation: true, options: ["--device"] },
+      { operation: "token.status", mutation: false },
+      { operation: "token.launch", mutation: true, options: ["--name", "--symbol", "--chain", "--image", "--website", "--fee-recipient", "--fee-type", "--yes"] },
+      { operation: "token.fees", mutation: false },
       { operation: "verify", mutation: false },
       { operation: "production.inspect", mutation: false },
     ],
@@ -200,9 +205,51 @@ async function dispatch(arguments_: readonly string[], root: string, json: boole
     }
     throw new MachineError("INVALID_CONFIGURATION", "ios operation must be inspect or launch");
   }
+  if (first === "token") {
+    const action = arguments_[1];
+    const rest = arguments_.slice(2);
+    if (action === "status") {
+      const parsed = parse(rest, [], []);
+      if (parsed.positionals.length > 0) throw new MachineError("INVALID_CONFIGURATION", "token status accepts no arguments");
+      return await tokenStatus(root);
+    }
+    if (action === "launch") {
+      const parsed = parse(
+        rest,
+        ["--name", "--symbol", "--chain", "--image", "--website", "--fee-recipient", "--fee-type"],
+        ["--yes"],
+      );
+      if (parsed.positionals.length > 0) throw new MachineError("INVALID_CONFIGURATION", "token launch accepts no positional arguments");
+      const chain = requiredValue(parsed, "--chain");
+      if (chain !== "base" && chain !== "robinhood") {
+        throw new MachineError("INVALID_CONFIGURATION", "--chain must be base or robinhood");
+      }
+      const feeType = parsed.values.get("--fee-type");
+      if (feeType !== undefined && !["x", "farcaster", "ens", "wallet"].includes(feeType)) {
+        throw new MachineError("INVALID_CONFIGURATION", "--fee-type must be x, farcaster, ens, or wallet");
+      }
+      return await launchToken(root, {
+        name: requiredValue(parsed, "--name"),
+        symbol: requiredValue(parsed, "--symbol"),
+        chain,
+        ...(parsed.values.has("--image") ? { image: parsed.values.get("--image")! } : {}),
+        ...(parsed.values.has("--website") ? { website: parsed.values.get("--website")! } : {}),
+        ...(parsed.values.has("--fee-recipient") ? { feeRecipient: parsed.values.get("--fee-recipient")! } : {}),
+        ...(feeType === undefined ? {} : { feeType: feeType as "x" | "farcaster" | "ens" | "wallet" }),
+        yes: parsed.flags.has("--yes"),
+        json,
+      });
+    }
+    if (action === "fees") {
+      const parsed = parse(rest, [], []);
+      if (parsed.positionals.length > 0) throw new MachineError("INVALID_CONFIGURATION", "token fees accepts no arguments");
+      return await tokenFees(root);
+    }
+    throw new MachineError("INVALID_CONFIGURATION", "token operation must be status, launch, or fees");
+  }
   throw new MachineError(
     "INVALID_CONFIGURATION",
-    "operation must be operations, dev start|status|logs|stop, ios inspect|launch, verify, or production inspect",
+    "operation must be operations, dev start|status|logs|stop, ios inspect|launch, token status|launch|fees, verify, or production inspect",
   );
 }
 

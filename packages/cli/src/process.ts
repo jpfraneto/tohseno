@@ -19,6 +19,9 @@ export function sanitizedRuntimeEnvironment(
   const exact = new Set([
     "PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP",
     "LANG", "TOHSENO_BUN",
+    // Bankr auth for token ops; forwarded only to the spawned bankr process
+    // by runtime/token.ts, never to other shot children.
+    "BANKR_API_KEY",
   ]);
   const result: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(environment)) {

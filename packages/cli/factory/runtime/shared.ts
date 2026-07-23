@@ -87,6 +87,7 @@ export interface RuntimePaths {
   tunnelLog: string;
   supervisorLog: string;
   iosLog: string;
+  tokenLog: string;
 }
 
 export interface OwnedProcess {
@@ -166,6 +167,7 @@ export function runtimePaths(rootValue: string): RuntimePaths {
     tunnelLog: join(logs, "tunnel.log"),
     supervisorLog: join(logs, "supervisor.log"),
     iosLog: join(logs, "ios.log"),
+    tokenLog: join(logs, "token.log"),
   };
   validateRuntimeBoundaries(paths);
   return paths;
@@ -200,6 +202,7 @@ function validateRuntimeBoundaries(paths: RuntimePaths): void {
     paths.tunnelLog,
     paths.supervisorLog,
     paths.iosLog,
+    paths.tokenLog,
     join(paths.data, "development.sqlite3"),
     join(paths.data, "development.sqlite3-wal"),
     join(paths.data, "development.sqlite3-shm"),

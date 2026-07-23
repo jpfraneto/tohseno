@@ -21,6 +21,7 @@ export const RELEASE_SOURCE_FILES = [
   "packages/cli/factory/runtime/ios.ts",
   "packages/cli/factory/runtime/production.ts",
   "packages/cli/factory/runtime/shared.ts",
+  "packages/cli/factory/runtime/token.ts",
   "packages/cli/factory/shot-verify.ts",
   "packages/cli/package.json",
 ] as const;
@@ -66,6 +67,7 @@ export const REQUIRED_RELEASE_FILES = [
   "shot/runtime/ios.ts",
   "shot/runtime/production.ts",
   "shot/runtime/shared.ts",
+  "shot/runtime/token.ts",
   "shot/verify.ts",
   "legal/LICENSE",
   "factory/cli/package.json",

@@ -65,7 +65,7 @@ function requireShot(parsed: GlobalMachineArguments, context: CommandContext): s
 
 function operationName(arguments_: readonly string[]): string {
   const values = arguments_.filter((argument) => argument !== "--json");
-  if ((values[0] === "dev" || values[0] === "ios" || values[0] === "production") && values[1]) {
+  if ((values[0] === "dev" || values[0] === "ios" || values[0] === "production" || values[0] === "token") && values[1]) {
     return `${values[0]}.${values[1]}`;
   }
   return values[0] ?? "unknown";
