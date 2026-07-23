@@ -192,6 +192,36 @@ Physical-device launch remains an explicit Xcode signing/trust action. The
 agent starts development with `--tunnel`, then guides the owner to run that
 Debug configuration. It never edits Swift or stores the random URL in Release.
 
+### Token operations (optional)
+
+A shot may launch a token under the owner's own [Bankr](https://docs.bankr.bot)
+account. This is an optional distribution and revenue mechanism, not part of
+the core flow: TOHSENO ships no server, holds no keys, and takes no fees.
+Trading fees accrue to the owner's wallet (95% of the 0.7% swap fee; 5% to the
+protocol).
+
+```sh
+tohseno machine token status --json
+tohseno machine token launch --name <name> --symbol <sym> --chain base|robinhood --json
+tohseno machine token fees --json
+```
+
+`token status` and `token fees` are read-only. `token launch` is an external,
+irreversible financial action on the same side of the approval boundary as
+deployment: in `--json` mode it refuses without `--yes` (exit `2`) and the
+refusal carries the full economics summary — 100B fixed supply, 85% pool / 15%
+creator vesting over one year with a 30-day cliff — plus the exact rerun
+command, so the confirmation always lands with the human. One token per shot;
+a second launch is refused.
+
+The only new human ritual is a one-time `npx @bankr/cli login email` per
+machine. Credentials live in `~/.bankr/config.json` or `BANKR_API_KEY` and
+never enter the shot repository, manifest, logs, or factory releases; a
+missing CLI or missing credentials is exit `3` with that exact one-liner. On
+success the token record (address, chain, tx hash) becomes a fact in
+`continuity.manifest.json`. Fee claiming afterwards is the owner's business
+with `bankr fees`, outside TOHSENO's scope.
+
 ### Verification and production inspection
 
 ```sh

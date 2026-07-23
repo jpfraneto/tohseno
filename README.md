@@ -66,6 +66,16 @@ logs, generated endpoints, and signing configuration do not enter the factory
 release or Git history. This repository operates no backend that receives
 content from generated apps.
 
+## Optional: a token for your shot
+
+A shot can launch a token — a distribution and revenue mechanism worth looking
+into, never a requirement. The launch runs under your own
+[Bankr](https://docs.bankr.bot) account through `tohseno machine token launch`:
+TOHSENO ships no server, holds no keys, and takes no fees. Trading fees accrue
+to your wallet (95% of a 0.7% swap fee). The agent prepares the parameters;
+you approve an explicitly irreversible action; the machine executes it
+deterministically. Details in [CLI and machine operations](docs/CLI.md).
+
 ## Current boundary
 
 iOS local development is **Implemented**.
