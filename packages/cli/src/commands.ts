@@ -455,6 +455,15 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
     else warn("no available iPhone simulator found");
   }
 
+  if (commandOnPath("bankr", context) || commandOnPath("npx", context)) ok("Bankr CLI reachable (bankr or npx @bankr/cli)");
+  else warn("Bankr CLI not found; optional, only needed for token launches (npm i -g @bankr/cli)");
+  const home = context.environment.HOME;
+  if ((home !== undefined && existsSync(join(home, ".bankr", "config.json"))) || context.environment.BANKR_API_KEY) {
+    ok("Bankr credentials present");
+  } else {
+    warn("no Bankr credentials (~/.bankr/config.json or BANKR_API_KEY); optional, run `npx @bankr/cli login email` before launching a token");
+  }
+
   context.io.out();
   context.io.out(`Doctor: ${failures} required failure${failures === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}.`);
   return failures === 0 ? 0 : 1;
