@@ -47,7 +47,8 @@ async function capture(command: string[]): Promise<string> {
 
 function listJsonFiles(relativeDirectory: string): string[] {
   const directory = resolve(ROOT, relativeDirectory);
-  if (!existsSync(directory)) fail(`Required directory is missing: ${relativeDirectory}`);
+  if (!existsSync(directory))
+    fail(`Required directory is missing: ${relativeDirectory}`);
 
   const files: string[] = [];
   const visit = (current: string): void => {
@@ -85,13 +86,13 @@ async function readJson(path: string): Promise<unknown> {
 async function validateRepositoryJson(): Promise<void> {
   console.log("\n[check] manifest examples and JSON contract corpus");
 
-  const manifestPaths = [
-    "templates/continuity-app/continuity.manifest.json",
-  ];
+  const manifestPaths = ["templates/continuity-app/continuity.manifest.json"];
   for (const path of manifestPaths) {
     const result = validateManifest(await readJson(path));
     if (!result.valid) {
-      const locations = result.errors.map((issue) => `${issue.path} (${issue.code})`).join(", ");
+      const locations = result.errors
+        .map((issue) => `${issue.path} (${issue.code})`)
+        .join(", ");
       fail(`Manifest validation failed for ${path}: ${locations}`);
     }
   }
@@ -117,11 +118,17 @@ async function validateRepositoryJson(): Promise<void> {
       schema.$schema === "https://json-schema.org/draft/2020-12/schema",
       `Contract schema must declare JSON Schema 2020-12: ${path}`,
     );
-    assert(typeof schema.$id === "string", `Contract schema must declare an $id: ${path}`);
+    assert(
+      typeof schema.$id === "string",
+      `Contract schema must declare an $id: ${path}`,
+    );
   }
 
   const fixtureFiles = listJsonFiles("packages/contracts/fixtures");
-  assert(fixtureFiles.length >= 6, "The contract harness must include the required golden fixture cases");
+  assert(
+    fixtureFiles.length >= 6,
+    "The contract harness must include the required golden fixture cases",
+  );
   const contractKinds = new Set<ContractKind>([
     "ContinuityEvent",
     "ContinuityArtifact",
@@ -131,14 +138,29 @@ async function validateRepositoryJson(): Promise<void> {
   ]);
   for (const path of fixtureFiles) {
     const fixture = await readJson(path);
-    assert(isRecord(fixture), `Contract fixture must have an object root: ${path}`);
-    assert(Array.isArray(fixture.cases), `Contract fixture must contain a cases array: ${path}`);
-    assert(fixture.cases.length > 0, `Contract fixture must contain at least one case: ${path}`);
+    assert(
+      isRecord(fixture),
+      `Contract fixture must have an object root: ${path}`,
+    );
+    assert(
+      Array.isArray(fixture.cases),
+      `Contract fixture must contain a cases array: ${path}`,
+    );
+    assert(
+      fixture.cases.length > 0,
+      `Contract fixture must contain at least one case: ${path}`,
+    );
 
     for (const [index, fixtureCase] of fixture.cases.entries()) {
       const location = `${path}#cases[${index}]`;
-      assert(isRecord(fixtureCase), `Fixture case must be an object: ${location}`);
-      assert(typeof fixtureCase.name === "string", `Fixture case needs a name: ${location}`);
+      assert(
+        isRecord(fixtureCase),
+        `Fixture case must be an object: ${location}`,
+      );
+      assert(
+        typeof fixtureCase.name === "string",
+        `Fixture case needs a name: ${location}`,
+      );
       assert(
         typeof fixtureCase.contract === "string" &&
           contractKinds.has(fixtureCase.contract as ContractKind),
@@ -158,7 +180,9 @@ async function validateRepositoryJson(): Promise<void> {
       );
       if (typeof fixtureCase.expectedIssueCode === "string") {
         assert(
-          result.issues.some((issue) => issue.code === fixtureCase.expectedIssueCode),
+          result.issues.some(
+            (issue) => issue.code === fixtureCase.expectedIssueCode,
+          ),
           `Fixture is missing expected issue ${fixtureCase.expectedIssueCode}: ${location}`,
         );
       }
@@ -180,40 +204,64 @@ async function validateStaticSurface(): Promise<void> {
   ];
   const codeAssets = [
     await readText("apps/site/public/styles.css"),
+    await readText("apps/site/public/landing.css"),
     await readText("apps/site/public/app.js"),
   ];
 
   for (const required of [
     "{{INSTALL_COMMAND}}",
     "data-copy-command",
+    "data-shot-toggle",
     "{{REPOSITORY_URL}}",
-    "Run <code>tohseno</code>",
-    "Tell your coding agent",
-    "independent shot",
+    "YOUR WEIRDNESS IS NOW EXECUTABLE.",
+    "The open-source app factory for prolific builders.",
+    "100 SHOTS.",
+    "/shot-icons/shot-100.webp",
     'href="/docs"',
     'href="/privacy"',
   ]) {
-    assert(index.includes(required), `Landing page is missing required hero contract: ${required}`);
+    assert(
+      index.includes(required),
+      `Landing page is missing required hero contract: ${required}`,
+    );
   }
   for (const [label, page] of htmlPages) {
-    assert(!page.includes("<form"), `The ${label} page must not contain a form; the site has no intake`);
-    assert(!/<script(?![^>]*\bsrc=)[^>]*>/iu.test(page), `The ${label} page must not use inline scripts`);
     assert(
-      !/<(?:script|link|img|iframe|frame|embed|object|source|video|audio|form)\b[^>]*\b(?:src|href|action|data)\s*=\s*["'](?:https?:)?\/\//iu.test(page),
+      !page.includes("<form"),
+      `The ${label} page must not contain a form; the site has no intake`,
+    );
+    assert(
+      !/<script(?![^>]*\bsrc=)[^>]*>/iu.test(page),
+      `The ${label} page must not use inline scripts`,
+    );
+    assert(
+      !/<(?:script|link|img|iframe|frame|embed|object|source|video|audio|form)\b[^>]*\b(?:src|href|action|data)\s*=\s*["'](?:https?:)?\/\//iu.test(
+        page,
+      ),
       `The ${label} page must not load resources from or submit to another origin`,
     );
-    assert(page.includes('src="/app.js"'), `The ${label} page's JavaScript must be a separate same-origin asset`);
+    assert(
+      page.includes('src="/app.js"'),
+      `The ${label} page's JavaScript must be a separate same-origin asset`,
+    );
   }
   assert(
     !codeAssets.some((source) =>
-      /\bhttps?:\/\/|(?:src|href)\s*=\s*["']\/\/|url\(\s*["']?\/\//iu.test(source)
+      /\bhttps?:\/\/|(?:src|href)\s*=\s*["']\/\/|url\(\s*["']?\/\//iu.test(
+        source,
+      ),
     ),
     "Public style and script assets must not reference other origins",
   );
   const publicCopy = htmlPages.map(([, page]) => page).join("\n");
-  assert(!publicCopy.includes('href="/intake"'), "Public pages must not link to the archived intake product");
   assert(
-    !/(?:managed intake|encrypted intake|order lifecycle|private capsules?|\$88)/iu.test(publicCopy),
+    !publicCopy.includes('href="/intake"'),
+    "Public pages must not link to the archived intake product",
+  );
+  assert(
+    !/(?:managed intake|encrypted intake|order lifecycle|private capsules?|\$88)/iu.test(
+      publicCopy,
+    ),
     "Public pages must not claim the archived intake/payments product",
   );
 
@@ -223,9 +271,42 @@ async function validateStaticSurface(): Promise<void> {
     "Anky, Inc.",
     "support@anky.app",
   ]) {
-    assert(privacy.includes(phrase), `Privacy page is missing required disclosure: ${phrase}`);
+    assert(
+      privacy.includes(phrase),
+      `Privacy page is missing required disclosure: ${phrase}`,
+    );
   }
-  assert(robots.includes("Allow: /"), "robots.txt must allow the public surface");
+  assert(
+    robots.includes("Allow: /"),
+    "robots.txt must allow the public surface",
+  );
+
+  const shotIconDirectory = resolve(ROOT, "apps/site/public/shot-icons");
+  assert(
+    existsSync(shotIconDirectory),
+    "Landing page shot icon directory is missing",
+  );
+  const shotIcons = readdirSync(shotIconDirectory)
+    .filter((entry) => /^shot-\d{3}\.webp$/.test(entry))
+    .sort();
+  assert(
+    shotIcons.length === 100,
+    "Landing page must ship exactly 100 optimized shot icons",
+  );
+  for (let sequence = 1; sequence <= 100; sequence += 1) {
+    const expected = `shot-${String(sequence).padStart(3, "0")}.webp`;
+    assert(
+      shotIcons[sequence - 1] === expected,
+      `Landing page shot icon is missing: ${expected}`,
+    );
+    const icon = Bun.file(resolve(shotIconDirectory, expected));
+    assert(
+      icon.size < 32_000,
+      `Landing page shot icon exceeds 32 KB: ${expected}`,
+    );
+  }
+  await readText("apps/site/assets/shot-icon-manifest.json");
+  await readText("apps/site/scripts/extract-shot-icons.ts");
 
   const environmentExample = await readText(".env.example");
   for (const variable of ["NODE_ENV", "PORT", "BASE_URL", "TRUST_PROXY"]) {
@@ -235,13 +316,21 @@ async function validateStaticSurface(): Promise<void> {
     );
   }
   assert(
-    !/(?:STRIPE|RESEND|TOHSENO_DATA_KEY|TOHSENO_OPERATOR_TOKEN|DATABASE_PATH)/.test(environmentExample),
+    !/(?:STRIPE|RESEND|TOHSENO_DATA_KEY|TOHSENO_OPERATOR_TOKEN|DATABASE_PATH)/.test(
+      environmentExample,
+    ),
     ".env.example must not reintroduce intake-era configuration",
   );
 
   const dockerfile = await readText("Dockerfile");
-  assert(dockerfile.includes("FROM oven/bun:"), "Dockerfile must use the official Bun image");
-  assert(/^USER bun$/m.test(dockerfile), "Production container must run as the non-root bun user");
+  assert(
+    dockerfile.includes("FROM oven/bun:"),
+    "Dockerfile must use the official Bun image",
+  );
+  assert(
+    /^USER bun$/m.test(dockerfile),
+    "Production container must run as the non-root bun user",
+  );
   assert(
     !/^\s*VOLUME\b/m.test(dockerfile),
     "The static site needs no volume; a Docker VOLUME declaration is unsupported on Railway",
@@ -257,20 +346,32 @@ async function validateStaticSurface(): Promise<void> {
   assert(isRecord(railwayConfig), "railway.toml must have an object root");
   assert(isRecord(railwayConfig.build), "railway.toml must contain [build]");
   assert(isRecord(railwayConfig.deploy), "railway.toml must contain [deploy]");
-  assert(railwayConfig.build.builder === "DOCKERFILE", "Railway must use the Dockerfile builder");
+  assert(
+    railwayConfig.build.builder === "DOCKERFILE",
+    "Railway must use the Dockerfile builder",
+  );
   assert(
     railwayConfig.deploy.startCommand === undefined,
     "Railway must preserve the Docker ENTRYPOINT instead of overriding it with a start command",
   );
-  assert(railwayConfig.deploy.healthcheckPath === "/healthz", "Railway health check path is incorrect");
-  assert(railwayConfig.deploy.restartPolicyType === "ON_FAILURE", "Railway restart policy is incorrect");
+  assert(
+    railwayConfig.deploy.healthcheckPath === "/healthz",
+    "Railway health check path is incorrect",
+  );
+  assert(
+    railwayConfig.deploy.restartPolicyType === "ON_FAILURE",
+    "Railway restart policy is incorrect",
+  );
 }
 
 async function validateOneshotPin(): Promise<void> {
   console.log("\n[check] canonical installer and legacy oneshot pin");
 
   const installer = await readText("apps/site/public/install.sh");
-  assert(installer.startsWith("#!/bin/sh\n"), "install.sh must remain a portable POSIX shell script");
+  assert(
+    installer.startsWith("#!/bin/sh\n"),
+    "install.sh must remain a portable POSIX shell script",
+  );
   for (const phrase of [
     'CLI_VERSION="0.3.0"',
     'install_root="${TOHSENO_INSTALL_HOME:-$HOME/.tohseno}"',
@@ -281,19 +382,33 @@ async function validateOneshotPin(): Promise<void> {
     "TOHSENO_SOURCE_ROOT",
     "No credentials are requested or collected",
   ]) {
-    assert(installer.includes(phrase), `install.sh is missing required managed-install behavior: ${phrase}`);
+    assert(
+      installer.includes(phrase),
+      `install.sh is missing required managed-install behavior: ${phrase}`,
+    );
   }
   const cliChecksum = installer.match(/^CLI_SHA256_DEFAULT="([0-9a-f]{64})"$/m);
-  assert(cliChecksum !== null, "install.sh must pin the prepared CLI artifact with a complete SHA-256 digest");
-  assert(!installer.includes("__TOHSENO_CLI_SHA256__"), "install.sh still contains an unfinalized checksum placeholder");
   assert(
-    !/(?:raw\.githubusercontent\.com|refs\/heads\/|archive\/refs\/heads)/u.test(installer),
+    cliChecksum !== null,
+    "install.sh must pin the prepared CLI artifact with a complete SHA-256 digest",
+  );
+  assert(
+    !installer.includes("__TOHSENO_CLI_SHA256__"),
+    "install.sh still contains an unfinalized checksum placeholder",
+  );
+  assert(
+    !/(?:raw\.githubusercontent\.com|refs\/heads\/|archive\/refs\/heads)/u.test(
+      installer,
+    ),
     "install.sh must never execute or install mutable repository content",
   );
 
   const script = await readText("apps/site/public/oneshot.sh");
   const pinMatch = script.match(/^TOHSENO_PIN="([0-9a-f]{40})"$/m);
-  assert(pinMatch !== null, "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash");
+  assert(
+    pinMatch !== null,
+    "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash",
+  );
   const pin = pinMatch[1]!;
   assert(
     pin === "35021b38e71257d137c184081a1ba0d4503fa5ef",
@@ -305,7 +420,10 @@ async function validateOneshotPin(): Promise<void> {
     "tohseno",
     "thin pinned CLI installer",
   ]) {
-    assert(script.includes(phrase), `oneshot.sh is missing migration guidance: ${phrase}`);
+    assert(
+      script.includes(phrase),
+      `oneshot.sh is missing migration guidance: ${phrase}`,
+    );
   }
   for (const obsoleteCreatorStep of [
     'mkdir -p "$target"',
@@ -354,7 +472,9 @@ async function validateOneshotPin(): Promise<void> {
     try {
       await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
     } catch {
-      fail(`Last published creator pin ${pin} is missing ${required}; its retained trust record is incomplete`);
+      fail(
+        `Last published creator pin ${pin} is missing ${required}; its retained trust record is incomplete`,
+      );
     }
   }
 
@@ -366,10 +486,20 @@ async function validateOneshotPin(): Promise<void> {
   // its main.
   let remoteMain = "";
   try {
-    await capture(["git", "-c", "core.askPass=true", "fetch", "--quiet", "origin", "main"]);
+    await capture([
+      "git",
+      "-c",
+      "core.askPass=true",
+      "fetch",
+      "--quiet",
+      "origin",
+      "main",
+    ]);
     remoteMain = (await capture(["git", "rev-parse", "FETCH_HEAD"])).trim();
   } catch {
-    console.log("  ! origin unreachable — skipped verifying the pin is published; run again online before releasing");
+    console.log(
+      "  ! origin unreachable — skipped verifying the pin is published; run again online before releasing",
+    );
   }
   if (remoteMain !== "") {
     try {
@@ -386,20 +516,38 @@ async function validateOneshotPin(): Promise<void> {
 
 async function validateRepositoryHygiene(): Promise<void> {
   console.log("\n[check] tracked/unignored file and secret hygiene");
-  const output = await capture(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"]);
+  const output = await capture([
+    "git",
+    "ls-files",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+    "-z",
+  ]);
   const paths = output.split("\0").filter(Boolean).sort();
   for (const path of paths) {
     const name = path.split("/").at(-1) ?? path;
-    if (name.startsWith(".env") && name !== ".env.example") fail(`Environment file must not be tracked or unignored: ${path}`);
-    if (/\.(?:sqlite(?:-wal|-shm)?|db|pem|p8|p12|pfx|mobileprovision)$/i.test(name) || /(^|\/)data\//.test(path)) {
-      fail(`Private runtime/credential file must not be tracked or unignored: ${path}`);
+    if (name.startsWith(".env") && name !== ".env.example")
+      fail(`Environment file must not be tracked or unignored: ${path}`);
+    if (
+      /\.(?:sqlite(?:-wal|-shm)?|db|pem|p8|p12|pfx|mobileprovision)$/i.test(
+        name,
+      ) ||
+      /(^|\/)data\//.test(path)
+    ) {
+      fail(
+        `Private runtime/credential file must not be tracked or unignored: ${path}`,
+      );
     }
   }
 
   const secretPatterns: Array<[string, RegExp]> = [
     ["Stripe live secret", /sk_live_[A-Za-z0-9]{20,}/],
     ["App Store Connect API key", /AuthKey_[A-Z0-9]{10}\.p8/],
-    ["private key block", /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*\n(?:[A-Za-z0-9+/=]{20,}\s*\n){2,}/],
+    [
+      "private key block",
+      /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----\s*\n(?:[A-Za-z0-9+/=]{20,}\s*\n){2,}/,
+    ],
   ];
   for (const path of paths) {
     const file = Bun.file(resolve(ROOT, path));
@@ -426,7 +574,8 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (error) {
-  const message = error instanceof Error ? error.message : "Unknown check failure";
+  const message =
+    error instanceof Error ? error.message : "Unknown check failure";
   console.error(`\n[check] ${message}`);
   process.exitCode = 1;
 }

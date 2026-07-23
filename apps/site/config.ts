@@ -6,15 +6,17 @@ export const PRODUCT = Object.freeze({
   copy: {
     BRAND: "TOHSENO",
     HEADER_NOTE: "ONE SHOT",
-    HERO_META_DESCRIPTION: "Your app idea deserves a body. Install TOHSENO, run tohseno, and tell your coding agent what you want to make.",
-    HERO_HEADLINE: "Take another one.",
-    HERO_LEDE: "Your idea, your coding agent, and an independent iOS shot you can run, change, and own.",
+    HERO_META_DESCRIPTION:
+      "The open-source app factory for prolific builders. Turn an intention into an app you can install, use, and judge.",
+    HERO_HEADLINE: "Give every idea a shot.",
+    HERO_LEDE: "Your weirdness is now executable.",
     HERO_COPY_LABEL: "COPY",
     HERO_COPIED_LABEL: "COPIED",
     HERO_STEP_1: "install TOHSENO",
     HERO_STEP_2: "run tohseno",
     HERO_STEP_3: "tell your coding agent what to make",
-    HERO_REQUIREMENTS: "macOS, Git, and Codex or Claude Code for the full iOS path. TOHSENO manages its own Bun runtime. iOS is the only implemented app platform.",
+    HERO_REQUIREMENTS:
+      "macOS, Git, and Codex or Claude Code for the full iOS path. TOHSENO manages its own Bun runtime. iOS is the only implemented app platform.",
     HERO_LINKS_ARIA_LABEL: "More about TOHSENO",
     HERO_REPO_LINK: "Source on GitHub",
     HERO_DOCS_LINK: "Docs",
@@ -35,7 +37,12 @@ export interface AppConfig {
 
 type Environment = Record<string, string | undefined>;
 
-function oneOf<T extends string>(name: string, value: string | undefined, values: readonly T[], fallback: T): T {
+function oneOf<T extends string>(
+  name: string,
+  value: string | undefined,
+  values: readonly T[],
+  fallback: T,
+): T {
   const candidate = value ?? fallback;
   if (!values.includes(candidate as T)) {
     throw new Error(`${name} must be one of: ${values.join(", ")}`);
@@ -44,12 +51,19 @@ function oneOf<T extends string>(name: string, value: string | undefined, values
 }
 
 export function loadConfig(env: Environment = process.env): AppConfig {
-  const nodeEnv = oneOf("NODE_ENV", env.NODE_ENV, ["development", "test", "production"] as const, "development");
+  const nodeEnv = oneOf(
+    "NODE_ENV",
+    env.NODE_ENV,
+    ["development", "test", "production"] as const,
+    "development",
+  );
 
   const portText = env.PORT ?? "3000";
-  if (!/^\d{1,5}$/.test(portText)) throw new Error("PORT must be a whole number between 1 and 65535");
+  if (!/^\d{1,5}$/.test(portText))
+    throw new Error("PORT must be a whole number between 1 and 65535");
   const port = Number(portText);
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("PORT must be between 1 and 65535");
+  if (!Number.isInteger(port) || port < 1 || port > 65_535)
+    throw new Error("PORT must be between 1 and 65535");
 
   const baseUrl = env.BASE_URL ?? `http://localhost:${port}`;
   let parsedBase: URL;
@@ -58,19 +72,32 @@ export function loadConfig(env: Environment = process.env): AppConfig {
   } catch {
     throw new Error("BASE_URL must be an absolute http(s) URL");
   }
-  if (!(["http:", "https:"] as const).includes(parsedBase.protocol as "http:" | "https:")) {
+  if (
+    !(["http:", "https:"] as const).includes(
+      parsedBase.protocol as "http:" | "https:",
+    )
+  ) {
     throw new Error("BASE_URL must use http or https");
   }
   if (
-    parsedBase.username || parsedBase.password || parsedBase.pathname !== "/" ||
-    parsedBase.search || parsedBase.hash
+    parsedBase.username ||
+    parsedBase.password ||
+    parsedBase.pathname !== "/" ||
+    parsedBase.search ||
+    parsedBase.hash
   ) {
-    throw new Error("BASE_URL must be a bare origin without credentials, path, query, or fragment");
+    throw new Error(
+      "BASE_URL must be a bare origin without credentials, path, query, or fragment",
+    );
   }
   if (nodeEnv === "production" && parsedBase.protocol !== "https:") {
     throw new Error("BASE_URL must use https when NODE_ENV=production");
   }
-  if (env.TRUST_PROXY !== undefined && env.TRUST_PROXY !== "true" && env.TRUST_PROXY !== "false") {
+  if (
+    env.TRUST_PROXY !== undefined &&
+    env.TRUST_PROXY !== "true" &&
+    env.TRUST_PROXY !== "false"
+  ) {
     throw new Error("TRUST_PROXY must be true or false");
   }
 
@@ -82,7 +109,9 @@ export function loadConfig(env: Environment = process.env): AppConfig {
   };
 }
 
-export function safeStartupSummary(config: AppConfig): Record<string, string | number | boolean> {
+export function safeStartupSummary(
+  config: AppConfig,
+): Record<string, string | number | boolean> {
   return {
     service: "tohseno",
     environment: config.nodeEnv,

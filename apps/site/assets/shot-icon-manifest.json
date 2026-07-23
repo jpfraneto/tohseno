@@ -1,0 +1,612 @@
+{
+  "generatedAt": "deterministic",
+  "output": {
+    "format": "webp",
+    "width": 192,
+    "height": 192,
+    "quality": 82,
+    "faviconSource": "shot-076.webp"
+  },
+  "icons": [
+    {
+      "file": "shot-001.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 1
+    },
+    {
+      "file": "shot-002.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 2
+    },
+    {
+      "file": "shot-003.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 3
+    },
+    {
+      "file": "shot-004.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 4
+    },
+    {
+      "file": "shot-005.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 5
+    },
+    {
+      "file": "shot-006.webp",
+      "source": "01-practical-neon.png",
+      "row": 1,
+      "column": 6
+    },
+    {
+      "file": "shot-007.webp",
+      "source": "01-practical-neon.png",
+      "row": 2,
+      "column": 1
+    },
+    {
+      "file": "shot-008.webp",
+      "source": "01-practical-neon.png",
+      "row": 2,
+      "column": 2
+    },
+    {
+      "file": "shot-009.webp",
+      "source": "01-practical-neon.png",
+      "row": 2,
+      "column": 3
+    },
+    {
+      "file": "shot-010.webp",
+      "source": "01-practical-neon.png",
+      "row": 2,
+      "column": 5
+    },
+    {
+      "file": "shot-011.webp",
+      "source": "01-practical-neon.png",
+      "row": 2,
+      "column": 6
+    },
+    {
+      "file": "shot-012.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 1
+    },
+    {
+      "file": "shot-013.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 2
+    },
+    {
+      "file": "shot-014.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 3
+    },
+    {
+      "file": "shot-015.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 4
+    },
+    {
+      "file": "shot-016.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 5
+    },
+    {
+      "file": "shot-017.webp",
+      "source": "01-practical-neon.png",
+      "row": 3,
+      "column": 6
+    },
+    {
+      "file": "shot-018.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 1
+    },
+    {
+      "file": "shot-019.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 2
+    },
+    {
+      "file": "shot-020.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 3
+    },
+    {
+      "file": "shot-021.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 4
+    },
+    {
+      "file": "shot-022.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 5
+    },
+    {
+      "file": "shot-023.webp",
+      "source": "01-practical-neon.png",
+      "row": 4,
+      "column": 6
+    },
+    {
+      "file": "shot-024.webp",
+      "source": "01-practical-neon.png",
+      "row": 5,
+      "column": 2
+    },
+    {
+      "file": "shot-025.webp",
+      "source": "01-practical-neon.png",
+      "row": 5,
+      "column": 3
+    },
+    {
+      "file": "shot-026.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 1,
+      "column": 1
+    },
+    {
+      "file": "shot-027.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 1,
+      "column": 3
+    },
+    {
+      "file": "shot-028.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 1,
+      "column": 4
+    },
+    {
+      "file": "shot-029.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 1,
+      "column": 5
+    },
+    {
+      "file": "shot-030.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 1,
+      "column": 6
+    },
+    {
+      "file": "shot-031.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 2,
+      "column": 2
+    },
+    {
+      "file": "shot-032.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 2,
+      "column": 4
+    },
+    {
+      "file": "shot-033.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 2,
+      "column": 6
+    },
+    {
+      "file": "shot-034.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 3,
+      "column": 2
+    },
+    {
+      "file": "shot-035.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 3,
+      "column": 6
+    },
+    {
+      "file": "shot-036.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 4,
+      "column": 1
+    },
+    {
+      "file": "shot-037.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 4,
+      "column": 2
+    },
+    {
+      "file": "shot-038.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 4,
+      "column": 3
+    },
+    {
+      "file": "shot-039.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 4,
+      "column": 4
+    },
+    {
+      "file": "shot-040.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 4,
+      "column": 5
+    },
+    {
+      "file": "shot-041.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 5,
+      "column": 1
+    },
+    {
+      "file": "shot-042.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 5,
+      "column": 2
+    },
+    {
+      "file": "shot-043.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 5,
+      "column": 4
+    },
+    {
+      "file": "shot-044.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 5,
+      "column": 5
+    },
+    {
+      "file": "shot-045.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 5,
+      "column": 6
+    },
+    {
+      "file": "shot-046.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 6,
+      "column": 1
+    },
+    {
+      "file": "shot-047.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 6,
+      "column": 2
+    },
+    {
+      "file": "shot-048.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 6,
+      "column": 4
+    },
+    {
+      "file": "shot-049.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 6,
+      "column": 5
+    },
+    {
+      "file": "shot-050.webp",
+      "source": "02-soft-cosmic.png",
+      "row": 6,
+      "column": 6
+    },
+    {
+      "file": "shot-051.webp",
+      "source": "03-psychedelic.png",
+      "row": 1,
+      "column": 1
+    },
+    {
+      "file": "shot-052.webp",
+      "source": "03-psychedelic.png",
+      "row": 1,
+      "column": 2
+    },
+    {
+      "file": "shot-053.webp",
+      "source": "03-psychedelic.png",
+      "row": 1,
+      "column": 4
+    },
+    {
+      "file": "shot-054.webp",
+      "source": "03-psychedelic.png",
+      "row": 1,
+      "column": 5
+    },
+    {
+      "file": "shot-055.webp",
+      "source": "03-psychedelic.png",
+      "row": 1,
+      "column": 6
+    },
+    {
+      "file": "shot-056.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 1
+    },
+    {
+      "file": "shot-057.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 2
+    },
+    {
+      "file": "shot-058.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 3
+    },
+    {
+      "file": "shot-059.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 4
+    },
+    {
+      "file": "shot-060.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 5
+    },
+    {
+      "file": "shot-061.webp",
+      "source": "03-psychedelic.png",
+      "row": 2,
+      "column": 6
+    },
+    {
+      "file": "shot-062.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 1
+    },
+    {
+      "file": "shot-063.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 2
+    },
+    {
+      "file": "shot-064.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 3
+    },
+    {
+      "file": "shot-065.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 4
+    },
+    {
+      "file": "shot-066.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 5
+    },
+    {
+      "file": "shot-067.webp",
+      "source": "03-psychedelic.png",
+      "row": 3,
+      "column": 6
+    },
+    {
+      "file": "shot-068.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 1
+    },
+    {
+      "file": "shot-069.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 2
+    },
+    {
+      "file": "shot-070.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 3
+    },
+    {
+      "file": "shot-071.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 4
+    },
+    {
+      "file": "shot-072.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 5
+    },
+    {
+      "file": "shot-073.webp",
+      "source": "03-psychedelic.png",
+      "row": 4,
+      "column": 6
+    },
+    {
+      "file": "shot-074.webp",
+      "source": "03-psychedelic.png",
+      "row": 5,
+      "column": 1
+    },
+    {
+      "file": "shot-075.webp",
+      "source": "03-psychedelic.png",
+      "row": 5,
+      "column": 6
+    },
+    {
+      "file": "shot-076.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 1
+    },
+    {
+      "file": "shot-077.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 2
+    },
+    {
+      "file": "shot-078.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 3
+    },
+    {
+      "file": "shot-079.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 4
+    },
+    {
+      "file": "shot-080.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 5
+    },
+    {
+      "file": "shot-081.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 1,
+      "column": 6
+    },
+    {
+      "file": "shot-082.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 2,
+      "column": 1
+    },
+    {
+      "file": "shot-083.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 2,
+      "column": 3
+    },
+    {
+      "file": "shot-084.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 2,
+      "column": 5
+    },
+    {
+      "file": "shot-085.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 2,
+      "column": 6
+    },
+    {
+      "file": "shot-086.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 1
+    },
+    {
+      "file": "shot-087.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 2
+    },
+    {
+      "file": "shot-088.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 3
+    },
+    {
+      "file": "shot-089.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 4
+    },
+    {
+      "file": "shot-090.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 5
+    },
+    {
+      "file": "shot-091.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 3,
+      "column": 6
+    },
+    {
+      "file": "shot-092.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 4,
+      "column": 1
+    },
+    {
+      "file": "shot-093.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 4,
+      "column": 2
+    },
+    {
+      "file": "shot-094.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 4,
+      "column": 3
+    },
+    {
+      "file": "shot-095.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 4,
+      "column": 5
+    },
+    {
+      "file": "shot-096.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 4,
+      "column": 6
+    },
+    {
+      "file": "shot-097.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 5,
+      "column": 1
+    },
+    {
+      "file": "shot-098.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 5,
+      "column": 2
+    },
+    {
+      "file": "shot-099.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 5,
+      "column": 5
+    },
+    {
+      "file": "shot-100.webp",
+      "source": "04-darkroom-raw.png",
+      "row": 5,
+      "column": 6
+    }
+  ]
+}

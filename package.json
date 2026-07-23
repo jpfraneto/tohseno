@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --watch apps/site/server.ts",
     "start": "bun apps/site/server.ts",
+    "site:icons": "bun apps/site/scripts/extract-shot-icons.ts",
     "tohseno": "bun packages/cli/src/bin.ts",
     "tohseno:link": "bun link --cwd packages/cli",
     "tohseno:release": "bun packages/cli/scripts/package-release.ts",

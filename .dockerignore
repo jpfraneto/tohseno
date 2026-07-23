@@ -10,3 +10,5 @@ node_modules
 coverage
 tmp
 .DS_Store
+apps/site/assets
+apps/site/scripts

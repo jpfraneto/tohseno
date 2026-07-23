@@ -21,9 +21,24 @@ function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost:3000${path}`, init);
 }
 
-const oneshotPath = fileURLToPath(new URL("../public/oneshot.sh", import.meta.url));
-const installerPath = fileURLToPath(new URL("../public/install.sh", import.meta.url));
-const openGraphImagePath = fileURLToPath(new URL("../public/og.png", import.meta.url));
+const oneshotPath = fileURLToPath(
+  new URL("../public/oneshot.sh", import.meta.url),
+);
+const installerPath = fileURLToPath(
+  new URL("../public/install.sh", import.meta.url),
+);
+const openGraphImagePath = fileURLToPath(
+  new URL("../public/og.png", import.meta.url),
+);
+const faviconPath = fileURLToPath(
+  new URL("../public/favicon.png", import.meta.url),
+);
+const shotIconDirectory = fileURLToPath(
+  new URL("../public/shot-icons", import.meta.url),
+);
+const browserScriptPath = fileURLToPath(
+  new URL("../public/app.js", import.meta.url),
+);
 
 describe("public pages", () => {
   test("serves the local CLI install path and no stale intake surface", async () => {
@@ -32,25 +47,50 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
-    expect(body).toContain("Run <code>tohseno</code>");
-    expect(body).toContain("Tell your coding agent");
+    expect(body).toContain("tohseno studio");
+    expect(body).toContain(
+      'data-copy-value="curl -fsSL https://tohseno.com/install.sh | bash&#10;tohseno studio"',
+    );
     expect(body).not.toContain("bun run tohseno:link");
-    expect(body).toContain("Take another one.");
-    expect(body).toContain("Every idea deserves a body.");
-    expect(body).toContain("Most shots miss.");
-    expect(body).toContain("Every independent shot begins alive");
+    expect(body).toContain("GIVE EVERY");
+    expect(body).toContain("IDEA A");
+    expect(body).toContain("YOUR WEIRDNESS IS NOW EXECUTABLE.");
+    expect(body).toContain(
+      "The open-source app factory for prolific builders.",
+    );
+    expect(body).toContain("100 SHOTS.");
+    expect(body).toContain("Some shots live.");
+    expect(body).toContain("Every shot begins from a working SwiftUI base");
+    expect(body).toContain("STOP PROTECTING");
+    expect(body).toContain("TAKE ANOTHER ONE.");
     expect(body).toContain(">ONE SHOT</span>");
-    expect(body).toContain("your /shots");
+    expect(body).toContain("001—100");
+    const shotField = body.match(/<ol class="shot-field"[\s\S]*?<\/ol>/)?.[0];
+    expect(shotField).toBeDefined();
+    const shotIcons = new Set(
+      [...(shotField?.matchAll(/\/shot-icons\/shot-(\d{3})\.webp/g) ?? [])].map(
+        (match) => match[1],
+      ),
+    );
+    expect(shotIcons.size).toBe(100);
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toContain("four years");
     expect(body).not.toContain("$TOHSENO");
     expect(body).not.toContain("slot machine");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain("Managed intake");
-    expect(body).toMatch(/property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/);
+    expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
+    expect(body).toContain(
+      'content="The open-source app factory for prolific builders. Turn an intention into an app you can install, use, and judge."',
+    );
+    expect(body).toMatch(
+      /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
+    );
     expect(body).toContain('name="twitter:card" content="summary_large_image"');
     expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
-    expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
+    expect(response.headers.get("Content-Security-Policy")).toContain(
+      "default-src 'self'",
+    );
   });
 
   test("serves current factory docs and privacy", async () => {
@@ -71,7 +111,9 @@ describe("public pages", () => {
         );
         expect(body).toContain("One factory, multiple doors");
         expect(body).toContain("tohseno studio");
-        expect(body).toContain("binds to <code>127.0.0.1</code>, never the LAN");
+        expect(body).toContain(
+          "binds to <code>127.0.0.1</code>, never the LAN",
+        );
         expect(body).toContain("tohseno run &lt;shot&gt;");
         expect(body).toContain("tohseno preview &lt;shot&gt;");
         expect(body).toContain("it is not an in-browser iOS emulator");
@@ -79,7 +121,9 @@ describe("public pages", () => {
           "additionally requires Apple Silicon, a native arm64 Node.js 20 or newer",
         );
         expect(body).toContain("reports the selected Node architecture");
-        expect(body).toContain("does not require paid Apple Developer Program membership");
+        expect(body).toContain(
+          "does not require paid Apple Developer Program membership",
+        );
         expect(body).toContain("<code>.tohseno/provenance/</code>");
         expect(body).toContain(
           "Studio does not upload shots or creation input to TOHSENO",
@@ -89,6 +133,34 @@ describe("public pages", () => {
         expect(body).toContain("Quick Tunnel");
       }
     }
+  });
+
+  test("landing navigation and progressive controls target real content", async () => {
+    const application = await testApplication();
+    const response = await application.fetch(request("/"));
+    const body = await response.text();
+    const ids = new Set(
+      [...body.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]),
+    );
+    const internalLinks = [...body.matchAll(/\shref="(\/[^"]*|#[^"]+)"/g)].map(
+      (match) => match[1]!,
+    );
+    for (const link of internalLinks) {
+      if (link.startsWith("#")) {
+        expect(ids.has(link.slice(1))).toBe(true);
+        continue;
+      }
+      const path = new URL(link, "http://localhost:3000").pathname;
+      const target = await application.fetch(request(path));
+      expect(target.status).toBe(200);
+    }
+    expect(body).not.toContain('href="#"');
+    expect(body).toContain('aria-controls="shot-field"');
+    expect(body).toContain('aria-describedby="hero-command"');
+
+    const browserScript = readFileSync(browserScriptPath, "utf8");
+    expect(browserScript).toContain("navigator.clipboard.writeText(copyValue)");
+    expect(browserScript).toContain('shotToggle.setAttribute("aria-expanded"');
   });
 
   test("serves the health check", async () => {
@@ -108,6 +180,9 @@ describe("public pages", () => {
       ["/app.js", "text/javascript"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
+      ["/favicon.png", "image/png"],
+      ["/shot-icons/shot-001.webp", "image/webp"],
+      ["/shot-icons/shot-100.webp", "image/webp"],
       ["/install.sh", "text/x-shellscript"],
       ["/oneshot.sh", "text/x-shellscript"],
     ];
@@ -120,14 +195,37 @@ describe("public pages", () => {
     expect(openGraphImage.subarray(1, 4).toString("ascii")).toBe("PNG");
     expect(openGraphImage.readUInt32BE(16)).toBe(1_200);
     expect(openGraphImage.readUInt32BE(20)).toBe(630);
+    const favicon = readFileSync(faviconPath);
+    expect(favicon.subarray(1, 4).toString("ascii")).toBe("PNG");
+    expect(favicon.readUInt32BE(16)).toBe(192);
+    expect(favicon.readUInt32BE(20)).toBe(192);
+  });
+
+  test("ships exactly 100 optimized shot icons", () => {
+    const shotIcons = readdirSync(shotIconDirectory)
+      .filter((file) => /^shot-\d{3}\.webp$/.test(file))
+      .sort();
+    expect(shotIcons).toHaveLength(100);
+    expect(shotIcons[0]).toBe("shot-001.webp");
+    expect(shotIcons.at(-1)).toBe("shot-100.webp");
+    for (const icon of shotIcons) {
+      const bytes = readFileSync(join(shotIconDirectory, icon));
+      expect(bytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
+      expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
+      expect(bytes.byteLength).toBeLessThan(32_000);
+    }
   });
 
   test("the oneshot script must revalidate so a stale pin is never served", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/oneshot.sh"));
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
     const body = await response.text();
-    expect(body).toContain('TOHSENO_PIN="35021b38e71257d137c184081a1ba0d4503fa5ef"');
+    expect(body).toContain(
+      'TOHSENO_PIN="35021b38e71257d137c184081a1ba0d4503fa5ef"',
+    );
     expect(body).toContain("This script no longer creates a workspace.");
     expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
     expect(body).not.toContain('mkdir -p "$target"');
@@ -137,7 +235,9 @@ describe("public pages", () => {
   test("the canonical installer revalidates and exposes help without touching the machine", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/install.sh"));
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
     const body = await response.text();
     expect(body).toContain('CLI_VERSION="0.3.0"');
     expect(body).toContain("TOHSENO managed installer");
@@ -209,7 +309,9 @@ describe("legacy oneshot migration", () => {
       ]);
       expect(exitCode).toBe(2);
       expect(stdout).toContain("This script no longer creates a workspace.");
-      expect(stdout).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+      expect(stdout).toContain(
+        "curl -fsSL https://tohseno.com/install.sh | bash",
+      );
       expect(stdout).toContain("tohseno");
       expect(stderr).toBe("");
       expect(readdirSync(scratch)).toEqual([]);
@@ -230,7 +332,9 @@ describe("legacy oneshot migration", () => {
     ]);
     expect(exitCode).toBe(0);
     expect(stdout).toContain("legacy workspace creator is retired");
-    expect(stdout).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+    expect(stdout).toContain(
+      "curl -fsSL https://tohseno.com/install.sh | bash",
+    );
   });
 });
 
@@ -247,6 +351,8 @@ describe("canonical boundary", () => {
       new Request("http://www.tohseno.com:3000/docs?x=1"),
     );
     expect(response.status).toBe(308);
-    expect(response.headers.get("Location")).toBe("http://tohseno.com:3000/docs?x=1");
+    expect(response.headers.get("Location")).toBe(
+      "http://tohseno.com:3000/docs?x=1",
+    );
   });
 });
