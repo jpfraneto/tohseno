@@ -4,7 +4,7 @@
 set -eu
 umask 022
 
-INSTALLER_VERSION="0.2.0"
+INSTALLER_VERSION="0.2.1"
 CLI_VERSION="0.2.0"
 CLI_ARTIFACT="tohseno-cli-${CLI_VERSION}.tar.gz"
 CLI_URL_DEFAULT="https://github.com/jpfraneto/tohseno/releases/download/cli-v${CLI_VERSION}/${CLI_ARTIFACT}"
@@ -51,13 +51,14 @@ done
 os="${TOHSENO_INSTALL_OS:-$(uname -s)}"
 arch="${TOHSENO_INSTALL_ARCH:-$(uname -m)}"
 
+# Cloudflare digests pin the downloaded release asset, not an extracted binary.
 case "$os/$arch" in
   Darwin/arm64|Darwin/aarch64)
     platform="darwin-arm64"
     bun_asset="bun-darwin-aarch64.zip"
     bun_sha="cca9eb52762bbd81eb894fc8275bba0a0654e81aad318d19869854a30f3769a2"
     cloudflared_asset="cloudflared-darwin-arm64.tgz"
-    cloudflared_sha="cd9f764abfd06757b4def10ee5ba3d862381ed9fc02d6c1f06086c23d88695c6"
+    cloudflared_sha="ba94054c9fd4297645093d59d51442e5e546d07bb0516120e694a13d5b216d38"
     cloudflared_kind="tgz"
     ;;
   Darwin/x86_64|Darwin/amd64)
@@ -65,7 +66,7 @@ case "$os/$arch" in
     bun_asset="bun-darwin-x64.zip"
     bun_sha="c83ea4ef2126cc942056ff1958518181a2a5b6723d6aa57c96b5d0fb34d4b7dc"
     cloudflared_asset="cloudflared-darwin-amd64.tgz"
-    cloudflared_sha="c4fdc6021cd63003e32e70b577e17d47d493c6df4e24c7c97169ed74b67a715d"
+    cloudflared_sha="7240f709506bc2c1eb9da4d89cf2555499c60280ecb854b7d80e8f17d4b7903d"
     cloudflared_kind="tgz"
     ;;
   Linux/aarch64|Linux/arm64)
