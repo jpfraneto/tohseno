@@ -37,11 +37,58 @@ cache, `PATH`, Git configuration, process state, and paths containing spaces.
 They must never touch the developer’s real `~/tohseno`, `~/.tohseno`, shell
 profile, Git config, Keychain, simulator data, or public network.
 
-The focused acceptance suite uses fake agents and fake child processes to
-cover launcher selection, immutable releases, API/SQLite startup, readiness,
-Quick Tunnel parsing, endpoint injection, logs/status/stop, stale ownership,
-concurrent and multi-shot runs, production inspection, and legacy-shot
-compatibility.
+The focused acceptance suite uses fake agents and injected child-process
+boundaries to cover launcher selection, shared CLI/Studio creation, immutable
+releases, deterministic intention normalization, private provenance,
+concurrent allocation, API/SQLite startup, readiness, Quick Tunnel parsing,
+endpoint injection, Studio request security and uploads, structured events,
+Simulator orchestration, helper teardown, logs/status/stop, stale ownership,
+production inspection, and legacy-shot compatibility.
+
+## Develop Studio and the shared factory
+
+Studio is served by the CLI package; there is no separate frontend build or
+daemon:
+
+```sh
+bun test packages/cli/tests/creation.test.ts
+bun test packages/cli/tests/studio.test.ts
+bun test packages/cli/tests/simulator.test.ts
+bun test packages/cli/tests
+```
+
+`creation.test.ts` proves that CLI and Studio call the same factory, normalize
+typed text plus Markdown deterministically, hash and copy references, preserve
+equivalent provenance, and allocate concurrent sequence numbers without
+collision, including stale-owner resumption and no-clobber publication.
+Studio tests cover the application/server boundary. Simulator tests
+inject command executors and child processes, so the ordinary suite does not
+require macOS, Xcode, or a booted device.
+
+Run an isolated contact-sheet smoke test without opening a browser
+automatically:
+
+```sh
+STUDIO_SMOKE_ROOT="$(mktemp -d)"
+TOHSENO_HOME="$STUDIO_SMOKE_ROOT/factory" \
+TOHSENO_SHOTS_DIR="$STUDIO_SMOKE_ROOT/shots" \
+bun run tohseno -- studio --port 4747 --no-open
+```
+
+Open the printed `http://127.0.0.1:4747/` URL manually. Confirm that the empty
+contact sheet loads, create a shot from typed text or Markdown plus reference
+images, watch structured progress, and verify that the resulting repository
+appears under `$STUDIO_SMOKE_ROOT/shots`. In another terminal, point
+`TOHSENO_SHOTS_DIR` at the same directory and run `tohseno list`, `verify`,
+`open`, or an explicit `create --file`; Studio should observe the external
+creation without that CLI process contacting the server.
+
+Studio must continue to reject non-loopback Host/Origin requests, mutation
+requests without its per-process token, unknown multipart fields, traversal,
+symlinks, oversized or mismatched uploads, and a second simultaneous Studio
+creation. Closing it with `Ctrl-C` must clean staging, stop watchers, and await
+the active job. No manual test should add a LAN bind or a general command
+endpoint.
 
 ## Rehearse the managed installer
 
@@ -49,7 +96,7 @@ Build the deterministic source artifact without publishing it:
 
 ```sh
 bun run tohseno:release
-cat dist/tohseno-cli-0.2.2.json
+cat dist/tohseno-cli-0.3.0.json
 ```
 
 The installer test builds that artifact in a temporary directory, creates a
@@ -148,3 +195,61 @@ The base must still build with no keys. Release intentionally fails until a
 stable production API origin is configured; Debug simulator tests use the
 separate development configuration. A generated shot’s agent can instead run
 `machine dev start` followed by `machine ios launch`.
+
+## Exercise Simulator run and live preview
+
+Start with diagnostics:
+
+```sh
+bun run tohseno -- doctor
+```
+
+The native `run` path requires macOS, Xcode command-line tools, healthy
+`xcrun simctl`, and an available iPhone Simulator. The interactive stream also
+requires Apple Silicon, a native arm64 Node.js 20 or newer, and exact
+[`serve-sim` 0.1.45](https://github.com/EvanBacon/serve-sim) compatibility.
+`bun install` installs that pinned package. A paid Apple Developer Program
+membership is not required for Simulator work.
+
+When `doctor` reports a blocker, inspect the same owner-managed tools directly:
+
+```sh
+node --version
+xcode-select -p
+xcodebuild -version
+xcrun simctl list runtimes
+xcrun simctl list devices available
+```
+
+Open Xcode and install an iOS Simulator runtime if the last command has no
+available iPhone. If command-line tools point at another Xcode installation,
+set `DEVELOPER_DIR` for the Tohseno invocation or correct the owner-managed
+Xcode selection, then rerun `doctor`. If `doctor` reports an x64 Node binary on
+Apple Silicon, install or select a native arm64 Node rather than running it
+through Rosetta. If only serve-sim compatibility fails,
+rerun `bun install` in the repository and confirm the lockfile still resolves
+exactly `0.1.45`; do not loosen the pin.
+
+With a recognized generated shot:
+
+```sh
+bun run tohseno -- run docs-smoke
+bun run tohseno -- preview docs-smoke
+```
+
+`run` should start the pinned development runtime, build, install, and launch
+the app in Apple Simulator, then attempt to write the real PNG capture to the
+shot’s gitignored `.tohseno/artifacts/screenshot.png`. If capture alone fails,
+confirm that the command reports it while leaving the app running. `preview`
+repeats that run,
+opens the loopback interactive stream, and stays in the foreground until
+`Ctrl-C`; test taps, typing, and a swipe before stopping it. The browser view is
+the Mac’s real Simulator, not an in-browser emulator. Stopping the preview
+stops its owned stream helper; use the existing native Simulator controls and
+`machine dev stop` when the app or development service should also stop.
+
+Only one live session is managed by a Studio process at a time. Confirm that
+closing or replacing a preview terminates the exact previously owned helper
+and that shutdown does the same. On an unsupported machine, confirm the
+actionable `doctor` and preview diagnostics instead: the Studio contact sheet,
+shared factory, CLI creation, and verification must remain usable.

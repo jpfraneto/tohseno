@@ -24,13 +24,75 @@ const INPUTS = [
   "packages/cli/src",
   "packages/cli/factory",
   "packages/cli/package.json",
+  "packages/cli/THIRD_PARTY_NOTICES.md",
   "templates/continuity-app",
+] as const;
+const THIRD_PARTY_INPUTS = [
+  {
+    source: "node_modules/serve-sim",
+    destination: "packages/cli/node_modules/serve-sim",
+    packageName: "serve-sim",
+    version: "0.1.45",
+  },
+  {
+    source: "node_modules/ws",
+    destination: "packages/cli/node_modules/ws",
+    packageName: "ws",
+    version: "8.21.1",
+  },
 ] as const;
 
 interface ArchiveFile {
   path: string;
   source: string;
   mode: number;
+}
+
+export function assertThirdPartyPackageIdentity(options: {
+  directory: string;
+  packageName: string;
+  version: string;
+}): void {
+  const directoryDetails = lstatSync(options.directory);
+  if (
+    directoryDetails.isSymbolicLink() ||
+    !directoryDetails.isDirectory()
+  ) {
+    throw new Error(
+      `managed release dependency is not a real directory: ${options.directory}`,
+    );
+  }
+  const packageJson = join(options.directory, "package.json");
+  const packageDetails = lstatSync(packageJson);
+  if (packageDetails.isSymbolicLink() || !packageDetails.isFile()) {
+    throw new Error(
+      `managed release dependency has no regular package.json: ${options.directory}`,
+    );
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(readFileSync(packageJson, "utf8")) as unknown;
+  } catch {
+    throw new Error(
+      `managed release dependency has unreadable package.json: ${options.directory}`,
+    );
+  }
+  const record =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  if (
+    record.name !== options.packageName ||
+    record.version !== options.version
+  ) {
+    const foundName =
+      typeof record.name === "string" ? record.name : "unknown";
+    const foundVersion =
+      typeof record.version === "string" ? record.version : "unknown";
+    throw new Error(
+      `managed release dependency identity mismatch: expected ${options.packageName}@${options.version}, found ${foundName}@${foundVersion}`,
+    );
+  }
 }
 
 function sourceFiles(): ArchiveFile[] {
@@ -48,6 +110,22 @@ function sourceFiles(): ArchiveFile[] {
     }
     for (const file of listRegularFiles(source)) {
       const path = `${input}/${file.relativePath}`.split(sep).join("/");
+      files.push({
+        path: `${ARCHIVE_ROOT}/factory-source/${path}`,
+        source: file.absolutePath,
+        mode: file.executable ? 0o755 : 0o644,
+      });
+    }
+  }
+  for (const input of THIRD_PARTY_INPUTS) {
+    const source = join(ROOT, input.source);
+    assertThirdPartyPackageIdentity({
+      directory: source,
+      packageName: input.packageName,
+      version: input.version,
+    });
+    for (const file of listRegularFiles(source)) {
+      const path = `${input.destination}/${file.relativePath}`.split(sep).join("/");
       files.push({
         path: `${ARCHIVE_ROOT}/factory-source/${path}`,
         source: file.absolutePath,

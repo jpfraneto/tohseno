@@ -66,6 +66,24 @@ describe("public pages", () => {
         expect(body).toContain("Take your first shot");
         expect(body).toContain("The prototype is the payoff");
         expect(body).toContain("iOS is the only implemented app platform");
+        expect(body).toContain(
+          "tohseno create --file intention.md --reference sketch.png",
+        );
+        expect(body).toContain("One factory, multiple doors");
+        expect(body).toContain("tohseno studio");
+        expect(body).toContain("binds to <code>127.0.0.1</code>, never the LAN");
+        expect(body).toContain("tohseno run &lt;shot&gt;");
+        expect(body).toContain("tohseno preview &lt;shot&gt;");
+        expect(body).toContain("it is not an in-browser iOS emulator");
+        expect(body).toContain(
+          "additionally requires Apple Silicon, a native arm64 Node.js 20 or newer",
+        );
+        expect(body).toContain("reports the selected Node architecture");
+        expect(body).toContain("does not require paid Apple Developer Program membership");
+        expect(body).toContain("<code>.tohseno/provenance/</code>");
+        expect(body).toContain(
+          "Studio does not upload shots or creation input to TOHSENO",
+        );
       } else {
         expect(body).toContain("downloads only pinned release artifacts");
         expect(body).toContain("Quick Tunnel");
@@ -121,7 +139,7 @@ describe("public pages", () => {
     const response = await application.fetch(request("/install.sh"));
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
     const body = await response.text();
-    expect(body).toContain('CLI_VERSION="0.2.2"');
+    expect(body).toContain('CLI_VERSION="0.3.0"');
     expect(body).toContain("TOHSENO managed installer");
     expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
 

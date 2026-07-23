@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Install TOHSENO, run it, and tell your coding agent what iOS app you want to make.">
+    <meta name="description" content="Install TOHSENO, take an iOS shot from the terminal or local Studio, and keep the independent result.">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{BRAND}}">
     <meta property="og:title" content="Docs — {{BRAND}}">
-    <meta property="og:description" content="The agent-first path from intention to an independent, running iOS shot.">
+    <meta property="og:description" content="One local factory, multiple doors, and an independent iOS shot you can run and own.">
     <meta property="og:url" content="{{CANONICAL_ORIGIN}}/docs">
     <meta property="og:image" content="{{OG_IMAGE_URL}}">
     <meta property="og:image:width" content="1200">
@@ -36,7 +36,9 @@
           <pre><code>curl -fsSL https://tohseno.com/install.sh | bash
 tohseno</code></pre>
           <p>Choose <strong>Take your first shot</strong>, <strong>Take another shot</strong>, or <strong>Continue a shot</strong>. Every app lands as an independent repository under your configured shots directory—<code>~/tohseno/shots</code> by default. TOHSENO shows only implemented platforms—currently iOS—and launches an installed Codex or Claude Code inside it. The agent reads local instructions, then asks what you want to make.</p>
-          <p>Your private product intention stays in that conversation. TOHSENO never places it in shell history, process arguments, release metadata, or centralized logs.</p>
+          <p>With the interactive launcher, your private product intention stays in that conversation. For an explicit local input, use one UTF-8 Markdown file and repeat <code>--reference</code> for image references:</p>
+          <pre><code>tohseno create --file intention.md --reference sketch.png</code></pre>
+          <p>The file paths are ordinary local inputs; their private contents never enter shell arguments, the factory release, Git history, or centralized logs.</p>
           <div class="command-block">
             <code class="command-line" id="install-command" data-install-command>{{INSTALL_COMMAND}}</code>
             <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="install-command">{{HERO_COPY_LABEL}}</button>
@@ -44,9 +46,26 @@ tohseno</code></pre>
         </section>
 
         <section>
+          <h2>One factory, multiple doors</h2>
+          <pre><code>tohseno studio
+tohseno studio --port 4747 --no-open</code></pre>
+          <p>Studio is a local browser contact sheet for the same configured shots directory used by the CLI. It binds to <code>127.0.0.1</code>, never the LAN, and watches that directory for shots created through either door. Its creation form accepts a long intention, one optional Markdown file, and optional image references.</p>
+          <p>The terminal and Studio call the same factory. They share concurrency-safe allocation, the pinned factory release, atomic publication, independent Git history, private provenance, and verification. Studio is not a daemon requirement: close it and the same shots remain available through <code>tohseno list</code>, <code>verify</code>, and <code>open</code>.</p>
+        </section>
+
+        <section>
           <h2>What the agent operates</h2>
           <p>Every new shot pins its operational playbook and machine commands locally. The agent starts a localhost Bun API, initializes its SQLite database, waits for health, configures the Debug iOS endpoint, launches a real simulator when Xcode is available, reads structured logs, verifies changes, and stops only processes owned by that shot.</p>
           <p>For a physical Debug device, the agent may explicitly request a Cloudflare Quick Tunnel. Its random public URL is temporary development reachability—not authentication, uptime, or production infrastructure—and is written only to a gitignored Debug configuration file.</p>
+        </section>
+
+        <section>
+          <h2>Run the real Simulator</h2>
+          <pre><code>tohseno run &lt;shot&gt;
+tohseno preview &lt;shot&gt;
+tohseno doctor</code></pre>
+          <p>On macOS with Xcode command-line tools and an available iPhone Simulator, <code>run</code> builds, installs, and launches the shot in Apple Simulator, then attempts a private contact-sheet capture. A failed capture does not stop an otherwise running app.</p>
+          <p><code>preview</code> adds an interactive local browser stream of that same native Simulator; it is not an in-browser iOS emulator. Interactive preview additionally requires Apple Silicon, a native arm64 Node.js 20 or newer, and the pinned <code>serve-sim</code> helper. Simulator use does not require paid Apple Developer Program membership. <code>doctor</code> reports the selected Node architecture and exact readiness, and unsupported preview does not disable Studio’s contact sheet, creation, or ordinary CLI verification.</p>
         </section>
 
         <section>
@@ -57,6 +76,7 @@ tohseno</code></pre>
         <section>
           <h2>What stays local</h2>
           <p>A shot has its own Git history, SwiftUI app, Bun API, SQLite migrations, manifest, tests, landing page, verifier, operations, and release provenance. Writing and identity stay on the device. The baseline API stores operational metadata only and never receives writing content. Development data, logs, PIDs, and generated endpoints are gitignored.</p>
+          <p>When <code>create --file</code> or Studio receives private creation input, its normalized intention, reference copies, hashes, original filenames, options, and structured events stay in the shot’s gitignored <code>.tohseno/provenance/</code> directory. Temporary Studio uploads are removed after the job finishes or stops safely. Studio does not upload shots or creation input to TOHSENO; the selected coding agent uses that input under its own provider and privacy settings.</p>
           <p>The app’s core action remains useful offline. Seed-phrase identity replaces accounts, and every shot builds without TOHSENO credentials or a live factory.</p>
         </section>
 
@@ -79,7 +99,7 @@ tohseno</code></pre>
 
         <section>
           <h2>Advanced and automation use</h2>
-          <p>Humans normally need only <code>tohseno</code>. Compatibility commands such as <code>tohseno create</code>, <code>list</code>, <code>open</code>, <code>doctor</code>, <code>verify</code>, and <code>adopt</code> remain available for scripts and repository contributors. The detailed machine protocol is documented in each shot at <code>.tohseno/OPERATIONS.md</code> and in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>.</p>
+          <p>Humans can use <code>tohseno</code> or <code>tohseno studio</code>. Explicit commands including <code>create</code>, <code>list</code>, <code>open</code>, <code>doctor</code>, <code>verify</code>, <code>adopt</code>, <code>run</code>, and <code>preview</code> remain available for scripts and repository contributors. The detailed machine protocol is documented in each shot at <code>.tohseno/OPERATIONS.md</code> and in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>.</p>
         </section>
       </article>
     </main>

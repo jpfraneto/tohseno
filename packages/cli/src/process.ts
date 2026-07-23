@@ -18,10 +18,7 @@ export function sanitizedRuntimeEnvironment(
 ): Record<string, string | undefined> {
   const exact = new Set([
     "PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP",
-    "LANG", "TOHSENO_BUN",
-    // Bankr auth for token ops; forwarded only to the spawned bankr process
-    // by runtime/token.ts, never to other shot children.
-    "BANKR_API_KEY",
+    "LANG", "DEVELOPER_DIR", "TOHSENO_BUN",
   ]);
   const result: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(environment)) {

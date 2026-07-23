@@ -11,6 +11,7 @@ import {
 import { CliError } from "./errors.ts";
 import { bunExecutable, runCaptured, sanitizedRuntimeEnvironment } from "./process.ts";
 import { slugForShotName } from "./slug.ts";
+import { trustedShotToolFromCache } from "./trusted-tools.ts";
 
 async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promise<string> {
   const git = await runCaptured(["git", "status", "--porcelain"], {
@@ -22,10 +23,19 @@ async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promi
   const machine = join(shot.path, ".tohseno", "machine.ts");
   if (existsSync(machine)) {
     try {
+      const trusted = trustedShotToolFromCache({
+        shotRoot: shot.path,
+        releasesDirectory: context.config.cacheDirectory,
+        tool: "machine",
+      });
       const inspected = await runCaptured([
-        bunExecutable(context.environment), machine, "dev", "status", "--json",
+        bunExecutable(context.environment),
+        trusted.executable,
+        "dev",
+        "status",
+        "--json",
       ], {
-        cwd: shot.path,
+        cwd: trusted.root,
         env: sanitizedRuntimeEnvironment(context.environment),
       });
       const envelope = JSON.parse(inspected.stdout) as {

@@ -1,12 +1,16 @@
 # TOHSENO launcher and machine protocol
 
-`tohseno` has two deliberately different surfaces:
+`tohseno` has three deliberately different presentation surfaces over one
+factory:
 
 - the human surface is an interactive launcher for a coding-agent conversation;
+- Studio is a localhost browser contact sheet and creation door;
 - the machine surface is deterministic, shot-scoped JSON for that agent.
 
-The Phase 1 commands remain available under an advanced compatibility section.
-They are not the product’s conceptual entrance.
+Explicit CLI commands remain available for automation. CLI parsing, browser
+request handling, and the application-level factory are separate layers:
+`tohseno create` and `tohseno studio` both call the same `createShot` service.
+Neither requires the other process to be running.
 
 ## Human surface
 
@@ -55,6 +59,52 @@ Read the local AGENTS.md and begin.
 The shot is already committed before launch. If the agent exits or is missing,
 the repository remains intact.
 
+### Explicit creation input
+
+The CLI can provide private, deterministic creation input without putting that
+input in a shell argument:
+
+```sh
+tohseno create --file intention.md
+tohseno create --file intention.md \
+  --reference sketch.png \
+  --reference flow.webp
+```
+
+`--file` accepts one regular, non-symlinked UTF-8 `.md` file up to 1 MiB.
+`--reference` supplies optional context for that intention and is repeatable for
+up to eight regular image files, each up to 12 MiB; the factory checks their
+bytes rather than trusting extensions. A reference cannot replace the intention
+file when no slug is given. Supported content is PNG, JPEG, WebP, GIF, HEIC, or
+AVIF. If no slug is given, the shared allocator assigns the next `shot-NNN`.
+
+An intention supplied this way selects the automated agent adapter: the agent
+reads the private normalized input inside the shot, completes the app without
+an extra product interview, and the shared factory verifies the result. The
+classic `tohseno create <slug>` path without intention input still launches the
+interactive agent conversation. `--no-launch` prepares and verifies the
+baseline without starting an agent.
+
+The normalized private input is written under:
+
+```text
+<shot>/.tohseno/provenance/
+  intention.md
+  references/reference-001.<detected-extension>
+  provenance.json
+  events.jsonl
+```
+
+`provenance.json` records the creation timestamp, CLI or Studio door, exact
+factory release and bundle digest, normalized intention components, original
+reference filenames, byte counts and SHA-256 hashes, creation options, and the
+input digest. The entire provenance directory is gitignored. Tracked
+`.tohseno/shot.json` carries only a non-content creation summary and digest, so
+verification can bind the local private record to the immutable baseline
+without committing the intention or images. Moving the complete shot working
+directory preserves its private provenance; a Git clone intentionally does
+not.
+
 ### Continue a shot
 
 TOHSENO discovers only recognized direct children of the configured shots
@@ -76,6 +126,75 @@ No-argument mode refuses a non-interactive terminal with exit `2`; it never
 guesses answers. Automation uses explicit compatibility or machine commands.
 Neither Codex nor Claude installed is a missing-dependency failure. Missing
 Xcode or a simulator does not undo a successfully created shot or stop its API.
+
+## Studio surface
+
+Run:
+
+```sh
+tohseno studio
+tohseno studio --port 4747
+tohseno studio --no-open
+tohseno studio --shots-dir /absolute/private/shots
+```
+
+Studio resolves the same configured shots directory as the CLI, starts one
+local `Bun.serve` process on `127.0.0.1`, uses port `4747` by default, prints
+its URL, and opens the system browser unless `--no-open` is present. It never
+binds to the LAN. `SIGINT` and `SIGTERM` stop filesystem watchers, SSE clients,
+an active creation job, and the owned live-preview helper before the process
+exits.
+
+The contact sheet discovers recognized direct children of `/shots`, orders
+them newest first, and uses
+`.tohseno/artifacts/screenshot.png` when a Simulator capture exists. A missing
+capture is a normal fallback, not a broken shot. Detail pages expose the
+recorded intention and references plus verify, run, live preview, Xcode, and
+folder actions. The browser never constructs or accepts a general shell
+command.
+
+Contact-sheet `CREATION / …` labels and the detail page's
+`LAST CREATION ACTIVITY` fact are derived from the portable creation journal.
+`CREATING`, `INTERRUPTED`, and `READY` describe the last recorded creation
+attempt, not a project lifecycle or the current run/verification state.
+
+The creation form accepts:
+
+- a long-form typed intention;
+- one optional UTF-8 `.md` file;
+- up to eight optional image references;
+- an optional name.
+
+At least typed text or Markdown is required. If both exist, normalization is
+deterministic: `# Typed intention` and its text come first, followed by
+`# Attached Markdown` and the file content. An omitted name uses the next
+numbered `shot-NNN`.
+
+Uploads first enter a mode-`0700` random directory below the managed local
+Studio home. Internal random filenames replace untrusted path components.
+Count, size, extension, UTF-8, MIME, and image magic-byte checks run before the
+shared factory starts, and staging is removed on success, rejection, or safe
+shutdown. A per-process session token protects mutations; unexpected Host and
+Origin values, non-loopback requests, traversal, symlinks, and cross-site
+requests are rejected.
+
+Studio intentionally permits one heavy Studio operation at a time across
+create, run, preview, and verify. A conflicting request receives `409`; a
+rejected creation also removes its staging. This does not create a separate
+allocator: a simultaneous CLI creation and Studio creation still use the
+shared owner-checked workspace lock and durable exclusive sequence claims, so
+they cannot receive the same shot number even if a stale allocator resumes.
+
+Structured factory events are appended to private JSONL journals under the
+shots workspace. Studio streams its own job over server-sent events and watches
+both the journals and atomically published shot directories, so a shot created
+by a separate CLI process appears without that CLI calling Studio. Closing
+Studio never makes the CLI or a completed shot unusable.
+
+Studio is local-first, not a local gateway to a Tohseno service. The Studio
+server does not upload intentions, references, generated source, app content,
+credentials, or Simulator images. The locally selected coding agent consumes
+creation input under that agent's own provider and privacy settings.
 
 ## Machine surface
 
@@ -192,6 +311,65 @@ Physical-device launch remains an explicit Xcode signing/trust action. The
 agent starts development with `--tunnel`, then guides the owner to run that
 Debug configuration. It never edits Swift or stores the random URL in Release.
 
+### Simulator doors
+
+The human CLI and Studio use one application-level Simulator service rather
+than duplicating build or launch commands:
+
+```sh
+tohseno run <shot-slug-or-path> [--shots-dir <path>]
+tohseno preview <shot-slug-or-path> [--shots-dir <path>]
+```
+
+`run` resolves a recognized shot with a pinned regular
+`.tohseno/machine.ts`, invokes its `dev start` and `ios launch` operations with
+argument arrays, boots or selects an available iPhone Simulator, builds,
+installs, and launches the app, then attempts an atomic capture at
+`.tohseno/artifacts/screenshot.png`. The capture is private and gitignored; a
+capture-only failure is reported but does not tear down a successfully launched
+app or prevent live preview.
+
+Before any global CLI or Studio door runs pinned verification or machine code,
+it authenticates the shot's embedded content-addressed release record and
+checks the regular files, pinned manifest/runtime tree, modes, and hashes. It
+then executes a read-only private snapshot of those verified tools, not the
+mutable shot-local copy. An available immutable factory cache is cross-checked
+and reused; without it, the snapshot is reconstructed from the authenticated
+embedded release. A modified or symlinked shot-local tool is rejected before
+it can run.
+
+`preview` performs the same run, starts one owned loopback helper for the
+launched Simulator UDID, opens the interactive browser stream, and remains in
+the foreground until `Ctrl-C`. Studio embeds that same capability in the shot
+detail page. Only one live session is managed by a Studio process at a time;
+closing Studio or stopping `preview` terminates its exact child and removes its
+private temporary directory.
+
+This is the Mac’s real native Apple Simulator streamed into a browser, not an
+iOS emulator implemented in JavaScript and not an instrumented build of the
+shot. Pointer, keyboard, swipe, gesture, and hardware-button input is forwarded
+through the pinned
+[`serve-sim` 0.1.45](https://github.com/EvanBacon/serve-sim) middleware. The
+helper is capability-gated on `127.0.0.1`; it exposes only the allowlisted
+preview/stream routes, not upstream command execution or a general terminal.
+
+`run` requires macOS, Xcode command-line tools, healthy `xcrun simctl`, and an
+available iPhone Simulator. Interactive `preview` additionally requires Apple
+Silicon, a native arm64 Node.js 20 or newer, and the exact pinned `serve-sim` version
+`0.1.45`. Simulator operation does not require paid Apple Developer Program
+membership.
+
+`tohseno doctor` reports platform, CPU architecture, the selected Node binary's
+version and architecture, Xcode, simctl device inventory, exact serve-sim
+compatibility, and the combined interactive-preview readiness. It therefore
+catches an x64 Node running through Rosetta before starting the helper. Missing
+preview support is reported as a warning. An explicit
+`preview` command returns an actionable error, while Studio keeps its contact
+sheet, creation form, ordinary run/verify actions, and CLI interoperability
+available. Stopping the preview terminates its owned stream helper; the native
+Simulator and the shot’s development service remain under their existing
+Simulator and `machine dev stop` controls.
+
 ### Token operations (optional)
 
 A shot may launch a token under the owner's own [Bankr](https://docs.bankr.bot)
@@ -266,15 +444,20 @@ Unknown config fields are rejected.
 
 ## Advanced compatibility commands
 
-These Phase 1 commands remain implemented for scripts and contributors:
+These explicit commands remain implemented for scripts and contributors:
 
 ```sh
-tohseno create <slug> [--platform ios] [--agent codex|claude] [--no-launch]
+tohseno create [slug] [--file <intention.md>] [--reference <image> ...] \
+  [--platform ios] [--agent codex|claude] [--no-launch] [--no-interactive] \
+  [--shots-dir <path>]
 tohseno list [--shots-dir <path>]
 tohseno open <slug> [--shots-dir <path>]
 tohseno doctor [--shots-dir <path>]
 tohseno verify [slug-or-path] [--shots-dir <path>]
 tohseno adopt <path> [--yes] [--no-interactive]
+tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]
+tohseno run <slug-or-path> [--shots-dir <path>]
+tohseno preview <slug-or-path> [--shots-dir <path>]
 ```
 
 Existing Phase 1 shots continue to use their pinned verifier. `machine verify`

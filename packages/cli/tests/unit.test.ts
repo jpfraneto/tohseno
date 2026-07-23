@@ -7,6 +7,7 @@ import {
 } from "../src/agents.ts";
 import { main } from "../src/cli.ts";
 import { resolveConfig } from "../src/config.ts";
+import { machineRuntimeEnvironment } from "../src/machine.ts";
 import {
   bundleIdForSlug,
   displayNameForSlug,
@@ -135,6 +136,23 @@ describe("configuration resolution", () => {
   });
 });
 
+describe("machine environment boundaries", () => {
+  test("forwards Bankr auth only to recognized token operations", () => {
+    const source = {
+      PATH: "/usr/bin",
+      BANKR_API_KEY: "bankr-secret-must-not-cross",
+    };
+    for (const operation of ["dev.start", "ios.launch", "verify", "unknown"]) {
+      expect(machineRuntimeEnvironment(operation, source)).toEqual({
+        PATH: "/usr/bin",
+      });
+    }
+    for (const operation of ["token.status", "token.launch", "token.fees"]) {
+      expect(machineRuntimeEnvironment(operation, source)).toEqual(source);
+    }
+  });
+});
+
 describe("coding-agent detection and selection", () => {
   test("detects executable supported agents in stable product order", async () => {
     await withScratchEnvironment((scratch) => {
@@ -215,7 +233,19 @@ describe("coding-agent detection and selection", () => {
   test("reports missing slug, missing agents, and missing Git before generation", async () => {
     const missingSlugIo = createMemoryIo();
     expect(await main(["create"], { io: missingSlugIo })).toBe(2);
-    expect(missingSlugIo.stderr.join("\n")).toContain("shot slug is required");
+    expect(missingSlugIo.stderr.join("\n")).toContain(
+      "shot slug is required unless --file supplies creation input",
+    );
+
+    const referenceOnlyIo = createMemoryIo();
+    expect(await main([
+      "create",
+      "--reference",
+      "sketch.png",
+    ], { io: referenceOnlyIo })).toBe(2);
+    expect(referenceOnlyIo.stderr.join("\n")).toContain(
+      "--reference cannot supply an intention; add --file <intention.md> when creating without a shot slug",
+    );
 
     await withScratchEnvironment(async (scratch) => {
       let io = createMemoryIo(true);
@@ -251,6 +281,15 @@ describe("coding-agent detection and selection", () => {
     expect(help).toContain("Take another one.");
     expect(help).toContain("--platform ios");
     expect(help).toContain("iOS is the only implemented platform");
+    expect(help).toContain(
+      "tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]",
+    );
+    expect(help).toMatch(
+      /Studio options:[\s\S]*--shots-dir <path>\s+override config\/default/u,
+    );
+    expect(help).toContain(
+      "--reference <path>   attach image context to --file; repeat up to eight times",
+    );
     expect(help).not.toContain("--platform android");
     expect(help).not.toContain("--platform web");
   });

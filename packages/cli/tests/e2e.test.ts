@@ -228,7 +228,10 @@ describe("shot creation end to end", () => {
       expect(io.stderr.join("\n")).toContain("baseline commit failed");
       expect(io.stderr.join("\n")).not.toContain(privateSentinel);
       expect(existsSync(join(scratch.shotsDirectory, "atomic-failure"))).toBe(false);
-      expect(readdirSync(scratch.shotsDirectory)).toEqual([]);
+      expect(readdirSync(scratch.shotsDirectory)).toEqual([".tohseno"]);
+      expect(
+        readdirSync(scratch.shotsDirectory).some((entry) => entry.includes(".creating-")),
+      ).toBe(false);
     });
   }, 30_000);
 
@@ -290,7 +293,7 @@ describe("shot creation end to end", () => {
     });
   }, 30_000);
 
-  test("keeps legacy shots verifiable without silently adding the newer machine runtime", async () => {
+  test("does not treat a current shot with a deleted machine runtime as legacy", async () => {
     await withScratchEnvironment(async (scratch) => {
       const io = createMemoryIo();
       expect(await main([
@@ -310,12 +313,12 @@ describe("shot creation end to end", () => {
         cwd: shot,
         environment: scratch.environment,
         io: machineIo,
-      })).toBe(0);
+      })).toBe(2);
       expect(JSON.parse(machineIo.stdout[0]!)).toMatchObject({
-        ok: true,
-        operation: "verify",
-        result: { valid: true, compatibility: "legacy-shot" },
+        ok: false,
+        error: { code: "INVALID_CONFIGURATION" },
       });
+      expect(machineIo.stdout[0]).toContain("shot-local machine runtime is missing");
 
       machineIo = createMemoryIo();
       expect(await main(["machine", "dev", "status", "--json"], {
@@ -327,7 +330,7 @@ describe("shot creation end to end", () => {
         ok: false,
         error: { code: "INVALID_CONFIGURATION" },
       });
-      expect(machineIo.stdout[0]).toContain("legacy shot has no pinned machine runtime");
+      expect(machineIo.stdout[0]).toContain("shot-local machine runtime is missing");
       expect(existsSync(machinePath)).toBe(false);
     });
   }, 20_000);

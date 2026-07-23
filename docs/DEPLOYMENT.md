@@ -23,9 +23,9 @@ analytics, or generated-app content path.
 The installer expects one immutable artifact:
 
 ```text
-GitHub release tag: cli-v0.2.2
-asset:              tohseno-cli-0.2.2.tar.gz
-metadata:           tohseno-cli-0.2.2.json
+GitHub release tag: cli-v0.3.0
+asset:              tohseno-cli-0.3.0.tar.gz
+metadata:           tohseno-cli-0.3.0.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
@@ -38,8 +38,8 @@ Prepare locally:
 ```sh
 bun run check
 bun run tohseno:release
-shasum -a 256 dist/tohseno-cli-0.2.2.tar.gz
-cat dist/tohseno-cli-0.2.2.json
+shasum -a 256 dist/tohseno-cli-0.3.0.tar.gz
+cat dist/tohseno-cli-0.3.0.json
 ```
 
 Build a second time into another temporary path and compare bytes before
@@ -55,7 +55,18 @@ CLI 0.2.2 is **Implemented** and published from commit
 launch operations. Its public tarball is byte-for-byte identical to the
 deterministic local artifact, with SHA-256
 `91b75d064b36f7d24ba903000b5cd81ae355b87ac233570cf4a39f91de887cc7`.
-`apps/site/public/install.sh` pins that exact digest.
+That artifact remains available, but the prepared installer now targets the
+unpublished 0.3.0 artifact. Do not deploy the prepared installer until the
+matching release is public.
+
+CLI 0.3.0 is **Prepared**, not yet published. It adds the shared creation
+service, private portable creation provenance, Tohseno Studio, structured
+progress, filesystem observation, native Simulator run/preview services, and
+the pinned `serve-sim` browser bridge. The final two local builds were
+byte-identical at
+SHA-256
+`0482ac2e9f80468528f272ac43c7e4ad4bc60ef8947733dfe077784861ce7d43`.
+`apps/site/public/install.sh` pins that exact prepared digest.
 
 For the next release:
 
@@ -72,14 +83,15 @@ For the next release:
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The 0.2.2 publication command was:
+The prepared 0.3.0 publication command is:
 
 ```sh
-gh release create cli-v0.2.2 \
-  dist/tohseno-cli-0.2.2.tar.gz \
-  dist/tohseno-cli-0.2.2.json \
-  --title "TOHSENO CLI 0.2.2" \
-  --notes "Optional Bankr token launching: shot-local machine ops (token status/launch/fees), manifest token record, and human-approval doctrine. Tohseno ships no server, holds no keys, takes no fees."
+gh release create cli-v0.3.0 \
+  dist/tohseno-cli-0.3.0.tar.gz \
+  dist/tohseno-cli-0.3.0.json \
+  --target <release-commit> \
+  --title "TOHSENO CLI 0.3.0" \
+  --notes "Local-first Tohseno Studio, one shared shot factory, portable private provenance, structured progress, and native Apple Simulator run and interactive preview."
 ```
 
 No package registry publication is required by this design.

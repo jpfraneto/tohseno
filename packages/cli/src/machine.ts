@@ -5,6 +5,10 @@ import { CliError, errorMessage, MACHINE_EXIT } from "./errors.ts";
 import { bunExecutable, runCaptured, runInherited, sanitizedRuntimeEnvironment } from "./process.ts";
 import { readShotMetadata } from "./shot.ts";
 import { validateShotSlug } from "./slug.ts";
+import {
+  LegacyShotToolError,
+  trustedShotToolFromCache,
+} from "./trusted-tools.ts";
 
 interface GlobalMachineArguments {
   shotValue?: string;
@@ -71,6 +75,23 @@ function operationName(arguments_: readonly string[]): string {
   return values[0] ?? "unknown";
 }
 
+const BANKR_MACHINE_OPERATIONS = new Set([
+  "token.status",
+  "token.launch",
+  "token.fees",
+]);
+
+export function machineRuntimeEnvironment(
+  operation: string,
+  source: Record<string, string | undefined> = process.env,
+): Record<string, string | undefined> {
+  const environment = sanitizedRuntimeEnvironment(source);
+  if (BANKR_MACHINE_OPERATIONS.has(operation) && source.BANKR_API_KEY !== undefined) {
+    environment.BANKR_API_KEY = source.BANKR_API_KEY;
+  }
+  return environment;
+}
+
 function jsonFailure(
   operation: string,
   shot: string | null,
@@ -92,16 +113,17 @@ async function legacyVerify(
   json: boolean,
   context: CommandContext,
 ): Promise<number> {
-  const verifier = join(root, ".tohseno", "verify.ts");
-  if (!existsSync(verifier)) {
-    throw new CliError(`shot is missing its pinned verifier: ${verifier}`, 2);
-  }
-  const verifierDetails = lstatSync(verifier);
-  if (verifierDetails.isSymbolicLink() || !verifierDetails.isFile()) {
-    throw new CliError(`shot-local verifier is not a regular file: ${verifier}`, 2);
-  }
+  const trusted = trustedShotToolFromCache({
+    shotRoot: root,
+    releasesDirectory: context.config.cacheDirectory,
+    tool: "verify",
+  });
+  const verifier = trusted.executable;
   const environment = sanitizedRuntimeEnvironment(context.environment);
-  const result = await runCaptured([bunExecutable(context.environment), verifier], { cwd: root, env: environment });
+  const result = await runCaptured(
+    [bunExecutable(context.environment), verifier],
+    { cwd: trusted.root, env: environment },
+  );
   for (const line of [result.stdout.trim(), result.stderr.trim()].filter(Boolean)) context.io.error(line);
   if (json) {
     if (result.exitCode === 0) {
@@ -125,27 +147,40 @@ export async function machineCommand(arguments_: readonly string[], context: Com
   let root: string | null = null;
   try {
     root = requireShot(parsed, context);
-    const machine = join(root, ".tohseno", "machine.ts");
-    if (!existsSync(machine)) {
+    let trusted;
+    try {
+      trusted = trustedShotToolFromCache({
+        shotRoot: root,
+        releasesDirectory: context.config.cacheDirectory,
+        tool: "machine",
+      });
+    } catch (error) {
       const localArguments = parsed.localArguments.filter((argument) => argument !== "--json");
-      if (localArguments.length === 1 && localArguments[0] === "verify") {
+      if (
+        error instanceof LegacyShotToolError &&
+        localArguments.length === 1 &&
+        localArguments[0] === "verify"
+      ) {
         return await legacyVerify(root, operation, parsed.json, context);
       }
-      throw new CliError(
-        "this legacy shot has no pinned machine runtime; its existing create/list/open/doctor/verify behavior remains supported",
-        2,
-      );
+      throw error;
     }
-    const machineDetails = lstatSync(machine);
-    if (machineDetails.isSymbolicLink() || !machineDetails.isFile()) {
-      throw new CliError(`shot-local machine runtime is not a regular file: ${machine}`, 2);
-    }
-    const command = [bunExecutable(context.environment), machine, ...parsed.localArguments];
-    const environment = sanitizedRuntimeEnvironment(context.environment);
+    const command = [
+      bunExecutable(context.environment),
+      trusted.executable,
+      ...parsed.localArguments,
+    ];
+    const environment = machineRuntimeEnvironment(operation, context.environment);
     if (!parsed.json) {
-      return await runInherited(command, { cwd: root, env: environment });
+      return await runInherited(command, {
+        cwd: trusted.root,
+        env: environment,
+      });
     }
-    const result = await runCaptured(command, { cwd: root, env: environment });
+    const result = await runCaptured(command, {
+      cwd: trusted.root,
+      env: environment,
+    });
     if (result.stderr.trim()) context.io.error(result.stderr.trim());
     let output: unknown;
     try {

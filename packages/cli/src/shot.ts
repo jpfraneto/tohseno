@@ -4,8 +4,10 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -19,6 +21,15 @@ import {
   removeTreeEvenIfReadOnly,
 } from "./files.ts";
 import { runCaptured } from "./process.ts";
+import {
+  writeCreationProvenance,
+  type CreationProvenance,
+  type NormalizedCreationInput,
+} from "./provenance.ts";
+import type {
+  CreationDoor,
+  ShotProgressInput,
+} from "./progress.ts";
 import type { FactoryRelease, PreparedRelease } from "./release.ts";
 import { bundleIdForSlug, displayNameForSlug } from "./slug.ts";
 
@@ -28,8 +39,17 @@ export interface ShotMetadata {
   platform: "ios";
   adopted: boolean;
   createdAt: string;
+  sequence?: number;
   selectedAgent: AgentId | null;
   baselineAuthor: "factory" | "existing-history";
+  creation?: {
+    door: CreationDoor;
+    inputDigest: string;
+    hasIntention: boolean;
+    referenceCount: number;
+    provenancePath: ".tohseno/provenance/provenance.json";
+    options: CreationProvenance["options"];
+  };
   factory: {
     releaseId: string;
     cliVersion: string;
@@ -55,6 +75,8 @@ function metadataFor(
     selectedAgent: AgentId | null;
     baselineAuthor: ShotMetadata["baselineAuthor"];
     now: Date;
+    sequence?: number;
+    creation?: ShotMetadata["creation"];
   },
 ): ShotMetadata {
   return {
@@ -63,8 +85,10 @@ function metadataFor(
     platform: "ios",
     adopted: options.adopted,
     createdAt: options.now.toISOString(),
+    ...(options.sequence === undefined ? {} : { sequence: options.sequence }),
     selectedAgent: options.selectedAgent,
     baselineAuthor: options.baselineAuthor,
+    ...(options.creation === undefined ? {} : { creation: options.creation }),
     factory: {
       releaseId: release.releaseId,
       cliVersion: release.cliVersion,
@@ -200,41 +224,154 @@ async function validateShotWithPinnedTool(root: string, environment?: Record<str
   await requireSuccessful([process.execPath, ".tohseno/verify.ts"], root, "shot verification", environment);
 }
 
-export async function createShot(options: {
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new CliError("shot creation was interrupted");
+  }
+}
+
+export function publishStagedShot(
+  staging: string,
+  destination: string,
+): void {
+  let reservation;
+  try {
+    mkdirSync(destination, { mode: 0o700 });
+    reservation = lstatSync(destination);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new CliError(
+        `target appeared during creation; refusing to overwrite: ${destination}`,
+      );
+    }
+    throw error;
+  }
+  try {
+    renameSync(staging, destination);
+  } catch (error) {
+    try {
+      const current = lstatSync(destination);
+      if (
+        current.dev === reservation.dev &&
+        current.ino === reservation.ino &&
+        current.isDirectory() &&
+        readdirSync(destination).length === 0
+      ) {
+        rmdirSync(destination);
+      }
+    } catch {
+      // Never remove a path that replaced or populated our empty reservation.
+    }
+    throw error;
+  }
+}
+
+export async function materializeShot(options: {
   slug: string;
   shotsDirectory: string;
   release: PreparedRelease;
   selectedAgent: AgentId | null;
+  sequence: number;
+  door: CreationDoor;
+  input: NormalizedCreationInput;
+  agentMode: CreationProvenance["options"]["agentMode"];
+  verifyAfterAgent: boolean;
+  runAfterCreate: boolean;
   environment?: Record<string, string | undefined>;
   now?: Date;
+  signal?: AbortSignal;
+  emit?: (event: ShotProgressInput) => void | Promise<void>;
 }): Promise<CreatedShot> {
   const destination = resolve(options.shotsDirectory, options.slug);
   if (existsSync(destination)) throw new CliError(`target already exists; refusing to overwrite: ${destination}`);
   mkdirSync(options.shotsDirectory, { recursive: true });
   const staging = join(options.shotsDirectory, `.${options.slug}.creating-${process.pid}-${randomUUID()}`);
   mkdirSync(staging, { mode: 0o700 });
+  const createdAt = options.now ?? new Date();
+  const progress = async (event: ShotProgressInput): Promise<void> => {
+    await options.emit?.(event);
+  };
   try {
+    throwIfAborted(options.signal);
+    await progress({
+      type: "preparing-shot",
+      slug: options.slug,
+      sequence: options.sequence,
+    });
     copyTree(join(options.release.directory, "platforms", "ios", "base"), staging);
     customizeManifest(staging, options.slug);
     customizeXcconfig(staging, options.slug);
     addVerifyScript(staging);
+    const creationOptions: CreationProvenance["options"] = {
+      selectedAgent: options.selectedAgent,
+      agentMode: options.agentMode,
+      verifyAfterAgent: options.verifyAfterAgent,
+      runAfterCreate: options.runAfterCreate,
+    };
     const provisionalMetadata = metadataFor(options.slug, options.release.metadata, {
       adopted: false,
       selectedAgent: options.selectedAgent,
       baselineAuthor: "factory",
-      now: options.now ?? new Date(),
+      now: createdAt,
+      sequence: options.sequence,
+      creation: {
+        door: options.door,
+        inputDigest: options.input.inputDigest,
+        hasIntention: options.input.intention !== null,
+        referenceCount: options.input.references.length,
+        provenancePath: ".tohseno/provenance/provenance.json",
+        options: creationOptions,
+      },
     });
     installPinnedShotFiles(staging, options.release, provisionalMetadata, true);
+    writeCreationProvenance({
+      shotRoot: staging,
+      createdAt,
+      door: options.door,
+      release: options.release.metadata,
+      input: options.input,
+      selectedAgent: options.selectedAgent,
+      agentMode: options.agentMode,
+      verifyAfterAgent: options.verifyAfterAgent,
+      runAfterCreate: options.runAfterCreate,
+    });
+    await progress({
+      type: "provenance-written",
+      slug: options.slug,
+      sequence: options.sequence,
+    });
+    throwIfAborted(options.signal);
     assertNoExternalSymlinks(staging);
     await validateManifestWithPinnedTool(staging, options.environment);
+    await progress({
+      type: "manifest-validated",
+      slug: options.slug,
+      sequence: options.sequence,
+    });
+    throwIfAborted(options.signal);
     const gitIdentityMissing = await initializeGit(
       staging,
       options.release.metadata.releaseId,
       options.environment,
     );
+    await progress({
+      type: "baseline-committed",
+      slug: options.slug,
+      sequence: options.sequence,
+    });
+    throwIfAborted(options.signal);
     await validateShotWithPinnedTool(staging, options.environment);
-    if (existsSync(destination)) throw new CliError(`target appeared during creation; refusing to overwrite: ${destination}`);
-    renameSync(staging, destination);
+    publishStagedShot(staging, destination);
+    try {
+      await progress({
+        type: "published",
+        slug: options.slug,
+        sequence: options.sequence,
+      });
+    } catch {
+      // Publication is already atomic and durable. A presentation-layer
+      // progress failure cannot turn a completed shot into a failed one.
+    }
     return { path: destination, metadata: provisionalMetadata, gitIdentityMissing };
   } catch (error) {
     removeTreeEvenIfReadOnly(staging);

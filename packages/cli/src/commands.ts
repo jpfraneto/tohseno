@@ -1,5 +1,5 @@
-import { accessSync, constants as fsConstants, existsSync, lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { accessSync, constants as fsConstants, existsSync, lstatSync, statSync } from "node:fs";
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
   detectInstalledAgents,
   requireInstalledAgent,
@@ -9,19 +9,40 @@ import {
 } from "./agents.ts";
 import { AGENT_INSTRUCTION } from "./constants.ts";
 import type { ResolvedConfig } from "./config.ts";
+import {
+  createShot as createShotThroughFactory,
+  factoryReleaseFor,
+} from "./creation.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import type { CliIo } from "./io.ts";
+import type { CreationInput } from "./provenance.ts";
 import { runCaptured, runInherited } from "./process.ts";
 import {
   listCachedReleaseDirectories,
-  prepareFactoryRelease,
   useActiveCachedRelease,
   verifyReleaseDirectory,
-  type PreparedRelease,
 } from "./release.ts";
-import { adoptShot, createShot, readShotMetadata } from "./shot.ts";
+import {
+  SimulatorService,
+  simulatorDoctorRecords,
+  type LivePreviewHandle,
+} from "./simulator.ts";
+import { adoptShot, readShotMetadata } from "./shot.ts";
 import { locateFactorySourceRoot } from "./source.ts";
 import { validateShotSlug } from "./slug.ts";
+import {
+  discoverShotsInDirectory,
+  resolveRecognizedShot,
+  type DiscoveredShot,
+} from "./workspace.ts";
+import { trustedShotToolFromCache } from "./trusted-tools.ts";
+import {
+  startStudioServer,
+  waitForStudioSignal,
+  type StudioServerHandle,
+} from "./studio/server.ts";
+
+export type { DiscoveredShot } from "./workspace.ts";
 
 export interface CommandContext {
   config: ResolvedConfig;
@@ -32,31 +53,17 @@ export interface CommandContext {
 }
 
 export interface CreateArguments {
-  slug: string;
+  slug?: string | undefined;
   platform?: string | undefined;
   agent?: string | undefined;
+  file?: string | undefined;
+  references?: readonly string[] | undefined;
   noLaunch: boolean;
   noInteractive: boolean;
 }
 
 function sourceRootFor(context: CommandContext): string {
   return context.sourceRoot ?? locateFactorySourceRoot(context.environment);
-}
-
-async function factoryReleaseFor(context: CommandContext): Promise<PreparedRelease> {
-  let sourceRoot: string;
-  try {
-    sourceRoot = sourceRootFor(context);
-  } catch (sourceError) {
-    try {
-      return useActiveCachedRelease(context.config.cacheDirectory);
-    } catch (cacheError) {
-      throw new CliError(
-        `factory source is unavailable (${errorMessage(sourceError)}) and cached fallback failed: ${errorMessage(cacheError)}`,
-      );
-    }
-  }
-  return await prepareFactoryRelease(sourceRoot, context.config.cacheDirectory);
 }
 
 export async function chooseNumber(
@@ -138,19 +145,10 @@ async function selectAgent(
   return selected;
 }
 
-async function requireGit(context: CommandContext): Promise<void> {
-  try {
-    const result = await runCaptured(["git", "--version"], { cwd: context.cwd, env: context.environment });
-    if (result.exitCode !== 0) throw new Error(result.stderr.trim());
-  } catch {
-    throw new CliError("Git is required to create an independent shot; install Git and retry", 3);
-  }
-}
-
 export async function createCommand(arguments_: CreateArguments, context: CommandContext): Promise<number> {
-  const slug = validateShotSlug(arguments_.slug);
-  const destination = join(context.config.shotsDirectory, slug);
-  if (existsSync(destination)) throw new CliError(`target already exists; refusing to overwrite: ${destination}`);
+  const slug = arguments_.slug === undefined
+    ? undefined
+    : validateShotSlug(arguments_.slug);
   const nonInteractive = arguments_.noInteractive || !context.io.interactive;
   await selectPlatform(arguments_, context.io, nonInteractive);
   const installed = detectInstalledAgents(context.environment.PATH ?? "", context.cwd);
@@ -161,72 +159,60 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
     nonInteractive,
     context.config.defaultAgent,
   );
-  await requireGit(context);
+  const input: CreationInput = {
+    ...(arguments_.file === undefined
+      ? {}
+      : {
+          markdown: {
+            path: resolve(context.cwd, arguments_.file),
+            originalName: basename(arguments_.file),
+          },
+        }),
+    references: (arguments_.references ?? []).map((path) => ({
+      path: resolve(context.cwd, path),
+      originalName: basename(path),
+    })),
+  };
 
-  context.io.out(`Creating ${destination}…`);
-  const release = await factoryReleaseFor(context);
-  const created = await createShot({
-    slug,
-    shotsDirectory: context.config.shotsDirectory,
-    release,
-    selectedAgent: selectedAgent?.id ?? null,
+  context.io.out(
+    slug === undefined
+      ? `Creating the next shot in ${context.config.shotsDirectory}…`
+      : `Creating ${join(context.config.shotsDirectory, slug)}…`,
+  );
+  const created = await createShotThroughFactory({
+    config: context.config,
+    cwd: context.cwd,
     environment: context.environment,
+    ...(context.sourceRoot === undefined ? {} : { sourceRoot: context.sourceRoot }),
+    ...(slug === undefined ? {} : { slug }),
+    door: "cli",
+    input,
+    agent: selectedAgent,
+    noLaunch: arguments_.noLaunch,
+    io: context.io,
+    runner: new SimulatorService({
+      environment: context.environment,
+      cwd: context.cwd,
+      releasesDirectory: context.config.cacheDirectory,
+    }).creationRunner(),
   });
-  context.io.out("Manifest valid.");
-  context.io.out("Baseline committed.");
   if (created.gitIdentityMissing) {
     context.io.out("Git author identity was not configured; the neutral baseline succeeded, but configure Git before later commits.");
   }
   context.io.out(`Shot ready at ${created.path}`);
-  context.io.out(`Factory release: ${release.metadata.releaseId}${release.reused ? " (cached)" : " (cached now)"}`);
+  context.io.out(
+    `Factory release: ${created.release.metadata.releaseId}${created.release.reused ? " (cached)" : " (cached now)"}`,
+  );
 
   if (arguments_.noLaunch || selectedAgent === null) {
     context.io.out("Launch skipped. Run your coding agent there and tell it: Read the local AGENTS.md and begin.");
-    return 0;
-  }
-
-  context.io.out(`Launching ${selectedAgent.label}…`);
-  const exitCode = await runInherited(
-    [selectedAgent.executable, ...selectedAgent.launchArguments],
-    { cwd: created.path, env: sanitizedAgentEnvironment(context.environment) },
-  );
-  if (exitCode !== 0) {
-    throw new CliError(
-      `${selectedAgent.label} exited with status ${exitCode}; the validated shot remains at ${created.path}`,
-      exitCode,
-    );
   }
   return 0;
 }
 
-export interface DiscoveredShot {
-  path: string;
-  metadata: NonNullable<ReturnType<typeof readShotMetadata>>;
-  name: string;
-}
-
 export function discoverShots(context: CommandContext): DiscoveredShot[] {
-  if (!existsSync(context.config.shotsDirectory)) {
-    return [];
-  }
-  return readdirSync(context.config.shotsDirectory, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-    .map((entry) => {
-      const path = join(context.config.shotsDirectory, entry.name);
-      const metadata = readShotMetadata(path);
-      let name = metadata?.slug ?? entry.name;
-      try {
-        const manifest = JSON.parse(readFileSync(join(path, "continuity.manifest.json"), "utf8")) as {
-          application?: { name?: unknown };
-        };
-        if (typeof manifest.application?.name === "string") name = manifest.application.name;
-      } catch {
-        // A malformed manifest is surfaced by status/verification; discovery still works.
-      }
-      return { path, metadata, name };
-    })
-    .filter((entry) => entry.metadata !== undefined)
-    .sort((left, right) => left.metadata!.slug.localeCompare(right.metadata!.slug)) as DiscoveredShot[];
+  return discoverShotsInDirectory(context.config.shotsDirectory)
+    .sort((left, right) => left.metadata.slug.localeCompare(right.metadata.slug));
 }
 
 export function listCommand(context: CommandContext): number {
@@ -237,7 +223,7 @@ export function listCommand(context: CommandContext): number {
   }
   context.io.out("SHOT\tPLATFORM\tFACTORY RELEASE\tPATH");
   for (const shot of shots) {
-    const metadata = shot.metadata!;
+    const metadata = shot.metadata;
     context.io.out(`${metadata.slug}\t${metadata.platform}\t${metadata.factory.releaseId}\t${shot.path}`);
   }
   return 0;
@@ -328,13 +314,18 @@ export function openCommand(slug: string, context: CommandContext): number {
 
 export async function verifyCommand(value: string | undefined, context: CommandContext): Promise<number> {
   const root = requireRecognizedShot(resolveShotArgument(value, context));
-  const verifier = join(root, ".tohseno", "verify.ts");
-  if (!existsSync(verifier)) throw new CliError(`shot is missing its pinned verifier: ${verifier}`);
-  const verifierDetails = lstatSync(verifier);
-  if (verifierDetails.isSymbolicLink() || !verifierDetails.isFile()) {
-    throw new CliError(`shot-local verifier is not a regular file: ${verifier}`);
-  }
-  const exitCode = await runInherited([process.execPath, verifier], { cwd: root, env: context.environment });
+  const trusted = trustedShotToolFromCache({
+    shotRoot: root,
+    releasesDirectory: context.config.cacheDirectory,
+    tool: "verify",
+  });
+  const exitCode = await runInherited(
+    [process.execPath, trusted.executable],
+    {
+      cwd: trusted.root,
+      env: sanitizedAgentEnvironment(context.environment),
+    },
+  );
   if (exitCode !== 0) throw new CliError(`shot verification failed with status ${exitCode}`, exitCode);
   return 0;
 }
@@ -381,7 +372,7 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
 
   try {
     const parent = nearestExistingParent(context.config.shotsDirectory);
-    if (!lstatSync(parent).isDirectory()) fail(`shots path has no directory parent: ${context.config.shotsDirectory}`);
+    if (!statSync(parent).isDirectory()) fail(`shots path has no directory parent: ${context.config.shotsDirectory}`);
     else {
       accessSync(parent, fsConstants.W_OK);
       ok(`shots directory ${context.config.shotsDirectory}`);
@@ -442,17 +433,17 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
     }
   }
 
-  if (commandOnPath("xcodebuild", context)) ok("Xcode command-line tools");
-  else warn("xcodebuild not found; shots can be created but iOS builds cannot run here");
   if (commandOnPath("xcodegen", context)) ok("XcodeGen");
   else warn("xcodegen not found; install it before changing project.yml or the Swift file layout");
-  if (commandOnPath("xcrun", context)) {
-    const simulators = await runCaptured(["xcrun", "simctl", "list", "devices", "available"], {
-      cwd: context.cwd,
-      env: context.environment,
-    });
-    if (simulators.exitCode === 0 && /iPhone/u.test(simulators.stdout)) ok("available iPhone simulator");
-    else warn("no available iPhone simulator found");
+  const simulator = new SimulatorService({
+    environment: context.environment,
+    cwd: context.cwd,
+    releasesDirectory: context.config.cacheDirectory,
+  });
+  const simulatorReadiness = await simulator.diagnostics();
+  for (const record of simulatorDoctorRecords(simulatorReadiness)) {
+    if (record.status === "ok") ok(record.message);
+    else warn(record.message);
   }
 
   if (commandOnPath("bankr", context) || commandOnPath("npx", context)) ok("Bankr CLI reachable (bankr or npx @bankr/cli)");
@@ -493,7 +484,11 @@ export async function adoptCommand(
       return 0;
     }
   }
-  const release = await factoryReleaseFor(context);
+  const release = await factoryReleaseFor({
+    config: context.config,
+    environment: context.environment,
+    ...(context.sourceRoot === undefined ? {} : { sourceRoot: context.sourceRoot }),
+  });
   const metadata = await adoptShot({ path: root, release, environment: context.environment });
   context.io.out(`Adopted ${root} as an iOS shot.`);
   context.io.out(`Pinned verifier: bun ${join(root, ".tohseno", "verify.ts")}`);
@@ -503,4 +498,222 @@ export async function adoptCommand(
 
 export function launchContract(): string {
   return AGENT_INSTRUCTION;
+}
+
+function simulatorProgress(
+  context: CommandContext,
+): (event: { type: string }) => void {
+  const labels: Record<string, string> = {
+    "development-starting": "Starting the shot's local development service…",
+    "development-ready": "Local development service ready.",
+    building: "Building the shot for iOS Simulator…",
+    "simulator-launching": "Installing and launching in iOS Simulator…",
+    "simulator-launched": "Shot launched in iOS Simulator.",
+    "screenshot-capturing": "Capturing the Simulator contact-sheet frame…",
+    "screenshot-captured": "Simulator screenshot captured.",
+    "screenshot-unavailable":
+      "Simulator screenshot unavailable; the app remains running.",
+    completed: "Simulator run complete.",
+  };
+  return (event) => {
+    const label = labels[event.type];
+    if (label !== undefined) context.io.out(label);
+  };
+}
+
+export interface CommandCancellation {
+  signal: AbortSignal;
+  close(): void;
+}
+
+export function createCommandCancellation(): CommandCancellation {
+  const controller = new AbortController();
+  const interrupt = (): void => controller.abort();
+  let closed = false;
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  return {
+    signal: controller.signal,
+    close() {
+      if (closed) return;
+      closed = true;
+      process.off("SIGINT", interrupt);
+      process.off("SIGTERM", interrupt);
+    },
+  };
+}
+
+export interface RunCommandDependencies {
+  cancellation?: () => CommandCancellation;
+}
+
+export async function runCommand(
+  value: string,
+  context: CommandContext,
+  service = new SimulatorService({
+    environment: context.environment,
+    cwd: context.cwd,
+    releasesDirectory: context.config.cacheDirectory,
+  }),
+  dependencies: RunCommandDependencies = {},
+): Promise<number> {
+  const cancellation =
+    (dependencies.cancellation ?? createCommandCancellation)();
+  try {
+    const shot = resolveRecognizedShot(value, context);
+    context.io.out(`Running ${shot.metadata.slug} in the native iOS Simulator…`);
+    const result = await service.runShot({
+      shotRoot: shot.path,
+      environment: context.environment,
+      signal: cancellation.signal,
+      onProgress: simulatorProgress(context),
+    });
+    if (result.screenshotPath !== null) {
+      context.io.out(`Screenshot: ${result.screenshotPath}`);
+    }
+    return 0;
+  } finally {
+    cancellation.close();
+  }
+}
+
+async function openLocalPreview(
+  url: string,
+  context: CommandContext,
+): Promise<void> {
+  const open = "/usr/bin/open";
+  if (!existsSync(open)) {
+    throw new CliError(
+      "the macOS browser launcher is unavailable; run `tohseno studio --no-open` and open its local URL manually",
+      3,
+    );
+  }
+  const result = await runCaptured([open, url], {
+    cwd: context.cwd,
+    env: context.environment,
+  });
+  if (result.exitCode !== 0) {
+    throw new CliError("the interactive Simulator preview could not be opened");
+  }
+}
+
+async function waitForPreviewShutdown(
+  service: SimulatorService,
+  signal: AbortSignal,
+): Promise<void> {
+  await new Promise<void>((resolveWait) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearInterval(poll);
+      signal.removeEventListener("abort", finish);
+      resolveWait();
+    };
+    const poll = setInterval(() => {
+      if (!service.livePreview.status().active) finish();
+    }, 250);
+    poll.unref?.();
+    signal.addEventListener("abort", finish, { once: true });
+    if (signal.aborted) finish();
+  });
+}
+
+export interface PreviewCommandDependencies {
+  service?: SimulatorService;
+  openUrl?: (url: string, context: CommandContext) => Promise<void>;
+  wait?: (service: SimulatorService, signal: AbortSignal) => Promise<void>;
+  cancellation?: () => CommandCancellation;
+}
+
+export async function previewCommand(
+  value: string,
+  context: CommandContext,
+  dependencies: PreviewCommandDependencies = {},
+): Promise<number> {
+  const service = dependencies.service ?? new SimulatorService({
+    environment: context.environment,
+    cwd: context.cwd,
+    releasesDirectory: context.config.cacheDirectory,
+  });
+  const cancellation =
+    (dependencies.cancellation ?? createCommandCancellation)();
+  let preview: LivePreviewHandle | null = null;
+  try {
+    const shot = resolveRecognizedShot(value, context);
+    context.io.out(
+      `Running ${shot.metadata.slug} and starting its interactive Simulator stream…`,
+    );
+    const result = await service.runAndPreview({
+      shotRoot: shot.path,
+      environment: context.environment,
+      signal: cancellation.signal,
+      onProgress: simulatorProgress(context),
+    });
+    preview = result.preview;
+    await (dependencies.openUrl ?? openLocalPreview)(
+      preview.iframeUrl(),
+      context,
+    );
+    context.io.out(
+      "Interactive preview opened from this Mac. Press Ctrl-C here to stop the stream.",
+    );
+    await (dependencies.wait ?? waitForPreviewShutdown)(
+      service,
+      cancellation.signal,
+    );
+    return 0;
+  } finally {
+    try {
+      try {
+        await preview?.stop();
+      } finally {
+        await service.dispose();
+      }
+    } finally {
+      cancellation.close();
+    }
+  }
+}
+
+export interface StudioCommandArguments {
+  port: number;
+  noOpen: boolean;
+}
+
+export interface StudioCommandDependencies {
+  start?: (options: Parameters<typeof startStudioServer>[0]) => StudioServerHandle;
+  wait?: () => Promise<unknown>;
+}
+
+export async function studioCommand(
+  arguments_: StudioCommandArguments,
+  context: CommandContext,
+  dependencies: StudioCommandDependencies = {},
+): Promise<number> {
+  const studio = (dependencies.start ?? startStudioServer)({
+    config: context.config,
+    cwd: context.cwd,
+    environment: context.environment,
+    ...(context.sourceRoot === undefined
+      ? {}
+      : { sourceRoot: context.sourceRoot }),
+    port: arguments_.port,
+  });
+  try {
+    context.io.out(`TOHSENO Studio: ${studio.url}`);
+    context.io.out(`Workspace: ${context.config.shotsDirectory}`);
+    context.io.out("Binding: 127.0.0.1 only");
+    context.io.out(
+      studio.selectedAgent === null
+        ? "Coding agent: unavailable (viewing works; creation will explain how to install one)"
+        : `Coding agent: ${studio.selectedAgent.label}`,
+    );
+    if (!arguments_.noOpen) await studio.open();
+    context.io.out("Press Ctrl-C to stop Studio.");
+    await (dependencies.wait ?? waitForStudioSignal)();
+    return 0;
+  } finally {
+    await studio.stop();
+  }
 }

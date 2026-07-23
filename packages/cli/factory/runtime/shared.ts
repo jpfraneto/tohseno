@@ -313,6 +313,7 @@ export function safeEnvironment(
 ): Record<string, string> {
   const exact = new Set([
     "PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP", "LANG",
+    "DEVELOPER_DIR",
   ]);
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(environment)) {

@@ -6,6 +6,9 @@ import {
   continueCommand,
   listCommand,
   openCommand,
+  previewCommand,
+  runCommand,
+  studioCommand,
   verifyCommand,
 } from "./commands.ts";
 import { resolveConfig } from "./config.ts";
@@ -21,6 +24,7 @@ Take another one.
 Usage:
   tohseno
   tohseno <shot-slug>
+  tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]
 
 Agent/automation operations:
   tohseno machine operations --json [--shot <path-or-slug>]
@@ -31,18 +35,28 @@ Agent/automation operations:
 
 Advanced compatibility commands:
   tohseno create <slug> [--platform ios] [--agent codex|claude] [--no-launch]
+  tohseno create --file <intention.md> [--reference <image> ...]
   tohseno list [--shots-dir <path>]
   tohseno open <slug> [--shots-dir <path>]
   tohseno doctor [--shots-dir <path>]
   tohseno verify [slug-or-path] [--shots-dir <path>]
   tohseno adopt <path> [--yes] [--no-interactive]
+  tohseno run <slug-or-path> [--shots-dir <path>]
+  tohseno preview <slug-or-path> [--shots-dir <path>]
 
 Create options:
   --platform ios       iOS is the only implemented platform
   --agent <agent>      codex or claude; both must already be installed
+  --file <path>        use a UTF-8 Markdown file as creation input
+  --reference <path>   attach image context to --file; repeat up to eight times
   --shots-dir <path>   override config/default (default: ~/tohseno/shots)
   --no-launch          create and verify without launching the selected agent
   --no-interactive     never prompt; required selections must be flags
+
+Studio options:
+  --port <number>       local Studio port (default: 4747)
+  --no-open             start Studio without opening the browser
+  --shots-dir <path>    override config/default (default: ~/tohseno/shots)
 
 Run TOHSENO with no arguments, choose create or continue, and tell the launched coding agent what you want.
 Open prints the absolute shot path; for example: cd "$(tohseno open my-shot)"
@@ -51,6 +65,7 @@ Config: ~/.tohseno/config.json (override factory home with TOHSENO_HOME).`;
 interface ParsedOptions {
   positionals: string[];
   values: Map<string, string>;
+  multiValues: Map<string, string[]>;
   flags: Set<string>;
 }
 
@@ -65,11 +80,14 @@ function parseOptions(
   arguments_: readonly string[],
   valueOptions: readonly string[],
   flagOptions: readonly string[],
+  multiValueOptions: readonly string[] = [],
 ): ParsedOptions {
   const values = new Map<string, string>();
+  const multiValues = new Map<string, string[]>();
   const flags = new Set<string>();
   const positionals: string[] = [];
   const valuesAllowed = new Set(valueOptions);
+  const multiValuesAllowed = new Set(multiValueOptions);
   const flagsAllowed = new Set(flagOptions);
   let positionalOnly = false;
   for (let index = 0; index < arguments_.length; index += 1) {
@@ -77,11 +95,17 @@ function parseOptions(
     if (!positionalOnly && argument === "--") {
       positionalOnly = true;
     } else if (!positionalOnly && argument.startsWith("--")) {
-      if (valuesAllowed.has(argument)) {
+      if (valuesAllowed.has(argument) || multiValuesAllowed.has(argument)) {
         const value = arguments_[index + 1];
         if (value === undefined || value.startsWith("--")) throw new CliError(`${argument} requires a value`, 2);
-        if (values.has(argument)) throw new CliError(`${argument} may be provided only once`, 2);
-        values.set(argument, value);
+        if (multiValuesAllowed.has(argument)) {
+          const collected = multiValues.get(argument) ?? [];
+          collected.push(value);
+          multiValues.set(argument, collected);
+        } else {
+          if (values.has(argument)) throw new CliError(`${argument} may be provided only once`, 2);
+          values.set(argument, value);
+        }
         index += 1;
       } else if (flagsAllowed.has(argument)) {
         flags.add(argument);
@@ -92,7 +116,7 @@ function parseOptions(
       positionals.push(argument);
     }
   }
-  return { positionals, values, flags };
+  return { positionals, values, multiValues, flags };
 }
 
 function onePositional(parsed: ParsedOptions, name: string, optional = false): string | undefined {
@@ -100,6 +124,18 @@ function onePositional(parsed: ParsedOptions, name: string, optional = false): s
   const value = parsed.positionals[0];
   if (!optional && value === undefined) throw new CliError(`${name} is required`, 2);
   return value;
+}
+
+function portOption(value: string | undefined): number {
+  if (value === undefined) return 4747;
+  if (!/^[0-9]{1,5}$/u.test(value)) {
+    throw new CliError("--port must be an integer from 1 to 65535", 2);
+  }
+  const port = Number(value);
+  if (port < 1 || port > 65_535) {
+    throw new CliError("--port must be an integer from 1 to 65535", 2);
+  }
+  return port;
 }
 
 function extractValueOption(
@@ -150,15 +186,29 @@ export async function main(arguments_: readonly string[], options: CliMainOption
     if (command === "create") {
       const parsed = parseOptions(
         rest,
-        ["--platform", "--agent", "--shots-dir"],
+        ["--platform", "--agent", "--shots-dir", "--file"],
         ["--no-launch", "--no-interactive"],
+        ["--reference"],
       );
-      const slug = onePositional(parsed, "shot slug") ?? "";
+      const slug = onePositional(parsed, "shot slug", true);
+      const file = parsed.values.get("--file");
+      const references = parsed.multiValues.get("--reference") ?? [];
+      if (slug === undefined && file === undefined) {
+        if (references.length > 0) {
+          throw new CliError(
+            "--reference cannot supply an intention; add --file <intention.md> when creating without a shot slug",
+            2,
+          );
+        }
+        throw new CliError("shot slug is required unless --file supplies creation input", 2);
+      }
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
       return await createCommand({
-        slug,
+        ...(slug === undefined ? {} : { slug }),
         platform: parsed.values.get("--platform"),
         agent: parsed.values.get("--agent"),
+        file,
+        references,
         noLaunch: parsed.flags.has("--no-launch"),
         noInteractive: parsed.flags.has("--no-interactive"),
       }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
@@ -167,6 +217,31 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       const extracted = extractValueOption(rest, "--shots-dir");
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: extracted.value });
       return await machineCommand(extracted.remaining, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
+    }
+    if (command === "studio") {
+      const parsed = parseOptions(
+        rest,
+        ["--port", "--shots-dir"],
+        ["--no-open"],
+      );
+      if (parsed.positionals.length > 0) {
+        throw new CliError("studio accepts no positional arguments", 2);
+      }
+      const config = resolveConfig({
+        cwd,
+        environment,
+        shotsDirectoryOverride: parsed.values.get("--shots-dir"),
+      });
+      return await studioCommand({
+        port: portOption(parsed.values.get("--port")),
+        noOpen: parsed.flags.has("--no-open"),
+      }, {
+        config,
+        cwd,
+        environment,
+        io,
+        sourceRoot: options.sourceRoot,
+      });
     }
     if (command === "list" || command === "doctor") {
       const parsed = parseOptions(rest, ["--shots-dir"], []);
@@ -186,6 +261,25 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       const value = onePositional(parsed, "shot slug or path", true);
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
       return await verifyCommand(value, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
+    }
+    if (command === "run" || command === "preview") {
+      const parsed = parseOptions(rest, ["--shots-dir"], []);
+      const value = onePositional(parsed, "shot slug or path") ?? "";
+      const config = resolveConfig({
+        cwd,
+        environment,
+        shotsDirectoryOverride: parsed.values.get("--shots-dir"),
+      });
+      const context = {
+        config,
+        cwd,
+        environment,
+        io,
+        sourceRoot: options.sourceRoot,
+      };
+      return command === "run"
+        ? await runCommand(value, context)
+        : await previewCommand(value, context);
     }
     if (command === "adopt") {
       const parsed = parseOptions(rest, ["--shots-dir"], ["--yes", "--no-interactive"]);

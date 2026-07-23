@@ -16,6 +16,11 @@ app.config.json
 .tohseno/data/
 .tohseno/run/
 
+# Private creation input and generated local previews travel with a copied shot
+# directory, but never enter its Git history.
+.tohseno/provenance/
+.tohseno/artifacts/
+
 # Credentials must never enter git.
 .env
 .env.*

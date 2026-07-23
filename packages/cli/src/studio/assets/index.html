@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d0d0c">
+  <meta
+    name="description"
+    content="Tohseno Studio is the local contact sheet for the shots on this Mac."
+  >
+  <meta name="tohseno-session" content="{{SESSION_TOKEN}}">
+  <title>TOHSENO STUDIO — Your contact sheet</title>
+  <link rel="stylesheet" href="/studio.css">
+  <script src="/studio.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#studio-main">Skip to your shots</a>
+
+  <header class="studio-header">
+    <a class="brand" href="/" aria-label="TOHSENO Studio home">
+      <span class="brand-name">TOHSENO</span>
+      <span class="brand-edition">STUDIO / LOCAL</span>
+    </a>
+    <span class="mirror-mark" aria-hidden="true">ONE SHOT</span>
+    <p class="machine-mark">LOCAL FACTORY <span aria-hidden="true">◆</span> 127.0.0.1</p>
+  </header>
+
+  <main id="studio-main" tabindex="-1">
+    <section id="contact-sheet-view" class="contact-view" aria-labelledby="contact-title">
+      <header class="contact-heading">
+        <div>
+          <p class="section-index">CONTACT SHEET / LOCAL NEGATIVES</p>
+          <h1 id="contact-title">YOUR CONTACT SHEET</h1>
+        </div>
+        <div class="contact-controls">
+          <p class="shot-count" aria-live="polite">
+            <strong id="shot-count-number">{{INITIAL_COUNT}}</strong>
+            <span>SHOTS IN /SHOTS</span>
+          </p>
+          <button
+            id="header-create-action"
+            class="primary-action"
+            type="button"
+            data-open-create
+          >
+            TAKE ANOTHER SHOT
+          </button>
+        </div>
+      </header>
+
+      <div class="sheet-register">
+        <span aria-hidden="true">TOH / CS-01</span>
+        <span aria-hidden="true">NEWEST EXPOSURE FIRST</span>
+        <span id="watch-indicator" role="status" aria-live="polite" aria-atomic="true">
+          WATCHING /SHOTS
+        </span>
+      </div>
+
+      <p id="studio-notice" class="studio-notice" role="status" aria-live="polite"></p>
+
+      <ol id="shots-grid" class="shots-grid" aria-label="Shots, newest first"></ol>
+
+      <section id="empty-state" class="empty-state" hidden aria-labelledby="empty-title">
+        <p class="frame-code">NO EXPOSURES / 000</p>
+        <h2 id="empty-title">The contact sheet is empty.</h2>
+        <p>Take the first shot. It will stay here on this Mac, ready for the CLI or Studio.</p>
+        <button class="text-action" type="button" data-open-create>TAKE ANOTHER ONE →</button>
+      </section>
+    </section>
+
+    <section id="shot-detail" class="detail-view" hidden aria-labelledby="detail-title">
+      <nav class="detail-nav" aria-label="Shot navigation">
+        <a href="/">← YOUR CONTACT SHEET</a>
+        <span id="detail-register" aria-hidden="true">SHOT / —</span>
+      </nav>
+
+      <header class="detail-heading">
+        <div>
+          <p id="detail-sequence" class="section-index">SHOT / —</p>
+          <h1 id="detail-title">SHOT</h1>
+        </div>
+        <p id="detail-status" class="detail-status" aria-live="polite"></p>
+      </header>
+
+      <div class="detail-grid">
+        <figure class="detail-exposure">
+          <img id="detail-image" alt="" hidden>
+          <div id="detail-fallback" class="exposure-fallback">
+            <span>NO SIMULATOR CAPTURE</span>
+          </div>
+          <figcaption id="detail-caption">LATEST CAPTURE / NOT AVAILABLE</figcaption>
+        </figure>
+
+        <div class="detail-information">
+          <dl class="shot-facts">
+            <div>
+              <dt>CREATED</dt>
+              <dd id="detail-created">—</dd>
+            </div>
+            <div>
+              <dt>LOCATION</dt>
+              <dd id="detail-location">/shots/—</dd>
+            </div>
+            <div>
+              <dt>LAST CREATION ACTIVITY</dt>
+              <dd id="detail-creation-activity">—</dd>
+            </div>
+          </dl>
+
+          <div class="shot-actions" role="group" aria-label="Shot actions">
+            <button type="button" data-shot-action="run">RUN SHOT</button>
+            <button class="accent-action" type="button" data-shot-action="preview">
+              OPEN LIVE PREVIEW
+            </button>
+            <button type="button" data-shot-action="verify">VERIFY</button>
+            <button type="button" data-shot-action="open-xcode">OPEN IN XCODE</button>
+            <button type="button" data-shot-action="reveal">REVEAL FOLDER</button>
+          </div>
+
+          <section class="intention-section" aria-labelledby="intention-title">
+            <h2 id="intention-title">ORIGINAL INTENTION</h2>
+            <p id="detail-intention" class="intention-copy">—</p>
+          </section>
+
+          <section class="references-section" aria-labelledby="references-title">
+            <h2 id="references-title">REFERENCES</h2>
+            <ul id="detail-references" class="reference-list"></ul>
+            <p id="no-references" class="muted-note">No reference images were attached.</p>
+          </section>
+        </div>
+      </div>
+
+      <section id="live-preview" class="live-preview" hidden aria-labelledby="live-title">
+        <header>
+          <div>
+            <p class="section-index">REAL APPLE SIMULATOR / STREAMED FROM THIS MAC</p>
+            <h2 id="live-title">LIVE PREVIEW</h2>
+          </div>
+          <button id="close-preview" class="text-action" type="button">CLOSE PREVIEW</button>
+        </header>
+        <p id="preview-status" class="preview-status" role="status" aria-live="polite">
+          Start the preview to build, install, and launch this shot in Apple Simulator.
+        </p>
+        <iframe
+          id="simulator-frame"
+          title="Interactive Apple Simulator preview"
+          allow="clipboard-read; clipboard-write"
+          hidden
+        ></iframe>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="create-dialog" class="create-dialog" aria-labelledby="create-title">
+    <div class="dialog-shell">
+      <header class="dialog-heading">
+        <div>
+          <p class="section-index">NEW EXPOSURE / SAME FACTORY</p>
+          <h2 id="create-title">TAKE ANOTHER SHOT</h2>
+        </div>
+        <button class="dialog-close" type="button" data-close-create aria-label="Close creation form">
+          CLOSE ×
+        </button>
+      </header>
+
+      <form id="create-form" enctype="multipart/form-data" autocomplete="off" novalidate>
+        <p class="form-intro">
+          Describe the app you want to make. Studio stores the inputs with the local shot.
+          {{AGENT_PRIVACY_NOTICE}}
+        </p>
+
+        <div class="field">
+          <label for="shot-name">SHOT / APP NAME <span>OPTIONAL</span></label>
+          <input
+            id="shot-name"
+            name="name"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="shot-name-help"
+          >
+          <p id="shot-name-help" class="field-help">
+            Leave blank and the factory will assign the next shot number.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="shot-intention">LONG-FORM INTENTION</label>
+          <textarea
+            id="shot-intention"
+            name="intention"
+            rows="12"
+            aria-describedby="intention-help"
+            placeholder="What should this app let someone do?"
+          ></textarea>
+          <p id="intention-help" class="field-help">
+            Write here, attach Markdown below, or use both. When both are present, the factory
+            combines them in that order.
+          </p>
+        </div>
+
+        <div class="upload-grid">
+          <div class="field upload-field">
+            <label for="shot-markdown">MARKDOWN INTENTION <span>OPTIONAL · ONE .MD FILE</span></label>
+            <input
+              id="shot-markdown"
+              name="markdown"
+              type="file"
+              accept=".md,text/markdown"
+              aria-describedby="markdown-help markdown-selection"
+            >
+            <p id="markdown-help" class="field-help">
+              The original filename and normalized content travel with the shot provenance.
+            </p>
+            <p id="markdown-selection" class="file-selection" aria-live="polite">No file selected.</p>
+          </div>
+
+          <div id="reference-drop" class="field upload-field drop-target">
+            <label for="shot-references">
+              IMAGE REFERENCES <span>OPTIONAL · MULTIPLE</span>
+            </label>
+            <input
+              id="shot-references"
+              name="reference"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif"
+              multiple
+              aria-describedby="reference-help reference-selection"
+            >
+            <p id="reference-help" class="field-help">
+              Choose up to eight files, 12 MiB each, or drop PNG, JPEG, WebP, GIF, HEIC,
+              HEIF, or AVIF images here.
+            </p>
+            <p id="reference-selection" class="file-selection" aria-live="polite">
+              No reference images selected.
+            </p>
+          </div>
+        </div>
+
+        <p id="create-error" class="form-error" role="alert" hidden></p>
+
+        <div class="form-actions">
+          <button class="primary-action create-submit" type="submit">CREATE SHOT</button>
+          <p>ONE FACTORY <span aria-hidden="true">→</span> ONE INDEPENDENT /SHOTS REPOSITORY</p>
+        </div>
+      </form>
+
+      <section id="creation-progress" class="creation-progress" hidden aria-labelledby="progress-title">
+        <header>
+          <p class="section-index">FACTORY ACTIVITY / STRUCTURED EVENTS</p>
+        <h3 id="progress-title" tabindex="-1">MAKING THE SHOT</h3>
+        </header>
+        <ol id="progress-events" aria-live="polite" aria-relevant="additions"></ol>
+        <div class="progress-actions">
+          <a id="view-created-shot" class="button-link" href="/" hidden>VIEW SHOT</a>
+          <button class="text-action" type="button" data-close-create>RETURN TO CONTACT SHEET</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <footer class="studio-footer">
+    <p>TOHSENO / LOCAL FIRST / ACCOUNT FREE</p>
+    <p>TAKE ANOTHER ONE.</p>
+  </footer>
+
+  <noscript>
+    <p class="noscript-note">
+      Tohseno Studio needs JavaScript to watch /shots and operate the local factory. The CLI remains
+      available without Studio.
+    </p>
+  </noscript>
+</body>
+</html>

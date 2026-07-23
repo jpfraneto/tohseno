@@ -8,6 +8,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
 } from "node:fs";
@@ -353,6 +354,7 @@ async function acquireStartLock(
   paths: RuntimePaths,
   timeoutMs: number,
   attemptId: string,
+  machinePath: string,
 ): Promise<"acquired" | "running"> {
   const deadline = Date.now() + timeoutMs;
   while (true) {
@@ -362,7 +364,7 @@ async function acquireStartLock(
         schemaVersion: 1,
         pid: process.pid,
         attemptId,
-        commandContains: [join(paths.local, "machine.ts"), "dev", "start"],
+        commandContains: [machinePath, "dev", "start"],
         createdAt: new Date().toISOString(),
       });
       return "acquired";
@@ -426,11 +428,16 @@ function stopRequested(paths: RuntimePaths, instanceId: string): boolean {
   }
 }
 
-export async function startDevelopment(root: string, requested: DevStartOptions): Promise<DevStatus> {
+export async function startDevelopment(
+  root: string,
+  requested: DevStartOptions,
+  trustedMachinePath = join(root, ".tohseno", "machine.ts"),
+): Promise<DevStatus> {
   const options = validateStartOptions(requested);
   const paths = runtimePaths(root);
   ensureRuntimeDirectories(paths);
   const attemptId = crypto.randomUUID();
+  const machinePath = realpathSync(resolve(trustedMachinePath));
 
   let current = await developmentStatus(root);
   if (current.healthy) {
@@ -442,7 +449,12 @@ export async function startDevelopment(root: string, requested: DevStartOptions)
     }
     return current;
   }
-  const lockResult = await acquireStartLock(paths, options.readinessTimeoutMs, attemptId);
+  const lockResult = await acquireStartLock(
+    paths,
+    options.readinessTimeoutMs,
+    attemptId,
+    machinePath,
+  );
   current = await developmentStatus(root);
   if (current.healthy) {
     if (lockResult === "acquired") removeLockForAttempt(paths, attemptId);
@@ -453,7 +465,6 @@ export async function startDevelopment(root: string, requested: DevStartOptions)
 
   const instanceId = crypto.randomUUID();
   const resultPath = join(paths.runtime, `startup-${instanceId}.json`);
-  const machinePath = join(paths.local, "machine.ts");
   const arguments_ = [
     machinePath,
     "__supervise",
@@ -849,12 +860,22 @@ export async function stopDevelopment(root: string): Promise<{
           typeof lock.pid === "number" &&
           typeof lock.instanceId === "string"
         ) {
+          const commandContains =
+            Array.isArray(lock.commandContains) &&
+            lock.commandContains.every((value) => typeof value === "string")
+              ? lock.commandContains
+              : [
+                  join(paths.local, "machine.ts"),
+                  "__supervise",
+                  "--instance",
+                  lock.instanceId,
+                ];
           starting = {
             instanceId: lock.instanceId,
             supervisor: {
               pid: lock.pid,
               role: "supervisor",
-              commandContains: [join(paths.local, "machine.ts"), "__supervise", "--instance", lock.instanceId],
+              commandContains,
             },
           };
           break;

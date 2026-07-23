@@ -1,4 +1,4 @@
-import { accessSync, appendFileSync, constants as fsConstants, existsSync, readFileSync, statSync } from "node:fs";
+import { accessSync, appendFileSync, constants as fsConstants, existsSync, statSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import { developmentStatus } from "./dev.ts";
 import { MachineError, runCaptured, runtimePaths, safeEnvironment } from "./shared.ts";
@@ -13,6 +13,8 @@ interface SimulatorDevice {
 interface SimctlDevices {
   devices?: Record<string, Array<Partial<SimulatorDevice>>>;
 }
+
+const BUNDLE_IDENTIFIER = /^[A-Za-z0-9]+(?:\.[A-Za-z0-9-]+)+$/u;
 
 function executable(name: string, pathValue = process.env.PATH ?? ""): string | null {
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -100,16 +102,24 @@ async function capturedToLog(
   return result;
 }
 
-function bundleId(root: string): string {
-  try {
-    const value = JSON.parse(readFileSync(join(root, "continuity.manifest.json"), "utf8")) as {
-      application?: { id?: unknown };
-    };
-    if (typeof value.application?.id === "string") return value.application.id;
-  } catch {
-    // The pinned verifier reports the more specific manifest error.
+export async function resolveBuiltBundleIdentifier(
+  root: string,
+  appPath: string,
+  plutil: string,
+  capture: typeof runCaptured = runCaptured,
+): Promise<string> {
+  const extracted = await capture(
+    [plutil, "-extract", "CFBundleIdentifier", "raw", "-o", "-", join(appPath, "Info.plist")],
+    { cwd: root, environment: safeEnvironment() },
+  );
+  const identifier = extracted.exitCode === 0 ? extracted.stdout.trim() : "";
+  if (!BUNDLE_IDENTIFIER.test(identifier)) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "the built iOS app has no valid CFBundleIdentifier",
+    );
   }
-  throw new MachineError("INVALID_CONFIGURATION", "continuity.manifest.json has no application.id");
+  return identifier;
 }
 
 export async function launchIos(root: string, requestedUdid?: string): Promise<{
@@ -182,26 +192,31 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
   if (!existsSync(appPath)) {
     throw new MachineError("INTERNAL_FAILURE", "xcodebuild succeeded but the simulator app bundle is missing", { appPath, logs: log });
   }
+  const plist = join(appPath, "Info.plist");
+  const plutil = executable("plutil", "/usr/bin:/bin");
+  if (!plutil) {
+    throw new MachineError(
+      "MISSING_DEPENDENCY",
+      "property list tooling is required to inspect the built iOS app",
+      { dependency: "plutil" },
+    );
+  }
+  const identifier = await resolveBuiltBundleIdentifier(root, appPath, plutil);
   const install = await capturedToLog(root, log, [xcrun, "simctl", "install", device.udid, appPath]);
   if (install.exitCode !== 0) {
     throw new MachineError("UNHEALTHY_SERVICES", "the app could not be installed in the simulator", { logs: log });
   }
-  const identifier = bundleId(root);
   const launch = await capturedToLog(root, log, [xcrun, "simctl", "launch", device.udid, identifier]);
   if (launch.exitCode !== 0) {
     throw new MachineError("UNHEALTHY_SERVICES", "the app could not be launched in the simulator", { logs: log });
   }
 
-  const plist = join(appPath, "Info.plist");
-  const plutil = executable("plutil", "/usr/bin:/bin");
   let builtEndpoint: string | null = null;
-  if (plutil) {
-    const extracted = await runCaptured([plutil, "-extract", "TohsenoAPIBaseURL", "raw", "-o", "-", plist], {
-      cwd: root,
-      environment: safeEnvironment(),
-    });
-    if (extracted.exitCode === 0) builtEndpoint = extracted.stdout.trim();
-  }
+  const extracted = await runCaptured([plutil, "-extract", "TohsenoAPIBaseURL", "raw", "-o", "-", plist], {
+    cwd: root,
+    environment: safeEnvironment(),
+  });
+  if (extracted.exitCode === 0) builtEndpoint = extracted.stdout.trim();
   const endpointMatchesBuiltApp = builtEndpoint === null || builtEndpoint === development.endpoint.url;
   if (!endpointMatchesBuiltApp) {
     throw new MachineError(

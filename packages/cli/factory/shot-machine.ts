@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
-import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import {
   developmentLogs,
   developmentStatus,
@@ -27,6 +29,9 @@ interface Parsed {
   values: Map<string, string>;
   positionals: string[];
 }
+
+const MACHINE_PATH = realpathSync(fileURLToPath(import.meta.url));
+const TRUSTED_LOCAL = dirname(MACHINE_PATH);
 
 function parse(
   arguments_: readonly string[],
@@ -107,7 +112,7 @@ function operationInventory(): unknown {
 }
 
 async function verify(root: string, json: boolean): Promise<unknown> {
-  const verifier = join(root, ".tohseno", "verify.ts");
+  const verifier = join(TRUSTED_LOCAL, "verify.ts");
   requireRegularFile(verifier, "shot-local verifier");
   const result = await runCaptured([process.execPath, verifier], { cwd: root, environment: safeEnvironment() });
   const diagnostics = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
@@ -156,7 +161,7 @@ async function dispatch(arguments_: readonly string[], root: string, json: boole
         ...(port === undefined ? {} : { port }),
         ...(readinessTimeoutMs === undefined ? {} : { readinessTimeoutMs }),
         ...(cloudflaredPath === undefined ? {} : { cloudflaredPath }),
-      });
+      }, MACHINE_PATH);
     }
     if (action === "status") {
       const parsed = parse(rest, [], []);
@@ -271,7 +276,7 @@ async function supervisorMain(arguments_: readonly string[]): Promise<number> {
   const port = integer(requiredValue(parsed, "--port"), "--port")!;
   return await runSupervisor({
     root,
-    machinePath: join(root, ".tohseno", "machine.ts"),
+    machinePath: MACHINE_PATH,
     instanceId: requiredValue(parsed, "--instance"),
     resultPath: requiredValue(parsed, "--result"),
     readinessTimeoutMs,

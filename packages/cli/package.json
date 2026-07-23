@@ -1,6 +1,6 @@
 {
   "name": "@tohseno/cli",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Agent-first iOS app factory for independent shots",
   "type": "module",
   "bin": {
@@ -9,7 +9,8 @@
   "files": [
     "src",
     "factory",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "release:build": "bun scripts/package-release.ts",
@@ -22,5 +23,8 @@
   "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "serve-sim": "0.1.45"
   }
 }
