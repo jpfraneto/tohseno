@@ -262,12 +262,30 @@ export interface OperatorMetadata {
   operatorNotes?: string[];
 }
 
+/**
+ * Record of an owner-approved token launch executed under the owner's own
+ * Bankr account. A fact about the shot, never a credential. Distinct from
+ * runtime.modules.tokenMint, which reserves a credential-minting server and
+ * has nothing to do with on-chain tokens.
+ */
+export interface TokenLaunchRecord {
+  provider: "bankr";
+  chain: "base" | "robinhood";
+  name: string;
+  symbol: string;
+  feeRecipient?: string;
+  address?: string;
+  txHash?: string;
+  launchedAt: string;
+}
+
 export interface ContinuityManifest {
   schemaVersion: ContinuityManifestSchemaVersion;
   application: ApplicationIdentity;
   runtime: ManifestRuntime;
   guidance: CodingAgentGuidance;
   operations: OperatorMetadata;
+  token?: TokenLaunchRecord;
 }
 
 export type ManifestIssueSeverity = "error" | "warning";

@@ -1216,6 +1216,42 @@ function validateOperations(
   return { requiresServer, deploymentTargets };
 }
 
+const TOKEN_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
+const TOKEN_TX_HASH = /^0x[a-fA-F0-9]{64}$/;
+
+function validateToken(
+  value: unknown,
+  issues: ManifestValidationIssue[],
+): void {
+  const path = "$.token";
+  const object = objectValue(value, path, issues);
+  if (object === undefined) return;
+  checkShape(
+    object,
+    path,
+    ["provider", "chain", "name", "symbol", "launchedAt"],
+    ["provider", "chain", "name", "symbol", "feeRecipient", "address", "txHash", "launchedAt"],
+    issues,
+  );
+  enumValue(object.provider, `${path}.provider`, ["bankr"], issues);
+  enumValue(object.chain, `${path}.chain`, ["base", "robinhood"], issues);
+  stringValue(object.name, `${path}.name`, issues, { max: 1000 });
+  stringValue(object.symbol, `${path}.symbol`, issues, { max: 10 });
+  if (hasOwn(object, "feeRecipient")) {
+    stringValue(object.feeRecipient, `${path}.feeRecipient`, issues, { max: 1000 });
+  }
+  if (hasOwn(object, "address")) {
+    stringValue(object.address, `${path}.address`, issues, { pattern: TOKEN_ADDRESS });
+  }
+  if (hasOwn(object, "txHash")) {
+    stringValue(object.txHash, `${path}.txHash`, issues, { pattern: TOKEN_TX_HASH });
+  }
+  const launchedAt = stringValue(object.launchedAt, `${path}.launchedAt`, issues);
+  if (launchedAt !== undefined && Number.isNaN(Date.parse(launchedAt))) {
+    addIssue(issues, `${path}.launchedAt`, "string.date-time", "must be an ISO-8601 date-time");
+  }
+}
+
 export function validateManifest(input: unknown): ManifestValidationResult {
   const issues: ManifestValidationIssue[] = [];
   const root = objectValue(input, "$", issues);
@@ -1224,7 +1260,7 @@ export function validateManifest(input: unknown): ManifestValidationResult {
       root,
       "$",
       ["schemaVersion", "application", "runtime", "guidance", "operations"],
-      ["schemaVersion", "application", "runtime", "guidance", "operations"],
+      ["schemaVersion", "application", "runtime", "guidance", "operations", "token"],
       issues,
     );
     if (root.schemaVersion !== CONTINUITY_MANIFEST_SCHEMA_VERSION) {
@@ -1244,6 +1280,9 @@ export function validateManifest(input: unknown): ManifestValidationResult {
     validateRuntime(root.runtime, issues);
     validateGuidance(root.guidance, issues);
     const operations = validateOperations(root.operations, issues);
+    if (hasOwn(root, "token")) {
+      validateToken(root.token, issues);
+    }
 
     const runtime = isRecord(root.runtime) ? root.runtime : undefined;
     const reflection = runtime !== undefined && isRecord(runtime.reflection)

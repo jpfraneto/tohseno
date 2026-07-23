@@ -27,9 +27,51 @@
     },
     "operations": {
       "$ref": "#/$defs/operations"
+    },
+    "token": {
+      "$ref": "#/$defs/token"
     }
   },
   "$defs": {
+    "token": {
+      "type": "object",
+      "description": "Record of an owner-approved token launch executed under the owner's own Bankr account. A fact about the shot, never a credential. Distinct from runtime.modules.tokenMint (a reserved credential-minting server).",
+      "additionalProperties": false,
+      "required": ["provider", "chain", "name", "symbol", "launchedAt"],
+      "properties": {
+        "provider": {
+          "const": "bankr"
+        },
+        "chain": {
+          "enum": ["base", "robinhood"]
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10,
+          "pattern": "\\S"
+        },
+        "feeRecipient": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "address": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{40}$"
+        },
+        "txHash": {
+          "type": "string",
+          "pattern": "^0x[a-fA-F0-9]{64}$"
+        },
+        "launchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1
+        }
+      }
+    },
     "nonEmptyString": {
       "type": "string",
       "minLength": 1,

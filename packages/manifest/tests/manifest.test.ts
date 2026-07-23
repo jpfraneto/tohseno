@@ -37,6 +37,7 @@ describe("continuity manifest", () => {
       "runtime",
       "guidance",
       "operations",
+      "token",
     ]);
   });
 
@@ -252,6 +253,56 @@ describe("continuity manifest", () => {
     expect(result.errors.map((issue) => issue.code)).toContain(
       "modules.token-mint.reserved",
     );
+  });
+
+  test("a token launch record is an optional bounded fact, never a credential", async () => {
+    const manifest = await template();
+    expect(manifest.token).toBeUndefined();
+
+    manifest.token = {
+      provider: "bankr",
+      chain: "base",
+      name: "Continuity",
+      symbol: "CONT",
+      feeRecipient: "owner.eth",
+      address: "0x1111111111111111111111111111111111111111",
+      txHash: `0x${"2".repeat(64)}`,
+      launchedAt: "2026-07-23T00:00:00Z",
+    };
+    expect(validateManifest(manifest).valid).toBe(true);
+
+    const schema = await readJson(
+      "packages/manifest/continuity.manifest.schema.json",
+    );
+    const validateSchema = new Ajv2020({ allErrors: true, strict: false }).compile(
+      schema as AnySchema,
+    );
+    expect(validateSchema(manifest)).toBe(true);
+
+    const badChain = structuredClone(manifest) as unknown as { token: { chain: string } };
+    badChain.token.chain = "ethereum";
+    expect(validateManifest(badChain).valid).toBe(false);
+    expect(validateSchema(badChain)).toBe(false);
+
+    const longSymbol = structuredClone(manifest);
+    longSymbol.token!.symbol = "TOOLONGSYMBOL";
+    expect(validateManifest(longSymbol).valid).toBe(false);
+
+    const badAddress = structuredClone(manifest);
+    badAddress.token!.address = "0x123";
+    expect(validateManifest(badAddress).valid).toBe(false);
+
+    const badDate = structuredClone(manifest);
+    badDate.token!.launchedAt = "yesterday";
+    expect(validateManifest(badDate).valid).toBe(false);
+
+    const extraKey = structuredClone(manifest) as unknown as {
+      token: Record<string, unknown>;
+    };
+    extraKey.token.apiKey = "bk_never";
+    const extraResult = validateManifest(extraKey);
+    expect(extraResult.valid).toBe(false);
+    expect(extraResult.errors.map((issue) => issue.path)).toContain("$.token.apiKey");
   });
 
   test("server requirements distinguish a credential-only mint from broader servers", async () => {
