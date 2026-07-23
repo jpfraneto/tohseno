@@ -121,7 +121,7 @@ describe("public pages", () => {
     const response = await application.fetch(request("/install.sh"));
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
     const body = await response.text();
-    expect(body).toContain('CLI_VERSION="0.2.1"');
+    expect(body).toContain('CLI_VERSION="0.2.2"');
     expect(body).toContain("TOHSENO managed installer");
     expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
 

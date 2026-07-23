@@ -45,13 +45,13 @@ function envelope(stdout: string): any {
 describe("managed installer", () => {
   test("installs without a pre-existing Bun, re-runs safely, and drives an isolated shot acceptance flow", async () => {
     await withScratchEnvironment(async (scratch) => {
-      const releaseArchive = join(scratch.root, "artifacts", "tohseno-cli-0.2.1.tar.gz");
-      const releaseManifest = join(scratch.root, "artifacts", "tohseno-cli-0.2.1.json");
+      const releaseArchive = join(scratch.root, "artifacts", "tohseno-cli-0.2.2.tar.gz");
+      const releaseManifest = join(scratch.root, "artifacts", "tohseno-cli-0.2.2.json");
       const release = buildCliRelease({ output: releaseArchive, manifest: releaseManifest });
-      const repeatedArchive = join(scratch.root, "repeated", "tohseno-cli-0.2.1.tar.gz");
+      const repeatedArchive = join(scratch.root, "repeated", "tohseno-cli-0.2.2.tar.gz");
       const repeatedRelease = buildCliRelease({
         output: repeatedArchive,
-        manifest: join(scratch.root, "repeated", "tohseno-cli-0.2.1.json"),
+        manifest: join(scratch.root, "repeated", "tohseno-cli-0.2.2.json"),
       });
       expect(repeatedRelease.sha256).toBe(release.sha256);
       expect(readFileSync(repeatedArchive)).toEqual(readFileSync(releaseArchive));
@@ -84,7 +84,7 @@ describe("managed installer", () => {
       expect(firstInstall.stdout).toContain("Installed managed Bun 1.2.18");
       const executable = join(installHome, "bin", "tohseno");
       expect(existsSync(executable)).toBe(true);
-      expect((await runProcess([executable, "--version"], scratch.root, environment)).stdout.trim()).toBe("0.2.1");
+      expect((await runProcess([executable, "--version"], scratch.root, environment)).stdout.trim()).toBe("0.2.2");
 
       const created = await runProcess([
         executable,
@@ -165,12 +165,12 @@ describe("managed installer", () => {
         "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, environment);
       expect(secondInstall.exitCode).toBe(0);
-      expect(secondInstall.stdout).toContain("TOHSENO 0.2.1 already verified");
+      expect(secondInstall.stdout).toContain("TOHSENO 0.2.2 already verified");
       expect(secondInstall.stdout).toContain("Managed Bun 1.2.18 already verified");
 
       const tamperedHome = join(scratch.root, "symlinked install");
       mkdirSync(join(tamperedHome, "versions"), { recursive: true });
-      symlinkSync(scratch.root, join(tamperedHome, "versions", "0.2.1"), "dir");
+      symlinkSync(scratch.root, join(tamperedHome, "versions", "0.2.2"), "dir");
       const tampered = await runProcess([
         "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, {
@@ -190,7 +190,7 @@ describe("managed installer", () => {
       });
       expect(rejected.exitCode).toBe(1);
       expect(rejected.stderr).toContain("checksum mismatch");
-      expect(existsSync(join(rejectedHome, "versions", "0.2.1"))).toBe(false);
+      expect(existsSync(join(rejectedHome, "versions", "0.2.2"))).toBe(false);
     });
   }, 45_000);
 });

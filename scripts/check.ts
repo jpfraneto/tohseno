@@ -272,7 +272,7 @@ async function validateOneshotPin(): Promise<void> {
   const installer = await readText("apps/site/public/install.sh");
   assert(installer.startsWith("#!/bin/sh\n"), "install.sh must remain a portable POSIX shell script");
   for (const phrase of [
-    'CLI_VERSION="0.2.1"',
+    'CLI_VERSION="0.2.2"',
     'install_root="${TOHSENO_INSTALL_HOME:-$HOME/.tohseno}"',
     "TOHSENO_INSTALL_CLI_SHA256",
     "checksum mismatch",
