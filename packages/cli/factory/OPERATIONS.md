@@ -93,6 +93,50 @@ For a physical device, start with `--tunnel`, choose the signing team in Xcode,
 and run the Debug app on that device. TOHSENO does not automate signing-account
 or device trust decisions.
 
+## Token operations
+
+A token launch is an external, irreversible financial action on the same side
+of the approval boundary as deployment and store submission: the agent
+prepares, the human approves, the machine executes deterministically through
+the owner's own Bankr CLI. TOHSENO ships no server, holds no keys, and takes
+no fees.
+
+```sh
+tohseno machine token status --json
+tohseno machine token launch --name <name> --symbol <sym> --chain base|robinhood --json
+tohseno machine token fees --json
+```
+
+`token status` is read-only: whether the Bankr CLI resolves, whether Bankr
+credentials exist (existence only — key material is never read or printed),
+and the token record from the manifest if one has been launched.
+
+`token launch` requires `--name`, `--symbol` (1-10 chars), and `--chain`
+(`base` or `robinhood`; no silent default). Optional: `--image <https-url>`,
+`--website <https-url>`, `--fee-recipient <handle|ens|address>` with
+`--fee-type x|farcaster|ens|wallet` (default fee recipient is the owner's
+Bankr wallet). In `--json` mode the launch refuses without `--yes` (exit `2`)
+and the refusal carries the full economics summary plus the exact rerun
+command — `--yes` is itself the approval, typed by the human or by an agent
+the human has explicitly instructed. Fixed economics: 100B supply, 85% pool /
+15% creator vesting over 1 year with a 30-day cliff, 0.7% swap fee split 95%
+creator / 5% protocol. The launch is permanent; the vesting recipient is
+locked forever and the fee beneficiary can only be transferred all-or-nothing.
+
+One token per shot: a second launch exits `2`. A missing Bankr CLI or missing
+credentials exits `3` with the login one-liner (`npx @bankr/cli login email` —
+a human ritual, once per machine, never performed by an agent). A Bankr-side
+failure exits `5` with Bankr's error verbatim (limits: 1 launch/minute,
+50/day, gas sponsored for the first 3/day). On success the token record
+(provider, chain, name, symbol, address, txHash, launchedAt) is written to
+`continuity.manifest.json` — a fact about the shot, committed like any other
+manifest change — and raw output goes to gitignored `.tohseno/run/logs/token.log`.
+
+Credentials live only in the owner's `~/.bankr/config.json` (written by
+`bankr login`) or `BANKR_API_KEY`. They are never copied into the shot repo,
+the manifest, logs, or factory releases. Fee management after launch
+(`bankr fees claim` and friends) is the owner's business, outside TOHSENO.
+
 ## Verification and production
 
 After every app, backend, configuration, manifest, or runtime change:

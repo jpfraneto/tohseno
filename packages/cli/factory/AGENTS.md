@@ -37,6 +37,16 @@ Keep credentials, prompts, private content, production data, and secret values
 out of Git and output. Quick Tunnel URLs are public development reachability,
 not authentication or production infrastructure.
 
+A token launch (`token launch`) is an irreversible financial action under the
+owner's own Bankr account. You may run `token status`/`token fees` and prepare
+launch parameters, but never run `bankr login`, never request or relay OTPs,
+never handle private keys, and never read or echo anything under `~/.bankr/`.
+Present the economics and the irreversibility note to the owner in
+conversation first, and invoke the operation without `--yes` so the
+confirmation lands with the human — add `--yes` only when the owner has
+explicitly said “launch it” with name, symbol, and chain stated in the current
+conversation.
+
 “Put this online,” “ship this,” or “send this to TestFlight” means: inspect
 production first, explain the concrete blockers, and ask approval only for
 accounts, costs, credentials, publishing, or external mutation. Production

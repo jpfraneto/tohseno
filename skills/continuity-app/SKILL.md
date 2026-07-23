@@ -100,6 +100,11 @@ account-free, but they are defaults, never refusals.
   alter DNS, submit to stores, rotate production credentials, or deploy
   production without explicit owner approval. Prepare commands; print them;
   stop.
+- **Bankr credential handling.** Never run `bankr login`, request or relay
+  OTPs, read or print anything under `~/.bankr/`, or launch a token without
+  the owner explicitly approving name, symbol, and chain. Token launches go
+  through `tohseno machine token launch` so the irreversible confirmation
+  lands with the human.
 
 For “put this online,” “ship this,” or “send this to TestFlight,” first run
 `tohseno machine production inspect --json`. Explain its concrete blockers and
