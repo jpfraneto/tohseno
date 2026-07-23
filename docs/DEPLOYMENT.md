@@ -23,9 +23,9 @@ analytics, or generated-app content path.
 The installer expects one immutable artifact:
 
 ```text
-GitHub release tag: cli-v0.2.1
-asset:              tohseno-cli-0.2.1.tar.gz
-metadata:           tohseno-cli-0.2.1.json
+GitHub release tag: cli-v0.2.2
+asset:              tohseno-cli-0.2.2.tar.gz
+metadata:           tohseno-cli-0.2.2.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
@@ -38,8 +38,8 @@ Prepare locally:
 ```sh
 bun run check
 bun run tohseno:release
-shasum -a 256 dist/tohseno-cli-0.2.1.tar.gz
-cat dist/tohseno-cli-0.2.1.json
+shasum -a 256 dist/tohseno-cli-0.2.2.tar.gz
+cat dist/tohseno-cli-0.2.2.json
 ```
 
 Build a second time into another temporary path and compare bytes before
@@ -50,10 +50,11 @@ rejection without contacting public infrastructure.
 
 ## Published release
 
-CLI 0.2.1 is **Implemented** and published from commit
-`07482f48c11a2d3f600c0f22b4ccf38c44fd3699`. Its public tarball is byte-for-byte
-identical to the deterministic local artifact, with SHA-256
-`4cf468983a72b34192b10b2d7241e1e637aa0a522aa44f46ab779698f9c30292`.
+CLI 0.2.2 is **Implemented** and published from commit
+`f26a31e4456875f3886ec4967073fdfbee4e5739`. It adds the optional Bankr token
+launch operations. Its public tarball is byte-for-byte identical to the
+deterministic local artifact, with SHA-256
+`91b75d064b36f7d24ba903000b5cd81ae355b87ac233570cf4a39f91de887cc7`.
 `apps/site/public/install.sh` pins that exact digest.
 
 For the next release:
@@ -71,14 +72,14 @@ For the next release:
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The 0.2.1 publication command was:
+The 0.2.2 publication command was:
 
 ```sh
-gh release create cli-v0.2.1 \
-  dist/tohseno-cli-0.2.1.tar.gz \
-  dist/tohseno-cli-0.2.1.json \
-  --title "TOHSENO CLI 0.2.1" \
-  --notes "Take another one: agent-first launcher, pinned shot runtime, and managed installer."
+gh release create cli-v0.2.2 \
+  dist/tohseno-cli-0.2.2.tar.gz \
+  dist/tohseno-cli-0.2.2.json \
+  --title "TOHSENO CLI 0.2.2" \
+  --notes "Optional Bankr token launching: shot-local machine ops (token status/launch/fees), manifest token record, and human-approval doctrine. Tohseno ships no server, holds no keys, takes no fees."
 ```
 
 No package registry publication is required by this design.
@@ -89,7 +90,7 @@ No package registry publication is required by this design.
 pin and creates nothing. Default invocation prints the canonical installer and
 exits `2`; `--help` exits `0`. It remains `must-revalidate`.
 
-The pin always trails the serving commit by one. CLI 0.2.1 is published, but
+The pin always trails the serving commit by one. CLI 0.2.2 is published, but
 this endpoint remains an intentional migration notice and its legacy creator
 pin is unchanged. Shell must never regain its own template copier, manifest
 validator, shot creator, or agent launcher.
