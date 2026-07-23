@@ -1,4 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createApplication } from "../server.ts";
 import type { TohsenoApplication } from "../server.ts";
 import { loadConfig } from "../config.ts";
@@ -17,27 +21,44 @@ function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost:3000${path}`, init);
 }
 
+const oneshotPath = fileURLToPath(new URL("../public/oneshot.sh", import.meta.url));
+const installerPath = fileURLToPath(new URL("../public/install.sh", import.meta.url));
+
 describe("public pages", () => {
-  test("serves the hero landing with the oneshot command and no placeholders", async () => {
+  test("serves the local CLI install path and no stale intake surface", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("curl -fsSL https://tohseno.com/oneshot.sh | bash");
-    expect(body).toContain("Name the action.");
+    expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+    expect(body).toContain("Run <code>tohseno</code>");
+    expect(body).toContain("Tell your coding agent");
+    expect(body).not.toContain("bun run tohseno:link");
+    expect(body).toContain("Install. Run. Tell your agent.");
+    expect(body).not.toContain('href="/intake"');
+    expect(body).not.toContain("Managed intake");
     expect(body).toMatch(/property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/);
     expect(body).toContain('name="twitter:card" content="summary_large_image"');
     expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
     expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
   });
 
-  test("serves /docs and /privacy", async () => {
+  test("serves current factory docs and privacy", async () => {
     const application = await testApplication();
     for (const path of ["/docs", "/privacy"]) {
       const response = await application.fetch(request(path));
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+      expect(body).not.toContain('href="/intake"');
+      if (path === "/docs") {
+        expect(body).toContain("Your coding agent runs the factory");
+        expect(body).toContain("Create something new");
+        expect(body).toContain("iOS is the only implemented app platform");
+      } else {
+        expect(body).toContain("downloads only pinned release artifacts");
+        expect(body).toContain("Quick Tunnel");
+      }
     }
   });
 
@@ -58,6 +79,7 @@ describe("public pages", () => {
       ["/app.js", "text/javascript"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
+      ["/install.sh", "text/x-shellscript"],
       ["/oneshot.sh", "text/x-shellscript"],
     ];
     for (const [path, type] of expectations) {
@@ -71,6 +93,37 @@ describe("public pages", () => {
     const application = await testApplication();
     const response = await application.fetch(request("/oneshot.sh"));
     expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    const body = await response.text();
+    expect(body).toContain('TOHSENO_PIN="35021b38e71257d137c184081a1ba0d4503fa5ef"');
+    expect(body).toContain("This script no longer creates a workspace.");
+    expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+    expect(body).not.toContain('mkdir -p "$target"');
+    expect(body).not.toContain('git -C "$target" init');
+  });
+
+  test("the canonical installer revalidates and exposes help without touching the machine", async () => {
+    const application = await testApplication();
+    const response = await application.fetch(request("/install.sh"));
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
+    const body = await response.text();
+    expect(body).toContain('CLI_VERSION="0.2.0"');
+    expect(body).toContain("TOHSENO managed installer");
+    expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
+
+    const child = Bun.spawn(["/bin/sh", installerPath, "--help"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("--non-interactive");
+    expect(stdout).toContain("managed Bun runtime");
+    expect(stderr).toBe("");
   });
 
   test("HEAD requests return headers without a body", async () => {
@@ -102,6 +155,49 @@ describe("removed surfaces stay removed", () => {
     const response = await application.fetch(request("/", { method: "POST" }));
     expect(response.status).toBe(405);
     expect(response.headers.get("Allow")).toBe("GET, HEAD");
+  });
+});
+
+describe("legacy oneshot migration", () => {
+  test("prints the CLI migration and creates nothing", async () => {
+    const scratch = mkdtempSync(join(tmpdir(), "tohseno-oneshot-migration-"));
+    try {
+      const child = Bun.spawn(["bash", oneshotPath], {
+        cwd: scratch,
+        env: { HOME: scratch, PATH: process.env.PATH ?? "" },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(exitCode).toBe(2);
+      expect(stdout).toContain("This script no longer creates a workspace.");
+      expect(stdout).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+      expect(stdout).toContain("tohseno");
+      expect(stderr).toBe("");
+      expect(readdirSync(scratch)).toEqual([]);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps help available without claiming creation", async () => {
+    const child = Bun.spawn(["bash", oneshotPath, "--help"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stdout] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("legacy workspace creator is retired");
+    expect(stdout).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
   });
 });
 

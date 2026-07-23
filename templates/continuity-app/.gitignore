@@ -1,15 +1,29 @@
 # Private product input: one line or a whole document, never committed.
 MASTER_PROMPT.md
 
+# Local tooling and operating-system noise.
+.DS_Store
+node_modules/
+
 # Machine-local configuration written by `bun run setup`.
 # Contains your identifiers and key *paths* — personal, not for the repo.
 Config/Local.xcconfig
+Config/DevelopmentEndpoint.xcconfig
 app.config.json
 
+# Shot-owned runtime. Persistent development SQLite data is deliberately
+# separate from process state and logs; none may enter Git.
+.tohseno/data/
+.tohseno/run/
+
 # Credentials must never enter git.
+.env
+.env.*
+!.env.example
 *.p8
 *.p12
 *.pem
+*.pfx
 *.mobileprovision
 
 # Xcode noise.

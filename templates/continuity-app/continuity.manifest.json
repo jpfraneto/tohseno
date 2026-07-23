@@ -63,7 +63,8 @@
       "localStorage": "platform-private",
       "publicByDefault": false,
       "externalDisclosure": [
-        "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)"
+        "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)",
+        "operational health request to the owner-operated app API (never writing content)"
       ],
       "telemetry": "none"
     },
@@ -114,8 +115,8 @@
     ]
   },
   "operations": {
-    "deploymentTargets": ["native-ios"],
-    "requiresServer": false,
+    "deploymentTargets": ["native-ios", "server"],
+    "requiresServer": true,
     "ejectionRequired": true,
     "approvalRequiredFor": [
       "paid-infrastructure",
@@ -125,6 +126,8 @@
     ],
     "operatorNotes": [
       "bun run setup writes app.config.json and the xcconfig the Xcode project reads; secrets stay out of git.",
+      "The API foundation stores operational metadata only in SQLite; writing content remains on the device.",
+      "Initial production persistence is single-instance SQLite and requires an explicit path plus backups; Postgres semantics are not implied.",
       "The fastlane beta lane is prepared, never executed without explicit owner approval."
     ]
   }

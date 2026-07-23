@@ -1,9 +1,10 @@
-# Your continuity app
+# Your iOS shot
 
-This workspace already contains a working iOS app: a lightweight writing app
+This repository already contains a working iOS app: a lightweight writing app
 that demonstrates the whole spine — open, write, it's yours, nobody asked for
-your email. Your coding agent mutates this app toward your prompt; it never
-starts from an empty directory.
+your email. A TOHSENO factory release copies this base into an independent
+**shot**. Your coding agent mutates the shot toward your idea; it never starts
+from an empty directory.
 
 ## Run it now
 
@@ -14,6 +15,21 @@ open Writing.xcodeproj
 Press ⌘R with any iPhone simulator selected. Zero API keys, zero
 configuration. For a physical device, select your signing team in
 Signing & Capabilities (or run setup below).
+
+In a generated shot, the selected coding agent normally brings the complete
+system alive through the pinned machine protocol:
+
+```sh
+tohseno machine dev start --json
+tohseno machine dev status --json
+tohseno machine ios launch --json
+```
+
+The global command delegates to this repository's `.tohseno/machine.ts`. After
+ejection the same operations are available as
+`bun .tohseno/machine.ts ...`. The app itself still opens and preserves writing
+when the API is absent; Settings visibly reports that the backend is not
+configured or unavailable.
 
 Run the invariant tests with ⌘U, or:
 
@@ -27,6 +43,19 @@ xcodebuild -project Writing.xcodeproj -scheme Writing \
   -destination "platform=iOS Simulator,id=$UDID" test
 ```
 
+In a generated shot, first run the pinned structural and manifest gate:
+
+```sh
+bun run verify
+```
+
+That command uses `.tohseno/verify.ts` and the manifest validator copied into
+the shot. It does not depend on an installed TOHSENO CLI or mutable factory
+checkout, and it does not replace the Xcode simulator test. In this repository's
+source template, validate from the TOHSENO root with
+`bun run validate templates/continuity-app/continuity.manifest.json`; the
+factory adds `bun run verify` while creating a shot.
+
 ## What's inside
 
 ```text
@@ -38,8 +67,14 @@ App/                     SwiftUI sources
                          SessionLink + TokenMint (reserved)
   Views/                 writing surface, session log, settings
 Tests/                   the invariant tests that keep the spine honest
+Backend/                 localhost Bun API and deterministic SQLite migrations
+Config/                  separate Debug and Release endpoint configuration
+operations/              non-secret production readiness declarations
 site/index.html          the app's landing page — one static file, ships with the app
 continuity.manifest.json machine-readable record of what this app does
+.tohseno/                pinned provenance, operations, runtime + validation
+AGENTS.md                 local agent entry point (generated shots only)
+skills/continuity-app/    local build protocol (generated shots only)
 fastlane/Fastfile        the prepared TestFlight lane
 scripts/setup.ts         one-time credential flow (bun run setup)
 project.yml              XcodeGen source of truth for Writing.xcodeproj
@@ -59,10 +94,43 @@ project.yml              XcodeGen source of truth for Writing.xcodeproj
   sidecar, written atomically. A killed process never loses committed text.
 - **Modules are flags.** `AppConfig.swift` is the single seam. Flipping a flag
   is the only integration step; every module compiles cleanly when off.
+- **The baseline API is operational only.** It binds to localhost, exposes
+  `/health`, migrates a shot-owned SQLite file, and receives no writing or
+  identity content. Persistent development data is separate from PIDs and
+  content-free logs.
 - **Ejectable from birth.** Everything here builds and runs without any
-  TOHSENO credential.
+  TOHSENO credential. A generated shot contains its own manifest gate and has
+  no symlink or runtime dependency on the factory, CLI, or release cache.
 
 ## To your phone
+
+For a simulator, the agent starts the local API and injects its active
+localhost origin into gitignored `Config/DevelopmentEndpoint.xcconfig`. For a
+physical Debug device, it may explicitly start a Cloudflare Quick Tunnel and
+use that temporary HTTPS origin. No Swift source editing is needed.
+
+Quick Tunnels are public development/testing reachability, not authentication
+or production: the hostname is random, there is no uptime SLA, request limits
+apply, and server-sent events are unsupported. Stop the stack through the
+machine operation so only this shot's owned processes are stopped:
+
+```sh
+tohseno machine dev logs --service all --json
+tohseno machine dev stop --json
+```
+
+Release has a different tracked seam in `Config/Production.xcconfig`. A Release
+build rejects a missing origin. `bun run verify` reports that absence as a
+production blocker, and both gates reject a configured non-HTTPS origin,
+localhost, loopback, URL paths/credentials, and every `*.trycloudflare.com` endpoint.
+Inspect the remaining production boundary before preparing TestFlight:
+
+```sh
+tohseno machine production inspect --json
+```
+
+Production deploy, monitoring, recovery, and store submission are not
+implemented machine operations.
 
 ```sh
 bun run setup     # press enter to accept manifest/previous answers where possible

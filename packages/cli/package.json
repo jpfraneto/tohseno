@@ -1,0 +1,26 @@
+{
+  "name": "@tohseno/cli",
+  "version": "0.2.0",
+  "description": "Local-first factory for independent TOHSENO app repositories",
+  "type": "module",
+  "bin": {
+    "tohseno": "./src/bin.ts"
+  },
+  "files": [
+    "src",
+    "factory",
+    "README.md"
+  ],
+  "scripts": {
+    "release:build": "bun scripts/package-release.ts",
+    "test": "bun test tests",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "engines": {
+    "bun": ">=1.2.18"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  }
+}

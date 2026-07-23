@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "setup": "bun scripts/setup.ts"
+    "setup": "bun scripts/setup.ts",
+    "api": "bun Backend/server.ts",
+    "machine": "bun .tohseno/machine.ts"
   }
 }

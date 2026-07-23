@@ -34,17 +34,17 @@
 
         <section>
           <h2>This website</h2>
-          <p>tohseno.com serves static pages and the oneshot bootstrap script. It has no accounts, no forms, no cookies, no analytics, and no third-party resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
+          <p>tohseno.com serves static pages and installer scripts. It has no accounts, no forms, no cookies, no analytics, and no third-party browser resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
         </section>
 
         <section>
-          <h2>The oneshot script</h2>
-          <p>The bootstrap script sends no telemetry and accepts no secrets. Its only network call is the git clone of the public repository, pinned to an exact commit. Everything it creates lives on your machine.</p>
+          <h2>The installer and local factory</h2>
+          <p>The installer sends no telemetry and accepts no credentials. It downloads only pinned release artifacts, verifies SHA-256 checksums, and installs under <code>~/.tohseno</code>. The deprecated oneshot URL creates nothing and points to this canonical path. Factory metadata records versions, paths, and selected adapters, never the owner's private product prompt or app-runtime content.</p>
         </section>
 
         <section>
           <h2>Apps built on these rails</h2>
-          <p>A continuity app is private by default: identity is a locally generated seed phrase, and writing lives on the device as plain files. Nothing leaves the device unless the app's manifest declares it. TOHSENO operates no backend for generated apps and never receives their users' content. Every app builds and runs without TOHSENO credentials.</p>
+          <p>A continuity app is private by default: identity is a locally generated seed phrase, and writing lives on the device as plain files. Nothing leaves the device unless the app's manifest declares it. The baseline shot API receives health requests and stores operational metadata only; TOHSENO operates no centralized backend for generated apps and never receives their users' content. An explicitly requested Quick Tunnel makes that development API publicly reachable at a random URL until stopped, but it is never a production endpoint. Every app builds and runs without TOHSENO credentials.</p>
         </section>
 
         <section>

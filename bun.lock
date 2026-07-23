@@ -8,6 +8,13 @@
         "typescript": "^5.8.3",
       },
     },
+    "packages/cli": {
+      "name": "@tohseno/cli",
+      "version": "0.1.0",
+      "bin": {
+        "tohseno": "./src/bin.ts",
+      },
+    },
     "packages/manifest": {
       "name": "@tohseno/manifest",
       "version": "0.4.0",
@@ -17,6 +24,8 @@
     },
   },
   "packages": {
+    "@tohseno/cli": ["@tohseno/cli@workspace:packages/cli"],
+
     "@tohseno/manifest": ["@tohseno/manifest@workspace:packages/manifest"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],

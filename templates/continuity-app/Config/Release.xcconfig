@@ -1,0 +1,7 @@
+// Release has a distinct tracked seam. It never includes the generated Debug
+// endpoint, so localhost and Quick Tunnel values cannot leak into an archive.
+#include "App.xcconfig"
+#include "Production.xcconfig"
+
+TOHSENO_API_ENVIRONMENT = production
+TOHSENO_API_BASE_URL = $(PRODUCTION_API_BASE_URL)

@@ -1,0 +1,7 @@
+// Debug receives only the generated, gitignored development endpoint. The
+// file is written atomically by the shot-local TOHSENO runtime.
+#include "App.xcconfig"
+
+TOHSENO_API_ENVIRONMENT = development
+TOHSENO_API_BASE_URL =
+#include? "DevelopmentEndpoint.xcconfig"

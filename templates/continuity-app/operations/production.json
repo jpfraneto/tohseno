@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "persistence": {
+    "engine": "sqlite",
+    "configured": false,
+    "pathEnvironment": "TOHSENO_DATABASE_PATH",
+    "semantics": "single-instance"
+  },
+  "backups": {
+    "configured": false,
+    "strategy": null
+  },
+  "requiredSecrets": [],
+  "capabilities": {
+    "inspect": "implemented",
+    "deploy": "proposed",
+    "monitor": "proposed",
+    "recover": "proposed"
+  }
+}

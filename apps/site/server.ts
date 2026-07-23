@@ -41,7 +41,7 @@ function htmlEscape(value: string): string {
 function renderTemplate(template: string, extra: Record<string, string> = {}): string {
   const values: Record<string, string> = {
     ...PRODUCT.copy,
-    ONESHOT_COMMAND: PRODUCT.oneshotCommand,
+    INSTALL_COMMAND: PRODUCT.installCommand,
     REPOSITORY_URL: PRODUCT.repositoryUrl,
     ...extra,
   };
@@ -84,8 +84,8 @@ const STATIC_FILES: Record<string, { file: string; type: string; revalidate?: bo
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8", revalidate: true },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/og.png": { file: "og.png", type: "image/png" },
-  // The bootstrap embeds a pinned rails commit; a stale cached copy would
-  // point installers at a superseded release, so it must revalidate.
+  "/install.sh": { file: "install.sh", type: "text/x-shellscript; charset=utf-8", revalidate: true },
+  // Bootstrap scripts and their pins must revalidate.
   "/oneshot.sh": { file: "oneshot.sh", type: "text/x-shellscript; charset=utf-8", revalidate: true },
 };
 

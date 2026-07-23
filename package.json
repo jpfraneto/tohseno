@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "bun --watch apps/site/server.ts",
     "start": "bun apps/site/server.ts",
+    "tohseno": "bun packages/cli/src/bin.ts",
+    "tohseno:link": "bun link --cwd packages/cli",
+    "tohseno:release": "bun packages/cli/scripts/package-release.ts",
     "test": "bun test",
     "validate": "bun packages/manifest/cli.ts",
     "typecheck": "bunx tsc --noEmit",

@@ -26,6 +26,7 @@
 		CE9849B92CF9E75581A28ADA /* BIP39.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E6D1F5F39A8112B90CDECC /* BIP39.swift */; };
 		DA381775BFB313683AE75166 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38629954D217F401DA0F6CA7 /* AppConfig.swift */; };
 		DF750B6FC7928E7B66C0B4DC /* KeychainSecretStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0D5E0F50A3416E07E16024 /* KeychainSecretStoreTests.swift */; };
+		E4023C0B4FF335684421CB3E /* BackendHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 639EB26DFD5F3A9E884CDEEB /* BackendHealth.swift */; };
 		F71AD0F029C5180DCC642A94 /* ShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F281F5B3887261013BFE9593 /* ShareCard.swift */; };
 /* End PBXBuildFile section */
 
@@ -41,12 +42,13 @@
 
 /* Begin PBXFileReference section */
 		01E6D1F5F39A8112B90CDECC /* BIP39.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BIP39.swift; sourceTree = "<group>"; };
-		052244107E8EA1746BC13B76 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
 		1287C031D442DE00F6155DE0 /* WritingTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = WritingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F7BA9D82359278A987493BC /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
 		21AEEB82DD11C122DDE3C9D3 /* SessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStoreTests.swift; sourceTree = "<group>"; };
 		38629954D217F401DA0F6CA7 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		506C7FAEF2FD6761631FB05E /* SessionLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLink.swift; sourceTree = "<group>"; };
+		5C1EDB53DBF720E5CB12D4DD /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		639EB26DFD5F3A9E884CDEEB /* BackendHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendHealth.swift; sourceTree = "<group>"; };
 		6B97EB4841EBE6AFAED8358C /* WritingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingView.swift; sourceTree = "<group>"; };
 		6E75AFDA40680FF341BA87CF /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		8C578D2DC659EAE6DB2117DD /* IdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityTests.swift; sourceTree = "<group>"; };
@@ -56,6 +58,7 @@
 		AF2C7227376D4AF6B959A145 /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		B89CADBBF3DA35F148335820 /* Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Identity.swift; sourceTree = "<group>"; };
 		BA6B07E462DBB66ECB2F8C87 /* WritingApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingApp.swift; sourceTree = "<group>"; };
+		C1E738694FE37CC09C905353 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		CF5948CF73E55113C7CDE108 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		D3177F8176A4B17BEE53A540 /* bip39-english.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "bip39-english.txt"; sourceTree = "<group>"; };
 		D61B33D0554BFEB745EE9E5A /* BIP39Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BIP39Tests.swift; sourceTree = "<group>"; };
@@ -71,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				38629954D217F401DA0F6CA7 /* AppConfig.swift */,
+				639EB26DFD5F3A9E884CDEEB /* BackendHealth.swift */,
 				EDB2276CA1E647E1F3635826 /* Info.plist */,
 				BA6B07E462DBB66ECB2F8C87 /* WritingApp.swift */,
 				48EB5F4164898EA177A78052 /* Identity */,
@@ -164,7 +168,8 @@
 		DE142BB524621F533152EEF6 /* Config */ = {
 			isa = PBXGroup;
 			children = (
-				052244107E8EA1746BC13B76 /* App.xcconfig */,
+				C1E738694FE37CC09C905353 /* Debug.xcconfig */,
+				5C1EDB53DBF720E5CB12D4DD /* Release.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -194,6 +199,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5FBDA4A99780EAF1E1E20C5C /* Build configuration list for PBXNativeTarget "Writing" */;
 			buildPhases = (
+				A08203A89B686447D9EA3D57 /* Validate production API endpoint */,
 				07DF66E976057C89FB0DD376 /* Sources */,
 				9FDC7D2E11DA8C17B9553DCB /* Resources */,
 			);
@@ -257,6 +263,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A08203A89B686447D9EA3D57 /* Validate production API endpoint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate production API endpoint";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/scripts/validate-production-endpoint.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		07DF66E976057C89FB0DD376 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -264,6 +292,7 @@
 			files = (
 				DA381775BFB313683AE75166 /* AppConfig.swift in Sources */,
 				CE9849B92CF9E75581A28ADA /* BIP39.swift in Sources */,
+				E4023C0B4FF335684421CB3E /* BackendHealth.swift in Sources */,
 				C1B75F906EC6892EC206D6BF /* Identity.swift in Sources */,
 				B716E57183F8FBED5C5FB4B9 /* Notifications.swift in Sources */,
 				4A9A25810D41ED5AB685C731 /* Paywall.swift in Sources */,
@@ -341,7 +370,7 @@
 		};
 		599D47D10DA73A27517C8790 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 052244107E8EA1746BC13B76 /* App.xcconfig */;
+			baseConfigurationReference = 5C1EDB53DBF720E5CB12D4DD /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -416,7 +445,7 @@
 		};
 		D2383EF526DEA3013B364C94 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 052244107E8EA1746BC13B76 /* App.xcconfig */;
+			baseConfigurationReference = C1E738694FE37CC09C905353 /* Debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

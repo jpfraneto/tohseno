@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="How TOHSENO works: open rails for continuity apps — your coding agent builds inside them, private by default and ejectable from birth.">
+    <meta name="description" content="Install TOHSENO, run it, and tell your coding agent what iOS app you want to make.">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{BRAND}}">
     <meta property="og:title" content="Docs — {{BRAND}}">
-    <meta property="og:description" content="How TOHSENO works: open rails for continuity apps — your coding agent builds inside them, private by default and ejectable from birth.">
+    <meta property="og:description" content="The agent-first path from intention to an independent, running iOS shot.">
     <meta property="og:url" content="{{CANONICAL_ORIGIN}}/docs">
     <meta property="og:image" content="{{OG_IMAGE_URL}}">
     <meta property="og:image:width" content="1200">
@@ -24,58 +24,60 @@
       <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
       <span class="header-note">{{HEADER_NOTE}}</span>
     </header>
-
     <main class="document-main">
       <article class="document">
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
-          <h1>From one prompt to an iOS app</h1>
+          <h1>Your coding agent runs the factory</h1>
         </header>
 
         <section>
-          <h2>The loop</h2>
-          <ol>
-            <li>Run the one-liner. It clones a pinned commit of these rails and creates a workspace that already contains a working iOS app.</li>
-            <li>Start your coding agent in the workspace and hand it one sentence — the app you want.</li>
-            <li>Run the app in the simulator, then on your phone.</li>
-          </ol>
+          <h2>Install, run, speak</h2>
+          <pre><code>curl -fsSL https://tohseno.com/install.sh | bash
+tohseno</code></pre>
+          <p>Choose <strong>Create something new</strong> or <strong>Continue a shot</strong>. TOHSENO shows only implemented platforms—currently iOS—and launches an installed Codex or Claude Code inside the selected independent repository. The agent reads local instructions, then asks what you want to build or change.</p>
+          <p>Your private product intention stays in that conversation. TOHSENO never places it in shell history, process arguments, release metadata, or centralized logs.</p>
           <div class="command-block">
-            <code class="command-line" id="oneshot-command" data-oneshot-command>{{ONESHOT_COMMAND}}</code>
-            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="oneshot-command">{{HERO_COPY_LABEL}}</button>
+            <code class="command-line" id="install-command" data-install-command>{{INSTALL_COMMAND}}</code>
+            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="install-command">{{HERO_COPY_LABEL}}</button>
           </div>
-          <p>The bootstrap is a small, inspectable shell script pinned to an exact commit. It accepts no secrets, sends no telemetry, creates no accounts, and deploys nothing. Read it first if you prefer: <code>curl -fsSL https://tohseno.com/oneshot.sh | less</code>.</p>
         </section>
 
         <section>
-          <h2>What a continuity app is</h2>
-          <p>A continuity app is an app where cryptography replaces accounts. On first launch it silently generates a BIP39 seed phrase; a keypair derived from that phrase is the user's identity. Identity is backed up automatically through iCloud Keychain, end-to-end encrypted; the phrase is the manual fallback. Data lives on the device as plain files. There are no signup forms, no OAuth screens, no email capture — not for you, not for your users.</p>
+          <h2>What the agent operates</h2>
+          <p>Every new shot pins its operational playbook and machine commands locally. The agent starts a localhost Bun API, initializes its SQLite database, waits for health, configures the Debug iOS endpoint, launches a real simulator when Xcode is available, reads structured logs, verifies changes, and stops only processes owned by that shot.</p>
+          <p>For a physical Debug device, the agent may explicitly request a Cloudflare Quick Tunnel. Its random public URL is temporary development reachability—not authentication, uptime, or production infrastructure—and is written only to a gitignored Debug configuration file.</p>
         </section>
 
         <section>
-          <h2>What the workspace contains</h2>
-          <ul>
-            <li><strong>A compiling iOS app</strong> — a lightweight writing app demonstrating the full spine: open, write, it's yours. It builds from a fresh clone with only a signing-team selection and runs in the simulator with zero API keys.</li>
-            <li><strong>Flag-gated modules</strong> — paywall, share card, notifications, reserved SessionLink and TokenMint names, plus strict app-specific extensions — declared in the manifest and flipped in one config file.</li>
-            <li><strong>A packaged landing page</strong> — <code>site/index.html</code> ships with the app.</li>
-            <li><strong>The agent protocol</strong> — <code>skills/continuity-app/SKILL.md</code>: your agent copies the base app and mutates it toward your prompt, asks at most three questions, records every assumed default, and ends with a completion report whose RUN IT NOW section is literal copy-paste commands.</li>
-            <li><strong>The manifest</strong> — a machine-readable record of what was built. If a feature can't be expressed as a valid manifest field, it's unsupported and the agent says so instead of improvising.</li>
-          </ul>
+          <h2>What stays local</h2>
+          <p>A shot has its own Git history, SwiftUI app, Bun API, SQLite migrations, manifest, tests, landing page, verifier, operations, and release provenance. Writing and identity stay on the device. The baseline API stores operational metadata only and never receives writing content. Development data, logs, PIDs, and generated endpoints are gitignored.</p>
+          <p>The app’s core action remains useful offline. Seed-phrase identity replaces accounts, and every shot builds without TOHSENO credentials or a live factory.</p>
         </section>
 
         <section>
-          <h2>To your phone</h2>
-          <p><code>bun run setup</code> uses the manifest and previous answers as defaults, auto-detects an Apple Team ID for confirmation, and explains why each answer matters. Skip signing and the simulator still works; skip App Store Connect and there is no TestFlight until setup is rerun. The exact key path is App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys → "+" → role App Manager → download once. Setup validates that key with a read-only API request before writing config.</p>
-          <p>With explicit owner approval, an agent can run <code>bun run setup --from-manifest --team auto</code>. Optional App Store Connect setup takes the private key only by path plus its public key ID and issuer ID. A prepared fastlane lane uploads to TestFlight — your agent prints the command and never runs it without your approval.</p>
-          <p>A networked prototype may put one provider secret in gitignored <code>Config/Local.xcconfig</code> through the base app's <code>DEV_SECRET</code> seam. It works only on an owner-controlled Debug device and is forced empty in simulator and Release builds. Distribution requires short-lived credentials from an owner-deployed TokenMint service that receives no user content.</p>
+          <h2>Approval boundary</h2>
+          <p>The agent can diagnose and prepare locally. It must ask before creating accounts, spending money, handling credentials, changing DNS, publishing packages, deploying production, or submitting to an app store. TOHSENO never runs the prepared <code>fastlane beta</code> lane unprompted.</p>
+          <p>When you say “put this online,” “ship this,” or “send this to TestFlight,” the agent first performs read-only production inspection, explains the exact blockers, and requests only the authority actually needed.</p>
         </section>
 
         <section>
-          <h2>Everything else</h2>
-          <p>Full documentation, doctrine, the manifest schema, and the source live in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>. Apache-2.0. Every app is ejectable from birth: it builds and runs without any TOHSENO credential.</p>
+          <h2>Current production boundary</h2>
+          <p>Production inspection, stable-HTTPS validation, single-instance SQLite semantics, backup declarations, and unresolved-secret reporting are implemented. Broad VPS provisioning, deployment, monitoring, recovery, DNS changes, and store submission are not implemented. A Quick Tunnel is always rejected as a Release endpoint.</p>
+          <p>iOS is the only implemented app platform. Android and web do not appear as fictional choices. Linux can run the factory and API, but only macOS with Xcode can build and launch the iOS app.</p>
+        </section>
+
+        <section>
+          <h2>Ownership and ejection</h2>
+          <p>Remove the global CLI and an existing shot still has <code>bun run verify</code>, <code>bun .tohseno/machine.ts</code>, source, migrations, configuration, tests, and runbooks. No symlink points back to a factory cache. Identifiers, data paths, production references, and the static landing page remain with the shot.</p>
+        </section>
+
+        <section>
+          <h2>Advanced and automation use</h2>
+          <p>Humans normally need only <code>tohseno</code>. Compatibility commands such as <code>tohseno create</code>, <code>list</code>, <code>open</code>, <code>doctor</code>, <code>verify</code>, and <code>adopt</code> remain available for scripts and repository contributors. The detailed machine protocol is documented in each shot at <code>.tohseno/OPERATIONS.md</code> and in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>.</p>
         </section>
       </article>
     </main>
-
     <footer class="site-footer">
       <span>{{FOOTER_OPERATOR}}</span>
       <span>{{FOOTER_DOCTRINE}}</span>

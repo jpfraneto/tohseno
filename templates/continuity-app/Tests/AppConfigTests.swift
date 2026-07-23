@@ -19,6 +19,17 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(NoopPaywall().isEntitled)
     }
 
+    func testDevelopmentAndProductionEndpointsStaySeparate() {
+        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("http://127.0.0.1:43123", production: false))
+        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("https://random-name.trycloudflare.com", production: false))
+        XCTAssertNil(AppConfig.validatedAPIBaseURL("http://api.example.com", production: false))
+
+        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("https://api.example.com", production: true))
+        XCTAssertNil(AppConfig.validatedAPIBaseURL("http://localhost:43123", production: true))
+        XCTAssertNil(AppConfig.validatedAPIBaseURL("https://random-name.trycloudflare.com", production: true))
+        XCTAssertNil(AppConfig.validatedAPIBaseURL("https://api.example.com/private", production: true))
+    }
+
     func testShareCardSnippetStaysReadable() {
         XCTAssertEqual(ShareCard.snippet(of: "  short  "), "short")
         let long = String(repeating: "words and more words. ", count: 40)

@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var showingRestore = false
     @State private var restorePhrase = ""
     @State private var restoreError = false
+    @State private var backendHealth: BackendHealthState = .checking
 
     var body: some View {
         NavigationStack {
@@ -30,12 +31,33 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+                Section("App API") {
+                    LabeledContent("Environment", value: AppConfig.apiEnvironment.capitalized)
+                    LabeledContent("Endpoint", value: AppConfig.apiBaseURL?.host() ?? "Not configured")
+                    LabeledContent("Health", value: backendHealth.label)
+                    if backendHealth == .unavailable {
+                        Text("The configured backend is unavailable. Your writing remains local and safe.")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                    Button("Check again") {
+                        Task { await refreshBackendHealth() }
+                    }
+                    .disabled(AppConfig.apiBaseURL == nil)
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingReveal) { revealSheet }
             .sheet(isPresented: $showingRestore) { restoreSheet }
+            .task { await refreshBackendHealth() }
         }
+    }
+
+    @MainActor
+    private func refreshBackendHealth() async {
+        backendHealth = AppConfig.apiBaseURL == nil ? .notConfigured : .checking
+        backendHealth = await BackendHealth.check(baseURL: AppConfig.apiBaseURL)
     }
 
     private var revealSheet: some View {

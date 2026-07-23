@@ -62,6 +62,7 @@ describe("continuity manifest", () => {
 
     const serverWithoutTarget = await template();
     serverWithoutTarget.operations.requiresServer = "credential-minting-only";
+    serverWithoutTarget.operations.deploymentTargets = ["native-ios"];
     expect(validateSchema(serverWithoutTarget)).toBe(false);
     expect(validateManifest(serverWithoutTarget).valid).toBe(false);
 
@@ -105,10 +106,12 @@ describe("continuity manifest", () => {
     });
     expect(manifest.runtime.privacy.externalDisclosure).toEqual([
       "identity seed phrase, end-to-end encrypted in iCloud Keychain (automatic backup; stays local when iCloud Keychain is off)",
+      "operational health request to the owner-operated app API (never writing content)",
     ]);
     expect(manifest.runtime.recovery.identity).toBe("automatic-encrypted-backup");
     expect(manifest.runtime.recovery.content).toBe("manual-export");
-    expect(manifest.operations.requiresServer).toBe(false);
+    expect(manifest.operations.requiresServer).toBe(true);
+    expect(manifest.operations.deploymentTargets).toEqual(["native-ios", "server"]);
   });
 
   test("invalid manifests are rejected with useful paths", async () => {
@@ -254,7 +257,6 @@ describe("continuity manifest", () => {
   test("server requirements distinguish a credential-only mint from broader servers", async () => {
     const manifest = await template();
     manifest.operations.requiresServer = "credential-minting-only";
-    manifest.operations.deploymentTargets.push("server");
     expect(validateManifest(manifest).valid).toBe(true);
 
     manifest.operations.requiresServer = true;
@@ -300,6 +302,7 @@ describe("continuity manifest", () => {
   test("remote reflection requires declared disclosure and a server", async () => {
     const manifest = await template();
     manifest.runtime.privacy.externalDisclosure = [];
+    manifest.operations.requiresServer = false;
     manifest.runtime.reflection = {
       mode: "remote-service",
       trigger: "after-event-opt-in",
@@ -334,7 +337,6 @@ describe("continuity manifest", () => {
     manifest.runtime.privacy.localStorage = "application-encrypted";
     manifest.runtime.recovery.content = "opt-in-encrypted-backup";
     manifest.operations.requiresServer = "credential-minting-only";
-    manifest.operations.deploymentTargets.push("server");
     expect(validateManifest(manifest).errors.map((issue) => issue.code)).toContain(
       "operations.sync-server-required",
     );

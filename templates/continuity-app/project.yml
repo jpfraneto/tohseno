@@ -9,8 +9,8 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
 configFiles:
-  Debug: Config/App.xcconfig
-  Release: Config/App.xcconfig
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
 targets:
   Writing:
     type: application
@@ -36,6 +36,15 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         RevenueCatPublicKey: $(REVENUECAT_PUBLIC_KEY)
         DevelopmentSecret: $(DEV_SECRET_FOR_BUILD)
+        TohsenoAPIEnvironment: $(TOHSENO_API_ENVIRONMENT)
+        TohsenoAPIBaseURL: $(TOHSENO_API_BASE_URL)
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    preBuildScripts:
+      - name: Validate production API endpoint
+        basedOnDependencyAnalysis: false
+        script: |
+          "$SRCROOT/scripts/validate-production-endpoint.sh"
   WritingTests:
     type: bundle.unit-test
     platform: iOS

@@ -1,127 +1,97 @@
 # TOHSENO
 
-Open rails for **continuity apps** — auth-less software built around one meaningful action that a person returns to over time.
+One sentence to a running iOS app.
 
-```
-act → record → reflect → continue
-```
-
-A continuity app has one primary action with an observable start, completion, and interruption. Progress is recorded locally; the manifest declares whether the core action is fully offline, degraded offline, or network-required, plus exactly what remains available without a network. Reflection helps the person recognize what happened. A respectful return path invites them back. No dashboards-as-homepage, no feeds, no manipulative streaks, no account ceremony before first value. The full rules are in [Doctrine](docs/DOCTRINE.md).
-
-The lineage is [Anky](https://anky.app): eight minutes of writing, no backspace, every day, for four years. TOHSENO is that practice distilled into a framework — and Anky ships in this repository as a working example you can build from.
-
-TOHSENO does not generate your app; your coding agent does. This repository gives that agent the contract, guardrails, templates, and refusal rules to build a continuity app that is private by default and ejectable from birth.
-
-## Start here
-
-One command, from any machine with git and a coding agent:
-
-```bash
-curl -fsSL https://tohseno.com/oneshot.sh | bash
+```sh
+curl -fsSL https://tohseno.com/install.sh | bash
+tohseno
 ```
 
-It clones these rails at an exact pinned commit, asks whether you want to start blank or from a shipped working example (`anky` or `daily-observation`), creates a fresh app workspace, and prints the one command to hand your coding agent. It accepts no secrets, sends no telemetry, creates no accounts, and deploys nothing. Read it first if you prefer:
+TOHSENO launches Codex or Claude Code inside an independent app repository,
+then gives that agent deterministic tools to make the app run.
 
-```bash
-curl -fsSL https://tohseno.com/oneshot.sh | less
+You describe the product. The agent handles the technical loop.
+
+## The flow
+
+1. Install TOHSENO.
+2. Run `tohseno`.
+3. Choose **Create something new** or **Continue a shot**.
+4. Tell the coding agent what you want to make.
+
+That is the human interface. Commands for APIs, databases, tunnels, simulators,
+logs, and verification are agent tools.
+
+For the complete iOS path, the machine needs macOS, Xcode, Git, and either
+[Codex](https://github.com/openai/codex) or Claude Code. TOHSENO manages its own
+pinned Bun runtime and can install a pinned `cloudflared` binary.
+
+## What works today
+
+Every new iOS **shot** starts with:
+
+- a compiling SwiftUI app;
+- BIP39 identity instead of an account screen;
+- crash-safe local writing;
+- a localhost Bun API with health checks;
+- deterministic SQLite migrations;
+- supervised start, status, logs, and stop;
+- optional development-only Cloudflare Quick Tunnels;
+- Debug endpoint injection and simulator launch;
+- pinned manifest, privacy, provenance, and Git verification.
+
+The agent discovers those operations from the shot itself:
+
+```sh
+bun .tohseno/machine.ts operations --json
 ```
 
-Then the loop is:
+The global CLI also exposes them under `tohseno machine ...` for automation.
 
-1. **Hand off.** Start your coding agent in the workspace: _read `AGENTS.md` and begin._
-2. **Distill.** If you started blank, the agent does not build the placeholder prompt — it interviews you, one question at a time, about the one repeated action your app protects, then writes `MASTER_PROMPT.md` with you and gets your confirmation. If you started from an example, `MASTER_PROMPT.md` and the manifest are already complete and the agent builds immediately.
-3. **Build inside the rails.** The skill walks the agent through interview, manifest, privacy inventory, the smallest honest vertical slice and offline surface, invariant tests, deployment preparation, and the ejection package. The manifest schema in `packages/manifest` is the boundary: a feature that cannot be expressed as a valid manifest diff is unsupported, not quietly improvised.
+## What stays yours
 
-## If you are a coding agent reading this
+Each shot is its own Git repository. It carries its source, history, tests,
+manifest, runtime playbook, migrations, landing page, and factory provenance.
+It has no symlink back to TOHSENO and remains operable after the global CLI is
+upgraded or removed.
 
-You are the compiler. Read, in order:
+Private product intentions, credentials, app content, development databases,
+logs, generated endpoints, and signing configuration do not enter the factory
+release or Git history. This repository operates no backend that receives
+content from generated apps.
 
-1. [`AGENTS.md`](AGENTS.md) — the repository contract: product constraints, private-data rules, approval boundaries.
-2. [`skills/continuity-app/SKILL.md`](skills/continuity-app/SKILL.md) — the build protocol you follow step by step.
-3. [`packages/manifest/continuity.manifest.schema.json`](packages/manifest/continuity.manifest.schema.json) and its validator — every supported feature is a property here.
-4. [`templates/continuity-app/`](templates/continuity-app) — the workspace you start from; [`examples/`](examples) shows two materially different filled-in manifests.
+## Current boundary
 
-Never create paid infrastructure, alter DNS, submit to stores, rotate credentials, or deploy production without the owner's explicit approval. Never commit or transmit the owner's `MASTER_PROMPT.md`, credentials, or capabilities.
+iOS local development is **Implemented**.
 
-## What works now / what does not
+Production inspection is **Implemented** and reports missing endpoints,
+persistence, backups, secrets, and deployment capabilities without changing
+external infrastructure.
 
-**Implemented:** the hero landing and `/intake` form, deterministic intake validation, AES-256-GCM encryption at rest, hash-plus-capability access, SQLite store with append-only order events, disabled/mock/Stripe payments with verified idempotent webhooks, email providers, private status and capsule routes, a bearer-authenticated operator API and CLI, the manifest schema and contract fixtures, the continuity-app skill, the pinned oneshot bootstrap, and one Bun server with Docker and Railway deployment preparation.
+Automatic production deployment, monitoring, recovery, DNS changes, TestFlight
+submission, TokenMint, and SessionLink are **Proposed**. Accounts, credentials,
+costs, publishing, and destructive operations always require human approval.
+A Quick Tunnel is never a production endpoint.
 
-**Not yet:** generating complete native iOS/Android applications, creating infrastructure, store submission, a reflection provider for generated apps, end-user continuity sync, or a production practice-identity package. `READY` on a self-hosted order means the capsule and source contract are available — not that an application has been generated. Proof and sync contracts are early, explicitly non-final work.
+## Learn more
 
-## The paths
+- [Human setup and first run](docs/LOCAL_DEVELOPMENT.md)
+- [CLI and machine operations](docs/CLI.md)
+- [System architecture](docs/SYSTEM_ARCHITECTURE.md)
+- [Production boundary](docs/DEPLOYMENT.md)
+- [Ownership and ejection](docs/EJECTION.md)
 
-| Path               | Price                  | What it is                                                                                                                                 |
-| ------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Rails (this repo)  | Free, Apache-2.0       | The one-liner above. Your agent, your machine, your app, your keys.                                                                        |
-| Self-hosted intake | $88 once               | The managed doorway at [tohseno.com](https://tohseno.com/intake): private encrypted intake, order lifecycle, and a released agent capsule. |
-| Client-owned       | $888 setup + $88/month | You own source, accounts, domain, and data plane; TOHSENO operates through scoped access.                                                  |
-| Anky-operated      | Selective              | Anky, Inc. may adopt the app as a first-party product after review.                                                                        |
+## Contributing
 
-The paid paths point at where the managed product is heading: everything from code generation to cloud deployment, operated for you. Today they honestly provide intake, ownership contracts, and the agent capsule — the section above is the boundary, and [Operating modes](docs/OPERATING_MODES.md) has the detail.
-
-## Repository architecture
-
-```
-apps/site                 one Bun HTTP server: hero landing, /intake, encrypted
-                          submissions, payments, email, capabilities, operator API
-packages/manifest         public manifest schema, types, validator
-packages/contracts        draft event/artifact/reflection/proof/envelope schemas
-examples                  two filled-in source/manifest examples
-templates/continuity-app  the workspace the oneshot creates apps from
-skills/continuity-app     the coding-agent build protocol and refusal rules
-docs                      doctrine, roadmap, ADRs, proposals, privacy, operations
-scripts                   check gate, migrations, backups, secrets, operator CLI
-```
-
-Runtime path: `raw HTML → Bun.serve → deterministic validation → Web Crypto → SQLite`, with payment, email, and operator providers at the edges. See [System architecture](docs/SYSTEM_ARCHITECTURE.md) and the [ADRs](docs/adr/README.md).
-
-## Privacy model
-
-Submitted documents and contact details are encrypted at rest with a deployment-supplied key. Content hashes identify; independent revocable bearer capabilities authorize, and only their one-way hashes are stored. Bearers travel in URL fragments or `Authorization` headers, never in request paths, query strings, or payment metadata. Invalid, expired, or revoked capabilities all return the same `404`.
-
-Submitted documents are intake data — the control plane is designed never to receive the private continuity data of a generated app's end users. Details: [Privacy boundary](docs/PRIVACY_BOUNDARY.md) and the public `/privacy` page.
-
-## Local development
-
-Requires [Bun](https://bun.sh/); no external accounts for the local path.
-
-```bash
+```sh
 bun install
-cp .env.example .env
-bun run generate-secrets   # put the two printed secrets in .env
-bun run migrate
-bun run dev
-```
-
-Use `PAYMENTS_MODE=mock` and `EMAIL_MODE=console` only outside production. Full setup: [Local development](docs/LOCAL_DEVELOPMENT.md).
-
-## Validation
-
-```bash
+bun run tohseno -- --help
 bun run validate templates/continuity-app/continuity.manifest.json
-bun run check   # the before-commit gate: typecheck, tests, contract corpus,
-                # static surface, oneshot pin ancestry, secret hygiene
+bun run check
 ```
 
-`bun run validate <path>` is the manifest CLI gate and exits nonzero for a
-missing or invalid file. Importing or running `packages/manifest/validate.ts`
-directly validates nothing.
+`bun run tohseno:link` is a contributor convenience, not the product install
+path.
 
-Tests use temporary databases and fake providers; no network access needed.
-
-## Production preparation
-
-Build the Docker image, run one instance with a persistent volume (`DATABASE_PATH=/data/tohseno.sqlite` on Railway), configure an HTTPS `BASE_URL`, strong secrets, and real Stripe prices. The repository prepares deployment; it does not deploy or change DNS. See [Deployment](docs/DEPLOYMENT.md), [Stripe](docs/STRIPE.md), [Email](docs/EMAIL.md), [Key rotation](docs/KEY_ROTATION.md).
-
-### Release discipline for the oneshot pin
-
-`apps/site/public/oneshot.sh` embeds `TOHSENO_PIN`, the exact rails commit every new workspace is created from. A release that changes the rails must land first, then a follow-up commit bumps the pin to it — so the pin always trails the serving commit by one. `bun run check` verifies the pin is a real ancestor commit containing the required template files.
-
-## Product and contribution contract
-
-Start with [Doctrine](docs/DOCTRINE.md), [Product contract](docs/PRODUCT_CONTRACT.md), [Roadmap](docs/PRODUCT_ROADMAP.md), and [Open questions](docs/OPEN_QUESTIONS.md). New protocol work stays in [Proposals](docs/proposals/README.md) until its decisions and tests support an ADR. Sanitized [intent distillations](docs/intent/README.md) record the intended evolution without committing raw owner prompts. The Anky architectural study is preserved verbatim under [docs/research/anky](docs/research/anky/README.md); no Anky production code was copied.
-
-## License and names
-
-Apache License 2.0 ([LICENSE](LICENSE)). The license grants no trademark rights to the TOHSENO or Anky names; see [TRADEMARKS.md](TRADEMARKS.md).
+Apache License 2.0. The license grants no trademark rights to TOHSENO or Anky;
+see [TRADEMARKS.md](TRADEMARKS.md).

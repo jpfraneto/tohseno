@@ -1,5 +1,10 @@
 # Intent distillation: oneshot terminal entry
 
+> Historical intent record. The old oneshot creator is now a non-mutating
+> migration endpoint. The prepared canonical path is
+> `curl -fsSL https://tohseno.com/install.sh | bash`, followed by `tohseno`;
+> artifact publication and site deployment still require owner approval.
+
 - Public record ID: `intent-public-2026-07-17-oneshot-entry`
 - Recorded: 2026-07-17
 - Parent record: `intent-public-2026-07-17-deployment-cell-and-phone-authority`

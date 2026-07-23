@@ -1,0 +1,6 @@
+// Public production origin only. Use xcconfig's empty expansion between the
+// slashes, for example: https:/$()/api.example.com
+//
+// Release builds fail until this is a stable HTTPS bare origin. localhost,
+// loopback addresses, and *.trycloudflare.com are always rejected.
+PRODUCTION_API_BASE_URL =

@@ -4,14 +4,14 @@ This file applies to the entire repository. A more local `AGENTS.md`, if one is 
 
 ## Mission and current status
 
-TOHSENO is the fastest path from one prompt to an iOS app on a phone. A person runs the oneshot, hands their coding agent one sentence, and gets a working app — a **continuity app**: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
+TOHSENO is the fastest path from one prompt to an iOS app on a phone. A person installs the local toolchain once, creates an independent repository called a **shot**, hands its coding agent one sentence, and gets a working continuity app: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
 
-This repository contains: the public site (hero, docs, privacy, the pinned oneshot bootstrap), the base app in `templates/continuity-app` (a compiling, running iOS writing app that every workspace starts from), the manifest schema and validator, the agent build protocol in `skills/continuity-app/SKILL.md`, and the check gate. The intake/payments product that once lived here is preserved on the `archive/intake-product` branch and is not part of main.
+This repository contains: the reusable local-first CLI in `packages/cli`, the public site (hero, docs, privacy, and the pinned legacy-oneshot migration endpoint), the base app in `templates/continuity-app` (a compiling, running iOS writing app that every shot starts from), the manifest schema and validator, the agent build protocol in `skills/continuity-app/SKILL.md`, and the check gate. The intake/payments product that once lived here is preserved on the `archive/intake-product` branch and is not part of main.
 
 ## Product constraints
 
 - **Speed is the product.** Anything that adds a question, a config step, or a ceremony must pay for itself in reliability.
-- **The base app is the starting point.** One-shots mutate `templates/continuity-app`, never an empty directory. It must always build from a fresh clone with only a signing-team selection, run in the simulator with zero keys, and survive process death without losing text.
+- **The base app is the starting point.** Shots copy an immutable release of `templates/continuity-app`, never an empty directory. The base must always build from a fresh clone with only a signing-team selection, run in the simulator with zero keys, and survive process death without losing text.
 - **The manifest is a reliability mechanism, not a moral one.** If a feature cannot be expressed as a valid manifest field, it is unsupported — say so instead of improvising. The builder decides the mechanics (streaks, paywalls, scores are tools, not sins); private-by-default and account-free are defaults, never refusals.
 - **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink and TokenMint stay declared-only until they ship.
 - **Ejectable from birth.** Every app builds and runs without TOHSENO credentials; every landing page ships in the same package as its app.
@@ -65,7 +65,7 @@ Before handing off:
 
 ### Release discipline for the oneshot pin
 
-`apps/site/public/oneshot.sh` embeds `TOHSENO_PIN`, the exact rails commit every new workspace is created from. A release that changes the rails must land first; a follow-up commit bumps the pin to it — the pin always trails the serving commit by one. `bun run check` verifies pin ancestry and that the pinned commit contains the required base-app files. Site deploys go out with `railway up`, not by pushing to GitHub — but the pinned commit must be pushed to the public repository or the oneshot cannot fetch it.
+`apps/site/public/oneshot.sh` currently preserves `TOHSENO_PIN` as the exact last published rails-creator commit while serving only a migration notice. It must not create a second kind of workspace or install unpublished CLI code. First land and publish a release containing the CLI; only a follow-up commit may bump the pin to that release and turn the endpoint into a thin pinned installer. The pin therefore always trails the serving commit by one. `bun run check` verifies the migration boundary, pin ancestry, and public reachability. Site deploys go out with `railway up`, not by pushing to GitHub, and no deploy occurs without explicit owner approval.
 
 ## Documentation language
 

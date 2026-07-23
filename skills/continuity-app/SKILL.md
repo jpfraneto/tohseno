@@ -1,18 +1,24 @@
 ---
 name: continuity-app
-description: Build an iOS continuity app from one line of prompt by mutating the TOHSENO base app. Use when a coding agent in a TOHSENO workspace must turn a person's sentence into a running app with seed-phrase identity, local persistence, flag-gated modules, and a prepared TestFlight path — fast, with every assumption recorded.
+description: Build and operate an iOS continuity app from one line of prompt by mutating the TOHSENO base app. Use when a coding agent in an independent TOHSENO shot must turn a person's sentence into a running app with seed-phrase identity, local persistence, a supervised local API, flag-gated modules, and an honest production boundary.
 ---
 
 # Build a continuity app
 
-You are in a workspace that already contains a compiling, running iOS app —
-the base writing app. Your job is to mutate it toward the owner's prompt and
+You are in an independent shot that already contains a compiling, running iOS
+app — the base writing app. Your job is to mutate it toward the owner's prompt and
 get it running on their phone, measured in minutes. Speed is the product;
 the rigor below is what makes the speed real.
 
+Read `.tohseno/OPERATIONS.md` before operating the app. Discover the pinned
+machine surface with `bun .tohseno/machine.ts operations --json`; prefer the
+equivalent `tohseno machine ... --json` commands when the global dispatcher is
+available. These are agent tools, not commands the owner must learn.
+
 ## The lazy-first protocol
 
-**1. Input is one line.** A sentence in the conversation is enough. If the
+**1. Input is one line.** Begin by asking the owner what they want to build. A
+sentence in the conversation is enough. If the
 owner provides a full `MASTER_PROMPT.md` or references, use them — richer
 input, richer output — but never require more than the sentence.
 
@@ -45,14 +51,28 @@ must not break:
    mechanic's persistence and edge cases.
 8. Setup / TestFlight preparation.
 
+When the owner asks to run, show, or try the app, keep operating until the
+available local stack is genuinely alive: start development, inspect health,
+launch the simulator when Xcode is available, and diagnose from structured
+status/logs. A missing simulator does not undo a valid shot or healthy API.
+Use a Quick Tunnel only for a physical device or explicit remote test; it is
+public development reachability, never authentication or production.
+
 **5. Write the manifest silently.** Update `continuity.manifest.json` as the
-machine-readable record of what you built, and validate it from the pinned
-rails checkout with `bun run validate <path-to-manifest>` — it exits non-zero
-with pathed errors. That command is the only validation that counts; running
-`validate.ts` directly executes nothing and proves nothing. The owner never
-fills out a manifest. If a requested feature cannot be expressed as a valid manifest
-field, it is unsupported: say so and name the smallest supported alternative.
-That bounded feature space is why one-shots land — do not improvise around it.
+machine-readable record of what you built. Validate the shot from its root:
+
+```sh
+bun run verify
+```
+
+That command runs `.tohseno/verify.ts` and the manifest validator pinned inside
+this repository. It exits non-zero with pathed errors and does not depend on a
+mutable global TOHSENO checkout. Importing or running
+`.tohseno/manifest/validate.ts` directly executes no validation and proves
+nothing. The owner never fills out a manifest. If a requested feature cannot be
+expressed as a valid manifest field, it is unsupported: say so and name the
+smallest supported alternative. That bounded feature space is why one-shots
+land — do not improvise around it.
 
 **6. The builder decides the mechanics.** Streaks, paywalls, scores, timers,
 virality loops — tools, not sins. The base app doesn't include them; add
@@ -81,7 +101,18 @@ account-free, but they are defaults, never refusals.
   production without explicit owner approval. Prepare commands; print them;
   stop.
 
+For “put this online,” “ship this,” or “send this to TestFlight,” first run
+`tohseno machine production inspect --json`. Explain its concrete blockers and
+capability statuses. Production inspection is implemented; broad deployment,
+monitoring, recovery, DNS automation, and store submission are not. Never
+pretend an unavailable deployer exists or promote a `trycloudflare.com` URL.
+
 ## Verify before reporting
+
+Run `bun run verify` first. It validates shot provenance, required iOS
+structure, the manifest through its pinned schema, independent Git ownership,
+tracked secret hygiene, and tracked links. It is structural validation, not an
+Xcode build.
 
 `Writing.xcodeproj` is generated, not file-system-synced. If you added,
 removed, or moved a Swift file (or changed `project.yml`), run
@@ -99,6 +130,14 @@ if [ -z "$UDID" ]; then
 fi
 xcodebuild -project Writing.xcodeproj -scheme Writing \
   -destination "platform=iOS Simulator,id=$UDID" test
+```
+
+For the normal agent-operated path, the pinned lifecycle performs the same
+selection/build/install/launch work and verifies endpoint agreement:
+
+```sh
+tohseno machine dev start --json
+tohseno machine ios launch --json
 ```
 
 A claim in the report must be something you ran. If the environment lacks the
@@ -159,7 +198,7 @@ NEXT        <the single decision or action for the owner, one sentence>
 ```
 
 RUN IT NOW is the heart of the report. It is literal, copy-paste,
-command-by-command from the workspace root to the running app. Every command
+command-by-command from the shot root to the running app. Every command
 must be one you executed yourself or the exact documented invocation —
 "open it in Xcode" is not a command; `open Writing.xcodeproj` is. When a step
 cannot be a command (a physical-device install, a permission dialog), write

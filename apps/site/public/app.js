@@ -6,7 +6,7 @@
   if (!navigator.clipboard?.writeText) return;
   for (const copyButton of document.querySelectorAll("[data-copy-command]")) {
     if (!(copyButton instanceof HTMLButtonElement)) continue;
-    const commandLine = copyButton.closest("[role='group'], .command-block")?.querySelector("[data-oneshot-command]");
+    const commandLine = copyButton.closest("[role='group'], .command-block")?.querySelector("[data-install-command]");
     if (!(commandLine instanceof HTMLElement)) continue;
     copyButton.hidden = false;
     const idleLabel = copyButton.textContent;

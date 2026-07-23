@@ -184,9 +184,12 @@ async function validateStaticSurface(): Promise<void> {
   ];
 
   for (const required of [
-    "{{ONESHOT_COMMAND}}",
+    "{{INSTALL_COMMAND}}",
     "data-copy-command",
     "{{REPOSITORY_URL}}",
+    "Run <code>tohseno</code>",
+    "Tell your coding agent",
+    "independent shot",
     'href="/docs"',
     'href="/privacy"',
   ]) {
@@ -206,6 +209,12 @@ async function validateStaticSurface(): Promise<void> {
       /\bhttps?:\/\/|(?:src|href)\s*=\s*["']\/\/|url\(\s*["']?\/\//iu.test(source)
     ),
     "Public style and script assets must not reference other origins",
+  );
+  const publicCopy = htmlPages.map(([, page]) => page).join("\n");
+  assert(!publicCopy.includes('href="/intake"'), "Public pages must not link to the archived intake product");
+  assert(
+    !/(?:managed intake|encrypted intake|order lifecycle|private capsules?|\$88)/iu.test(publicCopy),
+    "Public pages must not claim the archived intake/payments product",
   );
 
   for (const phrase of [
@@ -258,12 +267,64 @@ async function validateStaticSurface(): Promise<void> {
 }
 
 async function validateOneshotPin(): Promise<void> {
-  console.log("\n[check] oneshot bootstrap pin");
+  console.log("\n[check] canonical installer and legacy oneshot pin");
+
+  const installer = await readText("apps/site/public/install.sh");
+  assert(installer.startsWith("#!/bin/sh\n"), "install.sh must remain a portable POSIX shell script");
+  for (const phrase of [
+    'CLI_VERSION="0.2.0"',
+    'install_root="${TOHSENO_INSTALL_HOME:-$HOME/.tohseno}"',
+    "TOHSENO_INSTALL_CLI_SHA256",
+    "checksum mismatch",
+    "--non-interactive",
+    "--dry-run",
+    "TOHSENO_SOURCE_ROOT",
+    "No credentials are requested or collected",
+  ]) {
+    assert(installer.includes(phrase), `install.sh is missing required managed-install behavior: ${phrase}`);
+  }
+  const cliChecksum = installer.match(/^CLI_SHA256_DEFAULT="([0-9a-f]{64})"$/m);
+  assert(cliChecksum !== null, "install.sh must pin the prepared CLI artifact with a complete SHA-256 digest");
+  assert(!installer.includes("__TOHSENO_CLI_SHA256__"), "install.sh still contains an unfinalized checksum placeholder");
+  assert(
+    !/(?:raw\.githubusercontent\.com|refs\/heads\/|archive\/refs\/heads)/u.test(installer),
+    "install.sh must never execute or install mutable repository content",
+  );
 
   const script = await readText("apps/site/public/oneshot.sh");
   const pinMatch = script.match(/^TOHSENO_PIN="([0-9a-f]{40})"$/m);
   assert(pinMatch !== null, "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash");
   const pin = pinMatch[1]!;
+  assert(
+    pin === "35021b38e71257d137c184081a1ba0d4503fa5ef",
+    "The migration-only oneshot must preserve the last published creator pin until a follow-up release contains the CLI",
+  );
+  for (const phrase of [
+    "This script no longer creates a workspace.",
+    "curl -fsSL https://tohseno.com/install.sh | bash",
+    "tohseno",
+    "thin pinned CLI installer",
+  ]) {
+    assert(script.includes(phrase), `oneshot.sh is missing migration guidance: ${phrase}`);
+  }
+  for (const obsoleteCreatorStep of [
+    'mkdir -p "$target"',
+    'cp -R "$rails_dir/templates/continuity-app/."',
+    'git -C "$target" init',
+    'agent_cmd="$(first_agent)"',
+  ]) {
+    assert(
+      !script.includes(obsoleteCreatorStep),
+      `oneshot.sh must not retain the competing workspace creator step: ${obsoleteCreatorStep}`,
+    );
+  }
+  for (const requiredCliFile of [
+    "packages/cli/package.json",
+    "packages/cli/src/bin.ts",
+    "packages/cli/src/cli.ts",
+  ]) {
+    await readText(requiredCliFile);
+  }
 
   try {
     await capture(["git", "merge-base", "--is-ancestor", pin, "HEAD"]);
@@ -293,12 +354,13 @@ async function validateOneshotPin(): Promise<void> {
     try {
       await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
     } catch {
-      fail(`Pinned rails commit ${pin} is missing ${required}; the oneshot workspace would be incomplete`);
+      fail(`Last published creator pin ${pin} is missing ${required}; its retained trust record is incomplete`);
     }
   }
 
-  // The oneshot clones the public repository, so a pin that only exists in
-  // local history strands every fresh user at "pinned commit not found".
+  // Keep the retained creator pin auditable against the same public history it
+  // originally trusted. The future thin installer must not move to a CLI
+  // release until that release is public and a follow-up pin bump can land.
   // Network may legitimately be absent (offline dev, CI sandbox): skip with a
   // warning then, but if the remote answers, the pin must be reachable from
   // its main.
@@ -315,8 +377,8 @@ async function validateOneshotPin(): Promise<void> {
     } catch {
       fail(
         `TOHSENO_PIN ${pin} is not reachable from origin/main (${remoteMain.slice(0, 7)}). ` +
-          "The oneshot clones the public repository, so an unpushed pin breaks every fresh " +
-          "bootstrap. Push the release commit to origin main before bumping the pin or deploying.",
+          "The migration notice must preserve a published trust marker. Push a future CLI " +
+          "release before changing the pin or deploying a thin installer.",
       );
     }
   }

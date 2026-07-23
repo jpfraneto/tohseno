@@ -435,6 +435,10 @@ h1 {
   border: 1px solid rgba(43, 41, 38, .18);
 }
 
+.flow-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .path {
   display: flex;
   min-height: 330px;
@@ -447,6 +451,12 @@ h1 {
   margin-bottom: 14px;
   font-size: clamp(2rem, 3.7vw, 3.2rem);
   font-weight: 300;
+}
+
+.path h3 code {
+  font-family: var(--mono);
+  font-size: .72em;
+  font-weight: 400;
 }
 
 .price {
