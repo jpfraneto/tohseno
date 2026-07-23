@@ -48,25 +48,30 @@ digest as the metadata. The automated installer test proves local installation,
 no-preinstalled-Bun behavior, idempotency, runtime acceptance, and checksum
 rejection without contacting public infrastructure.
 
-## Exact external publishing sequence still required
+## Published release
 
-This repository implementation is **Prepared**, not published. The owner must:
+CLI 0.2.1 is **Implemented** and published from commit
+`07482f48c11a2d3f600c0f22b4ccf38c44fd3699`. Its public tarball is byte-for-byte
+identical to the deterministic local artifact, with SHA-256
+`4cf468983a72b34192b10b2d7241e1e637aa0a522aa44f46ab779698f9c30292`.
+`apps/site/public/install.sh` pins that exact digest.
+
+For the next release:
 
 1. Land the implementation commit containing the CLI and exact factory inputs.
 2. From that exact source, run `bun run check` and `bun run tohseno:release`.
 3. Compare the generated checksum with `CLI_SHA256_DEFAULT` in
    `apps/site/public/install.sh`; if it differs, update it and repeat the gate.
-4. With explicit publishing approval, create GitHub release `cli-v0.2.1` and
-   upload the two unmodified `dist/tohseno-cli-0.2.1.*` files.
+4. With explicit publishing approval, create the versioned GitHub release and
+   upload the two unmodified artifact files.
 5. Download the public tarball, verify its SHA-256, and run the installer in a
    temporary home.
-6. In a follow-up commit, record any required public-release adjustment. Only
-   that later commit may change `TOHSENO_PIN` or turn `/oneshot.sh` into a thin
-   delegator to the already-published CLI.
+6. Only a follow-up commit may change `TOHSENO_PIN` or turn `/oneshot.sh` into
+   a thin delegator to an already-published CLI.
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The prepared `gh` shape, to be reviewed rather than run automatically, is:
+The 0.2.1 publication command was:
 
 ```sh
 gh release create cli-v0.2.1 \
@@ -84,10 +89,10 @@ No package registry publication is required by this design.
 pin and creates nothing. Default invocation prints the canonical installer and
 exits `2`; `--help` exits `0`. It remains `must-revalidate`.
 
-The pin always trails the serving commit by one. The current implementation
-must not bump it because the new CLI artifact has not been published. Shell
-must never regain its own template copier, manifest validator, shot creator, or
-agent launcher.
+The pin always trails the serving commit by one. CLI 0.2.1 is published, but
+this endpoint remains an intentional migration notice and its legacy creator
+pin is unchanged. Shell must never regain its own template copier, manifest
+validator, shot creator, or agent launcher.
 
 Before a site deployment:
 
