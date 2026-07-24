@@ -4,7 +4,10 @@
   font-weight: 400;
   font-display: swap;
   src: url("/fonts/plex-mono-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -52,10 +55,22 @@ body::before {
   z-index: 100;
   inset: 0;
   background-image:
-    radial-gradient(circle at 15% 32%, rgb(255 255 255 / 18%) 0 0.45px, transparent 0.8px),
-    radial-gradient(circle at 72% 68%, rgb(255 255 255 / 12%) 0 0.4px, transparent 0.75px);
-  background-position: 0 0, 3px 4px;
-  background-size: 7px 7px, 11px 11px;
+    radial-gradient(
+      circle at 15% 32%,
+      rgb(255 255 255 / 18%) 0 0.45px,
+      transparent 0.8px
+    ),
+    radial-gradient(
+      circle at 72% 68%,
+      rgb(255 255 255 / 12%) 0 0.4px,
+      transparent 0.75px
+    );
+  background-position:
+    0 0,
+    3px 4px;
+  background-size:
+    7px 7px,
+    11px 11px;
   content: "";
   opacity: 0.16;
   pointer-events: none;
@@ -82,6 +97,7 @@ button {
 img {
   display: block;
   max-width: 100%;
+  height: auto;
 }
 
 h1,
@@ -245,8 +261,18 @@ h3 {
   left: -0.02em;
   height: 0.09em;
   background:
-    linear-gradient(175deg, transparent 0 16%, var(--signal) 18% 61%, transparent 63%),
-    linear-gradient(182deg, transparent 0 40%, var(--signal-soft) 42% 72%, transparent 74%);
+    linear-gradient(
+      175deg,
+      transparent 0 16%,
+      var(--signal) 18% 61%,
+      transparent 63%
+    ),
+    linear-gradient(
+      182deg,
+      transparent 0 40%,
+      var(--signal-soft) 42% 72%,
+      transparent 74%
+    );
   content: "";
   opacity: 0.86;
   transform: rotate(-1.5deg);
@@ -335,7 +361,9 @@ h3 {
   letter-spacing: 0.06em;
   line-height: 1.4;
   text-transform: uppercase;
-  transition: color 140ms linear, background-color 140ms linear;
+  transition:
+    color 140ms linear,
+    background-color 140ms linear;
 }
 
 .copy-button:hover {
@@ -382,6 +410,7 @@ h3 {
 .hero-icon-grid {
   display: grid;
   padding: clamp(0.55rem, 1.2vw, 0.8rem);
+  align-items: start;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(0.45rem, 1vw, 0.75rem);
   border: 1px solid var(--line);
@@ -394,7 +423,9 @@ h3 {
   display: grid;
   aspect-ratio: 1;
   min-width: 0;
+  min-height: 0;
   padding: 0.4rem;
+  align-self: start;
   place-items: center;
   border: 1px solid #39362f;
   background: var(--darkroom);
@@ -402,8 +433,9 @@ h3 {
 
 .hero-icon img {
   width: 100%;
-  aspect-ratio: 1;
-  border-radius: 23%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 22%;
   object-fit: cover;
   transition: transform 180ms ease;
 }
@@ -462,7 +494,12 @@ h3 {
   padding: clamp(7rem, 14vw, 13rem) 0;
   border-top: 1px solid var(--line);
   background:
-    linear-gradient(90deg, transparent calc(100% - 1px), rgb(236 233 223 / 3%) 1px) 0 0 / 4rem 100%,
+    linear-gradient(
+        90deg,
+        transparent calc(100% - 1px),
+        rgb(236 233 223 / 3%) 1px
+      )
+      0 0 / 4rem 100%,
     #0c0b0a;
 }
 
@@ -534,6 +571,7 @@ h3 {
   display: grid;
   margin: 0;
   padding: clamp(0.5rem, 1vw, 0.8rem);
+  align-items: start;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: clamp(0.35rem, 0.7vw, 0.58rem);
   list-style: none;
@@ -543,7 +581,9 @@ h3 {
   position: relative;
   aspect-ratio: 1;
   min-width: 0;
+  min-height: 0;
   padding: clamp(0.25rem, 0.55vw, 0.4rem);
+  align-self: start;
   border: 1px solid #33312c;
   background: var(--darkroom);
 }
@@ -564,11 +604,13 @@ h3 {
 
 .shot-tile img {
   width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
-  border-radius: 23%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 22%;
   object-fit: cover;
-  transition: filter 180ms ease, transform 180ms ease;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
 }
 
 .shot-tile.is-marked::after {
@@ -582,7 +624,8 @@ h3 {
   transform: rotate(-5deg);
 }
 
-.shot-field[data-ready="true"]:not([data-expanded="true"]) .shot-tile:nth-child(n + 41) {
+.shot-field[data-ready="true"]:not([data-expanded="true"])
+  .shot-tile:nth-child(n + 41) {
   display: none;
 }
 
@@ -653,9 +696,10 @@ h3 {
 .icon-constellation img {
   position: absolute;
   width: clamp(6.8rem, 10vw, 9.3rem);
-  aspect-ratio: 1;
+  height: auto;
+  aspect-ratio: 1 / 1;
   border: 0.4rem solid var(--darkroom);
-  border-radius: 25%;
+  border-radius: 22%;
   object-fit: cover;
   box-shadow: 0 1.3rem 2rem rgb(0 0 0 / 32%);
 }
@@ -714,9 +758,19 @@ h3 {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 20% 30%, rgb(17 16 14 / 7%) 0 0.45px, transparent 0.7px),
-    radial-gradient(circle at 70% 80%, rgb(17 16 14 / 5%) 0 0.4px, transparent 0.8px);
-  background-size: 7px 7px, 11px 11px;
+    radial-gradient(
+      circle at 20% 30%,
+      rgb(17 16 14 / 7%) 0 0.45px,
+      transparent 0.7px
+    ),
+    radial-gradient(
+      circle at 70% 80%,
+      rgb(17 16 14 / 5%) 0 0.4px,
+      transparent 0.8px
+    );
+  background-size:
+    7px 7px,
+    11px 11px;
   content: "";
   opacity: 0.28;
   pointer-events: none;
@@ -827,6 +881,7 @@ h3 {
 .proof-grid {
   display: grid;
   padding: clamp(0.7rem, 1.5vw, 1.3rem);
+  align-items: start;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: clamp(0.5rem, 1.1vw, 0.9rem);
   border: 1px solid var(--line);
@@ -837,7 +892,9 @@ h3 {
   position: relative;
   aspect-ratio: 1;
   min-width: 0;
+  min-height: 0;
   padding: clamp(0.35rem, 0.7vw, 0.55rem);
+  align-self: start;
   border: 1px solid #35322c;
   background: var(--darkroom);
 }
@@ -858,9 +915,9 @@ h3 {
 
 .proof-grid img {
   width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
-  border-radius: 23%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 22%;
   object-fit: cover;
 }
 
@@ -1316,7 +1373,8 @@ h3 {
     gap: 0.35rem;
   }
 
-  .shot-field[data-ready="true"]:not([data-expanded="true"]) .shot-tile:nth-child(n + 25) {
+  .shot-field[data-ready="true"]:not([data-expanded="true"])
+    .shot-tile:nth-child(n + 25) {
     display: none;
   }
 

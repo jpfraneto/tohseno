@@ -178,9 +178,45 @@ describe("public pages", () => {
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toMatch(/\.shot-tile\s*\{[^}]*aspect-ratio:\s*1;/s);
-    expect(landingStyle).toMatch(/\.shot-tile img\s*\{[^}]*height:\s*100%;/s);
     expect(landingStyle).toMatch(
       /\.proof-grid > span\s*\{[^}]*aspect-ratio:\s*1;/s,
+    );
+    for (const selector of [
+      String.raw`\.hero-icon`,
+      String.raw`\.shot-tile`,
+      String.raw`\.proof-grid > span`,
+    ]) {
+      expect(landingStyle).toMatch(
+        new RegExp(
+          `${selector}\\s*\\{[^}]*aspect-ratio:\\s*1;[^}]*min-height:\\s*0;[^}]*align-self:\\s*start;`,
+          "s",
+        ),
+      );
+    }
+    for (const selector of [
+      String.raw`\.hero-icon-grid`,
+      String.raw`\.shot-field`,
+      String.raw`\.proof-grid`,
+    ]) {
+      expect(landingStyle).toMatch(
+        new RegExp(`${selector}\\s*\\{[^}]*align-items:\\s*start;`, "s"),
+      );
+    }
+    for (const selector of [
+      String.raw`\.hero-icon img`,
+      String.raw`\.shot-tile img`,
+      String.raw`\.icon-constellation img`,
+      String.raw`\.proof-grid img`,
+    ]) {
+      expect(landingStyle).toMatch(
+        new RegExp(
+          `${selector}\\s*\\{[^}]*height:\\s*auto;[^}]*aspect-ratio:\\s*1\\s*\\/\\s*1;`,
+          "s",
+        ),
+      );
+    }
+    expect(landingStyle).not.toMatch(
+      /\.(?:hero-icon|shot-tile|proof-grid)[^{]*img\s*\{[^}]*height:\s*100%;/s,
     );
   });
 
@@ -233,6 +269,9 @@ describe("public pages", () => {
       const bytes = readFileSync(join(shotIconDirectory, icon));
       expect(bytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
       expect(bytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
+      expect(bytes.subarray(12, 16).toString("ascii")).toBe("VP8 ");
+      expect(bytes.readUInt16LE(26) & 0x3fff).toBe(192);
+      expect(bytes.readUInt16LE(28) & 0x3fff).toBe(192);
       expect(bytes.byteLength).toBeLessThan(32_000);
     }
   });
