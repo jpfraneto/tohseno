@@ -3,7 +3,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -11,13 +10,21 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  MAX_FACTORY_RELEASE_BYTES,
+  MAX_FACTORY_RELEASE_FILE_BYTES,
+  MAX_FACTORY_RELEASE_FILES,
+} from "./constants.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import {
   copyRegularFile,
   makeTreeReadOnly,
+  readBoundedRegularFile,
+  readBoundedJson,
   removeTreeEvenIfReadOnly,
 } from "./files.ts";
 import {
+  canonicalReleasesDirectory,
   releasePathWithinCache,
   verifyReleaseDirectory,
   type FactoryRelease,
@@ -94,7 +101,11 @@ function canonicalRegularFile(
 ): string {
   if (!existsSync(path)) throw integrityError(`${label} is missing`);
   const details = lstatSync(path);
-  if (details.isSymbolicLink() || !details.isFile()) {
+  if (
+    details.isSymbolicLink() ||
+    !details.isFile() ||
+    details.nlink !== 1
+  ) {
     throw integrityError(`${label} must be a regular file`);
   }
   const canonical = realpathSync(path);
@@ -105,7 +116,15 @@ function canonicalRegularFile(
 }
 
 function sha256File(path: string): string {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+  return createHash("sha256")
+    .update(
+      readBoundedRegularFile(
+        path,
+        MAX_FACTORY_RELEASE_FILE_BYTES,
+        "factory release file",
+      ),
+    )
+    .digest("hex");
 }
 
 function digestRecords(records: readonly ReleaseFileRecord[]): string {
@@ -147,7 +166,11 @@ function readEmbeddedRelease(
 ): FactoryRelease {
   let value: unknown;
   try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    value = readBoundedJson<unknown>(
+      path,
+      2 * 1_048_576,
+      "shot-local factory release record",
+    );
   } catch (error) {
     throw integrityError(
       `shot-local factory release record is unreadable: ${errorMessage(error)}`,
@@ -188,9 +211,15 @@ function readEmbeddedRelease(
       "shot-local factory release record has invalid source provenance",
     );
   }
+  if (candidate.files.length > MAX_FACTORY_RELEASE_FILES) {
+    throw integrityError(
+      "shot-local factory release record has too many files",
+    );
+  }
 
   const records: ReleaseFileRecord[] = [];
   const seen = new Set<string>();
+  let totalBytes = 0;
   for (const entry of candidate.files) {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
       throw integrityError(
@@ -207,10 +236,17 @@ function readEmbeddedRelease(
       typeof record.size !== "number" ||
       !Number.isSafeInteger(record.size) ||
       record.size < 0 ||
+      record.size > MAX_FACTORY_RELEASE_FILE_BYTES ||
       typeof record.executable !== "boolean"
     ) {
       throw integrityError(
         "shot-local factory release record has an invalid file inventory",
+      );
+    }
+    totalBytes += record.size;
+    if (totalBytes > MAX_FACTORY_RELEASE_BYTES) {
+      throw integrityError(
+        "shot-local factory release record exceeds the total size limit",
       );
     }
     seen.add(record.path);
@@ -432,8 +468,7 @@ function validatedRelease(
 }
 
 function trustedCacheRoot(releasesDirectory: string): string {
-  const cache = resolve(dirname(resolve(releasesDirectory)));
-  mkdirSync(cache, { recursive: true, mode: 0o700 });
+  const cache = dirname(canonicalReleasesDirectory(releasesDirectory));
   const canonicalCache = canonicalDirectory(
     cache,
     null,

@@ -174,9 +174,12 @@ Uploads first enter a mode-`0700` random directory below the managed local
 Studio home. Internal random filenames replace untrusted path components.
 Count, size, extension, UTF-8, MIME, and image magic-byte checks run before the
 shared factory starts, and staging is removed on success, rejection, or safe
-shutdown. A per-process session token protects mutations; unexpected Host and
-Origin values, non-loopback requests, traversal, symlinks, and cross-site
-requests are rejected.
+shutdown. Studio creates a mode-`0600` temporary launcher whose fragment
+bootstraps an HTTP-only, path-scoped local session and is removed from browser
+history immediately. The reusable credential is absent from the served shell,
+process arguments, and printed base URL. Private reads and mutations both
+require the session; unexpected Host and Origin values, non-loopback requests,
+traversal, symlinks, and cross-site requests are rejected.
 
 Studio intentionally permits one heavy Studio operation at a time across
 create, run, preview, and verify. A conflicting request receives `409`; a
@@ -373,10 +376,9 @@ Simulator and `machine dev stop` controls.
 ### Token operations (optional)
 
 A shot may launch a token under the owner's own [Bankr](https://docs.bankr.bot)
-account. This is an optional distribution and revenue mechanism, not part of
-the core flow: TOHSENO ships no server, holds no keys, and takes no fees.
-Trading fees accrue to the owner's wallet (95% of the 0.7% swap fee; 5% to the
-protocol).
+account. This is an optional external action, not part of the core flow and
+never the reason to build: TOHSENO ships no server, holds no keys, and takes
+no fees.
 
 ```sh
 tohseno machine token status --json
@@ -387,15 +389,16 @@ tohseno machine token fees --json
 `token status` and `token fees` are read-only. `token launch` is an external,
 irreversible financial action on the same side of the approval boundary as
 deployment: in `--json` mode it refuses without `--yes` (exit `2`) and the
-refusal carries the full economics summary — 100B fixed supply, 85% pool / 15%
-creator vesting over one year with a 30-day cliff — plus the exact rerun
-command, so the confirmation always lands with the human. One token per shot;
-a second launch is refused.
+refusal identifies the exact name, symbol, chain, and fee recipient and states
+that the action is permanent. Provider economics and limits can change;
+TOHSENO deliberately does not quote or guarantee them. Review Bankr's current
+terms before approving. One token per shot; a second launch is refused.
 
-The only new human ritual is a one-time `npx @bankr/cli login email` per
-machine. Credentials live in `~/.bankr/config.json` or `BANKR_API_KEY` and
-never enter the shot repository, manifest, logs, or factory releases; a
-missing CLI or missing credentials is exit `3` with that exact one-liner. On
+Install Bankr explicitly with `npm install -g @bankr/cli`, then authenticate
+with `bankr login`. TOHSENO never falls back to `npx` for a financial action.
+Credentials live in `~/.bankr/config.json` or `BANKR_API_KEY` and never enter
+the shot repository, manifest, logs, or factory releases. Before broadcast,
+TOHSENO requires Bankr's non-broadcasting `--simulate` path to succeed. On
 success the token record (address, chain, tx hash) becomes a fact in
 `continuity.manifest.json`. Fee claiming afterwards is the owner's business
 with `bankr fees`, outside TOHSENO's scope.
@@ -411,6 +414,11 @@ Verification runs the shot’s pinned validator. A new shot checks manifest
 truth, required structure, independent Git ownership, local provenance,
 production endpoint safety, external symlinks, tracked private files, and
 Git-ignore coverage for data, logs, runtime state, and generated endpoints.
+It also scans the bounded public worktree for exact reference bytes and exact
+or embedded private intention content. Creation invokes this gate after every
+coding-agent exit, including failure. A failed gate moves the result to an
+explicitly unsafe hidden sibling path instead of presenting the canonical shot
+as ready.
 
 Production inspection is read-only. It reports:
 

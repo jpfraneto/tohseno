@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
   mkdirSync,
-  readFileSync,
+  openSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -75,9 +82,63 @@ function hostFor(environment: Record<string, string | undefined>, explicit?: str
   return hostname;
 }
 
+function readBoundedJson(path: string, maximumBytes: number): unknown {
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = fstatSync(descriptor);
+    const current = lstatSync(path);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino ||
+      opened.size > maximumBytes
+    ) {
+      throw new Error("unsafe JSON file");
+    }
+    const chunks: Buffer[] = [];
+    const buffer = Buffer.allocUnsafe(65_536);
+    let total = 0;
+    while (true) {
+      const length = readSync(descriptor, buffer, 0, buffer.length, null);
+      if (length === 0) break;
+      total += length;
+      if (total > maximumBytes) throw new Error("JSON file grew past its limit");
+      chunks.push(Buffer.from(buffer.subarray(0, length)));
+    }
+    const source = new TextDecoder("utf-8", { fatal: true }).decode(
+      Buffer.concat(chunks, total),
+    );
+    return JSON.parse(source) as unknown;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function readShotMetadata(root: string): ShotMetadata {
   try {
-    return JSON.parse(readFileSync(join(root, ".tohseno", "shot.json"), "utf8")) as ShotMetadata;
+    const value = readBoundedJson(
+      join(root, ".tohseno", "shot.json"),
+      65_536,
+    ) as ShotMetadata;
+    if (
+      typeof value.slug !== "string" ||
+      !/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,62}$/u.test(value.slug) ||
+      value.platform !== "ios" ||
+      typeof value.factory !== "object" ||
+      value.factory === null ||
+      typeof value.factory.releaseId !== "string" ||
+      !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+        .test(value.factory.releaseId) ||
+      typeof value.factory.templateVersion !== "string" ||
+      !/^[a-z0-9][a-z0-9.-]{0,127}$/u.test(value.factory.templateVersion)
+    ) {
+      return {};
+    }
+    return value;
   } catch {
     return {};
   }
@@ -86,8 +147,28 @@ function readShotMetadata(root: string): ShotMetadata {
 function atomicJson(path: string, value: unknown): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.writing-${process.pid}-${randomUUID()}`;
-  writeFileSync(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600 });
-  renameSync(temporary, path);
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(
+      temporary,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_NOFOLLOW,
+      0o600,
+    );
+    writeFileSync(descriptor, `${JSON.stringify(value)}\n`, {
+      encoding: "utf8",
+    });
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporary, path);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    rmSync(temporary, { force: true });
+  }
 }
 
 function responseJson(value: unknown, status = 200): Response {
@@ -105,11 +186,20 @@ export async function startShotApi(options: ShotApiOptions = {}): Promise<Runnin
   const root = runtimeRoot(options.root ?? environment.TOHSENO_SHOT_ROOT ?? resolve(import.meta.dir, ".."));
   const hostname = hostFor(environment, options.hostname);
   const port = options.port ?? asPort(environment.TOHSENO_API_PORT);
+  if (!Number.isSafeInteger(port) || port < 0 || port > 65_535) {
+    throw new Error("API port must be a number from 0 to 65535");
+  }
   const readyFile = options.readyFile ?? environment.TOHSENO_API_READY_FILE;
   const stopRequestFile = options.stopRequestFile ?? environment.TOHSENO_STOP_REQUEST_FILE;
   const instanceId = options.instanceId ?? environment.TOHSENO_INSTANCE_ID ?? "standalone";
+  if (!/^[A-Za-z0-9_-]{1,128}$/u.test(instanceId)) {
+    throw new Error("TOHSENO instance id is invalid");
+  }
   const log = options.log ?? ((record: Record<string, unknown>) => console.log(JSON.stringify(record)));
-  const initialized = initializeDatabase(databasePathFor(root, environment));
+  const initialized = initializeDatabase(
+    databasePathFor(root, environment),
+    environment.NODE_ENV === "production" ? {} : { boundary: root },
+  );
   const metadata = readShotMetadata(root);
   const startedAt = new Date().toISOString();
 
@@ -118,10 +208,12 @@ export async function startShotApi(options: ShotApiOptions = {}): Promise<Runnin
     server = Bun.serve({
       hostname,
       port,
+      maxRequestBodySize: 1_024,
       async fetch(request) {
         const requestStarted = performance.now();
         const pathname = new URL(request.url).pathname;
         const route = pathname === "/health" || pathname === "/ready" ? pathname : "unmatched";
+        const method = request.method === "GET" ? "GET" : "OTHER";
         let status = 404;
         try {
           if (request.method === "GET" && (pathname === "/health" || pathname === "/ready")) {
@@ -132,7 +224,6 @@ export async function startShotApi(options: ShotApiOptions = {}): Promise<Runnin
               ready: true,
               service: "shot-api",
               shot: {
-                slug: typeof metadata.slug === "string" ? metadata.slug : "unknown",
                 platform: typeof metadata.platform === "string" ? metadata.platform : "ios",
               },
               build: {
@@ -159,7 +250,7 @@ export async function startShotApi(options: ShotApiOptions = {}): Promise<Runnin
         } finally {
           log({
             event: "request",
-            method: request.method,
+            method,
             route,
             status,
             durationMs: Math.round((performance.now() - requestStarted) * 100) / 100,
@@ -213,7 +304,13 @@ export async function startShotApi(options: ShotApiOptions = {}): Promise<Runnin
     stopRequestTimer = setInterval(() => {
       if (!existsSync(stopRequestFile)) return;
       try {
-        const request = JSON.parse(readFileSync(stopRequestFile, "utf8")) as {
+        const details = lstatSync(stopRequestFile);
+        if (
+          details.isSymbolicLink() ||
+          !details.isFile() ||
+          details.size > 4_096
+        ) return;
+        const request = readBoundedJson(stopRequestFile, 4_096) as {
           schemaVersion?: unknown;
           instanceId?: unknown;
         };
@@ -247,7 +344,6 @@ if (import.meta.main) {
       event: "startup_failed",
       service: "shot-api",
       errorType: error instanceof Error ? error.constructor.name : "Unknown",
-      message: error instanceof Error ? error.message : "unknown startup failure",
     }));
     process.exit(1);
   }

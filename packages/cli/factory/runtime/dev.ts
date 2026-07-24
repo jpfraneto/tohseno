@@ -1,30 +1,31 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import {
   accessSync,
-  appendFileSync,
   closeSync,
   constants as fsConstants,
   existsSync,
   mkdirSync,
-  openSync,
-  readFileSync,
   realpathSync,
   rmSync,
   statSync,
 } from "node:fs";
-import { basename, delimiter, join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import {
   atomicJson,
   atomicWrite,
+  appendStructuredLog,
+  capRuntimeLog,
   delay,
   encodeXcconfigUrl,
   ensureRuntimeDirectories,
   isOwnedProcess,
   isProcessAlive,
   MachineError,
+  openRuntimeLog,
   parseQuickTunnelUrl,
   publicErrorMessage,
   readDevelopmentState,
+  readLogSince,
   readJson,
   runtimePaths,
   safeEnvironment,
@@ -167,7 +168,28 @@ async function health(url: string): Promise<boolean> {
       signal: AbortSignal.timeout(1_500),
     });
     if (!response.ok) return false;
-    const value = await response.json() as { status?: unknown; ready?: unknown; service?: unknown };
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > 65_536) {
+      await response.body?.cancel();
+      return false;
+    }
+    if (response.body === null) return false;
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      bytes += next.value.byteLength;
+      if (bytes > 65_536) {
+        await reader.cancel();
+        return false;
+      }
+      chunks.push(next.value);
+    }
+    const value = JSON.parse(
+      Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8"),
+    ) as { status?: unknown; ready?: unknown; service?: unknown };
     return value.status === "ok" && value.ready === true && value.service === "shot-api";
   } catch {
     return false;
@@ -326,14 +348,38 @@ function removeLockForInstance(paths: RuntimePaths, instanceId: string): void {
 }
 
 function startLockProcess(lock: StartLock): OwnedProcess | null {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
   if (
-    typeof lock.pid !== "number" ||
+    lock.schemaVersion !== 1 ||
+    !Number.isSafeInteger(lock.pid) ||
+    (lock.pid as number) <= 0 ||
     !Array.isArray(lock.commandContains) ||
-    lock.commandContains.length === 0 ||
-    !lock.commandContains.every((fragment) => typeof fragment === "string" && fragment !== "")
+    !lock.commandContains.every((fragment) =>
+      typeof fragment === "string" &&
+      fragment !== "" &&
+      fragment.length <= 4_096 &&
+      !/[\u0000\r\n]/u.test(fragment)
+    )
   ) return null;
+  const initial =
+    lock.instanceId === undefined &&
+    lock.commandContains.length === 3 &&
+    typeof lock.commandContains[0] === "string" &&
+    lock.commandContains[0].endsWith("machine.ts") &&
+    lock.commandContains[1] === "dev" &&
+    lock.commandContains[2] === "start";
+  const supervising =
+    typeof lock.instanceId === "string" &&
+    uuid.test(lock.instanceId) &&
+    lock.commandContains.length === 4 &&
+    typeof lock.commandContains[0] === "string" &&
+    lock.commandContains[0].endsWith("machine.ts") &&
+    lock.commandContains[1] === "__supervise" &&
+    lock.commandContains[2] === "--instance" &&
+    lock.commandContains[3] === lock.instanceId;
+  if (!initial && !supervising) return null;
   return {
-    pid: lock.pid,
+    pid: lock.pid as number,
     role: "supervisor",
     commandContains: lock.commandContains as string[],
   };
@@ -403,10 +449,6 @@ async function acquireStartLock(
   }
 }
 
-function appendLog(path: string, record: Record<string, unknown>): void {
-  appendFileSync(path, `${JSON.stringify({ at: new Date().toISOString(), ...record })}\n`, { mode: 0o600 });
-}
-
 function writeStopRequest(paths: RuntimePaths, instanceId: string): void {
   atomicJson(paths.stopRequest, {
     schemaVersion: 1,
@@ -418,10 +460,10 @@ function writeStopRequest(paths: RuntimePaths, instanceId: string): void {
 function stopRequested(paths: RuntimePaths, instanceId: string): boolean {
   if (!existsSync(paths.stopRequest)) return false;
   try {
-    const request = JSON.parse(readFileSync(paths.stopRequest, "utf8")) as {
+    const request = readJson<{
       schemaVersion?: unknown;
       instanceId?: unknown;
-    };
+    }>(paths.stopRequest, 4_096);
     return request.schemaVersion === 1 && request.instanceId === instanceId;
   } catch {
     return false;
@@ -476,10 +518,15 @@ export async function startDevelopment(
   if (options.tunnel && options.cloudflaredPath) {
     arguments_.push("--cloudflared", options.cloudflaredPath);
   }
-  const logDescriptor = openSync(paths.supervisorLog, "a", 0o600);
+  const logDescriptor = openRuntimeLog(paths.supervisorLog);
   let child: ChildProcess;
   try {
-    appendLog(paths.supervisorLog, { event: "supervisor_start_requested", instanceId, tunnel: options.tunnel });
+    appendStructuredLog(paths.supervisorLog, {
+      event: "supervisor_start_requested",
+      instanceId,
+      tunnel: options.tunnel,
+    });
+    capRuntimeLog(paths.supervisorLog);
     child = spawn(process.execPath, arguments_, {
       cwd: root,
       env: safeEnvironment(),
@@ -607,13 +654,35 @@ async function waitForTunnel(
       throw new MachineError("UNHEALTHY_SERVICES", "cloudflared exited before publishing a Quick Tunnel URL");
     }
     if (existsSync(paths.tunnelLog)) {
-      const source = readFileSync(paths.tunnelLog, "utf8").slice(offset);
+      const source = readLogSince(paths.tunnelLog, offset);
       const url = parseQuickTunnelUrl(source);
       if (url) return url;
     }
     await delay(50);
   }
   throw new MachineError("UNHEALTHY_SERVICES", `cloudflared did not publish a Quick Tunnel URL within ${timeoutMs}ms`);
+}
+
+async function monitorRuntimeLogs(
+  paths: RuntimePaths,
+  active: () => boolean,
+): Promise<{ role: "log-monitor"; signal: null }> {
+  const logs = [
+    paths.apiLog,
+    paths.tunnelLog,
+    paths.supervisorLog,
+    paths.iosLog,
+    paths.tokenLog,
+  ];
+  while (active()) {
+    try {
+      for (const log of logs) capRuntimeLog(log);
+    } catch {
+      return { role: "log-monitor", signal: null };
+    }
+    await delay(250);
+  }
+  return new Promise(() => undefined);
 }
 
 async function stopChild(child: ChildProcess | undefined): Promise<void> {
@@ -645,10 +714,10 @@ async function waitForStopRequest(
   while (active()) {
     if (existsSync(paths.stopRequest)) {
       try {
-        const request = JSON.parse(readFileSync(paths.stopRequest, "utf8")) as {
+        const request = readJson<{
           schemaVersion?: unknown;
           instanceId?: unknown;
-        };
+        }>(paths.stopRequest, 4_096);
         if (request.schemaVersion === 1 && request.instanceId === instanceId) {
           return { role: "stop-request", signal: null };
         }
@@ -666,11 +735,13 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
   ensureRuntimeDirectories(paths);
   let api: ChildProcess | undefined;
   let tunnel: ChildProcess | undefined;
+  let monitorLogs = true;
+  const logMonitor = monitorRuntimeLogs(paths, () => monitorLogs);
   const startedAt = new Date().toISOString();
   try {
     rmSync(paths.apiReady, { force: true });
     rmSync(paths.endpoint, { force: true });
-    const apiLog = openSync(paths.apiLog, "a", 0o600);
+    const apiLog = openRuntimeLog(paths.apiLog);
     try {
       const environment = {
         ...safeEnvironment(),
@@ -707,16 +778,19 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
 
     let tunnelUrl: string | null = null;
     if (options.cloudflaredPath) {
-      appendLog(paths.tunnelLog, { event: "quick_tunnel_start", instanceId: options.instanceId, developmentOnly: true });
+      appendStructuredLog(paths.tunnelLog, {
+        event: "quick_tunnel_start",
+        instanceId: options.instanceId,
+        developmentOnly: true,
+      });
       const offset = statSync(paths.tunnelLog).size;
-      const tunnelLog = openSync(paths.tunnelLog, "a", 0o600);
+      const tunnelLog = openRuntimeLog(paths.tunnelLog);
       try {
         tunnel = spawn(options.cloudflaredPath, [
           "tunnel",
           "--url", ready.origin,
           "--no-autoupdate",
           "--loglevel", "info",
-          "--logfile", paths.tunnelLog,
         ], {
           cwd: options.root,
           env: safeEnvironment(),
@@ -750,7 +824,12 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
       ? {
         pid: tunnel.pid,
         role: "tunnel",
-        commandContains: [basename(options.cloudflaredPath), "tunnel", ready.origin, paths.tunnelLog],
+        commandContains: [
+          options.cloudflaredPath,
+          "tunnel",
+          ready.origin,
+          "--no-autoupdate",
+        ],
         url: tunnelUrl,
         log: paths.tunnelLog,
         developmentOnly: true,
@@ -793,6 +872,7 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
       childExit(api, "api"),
       signal,
       waitForStopRequest(paths, options.instanceId, () => monitoring),
+      logMonitor,
     ];
     if (tunnel) waits.push(childExit(tunnel, "tunnel"));
     const event = await Promise.race(waits);
@@ -836,8 +916,13 @@ export async function runSupervisor(options: SupervisorOptions): Promise<number>
         message: publicErrorMessage(error),
       },
     });
-    appendLog(paths.supervisorLog, { event: "startup_failed", errorType: error instanceof Error ? error.constructor.name : "Unknown" });
+    appendStructuredLog(paths.supervisorLog, {
+      event: "startup_failed",
+      errorType: error instanceof Error ? error.constructor.name : "Unknown",
+    });
     return error instanceof MachineError ? error.exitCode : 4;
+  } finally {
+    monitorLogs = false;
   }
 }
 
@@ -856,27 +941,11 @@ export async function stopDevelopment(root: string): Promise<{
     while (Date.now() <= deadline) {
       try {
         const lock = readJson<StartLock>(paths.lockMetadata);
-        if (
-          typeof lock.pid === "number" &&
-          typeof lock.instanceId === "string"
-        ) {
-          const commandContains =
-            Array.isArray(lock.commandContains) &&
-            lock.commandContains.every((value) => typeof value === "string")
-              ? lock.commandContains
-              : [
-                  join(paths.local, "machine.ts"),
-                  "__supervise",
-                  "--instance",
-                  lock.instanceId,
-                ];
+        const owner = startLockProcess(lock);
+        if (owner && typeof lock.instanceId === "string") {
           starting = {
             instanceId: lock.instanceId,
-            supervisor: {
-              pid: lock.pid,
-              role: "supervisor",
-              commandContains,
-            },
+            supervisor: owner,
           };
           break;
         }

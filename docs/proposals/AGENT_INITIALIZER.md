@@ -11,11 +11,13 @@
   Codex/Claude Code adapters, immutable cached releases, and local linking.
 - Status: **Prepared** for later package-registry distribution; package metadata
   exists, but no package was published.
-- Status: **Implemented** in-repository as a non-mutating web migration; public
-  deployment is **Prepared**. The old `oneshot.sh` creator remains retired until
-  a public pin contains the CLI.
-- **Prepared:** the checksum-pinned managed installer and CLI source artifact;
-  external publication and site deployment have not occurred.
+- Status: **Implemented** and deployed as a non-mutating web migration. The old
+  `oneshot.sh` creator remains retired; its future thin-installer pin follows
+  the repository's two-commit release rule.
+- **Implemented:** the checksum-pinned managed installer, the published 0.3.0
+  CLI source artifact, and the stateless public site.
+- **Prepared:** the 0.3.1 security release until its owner-approved publication
+  and follow-up installer activation complete.
 - **Proposed:** future platform adapters and production deployment cells.
 - **Open:** release-signing and external-publication ownership.
 - Does not implement: Android, web, backend deployment, secrets management,

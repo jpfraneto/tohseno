@@ -36,7 +36,7 @@ struct Identity: Equatable {
     /// salt "mnemonic"), taking the first 32 bytes as the Curve25519 key.
     static func from(mnemonic: [String]) throws -> Identity {
         try BIP39.entropy(fromMnemonic: mnemonic)
-        let seed = pbkdf2SHA512(
+        let seed = try pbkdf2SHA512(
             password: mnemonic.joined(separator: " "),
             salt: "mnemonic",
             rounds: 2048,
@@ -46,12 +46,21 @@ struct Identity: Equatable {
         return Identity(mnemonic: mnemonic, signingKey: key)
     }
 
-    private static func pbkdf2SHA512(password: String, salt: String, rounds: UInt32, length: Int) -> Data {
+    private enum DerivationError: Error {
+        case failed(Int32)
+    }
+
+    private static func pbkdf2SHA512(
+        password: String,
+        salt: String,
+        rounds: UInt32,
+        length: Int
+    ) throws -> Data {
         let passwordBytes = Array(password.decomposedStringWithCompatibilityMapping.utf8)
         let saltBytes = Array(salt.decomposedStringWithCompatibilityMapping.utf8)
         var derived = [UInt8](repeating: 0, count: length)
-        passwordBytes.withUnsafeBufferPointer { passwordBuffer in
-            _ = CCKeyDerivationPBKDF(
+        let status = passwordBytes.withUnsafeBufferPointer { passwordBuffer in
+            CCKeyDerivationPBKDF(
                 CCPBKDFAlgorithm(kCCPBKDF2),
                 passwordBuffer.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: Int8.self) },
                 passwordBytes.count,
@@ -63,19 +72,27 @@ struct Identity: Equatable {
                 length
             )
         }
+        guard status == kCCSuccess else {
+            throw DerivationError.failed(status)
+        }
         return Data(derived)
     }
 }
 
 /// Where the mnemonic lives. The app uses the keychain; tests use memory.
 protocol SecretStore {
-    func readMnemonic() -> [String]?
+    func readMnemonic() throws -> [String]?
     func writeMnemonic(_ words: [String]) throws
+}
+
+enum IdentityAccessState: Equatable {
+    case unavailable
 }
 
 /// Loads the identity, silently creating one on first launch.
 final class IdentityManager: ObservableObject {
     @Published private(set) var identity: Identity?
+    @Published private(set) var accessState: IdentityAccessState?
 
     private let store: SecretStore
 
@@ -90,14 +107,22 @@ final class IdentityManager: ObservableObject {
     /// iCloud Keychain from another device (or surviving a reinstall) is
     /// adopted silently. Generating first would shadow it.
     func loadOrCreate() {
-        if let words = store.readMnemonic(), let existing = try? Identity.from(mnemonic: words) {
-            identity = existing
-            return
+        do {
+            if let words = try store.readMnemonic() {
+                identity = try Identity.from(mnemonic: words)
+                accessState = nil
+                return
+            }
+            let words = try BIP39.generateMnemonic()
+            let created = try Identity.from(mnemonic: words)
+            try store.writeMnemonic(words)
+            identity = created
+            accessState = nil
+        } catch {
+            // A read error is not the same as a missing item. Never shadow a
+            // temporarily inaccessible or malformed identity with a new one.
+            accessState = .unavailable
         }
-        guard let words = try? BIP39.generateMnemonic(),
-              let created = try? Identity.from(mnemonic: words) else { return }
-        try? store.writeMnemonic(words)
-        identity = created
     }
 
     /// Replaces the identity with one restored from a phrase, overwriting
@@ -108,6 +133,7 @@ final class IdentityManager: ObservableObject {
         let restored = try Identity.from(mnemonic: words)
         try store.writeMnemonic(words)
         identity = restored
+        accessState = nil
     }
 }
 
@@ -116,9 +142,9 @@ final class IdentityManager: ObservableObject {
 /// ordering logic above it (adopt-before-generate, legacy migration,
 /// restore-overwrites-sync) is unit-testable with a fake keychain.
 protocol SeedPhraseKeychain {
-    func read(synchronizable: Bool) -> Data?
+    func read(synchronizable: Bool) throws -> Data?
     func write(_ data: Data, synchronizable: Bool) throws
-    func delete(synchronizable: Bool)
+    func delete(synchronizable: Bool) throws
 }
 
 /// Keychain-backed secret store. The item is synchronizable: it follows the
@@ -132,38 +158,56 @@ struct KeychainSecretStore: SecretStore {
         self.keychain = keychain
     }
 
-    func readMnemonic() -> [String]? {
-        if let data = keychain.read(synchronizable: true) {
-            return mnemonic(from: data)
+    enum StoreError: Error {
+        case malformedItem
+    }
+
+    func readMnemonic() throws -> [String]? {
+        if let data = try keychain.read(synchronizable: true) {
+            return try mnemonic(from: data)
         }
         // One-time migration: a legacy device-only item is rewritten as
         // synchronizable so it starts following the person's iCloud Keychain.
-        if let legacy = keychain.read(synchronizable: false) {
-            if (try? keychain.write(legacy, synchronizable: true)) != nil {
-                keychain.delete(synchronizable: false)
+        if let legacy = try keychain.read(synchronizable: false) {
+            let words = try mnemonic(from: legacy)
+            do {
+                try keychain.write(legacy, synchronizable: true)
+                try? keychain.delete(synchronizable: false)
+            } catch {
+                // The legacy item remains canonical and readable. Migration
+                // can retry later without making identity availability depend
+                // on iCloud Keychain accepting a new item in this launch.
             }
-            return mnemonic(from: legacy)
+            return words
         }
         return nil
     }
 
     func writeMnemonic(_ words: [String]) throws {
+        try BIP39.entropy(fromMnemonic: words)
         let data = Data(words.joined(separator: " ").utf8)
-        keychain.delete(synchronizable: true)
-        keychain.delete(synchronizable: false)
         try keychain.write(data, synchronizable: true)
+        // Delete the obsolete slot only after the synchronizable item is
+        // durable. Cleanup failure leaves a harmless fallback, not data loss.
+        try? keychain.delete(synchronizable: false)
     }
 
-    private func mnemonic(from data: Data) -> [String]? {
-        String(data: data, encoding: .utf8).map { BIP39.normalize($0) }
+    private func mnemonic(from data: Data) throws -> [String] {
+        guard let phrase = String(data: data, encoding: .utf8) else {
+            throw StoreError.malformedItem
+        }
+        return BIP39.normalize(phrase)
     }
 }
 
-/// The real keychain. Items are available after first unlock and marked
+/// The real keychain. Items are available only while unlocked and marked
 /// synchronizable; keychain sync needs no entitlements or iCloud capability.
 struct SystemSeedPhraseKeychain: SeedPhraseKeychain {
     enum KeychainError: Error {
+        case readFailed(OSStatus)
+        case invalidReadResult
         case writeFailed(OSStatus)
+        case deleteFailed(OSStatus)
     }
 
     private var service: String {
@@ -180,24 +224,48 @@ struct SystemSeedPhraseKeychain: SeedPhraseKeychain {
         ]
     }
 
-    func read(synchronizable: Bool) -> Data? {
+    func read(synchronizable: Bool) throws -> Data? {
         var query = baseQuery(synchronizable: synchronizable)
         query[kSecReturnData as String] = true
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
-        return result as? Data
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw KeychainError.readFailed(status)
+        }
+        guard let data = result as? Data else {
+            throw KeychainError.invalidReadResult
+        }
+        return data
     }
 
     func write(_ data: Data, synchronizable: Bool) throws {
-        var attributes = baseQuery(synchronizable: synchronizable)
-        attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        let status = SecItemAdd(attributes as CFDictionary, nil)
-        guard status == errSecSuccess else { throw KeychainError.writeFailed(status) }
+        let query = baseQuery(synchronizable: synchronizable)
+        let update: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked,
+        ]
+        var status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        if status == errSecItemNotFound {
+            var attributes = query
+            update.forEach { attributes[$0.key] = $0.value }
+            status = SecItemAdd(attributes as CFDictionary, nil)
+            // A concurrent writer can win between update and add. Updating the
+            // now-existing item still provides deterministic replace semantics.
+            if status == errSecDuplicateItem {
+                status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+            }
+        }
+        guard status == errSecSuccess else {
+            throw KeychainError.writeFailed(status)
+        }
     }
 
-    func delete(synchronizable: Bool) {
-        SecItemDelete(baseQuery(synchronizable: synchronizable) as CFDictionary)
+    func delete(synchronizable: Bool) throws {
+        let status = SecItemDelete(baseQuery(synchronizable: synchronizable) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed(status)
+        }
     }
 }
 
@@ -205,6 +273,6 @@ struct SystemSeedPhraseKeychain: SeedPhraseKeychain {
 final class InMemorySecretStore: SecretStore {
     private var words: [String]?
 
-    func readMnemonic() -> [String]? { words }
+    func readMnemonic() throws -> [String]? { words }
     func writeMnemonic(_ words: [String]) throws { self.words = words }
 }

@@ -5,7 +5,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -21,7 +20,11 @@ import {
 import type { ResolvedConfig } from "./config.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import type { CliIo } from "./io.ts";
-import { listRegularFiles } from "./files.ts";
+import {
+  listRegularFiles,
+  readBoundedRegularFile,
+  readBoundedUtf8,
+} from "./files.ts";
 import { runCaptured, runInherited } from "./process.ts";
 import {
   normalizeCreationInput,
@@ -57,7 +60,7 @@ export const AUTOMATED_AGENT_INSTRUCTION = [
   "Read the local AGENTS.md, skills/continuity-app/SKILL.md, and .tohseno/OPERATIONS.md.",
   "The owner's private normalized creation input is in .tohseno/provenance/intention.md and any reference images are in .tohseno/provenance/references/.",
   "Build the requested continuity app completely from that input, choosing sensible defaults without asking questions.",
-  "Never quote, log, transmit, or commit the private creation input or its references.",
+  "Use the private creation input only in this selected coding-agent session; never quote it in output, log it, commit it, or send it to any other destination.",
   "Run the shot's required verification and simulator checks when available.",
   "Do not deploy, publish, spend money, alter DNS, submit to an app store, or perform another externally consequential action.",
 ].join(" ");
@@ -316,7 +319,13 @@ function privateCreationSnapshot(shotRoot: string): string {
     const fileDetails = lstatSync(file.absolutePath);
     hash.update(file.relativePath);
     hash.update("\0");
-    hash.update(readFileSync(file.absolutePath));
+    hash.update(
+      readBoundedRegularFile(
+        file.absolutePath,
+        12 * 1_048_576,
+        "private creation provenance input",
+      ),
+    );
     hash.update("\0");
     hash.update(String(fileDetails.mode & 0o777));
     hash.update("\0");
@@ -354,13 +363,15 @@ function captureProtectedCreationState(
   input: NormalizedCreationInput,
 ): ProtectedCreationState {
   return {
-    metadataSource: readFileSync(
+    metadataSource: readBoundedUtf8(
       join(shotRoot, ".tohseno", "shot.json"),
-      "utf8",
+      65_536,
+      "shot metadata",
     ),
-    provenanceSource: readFileSync(
+    provenanceSource: readBoundedUtf8(
       join(shotRoot, ".tohseno", "provenance", "provenance.json"),
-      "utf8",
+      1_048_576,
+      "private creation provenance record",
     ),
     input,
   };
@@ -453,6 +464,39 @@ function isolateUnsafePublishedShot(options: {
   );
   renameSync(canonicalShot, isolated);
   return isolated;
+}
+
+async function verifyAgentResultOrIsolate(options: {
+  shotRoot: string;
+  shotsDirectory: string;
+  slug: string;
+  jobId: string;
+  environment: Record<string, string | undefined>;
+  release: PreparedRelease;
+}): Promise<void> {
+  try {
+    await verifyPublishedShot(
+      options.shotRoot,
+      options.environment,
+      options.release,
+    );
+  } catch (verificationError) {
+    let isolated: string;
+    try {
+      isolated = isolateUnsafePublishedShot(options);
+    } catch (isolationError) {
+      throw new CliError(
+        `post-agent verification failed and the unsafe shot could not be isolated: ${
+          errorMessage(verificationError)
+        }; ${errorMessage(isolationError)}`,
+      );
+    }
+    throw new CliError(
+      `post-agent verification failed; the unsafe shot was isolated at ${isolated}: ${
+        errorMessage(verificationError)
+      }`,
+    );
+  }
 }
 
 function enforceProtectedCreationState(options: {
@@ -656,6 +700,7 @@ export async function createShot(
   let release: PreparedRelease | null = null;
   let screenshotPath: string | null = null;
   let previewAvailable = false;
+  let verifiedAfterAgent = false;
   await reporter.emit({ type: "allocated", slug, sequence });
   try {
     throwIfAborted(request.signal);
@@ -721,9 +766,21 @@ export async function createShot(
           state: protectedCreation,
         });
       }
+      if (verifyAfterAgent) {
+        await reporter.emit({ type: "verifying", slug, sequence });
+        await verifyAgentResultOrIsolate({
+          shotRoot: created.path,
+          shotsDirectory,
+          slug,
+          jobId,
+          environment: request.environment,
+          release,
+        });
+        verifiedAfterAgent = true;
+      }
       if (exitCode !== 0) {
         throw new CliError(
-          `${request.agent.label} exited with status ${exitCode}; the validated shot remains at ${created.path}`,
+          `${request.agent.label} exited with status ${exitCode}; the verified local shot remains at ${created.path}`,
           exitCode,
         );
       }
@@ -731,7 +788,7 @@ export async function createShot(
     }
 
     throwIfAborted(request.signal);
-    if (verifyAfterAgent) {
+    if (verifyAfterAgent && !verifiedAfterAgent) {
       await reporter.emit({ type: "verifying", slug, sequence });
       await verifyPublishedShot(created.path, request.environment, release);
     }
@@ -780,7 +837,7 @@ export async function createShot(
         sequence,
         message: interrupted
           ? "Creation stopped safely."
-          : errorMessage(error),
+          : "Creation failed. Immediate command diagnostics were not retained in the progress journal.",
       });
     } finally {
       try {

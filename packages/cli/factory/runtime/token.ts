@@ -1,10 +1,17 @@
-import { accessSync, appendFileSync, constants as fsConstants, existsSync, readFileSync, statSync } from "node:fs";
+import {
+  accessSync,
+  constants as fsConstants,
+  existsSync,
+  statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import {
   atomicWrite,
+  appendStructuredLog,
   ensureRuntimeDirectories,
   MachineError,
+  readBoundedUtf8,
   runCaptured,
   runtimePaths,
   safeEnvironment,
@@ -33,9 +40,11 @@ export interface TokenLaunchOptions {
   json: boolean;
 }
 
-const LOGIN_HINT = "npx @bankr/cli login email";
-const RATE_LIMIT_HINT =
-  "Bankr limits: one launch per minute per wallet, 50 per day; gas is sponsored for the first 3 launches per day";
+const INSTALL_HINT = "npm install -g @bankr/cli";
+const LOGIN_HINT = "bankr login";
+const PROVIDER_TERMS_HINT =
+  "Review Bankr's current launch terms and limits at https://docs.bankr.bot/token-launching/overview/";
+const MAX_MANIFEST_BYTES = 1_048_576;
 
 function executable(name: string, pathValue = process.env.PATH ?? ""): string | null {
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -52,10 +61,7 @@ function executable(name: string, pathValue = process.env.PATH ?? ""): string | 
 
 function bankrCommand(): string[] | null {
   const bankr = executable("bankr");
-  if (bankr) return [bankr];
-  const npx = executable("npx");
-  if (npx) return [npx, "@bankr/cli"];
-  return null;
+  return bankr ? [bankr] : null;
 }
 
 function bankrAuthenticated(): boolean {
@@ -67,7 +73,7 @@ function manifestToken(root: string): { raw: string; manifest: Record<string, un
   const path = join(root, "continuity.manifest.json");
   let raw: string;
   try {
-    raw = readFileSync(path, "utf8");
+    raw = readBoundedUtf8(path, MAX_MANIFEST_BYTES, "continuity.manifest.json");
   } catch (error) {
     throw new MachineError(
       "INVALID_CONFIGURATION",
@@ -110,9 +116,9 @@ export function launchSummary(options: TokenLaunchOptions): string {
   return [
     `Token launch: ${options.name} (${options.symbol}) on ${options.chain}`,
     `Fee recipient: ${options.feeRecipient ?? "your Bankr wallet (default)"}`,
-    "Fixed economics: 100B supply; 85% liquidity pool, 15% creator vesting over 1 year with a 30-day cliff; 0.7% swap fee split 95% creator / 5% protocol.",
-    "IRREVERSIBLE: the launch is a permanent on-chain action under your own Bankr account. The vesting recipient is locked forever; the fee beneficiary can only ever be transferred all-or-nothing, permanently.",
-    RATE_LIMIT_HINT + ".",
+    "IRREVERSIBLE: this asks your installed Bankr CLI to broadcast a permanent on-chain launch under your Bankr account.",
+    "Provider economics, vesting, fees, limits, and beneficiary rules can change. TOHSENO does not independently quote or guarantee them.",
+    PROVIDER_TERMS_HINT,
   ].join("\n");
 }
 
@@ -144,41 +150,88 @@ async function confirmOnTty(summary: string): Promise<void> {
 }
 
 function validateLaunchOptions(options: TokenLaunchOptions): void {
-  if (options.symbol.length < 1 || options.symbol.length > 10 || !/\S/u.test(options.symbol)) {
-    throw new MachineError("INVALID_CONFIGURATION", "--symbol must be 1-10 characters");
+  if (
+    options.name !== options.name.trim() ||
+    [...options.name].length < 1 ||
+    [...options.name].length > 80 ||
+    /[\u0000-\u001f\u007f]/u.test(options.name)
+  ) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "--name must be 1-80 characters with no surrounding whitespace or control characters",
+    );
+  }
+  if (
+    options.symbol !== options.symbol.trim() ||
+    [...options.symbol].length < 1 ||
+    [...options.symbol].length > 10 ||
+    /\s|[\u0000-\u001f\u007f]/u.test(options.symbol)
+  ) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "--symbol must be 1-10 non-whitespace characters with no control characters",
+    );
   }
   for (const [flag, value] of [["--image", options.image], ["--website", options.website]] as const) {
     if (value === undefined) continue;
+    if (
+      value.length > 2_048 ||
+      /[\u0000-\u001f\u007f]/u.test(value)
+    ) {
+      throw new MachineError("INVALID_CONFIGURATION", `${flag} must be a valid https URL`);
+    }
     let url: URL;
     try {
       url = new URL(value);
     } catch {
       throw new MachineError("INVALID_CONFIGURATION", `${flag} must be a valid https URL`);
     }
-    if (url.protocol !== "https:") {
+    if (
+      url.protocol !== "https:" ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.hostname === ""
+    ) {
       throw new MachineError("INVALID_CONFIGURATION", `${flag} must use https`);
     }
   }
-}
-
-function scrub(value: string): string {
-  const key = process.env.BANKR_API_KEY;
-  return key ? value.split(key).join("[redacted]") : value;
-}
-
-function appendTokenLog(log: string, record: Record<string, unknown>, output: string): void {
-  appendFileSync(
-    log,
-    [JSON.stringify({ at: new Date().toISOString(), ...record }), scrub(output)].filter(Boolean).join("\n") + "\n",
-    { mode: 0o600 },
-  );
+  if (
+    options.feeRecipient !== undefined &&
+    (
+      options.feeRecipient !== options.feeRecipient.trim() ||
+      options.feeRecipient.length < 1 ||
+      options.feeRecipient.length > 200 ||
+      /\s|[\u0000-\u001f\u007f]/u.test(options.feeRecipient)
+    )
+  ) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "--fee-recipient must be 1-200 non-whitespace characters with no control characters",
+    );
+  }
+  if (options.feeType !== undefined && options.feeRecipient === undefined) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "--fee-type requires --fee-recipient",
+    );
+  }
 }
 
 function parseLaunchOutput(stdout: string): { address?: string; txHash?: string; parsed: boolean } {
+  const validAddress = (value: unknown): string | undefined =>
+    typeof value === "string" && /^0x[a-fA-F0-9]{40}$/u.test(value)
+      ? value
+      : undefined;
+  const validTransaction = (value: unknown): string | undefined =>
+    typeof value === "string" && /^0x[a-fA-F0-9]{64}$/u.test(value)
+      ? value
+      : undefined;
   try {
     const value = JSON.parse(stdout) as Record<string, unknown>;
-    const address = typeof value.address === "string" ? value.address : typeof value.tokenAddress === "string" ? value.tokenAddress : undefined;
-    const txHash = typeof value.txHash === "string" ? value.txHash : typeof value.transactionHash === "string" ? value.transactionHash : undefined;
+    const address = validAddress(value.address) ??
+      validAddress(value.tokenAddress);
+    const txHash = validTransaction(value.txHash) ??
+      validTransaction(value.transactionHash);
     if (address || txHash) {
       return {
         ...(address === undefined ? {} : { address }),
@@ -196,6 +249,36 @@ function parseLaunchOutput(stdout: string): { address?: string; txHash?: string;
     ...(txHash === undefined ? {} : { txHash }),
     parsed: address !== undefined || txHash !== undefined,
   };
+}
+
+function bankrEnvironment(): Record<string, string> {
+  return {
+    ...safeEnvironment(),
+    ...(process.env.BANKR_API_KEY
+      ? { BANKR_API_KEY: process.env.BANKR_API_KEY }
+      : {}),
+    BANKR_NOT_INTERACTIVE: "1",
+  };
+}
+
+function launchArguments(
+  command: readonly string[],
+  options: TokenLaunchOptions,
+  simulate: boolean,
+): string[] {
+  return [
+    ...command,
+    "launch",
+    "--name", options.name,
+    "--symbol", options.symbol,
+    "--chain", options.chain,
+    ...(options.image === undefined ? [] : ["--image", options.image]),
+    ...(options.website === undefined ? [] : ["--website", options.website]),
+    ...(options.feeRecipient === undefined ? [] : ["--fee", options.feeRecipient]),
+    ...(options.feeType === undefined ? [] : ["--fee-type", options.feeType]),
+    ...(simulate ? ["--simulate"] : []),
+    "--yes",
+  ];
 }
 
 async function writeTokenRecord(root: string, raw: string, manifest: Record<string, unknown>, token: TokenRecord): Promise<void> {
@@ -217,6 +300,7 @@ async function writeTokenRecord(root: string, raw: string, manifest: Record<stri
 
 export async function launchToken(root: string, options: TokenLaunchOptions): Promise<{
   launched: true;
+  simulated: true;
   token: TokenRecord;
   parsed: boolean;
   logs: string;
@@ -234,7 +318,7 @@ export async function launchToken(root: string, options: TokenLaunchOptions): Pr
   if (command === null) {
     throw new MachineError(
       "MISSING_DEPENDENCY",
-      `the Bankr CLI is required; install Node and run: ${LOGIN_HINT}`,
+      `an explicitly installed Bankr CLI is required; run: ${INSTALL_HINT}`,
       { dependency: "bankr" },
     );
   }
@@ -249,33 +333,42 @@ export async function launchToken(root: string, options: TokenLaunchOptions): Pr
 
   const paths = runtimePaths(root);
   ensureRuntimeDirectories(paths);
-  const environment = {
-    ...safeEnvironment(),
-    ...(process.env.BANKR_API_KEY ? { BANKR_API_KEY: process.env.BANKR_API_KEY } : {}),
-    BANKR_NOT_INTERACTIVE: "1",
-  };
-  const result = await runCaptured([
-    ...command,
-    "launch",
-    "--name", options.name,
-    "--symbol", options.symbol,
-    "--chain", options.chain,
-    ...(options.image === undefined ? [] : ["--image", options.image]),
-    ...(options.website === undefined ? [] : ["--website", options.website]),
-    ...(options.feeRecipient === undefined ? [] : ["--fee", options.feeRecipient]),
-    ...(options.feeType === undefined ? [] : ["--fee-type", options.feeType]),
-    "--yes",
-  ], { cwd: root, environment });
-  appendTokenLog(
+  const environment = bankrEnvironment();
+  const simulation = await runCaptured(
+    launchArguments(command, options, true),
+    { cwd: root, environment },
+  );
+  if (simulation.exitCode !== 0) {
+    appendStructuredLog(paths.tokenLog, {
+      event: "bankr_launch_simulation",
+      chain: options.chain,
+      exitCode: simulation.exitCode,
+    });
+    throw new MachineError(
+      "INTERNAL_FAILURE",
+      `Bankr launch simulation failed with exit code ${simulation.exitCode}; provider output was not retained`,
+      { hint: PROVIDER_TERMS_HINT, logs: paths.tokenLog },
+    );
+  }
+
+  const result = await runCaptured(
+    launchArguments(command, options, false),
+    { cwd: root, environment },
+  );
+  appendStructuredLog(
     paths.tokenLog,
-    { event: "bankr_launch", chain: options.chain, symbol: options.symbol, exitCode: result.exitCode },
-    [result.stdout, result.stderr].filter(Boolean).join("\n"),
+    {
+      event: "bankr_launch",
+      chain: options.chain,
+      simulated: true,
+      exitCode: result.exitCode,
+    },
   );
   if (result.exitCode !== 0) {
     throw new MachineError(
       "INTERNAL_FAILURE",
-      scrub(`bankr launch failed: ${(result.stderr.trim() || result.stdout.trim() || `exit ${result.exitCode}`)}`),
-      { hint: RATE_LIMIT_HINT, logs: paths.tokenLog },
+      `Bankr launch failed with exit code ${result.exitCode}; provider output was not retained`,
+      { hint: PROVIDER_TERMS_HINT, logs: paths.tokenLog },
     );
   }
 
@@ -291,7 +384,13 @@ export async function launchToken(root: string, options: TokenLaunchOptions): Pr
     launchedAt: new Date().toISOString(),
   };
   await writeTokenRecord(root, state.raw, state.manifest, token);
-  return { launched: true, token, parsed: parsed.parsed, logs: paths.tokenLog };
+  return {
+    launched: true,
+    simulated: true,
+    token,
+    parsed: parsed.parsed,
+    logs: paths.tokenLog,
+  };
 }
 
 export async function tokenFees(root: string): Promise<{
@@ -309,25 +408,28 @@ export async function tokenFees(root: string): Promise<{
   if (command === null) {
     throw new MachineError(
       "MISSING_DEPENDENCY",
-      `the Bankr CLI is required; install Node and run: ${LOGIN_HINT}`,
+      `an explicitly installed Bankr CLI is required; run: ${INSTALL_HINT}`,
       { dependency: "bankr" },
     );
   }
   const result = await runCaptured(
     [...command, "fees", token.address, "--json"],
-    { cwd: root, environment: safeEnvironment() },
+    { cwd: root, environment: bankrEnvironment() },
   );
   if (result.exitCode !== 0) {
     throw new MachineError(
       "INTERNAL_FAILURE",
-      scrub(`bankr fees failed: ${(result.stderr.trim() || result.stdout.trim() || `exit ${result.exitCode}`)}`),
+      `Bankr fees lookup failed with exit code ${result.exitCode}; provider output was not retained`,
     );
   }
   let fees: unknown;
   try {
     fees = JSON.parse(result.stdout);
   } catch {
-    fees = result.stdout.trim();
+    throw new MachineError(
+      "INTERNAL_FAILURE",
+      "Bankr fees returned an invalid JSON response; provider output was not retained",
+    );
   }
   return { address: token.address, fees };
 }

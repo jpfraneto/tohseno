@@ -3,12 +3,15 @@ import { randomBytes, randomUUID } from "node:crypto";
 import {
   accessSync,
   chmodSync,
+  closeSync,
   constants as fsConstants,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
+  openSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -29,6 +32,7 @@ import {
 import { fileURLToPath } from "node:url";
 import type { Readable } from "node:stream";
 import type { CreationRunner, CreationRunnerResult } from "./creation.ts";
+import { readBoundedJson } from "./files.ts";
 import { bunExecutable, sanitizedRuntimeEnvironment } from "./process.ts";
 import { readShotMetadata } from "./shot.ts";
 import { trustedShotToolFromCache } from "./trusted-tools.ts";
@@ -46,6 +50,7 @@ const CANONICAL_UDID =
   /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/u;
 const BUNDLE_IDENTIFIER = /^[A-Za-z0-9]+(?:\.[A-Za-z0-9-]+)+$/u;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const MAX_SCREENSHOT_BYTES = 64 * 1_048_576;
 
 export type SimulatorErrorCode =
   | "ABORTED"
@@ -437,11 +442,11 @@ export function resolveServeSimInstallation(): ServeSimInstallation | null {
     const packageJsonPath = join(directory, "package.json");
     if (existsSync(packageJsonPath)) {
       try {
-        const value = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+        const value = readBoundedJson<{
           name?: unknown;
           version?: unknown;
           exports?: unknown;
-        };
+        }>(packageJsonPath, 65_536, "serve-sim package metadata");
         if (value.name === "serve-sim" && typeof value.version === "string") {
           const exportsValue =
             typeof value.exports === "object" && value.exports !== null
@@ -1354,11 +1359,35 @@ export async function captureSimulatorScreenshot(
     if (
       details.isSymbolicLink() ||
       !details.isFile() ||
+      details.nlink !== 1 ||
+      details.size > MAX_SCREENSHOT_BYTES ||
       !inside(root, realpathSync(temporary))
     ) {
       throw new SimulatorError("SCREENSHOT_FAILED", "The Simulator screenshot is invalid.");
     }
-    const signature = readFileSync(temporary).subarray(0, PNG_SIGNATURE.length);
+    const descriptor = openSync(
+      temporary,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+    const signature = Buffer.alloc(PNG_SIGNATURE.length);
+    try {
+      const opened = fstatSync(descriptor);
+      if (
+        !opened.isFile() ||
+        opened.nlink !== 1 ||
+        opened.dev !== details.dev ||
+        opened.ino !== details.ino ||
+        opened.size > MAX_SCREENSHOT_BYTES ||
+        readSync(descriptor, signature, 0, signature.length, 0) !== signature.length
+      ) {
+        throw new SimulatorError(
+          "SCREENSHOT_FAILED",
+          "The Simulator screenshot is invalid.",
+        );
+      }
+    } finally {
+      closeSync(descriptor);
+    }
     if (!signature.equals(PNG_SIGNATURE)) {
       throw new SimulatorError("SCREENSHOT_FAILED", "The Simulator screenshot is invalid.");
     }

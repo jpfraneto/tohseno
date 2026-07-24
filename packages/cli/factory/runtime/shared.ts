@@ -1,17 +1,37 @@
 import { randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  ftruncateSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
+  openSync,
+  readSync,
   realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 
 export const MACHINE_PROTOCOL_VERSION = 1 as const;
+export const MAX_RUNTIME_LOG_BYTES = 5 * 1_048_576;
+export const MAX_TAIL_READ_BYTES = 2 * 1_048_576;
+export const MAX_CAPTURED_OUTPUT_BYTES = 8 * 1_048_576;
+const MAX_RUNTIME_JSON_BYTES = 1_048_576;
 export const MACHINE_EXIT = Object.freeze({
   success: 0,
   invalidConfiguration: 2,
@@ -219,9 +239,33 @@ function validateRuntimeBoundaries(paths: RuntimePaths): void {
 }
 
 export function ensureRuntimeDirectories(paths: RuntimePaths): void {
-  mkdirSync(paths.runtime, { recursive: true, mode: 0o700 });
-  mkdirSync(paths.data, { recursive: true, mode: 0o700 });
-  mkdirSync(paths.logs, { recursive: true, mode: 0o700 });
+  for (const path of [paths.runtime, paths.data, paths.logs]) {
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    const before = lstatSync(path);
+    let descriptor: number | undefined;
+    try {
+      descriptor = openSync(
+        path,
+        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+      );
+      const opened = fstatSync(descriptor);
+      if (
+        !before.isDirectory() ||
+        before.isSymbolicLink() ||
+        !opened.isDirectory() ||
+        opened.dev !== before.dev ||
+        opened.ino !== before.ino
+      ) {
+        throw new MachineError(
+          "INVALID_CONFIGURATION",
+          `shot runtime directory is unsafe: ${path}`,
+        );
+      }
+      fchmodSync(descriptor, 0o700);
+    } finally {
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
+  }
 }
 
 export function insideRoot(root: string, pathValue: string): boolean {
@@ -232,10 +276,24 @@ export function insideRoot(root: string, pathValue: string): boolean {
 export function atomicWrite(path: string, content: string, mode = 0o600): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.writing-${process.pid}-${randomUUID()}`;
+  let descriptor: number | undefined;
   try {
-    writeFileSync(temporary, content, { mode });
+    descriptor = openSync(
+      temporary,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_NOFOLLOW,
+      mode,
+    );
+    writeFileSync(descriptor, content, { encoding: "utf8" });
+    fchmodSync(descriptor, mode);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
     renameSync(temporary, path);
   } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
     rmSync(temporary, { force: true });
   }
 }
@@ -244,13 +302,80 @@ export function atomicJson(path: string, value: unknown): void {
   atomicWrite(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-export function readJson<T>(path: string): T {
+export function readBoundedRegularFile(
+  path: string,
+  maximumBytes: number,
+  label = path,
+): Buffer {
+  let descriptor: number | undefined;
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
-  } catch (error) {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = fstatSync(descriptor);
+    const current = lstatSync(path);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino ||
+      opened.size > maximumBytes
+    ) {
+      throw new Error("unsafe or oversized file");
+    }
+    const chunks: Buffer[] = [];
+    const buffer = Buffer.allocUnsafe(65_536);
+    let total = 0;
+    while (true) {
+      const length = readSync(descriptor, buffer, 0, buffer.length, null);
+      if (length === 0) break;
+      total += length;
+      if (total > maximumBytes) {
+        throw new Error("file grew past its limit");
+      }
+      chunks.push(Buffer.from(buffer.subarray(0, length)));
+    }
+    return Buffer.concat(chunks, total);
+  } catch {
     throw new MachineError(
       "INVALID_CONFIGURATION",
-      `cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`,
+      `${label} must be a regular file with one link and no more than ${maximumBytes} bytes`,
+    );
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+export function readBoundedUtf8(
+  path: string,
+  maximumBytes: number,
+  label = path,
+): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      readBoundedRegularFile(path, maximumBytes, label),
+    );
+  } catch (error) {
+    if (error instanceof MachineError) throw error;
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      `${label} must contain valid UTF-8`,
+    );
+  }
+}
+
+export function readJson<T>(
+  path: string,
+  maximumBytes = MAX_RUNTIME_JSON_BYTES,
+): T {
+  try {
+    return JSON.parse(
+      readBoundedUtf8(path, maximumBytes, path),
+    ) as T;
+  } catch {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      `cannot read ${path}: expected a private regular JSON file no larger than ${maximumBytes} bytes`,
     );
   }
 }
@@ -267,19 +392,109 @@ export function requireRegularFile(path: string, label = path): void {
 
 export function readDevelopmentState(paths: RuntimePaths): DevelopmentState | null {
   if (!existsSync(paths.state)) return null;
-  const state = readJson<Partial<DevelopmentState>>(paths.state);
+  const state = readJson<Partial<DevelopmentState>>(paths.state, 65_536);
+  const corrupt = (): never => {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      `runtime state is corrupt: ${paths.state}`,
+    );
+  };
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+  const timestamp = (value: unknown): value is string =>
+    typeof value === "string" && Number.isFinite(Date.parse(value));
+  const processRecord = (
+    value: unknown,
+    role: OwnedProcess["role"],
+  ): value is OwnedProcess => {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value)
+    ) return false;
+    const record = value as Partial<OwnedProcess>;
+    return Number.isSafeInteger(record.pid) &&
+      (record.pid ?? 0) > 0 &&
+      record.role === role &&
+      Array.isArray(record.commandContains) &&
+      record.commandContains.length >= 3 &&
+      record.commandContains.length <= 6 &&
+      record.commandContains.every((fragment) =>
+        typeof fragment === "string" &&
+        fragment.length > 0 &&
+        fragment.length <= 4_096 &&
+        !/[\u0000\r\n]/u.test(fragment)
+      );
+  };
+  if (!uuid.test(state.instanceId ?? "")) corrupt();
+  const instanceId = state.instanceId!;
+  const supervisor = state.supervisor;
+  const api = state.api;
+  const tunnel = state.tunnel;
   if (
     state.schemaVersion !== 1 ||
-    typeof state.instanceId !== "string" ||
     (state.status !== "running" && state.status !== "unhealthy") ||
-    typeof state.supervisor?.pid !== "number" ||
-    typeof state.api?.pid !== "number" ||
-    typeof state.api?.url !== "string" ||
-    typeof state.endpoint?.url !== "string"
+    !timestamp(state.startedAt) ||
+    !timestamp(state.updatedAt) ||
+    state.shotRoot !== paths.root ||
+    !processRecord(supervisor, "supervisor") ||
+    !processRecord(api, "api") ||
+    (tunnel !== null && !processRecord(tunnel, "tunnel"))
   ) {
-    throw new MachineError("INVALID_CONFIGURATION", `runtime state is corrupt: ${paths.state}`);
+    corrupt();
   }
-  return state as DevelopmentState;
+  const validated = state as DevelopmentState;
+  const validatedSupervisor = validated.supervisor;
+  const validatedApi = validated.api;
+  const validatedTunnel = validated.tunnel;
+  if (
+    validatedSupervisor.commandContains.length !== 4 ||
+    !isAbsolute(validatedSupervisor.commandContains[0]!) ||
+    basename(validatedSupervisor.commandContains[0]!) !== "machine.ts" ||
+    validatedSupervisor.commandContains[1] !== "__supervise" ||
+    validatedSupervisor.commandContains[2] !== "--instance" ||
+    validatedSupervisor.commandContains[3] !== instanceId
+  ) corrupt();
+  if (
+    !Number.isInteger(validatedApi.port) ||
+    validatedApi.port < 1 ||
+    validatedApi.port > 65_535 ||
+    validatedApi.hostname !== "127.0.0.1" ||
+    validatedApi.url !== `http://127.0.0.1:${validatedApi.port}` ||
+    validatedApi.healthUrl !== `${validatedApi.url}/health` ||
+    validatedApi.log !== paths.apiLog ||
+    validatedApi.commandContains.length !== 3 ||
+    validatedApi.commandContains[0] !==
+      join(paths.root, "Backend", "server.ts") ||
+    validatedApi.commandContains[1] !== "--tohseno-instance" ||
+    validatedApi.commandContains[2] !== instanceId
+  ) corrupt();
+  if (
+    typeof validated.endpoint !== "object" ||
+    validated.endpoint === null ||
+    validated.endpoint.configuration !== paths.endpoint
+  ) corrupt();
+  if (validatedTunnel === null) {
+    if (
+      validated.endpoint.transport !== "localhost" ||
+      validated.endpoint.url !== validatedApi.url
+    ) corrupt();
+  } else if (
+    validatedTunnel.commandContains.length !== 4 ||
+    !isAbsolute(validatedTunnel.commandContains[0]!) ||
+    validatedTunnel.commandContains[1] !== "tunnel" ||
+    validatedTunnel.commandContains[2] !== validatedApi.url ||
+    validatedTunnel.commandContains[3] !== "--no-autoupdate" ||
+    validatedTunnel.log !== paths.tunnelLog ||
+    validatedTunnel.developmentOnly !== true ||
+    parseQuickTunnelUrl(validatedTunnel.url) !== validatedTunnel.url ||
+    validated.endpoint.transport !== "quick-tunnel" ||
+    validated.endpoint.url !== validatedTunnel.url
+  ) corrupt();
+  if (
+    validated.issue !== undefined &&
+    !/^(?:api|tunnel|log-monitor) exited unexpectedly$/u.test(validated.issue)
+  ) corrupt();
+  return validated;
 }
 
 export function success(operation: string, root: string, result: unknown): MachineSuccess {
@@ -334,18 +549,74 @@ export async function runCaptured(
       stdout: "pipe",
       stderr: "pipe",
     });
+    let outputExceeded = false;
+    const stopForOutputLimit = (): void => {
+      if (outputExceeded) return;
+      outputExceeded = true;
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // It exited between the oversized chunk and the kill request.
+      }
+    };
     const [exitCode, stdout, stderr] = await Promise.all([
       child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
+      boundedStreamText(
+        child.stdout,
+        MAX_CAPTURED_OUTPUT_BYTES,
+        stopForOutputLimit,
+      ),
+      boundedStreamText(
+        child.stderr,
+        MAX_CAPTURED_OUTPUT_BYTES,
+        stopForOutputLimit,
+      ),
     ]);
+    if (outputExceeded) {
+      throw new MachineError(
+        "INTERNAL_FAILURE",
+        `subprocess output exceeded the ${MAX_CAPTURED_OUTPUT_BYTES}-byte safety limit`,
+      );
+    }
     return { exitCode, stdout, stderr };
   } catch (error) {
+    if (error instanceof MachineError) throw error;
     throw new MachineError(
       "MISSING_DEPENDENCY",
       `cannot execute ${command[0]}: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+async function boundedStreamText(
+  stream: ReadableStream<Uint8Array>,
+  maximumBytes: number,
+  onLimit: () => void,
+): Promise<string> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      const remaining = maximumBytes - length;
+      if (next.value.byteLength > remaining) {
+        if (remaining > 0) chunks.push(next.value.subarray(0, remaining));
+        onLimit();
+        break;
+      }
+      chunks.push(next.value);
+      length += next.value.byteLength;
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // The process closing its pipe first is expected.
+    }
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
 }
 
 export function isProcessAlive(pid: number): boolean {
@@ -360,7 +631,7 @@ export function isProcessAlive(pid: number): boolean {
 
 export async function processCommand(pid: number): Promise<string | null> {
   if (!isProcessAlive(pid)) return null;
-  const result = await runCaptured(["ps", "-p", String(pid), "-o", "command="], {
+  const result = await runCaptured(["/bin/ps", "-p", String(pid), "-o", "command="], {
     cwd: process.cwd(),
   });
   if (result.exitCode !== 0) return null;
@@ -368,6 +639,19 @@ export async function processCommand(pid: number): Promise<string | null> {
 }
 
 export async function isOwnedProcess(record: OwnedProcess): Promise<boolean> {
+  if (
+    !Number.isSafeInteger(record.pid) ||
+    record.pid <= 0 ||
+    !Array.isArray(record.commandContains) ||
+    record.commandContains.length < 3 ||
+    record.commandContains.length > 6 ||
+    !record.commandContains.every((fragment) =>
+      typeof fragment === "string" &&
+      fragment.length > 0 &&
+      fragment.length <= 4_096 &&
+      !/[\u0000\r\n]/u.test(fragment)
+    )
+  ) return false;
   const command = await processCommand(record.pid);
   return command !== null && record.commandContains.every((fragment) => command.includes(fragment));
 }
@@ -420,10 +704,182 @@ export function requireAbsoluteInside(root: string, pathValue: string, label: st
 
 export function tailLines(path: string, count: number): string[] {
   if (!existsSync(path)) return [];
-  const source = readFileSync(path, "utf8");
+  const descriptor = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  );
+  let source: string;
+  try {
+    const opened = fstatSync(descriptor);
+    const current = lstatSync(path);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino
+    ) {
+      throw new MachineError(
+        "INVALID_CONFIGURATION",
+        `runtime log must be a private regular file: ${path}`,
+      );
+    }
+    const size = opened.size;
+    const length = Math.min(size, MAX_TAIL_READ_BYTES);
+    const offset = size - length;
+    const buffer = Buffer.alloc(length);
+    let read = 0;
+    while (read < length) {
+      const chunk = readSync(descriptor, buffer, read, length - read, offset + read);
+      if (chunk === 0) break;
+      read += chunk;
+    }
+    source = buffer.subarray(0, read).toString("utf8");
+    if (offset > 0) {
+      const firstNewline = source.indexOf("\n");
+      source = firstNewline === -1 ? "" : source.slice(firstNewline + 1);
+    }
+  } finally {
+    closeSync(descriptor);
+  }
   const lines = source.split(/\r?\n/u);
   if (lines.at(-1) === "") lines.pop();
   return lines.slice(-count);
+}
+
+export function readLogSince(
+  path: string,
+  offset: number,
+  maximumBytes = MAX_TAIL_READ_BYTES,
+): string {
+  if (!existsSync(path)) return "";
+  const descriptor = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  );
+  try {
+    const opened = fstatSync(descriptor);
+    const current = lstatSync(path);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      current.isSymbolicLink() ||
+      !current.isFile() ||
+      opened.dev !== current.dev ||
+      opened.ino !== current.ino
+    ) {
+      throw new MachineError(
+        "INVALID_CONFIGURATION",
+        `runtime log must be a private regular file: ${path}`,
+      );
+    }
+    const safeOffset = Number.isSafeInteger(offset) && offset >= 0 &&
+        offset <= opened.size
+      ? offset
+      : 0;
+    const available = opened.size - safeOffset;
+    const length = Math.min(available, maximumBytes);
+    const start = opened.size - length;
+    const buffer = Buffer.alloc(length);
+    let read = 0;
+    while (read < length) {
+      const chunk = readSync(
+        descriptor,
+        buffer,
+        read,
+        length - read,
+        start + read,
+      );
+      if (chunk === 0) break;
+      read += chunk;
+    }
+    return buffer.subarray(0, read).toString("utf8");
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+export function capRuntimeLog(
+  path: string,
+  maximumBytes = MAX_RUNTIME_LOG_BYTES,
+): boolean {
+  if (!existsSync(path)) return false;
+  const descriptor = openRuntimeLog(path);
+  try {
+    if (fstatSync(descriptor).size <= maximumBytes) return false;
+    ftruncateSync(descriptor, 0);
+    writeSync(
+      descriptor,
+      `${JSON.stringify({
+        at: new Date().toISOString(),
+        event: "log_rotated",
+        maximumBytes,
+      })}\n`,
+    );
+    return true;
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+export function openRuntimeLog(path: string): number {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  let descriptor: number;
+  try {
+    descriptor = openSync(
+      path,
+      constants.O_WRONLY |
+        constants.O_APPEND |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_NOFOLLOW,
+      0o600,
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    descriptor = openSync(
+      path,
+      constants.O_WRONLY |
+        constants.O_APPEND |
+        constants.O_NOFOLLOW,
+    );
+  }
+  const opened = fstatSync(descriptor);
+  const current = lstatSync(path);
+  if (
+    !opened.isFile() ||
+    opened.nlink !== 1 ||
+    current.isSymbolicLink() ||
+    !current.isFile() ||
+    opened.dev !== current.dev ||
+    opened.ino !== current.ino
+  ) {
+    closeSync(descriptor);
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      `runtime log must be a private regular file: ${path}`,
+    );
+  }
+  fchmodSync(descriptor, 0o600);
+  return descriptor;
+}
+
+export function appendStructuredLog(
+  path: string,
+  record: Record<string, unknown>,
+): void {
+  capRuntimeLog(path);
+  const descriptor = openRuntimeLog(path);
+  try {
+    writeSync(
+      descriptor,
+      `${JSON.stringify({ at: new Date().toISOString(), ...record })}\n`,
+    );
+  } finally {
+    closeSync(descriptor);
+  }
+  capRuntimeLog(path);
 }
 
 export function encodeXcconfigUrl(url: string): string {

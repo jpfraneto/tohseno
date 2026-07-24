@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// The single configuration seam of the app: feature flags plus key slots.
 ///
@@ -78,19 +79,25 @@ enum AppConfig {
               components.password == nil,
               components.query == nil,
               components.fragment == nil,
-              components.path.isEmpty || components.path == "/",
+              components.percentEncodedPath.isEmpty ||
+                components.percentEncodedPath == "/",
+              components.port.map({ (1...65_535).contains($0) }) ?? true,
               let scheme = components.scheme?.lowercased(),
               let host = components.host?.lowercased(),
               !host.isEmpty else {
             return nil
         }
 
-        let isLoopback = host == "localhost" || host.hasSuffix(".localhost") ||
-            host == "127.0.0.1" || host == "::1" || host == "0.0.0.0"
-        let isQuickTunnel = host == "trycloudflare.com" || host.hasSuffix(".trycloudflare.com")
+        let comparisonHost = normalizedSecurityHost(host)
+        let isLoopback = isLoopbackHost(comparisonHost)
+        let isQuickTunnel = comparisonHost == "trycloudflare.com" ||
+            comparisonHost.hasSuffix(".trycloudflare.com")
 
         if production {
-            guard scheme == "https", !isLoopback, !isQuickTunnel, host.contains(".") else {
+            guard scheme == "https",
+                  !isLoopback,
+                  !isQuickTunnel,
+                  isStableFullyQualifiedHostname(host) else {
                 return nil
             }
         } else {
@@ -99,6 +106,77 @@ enum AppConfig {
             }
         }
         return components.url
+    }
+
+    private static func normalizedSecurityHost(_ host: String) -> String {
+        var value = host.lowercased()
+        if value.hasPrefix("["), value.hasSuffix("]") {
+            value.removeFirst()
+            value.removeLast()
+        }
+        if value.hasSuffix(".") {
+            value.removeLast()
+        }
+        return value
+    }
+
+    static func isLoopbackHost(_ host: String) -> Bool {
+        let value = normalizedSecurityHost(host)
+        if value == "localhost" || value.hasSuffix(".localhost") {
+            return true
+        }
+
+        var ipv4 = in_addr()
+        if value.withCString({ inet_pton(AF_INET, $0, &ipv4) }) == 1 {
+            return withUnsafeBytes(of: &ipv4) { bytes in
+                bytes[0] == 127 || bytes[0] == 0
+            }
+        }
+
+        var ipv6 = in6_addr()
+        if value.withCString({ inet_pton(AF_INET6, $0, &ipv6) }) == 1 {
+            return withUnsafeBytes(of: &ipv6) { bytes in
+                let unspecified = bytes.allSatisfy { $0 == 0 }
+                let loopback = bytes.dropLast().allSatisfy { $0 == 0 } &&
+                    bytes.last == 1
+                let mappedIPv4 = bytes.prefix(10).allSatisfy { $0 == 0 } &&
+                    bytes[10] == 0xff &&
+                    bytes[11] == 0xff &&
+                    (bytes[12] == 127 || bytes[12] == 0)
+                return unspecified || loopback || mappedIPv4
+            }
+        }
+        return false
+    }
+
+    static func isStableFullyQualifiedHostname(_ host: String) -> Bool {
+        guard host == host.lowercased(),
+              !host.hasSuffix("."),
+              host.count <= 253 else {
+            return false
+        }
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2,
+              labels.allSatisfy({ label in
+                  guard !label.isEmpty,
+                        label.count <= 63,
+                        label.first != "-",
+                        label.last != "-" else {
+                      return false
+                  }
+                  return label.unicodeScalars.allSatisfy {
+                      ($0.value >= 97 && $0.value <= 122) ||
+                      ($0.value >= 48 && $0.value <= 57) ||
+                      $0.value == 45
+                  }
+              }),
+              let topLevel = labels.last,
+              topLevel.unicodeScalars.contains(where: {
+                  $0.value >= 97 && $0.value <= 122
+              }) else {
+            return false
+        }
+        return true
     }
 
     // MARK: Prototype-only development exception

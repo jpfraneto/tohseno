@@ -5,15 +5,22 @@ import SwiftUI
 /// launch; the person just writes.
 @main
 struct WritingApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store = SessionStore()
     @StateObject private var identityManager = IdentityManager(store: KeychainSecretStore())
 
     var body: some Scene {
         WindowGroup {
-            WritingView()
-                .environmentObject(store)
-                .environmentObject(identityManager)
-                .task { identityManager.loadOrCreate() }
+            ZStack {
+                WritingView()
+                    .environmentObject(store)
+                    .environmentObject(identityManager)
+                    .task { identityManager.loadOrCreate() }
+                if scenePhase != .active {
+                    Color(uiColor: .systemBackground)
+                        .ignoresSafeArea()
+                }
+            }
         }
     }
 

@@ -1,13 +1,17 @@
 import {
   existsSync,
   lstatSync,
-  readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { CliError } from "../errors.ts";
+import {
+  readBoundedJson,
+  readBoundedRegularFile,
+  readBoundedUtf8,
+} from "../files.ts";
 import {
   detectImageType,
   MAX_INTENTION_BYTES,
@@ -171,7 +175,11 @@ function safeRegularFile(root: string, candidate: string): string | null {
   if (!existsSync(candidate)) return null;
   try {
     const details = lstatSync(candidate);
-    if (details.isSymbolicLink() || !details.isFile()) return null;
+    if (
+      details.isSymbolicLink() ||
+      !details.isFile() ||
+      details.nlink !== 1
+    ) return null;
     const canonical = realpathSync(candidate);
     return inside(root, canonical) && canonical !== root ? canonical : null;
   } catch {
@@ -202,7 +210,11 @@ function loadStaticAssets(directoryValue?: string): StaticAssets {
         "Studio's local interface assets are unavailable.",
       );
     }
-    return readFileSync(path);
+    return readBoundedRegularFile(
+      path,
+      2 * 1_048_576,
+      "Studio interface asset",
+    );
   };
   return {
     html: new TextDecoder().decode(read("index.html")),
@@ -311,7 +323,13 @@ function screenshotPath(shot: DiscoveredShot): string | null {
   if (path === null) return null;
   try {
     if (!fileWithinLimit(path, MAX_SCREENSHOT_BYTES)) return null;
-    return detectImageType(readFileSync(path))?.mediaType === "image/png"
+    return detectImageType(
+      readBoundedRegularFile(
+        path,
+        MAX_SCREENSHOT_BYTES,
+        "Simulator screenshot",
+      ),
+    )?.mediaType === "image/png"
       ? path
       : null;
   } catch {
@@ -319,18 +337,24 @@ function screenshotPath(shot: DiscoveredShot): string | null {
   }
 }
 
-function screenshotUrl(shot: DiscoveredShot): string | null {
+function screenshotUrl(
+  shot: DiscoveredShot,
+  apiBase: string,
+): string | null {
   const path = screenshotPath(shot);
   if (path === null) return null;
   try {
     const version = Math.floor(statSync(path).mtimeMs);
-    return `/api/shots/${encodeURIComponent(shot.metadata.slug)}/screenshot?v=${version}`;
+    return `${apiBase}/shots/${encodeURIComponent(shot.metadata.slug)}/screenshot?v=${version}`;
   } catch {
     return null;
   }
 }
 
-function contactShot(shot: DiscoveredShot): Record<string, unknown> {
+function contactShot(
+  shot: DiscoveredShot,
+  apiBase: string,
+): Record<string, unknown> {
   const journal = safeRegularFile(
     shot.path,
     join(shot.path, ".tohseno", "provenance", "events.jsonl"),
@@ -355,7 +379,7 @@ function contactShot(shot: DiscoveredShot): Record<string, unknown> {
     createdAt: shot.metadata.createdAt,
     sequence: shot.metadata.sequence ?? null,
     status,
-    screenshotUrl: screenshotUrl(shot),
+    screenshotUrl: screenshotUrl(shot, apiBase),
   };
 }
 
@@ -370,7 +394,11 @@ function provenanceRecord(shot: DiscoveredShot): Record<string, unknown> | null 
   if (path === null) return null;
   try {
     if (!fileWithinLimit(path, MAX_PROVENANCE_BYTES)) return null;
-    const value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    const value = readBoundedJson<unknown>(
+      path,
+      MAX_PROVENANCE_BYTES,
+      "creation provenance",
+    );
     return isRecord(value) ? value : null;
   } catch {
     return null;
@@ -394,7 +422,11 @@ function privateShotInput(shot: DiscoveredShot): PrivateShotInput {
     );
     if (path !== null && fileWithinLimit(path, MAX_INTENTION_BYTES)) {
       try {
-        intention = readFileSync(path, "utf8");
+        intention = readBoundedUtf8(
+          path,
+          MAX_INTENTION_BYTES,
+          "private creation intention",
+        );
       } catch {
         intention = null;
       }
@@ -414,7 +446,17 @@ function privateShotInput(shot: DiscoveredShot): PrivateShotInput {
       typeof path !== "string" ||
       !/^references\/reference-[0-9]{3}\.(?:png|jpg|webp|gif|heic|avif)$/u.test(path) ||
       typeof originalName !== "string" ||
-      typeof mediaType !== "string"
+      originalName.length > 255 ||
+      /[\u0000-\u001f\u007f-\u009f]/u.test(originalName) ||
+      typeof mediaType !== "string" ||
+      ![
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "image/heic",
+        "image/avif",
+      ].includes(mediaType)
     ) {
       continue;
     }
@@ -434,18 +476,21 @@ function privateShotInput(shot: DiscoveredShot): PrivateShotInput {
   return { intention, references };
 }
 
-function detailShot(shot: DiscoveredShot): Record<string, unknown> {
+function detailShot(
+  shot: DiscoveredShot,
+  apiBase: string,
+): Record<string, unknown> {
   const input = privateShotInput(shot);
   return {
-    ...contactShot(shot),
+    ...contactShot(shot, apiBase),
     intention: input.intention,
     references: input.references.map((reference, index) => ({
       originalFilename: reference.originalFilename,
       mediaType: reference.mediaType,
       url:
-        `/api/shots/${encodeURIComponent(shot.metadata.slug)}/references/${index}`,
+        `${apiBase}/shots/${encodeURIComponent(shot.metadata.slug)}/references/${index}`,
       imageUrl:
-        `/api/shots/${encodeURIComponent(shot.metadata.slug)}/references/${index}`,
+        `${apiBase}/shots/${encodeURIComponent(shot.metadata.slug)}/references/${index}`,
     })),
     creation: shot.metadata.creation === undefined
       ? null
@@ -464,11 +509,11 @@ function detailShot(shot: DiscoveredShot): Record<string, unknown> {
 }
 
 function imageResponse(
-  path: string,
+  bytes: Uint8Array,
   mediaType: string,
   filename: string,
 ): Response {
-  return new Response(readFileSync(path), {
+  return new Response(responseBody(bytes), {
     headers: {
       "Content-Disposition": `inline; filename="${filename}"`,
       "Content-Type": mediaType,
@@ -682,6 +727,21 @@ function routeLabel(method: string, segments: readonly string[]): string {
     return "studio-asset";
   }
   if (segments[0] === "shots") return "studio-shot-shell";
+  if (
+    segments.length === 2 &&
+    segments[0] === "api" &&
+    segments[1] === "session"
+  ) {
+    return "session-bootstrap";
+  }
+  if (
+    segments.length >= 3 &&
+    segments[0] === "__tohseno" &&
+    /^[a-f0-9]{32}$/u.test(segments[1]!) &&
+    segments[2] === "api"
+  ) {
+    return routeLabel(method, ["api", ...segments.slice(3)]);
+  }
   if (segments[0] !== "api") return "not-found";
   if (segments[1] === "events") return "workspace-events";
   if (segments[1] === "jobs") return "job-events";
@@ -846,13 +906,41 @@ export class StudioApplication {
       safeShot(this.#creation.config.shotsDirectory, segments[1]!);
       return { route: "studio-shot-shell", response: this.#shellResponse() };
     }
-    if (segments[0] !== "api") {
+    if (
+      request.method === "POST" &&
+      segments.length === 2 &&
+      segments[0] === "api" &&
+      segments[1] === "session"
+    ) {
+      this.security.assertBootstrap(request);
+      const response = jsonResponse({
+        apiBase: this.security.apiBase,
+      });
+      response.headers.set("Set-Cookie", this.security.sessionCookie());
+      return { route: "session-bootstrap", response };
+    }
+
+    const scopedApi =
+      segments.length >= 3 &&
+      segments[0] === "__tohseno" &&
+      segments[1] === this.security.sessionId &&
+      segments[2] === "api";
+    if (!scopedApi) {
+      if (segments[0] === "api") {
+        throw new StudioHttpError(
+          403,
+          "invalid-session",
+          "Studio rejected an invalid local session.",
+        );
+      }
       throw new StudioHttpError(404, "not-found", "Studio route not found.");
     }
+    this.security.assertSession(request);
+    const apiSegments = ["api", ...segments.slice(3)];
     if (
       request.method === "GET" &&
-      segments.length === 2 &&
-      segments[1] === "events"
+      apiSegments.length === 2 &&
+      apiSegments[1] === "events"
     ) {
       return {
         route: "workspace-events",
@@ -865,33 +953,33 @@ export class StudioApplication {
     }
     if (
       request.method === "GET" &&
-      segments.length === 4 &&
-      segments[1] === "jobs" &&
-      segments[3] === "events"
+      apiSegments.length === 4 &&
+      apiSegments[1] === "jobs" &&
+      apiSegments[3] === "events"
     ) {
       return {
         route: "job-events",
         response: jobEventStream(
           request,
           this.#jobs,
-          segments[2]!,
+          apiSegments[2]!,
           (closer) => this.#registerStreamCloser(closer),
         ),
       };
     }
-    if (segments[1] !== "shots") {
+    if (apiSegments[1] !== "shots") {
       throw new StudioHttpError(404, "not-found", "Studio API route not found.");
     }
-    if (request.method === "GET" && segments.length === 2) {
+    if (request.method === "GET" && apiSegments.length === 2) {
       const shots = discoverShotsNewestFirst(
         this.#creation.config.shotsDirectory,
-      ).map(contactShot);
+      ).map((shot) => contactShot(shot, this.security.apiBase));
       return {
         route: "list-shots",
         response: jsonResponse({ count: shots.length, shots }),
       };
     }
-    if (request.method === "POST" && segments.length === 2) {
+    if (request.method === "POST" && apiSegments.length === 2) {
       this.security.assertMutation(request);
       this.#operations.assertAvailable();
       const staged = await stageStudioCreationRequest({
@@ -904,23 +992,23 @@ export class StudioApplication {
         response: jsonResponse(job, 202),
       };
     }
-    if (segments.length < 3) {
+    if (apiSegments.length < 3) {
       throw new StudioHttpError(404, "not-found", "Studio API route not found.");
     }
     const shot = safeShot(
       this.#creation.config.shotsDirectory,
-      segments[2]!,
+      apiSegments[2]!,
     );
-    if (request.method === "GET" && segments.length === 3) {
+    if (request.method === "GET" && apiSegments.length === 3) {
       return {
         route: "shot-detail",
-        response: jsonResponse(detailShot(shot)),
+        response: jsonResponse(detailShot(shot, this.security.apiBase)),
       };
     }
     if (
       request.method === "GET" &&
-      segments.length === 4 &&
-      segments[3] === "screenshot"
+      apiSegments.length === 4 &&
+      apiSegments[3] === "screenshot"
     ) {
       const path = screenshotPath(shot);
       if (path === null) {
@@ -930,19 +1018,40 @@ export class StudioApplication {
           "This shot does not have a Simulator capture yet.",
         );
       }
+      let bytes: Buffer;
+      try {
+        bytes = readBoundedRegularFile(
+          path,
+          MAX_SCREENSHOT_BYTES,
+          "Simulator screenshot",
+        );
+      } catch {
+        throw new StudioHttpError(
+          404,
+          "screenshot-not-found",
+          "This shot does not have a Simulator capture yet.",
+        );
+      }
+      if (detectImageType(bytes)?.mediaType !== "image/png") {
+        throw new StudioHttpError(
+          404,
+          "screenshot-not-found",
+          "This shot does not have a Simulator capture yet.",
+        );
+      }
       return {
         route: "shot-screenshot",
-        response: imageResponse(path, "image/png", "screenshot.png"),
+        response: imageResponse(bytes, "image/png", "screenshot.png"),
       };
     }
     if (
       request.method === "GET" &&
-      segments.length === 5 &&
-      segments[3] === "references" &&
-      /^[0-9]{1,2}$/u.test(segments[4]!)
+      apiSegments.length === 5 &&
+      apiSegments[3] === "references" &&
+      /^[0-9]{1,2}$/u.test(apiSegments[4]!)
     ) {
       const input = privateShotInput(shot);
-      const index = Number(segments[4]);
+      const index = Number(apiSegments[4]);
       const reference = input.references[index];
       if (reference === undefined) {
         throw new StudioHttpError(
@@ -951,7 +1060,20 @@ export class StudioApplication {
           "That local reference image was not found.",
         );
       }
-      const bytes = readFileSync(reference.path);
+      let bytes: Buffer;
+      try {
+        bytes = readBoundedRegularFile(
+          reference.path,
+          MAX_REFERENCE_BYTES,
+          "private creation reference",
+        );
+      } catch {
+        throw new StudioHttpError(
+          404,
+          "reference-not-found",
+          "That local reference image was not found.",
+        );
+      }
       const detected = detectImageType(bytes);
       if (
         detected === null ||
@@ -966,7 +1088,7 @@ export class StudioApplication {
       return {
         route: "shot-reference",
         response: imageResponse(
-          reference.path,
+          bytes,
           detected.mediaType,
           `reference-${String(index + 1).padStart(3, "0")}${detected.extension}`,
         ),
@@ -974,11 +1096,11 @@ export class StudioApplication {
     }
     if (
       request.method === "POST" &&
-      segments.length === 4 &&
-      ACTION_NAMES.has(segments[3] as StudioActionName)
+      apiSegments.length === 4 &&
+      ACTION_NAMES.has(apiSegments[3] as StudioActionName)
     ) {
       this.security.assertMutation(request);
-      const action = segments[3] as StudioActionName;
+      const action = apiSegments[3] as StudioActionName;
       const callback = this.#actions[action];
       if (callback === undefined) {
         throw new StudioHttpError(
@@ -1031,7 +1153,6 @@ export class StudioApplication {
       this.#creation.config.shotsDirectory,
     ).length;
     const html = this.#assets.html
-      .replaceAll("{{SESSION_TOKEN}}", this.security.sessionToken)
       .replaceAll("{{INITIAL_COUNT}}", String(count))
       .replaceAll(
         "{{AGENT_PRIVACY_NOTICE}}",

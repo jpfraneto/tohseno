@@ -82,7 +82,7 @@ describe("safe project adoption", () => {
       expect(metadata.adopted).toBe(true);
       expect(metadata.selectedAgent).toBeNull();
       expect(metadata.baselineAuthor).toBe("existing-history");
-      expect(metadata.slug).toBe("compatible project with spaces");
+      expect(metadata.slug).toBe("compatible-project-with-spaces");
       expect((await runGit(["rev-parse", "HEAD"], project, scratch.environment)).stdout.trim()).toBe(commitBefore);
       expect((await runGit(["status", "--porcelain"], project, scratch.environment)).stdout).toBe("?? .tohseno/\n");
 

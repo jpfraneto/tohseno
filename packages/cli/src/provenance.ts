@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import {
   lstatSync,
   mkdirSync,
-  readFileSync,
   writeFileSync,
 } from "node:fs";
 import { basename, extname, join } from "node:path";
@@ -10,6 +9,7 @@ import type { AgentId } from "./agents.ts";
 import type { CreationDoor } from "./progress.ts";
 import type { FactoryRelease } from "./release.ts";
 import { CliError } from "./errors.ts";
+import { readBoundedRegularFile } from "./files.ts";
 
 export const CREATION_PROVENANCE_SCHEMA_VERSION = 1 as const;
 export const MAX_INTENTION_BYTES = 1_048_576;
@@ -117,11 +117,15 @@ function readRegularFile(path: string, maximumBytes: number, label: string): Uin
   if (details.size > maximumBytes) {
     throw new CliError(`${label} exceeds the ${Math.floor(maximumBytes / 1_048_576)} MiB limit`, 2);
   }
-  return readFileSync(path);
+  return readBoundedRegularFile(path, maximumBytes, label);
 }
 
 function decodeMarkdown(input: MarkdownInput): string {
-  if (extname(input.originalName).toLowerCase() !== ".md") {
+  const originalName = safeOriginalName(
+    input.originalName,
+    "intention Markdown filename",
+  );
+  if (extname(originalName).toLowerCase() !== ".md") {
     throw new CliError("intention file must have a .md extension", 2);
   }
   const bytes = readRegularFile(input.path, MAX_INTENTION_BYTES, "intention Markdown");
@@ -130,6 +134,20 @@ function decodeMarkdown(input: MarkdownInput): string {
   } catch {
     throw new CliError("intention Markdown must be valid UTF-8", 2);
   }
+}
+
+function safeOriginalName(value: string, label: string): string {
+  const name = basename(value.replaceAll("\\", "/")).normalize("NFC");
+  if (
+    name === "" ||
+    name === "." ||
+    name === ".." ||
+    Buffer.byteLength(name) > 255 ||
+    /[\u0000-\u001f\u007f-\u009f]/u.test(name)
+  ) {
+    throw new CliError(`${label} is invalid`, 2);
+  }
+  return name;
 }
 
 interface ImageType {
@@ -190,6 +208,10 @@ function normalizeReferences(
     throw new CliError(`at most ${MAX_REFERENCES} reference images may be attached`, 2);
   }
   return inputs.map((input, index) => {
+    const originalName = safeOriginalName(
+      input.originalName,
+      `reference image ${index + 1} filename`,
+    );
     const bytes = readRegularFile(
       input.path,
       MAX_REFERENCE_BYTES,
@@ -215,7 +237,7 @@ function normalizeReferences(
     }
     return {
       sourcePath: input.path,
-      originalName: basename(input.originalName),
+      originalName,
       mediaType: detected.mediaType,
       extension: detected.extension,
       bytes,
@@ -236,7 +258,14 @@ function addComponent(
   const length = Buffer.byteLength(content);
   components.push({
     kind,
-    ...(originalName === undefined ? {} : { originalName: basename(originalName) }),
+    ...(originalName === undefined
+      ? {}
+      : {
+        originalName: safeOriginalName(
+          originalName,
+          "intention Markdown filename",
+        ),
+      }),
     sha256: sha256(content),
     bytes: length,
     byteOffset: offset,

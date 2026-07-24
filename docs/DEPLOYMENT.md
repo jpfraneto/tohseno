@@ -23,23 +23,26 @@ analytics, or generated-app content path.
 The installer expects one immutable artifact:
 
 ```text
-GitHub release tag: cli-v0.3.0
-asset:              tohseno-cli-0.3.0.tar.gz
-metadata:           tohseno-cli-0.3.0.json
+GitHub release tag: cli-v0.3.1
+asset:              tohseno-cli-0.3.1.tar.gz
+metadata:           tohseno-cli-0.3.1.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
 factory source, shot runtime/playbooks, manifest tooling, and iOS base. The
 installer separately acquires pinned Bun 1.2.18 and, when missing,
 cloudflared 2026.5.2. Every download is SHA-256 verified before extraction.
+The CLI archive also contains a canonical checksum and executable-mode
+inventory. The installed wrapper authenticates that complete tree, Bun, and
+any managed cloudflared binary before every execution.
 
 Prepare locally:
 
 ```sh
 bun run check
 bun run tohseno:release
-shasum -a 256 dist/tohseno-cli-0.3.0.tar.gz
-cat dist/tohseno-cli-0.3.0.json
+shasum -a 256 dist/tohseno-cli-0.3.1.tar.gz
+cat dist/tohseno-cli-0.3.1.json
 ```
 
 Build a second time into another temporary path and compare bytes before
@@ -50,23 +53,25 @@ rejection without contacting public infrastructure.
 
 ## Published release
 
-CLI 0.2.2 is **Implemented** and published from commit
-`f26a31e4456875f3886ec4967073fdfbee4e5739`. It adds the optional Bankr token
-launch operations. Its public tarball is byte-for-byte identical to the
-deterministic local artifact, with SHA-256
-`91b75d064b36f7d24ba903000b5cd81ae355b87ac233570cf4a39f91de887cc7`.
-That artifact remains available, but the prepared installer now targets the
-unpublished 0.3.0 artifact. Do not deploy the prepared installer until the
-matching release is public.
-
-CLI 0.3.0 is **Prepared**, not yet published. It adds the shared creation
-service, private portable creation provenance, Tohseno Studio, structured
-progress, filesystem observation, native Simulator run/preview services, and
-the pinned `serve-sim` browser bridge. The final two local builds were
-byte-identical at
-SHA-256
+CLI 0.3.0 is **Implemented** and was published on 2026-07-23 from commit
+`d7f943e5a61eb81c3ecbce1733a80f244bb2e0bb`. Its public tarball is
+byte-for-byte identical to the deterministic local artifact, with SHA-256
 `0482ac2e9f80468528f272ac43c7e4ad4bc60ef8947733dfe077784861ce7d43`.
-`apps/site/public/install.sh` pins that exact prepared digest.
+It added the shared creation service, private portable creation provenance,
+Tohseno Studio, structured progress, native Simulator run/preview services,
+and the pinned `serve-sim` browser bridge.
+
+CLI 0.3.1 is **Prepared**, not yet published. It hardens identity and session
+durability, authenticates installed and third-party bytes, requires private
+Studio sessions for reads and writes, scans the public worktree for copied
+private input after every agent exit, isolates unsafe results, constrains
+runtime state and logs, and aligns the manifest, backend, setup, and production
+endpoint gates. Two clean builds from the frozen source produced byte-identical
+artifacts: archive SHA-256
+`a8cbee45aacb658083c435298c4e83be062f0daa45c73951c837bc130ef37a5e`
+and authenticated internal-tree SHA-256
+`8d24dfc235f5a187264297576544368f4b9937c1f59fbf69d287e1302c34ed4f`.
+Do not deploy its installer until the matching public release exists.
 
 For the next release:
 
@@ -83,15 +88,15 @@ For the next release:
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The prepared 0.3.0 publication command is:
+The prepared 0.3.1 publication command is:
 
 ```sh
-gh release create cli-v0.3.0 \
-  dist/tohseno-cli-0.3.0.tar.gz \
-  dist/tohseno-cli-0.3.0.json \
+gh release create cli-v0.3.1 \
+  dist/tohseno-cli-0.3.1.tar.gz \
+  dist/tohseno-cli-0.3.1.json \
   --target <release-commit> \
-  --title "TOHSENO CLI 0.3.0" \
-  --notes "Local-first Tohseno Studio, one shared shot factory, portable private provenance, structured progress, and native Apple Simulator run and interactive preview."
+  --title "TOHSENO CLI 0.3.1" \
+  --notes "Security hardening across local identity and writing, Studio sessions, private-input verification, installed release integrity, runtime ownership, setup, and the shot backend."
 ```
 
 No package registry publication is required by this design.
@@ -102,10 +107,10 @@ No package registry publication is required by this design.
 pin and creates nothing. Default invocation prints the canonical installer and
 exits `2`; `--help` exits `0`. It remains `must-revalidate`.
 
-The pin always trails the serving commit by one. CLI 0.2.2 is published, but
+The pin always trails the serving commit by one. CLI 0.3.0 is published, but
 this endpoint remains an intentional migration notice and its legacy creator
-pin is unchanged. Shell must never regain its own template copier, manifest
-validator, shot creator, or agent launcher.
+pin is unchanged until the 0.3.1 release commit lands. Shell must never regain
+its own template copier, manifest validator, shot creator, or agent launcher.
 
 Before a site deployment:
 

@@ -6,14 +6,58 @@
  * request; its value is never copied, printed, or written to configuration.
  */
 
-import { existsSync, readdirSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 const TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/;
 const KEY_ID_PATTERN = /^[A-Z0-9]{10}$/;
 const ISSUER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ASC_API_URL = "https://api.appstoreconnect.apple.com/v1/apps?limit=1";
+const MAX_SETUP_FILE_BYTES = 1_048_576;
+const MAX_PRIVATE_KEY_BYTES = 16_384;
+const MAX_CAPTURED_OUTPUT_BYTES = 1_048_576;
+
+function readDescriptorBounded(
+  descriptor: number,
+  maximumBytes: number,
+  label: string,
+): Buffer {
+  const chunks: Buffer[] = [];
+  const buffer = Buffer.allocUnsafe(65_536);
+  let total = 0;
+  while (true) {
+    const length = readSync(descriptor, buffer, 0, buffer.length, null);
+    if (length === 0) break;
+    total += length;
+    if (total > maximumBytes) {
+      throw new Error(`${label} grew past its ${maximumBytes}-byte limit`);
+    }
+    chunks.push(Buffer.from(buffer.subarray(0, length)));
+  }
+  return Buffer.concat(chunks, total);
+}
 
 const OWNED_XCCONFIG_KEYS = [
   "APP_DISPLAY_NAME",
@@ -138,9 +182,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function displayNameProblem(value: string): string | null {
-  return value.length > 0 && value.length <= 80 && !/[\r\n=]/.test(value)
+  return value.length > 0 &&
+      value.length <= 80 &&
+      !/[\r\n=$\\]/u.test(value) &&
+      !value.includes("//") &&
+      !value.includes("/*") &&
+      !value.includes("*/")
     ? null
-    : "Use 1–80 characters with no line breaks or equals sign.";
+    : "Use 1–80 characters without line breaks or Xcode configuration syntax.";
 }
 
 function bundleIdProblem(value: string): string | null {
@@ -162,7 +211,26 @@ function ascKeyPathProblem(
 ): string | null {
   if (value === "") return null;
   if (!value.toLowerCase().endsWith(".p8")) return "That should be a .p8 file path.";
-  return existsSync(expandPath(value, environment)) ? null : "No file exists at that path.";
+  const path = expandPath(value, environment);
+  try {
+    const details = lstatSync(path);
+    if (
+      details.isSymbolicLink() ||
+      !details.isFile() ||
+      details.nlink !== 1
+    ) {
+      return "The .p8 path must be a single-link regular file.";
+    }
+    if (details.size > MAX_PRIVATE_KEY_BYTES) {
+      return "The .p8 file is unexpectedly large.";
+    }
+    if ((details.mode & 0o077) !== 0) {
+      return "Protect the .p8 file with owner-only permissions (chmod 600).";
+    }
+    return null;
+  } catch {
+    return "No file exists at that path.";
+  }
 }
 
 function revenueCatKeyProblem(value: string): string | null {
@@ -266,21 +334,120 @@ function printUsage(output: Output): void {
   output.line(`  ${ENVIRONMENT.revenueCatPublicKey}=<public-key>`);
 }
 
-async function readJson(path: string): Promise<unknown> {
+function missingFile(error: unknown): boolean {
+  return isRecord(error) && error.code === "ENOENT";
+}
+
+function assertParentInsideRoot(root: string, path: string): void {
+  const rootPath = realpathSync(root);
+  const parentPath = realpathSync(dirname(path));
+  const difference = relative(rootPath, parentPath);
+  if (
+    difference === ".." ||
+    difference.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) ||
+    isAbsolute(difference)
+  ) {
+    throw new Error(`Refusing setup path outside the workspace: ${path}`);
+  }
+  const parent = lstatSync(dirname(path));
+  if (parent.isSymbolicLink() || !parent.isDirectory()) {
+    throw new Error(`Refusing non-directory setup parent: ${dirname(path)}`);
+  }
+}
+
+export function readOptionalSetupFile(
+  root: string,
+  path: string,
+  label: string,
+): string | null {
+  assertParentInsideRoot(root, path);
   try {
-    return JSON.parse(await Bun.file(path).text()) as unknown;
+    const details = lstatSync(path);
+    if (
+      details.isSymbolicLink() ||
+      !details.isFile() ||
+      details.nlink !== 1 ||
+      details.size > MAX_SETUP_FILE_BYTES
+    ) {
+      throw new Error(`Refusing non-regular ${label}: ${path}`);
+    }
+    const descriptor = openSync(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    try {
+      const opened = fstatSync(descriptor);
+      if (
+        !opened.isFile() ||
+        opened.nlink !== 1 ||
+        opened.dev !== details.dev ||
+        opened.ino !== details.ino ||
+        opened.size > MAX_SETUP_FILE_BYTES
+      ) {
+        throw new Error(`Refusing non-regular ${label}: ${path}`);
+      }
+      return new TextDecoder("utf-8", { fatal: true }).decode(
+        readDescriptorBounded(descriptor, MAX_SETUP_FILE_BYTES, label),
+      );
+    } finally {
+      closeSync(descriptor);
+    }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`Could not read JSON at ${path}: ${detail}`);
+    if (missingFile(error)) return null;
+    throw error;
+  }
+}
+
+export function writePrivateSetupFile(
+  root: string,
+  path: string,
+  content: string,
+  label: string,
+): void {
+  assertParentInsideRoot(root, path);
+  // Recheck the final target immediately before replacement. A setup file may
+  // be absent or regular, but never a link, directory, device, or socket.
+  readOptionalSetupFile(root, path, label);
+  const temporary = join(
+    dirname(path),
+    `.${basename(path)}.writing-${process.pid}-${crypto.randomUUID()}`,
+  );
+  let descriptor: number | null = null;
+  try {
+    descriptor = openSync(temporary, "wx", 0o600);
+    writeFileSync(descriptor, content, "utf8");
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = null;
+    renameSync(temporary, path);
+  } finally {
+    if (descriptor !== null) closeSync(descriptor);
+    try {
+      unlinkSync(temporary);
+    } catch (error) {
+      if (!missingFile(error)) throw error;
+    }
   }
 }
 
 export async function readManifestDefaults(root: string): Promise<ManifestDefaults> {
   const manifestPath = join(root, "continuity.manifest.json");
-  if (!(await Bun.file(manifestPath).exists())) {
+  const source = readOptionalSetupFile(
+    root,
+    manifestPath,
+    "continuity manifest",
+  );
+  if (source === null) {
     throw new Error(`Missing ${manifestPath}; setup needs the workspace manifest.`);
   }
-  const manifest = await readJson(manifestPath);
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(source) as unknown;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read JSON at ${manifestPath}: ${detail}`);
+  }
   const application = isRecord(manifest) && isRecord(manifest.application)
     ? manifest.application
     : null;
@@ -296,8 +463,15 @@ export async function readManifestDefaults(root: string): Promise<ManifestDefaul
 
 async function readExistingConfig(root: string): Promise<Partial<SetupConfig>> {
   const configPath = join(root, "app.config.json");
-  if (!(await Bun.file(configPath).exists())) return {};
-  const value = await readJson(configPath);
+  const source = readOptionalSetupFile(root, configPath, "app config");
+  if (source === null) return {};
+  let value: unknown;
+  try {
+    value = JSON.parse(source) as unknown;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read JSON at ${configPath}: ${detail}`);
+  }
   if (!isRecord(value)) throw new Error("app.config.json must contain an object.");
 
   const result: Partial<SetupConfig> = {};
@@ -324,16 +498,51 @@ async function readExistingConfig(root: string): Promise<Partial<SetupConfig>> {
 
 async function defaultCaptureCommand(command: string[]): Promise<CommandResult> {
   try {
-    const child = Bun.spawn(command, {
+    const executable = command[0] === "defaults"
+      ? "/usr/bin/defaults"
+      : command[0] === "security"
+        ? "/usr/bin/security"
+        : null;
+    if (executable === null) return { exitCode: 1, stdout: "" };
+    const child = Bun.spawn([executable, ...command.slice(1)], {
+      env: {
+        PATH: "/usr/bin:/bin",
+        ...(process.env.HOME === undefined
+          ? {}
+          : { HOME: process.env.HOME }),
+        ...(process.env.LANG === undefined
+          ? {}
+          : { LANG: process.env.LANG }),
+      },
       stdin: "ignore",
       stdout: "pipe",
       stderr: "ignore",
     });
+    const reader = child.stdout.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    let exceeded = false;
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      length += next.value.byteLength;
+      if (length > MAX_CAPTURED_OUTPUT_BYTES) {
+        exceeded = true;
+        child.kill("SIGKILL");
+        break;
+      }
+      chunks.push(next.value);
+    }
     const [exitCode, stdout] = await Promise.all([
       child.exited,
-      new Response(child.stdout).text(),
+      Promise.resolve(
+        exceeded
+          ? ""
+          : Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
+            .toString("utf8"),
+      ),
     ]);
-    return { exitCode, stdout };
+    return { exitCode: exceeded ? 1 : exitCode, stdout };
   } catch {
     return { exitCode: 1, stdout: "" };
   }
@@ -388,7 +597,10 @@ export async function detectAppleTeamId(
     );
     let profileNames: string[] = [];
     try {
-      profileNames = readdirSync(profileDirectory).filter((name) => name.endsWith(".mobileprovision"));
+      profileNames = readdirSync(profileDirectory)
+        .filter((name) => name.endsWith(".mobileprovision"))
+        .sort()
+        .slice(0, 256);
     } catch {
       profileNames = [];
     }
@@ -438,7 +650,35 @@ async function appStoreConnectToken(
   config: AppStoreConnectConfig,
   now = Math.floor(Date.now() / 1_000),
 ): Promise<string> {
-  const keyPem = await Bun.file(config.keyPath).text();
+  const problem = ascKeyPathProblem(config.keyPath);
+  if (problem !== null) throw new Error(problem);
+  const details = lstatSync(config.keyPath);
+  const descriptor = openSync(
+    config.keyPath,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  );
+  let keyPem: string;
+  try {
+    const opened = fstatSync(descriptor);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.dev !== details.dev ||
+      opened.ino !== details.ino ||
+      opened.size > MAX_PRIVATE_KEY_BYTES
+    ) {
+      throw new Error("The .p8 path changed while it was being opened.");
+    }
+    keyPem = new TextDecoder("utf-8", { fatal: true }).decode(
+      readDescriptorBounded(
+        descriptor,
+        MAX_PRIVATE_KEY_BYTES,
+        "App Store Connect private key",
+      ),
+    );
+  } finally {
+    closeSync(descriptor);
+  }
   const key = await crypto.subtle.importKey(
     "pkcs8",
     privateKeyDer(keyPem),
@@ -629,9 +869,8 @@ export async function main(
   const manifestDefaults = await readManifestDefaults(root);
   const existing = await readExistingConfig(root);
   const localXcconfigPath = join(root, "Config", "Local.xcconfig");
-  const existingLocalXcconfig = await Bun.file(localXcconfigPath).exists()
-    ? await Bun.file(localXcconfigPath).text()
-    : "";
+  const existingLocalXcconfig =
+    readOptionalSetupFile(root, localXcconfigPath, "local Xcode config") ?? "";
   const prompter = options.fromManifest
     ? null
     : new Prompter(
@@ -716,8 +955,18 @@ export async function main(
     DEVELOPMENT_TEAM: teamId,
     REVENUECAT_PUBLIC_KEY: revenueCatPublicKey,
   });
-  await Bun.write(configPath, `${JSON.stringify(config, null, 2)}\n`);
-  await Bun.write(localXcconfigPath, mergedXcconfig);
+  writePrivateSetupFile(
+    root,
+    configPath,
+    `${JSON.stringify(config, null, 2)}\n`,
+    "app config",
+  );
+  writePrivateSetupFile(
+    root,
+    localXcconfigPath,
+    mergedXcconfig,
+    "local Xcode config",
+  );
 
   output.line(`\n  ✓ ${configPath}`);
   output.line(`  ✓ ${localXcconfigPath}`);

@@ -6,7 +6,7 @@ import XCTest
 final class IdentityTests: XCTestCase {
     private let phrase = "legal winner thank year wave sausage worth useful legal winner thank yellow"
 
-    func testFirstLoadSilentlyCreatesAPersistentIdentity() {
+    func testFirstLoadSilentlyCreatesAPersistentIdentity() throws {
         let store = InMemorySecretStore()
         let manager = IdentityManager(store: store)
         XCTAssertNil(manager.identity)
@@ -14,7 +14,7 @@ final class IdentityTests: XCTestCase {
         manager.loadOrCreate()
         let created = manager.identity
         XCTAssertNotNil(created, "first launch must create an identity with no interaction")
-        XCTAssertNotNil(store.readMnemonic(), "the phrase must persist in the secret store")
+        XCTAssertNotNil(try store.readMnemonic(), "the phrase must persist in the secret store")
 
         // A second load returns the same identity, not a new one.
         let again = IdentityManager(store: store)
@@ -39,7 +39,7 @@ final class IdentityTests: XCTestCase {
 
         try manager.restore(phrase: phrase)
         XCTAssertNotEqual(manager.identity?.userID, original)
-        XCTAssertEqual(store.readMnemonic(), BIP39.normalize(phrase))
+        XCTAssertEqual(try store.readMnemonic(), BIP39.normalize(phrase))
     }
 
     func testRestoreRejectsInvalidPhrase() {

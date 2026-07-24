@@ -64,9 +64,9 @@ function writeShotFixture(
     selectedAgent: null,
     baselineAuthor: "factory",
     factory: {
-      releaseId: "test-release",
-      cliVersion: "test",
-      templateVersion: "test",
+      releaseId: `content-${"a".repeat(32)}`,
+      cliVersion: "0.3.1",
+      templateVersion: "0.4.0",
       manifestSchemaVersion: "0.4.0",
       sourceCommit: null,
       sourceDirty: false,

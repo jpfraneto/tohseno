@@ -70,6 +70,7 @@ tohseno</code></pre>
           <pre><code>tohseno studio
 tohseno studio --port 4747 --no-open</code></pre>
           <p>Studio is a local browser contact sheet for the same configured shots directory used by the CLI. It binds to <code>127.0.0.1</code>, never the LAN, and watches that directory for shots created through either door. Its creation form accepts a long intention, one optional Markdown file, and optional image references.</p>
+          <p>Studio opens through a mode-<code>0600</code> temporary launcher file. Its one-time fragment establishes an HTTP-only, path-scoped local session and is removed from browser history immediately. The shell, command line, and printed base URL contain no reusable session credential; private reads and mutations require the session.</p>
           <p>The terminal and Studio call the same factory. They share concurrency-safe allocation, the pinned factory release, atomic publication, independent Git history, private provenance, and verification. Studio is not a daemon requirement: close it and the same shots remain available through <code>tohseno list</code>, <code>verify</code>, and <code>open</code>.</p>
         </section>
 
@@ -96,7 +97,8 @@ tohseno doctor</code></pre>
         <section id="local-data">
           <h2>What stays local</h2>
           <p>A shot has its own Git history, SwiftUI app, Bun API, SQLite migrations, manifest, tests, landing page, verifier, operations, and release provenance. Writing and identity stay on the device. The baseline API stores operational metadata only and never receives writing content. Development data, logs, PIDs, and generated endpoints are gitignored.</p>
-          <p>When <code>create --file</code> or Studio receives private creation input, its normalized intention, reference copies, hashes, original filenames, options, and structured events stay in the shot’s gitignored <code>.tohseno/provenance/</code> directory. Temporary Studio uploads are removed after the job finishes or stops safely. Studio does not upload shots or creation input to TOHSENO; the selected coding agent uses that input under its own provider and privacy settings.</p>
+          <p>When <code>create --file</code> or Studio receives private creation input, its normalized intention, reference copies, hashes, original filenames, options, and structured events stay in the shot’s gitignored <code>.tohseno/provenance/</code> directory. Temporary Studio uploads are removed after the job finishes or stops safely. After every coding-agent exit—including a failed one—the verifier rejects copied private input, unsafe links, changed pinned rails, and missing ignore rules. A result that fails that gate is moved to an explicitly unsafe hidden path instead of being presented as a ready shot.</p>
+          <p>Studio does not upload shots or creation input to TOHSENO. The selected coding agent can read creation input to do the requested work and handles it under that provider’s own privacy, retention, and account settings.</p>
           <p>The app’s core action remains useful offline. Seed-phrase identity replaces accounts, and every shot builds without TOHSENO credentials or a live factory.</p>
         </section>
 

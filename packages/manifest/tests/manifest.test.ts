@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import Ajv2020, { type AnySchema } from "ajv/dist/2020";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   assertValidManifest,
@@ -124,6 +127,25 @@ describe("continuity manifest", () => {
     expect(result.valid).toBe(false);
     expect(result.errors.some((issue) => issue.path === "$.runtime.privacy.publicByDefault")).toBe(true);
     expect(() => assertValidManifest(invalid)).toThrow(TypeError);
+  });
+
+  test("application names cannot inject Xcode configuration syntax", async () => {
+    for (const name of [
+      "$(DEV_SECRET)",
+      "Name = $(OTHER)",
+      "Name \\\nOTHER = value",
+      "Name // comment",
+      "Name /* comment",
+    ]) {
+      const manifest = await template();
+      manifest.application.name = name;
+      const result = validateManifest(manifest);
+      expect(result.valid, name).toBe(false);
+      expect(
+        result.errors.some((issue) => issue.path === "$.application.name"),
+        name,
+      ).toBe(true);
+    }
   });
 
   test("public-by-default is a builder decision, not a refusal", async () => {
@@ -491,6 +513,21 @@ describe("continuity manifest", () => {
       expect(await runCli(rootDir, broken)).toBe(1);
     } finally {
       await Bun.file(broken).delete();
+    }
+
+    const scratch = mkdtempSync(join(tmpdir(), "tohseno-manifest-gate-"));
+    try {
+      const target = join(scratch, "target.json");
+      const link = join(scratch, "manifest.json");
+      writeFileSync(target, "{}\n");
+      symlinkSync(target, link);
+      expect(await runCli(rootDir, link)).toBe(1);
+
+      const oversized = join(scratch, "oversized.json");
+      writeFileSync(oversized, " ".repeat(1_048_577));
+      expect(await runCli(rootDir, oversized)).toBe(1);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
     }
   });
 

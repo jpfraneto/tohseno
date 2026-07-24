@@ -8,6 +8,10 @@ First ask the owner: “What do you want to make?” One sentence is enough. If
 they already arrived with a specific change, use it instead of making them
 repeat themselves. The launch prompt is intentionally constant; never put the
 private product idea in commands, metadata, logs, or committed files.
+Creation input may already exist under the private, gitignored provenance
+directory. Read only what this build requires. It is deliberately disclosed to
+the owner-selected coding agent under that provider's privacy and retention
+settings; never forward it to any additional service.
 
 Then read these local sources completely:
 

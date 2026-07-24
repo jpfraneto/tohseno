@@ -1,10 +1,13 @@
-export const CLI_VERSION = "0.3.0" as const;
+export const CLI_VERSION = "0.3.1" as const;
 export const FACTORY_RELEASE_SCHEMA_VERSION = 1 as const;
 export const SHOT_SCHEMA_VERSION = 1 as const;
 export const CONFIG_SCHEMA_VERSION = 1 as const;
 export const IOS_TEMPLATE_VERSION = "continuity-app-ios-v3" as const;
 export const MANIFEST_SCHEMA_VERSION = "0.4.0" as const;
 export const AGENT_INSTRUCTION = "Read the local AGENTS.md and begin." as const;
+export const MAX_FACTORY_RELEASE_FILES = 4_096;
+export const MAX_FACTORY_RELEASE_FILE_BYTES = 64 * 1_048_576;
+export const MAX_FACTORY_RELEASE_BYTES = 256 * 1_048_576;
 
 export const RELEASE_SOURCE_FILES = [
   "LICENSE",

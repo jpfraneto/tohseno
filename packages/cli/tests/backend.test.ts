@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
@@ -17,6 +27,19 @@ describe("shot API foundation", () => {
   test("binds to an assigned localhost port, migrates SQLite, and reports non-sensitive health", async () => {
     const root = mkdtempSync(join(tmpdir(), "tohseno backend with spaces-"));
     roots.push(root);
+    mkdirSync(join(root, ".tohseno"), { recursive: true });
+    writeFileSync(
+      join(root, ".tohseno", "shot.json"),
+      `${JSON.stringify({
+        slug: "private-product-slug",
+        platform: "ios",
+        factory: {
+          releaseId: `content-${"a".repeat(32)}`,
+          templateVersion: "0.4.0",
+        },
+      })}\n`,
+      { mode: 0o600 },
+    );
     const databasePath = join(root, "persistent data", "development.sqlite3");
     const readyFile = join(root, "runtime", "ready.json");
     const records: Array<Record<string, unknown>> = [];
@@ -40,9 +63,12 @@ describe("shot API foundation", () => {
       status: "ok",
       ready: true,
       service: "shot-api",
+      shot: { platform: "ios" },
       runtime: { databaseSchemaVersion: 1, persistence: "sqlite" },
     });
     expect(JSON.stringify(health)).not.toContain(databasePath);
+    expect(JSON.stringify(health)).not.toContain("private-product-slug");
+    expect(health.shot).not.toHaveProperty("slug");
 
     const database = new Database(databasePath, { readonly: true });
     expect(database.query<{ version: number }, []>("SELECT version FROM schema_migrations").get()?.version).toBe(1);
@@ -54,6 +80,7 @@ describe("shot API foundation", () => {
     expect((await fetch(`${api.origin}/health`, { method: "POST" })).status).toBe(405);
     expect(records.every((record) => !("body" in record) && !("headers" in record))).toBe(true);
     expect(JSON.stringify(records)).not.toContain("/private");
+    expect(records.some((record) => record.method === "OTHER")).toBe(true);
 
     await api.stop();
     running.pop();
@@ -75,5 +102,71 @@ describe("shot API foundation", () => {
       environment: { ...process.env, NODE_ENV: "production", TOHSENO_DATABASE_PATH: undefined },
       log: () => {},
     })).rejects.toThrow("absolute TOHSENO_DATABASE_PATH");
+
+    const outside = join(tmpdir(), `tohseno-outside-${crypto.randomUUID()}.sqlite3`);
+    await expect(startShotApi({
+      root,
+      environment: {
+        ...process.env,
+        NODE_ENV: "development",
+        TOHSENO_DATABASE_PATH: outside,
+      },
+      log: () => {},
+    })).rejects.toThrow("must remain inside the shot");
+    expect(existsSync(outside)).toBe(false);
+
+    const redirected = join(root, "redirected-data");
+    const outsideDirectory = mkdtempSync(join(tmpdir(), "tohseno-db-victim-"));
+    roots.push(outsideDirectory);
+    symlinkSync(outsideDirectory, redirected, "dir");
+    await expect(startShotApi({
+      root,
+      environment: {
+        ...process.env,
+        NODE_ENV: "development",
+        TOHSENO_DATABASE_PATH: join(redirected, "development.sqlite3"),
+      },
+      log: () => {},
+    })).rejects.toThrow("must remain inside the shot");
+    expect(existsSync(join(outsideDirectory, "development.sqlite3"))).toBe(false);
+  });
+
+  test("refuses database and SQLite auxiliary-file symlinks without touching their targets", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tohseno backend links-"));
+    roots.push(root);
+    const data = join(root, "data");
+    mkdirSync(data);
+    const victim = join(root, "owner-file");
+    writeFileSync(victim, "do not touch", { mode: 0o640 });
+    const databasePath = join(data, "development.sqlite3");
+    symlinkSync(victim, databasePath);
+
+    await expect(startShotApi({
+      root,
+      environment: { ...process.env, TOHSENO_DATABASE_PATH: databasePath },
+      log: () => {},
+    })).rejects.toThrow("regular file");
+    expect(readFileSync(victim, "utf8")).toBe("do not touch");
+    expect(statSync(victim).mode & 0o777).toBe(0o640);
+
+    rmSync(databasePath);
+    symlinkSync(victim, `${databasePath}-wal`);
+    await expect(startShotApi({
+      root,
+      environment: { ...process.env, TOHSENO_DATABASE_PATH: databasePath },
+      log: () => {},
+    })).rejects.toThrow("regular file");
+    expect(readFileSync(victim, "utf8")).toBe("do not touch");
+
+    rmSync(`${databasePath}-wal`);
+    rmSync(databasePath);
+    linkSync(victim, databasePath);
+    await expect(startShotApi({
+      root,
+      environment: { ...process.env, TOHSENO_DATABASE_PATH: databasePath },
+      log: () => {},
+    })).rejects.toThrow("single-link regular file");
+    expect(readFileSync(victim, "utf8")).toBe("do not touch");
+    expect(statSync(victim).mode & 0o777).toBe(0o640);
   });
 });

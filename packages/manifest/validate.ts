@@ -210,7 +210,23 @@ function validateApplication(
     max: 120,
     pattern: APPLICATION_ID,
   });
-  stringValue(object.name, `${path}.name`, issues, { max: 80 });
+  const name = stringValue(object.name, `${path}.name`, issues, { max: 80 });
+  if (
+    name !== undefined &&
+    (
+      /[\r\n=$\\]/u.test(name) ||
+      name.includes("//") ||
+      name.includes("/*") ||
+      name.includes("*/")
+    )
+  ) {
+    addIssue(
+      issues,
+      `${path}.name`,
+      "application-name.xcconfig",
+      "must not contain Xcode configuration syntax",
+    );
+  }
   const coreAction = stringValue(object.coreAction, `${path}.coreAction`, issues, {
     min: 12,
     max: 240,

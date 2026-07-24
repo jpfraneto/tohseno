@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -430,16 +431,56 @@ describe("shot-local machine runtime", () => {
 
           const fakeState = {
             ...oldState,
-            instanceId: "reused-pid-fixture",
-            supervisor: { pid: unrelated.pid, role: "supervisor", commandContains: ["definitely-not-this-command"] },
-            api: { ...oldState.api, pid: 999_997 },
+            instanceId: randomUUID(),
+            supervisor: {
+              pid: unrelated.pid,
+              role: "supervisor",
+              commandContains: [
+                oldState.supervisor.commandContains[0],
+                "__supervise",
+                "--instance",
+                "",
+              ],
+            },
+            api: {
+              ...oldState.api,
+              pid: 999_997,
+              commandContains: [
+                oldState.api.commandContains[0],
+                "--tohseno-instance",
+                "",
+              ],
+            },
             tunnel: null,
           };
+          fakeState.supervisor.commandContains[3] = fakeState.instanceId;
+          fakeState.api.commandContains[2] = fakeState.instanceId;
           writeFileSync(join(stale, ".tohseno", "run", "state.json"), `${JSON.stringify(fakeState)}\n`);
           const stopped = await machine(scratch, stale, ["dev", "stop"]);
           expect(stopped.exitCode).toBe(0);
           expect(stopped.envelope.result.refusedPids).toContain(unrelated.pid);
           expect(isProcessAlive(unrelated.pid)).toBe(true);
+
+          const poisonedState = {
+            ...fakeState,
+            instanceId: randomUUID(),
+            supervisor: {
+              pid: unrelated.pid,
+              role: "supervisor",
+              commandContains: [],
+            },
+          };
+          writeFileSync(
+            join(stale, ".tohseno", "run", "state.json"),
+            `${JSON.stringify(poisonedState)}\n`,
+          );
+          const poisonedStop = await machine(scratch, stale, ["dev", "stop"]);
+          expect(poisonedStop.exitCode).toBe(2);
+          expect(poisonedStop.envelope.error?.message).toContain(
+            "runtime state is corrupt",
+          );
+          expect(isProcessAlive(unrelated.pid)).toBe(true);
+          rmSync(join(stale, ".tohseno", "run", "state.json"));
         } finally {
           unrelated.kill("SIGTERM");
           await unrelated.exited;
@@ -466,13 +507,11 @@ describe("token operations", () => {
 
       const bare = await machine(scratch, shot, ["token", "status"]);
       expect(bare.exitCode).toBe(0);
-      // CLI availability depends on the host (a real npx may resolve); auth
-      // and the token record are controlled by the scratch environment.
       expect(bare.envelope.result).toMatchObject({
+        bankrCliAvailable: false,
         authenticated: false,
         token: null,
       });
-      expect(typeof bare.envelope.result.bankrCliAvailable).toBe("boolean");
 
       const inventory = await machine(scratch, shot, ["operations"]);
       const operations = (inventory.envelope.result.commands as Array<{ operation: string }>)
@@ -486,7 +525,9 @@ describe("token operations", () => {
       ]);
       expect(noAuth.exitCode).toBe(3);
       expect(noAuth.envelope.error?.code).toBe("MISSING_DEPENDENCY");
-      expect(noAuth.envelope.error?.message).toContain("npx @bankr/cli login email");
+      expect(noAuth.envelope.error?.message).toContain(
+        "npm install -g @bankr/cli",
+      );
 
       const sentinel = "bk_token-secret-must-never-appear-9c41";
       scratch.environment.BANKR_API_KEY = sentinel;
@@ -508,7 +549,9 @@ describe("token operations", () => {
       expect(unapproved.envelope.error?.code).toBe("INVALID_CONFIGURATION");
       expect(unapproved.envelope.error?.message).toContain("--yes");
       expect(unapproved.envelope.error?.message).toContain("IRREVERSIBLE");
-      expect(unapproved.envelope.error?.message).toContain("0.7% swap fee");
+      expect(unapproved.envelope.error?.message).toContain(
+        "does not independently quote or guarantee",
+      );
 
       const badChain = await machine(scratch, shot, [
         "token", "launch", "--name", "Continuity", "--symbol", "CONT", "--chain", "ethereum", "--yes",
@@ -523,6 +566,7 @@ describe("token operations", () => {
       expect(launched.stderr).toEqual([]);
       expect(launched.envelope.result).toMatchObject({
         launched: true,
+        simulated: true,
         parsed: true,
         token: {
           provider: "bankr",
@@ -547,8 +591,10 @@ describe("token operations", () => {
       const logPath = join(shot, ".tohseno", "run", "logs", "token.log");
       const log = readFileSync(logPath, "utf8");
       expect(log).toContain("bankr_launch");
-      expect(log).toContain("[redacted]");
+      expect(log).toContain('"simulated":true');
       expect(log).not.toContain(sentinel);
+      expect(log).not.toContain("Continuity");
+      expect(log).not.toContain("CONT");
       expect(JSON.stringify(launched.envelope)).not.toContain(sentinel);
       expect(manifestRaw).not.toContain(sentinel);
       expect(readFileSync(keyWitness, "utf8")).toBe("yes");
@@ -577,14 +623,14 @@ describe("token operations", () => {
     });
   }, 30_000);
 
-  test("a failing bankr launch surfaces the error verbatim and leaves the manifest untouched", async () => {
+  test("a failing bankr simulation retains no provider output and leaves the manifest untouched", async () => {
     await withScratchEnvironment(async (scratch) => {
       const shot = await createShot(scratch, "token-failure");
       fakeBankrHome(scratch);
       writeExecutable(
         scratch.binDirectory,
         "bankr",
-        "#!/bin/sh\nprintf 'rate limited: one launch per minute\\n' >&2\nexit 9",
+        "#!/bin/sh\nprintf 'provider-private-detail test-only-key-material\\n' >&2\nexit 9",
       );
       const before = readFileSync(join(shot, "continuity.manifest.json"), "utf8");
       const failed = await machine(scratch, shot, [
@@ -592,15 +638,82 @@ describe("token operations", () => {
       ]);
       expect(failed.exitCode).toBe(5);
       expect(failed.envelope.error?.code).toBe("INTERNAL_FAILURE");
-      expect(failed.envelope.error?.message).toContain("rate limited: one launch per minute");
-      expect(failed.envelope.error?.details?.hint).toContain("one launch per minute");
+      expect(failed.envelope.error?.message).toContain(
+        "simulation failed with exit code 9",
+      );
+      expect(JSON.stringify(failed.envelope)).not.toContain(
+        "provider-private-detail",
+      );
+      expect(failed.envelope.error?.details?.hint).toContain(
+        "docs.bankr.bot",
+      );
       expect(failed.stdout).toHaveLength(1);
       expect(failed.stderr).toEqual([]);
       expect(readFileSync(join(shot, "continuity.manifest.json"), "utf8")).toBe(before);
+      const log = readFileSync(
+        join(shot, ".tohseno", "run", "logs", "token.log"),
+        "utf8",
+      );
+      expect(log).not.toContain("provider-private-detail");
+      expect(log).not.toContain("test-only-key-material");
 
       const fees = await machine(scratch, shot, ["token", "fees"]);
       expect(fees.exitCode).toBe(2);
       expect(fees.envelope.error?.code).toBe("INVALID_CONFIGURATION");
+    });
+  }, 30_000);
+
+  test("npx alone is never treated as authority to run a token provider", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const shot = await createShot(scratch, "token-no-npx-fallback");
+      const witness = join(scratch.root, "npx-witness");
+      writeExecutable(
+        scratch.binDirectory,
+        "npx",
+        `#!/bin/sh\nprintf 'ran' > ${JSON.stringify(witness)}\n`,
+      );
+
+      const status = await machine(scratch, shot, ["token", "status"]);
+
+      expect(status.exitCode).toBe(0);
+      expect(status.envelope.result.bankrCliAvailable).toBe(false);
+      expect(existsSync(witness)).toBe(false);
+    });
+  }, 30_000);
+
+  test("token reads refuse linked and oversized manifests", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const linkedShot = await createShot(scratch, "token-linked-manifest");
+      const linkedManifest = join(linkedShot, "continuity.manifest.json");
+      const victim = join(scratch.root, "manifest-victim.json");
+      writeFileSync(victim, "{}\n");
+      rmSync(linkedManifest);
+      symlinkSync(victim, linkedManifest);
+
+      const linked = await machine(scratch, linkedShot, ["token", "status"]);
+      expect(linked.exitCode).toBe(2);
+      expect(linked.envelope.error?.code).toBe("INVALID_CONFIGURATION");
+      expect(linked.envelope.error?.message).toContain(
+        "must be a regular file with one link",
+      );
+      expect(readFileSync(victim, "utf8")).toBe("{}\n");
+
+      const oversizedShot = await createShot(
+        scratch,
+        "token-oversized-manifest",
+      );
+      writeFileSync(
+        join(oversizedShot, "continuity.manifest.json"),
+        " ".repeat(1_048_577),
+      );
+      const oversized = await machine(scratch, oversizedShot, [
+        "token",
+        "status",
+      ]);
+      expect(oversized.exitCode).toBe(2);
+      expect(oversized.envelope.error?.message).toContain(
+        "no more than 1048576 bytes",
+      );
     });
   }, 30_000);
 });
@@ -615,12 +728,37 @@ describe("runtime parsing and production endpoint gates", () => {
 
   test("Release build validation rejects missing, localhost, and Quick Tunnel endpoints", async () => {
     const script = join(REPOSITORY_ROOT, "templates", "continuity-app", "scripts", "validate-production-endpoint.sh");
+    const fixtures = JSON.parse(readFileSync(
+      join(
+        REPOSITORY_ROOT,
+        "templates",
+        "continuity-app",
+        "Tests",
+        "Fixtures",
+        "production-endpoints.json",
+      ),
+      "utf8",
+    )) as {
+      acceptedProduction: string[];
+      rejectedProduction: string[];
+    };
     const environment = { ...process.env, CONFIGURATION: "Release" };
-    expect((await runProcess([script], REPOSITORY_ROOT, { ...environment, TOHSENO_API_BASE_URL: "" })).exitCode).toBe(1);
-    expect((await runProcess([script], REPOSITORY_ROOT, { ...environment, TOHSENO_API_BASE_URL: "http://localhost:3000" })).exitCode).toBe(1);
-    expect((await runProcess([script], REPOSITORY_ROOT, { ...environment, TOHSENO_API_BASE_URL: "https://random.trycloudflare.com" })).exitCode).toBe(1);
-    expect((await runProcess([script], REPOSITORY_ROOT, { ...environment, TOHSENO_API_BASE_URL: "https://api.example.com" })).exitCode).toBe(0);
-    expect((await runProcess([script], REPOSITORY_ROOT, { ...environment, TOHSENO_API_BASE_URL: "https://api.example.com/path" })).exitCode).toBe(1);
+    for (const value of fixtures.acceptedProduction) {
+      expect((await runProcess(
+        [script],
+        REPOSITORY_ROOT,
+        { ...environment, TOHSENO_API_BASE_URL: value },
+      )).exitCode).toBe(0);
+      expect(inspectEndpoint(value).valid).toBe(true);
+    }
+    for (const value of fixtures.rejectedProduction) {
+      expect((await runProcess(
+        [script],
+        REPOSITORY_ROOT,
+        { ...environment, TOHSENO_API_BASE_URL: value },
+      )).exitCode).toBe(1);
+      expect(inspectEndpoint(value).valid).toBe(false);
+    }
   });
 
   test("production inspection reports endpoint, persistence, backups, safe secret references, and capabilities", async () => {

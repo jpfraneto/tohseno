@@ -1,8 +1,9 @@
 (() => {
   "use strict";
 
-  const sessionToken =
-    document.querySelector("meta[name='tohseno-session']")?.getAttribute("content") ?? "";
+  const SESSION_FRAGMENT_KEY = "tohseno-session";
+  const SESSION_API_STORAGE_KEY = "tohseno-studio-api-base";
+  let apiBase = "";
 
   const elements = {
     studioMain: document.querySelector("#studio-main"),
@@ -108,10 +109,84 @@
     return payload;
   }
 
+  function apiUrl(path) {
+    if (
+      !/^\/__tohseno\/[a-f0-9]{32}\/api$/.test(apiBase) ||
+      !path.startsWith("/")
+    ) {
+      throw new Error("The private Studio session is unavailable.");
+    }
+    return `${apiBase}${path}`;
+  }
+
   function mutationHeaders() {
-    return {
-      "X-Tohseno-Session": sessionToken,
-    };
+    return {};
+  }
+
+  function consumeFragmentToken() {
+    const parameters = new URLSearchParams(window.location.hash.slice(1));
+    const token = parameters.get(SESSION_FRAGMENT_KEY);
+    if (token === null || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    parameters.delete(SESSION_FRAGMENT_KEY);
+    const suffix = parameters.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}${
+        suffix === "" ? "" : `#${suffix}`
+      }`,
+    );
+    return token;
+  }
+
+  async function establishStudioSession() {
+    const token = consumeFragmentToken();
+    if (token !== null) {
+      const response = await fetch("/api/session", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "X-Tohseno-Session": token,
+        },
+      });
+      const payload = await readJson(response);
+      const candidate = isRecord(payload)
+        ? asNonEmptyString(payload.apiBase)
+        : null;
+      if (
+        !response.ok ||
+        candidate === null ||
+        !/^\/__tohseno\/[a-f0-9]{32}\/api$/.test(candidate)
+      ) {
+        throw new Error(
+          readErrorMessage(
+            payload,
+            "Studio could not establish its private local session.",
+          ),
+        );
+      }
+      apiBase = candidate;
+      try {
+        window.sessionStorage.setItem(SESSION_API_STORAGE_KEY, apiBase);
+      } catch {
+        // The current page remains usable when session storage is unavailable.
+      }
+      return;
+    }
+
+    let stored = "";
+    try {
+      stored = window.sessionStorage.getItem(SESSION_API_STORAGE_KEY) ?? "";
+    } catch {
+      stored = "";
+    }
+    if (!/^\/__tohseno\/[a-f0-9]{32}\/api$/.test(stored)) {
+      throw new Error(
+        "This page has no private Studio session. Reopen the local Studio launcher.",
+      );
+    }
+    apiBase = stored;
   }
 
   function setNotice(message, kind = "status") {
@@ -322,7 +397,7 @@
       elements.contactView.setAttribute("aria-busy", "true");
     }
     try {
-      const payload = await requestJson("/api/shots");
+      const payload = await requestJson(apiUrl("/shots"));
       renderShots(payload);
       if (!quiet) setNotice("");
       return payload;
@@ -353,7 +428,7 @@
       return;
     }
     state.workspaceSource?.close();
-    const source = new EventSource("/api/events");
+    const source = new EventSource(apiUrl("/events"));
     state.workspaceSource = source;
     source.addEventListener("open", () => {
       if (!(elements.watchIndicator instanceof HTMLElement)) return;
@@ -489,7 +564,9 @@
     }
     try {
       if (!quiet) setDetailStatus("READING SHOT…");
-      const payload = await requestJson(`/api/shots/${encodeURIComponent(slug)}`);
+      const payload = await requestJson(
+        apiUrl(`/shots/${encodeURIComponent(slug)}`),
+      );
       renderDetail(payload);
       if (!quiet) setDetailStatus("");
       return payload;
@@ -535,7 +612,7 @@
     try {
       if (slug) {
         await requestJson(
-          `/api/shots/${encodeURIComponent(slug)}/stop-preview`,
+          apiUrl(`/shots/${encodeURIComponent(slug)}/stop-preview`),
           {
             method: "POST",
             headers: mutationHeaders(),
@@ -574,7 +651,9 @@
     if (action === "preview") showLivePreview(labels.preview);
     try {
       const payload = await requestJson(
-        `/api/shots/${encodeURIComponent(slug)}/${encodeURIComponent(action)}`,
+        apiUrl(
+          `/shots/${encodeURIComponent(slug)}/${encodeURIComponent(action)}`,
+        ),
         {
           method: "POST",
           headers: mutationHeaders(),
@@ -861,7 +940,9 @@
       finishCreation({ message: "This browser cannot stream factory progress." }, false);
       return;
     }
-    const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
+    const source = new EventSource(
+      apiUrl(`/jobs/${encodeURIComponent(jobId)}/events`),
+    );
     state.activeJobSource = source;
     const receive = (rawEvent) => {
       const event = parseEventPayload(rawEvent);
@@ -898,7 +979,7 @@
     clearCreateErrors();
 
     try {
-      const response = await fetch("/api/shots", {
+      const response = await fetch(apiUrl("/shots"), {
         method: "POST",
         headers: mutationHeaders(),
         body: new FormData(elements.createForm),
@@ -1043,6 +1124,16 @@
       elements.shotCount.textContent = "—";
     }
     installEventHandlers();
+    try {
+      await establishStudioSession();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "Studio could not establish its private local session.";
+      setNotice(message, "error");
+      setDetailStatus(message, "error");
+      return;
+    }
     connectWorkspaceEvents();
     const route = currentRoute();
     if (route.type === "detail") {

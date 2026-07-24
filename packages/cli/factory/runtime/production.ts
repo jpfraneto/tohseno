@@ -1,6 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
+import { lstatSync } from "node:fs";
 import { join } from "node:path";
-import { MachineError, readJson, requireRegularFile } from "./shared.ts";
+import {
+  MachineError,
+  readBoundedUtf8,
+  readJson,
+  requireRegularFile,
+} from "./shared.ts";
 
 interface ProductionConfiguration {
   schemaVersion: 1;
@@ -43,9 +48,12 @@ function decodedXcconfigValue(value: string): string {
 
 export function configuredProductionEndpoint(root: string): string | null {
   const path = join(root, "Config", "Production.xcconfig");
-  if (!existsSync(path)) return null;
-  requireRegularFile(path, "production endpoint configuration");
-  const source = readFileSync(path, "utf8");
+  if (lstatSync(path, { throwIfNoEntry: false }) === undefined) return null;
+  const source = readBoundedUtf8(
+    path,
+    65_536,
+    "production endpoint configuration",
+  );
   const assignments = [...source.matchAll(/^\s*PRODUCTION_API_BASE_URL\s*=\s*(.*?)\s*$/gmu)];
   if (assignments.length !== 1) {
     throw new MachineError(
@@ -77,9 +85,24 @@ export function inspectEndpoint(value: string | null): EndpointInspection {
     issues.push("production API endpoint is not an absolute URL");
   }
   const host = parsed?.hostname.toLowerCase() ?? "";
-  const localhost = host === "localhost" || host.endsWith(".localhost") ||
-    host === "127.0.0.1" || host === "::1" || host === "0.0.0.0";
-  const quickTunnel = host === "trycloudflare.com" || host.endsWith(".trycloudflare.com");
+  const comparisonHost = host
+    .replace(/^\[|\]$/gu, "")
+    .replace(/\.$/u, "");
+  const localhost = comparisonHost === "localhost" ||
+    comparisonHost.endsWith(".localhost") ||
+    comparisonHost === "::1" ||
+    comparisonHost === "0:0:0:0:0:0:0:1" ||
+    comparisonHost === "::" ||
+    comparisonHost.startsWith("127.") ||
+    comparisonHost.startsWith("0.") ||
+    comparisonHost === "::ffff:7f00:1" ||
+    comparisonHost.startsWith("::ffff:127.");
+  const quickTunnel = comparisonHost === "trycloudflare.com" ||
+    comparisonHost.endsWith(".trycloudflare.com");
+  const stableHostname = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u
+    .test(host) &&
+    host.length <= 253 &&
+    /[a-z]/u.test(host.split(".").at(-1) ?? "");
   if (parsed) {
     if (parsed.protocol !== "https:") issues.push("production API endpoint must use HTTPS");
     if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
@@ -87,9 +110,15 @@ export function inspectEndpoint(value: string | null): EndpointInspection {
     }
     if (localhost) issues.push("localhost and loopback endpoints are development-only");
     if (quickTunnel) issues.push("Cloudflare Quick Tunnels are development-only and cannot be production endpoints");
-    if (!host.includes(".")) issues.push("production API endpoint must use a stable fully qualified hostname");
+    if (!stableHostname) {
+      issues.push("production API endpoint must use a stable fully qualified DNS hostname");
+    }
   }
-  const stableHttps = parsed !== null && parsed.protocol === "https:" && !localhost && !quickTunnel && host.includes(".");
+  const stableHttps = parsed !== null &&
+    parsed.protocol === "https:" &&
+    !localhost &&
+    !quickTunnel &&
+    stableHostname;
   return {
     configured: true,
     value,

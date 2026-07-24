@@ -7,6 +7,8 @@ const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
 export interface ApplicationOptions {
   config?: AppConfig;
+  log?: (record: Record<string, unknown>) => void;
+  logError?: (record: Record<string, unknown>) => void;
 }
 
 export interface TohsenoApplication {
@@ -133,6 +135,16 @@ const STATIC_FILES: Record<
 
 const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;
 
+function semanticRoute(pathname: string): string {
+  if (pathname === "/") return "landing-page";
+  if (pathname === "/docs") return "docs-page";
+  if (pathname === "/privacy") return "privacy-page";
+  if (pathname === "/healthz") return "health";
+  if (STATIC_FILES[pathname]) return "static-asset";
+  if (SHOT_ICON_PATH.test(pathname)) return "shot-icon";
+  return "unmatched";
+}
+
 function externalRequestHostname(request: Request, config: AppConfig): string {
   if (config.trustProxy) {
     const forwarded = request.headers
@@ -173,10 +185,9 @@ function canonicalBoundary(
   if (!canonicalAlias && !insecureProductionRequest) return null;
   if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
   const source = new URL(request.url);
-  const destination = new URL(
-    `${source.pathname}${source.search}`,
-    config.baseUrl,
-  );
+  const destination = new URL(config.baseUrl);
+  destination.pathname = source.pathname;
+  destination.search = source.search;
   return headResponse(
     withSecurityHeaders(Response.redirect(destination, 308)),
     method,
@@ -187,6 +198,10 @@ export async function createApplication(
   options: ApplicationOptions = {},
 ): Promise<TohsenoApplication> {
   const config = options.config ?? loadConfig();
+  const log = options.log ??
+    ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
+  const logError = options.logError ??
+    ((record: Record<string, unknown>) => console.error(JSON.stringify(record)));
   // Social scrapers and the CDN cache /og.png aggressively; a content-hash
   // query makes every new image a new URL so previews update on deploy.
   const ogImageBytes = await Bun.file(join(PUBLIC_DIRECTORY, "og.png")).bytes();
@@ -272,7 +287,11 @@ export async function createApplication(
     async fetch(request: Request): Promise<Response> {
       const requestId = crypto.randomUUID();
       const started = performance.now();
-      const route = `${request.method.toUpperCase()} ${new URL(request.url).pathname}`;
+      const requestedMethod = request.method.toUpperCase();
+      const method = requestedMethod === "GET" || requestedMethod === "HEAD"
+        ? requestedMethod
+        : "OTHER";
+      const route = semanticRoute(new URL(request.url).pathname);
       let status = 500;
       try {
         const response = await handle(request);
@@ -283,28 +302,27 @@ export async function createApplication(
         if (error instanceof HttpError)
           response = json({ error: error.message }, error.status);
         else {
-          console.error(
-            JSON.stringify({
-              event: "request_failure",
-              requestId,
-              route,
-              errorType:
-                error instanceof Error ? error.constructor.name : "Unknown",
-            }),
-          );
+          logError({
+            event: "request_failure",
+            requestId,
+            method,
+            route,
+            errorType:
+              error instanceof Error ? error.constructor.name : "Unknown",
+          });
           response = json({ error: "The request could not be completed" }, 500);
         }
         status = response.status;
         return response;
       } finally {
-        console.info(
-          JSON.stringify({
-            requestId,
-            route,
-            status,
-            durationMs: Math.round((performance.now() - started) * 100) / 100,
-          }),
-        );
+        log({
+          event: "request",
+          requestId,
+          method,
+          route,
+          status,
+          durationMs: Math.round((performance.now() - started) * 100) / 100,
+        });
       }
     },
   };
@@ -319,7 +337,11 @@ if (import.meta.main) {
         ...safeStartupSummary(application.config),
       }),
     );
-    Bun.serve({ port: application.config.port, fetch: application.fetch });
+    Bun.serve({
+      port: application.config.port,
+      maxRequestBodySize: 1_024,
+      fetch: application.fetch,
+    });
   } catch (error) {
     console.error(
       JSON.stringify({

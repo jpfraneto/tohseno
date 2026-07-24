@@ -1,9 +1,14 @@
 import { randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
+  fchmodSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -59,6 +64,34 @@ function inside(root: string, candidate: string): boolean {
     (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`));
 }
 
+function securePrivateDirectory(path: string): void {
+  const before = lstatSync(path);
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+    );
+    const opened = fstatSync(descriptor);
+    if (
+      before.isSymbolicLink() ||
+      !before.isDirectory() ||
+      !opened.isDirectory() ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino
+    ) {
+      throw new StudioHttpError(
+        500,
+        "unsafe-staging",
+        "Studio's private upload directory is unavailable.",
+      );
+    }
+    fchmodSync(descriptor, 0o700);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function privateUploadRoot(factoryHome: string): string {
   const requestedFactoryHome = resolve(factoryHome);
   mkdirSync(requestedFactoryHome, { recursive: true, mode: 0o700 });
@@ -70,6 +103,7 @@ function privateUploadRoot(factoryHome: string): string {
       "Studio's private upload directory is unavailable.",
     );
   }
+  securePrivateDirectory(requestedFactoryHome);
   const canonicalFactoryHome = realpathSync(requestedFactoryHome);
   const checkedChild = (parent: string, name: string): string => {
     const candidate = join(parent, name);
@@ -82,6 +116,7 @@ function privateUploadRoot(factoryHome: string): string {
         "Studio's private upload directory is unavailable.",
       );
     }
+    securePrivateDirectory(candidate);
     const canonical = realpathSync(candidate);
     if (!inside(canonicalFactoryHome, canonical) || canonical === canonicalFactoryHome) {
       throw new StudioHttpError(
@@ -103,7 +138,7 @@ function safeOriginalName(value: string): string {
     name === "" ||
     name === "." ||
     name === ".." ||
-    name.includes("\0") ||
+    /[\u0000-\u001f\u007f-\u009f]/u.test(name) ||
     Buffer.byteLength(name) > 255
   ) {
     throw new StudioHttpError(

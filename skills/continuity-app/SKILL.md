@@ -85,8 +85,11 @@ account-free, but they are defaults, never refusals.
   that's missing, offer the smallest supported alternative.
 - **Secrets in code or logs.** Key slots hold public identifiers; secret
   values never enter git, output, or reports. `MASTER_PROMPT.md` is private
-  product input — gitignored, never committed, logged, echoed, or transmitted.
-  A prototype that needs a provider secret may use only the base app's
+  product input — gitignored, never committed, logged, echoed, or sent to a
+  TOHSENO service. Read it only when the owner deliberately supplies it for
+  this build. The selected coding agent may process it under that provider's
+  privacy and retention settings; do not disclose it to any additional
+  service. A prototype that needs a provider secret may use only the base app's
   `DEV_SECRET` convention in gitignored `Config/Local.xcconfig`: it is for an
   owner-controlled development device only and is forced empty in simulator
   and Release builds. Declare it once in `operations.developmentSecrets` with

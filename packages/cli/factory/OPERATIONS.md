@@ -118,19 +118,21 @@ and the token record from the manifest if one has been launched.
 Bankr wallet). In `--json` mode the launch refuses without `--yes` (exit `2`)
 and the refusal carries the full economics summary plus the exact rerun
 command — `--yes` is itself the approval, typed by the human or by an agent
-the human has explicitly instructed. Fixed economics: 100B supply, 85% pool /
-15% creator vesting over 1 year with a 30-day cliff, 0.7% swap fee split 95%
-creator / 5% protocol. The launch is permanent; the vesting recipient is
-locked forever and the fee beneficiary can only be transferred all-or-nothing.
+the human has explicitly instructed. The launch is permanent. Provider
+economics, vesting, fees, rate limits, and beneficiary rules can change;
+TOHSENO does not independently quote or guarantee them. Review Bankr's
+current terms before approving.
 
 One token per shot: a second launch exits `2`. A missing Bankr CLI or missing
-credentials exits `3` with the login one-liner (`npx @bankr/cli login email` —
-a human ritual, once per machine, never performed by an agent). A Bankr-side
-failure exits `5` with Bankr's error verbatim (limits: 1 launch/minute,
-50/day, gas sponsored for the first 3/day). On success the token record
+credentials exits `3` with explicit install/login guidance (`npm install -g
+@bankr/cli`, then `bankr login` — human rituals, never performed by an agent).
+TOHSENO never uses `npx` as financial authority and requires Bankr's
+non-broadcasting `--simulate` path to pass before launch. A Bankr-side failure
+exits `5` without persisting or echoing provider output. On success the token record
 (provider, chain, name, symbol, address, txHash, launchedAt) is written to
 `continuity.manifest.json` — a fact about the shot, committed like any other
-manifest change — and raw output goes to gitignored `.tohseno/run/logs/token.log`.
+manifest change. The gitignored token log contains event type, chain,
+simulation state, and exit status only.
 
 Credentials live only in the owner's `~/.bankr/config.json` (written by
 `bankr login`) or `BANKR_API_KEY`. They are never copied into the shot repo,

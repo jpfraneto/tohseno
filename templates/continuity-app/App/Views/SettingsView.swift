@@ -4,8 +4,9 @@ import SwiftUI
 /// (behind a warning) and restore from a phrase (replaces local identity).
 struct SettingsView: View {
     @EnvironmentObject private var identityManager: IdentityManager
+    @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var recoveryGate = RecoveryPhraseGate()
     @State private var showingReveal = false
-    @State private var revealConfirmed = false
     @State private var showingRestore = false
     @State private var restorePhrase = ""
     @State private var restoreError = false
@@ -16,11 +17,21 @@ struct SettingsView: View {
             List {
                 Section("Identity") {
                     LabeledContent("User ID", value: identityManager.identity?.fingerprint ?? "—")
+                    if identityManager.accessState == .unavailable {
+                        Text("The saved identity is unavailable. No replacement was created.")
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                        Button("Retry identity access") {
+                            identityManager.loadOrCreate()
+                        }
+                    }
                     Button("Reveal recovery phrase") {
-                        revealConfirmed = false
+                        recoveryGate.hide()
                         showingReveal = true
                     }
+                    .disabled(identityManager.identity == nil)
                     Button("Restore from phrase") {
+                        recoveryGate.hide()
                         restorePhrase = ""
                         restoreError = false
                         showingRestore = true
@@ -51,6 +62,14 @@ struct SettingsView: View {
             .sheet(isPresented: $showingReveal) { revealSheet }
             .sheet(isPresented: $showingRestore) { restoreSheet }
             .task { await refreshBackendHealth() }
+            .onChange(of: scenePhase) {
+                if scenePhase != .active {
+                    recoveryGate.hide()
+                    showingReveal = false
+                    restorePhrase = ""
+                    showingRestore = false
+                }
+            }
         }
     }
 
@@ -63,11 +82,12 @@ struct SettingsView: View {
     private var revealSheet: some View {
         NavigationStack {
             Group {
-                if revealConfirmed, let identity = identityManager.identity {
+                if recoveryGate.isRevealed, let identity = identityManager.identity {
                     VStack(alignment: .leading, spacing: 16) {
                         Text(identity.mnemonic.joined(separator: " "))
                             .font(.system(.title3, design: .monospaced))
                             .textSelection(.enabled)
+                            .privacySensitive()
                         Text("Write it down somewhere private. Anyone who sees it can become you in this app.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -78,14 +98,23 @@ struct SettingsView: View {
                     VStack(spacing: 16) {
                         Text("These 12 words are your identity and your only recovery. Reveal them only where nobody else can see your screen.")
                             .multilineTextAlignment(.center)
-                        Button("Reveal") { revealConfirmed = true }
+                        Button(recoveryGate.isAuthorizing ? "Authenticating…" : "Authenticate and reveal") {
+                            Task { await recoveryGate.requestReveal() }
+                        }
                             .buttonStyle(.borderedProminent)
+                            .disabled(recoveryGate.isAuthorizing)
+                        if recoveryGate.authorizationFailed {
+                            Text("Authentication did not complete. The phrase is still hidden.")
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
                     }
                     .padding()
                 }
             }
             .navigationTitle("Recovery phrase")
             .navigationBarTitleDisplayMode(.inline)
+            .onDisappear { recoveryGate.hide() }
         }
     }
 
@@ -100,6 +129,7 @@ struct SettingsView: View {
                     .frame(minHeight: 120)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
+                    .privacySensitive()
                     .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.quaternary))
                 if restoreError {
                     Text("That is not a valid 12-word phrase.")
@@ -107,20 +137,45 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                 }
                 Button("Restore identity") {
-                    do {
-                        try identityManager.restore(phrase: restorePhrase)
-                        showingRestore = false
-                    } catch {
-                        restoreError = true
+                    Task {
+                        recoveryGate.hide()
+                        await recoveryGate.requestReveal()
+                        guard recoveryGate.isRevealed else { return }
+                        do {
+                            try identityManager.restore(phrase: restorePhrase)
+                            restorePhrase = ""
+                            recoveryGate.hide()
+                            showingRestore = false
+                        } catch {
+                            recoveryGate.hide()
+                            restoreError = true
+                        }
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(BIP39.normalize(restorePhrase).count != 12)
+                .disabled(
+                    BIP39.normalize(restorePhrase).count != 12 ||
+                    recoveryGate.isAuthorizing
+                )
+                if recoveryGate.isAuthorizing {
+                    Text("Authenticating before replacing this identity…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if recoveryGate.authorizationFailed {
+                    Text("Authentication did not complete. The identity was not changed.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
                 Spacer()
             }
             .padding()
             .navigationTitle("Restore")
             .navigationBarTitleDisplayMode(.inline)
+            .onDisappear {
+                recoveryGate.hide()
+                restorePhrase = ""
+                restoreError = false
+            }
         }
     }
 }

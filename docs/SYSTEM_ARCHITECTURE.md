@@ -99,8 +99,13 @@ The read-only last-creation activity shown for a shot is derived from its
 portable event journal. It is presentation metadata, not a lifecycle field,
 and run or verification actions do not mutate immutable creation provenance.
 
-The server accepts only expected loopback Host and Origin values. Mutations
-require a random per-process session token embedded in the served shell.
+The server accepts only expected loopback Host and Origin values. A random
+per-process token exists only in a mode-`0600` temporary browser launcher. Its
+URL fragment is consumed and removed from history, then exchanged under exact
+same-origin checks for an HTTP-only, SameSite-strict cookie scoped to an
+unguessable API path. The served shell, command line, and printed base URL do
+not contain the credential; all private reads and mutations require the
+session.
 Uploaded names are metadata only: files receive internal random names in a
 mode-`0700` staging root, and path, symlink, count, size, UTF-8, MIME, and
 magic-byte checks run before factory work. Staging is cleaned on rejection,
@@ -181,7 +186,11 @@ timestamp, input digest, reference count, options, sequence, and pinned release
 identity. The full intention and copied references live only under the
 gitignored `.tohseno/provenance/` directory with hashes and original filenames.
 The verifier binds those private files to the tracked digest when they are
-present and warns rather than inventing them after a Git-only clone.
+present and warns rather than inventing them after a Git-only clone. It also
+walks a bounded public worktree, rejects unsafe links and exact reference
+copies, and searches regular files for exact or embedded private intention
+content. That gate runs after every coding-agent exit, even a nonzero one; an
+unsafe result is atomically isolated under an explicitly hidden sibling name.
 
 ## 6. Shot-local machine runtime
 

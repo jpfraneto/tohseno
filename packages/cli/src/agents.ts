@@ -94,7 +94,6 @@ export function sanitizedAgentEnvironment(
     "TERM",
     "COLORTERM",
     "LANG",
-    "SSH_AUTH_SOCK",
     "CODEX_HOME",
     "CLAUDE_CONFIG_DIR",
     "XDG_CONFIG_HOME",

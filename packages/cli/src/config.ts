@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { lstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_SCHEMA_VERSION } from "./constants.ts";
 import { isAgentId, type AgentId } from "./agents.ts";
 import { CliError, errorMessage } from "./errors.ts";
+import { readBoundedJson } from "./files.ts";
 
 interface ConfigFile {
   schemaVersion: typeof CONFIG_SCHEMA_VERSION;
@@ -44,7 +45,7 @@ function absolutePath(value: string, base: string, home: string): string {
 function parseConfig(path: string): ConfigFile {
   let value: unknown;
   try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    value = readBoundedJson<unknown>(path, 65_536, "TOHSENO configuration");
   } catch (error) {
     throw new CliError(`cannot read ${path}: ${errorMessage(error)}`);
   }
@@ -79,7 +80,9 @@ export function resolveConfig(options: ConfigOptions = {}): ResolvedConfig {
   const configuredFactoryHome = environment.TOHSENO_HOME ?? join(home, ".tohseno");
   const factoryHome = absolutePath(configuredFactoryHome, cwd, home);
   const configPath = join(factoryHome, "config.json");
-  const configExists = existsSync(configPath);
+  const configExists = lstatSync(configPath, {
+    throwIfNoEntry: false,
+  }) !== undefined;
   const config = configExists ? parseConfig(configPath) : undefined;
 
   let shotsDirectory: string;

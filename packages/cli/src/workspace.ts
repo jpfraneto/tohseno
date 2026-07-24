@@ -6,7 +6,6 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -16,6 +15,7 @@ import {
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ResolvedConfig } from "./config.ts";
 import { CliError } from "./errors.ts";
+import { readBoundedJson } from "./files.ts";
 import { readShotMetadata, type ShotMetadata } from "./shot.ts";
 import { validateShotSlug } from "./slug.ts";
 
@@ -85,9 +85,13 @@ function workspaceControlDirectory(shotsDirectory: string): string {
 }
 
 function readAllocationState(path: string): AllocationState | null {
-  if (!existsSync(path)) return null;
+  if (lstatSync(path, { throwIfNoEntry: false }) === undefined) return null;
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as Partial<AllocationState>;
+    const value = readBoundedJson<Partial<AllocationState>>(
+      path,
+      4_096,
+      "workspace allocation state",
+    );
     if (
       value.schemaVersion === ALLOCATION_SCHEMA_VERSION &&
       Number.isSafeInteger(value.lastSequence) &&
@@ -128,13 +132,11 @@ function processIsAlive(pid: number): boolean {
 
 function readAllocationLockRecord(path: string): AllocationLockRecord | null {
   try {
-    const details = lstatSync(path);
-    if (details.isSymbolicLink() || !details.isFile() || details.size > 4_096) {
-      return null;
-    }
-    const value = JSON.parse(
-      readFileSync(path, "utf8"),
-    ) as Partial<AllocationLockRecord>;
+    const value = readBoundedJson<Partial<AllocationLockRecord>>(
+      path,
+      4_096,
+      "workspace allocation lock",
+    );
     if (
       value.schemaVersion !== ALLOCATION_LOCK_SCHEMA_VERSION ||
       typeof value.token !== "string" ||
@@ -352,11 +354,16 @@ export async function allocateShotSequence(
           sequence,
         ),
       };
-      writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
-        mode: 0o600,
-      });
-      requireAllocationLock(lock);
-      renameSync(temporary, statePath);
+      try {
+        writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, {
+          flag: "wx",
+          mode: 0o600,
+        });
+        requireAllocationLock(lock);
+        renameSync(temporary, statePath);
+      } finally {
+        if (existsSync(temporary)) unlinkSync(temporary);
+      }
       requireAllocationLock(lock);
       return sequence;
     } catch (error) {
@@ -382,10 +389,20 @@ export function discoverShotsInDirectory(
       if (metadata === undefined) return [];
       let name = metadata.slug;
       try {
-        const manifest = JSON.parse(
-          readFileSync(join(path, "continuity.manifest.json"), "utf8"),
-        ) as { application?: { name?: unknown } };
-        if (typeof manifest.application?.name === "string") {
+        const manifest = readBoundedJson<{
+          application?: { name?: unknown };
+        }>(
+          join(path, "continuity.manifest.json"),
+          1_048_576,
+          "continuity manifest",
+        );
+        if (
+          typeof manifest.application?.name === "string" &&
+          manifest.application.name.length <= 80 &&
+          !/[\u0000-\u001f\u007f-\u009f]/u.test(
+            manifest.application.name,
+          )
+        ) {
           name = manifest.application.name;
         }
       } catch {

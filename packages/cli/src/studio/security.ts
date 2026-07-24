@@ -1,7 +1,12 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 
 const SESSION_TOKEN_BYTES = 32;
 const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
+const SESSION_ID_PATTERN = /^[a-f0-9]{32}$/u;
 
 export class StudioHttpError extends Error {
   override readonly name = "StudioHttpError";
@@ -51,12 +56,28 @@ function equalToken(expected: string, supplied: string | null): boolean {
     timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
+function cookieValue(header: string | null, name: string): string | null {
+  if (header === null || header.length > 8_192) return null;
+  let found: string | null = null;
+  for (const field of header.split(";")) {
+    const separator = field.indexOf("=");
+    if (separator < 1) continue;
+    if (field.slice(0, separator).trim() !== name) continue;
+    if (found !== null) return null;
+    found = field.slice(separator + 1).trim();
+  }
+  return found;
+}
+
 export function createStudioSessionToken(): string {
   return randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
 }
 
 export class StudioRequestSecurity {
   readonly sessionToken: string;
+  readonly sessionId: string;
+  readonly apiBase: string;
+  readonly cookieName: string;
   readonly #hostname: "127.0.0.1";
   #port: number;
 
@@ -84,6 +105,19 @@ export class StudioRequestSecurity {
     this.#hostname = hostname;
     this.#port = port;
     this.sessionToken = sessionToken;
+    this.sessionId = createHash("sha256")
+      .update(sessionToken)
+      .digest("hex")
+      .slice(0, 32);
+    if (!SESSION_ID_PATTERN.test(this.sessionId)) {
+      throw new StudioHttpError(
+        500,
+        "invalid-session",
+        "Studio could not create a secure local session.",
+      );
+    }
+    this.apiBase = `/__tohseno/${this.sessionId}/api`;
+    this.cookieName = `tohseno_studio_${this.sessionId}`;
   }
 
   get port(): number {
@@ -129,7 +163,7 @@ export class StudioRequestSecurity {
     return authority;
   }
 
-  assertMutation(request: Request): void {
+  #assertSameOriginRequest(request: Request): void {
     const authority = this.assertHost(request);
     const origin = request.headers.get("origin");
     if (origin !== `http://${authority}`) {
@@ -151,6 +185,10 @@ export class StudioRequestSecurity {
         "Studio rejected a cross-site request.",
       );
     }
+  }
+
+  assertBootstrap(request: Request): void {
+    this.#assertSameOriginRequest(request);
     if (!equalToken(this.sessionToken, request.headers.get("x-tohseno-session"))) {
       throw new StudioHttpError(
         403,
@@ -158,6 +196,36 @@ export class StudioRequestSecurity {
         "Studio rejected an invalid local session.",
       );
     }
+  }
+
+  assertSession(request: Request): void {
+    this.assertHost(request);
+    if (
+      !equalToken(
+        this.sessionToken,
+        cookieValue(request.headers.get("cookie"), this.cookieName),
+      )
+    ) {
+      throw new StudioHttpError(
+        403,
+        "invalid-session",
+        "Studio rejected an invalid local session.",
+      );
+    }
+  }
+
+  assertMutation(request: Request): void {
+    this.#assertSameOriginRequest(request);
+    this.assertSession(request);
+  }
+
+  sessionCookie(): string {
+    return [
+      `${this.cookieName}=${this.sessionToken}`,
+      `Path=/__tohseno/${this.sessionId}/`,
+      "HttpOnly",
+      "SameSite=Strict",
+    ].join("; ");
   }
 }
 

@@ -3,10 +3,9 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -16,6 +15,9 @@ import {
   FACTORY_RELEASE_SCHEMA_VERSION,
   IOS_TEMPLATE_VERSION,
   MANIFEST_SCHEMA_VERSION,
+  MAX_FACTORY_RELEASE_BYTES,
+  MAX_FACTORY_RELEASE_FILE_BYTES,
+  MAX_FACTORY_RELEASE_FILES,
   RELEASE_SOURCE_FILES,
   REQUIRED_RELEASE_FILES,
 } from "./constants.ts";
@@ -25,6 +27,8 @@ import {
   copyRegularFile,
   listRegularFiles,
   makeTreeReadOnly,
+  readBoundedJson,
+  readBoundedRegularFile,
   removeTreeEvenIfReadOnly,
 } from "./files.ts";
 import { runCaptured } from "./process.ts";
@@ -72,7 +76,15 @@ interface SourceEntry {
 }
 
 function sha256File(path: string): string {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+  return createHash("sha256")
+    .update(
+      readBoundedRegularFile(
+        path,
+        MAX_FACTORY_RELEASE_FILE_BYTES,
+        "factory release file",
+      ),
+    )
+    .digest("hex");
 }
 
 function digestRecords(records: readonly ReleaseFileRecord[]): string {
@@ -129,10 +141,15 @@ function mapSourcePath(sourceRoot: string, path: string): SourceEntry {
   assertSafeBundlePath(destination);
   const source = join(sourceRoot, path);
   const details = lstatSync(source);
-  if (details.isSymbolicLink()) {
-    throw new CliError(`symbolic links are not allowed in factory releases: ${path}`);
+  if (
+    details.isSymbolicLink() ||
+    !details.isFile() ||
+    details.nlink !== 1
+  ) {
+    throw new CliError(
+      `factory release input must be a single-link regular file: ${path}`,
+    );
   }
-  if (!details.isFile()) throw new CliError(`factory release input is not a regular file: ${path}`);
   return { source, destination, executable: (details.mode & 0o111) !== 0 };
 }
 
@@ -193,21 +210,42 @@ async function sourceProvenance(sourceRoot: string): Promise<ReleaseSource> {
 }
 
 function recordsForDirectory(root: string): ReleaseFileRecord[] {
-  return listRegularFiles(root)
-    .filter((file) => file.relativePath !== "release.json")
-    .map((file) => ({
+  const files = listRegularFiles(root)
+    .filter((file) => file.relativePath !== "release.json");
+  if (files.length > MAX_FACTORY_RELEASE_FILES) {
+    throw new CliError("factory release contains too many files");
+  }
+  let totalBytes = 0;
+  return files
+    .map((file) => {
+      const size = lstatSync(file.absolutePath).size;
+      if (size > MAX_FACTORY_RELEASE_FILE_BYTES) {
+        throw new CliError(
+          `factory release file exceeds the size limit: ${file.relativePath}`,
+        );
+      }
+      totalBytes += size;
+      if (totalBytes > MAX_FACTORY_RELEASE_BYTES) {
+        throw new CliError("factory release exceeds the total size limit");
+      }
+      return {
       path: file.relativePath,
       sha256: sha256File(file.absolutePath),
-      size: statSync(file.absolutePath).size,
+      size,
       executable: file.executable,
-    }))
+      };
+    })
     .sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function parseReleaseMetadata(path: string): FactoryRelease {
   let value: unknown;
   try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    value = readBoundedJson<unknown>(
+      path,
+      2 * 1_048_576,
+      "factory release metadata",
+    );
   } catch (error) {
     throw new CliError(`release metadata is unreadable: ${errorMessage(error)}`);
   }
@@ -215,15 +253,36 @@ function parseReleaseMetadata(path: string): FactoryRelease {
     throw new CliError("release metadata must be a JSON object");
   }
   const record = value as Partial<FactoryRelease>;
+  const source = record.source;
   if (
     record.schemaVersion !== FACTORY_RELEASE_SCHEMA_VERSION ||
     typeof record.releaseId !== "string" ||
+    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+      .test(record.releaseId) ||
+    typeof record.cliVersion !== "string" ||
+    !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(record.cliVersion) ||
+    typeof record.templateVersion !== "string" ||
+    typeof record.manifestSchemaVersion !== "string" ||
     typeof record.bundleDigest !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(record.bundleDigest) ||
     record.platform !== "ios" ||
-    typeof record.source !== "object" || record.source === null ||
-    !Array.isArray(record.files)
+    typeof source !== "object" ||
+    source === null ||
+    (source.kind !== "git" && source.kind !== "content") ||
+    typeof source.dirty !== "boolean" ||
+    !Array.isArray(record.files) ||
+    record.files.length > MAX_FACTORY_RELEASE_FILES
   ) {
     throw new CliError("release metadata has an unsupported or incomplete shape");
+  }
+  if (
+    (source.kind === "git" &&
+      (typeof source.commit !== "string" ||
+        !/^[0-9a-f]{40}$/u.test(source.commit))) ||
+    (source.kind === "content" &&
+      (source.commit !== null || source.dirty))
+  ) {
+    throw new CliError("release metadata has invalid source provenance");
   }
   return record as FactoryRelease;
 }
@@ -290,20 +349,75 @@ function writePreparedRelease(
   return metadata;
 }
 
+export function canonicalReleasesDirectory(
+  releasesDirectory: string,
+): string {
+  const requestedReleases = resolve(releasesDirectory);
+  const requestedCache = dirname(requestedReleases);
+  const requestedFactoryHome = dirname(requestedCache);
+  mkdirSync(requestedFactoryHome, { recursive: true, mode: 0o700 });
+  const factoryDetails = lstatSync(requestedFactoryHome);
+  if (factoryDetails.isSymbolicLink() || !factoryDetails.isDirectory()) {
+    throw new CliError("factory home must be a real directory");
+  }
+  if (!existsSync(requestedCache)) {
+    mkdirSync(requestedCache, { mode: 0o700 });
+  }
+  const cacheDetails = lstatSync(requestedCache);
+  if (cacheDetails.isSymbolicLink() || !cacheDetails.isDirectory()) {
+    throw new CliError("factory cache must be a real directory");
+  }
+  if (!existsSync(requestedReleases)) {
+    mkdirSync(requestedReleases, { mode: 0o700 });
+  }
+  const releasesDetails = lstatSync(requestedReleases);
+  if (
+    releasesDetails.isSymbolicLink() ||
+    !releasesDetails.isDirectory()
+  ) {
+    throw new CliError("factory release cache must be a real directory");
+  }
+  const canonicalFactoryHome = realpathSync(requestedFactoryHome);
+  const canonicalCache = realpathSync(requestedCache);
+  const canonicalReleases = realpathSync(requestedReleases);
+  const inside = (root: string, candidate: string): boolean => {
+    const fromRoot = relative(root, candidate);
+    return fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`);
+  };
+  if (
+    canonicalCache === canonicalFactoryHome ||
+    canonicalReleases === canonicalCache ||
+    !inside(canonicalFactoryHome, canonicalCache) ||
+    !inside(canonicalCache, canonicalReleases)
+  ) {
+    throw new CliError("factory release cache leaves its managed boundary");
+  }
+  return canonicalReleases;
+}
+
 export async function prepareFactoryRelease(
   sourceRoot: string,
   releasesDirectory: string,
 ): Promise<PreparedRelease> {
-  mkdirSync(releasesDirectory, { recursive: true });
-  const staging = join(releasesDirectory, `.build-${process.pid}-${randomUUID()}`);
+  const requestedSourceRoot = resolve(sourceRoot);
+  const sourceRootDetails = lstatSync(requestedSourceRoot);
+  if (
+    sourceRootDetails.isSymbolicLink() ||
+    !sourceRootDetails.isDirectory()
+  ) {
+    throw new CliError("factory source root must be a real directory");
+  }
+  const canonicalSourceRoot = realpathSync(requestedSourceRoot);
+  const releasesRoot = canonicalReleasesDirectory(releasesDirectory);
+  const staging = join(releasesRoot, `.build-${process.pid}-${randomUUID()}`);
   mkdirSync(staging, { mode: 0o700 });
   try {
-    const before = await sourceProvenance(sourceRoot);
-    const entries = await sourceEntries(sourceRoot);
+    const before = await sourceProvenance(canonicalSourceRoot);
+    const entries = await sourceEntries(canonicalSourceRoot);
     for (const entry of entries) {
       copyRegularFile(entry.source, join(staging, entry.destination), entry.executable);
     }
-    const after = await sourceProvenance(sourceRoot);
+    const after = await sourceProvenance(canonicalSourceRoot);
     const changedDuringSnapshot = entries.some((entry) =>
       sha256File(entry.source) !== sha256File(join(staging, entry.destination))
     );
@@ -314,7 +428,7 @@ export async function prepareFactoryRelease(
     };
     if (source.kind === "content") source.dirty = false;
     const metadata = writePreparedRelease(staging, source);
-    const destination = join(releasesDirectory, metadata.releaseId);
+    const destination = join(releasesRoot, metadata.releaseId);
 
     if (existsSync(destination)) {
       const cached = verifyReleaseDirectory(destination, metadata.releaseId);
@@ -322,14 +436,14 @@ export async function prepareFactoryRelease(
         throw new CliError(`factory release id collision at ${destination}`);
       }
       removeTreeEvenIfReadOnly(staging);
-      writeActiveReleasePointer(releasesDirectory, cached.releaseId);
+      writeActiveReleasePointer(releasesRoot, cached.releaseId);
       return { directory: destination, metadata: cached, reused: true };
     }
 
     makeTreeReadOnly(staging);
     try {
       renameSync(staging, destination);
-      writeActiveReleasePointer(releasesDirectory, metadata.releaseId);
+      writeActiveReleasePointer(releasesRoot, metadata.releaseId);
       return { directory: destination, metadata, reused: false };
     } catch (error) {
       if (!existsSync(destination)) throw error;
@@ -338,7 +452,7 @@ export async function prepareFactoryRelease(
         throw new CliError(`concurrent factory release differs at ${destination}`);
       }
       removeTreeEvenIfReadOnly(staging);
-      writeActiveReleasePointer(releasesDirectory, cached.releaseId);
+      writeActiveReleasePointer(releasesRoot, cached.releaseId);
       return { directory: destination, metadata: cached, reused: true };
     }
   } catch (error) {
@@ -364,11 +478,16 @@ function writeActiveReleasePointer(releasesDirectory: string, releaseId: string)
 }
 
 export function useActiveCachedRelease(releasesDirectory: string): PreparedRelease {
-  const pointerPath = activeReleasePointerPath(releasesDirectory);
+  const releasesRoot = canonicalReleasesDirectory(releasesDirectory);
+  const pointerPath = activeReleasePointerPath(releasesRoot);
   let releaseId: string | undefined;
-  if (existsSync(pointerPath)) {
+  if (lstatSync(pointerPath, { throwIfNoEntry: false }) !== undefined) {
     try {
-      const value = JSON.parse(readFileSync(pointerPath, "utf8")) as Partial<ActiveReleasePointer>;
+      const value = readBoundedJson<Partial<ActiveReleasePointer>>(
+        pointerPath,
+        4_096,
+        "active release pointer",
+      );
       if (value.schemaVersion !== 1 || typeof value.releaseId !== "string") {
         throw new Error("unsupported pointer shape");
       }
@@ -377,7 +496,7 @@ export function useActiveCachedRelease(releasesDirectory: string): PreparedRelea
       throw new CliError(`active release pointer is corrupt: ${pointerPath}: ${errorMessage(error)}`);
     }
   } else {
-    const cached = listCachedReleaseDirectories(releasesDirectory);
+    const cached = listCachedReleaseDirectories(releasesRoot);
     if (cached.length === 1) releaseId = basename(cached[0]!);
     else if (cached.length === 0) {
       throw new CliError("no cached factory release is available");
@@ -387,22 +506,23 @@ export function useActiveCachedRelease(releasesDirectory: string): PreparedRelea
       );
     }
   }
-  const directory = releasePathWithinCache(releasesDirectory, releaseId);
+  const directory = releasePathWithinCache(releasesRoot, releaseId);
   const metadata = verifyReleaseDirectory(directory, releaseId);
   return { directory, metadata, reused: true };
 }
 
 export function listCachedReleaseDirectories(releasesDirectory: string): string[] {
-  if (!existsSync(releasesDirectory)) return [];
-  return readdirSync(releasesDirectory, { withFileTypes: true })
+  const releasesRoot = canonicalReleasesDirectory(releasesDirectory);
+  return readdirSync(releasesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-    .map((entry) => join(releasesDirectory, entry.name))
+    .map((entry) => join(releasesRoot, entry.name))
     .sort();
 }
 
 export function releasePathWithinCache(releasesDirectory: string, releaseId: string): string {
-  const candidate = resolve(releasesDirectory, releaseId);
-  const fromRoot = relative(resolve(releasesDirectory), candidate);
+  const releasesRoot = canonicalReleasesDirectory(releasesDirectory);
+  const candidate = resolve(releasesRoot, releaseId);
+  const fromRoot = relative(releasesRoot, candidate);
   if (fromRoot.startsWith(`..${sep}`) || fromRoot === "..") throw new CliError("invalid release id");
   return candidate;
 }

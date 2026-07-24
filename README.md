@@ -71,6 +71,9 @@ coding agent uses that input under its own provider and privacy settings. Port
 `4747` is the default;
 use `--port <port>` to override it, `--no-open` to leave the browser closed, or
 `--shots-dir <path>` to select the same explicit workspace as other commands.
+Studio opens through a private owner-only launcher file. Its local API, images,
+and event streams require the resulting path-scoped browser session; the
+reusable credential is never printed or embedded in the public shell.
 Studio permits one heavy Studio operation (create, run, preview, or verify) at
 a time and one managed live preview; a separate CLI process still uses the
 shared concurrency-safe allocator.
@@ -116,15 +119,27 @@ logs, generated endpoints, signing configuration, and Simulator captures do
 not enter the factory release or Git history. This repository operates no
 backend that receives content from generated apps.
 
-## Optional: a token for your shot
+Every coding-agent exit, including failure, is followed by the pinned privacy
+and integrity verifier. It rejects copied private creation input, unsafe links,
+changed rails, or missing ignore rules. If that gate fails, TOHSENO moves the
+result to an explicitly unsafe hidden path instead of presenting it as a ready
+shot. A whole unfiltered shot directory still contains its private,
+gitignored provenance; inspect it before sharing an archive.
 
-A shot can launch a token — a distribution and revenue mechanism worth looking
-into, never a requirement. The launch runs under your own
+TOHSENO does not independently send creation input to a TOHSENO service. The
+coding agent selected by the owner can read that input to build the app, so its
+provider and retention policy remain an explicit trust boundary.
+
+## Optional external action: launch a token
+
+A shot can launch a token under your own
 [Bankr](https://docs.bankr.bot) account through `tohseno machine token launch`:
-TOHSENO ships no server, holds no keys, and takes no fees. Trading fees accrue
-to your wallet (95% of a 0.7% swap fee). The agent prepares the parameters;
-you approve an explicitly irreversible action; the machine executes it
-deterministically. Details in [CLI and machine operations](docs/CLI.md).
+TOHSENO ships no server, holds no keys, and takes no fees. This is optional,
+external, irreversible, and never the reason to build. The installed Bankr
+executable first runs its non-broadcasting simulation; the owner must then
+approve the exact name, symbol, chain, and fee recipient. Provider terms and
+economics can change, so TOHSENO links them instead of making a promise.
+Details are in [CLI and machine operations](docs/CLI.md).
 
 ## Current boundary
 
@@ -142,6 +157,8 @@ A Quick Tunnel is never a production endpoint.
 
 ## Learn more
 
+- [What TOHSENO is](WHAT_TOHSENO_IS.md)
+- [Security research ledger](SECURITY_LOGS.md)
 - [Human setup and first run](docs/LOCAL_DEVELOPMENT.md)
 - [CLI and machine operations](docs/CLI.md)
 - [System architecture](docs/SYSTEM_ARCHITECTURE.md)

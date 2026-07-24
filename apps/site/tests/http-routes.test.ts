@@ -76,6 +76,9 @@ describe("public pages", () => {
     expect(body).toContain("INFINITE SHOTS.");
     expect(body).toContain("Some shots live.");
     expect(body).toContain("Every shot begins from a working SwiftUI base");
+    expect(body).toContain(
+      "Every coding-agent exit is followed by privacy and integrity verification",
+    );
     expect(body).toContain("STOP PROTECTING");
     expect(body).toContain("TAKE ANOTHER ONE.");
     expect(body).toContain(">ONE SHOT</span>");
@@ -90,7 +93,7 @@ describe("public pages", () => {
     expect(shotIcons.size).toBe(100);
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toContain("four years");
-    expect(body).toContain("$TOHSENO");
+    expect(body).toContain(">Community</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('target="_blank"');
     expect(body).toContain('rel="noopener noreferrer"');
@@ -149,8 +152,14 @@ describe("public pages", () => {
         expect(body).toContain(
           "Studio does not upload shots or creation input to TOHSENO",
         );
+        expect(body).toContain(
+          "After every coding-agent exit—including a failed one—the verifier",
+        );
       } else {
         expect(body).toContain("downloads only pinned release artifacts");
+        expect(body).toContain(
+          "requires a private local browser session for every shot read or mutation",
+        );
         expect(body).toContain("Quick Tunnel");
       }
     }
@@ -306,7 +315,7 @@ describe("public pages", () => {
       "public, max-age=0, must-revalidate",
     );
     const body = await response.text();
-    expect(body).toContain('CLI_VERSION="0.3.0"');
+    expect(body).toContain('CLI_VERSION="0.3.1"');
     expect(body).toContain("TOHSENO managed installer");
     expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
 
@@ -355,6 +364,35 @@ describe("removed surfaces stay removed", () => {
     const response = await application.fetch(request("/", { method: "POST" }));
     expect(response.status).toBe(405);
     expect(response.headers.get("Allow")).toBe("GET, HEAD");
+  });
+
+  test("access logs use semantic routes and never retain arbitrary paths", async () => {
+    const records: Array<Record<string, unknown>> = [];
+    const application = await createApplication({
+      config: loadConfig({
+        NODE_ENV: "test",
+        PORT: "3000",
+        BASE_URL: "http://localhost:3000",
+      }),
+      log: (record) => records.push(record),
+      logError: (record) => records.push(record),
+    });
+
+    const response = await application.fetch(
+      request("/credential-looking-path-value"),
+    );
+
+    expect(response.status).toBe(404);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      event: "request",
+      method: "GET",
+      route: "unmatched",
+      status: 404,
+    });
+    expect(JSON.stringify(records)).not.toContain(
+      "credential-looking-path-value",
+    );
   });
 });
 
@@ -420,6 +458,23 @@ describe("canonical boundary", () => {
     expect(response.status).toBe(308);
     expect(response.headers.get("Location")).toBe(
       "http://tohseno.com:3000/docs?x=1",
+    );
+  });
+
+  test("canonical redirects cannot be turned into protocol-relative redirects", async () => {
+    const application = await createApplication({
+      config: loadConfig({
+        NODE_ENV: "test",
+        PORT: "3000",
+        BASE_URL: "http://tohseno.com:3000",
+      }),
+    });
+    const response = await application.fetch(
+      new Request("http://www.tohseno.com:3000//attacker.example/path"),
+    );
+    expect(response.status).toBe(308);
+    expect(response.headers.get("Location")).toBe(
+      "http://tohseno.com:3000//attacker.example/path",
     );
   });
 });

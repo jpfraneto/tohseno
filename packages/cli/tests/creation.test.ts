@@ -7,6 +7,8 @@ import {
   readFileSync,
   readdirSync,
   statSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -28,6 +30,7 @@ import { allocateShotSequence } from "../src/workspace.ts";
 import {
   createMemoryIo,
   REPOSITORY_ROOT,
+  runProcess,
   withScratchEnvironment,
   writeExecutable,
 } from "./helpers.ts";
@@ -69,6 +72,15 @@ describe("shared shot factory", () => {
         extension: ".png",
       });
       expect(normalized.inputDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(() =>
+        normalizeCreationInput({
+          references: [{
+            path: reference,
+            originalName: "forged\nname.png",
+            mediaType: "image/png",
+          }],
+        })
+      ).toThrow("filename is invalid");
     });
   });
 
@@ -229,6 +241,25 @@ describe("shared shot factory", () => {
     });
   });
 
+  test("never follows linked workspace allocation state", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      expect(await allocateShotSequence(scratch.shotsDirectory)).toBe(1);
+      const state = join(
+        scratch.shotsDirectory,
+        ".tohseno",
+        "allocation.json",
+      );
+      const victim = join(scratch.root, "allocation-victim.json");
+      writeFileSync(victim, "owner content\n");
+      unlinkSync(state);
+      symlinkSync(victim, state);
+      await expect(
+        allocateShotSequence(scratch.shotsDirectory),
+      ).rejects.toThrow("workspace allocation state is invalid");
+      expect(readFileSync(victim, "utf8")).toBe("owner content\n");
+    });
+  });
+
   test("atomic publication never replaces an empty destination on macOS", async () => {
     await withScratchEnvironment((scratch) => {
       const staging = join(scratch.shotsDirectory, ".staged-shot");
@@ -325,11 +356,23 @@ describe("shared shot factory", () => {
         noLaunch: false,
         runAfterCreate: false,
       })).rejects.toThrow(
-        "differs from its immutable factory release",
+        "unsafe shot was isolated",
       );
       expect(existsSync(marker)).toBe(false);
       expect(existsSync(
-        join(scratch.shotsDirectory, "tampered-by-agent", ".tohseno", "verify.ts"),
+        join(scratch.shotsDirectory, "tampered-by-agent"),
+      )).toBe(false);
+      const isolated = readdirSync(scratch.shotsDirectory).find((name) =>
+        name.startsWith(".tampered-by-agent.unsafe-")
+      );
+      expect(isolated).toBeDefined();
+      expect(existsSync(
+        join(
+          scratch.shotsDirectory,
+          isolated!,
+          ".tohseno",
+          "verify.ts",
+        ),
       )).toBe(true);
     });
   }, 30_000);
@@ -447,6 +490,71 @@ describe("shared shot factory", () => {
       expect(statSync(join(provenance, "references")).mode & 0o777).toBe(
         0o700,
       );
+    });
+  }, 30_000);
+
+  test("a failing coding agent cannot bypass privacy verification", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const privatePhrase =
+        "A private ritual for returning to one unfinished paragraph each morning.";
+      const executable = writeExecutable(scratch.binDirectory, "codex", [
+        `#!${process.execPath}`,
+        'const { copyFileSync } = require("node:fs");',
+        'const { join } = require("node:path");',
+        "copyFileSync(",
+        '  join(process.cwd(), ".tohseno", "provenance", "intention.md"),',
+        '  join(process.cwd(), "App", "LeakedIntention.txt"),',
+        ");",
+        "process.exitCode = 23;",
+      ].join("\n"));
+      const config = resolveConfig({
+        cwd: scratch.root,
+        environment: scratch.environment,
+      });
+
+      let failure: unknown;
+      try {
+        await createShot({
+          config,
+          cwd: scratch.root,
+          environment: scratch.environment,
+          sourceRoot: REPOSITORY_ROOT,
+          slug: "failed-agent-privacy",
+          door: "studio",
+          input: { text: privatePhrase },
+          agent: {
+            id: "codex",
+            label: "Codex",
+            binary: "codex",
+            executable,
+            launchArguments: [],
+          },
+          noLaunch: false,
+          runAfterCreate: false,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      const message = failure instanceof Error ? failure.message : "";
+      expect(message).toContain("unsafe shot was isolated");
+      expect(message).not.toContain(privatePhrase);
+      expect(existsSync(
+        join(scratch.shotsDirectory, "failed-agent-privacy"),
+      )).toBe(false);
+      const isolated = readdirSync(scratch.shotsDirectory).find((name) =>
+        name.startsWith(".failed-agent-privacy.unsafe-")
+      );
+      expect(isolated).toBeDefined();
+      expect(readFileSync(
+        join(
+          scratch.shotsDirectory,
+          isolated!,
+          "App",
+          "LeakedIntention.txt",
+        ),
+        "utf8",
+      )).toBe(`${privatePhrase}\n`);
     });
   }, 30_000);
 
@@ -579,6 +687,75 @@ describe("shared shot factory", () => {
         "does not match the installed CLI",
       );
       expect(existsSync(marker)).toBe(false);
+    });
+  }, 30_000);
+
+  test("shot verification keeps private creation input out of the public worktree", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const privatePhrase =
+        "A private clock that helps one person return to an unfinished thought.";
+      const reference = join(scratch.root, "private-reference.png");
+      writeFileSync(reference, ONE_PIXEL_PNG);
+      const config = resolveConfig({
+        cwd: scratch.root,
+        environment: scratch.environment,
+      });
+      const result = await createShot({
+        config,
+        cwd: scratch.root,
+        environment: scratch.environment,
+        sourceRoot: REPOSITORY_ROOT,
+        slug: "private-worktree-boundary",
+        door: "cli",
+        input: {
+          text: privatePhrase,
+          references: [{
+            path: reference,
+            originalName: "private-reference.png",
+            mediaType: "image/png",
+          }],
+        },
+        agent: null,
+        noLaunch: true,
+      });
+      const verify = async () =>
+        await runProcess(
+          [process.execPath, join(result.path, ".tohseno", "verify.ts")],
+          result.path,
+          scratch.environment,
+        );
+
+      const textLeak = join(result.path, "App", "PrivateLeak.txt");
+      writeFileSync(textLeak, `Do not publish: ${privatePhrase}\n`);
+      const copiedText = await verify();
+      expect(copiedText.exitCode).toBe(1);
+      expect(`${copiedText.stdout}\n${copiedText.stderr}`).not.toContain(
+        privatePhrase,
+      );
+      expect(copiedText.stderr).toContain(
+        "private creation input appears outside its protected local directory",
+      );
+      unlinkSync(textLeak);
+
+      const referenceLeak = join(result.path, "App", "PrivateReference.png");
+      writeFileSync(referenceLeak, ONE_PIXEL_PNG);
+      const copiedReference = await verify();
+      expect(copiedReference.exitCode).toBe(1);
+      expect(copiedReference.stderr).toContain(
+        "private creation input appears outside its protected local directory",
+      );
+      unlinkSync(referenceLeak);
+
+      const linkedInput = join(result.path, "App", "PrivateInput.txt");
+      symlinkSync("../.tohseno/provenance/intention.md", linkedInput);
+      const linked = await verify();
+      expect(linked.exitCode).toBe(1);
+      expect(linked.stderr).toContain(
+        "symbolic link across a private boundary",
+      );
+      unlinkSync(linkedInput);
+
+      expect((await verify()).exitCode).toBe(0);
     });
   }, 30_000);
 });

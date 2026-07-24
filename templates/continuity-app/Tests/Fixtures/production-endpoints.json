@@ -1,0 +1,42 @@
+{
+  "acceptedProduction": [
+    "https://api.example.com",
+    "https://api.example.com:8443"
+  ],
+  "rejectedProduction": [
+    "",
+    "http://api.example.com",
+    "https://localhost",
+    "https://localhost.",
+    "https://app.localhost",
+    "https://127.0.0.1",
+    "https://127.1",
+    "https://0177.0.0.1",
+    "https://2130706433",
+    "https://0.1.2.3",
+    "https://[::1]",
+    "https://[::ffff:127.0.0.1]",
+    "https://random.trycloudflare.com",
+    "https://random.trycloudflare.com.",
+    "https://192.0.2.10",
+    "https://api.example.com.",
+    "https://single-label",
+    "https://api.example.com:70000",
+    "https://user:password@api.example.com",
+    "https://api.example.com/private",
+    "https://api.example.com/%2F",
+    "https://api.example.com?query=1",
+    "https://api.example.com#fragment"
+  ],
+  "acceptedDevelopment": [
+    "http://localhost:43123",
+    "http://127.0.0.1:43123",
+    "http://[::1]:43123",
+    "https://random.trycloudflare.com"
+  ],
+  "rejectedDevelopment": [
+    "http://api.example.com",
+    "http://localhost:43123/%2F",
+    "ftp://localhost:43123"
+  ]
+}

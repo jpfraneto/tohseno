@@ -192,7 +192,7 @@ describe("setup command", () => {
     const home = join(root, "owner-home");
     mkdirSync(home);
     const keyPath = join(home, testKeyFilename());
-    writeFileSync(keyPath, "test-only-key-file");
+    writeFileSync(keyPath, "test-only-key-file", { mode: 0o600 });
     let validated: AppStoreConnectConfig | undefined;
     const environment = {
       HOME: home,
@@ -227,7 +227,7 @@ describe("setup command", () => {
   test("failed App Store Connect validation writes neither config file", async () => {
     const root = scratchWorkspace();
     const keyPath = join(root, testKeyFilename());
-    writeFileSync(keyPath, "test-only-key-file");
+    writeFileSync(keyPath, "test-only-key-file", { mode: 0o600 });
     const priorAppConfig = "{\"sentinel\":true}\n";
     const priorLocalConfig = "FOREIGN_SLOT = preserved\n";
     writeFileSync(join(root, "app.config.json"), priorAppConfig);
@@ -284,6 +284,7 @@ describe("Apple setup integration helpers", () => {
     writeFileSync(
       keyPath,
       `-----BEGIN PRIVATE KEY-----\n${encoded}\n-----END PRIVATE KEY-----\n`,
+      { mode: 0o600 },
     );
     let authorization = "";
     let requestedUrl = "";

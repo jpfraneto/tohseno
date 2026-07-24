@@ -1,16 +1,21 @@
 import {
-  appendFileSync,
+  closeSync,
+  constants,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
+  openSync,
   realpathSync,
+  writeFileSync,
 } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { CliError } from "./errors.ts";
+import { readBoundedUtf8 } from "./files.ts";
 
 export const SHOT_PROGRESS_SCHEMA_VERSION = 1 as const;
 export const MAX_PROGRESS_JOURNAL_BYTES = 2 * 1_048_576;
+const MAX_PROGRESS_MESSAGE_BYTES = 2_048;
 
 export type CreationDoor = "cli" | "studio";
 
@@ -155,6 +160,40 @@ function ensureJournalDirectory(shotsDirectory: string): string {
   );
 }
 
+function boundedMessage(value: string): string {
+  const singleLine = value.replace(/[\u0000-\u001f\u007f]/gu, " ").trim();
+  const bytes = Buffer.from(singleLine);
+  if (bytes.byteLength <= MAX_PROGRESS_MESSAGE_BYTES) return singleLine;
+  const prefix = bytes
+    .subarray(0, MAX_PROGRESS_MESSAGE_BYTES - 3)
+    .toString("utf8")
+    .replace(/\uFFFD$/u, "");
+  return `${prefix}...`;
+}
+
+function openJournalForAppend(path: string): number {
+  const descriptor = openSync(
+    path,
+    constants.O_WRONLY |
+      constants.O_APPEND |
+      constants.O_NOFOLLOW,
+  );
+  const opened = fstatSync(descriptor);
+  const current = lstatSync(path);
+  if (
+    !opened.isFile() ||
+    opened.nlink !== 1 ||
+    current.isSymbolicLink() ||
+    !current.isFile() ||
+    opened.dev !== current.dev ||
+    opened.ino !== current.ino
+  ) {
+    closeSync(descriptor);
+    throw new CliError("progress journal is not a private regular file");
+  }
+  return descriptor;
+}
+
 export class ShotProgressReporter {
   readonly jobId: string;
   readonly door: CreationDoor;
@@ -173,8 +212,23 @@ export class ShotProgressReporter {
     this.door = options.door;
     this.#now = options.now ?? (() => new Date());
     this.#sinks = options.sinks ?? [];
-    ensureJournalDirectory(options.shotsDirectory);
-    this.journalPath = progressJournalPath(options.shotsDirectory, this.jobId);
+    const directory = ensureJournalDirectory(options.shotsDirectory);
+    this.journalPath = join(directory, `${this.jobId}.jsonl`);
+    try {
+      const descriptor = openSync(
+        this.journalPath,
+        constants.O_WRONLY |
+          constants.O_CREAT |
+          constants.O_EXCL |
+          constants.O_NOFOLLOW,
+        0o600,
+      );
+      closeSync(descriptor);
+    } catch {
+      throw new CliError(
+        "creation progress journal already exists or is unsafe; retry with a new job",
+      );
+    }
   }
 
   async emit(input: ShotProgressInput): Promise<ShotProgressEvent> {
@@ -186,12 +240,23 @@ export class ShotProgressReporter {
       door: this.door,
       ...(input.slug === undefined ? {} : { slug: input.slug }),
       ...(input.sequence === undefined ? {} : { sequence: input.sequence }),
-      ...(input.message === undefined ? {} : { message: input.message }),
+      ...(input.message === undefined
+        ? {}
+        : { message: boundedMessage(input.message) }),
     };
-    appendFileSync(this.journalPath, `${JSON.stringify(event)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
-    });
+    const line = `${JSON.stringify(event)}\n`;
+    const descriptor = openJournalForAppend(this.journalPath);
+    try {
+      if (
+        fstatSync(descriptor).size + Buffer.byteLength(line) >
+          MAX_PROGRESS_JOURNAL_BYTES
+      ) {
+        throw new CliError("creation progress journal reached its safety limit");
+      }
+      writeFileSync(descriptor, line, { encoding: "utf8" });
+    } finally {
+      closeSync(descriptor);
+    }
     await Promise.all(this.#sinks.map(async (sink) => {
       try {
         await sink(event);
@@ -219,10 +284,18 @@ function isProgressEvent(value: unknown): value is ShotProgressEvent {
 
 export function readProgressJournal(path: string): ShotProgressEvent[] {
   if (!existsSync(path)) return [];
-  const details = lstatSync(path);
-  if (details.isSymbolicLink() || !details.isFile()) return [];
+  let source: string;
+  try {
+    source = readBoundedUtf8(
+      path,
+      MAX_PROGRESS_JOURNAL_BYTES,
+      "creation progress journal",
+    );
+  } catch {
+    return [];
+  }
   const events: ShotProgressEvent[] = [];
-  for (const line of readFileSync(path, "utf8").split("\n")) {
+  for (const line of source.split("\n")) {
     if (line.trim() === "") continue;
     try {
       const value = JSON.parse(line) as unknown;

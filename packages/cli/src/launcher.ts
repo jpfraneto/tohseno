@@ -14,11 +14,6 @@ import { slugForShotName } from "./slug.ts";
 import { trustedShotToolFromCache } from "./trusted-tools.ts";
 
 async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promise<string> {
-  const git = await runCaptured(["git", "status", "--porcelain"], {
-    cwd: shot.path,
-    env: context.environment,
-  });
-  const worktree = git.exitCode === 0 ? (git.stdout === "" ? "clean" : "changes") : "Git unavailable";
   let runtime = "development unavailable in legacy shot";
   const machine = join(shot.path, ".tohseno", "machine.ts");
   if (existsSync(machine)) {
@@ -55,7 +50,7 @@ async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promi
       runtime = existsSync(statePath) ? "development state unreadable" : "development stopped";
     }
   }
-  return `${shot.name} — iOS · ${worktree} · ${runtime}`;
+  return `${shot.name} — iOS · repository ready · ${runtime}`;
 }
 
 export async function interactiveLauncher(context: CommandContext): Promise<number> {

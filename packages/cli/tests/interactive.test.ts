@@ -93,7 +93,9 @@ describe("agent-first launcher", () => {
       })).toBe(0);
       expect(io.stdout.join("\n")).toContain("Shots here: 1");
       expect(io.stdout.join("\n")).toContain("1. Take another shot");
-      expect(io.stdout.join("\n")).toContain("The Trenches — iOS · clean · development stopped");
+      expect(io.stdout.join("\n")).toContain(
+        "The Trenches — iOS · repository ready · development stopped",
+      );
       expect(realpathSync(readFileSync(fakeAgentRecordPath(scratch), "utf8").split("\n")[1]!)).toBe(
         realpathSync(join(scratch.shotsDirectory, "the-trenches")),
       );

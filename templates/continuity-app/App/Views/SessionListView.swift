@@ -40,8 +40,11 @@ struct SessionDetailView: View {
     let session: SessionRecord
 
     var body: some View {
-        ScrollView {
-            Text(store.text(for: session))
+        let sessionText = store.text(for: session)
+        let exportURLs = store.exportURLs(for: session)
+
+        return ScrollView {
+            Text(sessionText)
                 .font(.system(.body, design: .serif))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -49,14 +52,26 @@ struct SessionDetailView: View {
         .navigationTitle(session.endedAt.formatted(date: .abbreviated, time: .shortened))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if AppConfig.shareCardEnabled,
-               let image = ShareCard.render(text: store.text(for: session), appName: appDisplayName()) {
-                ToolbarItem(placement: .primaryAction) {
-                    ShareLink(
-                        item: Image(uiImage: image),
-                        preview: SharePreview("Share card", image: Image(uiImage: image))
-                    )
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    if exportURLs.count == 2 {
+                        ShareLink(items: exportURLs) {
+                            Label("Export session files", systemImage: "doc.on.doc")
+                        }
+                    }
+                    if AppConfig.shareCardEnabled,
+                       let image = ShareCard.render(text: sessionText, appName: appDisplayName()) {
+                        ShareLink(
+                            item: Image(uiImage: image),
+                            preview: SharePreview("Share card", image: Image(uiImage: image))
+                        ) {
+                            Label("Share image", systemImage: "photo")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                 }
+                .accessibilityLabel("Share or export session")
             }
         }
     }

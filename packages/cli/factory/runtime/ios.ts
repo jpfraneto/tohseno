@@ -1,7 +1,13 @@
-import { accessSync, appendFileSync, constants as fsConstants, existsSync, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, existsSync, statSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import { developmentStatus } from "./dev.ts";
-import { MachineError, runCaptured, runtimePaths, safeEnvironment } from "./shared.ts";
+import {
+  appendStructuredLog,
+  MachineError,
+  runCaptured,
+  runtimePaths,
+  safeEnvironment,
+} from "./shared.ts";
 
 interface SimulatorDevice {
   name: string;
@@ -94,11 +100,13 @@ async function capturedToLog(
   command: readonly string[],
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const result = await runCaptured(command, { cwd: root, environment: safeEnvironment() });
-  appendFileSync(log, [
-    JSON.stringify({ at: new Date().toISOString(), event: "ios_command", executable: command[0], exitCode: result.exitCode }),
-    result.stdout,
-    result.stderr,
-  ].filter(Boolean).join("\n") + "\n", { mode: 0o600 });
+  appendStructuredLog(log, {
+    event: "ios_command",
+    executable: command[0] ? command[0].split("/").at(-1) : "unknown",
+    exitCode: result.exitCode,
+    stdoutBytes: Buffer.byteLength(result.stdout),
+    stderrBytes: Buffer.byteLength(result.stderr),
+  });
   return result;
 }
 

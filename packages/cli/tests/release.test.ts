@@ -3,11 +3,17 @@ import {
   appendFileSync,
   chmodSync,
   existsSync,
+  linkSync,
   lstatSync,
+  mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
+  symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { listRegularFiles } from "../src/files.ts";
 import {
   listCachedReleaseDirectories,
   prepareFactoryRelease,
@@ -22,7 +28,7 @@ describe("immutable factory releases", () => {
       const releases = join(scratch.factoryHome, "cache", "releases");
       const first = await prepareFactoryRelease(REPOSITORY_ROOT, releases);
       expect(first.reused).toBe(false);
-      expect(first.directory).toBe(join(releases, first.metadata.releaseId));
+      expect(first.directory).toBe(join(realpathSync(releases), first.metadata.releaseId));
       expect(first.metadata.bundleDigest).toMatch(/^[0-9a-f]{64}$/);
       expect(first.metadata.files.length).toBeGreaterThan(20);
       expect(first.metadata.files.some((file) => file.path === "factory/cli/src/release.ts")).toBe(true);
@@ -78,4 +84,45 @@ describe("immutable factory releases", () => {
       expect(readdirSync(releases).some((name) => name.startsWith(".build-"))).toBe(false);
     });
   }, 20_000);
+
+  test("never follows a linked factory cache outside its managed home", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      mkdirSync(scratch.factoryHome, { recursive: true });
+      const victim = join(scratch.root, "cache-victim");
+      mkdirSync(victim);
+      symlinkSync(victim, join(scratch.factoryHome, "cache"));
+      await expect(
+        prepareFactoryRelease(
+          REPOSITORY_ROOT,
+          join(scratch.factoryHome, "cache", "releases"),
+        ),
+      ).rejects.toThrow("factory cache must be a real directory");
+      expect(readdirSync(victim)).toEqual([]);
+    });
+  });
+
+  test("release inventory rejects linked roots and hardlinked source files", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const source = join(scratch.root, "release-source");
+      const linkedRoot = join(scratch.root, "linked-release-source");
+      const outside = join(scratch.root, "outside.txt");
+      mkdirSync(source);
+      writeFileSync(outside, "private external material\n");
+      symlinkSync(source, linkedRoot);
+      expect(() => listRegularFiles(linkedRoot)).toThrow(
+        "factory release root must be a real directory",
+      );
+      await expect(
+        prepareFactoryRelease(
+          linkedRoot,
+          join(scratch.factoryHome, "cache", "releases"),
+        ),
+      ).rejects.toThrow("factory source root must be a real directory");
+
+      linkSync(outside, join(source, "hardlinked.txt"));
+      expect(() => listRegularFiles(source)).toThrow(
+        "hardlinked files are not allowed",
+      );
+    });
+  });
 });

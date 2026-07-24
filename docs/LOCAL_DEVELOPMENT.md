@@ -75,7 +75,8 @@ TOHSENO_SHOTS_DIR="$STUDIO_SMOKE_ROOT/shots" \
 bun run tohseno -- studio --port 4747 --no-open
 ```
 
-Open the printed `http://127.0.0.1:4747/` URL manually. Confirm that the empty
+With `--no-open`, open the printed owner-only launcher file—not the unscoped
+base URL—to establish the private browser session. Confirm that the empty
 contact sheet loads, create a shot from typed text or Markdown plus reference
 images, watch structured progress, and verify that the resulting repository
 appears under `$STUDIO_SMOKE_ROOT/shots`. In another terminal, point
@@ -84,11 +85,12 @@ appears under `$STUDIO_SMOKE_ROOT/shots`. In another terminal, point
 creation without that CLI process contacting the server.
 
 Studio must continue to reject non-loopback Host/Origin requests, mutation
-requests without its per-process token, unknown multipart fields, traversal,
-symlinks, oversized or mismatched uploads, and a second simultaneous Studio
-creation. Closing it with `Ctrl-C` must clean staging, stop watchers, and await
-the active job. No manual test should add a LAN bind or a general command
-endpoint.
+and private-read requests without its path-scoped cookie, bootstrap requests
+without the launcher token and exact same-origin headers, unknown multipart
+fields, traversal, symlinks, oversized or mismatched uploads, and a second
+simultaneous Studio creation. Closing it with `Ctrl-C` must delete the launcher,
+clean staging, stop watchers, and await the active job. No manual test should
+add a LAN bind or a general command endpoint.
 
 ## Rehearse the managed installer
 
@@ -96,7 +98,7 @@ Build the deterministic source artifact without publishing it:
 
 ```sh
 bun run tohseno:release
-cat dist/tohseno-cli-0.3.0.json
+cat dist/tohseno-cli-0.3.1.json
 ```
 
 The installer test builds that artifact in a temporary directory, creates a

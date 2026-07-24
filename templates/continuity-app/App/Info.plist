@@ -20,21 +20,23 @@
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>RevenueCatPublicKey</key>
-	<string>$(REVENUECAT_PUBLIC_KEY)</string>
 	<key>DevelopmentSecret</key>
 	<string>$(DEV_SECRET_FOR_BUILD)</string>
-	<key>TohsenoAPIEnvironment</key>
-	<string>$(TOHSENO_API_ENVIRONMENT)</string>
-	<key>TohsenoAPIBaseURL</key>
-	<string>$(TOHSENO_API_BASE_URL)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate before showing or replacing your recovery phrase identity.</string>
+	<key>RevenueCatPublicKey</key>
+	<string>$(REVENUECAT_PUBLIC_KEY)</string>
+	<key>TohsenoAPIBaseURL</key>
+	<string>$(TOHSENO_API_BASE_URL)</string>
+	<key>TohsenoAPIEnvironment</key>
+	<string>$(TOHSENO_API_ENVIRONMENT)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -3,7 +3,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -11,13 +10,15 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import type { AgentId } from "./agents.ts";
+import { isAgentId, type AgentId } from "./agents.ts";
 import { SHOT_SCHEMA_VERSION } from "./constants.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import {
   assertNoExternalSymlinks,
   copyRegularFile,
   copyTree,
+  readBoundedJson,
+  readBoundedUtf8,
   removeTreeEvenIfReadOnly,
 } from "./files.ts";
 import { runCaptured } from "./process.ts";
@@ -31,7 +32,12 @@ import type {
   ShotProgressInput,
 } from "./progress.ts";
 import type { FactoryRelease, PreparedRelease } from "./release.ts";
-import { bundleIdForSlug, displayNameForSlug } from "./slug.ts";
+import {
+  bundleIdForSlug,
+  displayNameForSlug,
+  slugForShotName,
+  validateShotSlug,
+} from "./slug.ts";
 
 export interface ShotMetadata {
   schemaVersion: typeof SHOT_SCHEMA_VERSION;
@@ -107,7 +113,11 @@ function writeJson(path: string, value: unknown): void {
 
 function customizeManifest(root: string, slug: string): void {
   const path = join(root, "continuity.manifest.json");
-  const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  const value = readBoundedJson<Record<string, unknown>>(
+    path,
+    1_048_576,
+    "base continuity manifest",
+  );
   const application = value.application;
   if (typeof application !== "object" || application === null || Array.isArray(application)) {
     throw new CliError("base manifest has no application object");
@@ -120,7 +130,7 @@ function customizeManifest(root: string, slug: string): void {
 
 function customizeXcconfig(root: string, slug: string): void {
   const path = join(root, "Config", "App.xcconfig");
-  let source = readFileSync(path, "utf8");
+  let source = readBoundedUtf8(path, 65_536, "base app configuration");
   source = source.replace(/^APP_DISPLAY_NAME\s*=.*$/mu, `APP_DISPLAY_NAME = ${displayNameForSlug(slug)}`);
   source = source.replace(/^APP_BUNDLE_ID\s*=.*$/mu, `APP_BUNDLE_ID = ${bundleIdForSlug(slug)}`);
   writeFileSync(path, source, { mode: 0o644 });
@@ -128,7 +138,11 @@ function customizeXcconfig(root: string, slug: string): void {
 
 function addVerifyScript(root: string): void {
   const path = join(root, "package.json");
-  const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  const value = readBoundedJson<Record<string, unknown>>(
+    path,
+    65_536,
+    "base package manifest",
+  );
   const scriptsValue = value.scripts;
   const scripts = typeof scriptsValue === "object" && scriptsValue !== null && !Array.isArray(scriptsValue)
     ? scriptsValue as Record<string, unknown>
@@ -383,17 +397,77 @@ export function readShotMetadata(root: string): ShotMetadata | undefined {
   const path = join(root, ".tohseno", "shot.json");
   if (!existsSync(path)) return undefined;
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as Partial<ShotMetadata>;
+    const value = readBoundedJson<Partial<ShotMetadata>>(
+      path,
+      65_536,
+      "shot metadata",
+    );
     const factory = value.factory;
+    const selectedAgentValid = value.selectedAgent === null ||
+      (typeof value.selectedAgent === "string" &&
+        isAgentId(value.selectedAgent));
+    const sequenceValid = value.sequence === undefined ||
+      (Number.isSafeInteger(value.sequence) && (value.sequence ?? 0) > 0);
+    const createdAtValid = typeof value.createdAt === "string" &&
+      Number.isFinite(Date.parse(value.createdAt)) &&
+      new Date(value.createdAt).toISOString() === value.createdAt;
     if (
       value.schemaVersion !== SHOT_SCHEMA_VERSION ||
       value.platform !== "ios" ||
       typeof value.slug !== "string" ||
+      validateShotSlug(value.slug) !== value.slug ||
+      typeof value.adopted !== "boolean" ||
+      !createdAtValid ||
+      !sequenceValid ||
+      !selectedAgentValid ||
+      (value.baselineAuthor !== "factory" &&
+        value.baselineAuthor !== "existing-history") ||
       typeof factory !== "object" ||
       factory === null ||
-      typeof factory.releaseId !== "string"
+      typeof factory.releaseId !== "string" ||
+      !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+        .test(factory.releaseId) ||
+      typeof factory.cliVersion !== "string" ||
+      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(factory.cliVersion) ||
+      typeof factory.templateVersion !== "string" ||
+      !/^[a-z0-9][a-z0-9.-]{0,127}$/u.test(factory.templateVersion) ||
+      typeof factory.manifestSchemaVersion !== "string" ||
+      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(factory.manifestSchemaVersion) ||
+      (factory.sourceCommit !== null &&
+        (typeof factory.sourceCommit !== "string" ||
+          !/^[0-9a-f]{40}$/u.test(factory.sourceCommit))) ||
+      typeof factory.sourceDirty !== "boolean" ||
+      typeof factory.bundleDigest !== "string" ||
+      !/^[0-9a-f]{64}$/u.test(factory.bundleDigest)
     ) {
       return undefined;
+    }
+    if (value.creation !== undefined) {
+      const creation = value.creation;
+      const options = creation.options;
+      if (
+        typeof creation !== "object" ||
+        creation === null ||
+        (creation.door !== "cli" && creation.door !== "studio") ||
+        typeof creation.inputDigest !== "string" ||
+        !/^[0-9a-f]{64}$/u.test(creation.inputDigest) ||
+        typeof creation.hasIntention !== "boolean" ||
+        !Number.isSafeInteger(creation.referenceCount) ||
+        creation.referenceCount < 0 ||
+        creation.referenceCount > 8 ||
+        creation.provenancePath !==
+          ".tohseno/provenance/provenance.json" ||
+        typeof options !== "object" ||
+        options === null ||
+        (options.selectedAgent !== null &&
+          (typeof options.selectedAgent !== "string" ||
+            !isAgentId(options.selectedAgent))) ||
+        !["interactive", "automated", "none"].includes(options.agentMode) ||
+        typeof options.verifyAfterAgent !== "boolean" ||
+        typeof options.runAfterCreate !== "boolean"
+      ) {
+        return undefined;
+      }
     }
     return value as ShotMetadata;
   } catch {
@@ -425,7 +499,8 @@ export async function adoptShot(options: {
     options.environment,
   );
 
-  const metadata = metadataFor(basename(root), options.release.metadata, {
+  const slug = slugForShotName(basename(root));
+  const metadata = metadataFor(slug, options.release.metadata, {
     adopted: true,
     selectedAgent: null,
     baselineAuthor: "existing-history",

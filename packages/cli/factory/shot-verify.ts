@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import {
   existsSync,
   lstatSync,
-  readFileSync,
+  readdirSync,
   readlinkSync,
   realpathSync,
 } from "node:fs";
@@ -13,6 +13,13 @@ import { formatManifestIssues, validateManifest } from "./manifest/validate.ts";
 // @ts-ignore This factory template is copied beside its pinned manifest directory.
 import { CONTINUITY_MANIFEST_SCHEMA_VERSION } from "./manifest/types.ts";
 import { configuredProductionEndpoint, inspectEndpoint, inspectProduction } from "./runtime/production.ts";
+import {
+  MachineError,
+  readBoundedRegularFile,
+  readBoundedUtf8,
+  runCaptured,
+  safeEnvironment,
+} from "./runtime/shared.ts";
 
 function resolvedShotRoot(): string {
   let candidate = resolve(process.cwd());
@@ -49,6 +56,18 @@ const REQUIRED_IOS_FILES = [
   "site/index.html",
 ] as const;
 const PRIVATE_TRACKED_FILE = /(?:^|\/)(?:MASTER_PROMPT\.md|Local\.xcconfig|DevelopmentEndpoint\.xcconfig|app\.config\.json|\.env(?:\..*)?)$|(?:^|\/)\.tohseno\/(?:artifacts|data|provenance|run)(?:\/|$)|\.(?:p8|p12|pem|pfx|mobileprovision)$/iu;
+const MAX_JSON_BYTES = 1_048_576;
+const MAX_INTENTION_BYTES = 1_048_576;
+const MAX_REFERENCE_BYTES = 12 * 1_048_576;
+const MAX_REFERENCES = 8;
+const MAX_WORKTREE_FILE_BYTES = 64 * 1_048_576;
+const MAX_WORKTREE_BYTES = 512 * 1_048_576;
+const MAX_WORKTREE_ENTRIES = 20_000;
+const MIN_EMBEDDED_INTENTION_BYTES = 24;
+const PRIVATE_LOCAL_DIRECTORY =
+  /(?:^|\/)\.tohseno\/(?:artifacts|data|provenance|run)(?:\/|$)/u;
+const GENERATED_DIRECTORY =
+  /(?:^|\/)(?:node_modules|DerivedData|build|\.build)(?:\/|$)/u;
 
 interface CommandResult {
   exitCode: number;
@@ -56,38 +75,40 @@ interface CommandResult {
   stderr: string;
 }
 
-function gitEnvironment(): Record<string, string | undefined> {
-  const environment: Record<string, string | undefined> = { ...process.env };
-  const exact = new Set([
-    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
-    "GIT_QUARANTINE_PATH", "GIT_PREFIX", "GIT_INTERNAL_SUPER_PREFIX",
-    "GIT_TEMPLATE_DIR", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-    "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS",
-  ]);
-  for (const key of Object.keys(environment)) {
-    if (
-      exact.has(key) || key.startsWith("GIT_AUTHOR_") || key.startsWith("GIT_COMMITTER_") ||
-      key.startsWith("GIT_CONFIG_KEY_") || key.startsWith("GIT_CONFIG_VALUE_")
-    ) delete environment[key];
-  }
-  return environment;
+interface PrivateLeakMaterial {
+  intentionSha256: string | null;
+  intentionNeedle: Buffer | null;
+  referenceHashes: Set<string>;
 }
 
 async function run(command: readonly string[]): Promise<CommandResult> {
-  const child = Bun.spawn([...command], {
-    cwd: SHOT_ROOT,
-    env: gitEnvironment(),
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [exitCode, stdout, stderr] = await Promise.all([
-    child.exited,
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-  ]);
-  return { exitCode, stdout, stderr };
+  const environment = {
+    ...safeEnvironment(),
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  };
+  const hardened = command[0] === "git"
+    ? [
+      "git",
+      "-c", "core.fsmonitor=false",
+      "-c", "core.hooksPath=/dev/null",
+      "-c", "core.excludesFile=/dev/null",
+      ...command.slice(1),
+    ]
+    : command;
+  try {
+    return await runCaptured(hardened, {
+      cwd: SHOT_ROOT,
+      environment,
+    });
+  } catch (error) {
+    const detail = error instanceof MachineError
+      ? error.message
+      : "repository inspection subprocess failed";
+    fail(detail);
+  }
 }
 
 function fail(message: string): never {
@@ -100,16 +121,19 @@ function insideShot(path: string): boolean {
   return fromRoot === "" || (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`));
 }
 
+function readJsonFile(path: string, label: string): unknown {
+  try {
+    return JSON.parse(readBoundedUtf8(path, MAX_JSON_BYTES, label)) as unknown;
+  } catch {
+    fail(`${label} must be valid JSON in a single-link regular file no larger than ${MAX_JSON_BYTES} bytes`);
+  }
+}
+
 function validateMetadata(): void {
   const path = join(SHOT_ROOT, ".tohseno", "shot.json");
   const releasePath = join(SHOT_ROOT, ".tohseno", "factory-release.json");
   if (!existsSync(path)) fail("missing .tohseno/shot.json; this project is not a recognized shot");
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  } catch (error) {
-    fail(`cannot read .tohseno/shot.json: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const value = readJsonFile(path, "shot metadata");
   if (typeof value !== "object" || value === null || Array.isArray(value)) fail("shot metadata must be an object");
   const metadata = value as Record<string, unknown>;
   if (metadata.schemaVersion !== 1 || metadata.platform !== "ios") {
@@ -120,17 +144,17 @@ function validateMetadata(): void {
   const provenance = factory as Record<string, unknown>;
   if (
     typeof provenance.releaseId !== "string" ||
+    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u.test(provenance.releaseId) ||
     typeof provenance.bundleDigest !== "string" ||
+    !/^[0-9a-f]{64}$/u.test(provenance.bundleDigest) ||
     provenance.manifestSchemaVersion !== CONTINUITY_MANIFEST_SCHEMA_VERSION
   ) {
     fail("shot metadata has incomplete or incompatible factory provenance");
   }
-  let releaseValue: unknown;
-  try {
-    releaseValue = JSON.parse(readFileSync(releasePath, "utf8")) as unknown;
-  } catch (error) {
-    fail(`cannot read .tohseno/factory-release.json: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const releaseValue = readJsonFile(
+    releasePath,
+    "factory release record",
+  );
   if (typeof releaseValue !== "object" || releaseValue === null || Array.isArray(releaseValue)) {
     fail("factory release record must be an object");
   }
@@ -159,6 +183,8 @@ function validateMetadata(): void {
       !/^[a-f0-9]{64}$/u.test(summary.inputDigest) ||
       typeof summary.hasIntention !== "boolean" ||
       !Number.isSafeInteger(summary.referenceCount) ||
+      (summary.referenceCount as number) < 0 ||
+      (summary.referenceCount as number) > MAX_REFERENCES ||
       summary.provenancePath !== ".tohseno/provenance/provenance.json"
     ) {
       fail("shot creation provenance summary is incomplete");
@@ -166,15 +192,21 @@ function validateMetadata(): void {
   }
 }
 
-function sha256File(path: string): string {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+function sha256File(path: string, maximumBytes: number, label: string): string {
+  return createHash("sha256")
+    .update(readBoundedRegularFile(path, maximumBytes, label))
+    .digest("hex");
 }
 
 function sha256Text(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function privateProvenanceFile(root: string, relativePath: string): string {
+function privateProvenanceFile(
+  root: string,
+  relativePath: string,
+  maximumBytes: number,
+): { path: string; bytes: number } {
   if (
     relativePath === "" ||
     isAbsolute(relativePath) ||
@@ -188,14 +220,20 @@ function privateProvenanceFile(root: string, relativePath: string): string {
   }
   if (!existsSync(path)) fail("private creation provenance is missing a recorded input");
   const details = lstatSync(path);
-  if (details.isSymbolicLink() || !details.isFile()) {
+  if (
+    details.isSymbolicLink() ||
+    !details.isFile() ||
+    details.nlink !== 1 ||
+    (details.mode & 0o077) !== 0 ||
+    details.size > maximumBytes
+  ) {
     fail("private creation provenance input is not a regular file");
   }
   const canonical = realpathSync(path);
   if (!insideShot(canonical) || !insideShot(root) || !insideRoot(root, canonical)) {
     fail("private creation provenance input leaves its local directory");
   }
-  return canonical;
+  return { path: canonical, bytes: details.size };
 }
 
 function insideRoot(root: string, candidate: string): boolean {
@@ -204,33 +242,29 @@ function insideRoot(root: string, candidate: string): boolean {
     (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`));
 }
 
-function validatePrivateCreationProvenance(): void {
+function validatePrivateCreationProvenance(): PrivateLeakMaterial | null {
   const requestedRoot = join(SHOT_ROOT, ".tohseno", "provenance");
   const path = join(requestedRoot, "provenance.json");
   if (!existsSync(path)) {
     console.error("WARNING local creation inputs are unavailable; Git intentionally does not carry private provenance");
-    return;
+    return null;
   }
   if (!existsSync(requestedRoot)) {
     fail("private creation provenance directory is missing");
   }
   const rootDetails = lstatSync(requestedRoot);
-  if (rootDetails.isSymbolicLink() || !rootDetails.isDirectory()) {
+  if (
+    rootDetails.isSymbolicLink() ||
+    !rootDetails.isDirectory() ||
+    (rootDetails.mode & 0o777) !== 0o700
+  ) {
     fail("private creation provenance directory is not a real directory");
   }
   const root = realpathSync(requestedRoot);
   if (!insideShot(root) || root === SHOT_ROOT) {
     fail("private creation provenance directory leaves the shot");
   }
-  if (lstatSync(path).isSymbolicLink() || !lstatSync(path).isFile()) {
-    fail("private creation provenance record is not a regular file");
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  } catch {
-    fail("private creation provenance record is not valid JSON");
-  }
+  const value = readJsonFile(path, "private creation provenance record");
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     fail("private creation provenance record must be an object");
   }
@@ -244,8 +278,9 @@ function validatePrivateCreationProvenance(): void {
   ) {
     fail("private creation provenance record has an unsupported shape");
   }
-  const metadata = JSON.parse(
-    readFileSync(join(SHOT_ROOT, ".tohseno", "shot.json"), "utf8"),
+  const metadata = readJsonFile(
+    join(SHOT_ROOT, ".tohseno", "shot.json"),
+    "shot metadata",
   ) as Record<string, unknown>;
   const creationSummary = metadata.creation as Record<string, unknown> | undefined;
   const factorySummary = metadata.factory as Record<string, unknown>;
@@ -262,22 +297,56 @@ function validatePrivateCreationProvenance(): void {
   }
   const intention = provenance.intention;
   let intentionSha256: string | null = null;
+  let intentionNeedle: Buffer | null = null;
   if (intention !== null) {
     if (typeof intention !== "object" || Array.isArray(intention)) {
       fail("private creation intention record must be an object or null");
     }
     const record = intention as Record<string, unknown>;
+    const intentionFile = typeof record.path === "string"
+      ? privateProvenanceFile(root, record.path, MAX_INTENTION_BYTES)
+      : null;
+    const intentionBytes = intentionFile === null
+      ? null
+      : readBoundedRegularFile(
+        intentionFile.path,
+        MAX_INTENTION_BYTES,
+        "private creation intention",
+      );
     if (
-      typeof record.path !== "string" ||
+      intentionFile === null ||
+      intentionBytes === null ||
       typeof record.sha256 !== "string" ||
-      sha256File(privateProvenanceFile(root, record.path)) !== record.sha256
+      !/^[0-9a-f]{64}$/u.test(record.sha256) ||
+      !Number.isSafeInteger(record.bytes) ||
+      (record.bytes as number) < 1 ||
+      intentionFile.bytes !== record.bytes ||
+      createHash("sha256").update(intentionBytes).digest("hex") !== record.sha256
     ) {
       fail("private creation intention checksum does not match");
     }
     intentionSha256 = record.sha256;
+    let end = intentionBytes.length;
+    while (
+      end > 0 &&
+      (
+        intentionBytes[end - 1] === 0x09 ||
+        intentionBytes[end - 1] === 0x0a ||
+        intentionBytes[end - 1] === 0x0d ||
+        intentionBytes[end - 1] === 0x20
+      )
+    ) {
+      end -= 1;
+    }
+    if (end >= MIN_EMBEDDED_INTENTION_BYTES) {
+      intentionNeedle = intentionBytes.subarray(0, end);
+    }
   }
   if (!Array.isArray(provenance.references)) {
     fail("private creation references must be an array");
+  }
+  if (provenance.references.length > MAX_REFERENCES) {
+    fail(`private creation references exceed the ${MAX_REFERENCES}-file limit`);
   }
   const referenceHashes: string[] = [];
   for (const reference of provenance.references) {
@@ -285,10 +354,21 @@ function validatePrivateCreationProvenance(): void {
       fail("private creation reference record must be an object");
     }
     const record = reference as Record<string, unknown>;
+    const referenceFile = typeof record.path === "string"
+      ? privateProvenanceFile(root, record.path, MAX_REFERENCE_BYTES)
+      : null;
     if (
-      typeof record.path !== "string" ||
+      referenceFile === null ||
       typeof record.sha256 !== "string" ||
-      sha256File(privateProvenanceFile(root, record.path)) !== record.sha256
+      !/^[0-9a-f]{64}$/u.test(record.sha256) ||
+      !Number.isSafeInteger(record.bytes) ||
+      (record.bytes as number) < 1 ||
+      referenceFile.bytes !== record.bytes ||
+      sha256File(
+        referenceFile.path,
+        MAX_REFERENCE_BYTES,
+        "private creation reference",
+      ) !== record.sha256
     ) {
       fail("private creation reference checksum does not match");
     }
@@ -306,6 +386,122 @@ function validatePrivateCreationProvenance(): void {
     fail("private creation input digest does not match its normalized inputs");
   }
   console.log("✓ provenance · local private inputs · checksums valid");
+  return {
+    intentionSha256,
+    intentionNeedle,
+    referenceHashes: new Set(referenceHashes),
+  };
+}
+
+function normalizedRelativePath(path: string): string {
+  return relative(SHOT_ROOT, path).split(sep).join("/");
+}
+
+function privateLocalPath(path: string): boolean {
+  const relativePath = normalizedRelativePath(path);
+  return relativePath !== "" && PRIVATE_TRACKED_FILE.test(relativePath);
+}
+
+function validateWorktreePrivacy(material: PrivateLeakMaterial | null): void {
+  let entriesSeen = 0;
+  let bytesRead = 0;
+
+  function visit(directory: string): void {
+    let canonicalDirectory: string;
+    let entries;
+    try {
+      const details = lstatSync(directory);
+      canonicalDirectory = realpathSync(directory);
+      if (
+        details.isSymbolicLink() ||
+        !details.isDirectory() ||
+        !insideShot(canonicalDirectory) ||
+        privateLocalPath(canonicalDirectory)
+      ) {
+        fail("shot worktree contains an unsafe directory boundary");
+      }
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      fail("shot worktree cannot be inspected safely");
+    }
+
+    for (const entry of entries) {
+      entriesSeen += 1;
+      if (entriesSeen > MAX_WORKTREE_ENTRIES) {
+        fail(`shot worktree exceeds the ${MAX_WORKTREE_ENTRIES}-entry verification limit`);
+      }
+      const path = join(directory, entry.name);
+      const relativePath = normalizedRelativePath(path);
+      if (relativePath === ".git" || relativePath.startsWith(".git/")) continue;
+
+      let details;
+      try {
+        details = lstatSync(path);
+      } catch {
+        fail("shot worktree changed while it was being inspected");
+      }
+      if (details.isSymbolicLink()) {
+        let target: string;
+        try {
+          target = realpathSync(path);
+        } catch {
+          fail("shot worktree contains an unsafe symbolic link");
+        }
+        if (!insideShot(target) || privateLocalPath(target)) {
+          fail("shot worktree contains a symbolic link across a private boundary");
+        }
+        continue;
+      }
+      if (details.isDirectory()) {
+        if (
+          PRIVATE_LOCAL_DIRECTORY.test(relativePath) ||
+          GENERATED_DIRECTORY.test(relativePath)
+        ) {
+          continue;
+        }
+        visit(path);
+        continue;
+      }
+      if (!details.isFile()) {
+        fail("shot worktree contains an unsupported filesystem entry");
+      }
+      if (PRIVATE_TRACKED_FILE.test(relativePath)) continue;
+      if (details.size > MAX_WORKTREE_FILE_BYTES) {
+        fail(`shot worktree contains a file larger than ${MAX_WORKTREE_FILE_BYTES} bytes`);
+      }
+
+      let bytes: Buffer;
+      try {
+        bytes = readBoundedRegularFile(
+          path,
+          MAX_WORKTREE_FILE_BYTES,
+          "shot worktree file",
+        );
+      } catch {
+        fail("shot worktree contains an unsafe or oversized file");
+      }
+      bytesRead += bytes.length;
+      if (bytesRead > MAX_WORKTREE_BYTES) {
+        fail(`shot worktree exceeds the ${MAX_WORKTREE_BYTES}-byte verification limit`);
+      }
+      if (material === null) continue;
+
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      if (
+        digest === material.intentionSha256 ||
+        material.referenceHashes.has(digest) ||
+        (
+          material.intentionNeedle !== null &&
+          bytes.indexOf(material.intentionNeedle) !== -1
+        )
+      ) {
+        fail("private creation input appears outside its protected local directory");
+      }
+    }
+  }
+
+  visit(SHOT_ROOT);
+  console.log("✓ privacy · worktree contains no copied private creation input or unsafe links");
 }
 
 function validateStructure(): void {
@@ -316,12 +512,7 @@ function validateStructure(): void {
 
 function validateManifestFile(): void {
   const path = join(SHOT_ROOT, "continuity.manifest.json");
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(path, "utf8")) as unknown;
-  } catch (error) {
-    fail(`continuity.manifest.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const value = readJsonFile(path, "continuity.manifest.json");
   const result = validateManifest(value);
   if (result.warnings.length > 0) console.error(formatManifestIssues(result.warnings));
   if (!result.valid) {
@@ -355,24 +546,33 @@ async function validateGitAndLinks(): Promise<void> {
     fail("shot is not the root of an independent Git repository");
   }
   const listed = await run(["git", "ls-files", "-z"]);
-  if (listed.exitCode !== 0) fail(`cannot inspect tracked files: ${listed.stderr.trim()}`);
+  if (listed.exitCode !== 0) fail("cannot inspect tracked files");
   for (const trackedPath of listed.stdout.split("\0").filter(Boolean)) {
-    if (PRIVATE_TRACKED_FILE.test(trackedPath)) fail(`private or credential-bearing file is tracked: ${trackedPath}`);
+    if (PRIVATE_TRACKED_FILE.test(trackedPath)) {
+      fail("a private or credential-bearing file is tracked");
+    }
     const path = join(SHOT_ROOT, trackedPath);
     if (!existsSync(path)) continue;
     if (lstatSync(path).isSymbolicLink()) {
       const target = readlinkSync(path);
       const resolved = isAbsolute(target) ? resolve(target) : resolve(dirname(path), target);
-      if (!insideShot(resolved)) fail(`tracked symbolic link leaves the shot: ${trackedPath}`);
+      if (!insideShot(resolved)) {
+        fail("a tracked symbolic link leaves the shot");
+      }
     }
   }
   for (const ignoredPath of [
+    "MASTER_PROMPT.md",
+    "Config/Local.xcconfig",
     ".tohseno/data/development.sqlite3",
     ".tohseno/run/state.json",
     ".tohseno/run/logs/api.log",
     ".tohseno/provenance/provenance.json",
     ".tohseno/artifacts/screenshot.png",
     "Config/DevelopmentEndpoint.xcconfig",
+    "app.config.json",
+    ".env",
+    "credential.p8",
   ]) {
     const ignored = await run(["git", "check-ignore", "--quiet", "--no-index", ignoredPath]);
     if (ignored.exitCode !== 0) fail(`runtime artifact is not gitignored: ${ignoredPath}`);
@@ -381,8 +581,9 @@ async function validateGitAndLinks(): Promise<void> {
 }
 
 validateMetadata();
-validatePrivateCreationProvenance();
+const privateLeakMaterial = validatePrivateCreationProvenance();
 validateStructure();
 validateManifestFile();
 validateProductionEndpoint();
 await validateGitAndLinks();
+validateWorktreePrivacy(privateLeakMaterial);

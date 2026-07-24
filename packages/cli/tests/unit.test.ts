@@ -1,13 +1,28 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   detectInstalledAgents,
   requireInstalledAgent,
+  sanitizedAgentEnvironment,
 } from "../src/agents.ts";
 import { main } from "../src/cli.ts";
 import { resolveConfig } from "../src/config.ts";
+import { removeTreeEvenIfReadOnly } from "../src/files.ts";
 import { machineRuntimeEnvironment } from "../src/machine.ts";
+import {
+  runCaptured,
+  sanitizedGitEnvironment,
+} from "../src/process.ts";
 import {
   bundleIdForSlug,
   displayNameForSlug,
@@ -134,9 +149,78 @@ describe("configuration resolution", () => {
       })).toThrow("unsupported home path");
     });
   });
+
+  test("refuses linked and oversized configuration files", async () => {
+    await withScratchEnvironment((scratch) => {
+      mkdirSync(scratch.factoryHome, { recursive: true });
+      const configPath = join(scratch.factoryHome, "config.json");
+      const victim = join(scratch.root, "config-victim.json");
+      writeFileSync(victim, `${JSON.stringify({ schemaVersion: 1 })}\n`);
+      symlinkSync(victim, configPath);
+      expect(() =>
+        resolveConfig({
+          cwd: scratch.root,
+          environment: {
+            HOME: scratch.home,
+            TOHSENO_HOME: scratch.factoryHome,
+          },
+        })
+      ).toThrow("must be a regular file");
+      expect(readFileSync(victim, "utf8")).toContain('"schemaVersion":1');
+
+      unlinkSync(configPath);
+      writeFileSync(configPath, " ".repeat(65_537));
+      expect(() =>
+        resolveConfig({
+          cwd: scratch.root,
+          environment: {
+            HOME: scratch.home,
+            TOHSENO_HOME: scratch.factoryHome,
+          },
+        })
+      ).toThrow("no more than 65536 bytes");
+    });
+  });
+});
+
+describe("filesystem cleanup boundaries", () => {
+  test("removes a linked root without traversing or chmodding its target", async () => {
+    await withScratchEnvironment((scratch) => {
+      const victim = join(scratch.root, "cleanup-victim");
+      const victimFile = join(victim, "keep.txt");
+      const linkedRoot = join(scratch.root, "cleanup-link");
+      mkdirSync(victim);
+      writeFileSync(victimFile, "keep\n");
+      chmodSync(victimFile, 0o400);
+      chmodSync(victim, 0o500);
+      symlinkSync(victim, linkedRoot);
+
+      removeTreeEvenIfReadOnly(linkedRoot);
+
+      expect(existsSync(linkedRoot)).toBe(false);
+      expect(readFileSync(victimFile, "utf8")).toBe("keep\n");
+      expect(statSync(victim).mode & 0o777).toBe(0o500);
+      expect(statSync(victimFile).mode & 0o777).toBe(0o400);
+    });
+  });
 });
 
 describe("machine environment boundaries", () => {
+  test("coding agents receive their own config paths but no ambient credentials", () => {
+    expect(sanitizedAgentEnvironment({
+      PATH: "/usr/bin",
+      HOME: "/tmp/synthetic-home",
+      CODEX_HOME: "/tmp/synthetic-codex",
+      SSH_AUTH_SOCK: "/tmp/synthetic-agent.sock",
+      GH_TOKEN: "synthetic-github-secret",
+      BANKR_API_KEY: "synthetic-provider-secret",
+    })).toEqual({
+      PATH: "/usr/bin",
+      HOME: "/tmp/synthetic-home",
+      CODEX_HOME: "/tmp/synthetic-codex",
+    });
+  });
+
   test("forwards Bankr auth only to recognized token operations", () => {
     const source = {
       PATH: "/usr/bin",
@@ -150,6 +234,44 @@ describe("machine environment boundaries", () => {
     for (const operation of ["token.status", "token.launch", "token.fees"]) {
       expect(machineRuntimeEnvironment(operation, source)).toEqual(source);
     }
+  });
+
+  test("Git subprocesses receive no provider secrets and disable executable hooks", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      writeExecutable(scratch.binDirectory, "git", [
+        "#!/bin/sh",
+        "printf '%s\\n' \"$@\"",
+        "printf 'provider=%s\\n' \"${BANKR_API_KEY-unset}\"",
+      ].join("\n"));
+      const environment = {
+        ...scratch.environment,
+        BANKR_API_KEY: "synthetic-provider-secret",
+        GH_TOKEN: "synthetic-github-secret",
+        GIT_DIR: "/tmp/untrusted-git-dir",
+      };
+      expect(sanitizedGitEnvironment(environment)).not.toHaveProperty(
+        "BANKR_API_KEY",
+      );
+      expect(sanitizedGitEnvironment(environment)).not.toHaveProperty(
+        "GH_TOKEN",
+      );
+      expect(sanitizedGitEnvironment(environment)).not.toHaveProperty(
+        "GIT_DIR",
+      );
+      expect(sanitizedGitEnvironment(environment)).toMatchObject({
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_TERMINAL_PROMPT: "0",
+      });
+      const result = await runCaptured(["git", "status", "--porcelain"], {
+        cwd: scratch.root,
+        env: environment,
+      });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("core.hooksPath=/dev/null");
+      expect(result.stdout).toContain("core.fsmonitor=false");
+      expect(result.stdout).toContain("provider=unset");
+    });
   });
 });
 

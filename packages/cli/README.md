@@ -33,6 +33,10 @@ progress journal, and provenance format under the configured shots directory.
 
 Studio binds only to `127.0.0.1` (port `4747` by default), opens the browser
 unless `--no-open` is passed, and treats `/shots` as its source of truth. It
+uses a mode-`0600` temporary launcher to establish an HTTP-only, path-scoped
+browser session. The reusable credential is absent from the served shell,
+process arguments, and printed base URL; private reads and mutations both
+require the session. It
 permits one heavy create/run/preview/verify operation at a time and observes
 shots made by a separate CLI process. Closing Studio does not affect CLI
 operation or ownership of a completed shot. The Studio server does not upload
@@ -66,6 +70,12 @@ internally named reference copies. Hashes and original reference filenames are
 recorded. This directory and `.tohseno/artifacts/` are private and gitignored;
 the tracked shot metadata carries only the content-free creation summary and
 input digest.
+
+The factory invokes the pinned verifier after every coding-agent exit,
+including a nonzero exit. It scans the public worktree for exact or embedded
+private creation input, unsafe links, changed pinned machinery, and missing
+ignore coverage. A result that fails the gate is moved to an explicitly unsafe
+hidden path rather than reported as ready.
 
 Coding agents use the machine namespace:
 

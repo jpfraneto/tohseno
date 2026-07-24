@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -64,13 +65,19 @@ async function studioFetch(
   path: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  return await fetch(`${bound.origin}${path}`, {
+  const scopedPath = path === "/api"
+    ? application.security.apiBase
+    : path.startsWith("/api/")
+      ? `${application.security.apiBase}${path.slice(4)}`
+      : path;
+  return await fetch(`${bound.origin}${scopedPath}`, {
     ...options,
     headers: {
+      Cookie:
+        `${application.security.cookieName}=${application.security.sessionToken}`,
       ...(options.method === "POST"
         ? {
             Origin: bound.origin,
-            "X-Tohseno-Session": application.security.sessionToken,
           }
         : {}),
       ...(options.headers ?? {}),
@@ -92,8 +99,8 @@ describe("Tohseno Studio local server", () => {
         environment: scratch.environment,
         sourceRoot: REPOSITORY_ROOT,
         port: 0,
-        openUrl: async (url) => {
-          opened = url;
+        openTarget: async (path) => {
+          opened = path;
         },
       });
       expect(studio.url).toMatch(/^http:\/\/127\.0\.0\.1:[0-9]+$/);
@@ -110,6 +117,7 @@ describe("Tohseno Studio local server", () => {
       );
       expect(shellText).toContain("<dt>LAST CREATION ACTIVITY</dt>");
       expect(shellText).not.toContain("{{AGENT_PRIVACY_NOTICE}}");
+      expect(shellText).not.toContain(studio.application.security.sessionToken);
       expect(shell.headers.get("content-security-policy")).toContain(
         "frame-src 'self' http://127.0.0.1:*",
       );
@@ -119,9 +127,14 @@ describe("Tohseno Studio local server", () => {
       expect(clientScriptText).toContain('return `CREATION / ${status}`;');
       expect(clientScriptText).toContain('if (!quiet) setDetailStatus("");');
       await studio.open();
-      expect(opened).toBe(studio.url);
+      expect(opened).toBe(studio.launcherPath);
+      expect(statSync(studio.launcherPath).mode & 0o777).toBe(0o600);
+      expect(readFileSync(studio.launcherPath, "utf8")).toContain(
+        "#tohseno-session=",
+      );
 
       await studio.stop();
+      expect(existsSync(studio.launcherPath)).toBe(false);
       const afterClose = await studio.application.fetch(new Request(
         `${studio.url}/api/shots`,
         { headers: { Host: `127.0.0.1:${studio.port}` } },
@@ -261,7 +274,7 @@ describe("Tohseno Studio local server", () => {
         expect(hostileHost.status).toBe(421);
 
         const hostileOrigin = await application.fetch(new Request(
-          "http://127.0.0.1:4747/api/shots",
+          "http://127.0.0.1:4747/api/session",
           {
             method: "POST",
             headers: {
@@ -274,7 +287,7 @@ describe("Tohseno Studio local server", () => {
         expect(hostileOrigin.status).toBe(403);
 
         const hostileSession = await application.fetch(new Request(
-          "http://127.0.0.1:4747/api/shots",
+          "http://127.0.0.1:4747/api/session",
           {
             method: "POST",
             headers: {
@@ -286,9 +299,41 @@ describe("Tohseno Studio local server", () => {
         ));
         expect(hostileSession.status).toBe(403);
 
-        const traversal = await application.fetch(new Request(
-          "http://127.0.0.1:4747/api/shots/..%2Foutside",
+        const bootstrap = await application.fetch(new Request(
+          "http://127.0.0.1:4747/api/session",
+          {
+            method: "POST",
+            headers: {
+              Host: "127.0.0.1:4747",
+              Origin: "http://127.0.0.1:4747",
+              "X-Tohseno-Session": application.security.sessionToken,
+            },
+          },
+        ));
+        expect(bootstrap.status).toBe(200);
+        expect(await bootstrap.json()).toEqual({
+          apiBase: application.security.apiBase,
+        });
+        expect(bootstrap.headers.get("set-cookie")).toContain("HttpOnly");
+        expect(bootstrap.headers.get("set-cookie")).toContain(
+          `Path=/__tohseno/${application.security.sessionId}/`,
+        );
+
+        const missingCookie = await application.fetch(new Request(
+          `http://127.0.0.1:4747${application.security.apiBase}/shots`,
           { headers: { Host: "127.0.0.1:4747" } },
+        ));
+        expect(missingCookie.status).toBe(403);
+
+        const traversal = await application.fetch(new Request(
+          `http://127.0.0.1:4747${application.security.apiBase}/shots/..%2Foutside`,
+          {
+            headers: {
+              Host: "127.0.0.1:4747",
+              Cookie:
+                `${application.security.cookieName}=${application.security.sessionToken}`,
+            },
+          },
         ));
         expect(traversal.status).toBe(404);
       } finally {
@@ -760,8 +805,14 @@ describe("Tohseno Studio local server", () => {
         security: { port: 4747 },
       });
       const events = await application.fetch(new Request(
-        "http://127.0.0.1:4747/api/events",
-        { headers: { Host: "127.0.0.1:4747" } },
+        `http://127.0.0.1:4747${application.security.apiBase}/events`,
+        {
+          headers: {
+            Host: "127.0.0.1:4747",
+            Cookie:
+              `${application.security.cookieName}=${application.security.sessionToken}`,
+          },
+        },
       ));
       const reader = events.body?.getReader();
       if (reader === undefined) throw new Error("workspace SSE has no body");
@@ -891,6 +942,55 @@ describe("Tohseno Studio local server", () => {
         unsubscribe();
         observer.close();
       }
+    });
+  });
+
+  test("progress journals refuse link substitution and bound persisted diagnostics", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const events = join(
+        scratch.shotsDirectory,
+        ".tohseno",
+        "events",
+      );
+      mkdirSync(events, { recursive: true });
+      const victim = join(scratch.root, "owner-file");
+      writeFileSync(victim, "preserve\n", { mode: 0o640 });
+      const linkedPath = progressJournalPath(
+        scratch.shotsDirectory,
+        "linked-job-0001",
+      );
+      symlinkSync(victim, linkedPath);
+
+      expect(() =>
+        new ShotProgressReporter({
+          shotsDirectory: scratch.shotsDirectory,
+          jobId: "linked-job-0001",
+          door: "cli",
+        })
+      ).toThrow("already exists or is unsafe");
+      expect(readFileSync(victim, "utf8")).toBe("preserve\n");
+
+      const reporter = new ShotProgressReporter({
+        shotsDirectory: scratch.shotsDirectory,
+        jobId: "bounded-job-0001",
+        door: "studio",
+      });
+      const event = await reporter.emit({
+        type: "preview-unavailable",
+        message: `line one\n${"x".repeat(10_000)}`,
+      });
+      expect(event.message).not.toContain("\n");
+      expect(Buffer.byteLength(event.message ?? "")).toBeLessThanOrEqual(2_048);
+      expect(statSync(reporter.journalPath).mode & 0o077).toBe(0);
+
+      appendFileSync(
+        reporter.journalPath,
+        "x".repeat(MAX_PROGRESS_JOURNAL_BYTES),
+      );
+      await expect(reporter.emit({ type: "completed" })).rejects.toThrow(
+        "safety limit",
+      );
+      expect(readProgressJournal(reporter.journalPath)).toEqual([]);
     });
   });
 });

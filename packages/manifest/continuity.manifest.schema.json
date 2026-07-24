@@ -107,7 +107,10 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 80,
-          "pattern": "\\S"
+          "allOf": [
+            { "pattern": "\\S" },
+            { "pattern": "^(?!.*(?:\\/\\/|\\/\\*|\\*\\/))[^\\r\\n=$\\\\]+$" }
+          ]
         },
         "coreAction": {
           "description": "One sentence naming the one observable action the app is built around.",

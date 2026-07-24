@@ -446,13 +446,13 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
     else warn(record.message);
   }
 
-  if (commandOnPath("bankr", context) || commandOnPath("npx", context)) ok("Bankr CLI reachable (bankr or npx @bankr/cli)");
+  if (commandOnPath("bankr", context)) ok("Bankr CLI reachable (explicit bankr executable)");
   else warn("Bankr CLI not found; optional, only needed for token launches (npm i -g @bankr/cli)");
   const home = context.environment.HOME;
   if ((home !== undefined && existsSync(join(home, ".bankr", "config.json"))) || context.environment.BANKR_API_KEY) {
     ok("Bankr credentials present");
   } else {
-    warn("no Bankr credentials (~/.bankr/config.json or BANKR_API_KEY); optional, run `npx @bankr/cli login email` before launching a token");
+    warn("no Bankr credentials (~/.bankr/config.json or BANKR_API_KEY); optional, run `bankr login` before launching a token");
   }
 
   context.io.out();
@@ -701,7 +701,7 @@ export async function studioCommand(
     port: arguments_.port,
   });
   try {
-    context.io.out(`TOHSENO Studio: ${studio.url}`);
+    context.io.out(`TOHSENO Studio: ${studio.url} (private session required)`);
     context.io.out(`Workspace: ${context.config.shotsDirectory}`);
     context.io.out("Binding: 127.0.0.1 only");
     context.io.out(
@@ -709,7 +709,12 @@ export async function studioCommand(
         ? "Coding agent: unavailable (viewing works; creation will explain how to install one)"
         : `Coding agent: ${studio.selectedAgent.label}`,
     );
-    if (!arguments_.noOpen) await studio.open();
+    if (!arguments_.noOpen) {
+      await studio.open();
+    } else {
+      context.io.out(`Private browser launcher: ${studio.launcherPath}`);
+      context.io.out("Open that owner-only file in a browser to enter Studio.");
+    }
     context.io.out("Press Ctrl-C to stop Studio.");
     await (dependencies.wait ?? waitForStudioSignal)();
     return 0;

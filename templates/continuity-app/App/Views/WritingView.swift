@@ -43,6 +43,17 @@ struct WritingView: View {
                 .onChange(of: text) {
                     store.checkpoint(text: text)
                 }
+                .alert(
+                    "Writing is not saved yet",
+                    isPresented: Binding(
+                        get: { store.persistenceError },
+                        set: { if !$0 { store.dismissPersistenceError() } }
+                    )
+                ) {
+                    Button("OK") { store.dismissPersistenceError() }
+                } message: {
+                    Text("Your text is still on screen. Free storage if needed, then edit or tap Done to retry.")
+                }
         }
     }
 

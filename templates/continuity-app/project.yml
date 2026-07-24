@@ -34,6 +34,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        NSFaceIDUsageDescription: Authenticate before showing or replacing your recovery phrase identity.
         RevenueCatPublicKey: $(REVENUECAT_PUBLIC_KEY)
         DevelopmentSecret: $(DEV_SECRET_FOR_BUILD)
         TohsenoAPIEnvironment: $(TOHSENO_API_ENVIRONMENT)

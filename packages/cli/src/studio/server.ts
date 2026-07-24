@@ -1,8 +1,13 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
+  mkdtempSync,
   realpathSync,
+  rmSync,
+  writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import {
   detectInstalledAgents,
@@ -37,11 +42,12 @@ export interface StudioServerOptions {
   port?: number;
   simulator?: SimulatorService;
   logger?: (record: StudioRequestLog) => void;
-  openUrl?: (url: string) => Promise<void>;
+  openTarget?: (path: string) => Promise<void>;
 }
 
 export interface StudioServerHandle {
   readonly url: string;
+  readonly launcherPath: string;
   readonly port: number;
   readonly application: StudioApplication;
   readonly selectedAgent: AgentAdapter | null;
@@ -98,32 +104,81 @@ function xcodeProject(shotRoot: string): string {
   return canonical;
 }
 
-async function defaultOpenUrl(
-  urlValue: string,
+async function defaultOpenTarget(
+  targetValue: string,
   environment: Record<string, string | undefined>,
   cwd: string,
 ): Promise<void> {
-  const url = new URL(urlValue);
+  const target = resolve(targetValue);
+  let details;
+  try {
+    details = lstatSync(target);
+  } catch {
+    throw new CliError("Studio's private browser launcher is unavailable");
+  }
   if (
-    url.protocol !== "http:" ||
-    (url.hostname !== "127.0.0.1" && url.hostname !== "localhost")
+    details.isSymbolicLink() ||
+    !details.isFile() ||
+    details.nlink !== 1 ||
+    (details.mode & 0o077) !== 0
   ) {
-    throw new CliError("Studio refused to open a non-local URL");
+    throw new CliError("Studio's private browser launcher is unsafe");
   }
   const executable = process.platform === "darwin"
     ? "/usr/bin/open"
     : Bun.which("xdg-open");
   if (executable === null || !existsSync(executable)) {
     throw new CliError(
-      `a browser launcher is unavailable; open ${url.origin} manually`,
+      `a browser launcher is unavailable; open the private file at ${target}`,
     );
   }
   await requireSuccessfulAction(
-    [executable, url.href],
+    [executable, target],
     cwd,
     environment,
-    "the local Studio URL could not be opened",
+    "the private Studio browser launcher could not be opened",
   );
+}
+
+function createPrivateBrowserLauncher(
+  origin: string,
+  sessionToken: string,
+): { directory: string; path: string } {
+  const url = new URL(origin);
+  if (
+    url.protocol !== "http:" ||
+    url.hostname !== STUDIO_HOST ||
+    url.pathname !== "/" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    throw new CliError("Studio refused to create a launcher for a non-local URL");
+  }
+  const directory = mkdtempSync(join(tmpdir(), "tohseno-studio-session-"));
+  const path = join(directory, "open-studio.html");
+  try {
+    chmodSync(directory, 0o700);
+    const sessionUrl =
+      `${url.origin}/#tohseno-session=${encodeURIComponent(sessionToken)}`;
+    writeFileSync(
+      path,
+      [
+        "<!doctype html>",
+        '<meta charset="utf-8">',
+        '<meta name="referrer" content="no-referrer">',
+        '<meta http-equiv="refresh" content="0;url=' + sessionUrl + '">',
+        "<title>Opening TOHSENO Studio</title>",
+        "<p>Opening the private local Studio session…</p>",
+        "",
+      ].join("\n"),
+      { flag: "wx", mode: 0o600 },
+    );
+    chmodSync(path, 0o600);
+    return { directory, path };
+  } catch (error) {
+    rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function requestedPort(value: number | undefined): number {
@@ -291,29 +346,45 @@ export function startStudioServer(
   }
   application.setPort(boundPort);
   const url = `http://${STUDIO_HOST}:${boundPort}`;
+  let launcher: { directory: string; path: string };
+  try {
+    launcher = createPrivateBrowserLauncher(
+      url,
+      application.security.sessionToken,
+    );
+  } catch (error) {
+    void application.close();
+    void server.stop(true);
+    throw error;
+  }
   let stopping: Promise<void> | null = null;
   const stop = async (): Promise<void> => {
     stopping ??= (async () => {
       try {
         await application.close();
       } finally {
-        await server.stop(true);
+        try {
+          await server.stop(true);
+        } finally {
+          rmSync(launcher.directory, { recursive: true, force: true });
+        }
       }
     })();
     return await stopping;
   };
   return {
     url,
+    launcherPath: launcher.path,
     port: boundPort,
     application,
     selectedAgent,
     open: async () => {
-      await (options.openUrl ?? (async (localUrl) =>
-        await defaultOpenUrl(
-          localUrl,
+      await (options.openTarget ?? (async (target) =>
+        await defaultOpenTarget(
+          target,
           options.environment,
           options.cwd,
-        )))(url);
+        )))(launcher.path);
     },
     stop,
   };

@@ -19,15 +19,41 @@ final class AppConfigTests: XCTestCase {
         XCTAssertTrue(NoopPaywall().isEntitled)
     }
 
-    func testDevelopmentAndProductionEndpointsStaySeparate() {
-        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("http://127.0.0.1:43123", production: false))
-        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("https://random-name.trycloudflare.com", production: false))
-        XCTAssertNil(AppConfig.validatedAPIBaseURL("http://api.example.com", production: false))
-
-        XCTAssertNotNil(AppConfig.validatedAPIBaseURL("https://api.example.com", production: true))
-        XCTAssertNil(AppConfig.validatedAPIBaseURL("http://localhost:43123", production: true))
-        XCTAssertNil(AppConfig.validatedAPIBaseURL("https://random-name.trycloudflare.com", production: true))
-        XCTAssertNil(AppConfig.validatedAPIBaseURL("https://api.example.com/private", production: true))
+    func testDevelopmentAndProductionEndpointsStaySeparate() throws {
+        let fixtureURL = try XCTUnwrap(
+            Bundle(for: Self.self).url(
+                forResource: "production-endpoints",
+                withExtension: "json"
+            )
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: fixtureURL))
+                as? [String: [String]]
+        )
+        for value in object["acceptedProduction"] ?? [] {
+            XCTAssertNotNil(
+                AppConfig.validatedAPIBaseURL(value, production: true),
+                "expected production endpoint to pass: \(value)"
+            )
+        }
+        for value in object["rejectedProduction"] ?? [] {
+            XCTAssertNil(
+                AppConfig.validatedAPIBaseURL(value, production: true),
+                "expected production endpoint to fail: \(value)"
+            )
+        }
+        for value in object["acceptedDevelopment"] ?? [] {
+            XCTAssertNotNil(
+                AppConfig.validatedAPIBaseURL(value, production: false),
+                "expected development endpoint to pass: \(value)"
+            )
+        }
+        for value in object["rejectedDevelopment"] ?? [] {
+            XCTAssertNil(
+                AppConfig.validatedAPIBaseURL(value, production: false),
+                "expected development endpoint to fail: \(value)"
+            )
+        }
     }
 
     func testShareCardSnippetStaysReadable() {
