@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,6 +50,12 @@ describe("public pages", () => {
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
+    const landingStyle = readFileSync(landingStylePath);
+    const landingStyleRevision = createHash("sha256")
+      .update(landingStyle)
+      .digest("hex")
+      .slice(0, 12);
+    expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
     expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
     expect(body).toContain("tohseno create");
     expect(body).toContain("tohseno studio");
