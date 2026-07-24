@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/owner-ladder-v1.json",
+  "title": "TOHSENO owner ladder",
+  "description": "An ordered set of steps the owner performs. Steps describe human work TOHSENO cannot do. The ladder is versioned and digested as a unit so it can be refreshed when an external authority changes its flow, independently of the CLI release.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "authority",
+    "title",
+    "summary",
+    "reviewedOn",
+    "steps"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "authority": {
+      "description": "Whose rules this ladder encodes. TOHSENO does not own these steps and cannot guarantee they are current beyond reviewedOn.",
+      "enum": ["apple", "tohseno", "chain"]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "reviewedOn": {
+      "description": "ISO date this ladder was last verified against the authority. Staleness is a truth claim, not a nicety.",
+      "type": "string",
+      "format": "date"
+    },
+    "sourceUrls": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stage", "title", "line", "requires", "detector"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "stage": {
+            "enum": ["account", "signing", "listing", "build", "review"]
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "line": {
+            "description": "The single line shown to the owner. This is the entire terminal projection of this step. No second sentence.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "url": {
+            "description": "Where the owner goes to do it. Rendered as the copy-pasteable next step.",
+            "type": "string",
+            "format": "uri"
+          },
+          "requires": {
+            "description": "Step ids that must be complete first. Defines ladder order.",
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+          },
+          "appliesWhen": {
+            "description": "Manifest conditions. Absent means the step always applies.",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "identityStrategy": {
+                "type": "array",
+                "items": { "enum": ["none", "local-device", "wallet", "account"] }
+              },
+              "dataStrategy": {
+                "type": "array",
+                "items": { "enum": ["local", "remote", "hybrid"] }
+              },
+              "supportsIpad": { "type": "boolean" },
+              "usesGenerativeAi": { "type": "boolean" }
+            }
+          },
+          "detector": {
+            "description": "How TOHSENO knows this step is done. `manual` means the owner ticks the box; nothing else can observe it.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+              "type": { "enum": ["manual", "file", "command"] },
+              "path": {
+                "description": "file detector: path relative to the shot root.",
+                "type": "string"
+              },
+              "glob": {
+                "description": "file detector: at least `minMatches` files matching this glob.",
+                "type": "string"
+              },
+              "minMatches": { "type": "integer", "minimum": 1 },
+              "tool": {
+                "description": "command detector: must name a tool in the pinned trusted-tools allowlist. Detectors never run arbitrary commands.",
+                "type": "string"
+              },
+              "arguments": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "expectPattern": {
+                "description": "command detector: step is complete when stdout matches this pattern and the exit code is 0.",
+                "type": "string"
+              }
+            }
+          },
+          "cost": {
+            "description": "Money the owner spends. TOHSENO never spends it for them on the local path.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["amount", "currency", "recurrence"],
+            "properties": {
+              "amount": { "type": "number", "minimum": 0 },
+              "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+              "recurrence": { "enum": ["once", "yearly"] }
+            }
+          },
+          "waitsOn": {
+            "description": "An external party the owner then waits on, with an observed range. Absent means the step completes when the owner finishes it.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["party", "typical"],
+            "properties": {
+              "party": { "type": "string", "minLength": 1 },
+              "typical": { "type": "string", "minLength": 1 }
+            }
+          },
+          "irreversible": {
+            "description": "True when the step cannot be undone by the owner. These always require explicit approval and are never auto-advanced.",
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
