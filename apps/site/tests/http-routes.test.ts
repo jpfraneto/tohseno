@@ -39,6 +39,9 @@ const shotIconDirectory = fileURLToPath(
 const browserScriptPath = fileURLToPath(
   new URL("../public/app.js", import.meta.url),
 );
+const landingStylePath = fileURLToPath(
+  new URL("../public/landing.css", import.meta.url),
+);
 
 describe("public pages", () => {
   test("serves the local CLI install path and no stale intake surface", async () => {
@@ -47,24 +50,29 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+    expect(body).toContain("tohseno create");
     expect(body).toContain("tohseno studio");
     expect(body).toContain(
-      'data-copy-value="curl -fsSL https://tohseno.com/install.sh | bash&#10;tohseno studio"',
+      'data-copy-value="curl -fsSL https://tohseno.com/install.sh | bash"',
     );
+    expect(body).toContain("Copy one liner installer");
     expect(body).not.toContain("bun run tohseno:link");
     expect(body).toContain("GIVE EVERY");
     expect(body).toContain("IDEA A");
-    expect(body).toContain("YOUR WEIRDNESS IS NOW EXECUTABLE.");
+    expect(body).toContain("The fastest way to prototype iOS apps");
     expect(body).toContain(
-      "The open-source app factory for prolific builders.",
+      "The open source app blueprint system for builders that have infinite ideas (and want to play with each one of them).",
     );
-    expect(body).toContain("100 SHOTS.");
+    expect(body).toContain(
+      "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
+    );
+    expect(body).toContain("INFINITE SHOTS.");
     expect(body).toContain("Some shots live.");
     expect(body).toContain("Every shot begins from a working SwiftUI base");
     expect(body).toContain("STOP PROTECTING");
     expect(body).toContain("TAKE ANOTHER ONE.");
     expect(body).toContain(">ONE SHOT</span>");
-    expect(body).toContain("001—100");
+    expect(body).toContain("100 EXAMPLES / ∞ SHOTS");
     const shotField = body.match(/<ol class="shot-field"[\s\S]*?<\/ol>/)?.[0];
     expect(shotField).toBeDefined();
     const shotIcons = new Set(
@@ -75,13 +83,19 @@ describe("public pages", () => {
     expect(shotIcons.size).toBe(100);
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toContain("four years");
-    expect(body).not.toContain("$TOHSENO");
+    expect(body).toContain("$TOHSENO");
+    expect(body).toContain('href="https://community.tohseno.com"');
+    expect(body).toContain('target="_blank"');
+    expect(body).toContain('rel="noopener noreferrer"');
+    expect(body).not.toContain("YOUR WEIRDNESS IS NOW EXECUTABLE.");
+    expect(body).not.toContain("Keep up to 100 ideas");
+    expect(body).not.toContain("UP TO");
     expect(body).not.toContain("slot machine");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain("Managed intake");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
-      'content="The open-source app factory for prolific builders. Turn an intention into an app you can install, use, and judge."',
+      'content="The open source app blueprint system for builders with infinite ideas. Prototype iOS apps you can install, use, and judge."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -161,6 +175,13 @@ describe("public pages", () => {
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(copyValue)");
     expect(browserScript).toContain('shotToggle.setAttribute("aria-expanded"');
+
+    const landingStyle = readFileSync(landingStylePath, "utf8");
+    expect(landingStyle).toMatch(/\.shot-tile\s*\{[^}]*aspect-ratio:\s*1;/s);
+    expect(landingStyle).toMatch(/\.shot-tile img\s*\{[^}]*height:\s*100%;/s);
+    expect(landingStyle).toMatch(
+      /\.proof-grid > span\s*\{[^}]*aspect-ratio:\s*1;/s,
+    );
   });
 
   test("serves the health check", async () => {

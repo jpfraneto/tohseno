@@ -43,7 +43,8 @@
   ) {
     const collapsedLabel = shotToggle.querySelector("span");
     const direction = shotToggle.querySelector("span:last-child");
-    const idleLabel = collapsedLabel?.textContent || "Show all 100 shots";
+    const idleLabel =
+      collapsedLabel?.textContent || "Show the full contact sheet";
     shotField.dataset.ready = "true";
     shotToggle.hidden = false;
     shotToggle.addEventListener("click", () => {

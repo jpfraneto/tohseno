@@ -7,11 +7,12 @@ export const PRODUCT = Object.freeze({
     BRAND: "TOHSENO",
     HEADER_NOTE: "ONE SHOT",
     HERO_META_DESCRIPTION:
-      "The open-source app factory for prolific builders. Turn an intention into an app you can install, use, and judge.",
+      "The open source app blueprint system for builders with infinite ideas. Prototype iOS apps you can install, use, and judge.",
     HERO_HEADLINE: "Give every idea a shot.",
-    HERO_LEDE: "Your weirdness is now executable.",
-    HERO_COPY_LABEL: "COPY",
-    HERO_COPIED_LABEL: "COPIED",
+    HERO_LEDE:
+      "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
+    HERO_COPY_LABEL: "COPY ONE LINER INSTALLER",
+    HERO_COPIED_LABEL: "INSTALLER COPIED",
     HERO_STEP_1: "install TOHSENO",
     HERO_STEP_2: "run tohseno",
     HERO_STEP_3: "tell your coding agent what to make",
