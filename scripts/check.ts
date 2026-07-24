@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { relative, resolve } from "node:path";
@@ -414,18 +415,55 @@ async function validateOneshotPin(): Promise<void> {
   );
   const pin = pinMatch[1]!;
   assert(
-    pin === "35021b38e71257d137c184081a1ba0d4503fa5ef",
-    "The migration-only oneshot must preserve the last published creator pin until a follow-up release contains the CLI",
+    pin === "48bada35f885216c8c2bf3ab4d51d0c935e2e01e",
+    "The thin oneshot must pin the exact published CLI 0.3.1 release commit",
+  );
+  const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
+  const committedScript = await capture([
+    "git",
+    "show",
+    "HEAD:apps/site/public/oneshot.sh",
+  ]);
+  const parent = committedScript === script
+    ? (await capture(["git", "rev-parse", "HEAD^"])).trim()
+    : head;
+  assert(
+    pin === parent,
+    "TOHSENO_PIN must be the direct parent of the current or pending serving commit",
+  );
+  const installerShaMatch = script.match(
+    /^PINNED_INSTALLER_SHA256="([0-9a-f]{64})"$/m,
+  );
+  assert(
+    installerShaMatch !== null,
+    "oneshot.sh must pin the released installer's complete SHA-256 digest",
+  );
+  const pinnedInstaller = await capture([
+    "git",
+    "show",
+    `${pin}:apps/site/public/install.sh`,
+  ]);
+  assert(
+    createHash("sha256").update(pinnedInstaller).digest("hex") ===
+      installerShaMatch[1],
+    "oneshot.sh installer checksum does not match the pinned commit",
+  );
+  assert(
+    pinnedInstaller.includes('CLI_VERSION="0.3.1"') &&
+      pinnedInstaller.includes(
+        'CLI_SHA256_DEFAULT="a8cbee45aacb658083c435298c4e83be062f0daa45c73951c837bc130ef37a5e"',
+      ),
+    "The pinned oneshot installer does not contain the published CLI 0.3.1 identity",
   );
   for (const phrase of [
-    "This script no longer creates a workspace.",
-    "curl -fsSL https://tohseno.com/install.sh | bash",
-    "tohseno",
-    "thin pinned CLI installer",
+    "thin entry point",
+    "raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh",
+    "checksum mismatch for the pinned installer",
+    '/bin/sh "$installer_path" "$@"',
   ]) {
     assert(
       script.includes(phrase),
-      `oneshot.sh is missing migration guidance: ${phrase}`,
+      `oneshot.sh is missing pinned delegator behavior: ${phrase}`,
     );
   }
   for (const obsoleteCreatorStep of [
@@ -436,7 +474,7 @@ async function validateOneshotPin(): Promise<void> {
   ]) {
     assert(
       !script.includes(obsoleteCreatorStep),
-      `oneshot.sh must not retain the competing workspace creator step: ${obsoleteCreatorStep}`,
+      `oneshot.sh must not regain the competing workspace creator step: ${obsoleteCreatorStep}`,
     );
   }
   for (const requiredCliFile of [
@@ -452,8 +490,7 @@ async function validateOneshotPin(): Promise<void> {
   } catch {
     fail(
       `TOHSENO_PIN ${pin} is not an ancestor of HEAD. The pin must reference a ` +
-        "released rails commit that is already part of this history; bump it only " +
-        "in a follow-up commit after the release it points to.",
+        "published CLI commit that is already part of this history.",
     );
   }
 
@@ -476,14 +513,12 @@ async function validateOneshotPin(): Promise<void> {
       await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
     } catch {
       fail(
-        `Last published creator pin ${pin} is missing ${required}; its retained trust record is incomplete`,
+        `Published CLI pin ${pin} is missing ${required}; its trust record is incomplete`,
       );
     }
   }
 
-  // Keep the retained creator pin auditable against the same public history it
-  // originally trusted. The future thin installer must not move to a CLI
-  // release until that release is public and a follow-up pin bump can land.
+  // Keep the released CLI pin auditable against public main.
   // Network may legitimately be absent (offline dev, CI sandbox): skip with a
   // warning then, but if the remote answers, the pin must be reachable from
   // its main.
@@ -510,8 +545,7 @@ async function validateOneshotPin(): Promise<void> {
     } catch {
       fail(
         `TOHSENO_PIN ${pin} is not reachable from origin/main (${remoteMain.slice(0, 7)}). ` +
-          "The migration notice must preserve a published trust marker. Push a future CLI " +
-          "release before changing the pin or deploying a thin installer.",
+          "Push and publish the CLI release commit before deploying this thin installer.",
       );
     }
   }

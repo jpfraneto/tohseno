@@ -34,10 +34,11 @@ pinned execution engine for shot verification, SQLite, the API, and machine
 operations. A compiled launcher would still need that runtime and would add a
 second execution path.
 
-`/oneshot.sh` remains the non-mutating migration notice for the last published
-rails creator. Its pin trails the serving commit by one and cannot change until
-a CLI-containing commit and artifact are public. It must never become a second
-factory in shell.
+`/oneshot.sh` is a thin compatibility entry point. Its pin is the direct parent
+of the serving commit: the published CLI release commit. It downloads that
+commit's canonical installer, verifies the installer SHA-256, and forwards
+arguments. It contains no template copier, validator, shot creator, or agent
+launcher and must never become a second factory in shell.
 
 ## 2. Entry doors and shared factory (`packages/cli`)
 

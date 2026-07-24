@@ -154,14 +154,15 @@ The site is a stateless `Bun.serve` process with raw HTML/CSS and minimal
 same-origin JavaScript. `.env.example` contains its only four settings:
 `NODE_ENV`, `PORT`, `BASE_URL`, and `TRUST_PROXY`.
 
-`/install.sh` is the canonical prepared installer. `/oneshot.sh` remains a
-non-mutating legacy migration notice with the previous creator pin until the
-required public release and follow-up commit exist:
+`/install.sh` is the canonical published installer. `/oneshot.sh` is a thin
+compatibility delegator pinned to the published release commit and to the exact
+installer SHA-256. It contains no workspace creator:
 
 ```sh
 bash -n apps/site/public/oneshot.sh
 bash apps/site/public/oneshot.sh --help
-bash apps/site/public/oneshot.sh; code=$?; test "$code" -eq 2
+bash apps/site/public/oneshot.sh --version
+bash apps/site/public/oneshot.sh --dry-run --without-cloudflared
 ```
 
 No local site command deploys Railway or publishes the CLI artifact.

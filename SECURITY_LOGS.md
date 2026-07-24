@@ -243,9 +243,9 @@ a security certification.
 - Impact: operators can choose the wrong release sequence or misreport what is
   implemented.
 - Required proof: update the release ledger only from verified GitHub facts.
-- Resolution: deployment documentation now identifies 0.3.0 as published,
-  records its exact commit and SHA-256, and keeps 0.3.1 prepared until its
-  separate release action completes.
+- Resolution: deployment documentation identifies 0.3.0 and 0.3.1 as
+  published and records each exact commit and SHA-256 from verified GitHub
+  release facts.
 
 ### TS-SEC-012 — Legacy Railway volume has no current ownership decision
 
@@ -616,7 +616,7 @@ testing:
 
 The frozen 0.3.1 candidate passed:
 
-- `bun run check`: strict TypeScript, 170 tests and 2,473 expectations,
+- `bun run check`: strict TypeScript, 170 tests,
   manifest/static/deployment contracts, installer acceptance, tracked-file and
   secret hygiene, and staged/unstaged whitespace gates;
 - `bun run validate templates/continuity-app/continuity.manifest.json`: valid
@@ -637,7 +637,13 @@ was not claimed.
 
 ## Deployment and disclosure boundary
 
-No production deployment, package publication, DNS action, App Store action,
-credential rotation, financial action, volume mutation, or user-data access has
-occurred during the audit so far. Synthetic fixtures contain no real secrets or
-user content.
+CLI 0.3.1 was published from commit
+`48bada35f885216c8c2bf3ab4d51d0c935e2e01e`. The two public assets were
+downloaded into a new temporary directory and matched the frozen local bytes;
+an install into a new temporary home completed with CLI 0.3.1 and managed Bun
+1.2.18 without modifying a shell profile.
+
+The production site deployment is the next separately authorized action and is
+not claimed by this pre-deployment ledger state. No DNS action, App Store
+action, credential rotation, financial action, volume mutation, or user-data
+access occurred. Synthetic fixtures contain no real secrets or user content.

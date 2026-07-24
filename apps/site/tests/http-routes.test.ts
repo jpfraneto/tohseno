@@ -292,7 +292,7 @@ describe("public pages", () => {
     }
   });
 
-  test("the oneshot script must revalidate so a stale pin is never served", async () => {
+  test("the thin oneshot delegator must revalidate so a stale pin is never served", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/oneshot.sh"));
     expect(response.headers.get("Cache-Control")).toBe(
@@ -300,10 +300,16 @@ describe("public pages", () => {
     );
     const body = await response.text();
     expect(body).toContain(
-      'TOHSENO_PIN="35021b38e71257d137c184081a1ba0d4503fa5ef"',
+      'TOHSENO_PIN="48bada35f885216c8c2bf3ab4d51d0c935e2e01e"',
     );
-    expect(body).toContain("This script no longer creates a workspace.");
-    expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
+    expect(body).toContain(
+      'PINNED_INSTALLER_SHA256="06efde2b0a9da6e2b7bac56119b84b0f5288d40e41dbe5a6d384246336be59fb"',
+    );
+    expect(body).toContain(
+      "raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh",
+    );
+    expect(body).toContain("checksum mismatch for the pinned installer");
+    expect(body).toContain('/bin/sh "$installer_path" "$@"');
     expect(body).not.toContain('mkdir -p "$target"');
     expect(body).not.toContain('git -C "$target" init');
   });
@@ -396,11 +402,11 @@ describe("removed surfaces stay removed", () => {
   });
 });
 
-describe("legacy oneshot migration", () => {
-  test("prints the CLI migration and creates nothing", async () => {
+describe("thin pinned oneshot installer", () => {
+  test("explains the pinned delegator without touching the machine", async () => {
     const scratch = mkdtempSync(join(tmpdir(), "tohseno-oneshot-migration-"));
     try {
-      const child = Bun.spawn(["bash", oneshotPath], {
+      const child = Bun.spawn(["bash", oneshotPath, "--help"], {
         cwd: scratch,
         env: { HOME: scratch, PATH: process.env.PATH ?? "" },
         stdin: "ignore",
@@ -412,12 +418,12 @@ describe("legacy oneshot migration", () => {
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ]);
-      expect(exitCode).toBe(2);
-      expect(stdout).toContain("This script no longer creates a workspace.");
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("thin entry point");
       expect(stdout).toContain(
-        "curl -fsSL https://tohseno.com/install.sh | bash",
+        "48bada35f885216c8c2bf3ab4d51d0c935e2e01e",
       );
-      expect(stdout).toContain("tohseno");
+      expect(stdout).toContain("--dry-run");
       expect(stderr).toBe("");
       expect(readdirSync(scratch)).toEqual([]);
     } finally {
@@ -425,8 +431,8 @@ describe("legacy oneshot migration", () => {
     }
   });
 
-  test("keeps help available without claiming creation", async () => {
-    const child = Bun.spawn(["bash", oneshotPath, "--help"], {
+  test("reports its delegator version without downloading", async () => {
+    const child = Bun.spawn(["bash", oneshotPath, "--version"], {
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
@@ -436,10 +442,7 @@ describe("legacy oneshot migration", () => {
       new Response(child.stdout).text(),
     ]);
     expect(exitCode).toBe(0);
-    expect(stdout).toContain("legacy workspace creator is retired");
-    expect(stdout).toContain(
-      "curl -fsSL https://tohseno.com/install.sh | bash",
-    );
+    expect(stdout).toBe("0.5.0\n");
   });
 });
 

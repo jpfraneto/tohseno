@@ -8,7 +8,7 @@ test, factory command, or coding-agent launch without explicit owner approval.
 
 `apps/site` is one stateless Bun process serving the landing page, docs,
 privacy, `GET /healthz`, the canonical `/install.sh`, and the legacy
-`/oneshot.sh` migration notice. It has no database, volume, account, form,
+`/oneshot.sh` thin pinned delegator. It has no database, volume, account, form,
 analytics, or generated-app content path.
 
 - Container: repository `Dockerfile`, non-root `bun` user.
@@ -61,19 +61,22 @@ It added the shared creation service, private portable creation provenance,
 Tohseno Studio, structured progress, native Simulator run/preview services,
 and the pinned `serve-sim` browser bridge.
 
-CLI 0.3.1 is **Prepared**, not yet published. It hardens identity and session
+CLI 0.3.1 is **Implemented** and was published on 2026-07-24 UTC from commit
+`48bada35f885216c8c2bf3ab4d51d0c935e2e01e`. It hardens identity and session
 durability, authenticates installed and third-party bytes, requires private
 Studio sessions for reads and writes, scans the public worktree for copied
 private input after every agent exit, isolates unsafe results, constrains
 runtime state and logs, and aligns the manifest, backend, setup, and production
-endpoint gates. Two clean builds from the frozen source produced byte-identical
+endpoint gates. Three clean builds from the frozen source produced byte-identical
 artifacts: archive SHA-256
 `a8cbee45aacb658083c435298c4e83be062f0daa45c73951c837bc130ef37a5e`
 and authenticated internal-tree SHA-256
 `8d24dfc235f5a187264297576544368f4b9937c1f59fbf69d287e1302c34ed4f`.
-Do not deploy its installer until the matching public release exists.
+Both public assets were downloaded and matched the frozen files exactly. An
+isolated install from the public artifact completed with CLI 0.3.1 and managed
+Bun 1.2.18 without changing shell profiles.
 
-For the next release:
+The 0.3.1 release followed this sequence:
 
 1. Land the implementation commit containing the CLI and exact factory inputs.
 2. From that exact source, run `bun run check` and `bun run tohseno:release`.
@@ -88,13 +91,13 @@ For the next release:
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The prepared 0.3.1 publication command is:
+The executed 0.3.1 publication command was:
 
 ```sh
 gh release create cli-v0.3.1 \
   dist/tohseno-cli-0.3.1.tar.gz \
   dist/tohseno-cli-0.3.1.json \
-  --target <release-commit> \
+  --target 48bada35f885216c8c2bf3ab4d51d0c935e2e01e \
   --title "TOHSENO CLI 0.3.1" \
   --notes "Security hardening across local identity and writing, Studio sessions, private-input verification, installed release integrity, runtime ownership, setup, and the shot backend."
 ```
@@ -103,21 +106,20 @@ No package registry publication is required by this design.
 
 ## Legacy oneshot boundary
 
-`apps/site/public/oneshot.sh` retains the exact last published rails-creator
-pin and creates nothing. Default invocation prints the canonical installer and
-exits `2`; `--help` exits `0`. It remains `must-revalidate`.
-
-The pin always trails the serving commit by one. CLI 0.3.0 is published, but
-this endpoint remains an intentional migration notice and its legacy creator
-pin is unchanged until the 0.3.1 release commit lands. Shell must never regain
-its own template copier, manifest validator, shot creator, or agent launcher.
+`apps/site/public/oneshot.sh` is a thin compatibility delegator. Its
+`TOHSENO_PIN` is the published 0.3.1 release commit and the direct parent of the
+serving commit. It downloads that commit's canonical installer, verifies the
+installer SHA-256, and forwards all arguments. It remains `must-revalidate`.
+Shell must never regain its own template copier, manifest validator, shot
+creator, or agent launcher.
 
 Before a site deployment:
 
 ```sh
 bash -n apps/site/public/oneshot.sh
 bash apps/site/public/oneshot.sh --help
-bash apps/site/public/oneshot.sh; code=$?; test "$code" -eq 2
+bash apps/site/public/oneshot.sh --version
+bash apps/site/public/oneshot.sh --dry-run --without-cloudflared
 bun run check
 ```
 
