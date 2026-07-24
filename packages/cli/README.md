@@ -1,115 +1,52 @@
 # `@tohseno/cli`
 
-The TOHSENO executable is an agent-first launcher, local Studio, and
-deterministic factory for independent iOS **shots**.
-
-Take another one.
-
-The human entry is:
+The TOHSENO executable is the terminal door, local Studio, and deterministic
+factory for independent native iOS shots.
 
 ```sh
 tohseno
+tohseno studio
 ```
 
-It asks whether to take a new shot or continue one, shows only the implemented
-iOS platform, selects an installed Codex or Claude Code, enters the independent
-shot, and launches that agent with one constant instruction. Product intention
-for this interactive door stays in the conversation.
+Both doors normalize private input, use the selected coding agent for a strict
+sanitized plan, resolve the same released kernel/template/skill catalog,
+compose and lock the repository, run the coding agent, and verify the result.
+An unavailable or invalid planner produces the Blank fallback without
+switching providers.
 
-Two other implemented doors call the same application-level creation engine:
+Automation uses cwd-independent commands:
 
 ```sh
+tohseno create my-app --no-launch --no-interactive
 tohseno create --file intention.md --reference sketch.png
-tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]
+tohseno my-app
+tohseno verify my-app
+tohseno run my-app
 ```
 
-`create --file` accepts one UTF-8 Markdown intention and repeatable image
-references. Studio accepts a typed intention, one optional Markdown file, and
-up to eight image references. Typed text comes first when both text and
-Markdown are supplied. With no explicit name or slug, the shared
-concurrency-safe allocator assigns the next `shot-NNN`. Both doors apply the
-same pinned release, atomic publication, independent Git baseline, verification,
-progress journal, and provenance format under the configured shots directory.
+The ordinary handoff never requires the owner to install Bun or know a
+repository-relative command. Low-level ejected machine operations remain
+embedded in each shot and are authenticated against that shot’s pinned factory
+release.
 
-Studio binds only to `127.0.0.1` (port `4747` by default), opens the browser
-unless `--no-open` is passed, and treats `/shots` as its source of truth. It
-uses a mode-`0600` temporary launcher to establish an HTTP-only, path-scoped
-browser session. The reusable credential is absent from the served shell,
-process arguments, and printed base URL; private reads and mutations both
-require the session. It
-permits one heavy create/run/preview/verify operation at a time and observes
-shots made by a separate CLI process. Closing Studio does not affect CLI
-operation or ownership of a completed shot. The Studio server does not upload
-shot input; the selected coding agent uses it under that agent's own provider
-and privacy settings.
+Generic shots use `app.manifest.json`, `tohseno.skills.json`,
+`tohseno.skills.lock`, `SHOT.md`, and `DONE.md`. Metadata-v1 continuity shots
+retain their historical manifest and runtime; the CLI dispatches by metadata
+and never silently migrates them.
 
-Simulator doors share one runner:
+Studio binds to loopback, uses a private path-scoped browser session, and
+serializes heavy Studio actions. It reads the same `/shots` filesystem as the
+CLI and is not a runtime dependency of a completed app.
 
-```sh
-tohseno run <shot>
-tohseno preview <shot>
-tohseno doctor
-```
-
-`run` starts the shot’s pinned development runtime, builds, installs, and
-launches the app in a real Apple Simulator, then attempts a gitignored
-screenshot without making capture failure fatal.
-`preview` adds a local interactive browser stream and remains in the foreground
-until `Ctrl-C`; it is not an iOS emulator.
-The stream requires macOS on Apple Silicon, a native arm64 Node.js 20 or newer, Xcode tools, an
-available iPhone Simulator, and the exact pinned
-[`serve-sim` 0.1.45](https://github.com/EvanBacon/serve-sim). A paid Apple
-Developer Program membership is not required for Simulator use. `doctor`
-reports each requirement as ready or as a warning. An explicit unsupported
-`preview` returns an actionable error; Studio’s contact sheet, creation, and
-non-preview CLI commands remain usable.
-
-Explicit creation inputs are normalized into
-`.tohseno/provenance/intention.md`, `provenance.json`, `events.jsonl`, and
-internally named reference copies. Hashes and original reference filenames are
-recorded. This directory and `.tohseno/artifacts/` are private and gitignored;
-the tracked shot metadata carries only the content-free creation summary and
-input digest.
-
-The factory invokes the pinned verifier after every coding-agent exit,
-including a nonzero exit. It scans the public worktree for exact or embedded
-private creation input, unsafe links, changed pinned machinery, and missing
-ignore coverage. A result that fails the gate is moved to an explicitly unsafe
-hidden path rather than reported as ready.
-
-Coding agents use the machine namespace:
-
-```sh
-tohseno machine operations --json
-tohseno machine dev start --json
-tohseno machine ios launch --json
-tohseno machine verify --json
-tohseno machine production inspect --json
-```
-
-Global commands authenticate the selected shot's embedded release inventory
-and dispatch through a private read-only snapshot of its pinned machine.
-Direct `bun .tohseno/machine.ts ...` remains the independently ejectable local
-door. New shots pin their runtime, manifest validator, verifier, instructions,
-playbook, and factory provenance, so a later global CLI upgrade cannot silently
-change their critical behavior.
-
-The compatibility commands `create`, `list`, `open`, `doctor`, `verify`, and
-`adopt` remain implemented for automation. `studio`, `run`, and `preview` are
-application-level adapters over the same factory and Simulator services.
-Existing Phase 1 shots are never silently rewritten and retain legacy pinned
-verification.
-
-From the repository:
+From this repository:
 
 ```sh
 bun run tohseno --
 bun test packages/cli/tests
-bun run --cwd packages/cli typecheck
+bun run typecheck
 bun run tohseno:release
 ```
 
-`release:build` creates a deterministic source distribution for the managed
-installer. Publishing it is an external owner-approved action. The complete
-launcher, machine protocol, config, installer, and compatibility reference is
-in [`docs/CLI.md`](../../docs/CLI.md).
+Publishing a release is an external owner-approved action. See
+[`docs/CLI.md`](../../docs/CLI.md) for the complete command and compatibility
+reference.

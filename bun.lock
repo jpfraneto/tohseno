@@ -10,7 +10,7 @@
     },
     "packages/cli": {
       "name": "@tohseno/cli",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "bin": {
         "tohseno": "./src/bin.ts",
       },

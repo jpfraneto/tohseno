@@ -307,7 +307,7 @@ describe("coding-agent detection and selection", () => {
     expect(() => requireInstalledAgent("codex", [])).toThrow("not installed");
   });
 
-  test("non-interactive create requires explicit selections unless launch is skipped", async () => {
+  test("non-interactive create assigns iOS and requires only consequential selections", async () => {
     await withScratchEnvironment(async (scratch) => {
       let io = createMemoryIo();
       let exitCode = await main(
@@ -319,14 +319,14 @@ describe("coding-agent detection and selection", () => {
           sourceRoot: REPOSITORY_ROOT,
         },
       );
-      expect(exitCode).toBe(2);
-      expect(io.stderr.join("\n")).toContain("requires --platform ios");
+      expect(exitCode).toBe(0);
+      expect(io.stderr).toEqual([]);
 
       writeExecutable(scratch.binDirectory, "codex", "#!/bin/sh\nexit 0");
       writeExecutable(scratch.binDirectory, "claude", "#!/bin/sh\nexit 0");
       io = createMemoryIo();
       exitCode = await main(
-        ["create", "quiet-shot", "--platform", "ios", "--no-interactive"],
+        ["create", "needs-agent-choice", "--platform", "ios", "--no-interactive"],
         {
           cwd: scratch.root,
           environment: scratch.environment,
@@ -402,9 +402,9 @@ describe("coding-agent detection and selection", () => {
     const help = io.stdout.join("\n");
     expect(help).toContain("Take another one.");
     expect(help).toContain("--platform ios");
-    expect(help).toContain("iOS is the only implemented platform");
+    expect(help).toContain("iOS is assigned automatically");
     expect(help).toContain(
-      "tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]",
+      "tohseno studio                  open the local contact sheet",
     );
     expect(help).toMatch(
       /Studio options:[\s\S]*--shots-dir <path>\s+override config\/default/u,

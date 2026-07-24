@@ -14,5 +14,6 @@ Architecture decision records capture choices that implementation must preserve.
 | [0008](0008-ejectable-from-birth.md) | Accepted | Every generated app is ejectable from birth |
 | [0009](0009-control-plane-metadata-only.md) | Accepted | Control plane stores operations, not end-user continuity content |
 | [0010](0010-ai-at-manifest-boundary.md) | Accepted | AI interprets meaning at the manifest boundary; runtime invariants are deterministic |
+| [0011](0011-intention-kernel-template-skill-composition.md) | Accepted | Intentions compile into a neutral kernel, one template, and a locked app-skill composition |
 
 Use a new ADR to change or supersede an accepted decision. Do not edit an accepted decision into a different meaning after implementation depends on it. Open product questions remain in [OPEN_QUESTIONS.md](../OPEN_QUESTIONS.md) until evidence and product ownership support a decision.

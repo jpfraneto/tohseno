@@ -1,0 +1,10 @@
+{
+  "name": "tohseno-shot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "bun .tohseno/verify.ts",
+    "machine": "bun .tohseno/machine.ts"
+  }
+}

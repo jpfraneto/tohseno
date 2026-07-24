@@ -2,48 +2,39 @@
 
 **Take another one.**
 
-An app idea is a shot, not a forever bet. Every shot lands in the builder's
-own contact sheet as a working prototype they can touch, change, keep, or move
-past. Most shots miss; the answer is permission and machinery to make the next
-one. The prototype is the payoff. TOHSENO promises no riches.
-
-Five operating pillars. Everything else is implementation.
+An app idea is a shot, not a forever bet. Every shot lands in the builder’s
+contact sheet as a working prototype they can use, change, keep, or move past.
+Most shots miss. The prototype is the payoff.
 
 ## 1. Speed is the product
 
-Prompt to phone, measured in minutes. Every design decision that adds a
-question, a config step, or a ceremony must pay for itself in reliability.
-That is why the workspace is already a compiling app, why the agent asks at
-most three questions and records the rest as `ASSUMED`, and why the manifest
-bounds the feature space — a bounded space is why the next shot arrives fast.
+Intention to phone, measured in minutes. Questions and configuration must pay
+for themselves in reliability. A neutral compiling kernel, bounded templates,
+real app skills, and a strict plan make speed repeatable.
 
-## 2. Cryptography kills auth
+## 2. One intention, explicit interpretation
 
-Every generated app ships with a locally generated BIP39 seed phrase as its
-identity. First launch = identity exists, silently — adopted from iCloud
-Keychain when one is already there, generated otherwise. Identity is backed
-up automatically through iCloud Keychain, end-to-end encrypted; the phrase
-is the manual fallback. No accounts, ever — unless the builder explicitly
-demands them, and then the agent warns once that this breaks the model, and
-complies.
+The selected coding agent turns private intent into a sanitized plan. The
+builder can accept, edit, start Blank, or cancel. AI interprets meaning;
+deterministic code owns composition, locks, storage invariants, verification,
+and authority.
 
-## 3. Private by default, ejectable from birth
+## 3. Private by default, truthful by declaration
 
-Writing lives on the device as plain files; sessions do not sync. The only
-thing that leaves the device by default is the identity seed, end-to-end
-encrypted inside iCloud Keychain. Anything else that leaves the device is
-declared in the manifest. Every app builds and runs without TOHSENO
-credentials; nobody stays because leaving is hard.
+Raw intent is gitignored. The neutral kernel has no analytics, auth, backend,
+writing, or identity assumption. Local and account-free are defaults, not
+refusals. Any data movement, identity, entitlement, integration, or
+irreversible behavior belongs in the manifest.
 
-## 4. Ship to share
+## 4. Capabilities are installed, not implied
 
-Every app has a share primitive — a locally rendered share card — because
-distribution is part of the app, not an afterthought. The landing page ships
-in the same package as the app: one static file, no build step.
+A skill is real source with a version, dependencies, conflicts, file
+ownership, digest, instructions, and acceptance evidence. Prose can guide an
+agent but cannot silently claim an uninstalled capability.
 
-## 5. The builder decides the mechanics
+## 5. Ejectable from birth
 
-Streaks, paywalls, scores, virality loops — tools, not sins. TOHSENO gives
-the spine: identity, persistence, modules, ejectability. The builder gives
-the personality. Defaults stay private and account-free; they are defaults,
-never refusals.
+Every shot is ordinary source and Git with its manifest, locks, tests, static
+site, and pinned operations. It builds without TOHSENO credentials. The
+builder owns identifiers, data, provider relationships, and external
+authority—and can always take another shot.

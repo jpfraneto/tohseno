@@ -13,13 +13,17 @@ import {
   openSync,
   readSync,
 } from "node:fs";
+import {
+  APP_MANIFEST_SCHEMA_VERSION,
+  validateAppManifest,
+} from "./app";
 import { CONTINUITY_MANIFEST_SCHEMA_VERSION } from "./types";
 import { formatManifestIssues, validateManifest } from "./validate";
 
 const MAX_MANIFEST_BYTES = 1_048_576;
 const path = Bun.argv[2];
 if (path === undefined || path === "--help" || path === "-h") {
-  console.error("usage: bun run validate <continuity.manifest.json>");
+  console.error("usage: bun run validate <app.manifest.json|continuity.manifest.json>");
   process.exit(2);
 }
 
@@ -85,18 +89,26 @@ try {
   if (descriptor !== undefined) closeSync(descriptor);
 }
 
-const result = validateManifest(value);
+const root =
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+const generic = root.kind === "app" || root.schemaVersion === APP_MANIFEST_SCHEMA_VERSION;
+const result = generic ? validateAppManifest(value) : validateManifest(value);
+const label = generic
+  ? `app.manifest ${APP_MANIFEST_SCHEMA_VERSION}`
+  : `continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`;
 if (result.warnings.length > 0) {
   console.error(formatManifestIssues(result.warnings));
 }
 if (!result.valid) {
   console.error(formatManifestIssues(result.errors));
   console.error(
-    `✗ ${path} · continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION} · ${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`,
+    `✗ ${path} · ${label} · ${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`,
   );
   console.error("  fix the paths above, then rerun: bun run validate " + path);
   process.exit(1);
 }
 console.log(
-  `✓ ${path} · continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION} · valid${result.warnings.length > 0 ? ` · ${result.warnings.length} warning${result.warnings.length === 1 ? "" : "s"}` : ""}`,
+  `✓ ${path} · ${label} · valid${result.warnings.length > 0 ? ` · ${result.warnings.length} warning${result.warnings.length === 1 ? "" : "s"}` : ""}`,
 );

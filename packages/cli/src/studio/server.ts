@@ -15,8 +15,13 @@ import {
   type AgentAdapter,
 } from "../agents.ts";
 import type { ResolvedConfig } from "../config.ts";
-import { createShot } from "../creation.ts";
+import { createShot, factoryReleaseFor } from "../creation.ts";
 import { CliError } from "../errors.ts";
+import { readBoundedJson } from "../files.ts";
+import { planIntention } from "../planning.ts";
+import { normalizeCreationInput } from "../provenance.ts";
+import { SHOT_PROGRESS_SCHEMA_VERSION } from "../progress.ts";
+import { bundleIdForSlug, slugForShotName } from "../slug.ts";
 import {
   executeCommand,
   SimulatorService,
@@ -24,6 +29,7 @@ import {
 } from "../simulator.ts";
 import { trustedShotToolFromCache } from "../trusted-tools.ts";
 import { canonicalShotsDirectory } from "../workspace.ts";
+import { loadCatalog } from "../../../skills/index.ts";
 import {
   createStudioApplication,
   type StudioApplication,
@@ -88,7 +94,24 @@ async function requireSuccessfulAction(
 }
 
 function xcodeProject(shotRoot: string): string {
-  const project = join(shotRoot, "Writing.xcodeproj");
+  let projectName = "Writing.xcodeproj";
+  const genericManifest = join(shotRoot, "app.manifest.json");
+  if (existsSync(genericManifest)) {
+    const manifest = readBoundedJson(
+      genericManifest,
+      1_048_576,
+      "app manifest",
+    ) as { operations?: { project?: unknown } };
+    const configured = manifest.operations?.project;
+    if (
+      typeof configured !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]*\.xcodeproj$/u.test(configured)
+    ) {
+      throw new CliError("the shot app manifest has an unsafe Xcode project name");
+    }
+    projectName = configured;
+  }
+  const project = join(shotRoot, projectName);
   if (!existsSync(project)) {
     throw new CliError("the shot is missing its generated Xcode project");
   }
@@ -234,7 +257,64 @@ export function startStudioServer(
           3,
         );
       }
-      return await createShot(request);
+      const normalized = normalizeCreationInput(request.input);
+      if (normalized.intention === null) {
+        throw new CliError("Studio creation requires a non-empty intention");
+      }
+      await request.onProgress?.({
+        schemaVersion: SHOT_PROGRESS_SCHEMA_VERSION,
+        jobId: request.jobId!,
+        at: new Date().toISOString(),
+        type: "planning",
+        door: "studio",
+      });
+      const release = await factoryReleaseFor(request);
+      const catalog = loadCatalog(join(release.directory, "catalog"));
+      const plannedResult = await planIntention({
+        intention: normalized.intention,
+        catalog,
+        agent: request.agent,
+        environment: request.environment,
+      });
+      const planned = request.name?.trim()
+        ? {
+            ...plannedResult,
+            plan: {
+              ...plannedResult.plan,
+              app: {
+                name: request.name.trim(),
+                slug: slugForShotName(request.name),
+                bundleId: bundleIdForSlug(slugForShotName(request.name)),
+              },
+            },
+          }
+        : plannedResult;
+      const skillLabel = planned.plan.skills.length === 0
+        ? "no installed app skills"
+        : planned.plan.skills.map((skill) => skill.id).join(", ");
+      await request.onProgress?.({
+        schemaVersion: SHOT_PROGRESS_SCHEMA_VERSION,
+        jobId: request.jobId!,
+        at: new Date().toISOString(),
+        type: "plan-ready",
+        door: "studio",
+        message: `${planned.plan.app.name} · ${planned.plan.template} · ${skillLabel}`,
+        plan: {
+          appName: planned.plan.app.name,
+          template: planned.plan.template,
+          skills: planned.plan.skills.map((skill) => skill.id),
+          dataStrategy: planned.plan.data.strategy,
+          identityStrategy: planned.plan.identity.strategy,
+          definitionOfDone: [...planned.plan.definitionOfDone],
+          fallback: planned.fallback,
+        },
+      });
+      return await createShot({
+        ...request,
+        slug: planned.plan.app.slug,
+        name: planned.plan.app.name,
+        plan: planned.plan,
+      });
     },
     actions: {
       verify: async (shot, context) => {

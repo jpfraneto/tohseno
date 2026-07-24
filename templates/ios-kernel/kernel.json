@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "id": "ios-kernel",
+  "version": "1.0.0",
+  "title": "TOHSENO iOS Kernel",
+  "platforms": ["ios"]
+}

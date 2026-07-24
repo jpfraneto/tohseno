@@ -12,19 +12,25 @@ import {
   verifyCommand,
 } from "./commands.ts";
 import { resolveConfig } from "./config.ts";
+import type { CreationRunner } from "./creation.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import { defaultIo, type CliIo } from "./io.ts";
 import { interactiveLauncher } from "./launcher.ts";
 import { machineCommand } from "./machine.ts";
 import { validateShotSlug } from "./slug.ts";
 
-const HELP = `TOHSENO ${CLI_VERSION} — agent-first app factory
+const HELP = `TOHSENO ${CLI_VERSION} — intention compiler for native iOS apps
 Take another one.
 
 Usage:
-  tohseno
-  tohseno <shot-slug>
-  tohseno studio [--port 4747] [--no-open] [--shots-dir <path>]
+  tohseno                         take a shot or open the contact sheet flow
+  tohseno <shot>                  continue a shot
+  tohseno continue <shot>         explicit continuation
+  tohseno create --file <path>    create from a Markdown intention
+  tohseno verify <shot>           verify from any folder
+  tohseno run <shot>              build and launch in Simulator
+  tohseno studio                  open the local contact sheet
+  tohseno doctor                  inspect machine readiness
 
 Agent/automation operations:
   tohseno machine operations --json [--shot <path-or-slug>]
@@ -33,7 +39,7 @@ Agent/automation operations:
   tohseno machine verify --json [--shot <path-or-slug>]
   tohseno machine production inspect --json [--shot <path-or-slug>]
 
-Advanced compatibility commands:
+Additional commands:
   tohseno create <slug> [--platform ios] [--agent codex|claude] [--no-launch]
   tohseno create --file <intention.md> [--reference <image> ...]
   tohseno list [--shots-dir <path>]
@@ -45,7 +51,7 @@ Advanced compatibility commands:
   tohseno preview <slug-or-path> [--shots-dir <path>]
 
 Create options:
-  --platform ios       iOS is the only implemented platform
+  --platform ios       compatibility flag; iOS is assigned automatically
   --agent <agent>      codex or claude; both must already be installed
   --file <path>        use a UTF-8 Markdown file as creation input
   --reference <path>   attach image context to --file; repeat up to eight times
@@ -58,7 +64,7 @@ Studio options:
   --no-open             start Studio without opening the browser
   --shots-dir <path>    override config/default (default: ~/tohseno/shots)
 
-Run TOHSENO with no arguments, choose create or continue, and tell the launched coding agent what you want.
+Give TOHSENO one intention. It prepares an owned native repository before the coding agent starts.
 Open prints the absolute shot path; for example: cd "$(tohseno open my-shot)"
 Config: ~/.tohseno/config.json (override factory home with TOHSENO_HOME).`;
 
@@ -74,6 +80,7 @@ export interface CliMainOptions {
   environment?: Record<string, string | undefined>;
   io?: CliIo;
   sourceRoot?: string;
+  creationRunner?: CreationRunner;
 }
 
 function parseOptions(
@@ -167,7 +174,14 @@ export async function main(arguments_: readonly string[], options: CliMainOption
     const command = arguments_[0];
     if (command === undefined) {
       const config = resolveConfig({ cwd, environment });
-      return await interactiveLauncher({ config, cwd, environment, io, sourceRoot: options.sourceRoot });
+      return await interactiveLauncher({
+        config,
+        cwd,
+        environment,
+        io,
+        sourceRoot: options.sourceRoot,
+        creationRunner: options.creationRunner,
+      });
     }
     if (command === "--help" || command === "-h" || command === "help") {
       io.out(HELP);
@@ -211,7 +225,14 @@ export async function main(arguments_: readonly string[], options: CliMainOption
         references,
         noLaunch: parsed.flags.has("--no-launch"),
         noInteractive: parsed.flags.has("--no-interactive"),
-      }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
+      }, {
+        config,
+        cwd,
+        environment,
+        io,
+        sourceRoot: options.sourceRoot,
+        creationRunner: options.creationRunner,
+      });
     }
     if (command === "machine") {
       const extracted = extractValueOption(rest, "--shots-dir");
@@ -280,6 +301,24 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       return command === "run"
         ? await runCommand(value, context)
         : await previewCommand(value, context);
+    }
+    if (command === "continue") {
+      const parsed = parseOptions(
+        rest,
+        ["--agent", "--shots-dir"],
+        ["--no-interactive"],
+      );
+      const value = onePositional(parsed, "shot slug or path") ?? "";
+      const config = resolveConfig({
+        cwd,
+        environment,
+        shotsDirectoryOverride: parsed.values.get("--shots-dir"),
+      });
+      const agent = parsed.values.get("--agent");
+      return await continueCommand(value, {
+        ...(agent === undefined ? {} : { agent }),
+        noInteractive: parsed.flags.has("--no-interactive"),
+      }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
     }
     if (command === "adopt") {
       const parsed = parseOptions(rest, ["--shots-dir"], ["--yes", "--no-interactive"]);

@@ -1425,14 +1425,17 @@ export async function runShotInSimulator(
   };
   try {
     assertNotAborted(options.signal);
-    await emitProgress(options.onProgress, { type: "development-starting" });
-    await invokeMachine(
-      executor,
-      [bunExecutable(environment), machine, "dev", "start", "--json"],
-      commandOptions,
-      "dev.start",
-    );
-    await emitProgress(options.onProgress, { type: "development-ready" });
+    const metadata = readShotMetadata(root);
+    if (metadata?.schemaVersion !== 2) {
+      await emitProgress(options.onProgress, { type: "development-starting" });
+      await invokeMachine(
+        executor,
+        [bunExecutable(environment), machine, "dev", "start", "--json"],
+        commandOptions,
+        "dev.start",
+      );
+      await emitProgress(options.onProgress, { type: "development-ready" });
+    }
     await emitProgress(options.onProgress, { type: "building" });
     await emitProgress(options.onProgress, { type: "simulator-launching" });
     const launchArguments = [
@@ -2294,6 +2297,7 @@ export function createSimulatorCreationRunner(
         return {
           screenshotPath: run.screenshotPath,
           previewAvailable: diagnostics.previewReady,
+          launched: true,
           ...(message === undefined ? {} : { message }),
         };
       } catch (error) {
@@ -2304,6 +2308,7 @@ export function createSimulatorCreationRunner(
         return {
           screenshotPath: null,
           previewAvailable: false,
+          launched: false,
           message,
         };
       }

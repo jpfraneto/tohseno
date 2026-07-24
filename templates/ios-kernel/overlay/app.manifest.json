@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "app",
+  "application": {
+    "id": "com.tohseno.new-app",
+    "name": "New App"
+  },
+  "platform": "ios",
+  "composition": {
+    "kernel": "ios-kernel",
+    "template": "blank",
+    "skills": []
+  },
+  "data": {
+    "local": [],
+    "remote": []
+  },
+  "storage": [],
+  "network": [],
+  "identity": {
+    "strategy": "none"
+  },
+  "entitlements": [],
+  "integrations": [],
+  "operations": {
+    "project": "Shot.xcodeproj",
+    "scheme": "Shot",
+    "product": "Shot"
+  },
+  "privacy": {
+    "rawIntentionTracked": false,
+    "appContentLeavesDevice": false
+  },
+  "production": {
+    "ready": false,
+    "declarations": []
+  },
+  "irreversibleOperations": []
+}

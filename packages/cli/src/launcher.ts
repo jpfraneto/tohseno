@@ -9,8 +9,9 @@ import {
   type DiscoveredShot,
 } from "./commands.ts";
 import { CliError } from "./errors.ts";
+import { ONBOARDING_VERSION } from "./constants.ts";
+import { writeOnboardingVersion } from "./config.ts";
 import { bunExecutable, runCaptured, sanitizedRuntimeEnvironment } from "./process.ts";
-import { slugForShotName } from "./slug.ts";
 import { trustedShotToolFromCache } from "./trusted-tools.ts";
 
 async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promise<string> {
@@ -60,31 +61,71 @@ export async function interactiveLauncher(context: CommandContext): Promise<numb
       2,
     );
   }
+  if ((context.config.onboardingVersion ?? 0) < ONBOARDING_VERSION) {
+    context.io.out(
+      "TOHSENO creates an independent native iOS repository in your shots folder,",
+    );
+    context.io.out(
+      "keeps your raw intention and references private from Git, asks your selected",
+    );
+    context.io.out(
+      "coding agent to build inside that repository, then verifies the result and",
+    );
+    context.io.out("helps you launch it in Apple Simulator.");
+    context.io.out();
+    context.io.out(
+      "The coding agent uses its provider’s account, privacy, and retention terms.",
+    );
+    context.io.out();
+    await context.io.prompt("Press Enter to continue: ");
+    writeOnboardingVersion(context.config, ONBOARDING_VERSION);
+  }
   const shots = discoverShots(context);
+  if (shots.length === 0) {
+    context.io.out("Your contact sheet is empty.");
+    context.io.out();
+    context.io.out("Let’s take your first shot.");
+    context.io.out();
+    let intention = "";
+    while (intention === "") {
+      intention = (
+        await context.io.prompt(
+          "Intention (one line is enough; use `tohseno create --file ...` for a document): ",
+        )
+      ).trim();
+      if (intention === "") context.io.error("Describe what you want to make.");
+    }
+    context.io.out();
+    return await createCommand({
+      text: intention,
+      noLaunch: false,
+      noInteractive: false,
+    }, context);
+  }
   context.io.out("What would you like to do?");
   context.io.out();
-  if (shots.length > 0) {
-    context.io.out(`  Shots here: ${shots.length}`);
-    context.io.out();
-  }
-  context.io.out(`  1. ${shots.length === 0 ? "Take your first shot" : "Take another shot"}`);
+  context.io.out(`  Shots here: ${shots.length}`);
+  context.io.out();
+  context.io.out("  1. Take another shot");
   context.io.out("  2. Continue a shot");
   const action = await chooseNumber(context.io, 2, "Choose");
   context.io.out();
 
   if (action === 0) {
-    const name = (await context.io.prompt("Shot name: ")).trim();
-    const slug = slugForShotName(name);
-    if (slug !== name) context.io.out(`Using filesystem name: ${slug}`);
+    let intention = "";
+    while (intention === "") {
+      intention = (
+        await context.io.prompt(
+          "Intention (one line is enough; use `tohseno create --file ...` for a document): ",
+        )
+      ).trim();
+      if (intention === "") context.io.error("Describe what you want to make.");
+    }
     return await createCommand({
-      slug,
+      text: intention,
       noLaunch: false,
       noInteractive: false,
     }, context);
-  }
-
-  if (shots.length === 0) {
-    throw new CliError(`no shots exist in ${context.config.shotsDirectory}; choose Take your first shot`, 2);
   }
   context.io.out("Shots:");
   const summaries = await Promise.all(shots.map((shot) => shotSummary(shot, context)));

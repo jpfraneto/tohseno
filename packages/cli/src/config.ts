@@ -1,4 +1,11 @@
-import { lstatSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_SCHEMA_VERSION } from "./constants.ts";
@@ -10,6 +17,7 @@ interface ConfigFile {
   schemaVersion: typeof CONFIG_SCHEMA_VERSION;
   shotsDirectory?: string;
   defaultAgent?: AgentId;
+  onboardingVersion?: number;
 }
 
 export interface ResolvedConfig {
@@ -19,6 +27,7 @@ export interface ResolvedConfig {
   shotsDirectory: string;
   configExists: boolean;
   defaultAgent: AgentId | undefined;
+  onboardingVersion: number | undefined;
 }
 
 export interface ConfigOptions {
@@ -53,7 +62,12 @@ function parseConfig(path: string): ConfigFile {
     throw new CliError(`${path} must contain a JSON object`);
   }
   const record = value as Record<string, unknown>;
-  const allowed = new Set(["schemaVersion", "shotsDirectory", "defaultAgent"]);
+  const allowed = new Set([
+    "schemaVersion",
+    "shotsDirectory",
+    "defaultAgent",
+    "onboardingVersion",
+  ]);
   const unknown = Object.keys(record).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
     throw new CliError(`${path} contains unsupported field ${JSON.stringify(unknown[0])}`);
@@ -69,6 +83,13 @@ function parseConfig(path: string): ConfigFile {
     (typeof record.defaultAgent !== "string" || !isAgentId(record.defaultAgent))
   ) {
     throw new CliError(`${path} defaultAgent must be codex or claude`);
+  }
+  if (
+    record.onboardingVersion !== undefined &&
+    (!Number.isSafeInteger(record.onboardingVersion) ||
+      (record.onboardingVersion as number) < 0)
+  ) {
+    throw new CliError(`${path} onboardingVersion must be a non-negative integer`);
   }
   return record as unknown as ConfigFile;
 }
@@ -103,5 +124,35 @@ export function resolveConfig(options: ConfigOptions = {}): ResolvedConfig {
     shotsDirectory,
     configExists,
     defaultAgent: config?.defaultAgent,
+    onboardingVersion: config?.onboardingVersion,
   };
+}
+
+export function writeOnboardingVersion(
+  config: ResolvedConfig,
+  version: number,
+): void {
+  if (!Number.isSafeInteger(version) || version < 1) {
+    throw new CliError("onboarding version must be a positive integer");
+  }
+  mkdirSync(config.factoryHome, { recursive: true, mode: 0o700 });
+  const existing = config.configExists
+    ? parseConfig(config.configPath)
+    : {
+        schemaVersion: CONFIG_SCHEMA_VERSION,
+        shotsDirectory: config.shotsDirectory,
+      };
+  const temporary = `${config.configPath}.writing-${process.pid}`;
+  try {
+    writeFileSync(
+      temporary,
+      `${JSON.stringify({ ...existing, onboardingVersion: version }, null, 2)}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    renameSync(temporary, config.configPath);
+  } finally {
+    if (existsSync(temporary)) {
+      unlinkSync(temporary);
+    }
+  }
 }

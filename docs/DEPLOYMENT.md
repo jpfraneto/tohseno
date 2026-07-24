@@ -29,7 +29,9 @@ metadata:           tohseno-cli-0.3.1.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
-factory source, shot runtime/playbooks, manifest tooling, and iOS base. The
+factory source, shared skills engine, catalog descriptors and overlays,
+generic and legacy manifest tooling, shot runtime/playbooks, neutral iOS
+kernel, templates, and the legacy continuity base. The
 installer separately acquires pinned Bun 1.2.18 and, when missing,
 cloudflared 2026.5.2. Every download is SHA-256 verified before extraction.
 The CLI archive also contains a canonical checksum and executable-mode
@@ -48,8 +50,9 @@ cat dist/tohseno-cli-0.3.1.json
 Build a second time into another temporary path and compare bytes before
 release. `apps/site/public/install.sh` must contain the same complete SHA-256
 digest as the metadata. The automated installer test proves local installation,
-no-preinstalled-Bun behavior, idempotency, runtime acceptance, and checksum
-rejection without contacting public infrastructure.
+the first-use trust copy, no-preinstalled-Bun behavior, idempotency, generic
+Blank composition and verification, and checksum rejection without contacting
+public infrastructure.
 
 ## Published release
 
@@ -125,8 +128,10 @@ bun run check
 
 ## Shot production boundary
 
-The public site does not deploy generated apps. Inside a shot, the implemented
-read-only operation is:
+The public site does not deploy generated apps. Generic manifests carry
+explicit production readiness and declarations, but no generic deployer is
+implemented. Legacy continuity-v1 shots retain this implemented read-only
+operation:
 
 ```sh
 tohseno machine production inspect --json

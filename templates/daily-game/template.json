@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "daily-game",
+  "version": "1.0.0",
+  "title": "Daily Game",
+  "summary": "A replayable local challenge with immediate results and rank progression.",
+  "platforms": ["ios"],
+  "kernel": "ios-kernel",
+  "skills": [
+    "daily-challenge",
+    "local-progress",
+    "rank-progression",
+    "share-card"
+  ],
+  "overlay": "overlay",
+  "replaces": [
+    "App/Features/AppRootView.swift",
+    "app.manifest.json",
+    "Shot.xcodeproj/project.pbxproj",
+    "Shot.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+    "Shot.xcodeproj/xcshareddata/xcschemes/Shot.xcscheme"
+  ],
+  "agentInstructions": [
+    "Preserve the immediate play loop.",
+    "Make the first playable run the primary definition of done."
+  ],
+  "definitionOfDone": [
+    "A player can complete one local five-decision challenge.",
+    "The result persists after relaunch.",
+    "The result screen shows progress toward a rank."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "rank-progression",
+  "version": "1.0.0",
+  "title": "Rank Progression",
+  "summary": "Turn local completed runs into visible deterministic rank progress.",
+  "category": "progression",
+  "maturity": "experimental",
+  "platforms": ["ios"],
+  "requires": ["local-progress"],
+  "conflicts": [],
+  "contributions": {
+    "overlay": "overlay",
+    "manifestFragments": [],
+    "entitlements": [],
+    "privacy": [],
+    "xcodeSourcePaths": [
+      "App/Skills/RankProgression",
+      "Tests/RankProgressionTests.swift"
+    ]
+  },
+  "acceptanceChecks": [
+    {
+      "id": "rank-progression-source-present",
+      "type": "file",
+      "path": "App/Skills/RankProgression/RankProgression.swift"
+    },
+    {
+      "id": "rank-progression-test-present",
+      "type": "file",
+      "path": "Tests/RankProgressionTests.swift"
+    }
+  ],
+  "agentInstructions": [
+    "Keep rank calculation deterministic and derived from LocalProgressRecord."
+  ]
+}

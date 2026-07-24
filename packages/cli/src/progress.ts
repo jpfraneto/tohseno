@@ -21,6 +21,8 @@ export type CreationDoor = "cli" | "studio";
 
 export type ShotProgressType =
   | "allocated"
+  | "planning"
+  | "plan-ready"
   | "preparing-release"
   | "preparing-shot"
   | "provenance-written"
@@ -47,6 +49,15 @@ export interface ShotProgressEvent {
   slug?: string;
   sequence?: number;
   message?: string;
+  plan?: {
+    appName: string;
+    template: string;
+    skills: string[];
+    dataStrategy: string;
+    identityStrategy: string;
+    definitionOfDone: string[];
+    fallback: boolean;
+  };
 }
 
 export type ShotProgressInput = Omit<

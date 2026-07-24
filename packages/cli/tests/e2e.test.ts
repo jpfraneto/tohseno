@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { validateManifest } from "../../manifest/validate.ts";
+import { validateAppManifest } from "../../manifest/app.ts";
 import { main } from "../src/cli.ts";
 import { AGENT_INSTRUCTION } from "../src/constants.ts";
 import { removeTreeEvenIfReadOnly } from "../src/files.ts";
@@ -64,24 +64,26 @@ describe("shot creation end to end", () => {
       const shot = join(scratch.shotsDirectory, "the-trenches");
       expect(existsSync(shot)).toBe(true);
       expect(existsSync(join(shot, "AGENTS.md"))).toBe(true);
-      expect(readFileSync(join(shot, "AGENTS.md"), "utf8")).toContain("What do you want to make?");
+      expect(readFileSync(join(shot, "AGENTS.md"), "utf8")).toContain("SHOT.md");
       expect(existsSync(join(shot, ".tohseno", "verify.ts"))).toBe(true);
       expect(existsSync(join(shot, ".tohseno", "manifest", "validate.ts"))).toBe(true);
 
-      const manifest = JSON.parse(readFileSync(join(shot, "continuity.manifest.json"), "utf8")) as {
+      const manifest = JSON.parse(readFileSync(join(shot, "app.manifest.json"), "utf8")) as {
         application: { id: string; name: string };
       };
       expect(manifest.application).toMatchObject({
         id: "com.tohseno.the-trenches",
         name: "The Trenches",
       });
-      expect(validateManifest(manifest).valid).toBe(true);
+      expect(validateAppManifest(manifest).valid).toBe(true);
 
       const metadata = JSON.parse(
         readFileSync(join(shot, ".tohseno", "shot.json"), "utf8"),
       ) as ShotMetadata;
       expect(metadata.slug).toBe("the-trenches");
       expect(metadata.platform).toBe("ios");
+      expect(metadata.schemaVersion).toBe(2);
+      expect(metadata.architecture).toBe("generic-app-v1");
       expect(metadata.selectedAgent).toBe("codex");
       expect(metadata.adopted).toBe(false);
       expect(metadata.baselineAuthor).toBe("factory");
@@ -116,6 +118,17 @@ describe("shot creation end to end", () => {
       );
       expect(pinnedVerify.exitCode).toBe(0);
       expect(pinnedVerify.stdout).toContain("manifest");
+      const lockedSourcePath = join(shot, "App", "ShotApp.swift");
+      const lockedSource = readFileSync(lockedSourcePath, "utf8");
+      writeFileSync(lockedSourcePath, `${lockedSource}\n// undeclared lock drift\n`);
+      const lockDrift = await runProcess(
+        [process.execPath, ".tohseno/verify.ts"],
+        shot,
+        scratch.environment,
+      );
+      expect(lockDrift.exitCode).not.toBe(0);
+      expect(lockDrift.stderr).toContain("locked composition file changed");
+      writeFileSync(lockedSourcePath, lockedSource);
 
       const offlineIo = createMemoryIo();
       const offlineEnvironment = {
@@ -129,7 +142,7 @@ describe("shot creation end to end", () => {
         environment: offlineEnvironment,
         io: offlineIo,
       })).toBe(0);
-      expect(offlineIo.stdout.join("\n")).toContain("(cached)");
+      expect(offlineIo.stdout.join("\n")).toContain("cached-offline");
       const offlineMetadata = JSON.parse(readFileSync(
         join(scratch.shotsDirectory, "cached-offline", ".tohseno", "shot.json"),
         "utf8",
@@ -172,18 +185,18 @@ describe("shot creation end to end", () => {
         sourceRoot: join(scratch.root, "source deliberately unavailable"),
       })).toBe(0);
 
-      const originalManifest = readFileSync(join(shot, "continuity.manifest.json"), "utf8");
+      const originalManifest = readFileSync(join(shot, "app.manifest.json"), "utf8");
       const invalidManifest = JSON.parse(originalManifest) as { application: { name: string } };
       invalidManifest.application.name = "";
-      writeFileSync(join(shot, "continuity.manifest.json"), `${JSON.stringify(invalidManifest, null, 2)}\n`);
+      writeFileSync(join(shot, "app.manifest.json"), `${JSON.stringify(invalidManifest, null, 2)}\n`);
       const invalidVerify = await runProcess(
         [process.execPath, ".tohseno/verify.ts"],
         shot,
         scratch.environment,
       );
       expect(invalidVerify.exitCode).not.toBe(0);
-      expect(invalidVerify.stderr).toContain("continuity.manifest");
-      writeFileSync(join(shot, "continuity.manifest.json"), originalManifest);
+      expect(invalidVerify.stderr).toContain("app.manifest");
+      writeFileSync(join(shot, "app.manifest.json"), originalManifest);
     });
   }, 30_000);
 
@@ -240,7 +253,7 @@ describe("shot creation end to end", () => {
       const codexPath = installFakeAgent(scratch, "codex");
       installFakeAgent(scratch, "claude");
       const record = fakeAgentRecordPath(scratch);
-      let io = createMemoryIo(true, ["1", "2"]);
+      let io = createMemoryIo(true, ["2", ""]);
 
       let exitCode = await main(["create", "agent-choice"], {
         cwd: scratch.root,
@@ -265,7 +278,7 @@ describe("shot creation end to end", () => {
 
       unlinkSync(join(scratch.binDirectory, "claude"));
       setFakeAgentExit(scratch, 0);
-      io = createMemoryIo(true, ["1"]);
+      io = createMemoryIo(true, [""]);
       exitCode = await main(["create", "only-agent"], {
         cwd: scratch.root,
         environment: scratch.environment,
@@ -287,7 +300,7 @@ describe("shot creation end to end", () => {
         sourceRoot: REPOSITORY_ROOT,
       });
       expect(exitCode).toBe(23);
-      expect(io.stderr.join("\n")).toContain("Codex exited with status 23");
+      expect(io.stdout.join("\n")).toContain("coding agent exited with status 23");
       expect(existsSync(join(scratch.shotsDirectory, "agent-exit", ".git"))).toBe(true);
       expect(readFileSync(record, "utf8").split("\n")[0]).toBe(codexPath);
     });

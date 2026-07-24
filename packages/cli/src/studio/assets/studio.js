@@ -61,11 +61,21 @@
   const progressLabels = {
     allocated: "Shot allocated",
     preparing: "Preparing inputs",
+    planning: "Interpreting the intention",
+    "plan-ready": "Composition plan ready",
+    "preparing-release": "Preparing the pinned factory release",
+    "preparing-shot": "Composing the native app",
+    "provenance-written": "Private provenance saved locally",
+    "manifest-validated": "Manifest validated",
+    "baseline-committed": "Neutral baseline committed",
+    published: "Independent repository published",
     "agent-started": "Coding agent started",
+    "agent-completed": "Coding agent completed",
     building: "Building the app",
     verifying: "Verifying the shot",
     "simulator-launching": "Launching Simulator",
     "screenshot-captured": "Simulator screenshot captured",
+    "preview-unavailable": "Interactive preview unavailable",
     completed: "Shot completed",
     failed: "Creation failed",
     interrupted: "Creation interrupted",
@@ -888,6 +898,46 @@
         asNonEmptyString(event.message) ?? progressLabels[type] ?? "Factory activity",
       ),
     );
+    if (type === "plan-ready" && isRecord(event.plan)) {
+      const plan = event.plan;
+      const appName = asNonEmptyString(plan.appName);
+      const template = asNonEmptyString(plan.template);
+      const dataStrategy = asNonEmptyString(plan.dataStrategy);
+      const identityStrategy = asNonEmptyString(plan.identityStrategy);
+      const skills = Array.isArray(plan.skills)
+        ? plan.skills.map(asNonEmptyString).filter(Boolean)
+        : [];
+      const done = Array.isArray(plan.definitionOfDone)
+        ? plan.definitionOfDone.map(asNonEmptyString).filter(Boolean)
+        : [];
+      const details = makeElement("dl", "progress-plan");
+      for (const [label, value] of [
+        ["APP", appName],
+        ["STARTING SHAPE", template],
+        ["SKILLS", skills.length === 0 ? "Neutral kernel only" : skills.join(" · ")],
+        ["DATA", dataStrategy],
+        ["IDENTITY", identityStrategy],
+      ]) {
+        if (!value) continue;
+        details.append(
+          makeElement("dt", null, label),
+          makeElement("dd", null, value),
+        );
+      }
+      if (done.length > 0) {
+        details.append(
+          makeElement("dt", null, "FIRST DEFINITION OF DONE"),
+          makeElement("dd", null, done.join(" · ")),
+        );
+      }
+      if (plan.fallback === true) {
+        details.append(
+          makeElement("dt", null, "PLAN STATUS"),
+          makeElement("dd", null, "Safe Blank fallback"),
+        );
+      }
+      item.append(details);
+    }
     elements.progressEvents.append(item);
     item.scrollIntoView({ block: "nearest" });
     updateJobFrame(event);

@@ -4,16 +4,36 @@ This file applies to the entire repository. A more local `AGENTS.md`, if one is 
 
 ## Mission and current status
 
-TOHSENO is the fastest path from one prompt to an iOS app on a phone, then to the next shot. A person installs the local toolchain once, creates an independent repository called a **shot**, hands its coding agent one sentence, and gets a working continuity app: an app where cryptography replaces accounts. A BIP39 seed phrase instead of a signup form, a local log instead of a cloud profile. No auth screens, no OAuth, no email capture — not for the builder, not for their users.
+TOHSENO is the fastest path from one intention to an independently owned iOS
+app on a phone, then to the next shot. It is a local intention compiler and
+open app factory: the selected coding agent interprets private intent into a
+sanitized plan, the deterministic factory composes a neutral kernel, template,
+and app skills, and the result is verified before it is presented as ready.
+Account-free and private-by-default are starting choices, not a universal app
+category or a refusal to implement declared mechanics.
 
-This repository contains: the reusable local-first CLI in `packages/cli`, the public site (hero, docs, privacy, and the pinned legacy-oneshot migration endpoint), the base app in `templates/continuity-app` (a compiling, running iOS writing app that every shot starts from), the manifest schema and validator, the agent build protocol in `skills/continuity-app/SKILL.md`, and the check gate. The intake/payments product that once lived here is preserved on the `archive/intake-product` branch and is not part of main.
+This repository contains the reusable local-first CLI in `packages/cli`, the
+shared composition engine in `packages/skills`, the public site, the neutral
+iOS kernel in `templates/ios-kernel`, starting templates in `templates/blank`
+and `templates/daily-game`, bundled app skills under `skills/`, generic and
+legacy manifests, the local Studio, pinned machine rails, and the check gate.
+`templates/continuity-app` and `skills/continuity-app` remain supported legacy
+continuity-v1 inputs; they are not the default or the universal product model.
 
 ## Product constraints
 
 - **Speed is the product.** Anything that adds a question, a config step, or a ceremony must pay for itself in reliability.
-- **The base app is the starting point.** Shots copy an immutable release of `templates/continuity-app`, never an empty directory. The base must always build from a fresh clone with only a signing-team selection, run in the simulator with zero keys, and survive process death without losing text.
+- **Composition is the starting point.** New shots deterministically compose
+  an immutable neutral kernel, one template, and an ordered dependency-closed
+  skill set. Blank is a real template, not an empty directory. Every bundled
+  composition must build from a fresh release with zero credentials and run in
+  Simulator without hidden TOHSENO services.
 - **The manifest is a reliability mechanism, not a moral one.** If a feature cannot be expressed as a valid manifest field, it is unsupported — say so instead of improvising. The builder decides the mechanics (streaks, paywalls, scores are tools, not sins); private-by-default and account-free are defaults, never refusals.
-- **Modules are flags.** `AppConfig.swift` is the single configuration seam; a module integrates by flipping its flag, never by rearchitecting. SessionLink and TokenMint stay declared-only until they ship.
+- **Skills are deterministic capabilities.** A skill has a descriptor,
+  dependencies, conflicts, owned files, acceptance checks, and a digest. The
+  lock is authoritative; coding-agent prose cannot silently substitute for an
+  installed capability. Legacy continuity modules retain their historical
+  `AppConfig.swift` flag contract.
 - **Ejectable from birth.** Every app builds and runs without TOHSENO credentials; every landing page ships in the same package as its app.
 
 ## Brand contract
@@ -43,9 +63,10 @@ This repository contains: the reusable local-first CLI in `packages/cli`, the pu
 
 Never commit or log owner prompts, contact details, credentials, tokens, message bodies, production data, or encryption keys.
 
-- `MASTER_PROMPT.md` in a workspace is private product input: gitignored, never committed, echoed, or transmitted.
+- `MASTER_PROMPT.md` and `MASTER_EVOLUTIONARY_PROMPT.md` in a workspace are
+  private product input: gitignored, never committed, echoed, or transmitted.
 - Key slots hold public identifiers; setup writes key *paths*, never secret values. `.p8`/`.p12`/`.pem` files never enter git.
-- A prototype provider secret may use only the base app's `DEV_SECRET` seam in
+- A prototype provider secret in a legacy continuity-v1 shot may use only its `DEV_SECRET` seam in
   gitignored `Config/Local.xcconfig`, declared in the manifest's development
   secrets as the canonical `dev-secret` slot. It is for an owner-controlled
   Debug device only, is forced empty in simulator and Release builds, and must
@@ -56,7 +77,9 @@ Never commit or log owner prompts, contact details, credentials, tokens, message
 ## Architecture and implementation
 
 - Use Bun for JavaScript and TypeScript, strict TypeScript, `Bun.serve`, raw HTML/CSS, and minimal browser JavaScript.
-- The base app is SwiftUI with no third-party dependencies; an SPM dependency is acceptable only if it compiles offline with zero configuration.
+- The neutral kernel and bundled templates are SwiftUI with no third-party
+  dependencies; an SPM dependency is acceptable only if it compiles offline
+  with zero configuration.
 - Keep runtime dependencies and indirection small. Do not add a framework, ORM, component system, analytics SDK, or build system without a demonstrated requirement.
 - Keep runtime-enforced manifest properties separate from coding-agent guidance and operator/deployment metadata.
 - Prefer deterministic behavior at runtime. AI interpretation belongs between human intent and the manifest, not in storage, identity, or persistence invariants.
@@ -88,7 +111,25 @@ Before handing off:
 
 ### Release discipline for the oneshot pin
 
-`apps/site/public/oneshot.sh` currently preserves `TOHSENO_PIN` as the exact last published rails-creator commit while serving only a migration notice. It must not create a second kind of workspace or install unpublished CLI code. First land and publish a release containing the CLI; only a follow-up commit may bump the pin to that release and turn the endpoint into a thin pinned installer. The pin therefore always trails the serving commit by one. `bun run check` verifies the migration boundary, pin ancestry, and public reachability. Site deploys go out with `railway up`, not by pushing to GitHub, and no deploy occurs without explicit owner approval.
+`apps/site/public/oneshot.sh` is a thin compatibility delegator and must never
+create a second kind of workspace or install unpublished CLI code. Release
+ordering is part of the trust boundary:
+
+1. land and push the frozen CLI source commit while the canonical installer
+   still points at the previous release;
+2. build the deterministic archive from that exact clean commit and publish
+   the versioned GitHub release;
+3. only then land and push a follow-up canonical-installer commit containing
+   the published archive and internal-tree hashes;
+4. only then land the serving commit that pins `oneshot.sh` to that installer
+   commit and its exact installer-file hash.
+
+The oneshot pin therefore trails its serving commit by one. Unpublished source
+commits may sit between serving commits without changing the pin. `bun run
+check` verifies the thin boundary, serving-commit parentage when the delegator
+changes, pin ancestry, installer integrity, and public reachability. Site
+deploys go out with `railway up`, not by pushing to GitHub, and no deploy occurs
+without explicit owner approval.
 
 ## Documentation language
 

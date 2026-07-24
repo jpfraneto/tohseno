@@ -14,7 +14,10 @@ import {
 import { dirname, join } from "node:path";
 import { main } from "../src/cli.ts";
 import { resolveConfig } from "../src/config.ts";
-import { createShot } from "../src/creation.ts";
+import {
+  createShot,
+  PublishedShotCreationError,
+} from "../src/creation.ts";
 import { removeTreeEvenIfReadOnly } from "../src/files.ts";
 import { readProgressJournal } from "../src/progress.ts";
 import {
@@ -107,7 +110,7 @@ describe("shared shot factory", () => {
         sourceRoot: REPOSITORY_ROOT,
       })).toBe(0);
       expect(cliIo.stdout.join("\n")).not.toContain(privatePhrase);
-      const cliRoot = join(scratch.shotsDirectory, "shot-001");
+      const cliRoot = join(scratch.shotsDirectory, "new-app");
       expect(existsSync(cliRoot)).toBe(true);
 
       const config = resolveConfig({
@@ -536,6 +539,12 @@ describe("shared shot factory", () => {
         failure = error;
       }
       expect(failure).toBeInstanceOf(Error);
+      expect(failure).toBeInstanceOf(PublishedShotCreationError);
+      if (failure instanceof PublishedShotCreationError) {
+        expect(failure.shot.path).toContain(
+          ".failed-agent-privacy.unsafe-",
+        );
+      }
       const message = failure instanceof Error ? failure.message : "";
       expect(message).toContain("unsafe shot was isolated");
       expect(message).not.toContain(privatePhrase);

@@ -43,11 +43,13 @@ import {
   type PreparedRelease,
 } from "./release.ts";
 import {
-  materializeShot,
+  materializeGenericShot,
   readShotMetadata,
   type CreatedShot,
   type ShotMetadata,
 } from "./shot.ts";
+import { blankPlan, type ShotPlan } from "./planning.ts";
+import { loadCatalog } from "../../skills/index.ts";
 import { slugForShotName, validateShotSlug } from "./slug.ts";
 import { locateFactorySourceRoot } from "./source.ts";
 import { trustedShotToolFromRelease } from "./trusted-tools.ts";
@@ -57,17 +59,20 @@ import {
 } from "./workspace.ts";
 
 export const AUTOMATED_AGENT_INSTRUCTION = [
-  "Read the local AGENTS.md, skills/continuity-app/SKILL.md, and .tohseno/OPERATIONS.md.",
+  "Read the local AGENTS.md, SHOT.md, DONE.md, tohseno.skills.lock, every installed skills/*/SKILL.md, and .tohseno/OPERATIONS.md.",
   "The owner's private normalized creation input is in .tohseno/provenance/intention.md and any reference images are in .tohseno/provenance/references/.",
-  "Build the requested continuity app completely from that input, choosing sensible defaults without asking questions.",
+  "Implement the unresolved native app work from the accepted shot contract, choosing sensible reversible defaults without asking unnecessary questions.",
+  "Preserve the neutral kernel and installed app skills as deliberate starting capabilities instead of replacing them with parallel systems.",
   "Use the private creation input only in this selected coding-agent session; never quote it in output, log it, commit it, or send it to any other destination.",
-  "Run the shot's required verification and simulator checks when available.",
+  "Run the pinned machine verifier, installed skill acceptance checks, and Simulator path when available.",
+  "Never tell the owner to install Bun or run a command that depends on an unstated working directory.",
   "Do not deploy, publish, spend money, alter DNS, submit to an app store, or perform another externally consequential action.",
 ].join(" ");
 
 export interface CreationRunnerResult {
   screenshotPath: string | null;
   previewAvailable: boolean;
+  launched: boolean;
   message?: string;
 }
 
@@ -100,6 +105,7 @@ export interface CreateShotRequest {
   onProgress?: ShotProgressSink;
   io?: CliIo;
   runner?: CreationRunner;
+  plan?: ShotPlan;
 }
 
 export interface CreateShotResult extends CreatedShot {
@@ -110,6 +116,30 @@ export interface CreateShotResult extends CreatedShot {
   agentMode: "interactive" | "automated" | "none";
   screenshotPath: string | null;
   previewAvailable: boolean;
+  simulatorMessage: string | null;
+  simulatorLaunched: boolean;
+  agentExitCode: number | null;
+  verified: boolean;
+}
+
+export class PublishedShotCreationError extends CliError {
+  readonly shot: {
+    name: string;
+    slug: string;
+    path: string;
+    sequence: number;
+    skillCount: number;
+  };
+
+  constructor(
+    message: string,
+    shot: PublishedShotCreationError["shot"],
+    exitCode = 1,
+  ) {
+    super(message, exitCode);
+    this.name = "PublishedShotCreationError";
+    this.shot = shot;
+  }
 }
 
 export async function factoryReleaseFor(
@@ -633,6 +663,8 @@ function agentMode(
 export function terminalProgressSink(io: CliIo): ShotProgressSink {
   const labels: Partial<Record<ShotProgressEvent["type"], string>> = {
     allocated: "Shot allocated.",
+    planning: "Interpreting the intention against the installed catalog…",
+    "plan-ready": "Composition plan ready.",
     "preparing-release": "Preparing the pinned factory release…",
     "preparing-shot": "Preparing the shot atomically…",
     "provenance-written": "Private input provenance saved locally.",
@@ -700,7 +732,10 @@ export async function createShot(
   let release: PreparedRelease | null = null;
   let screenshotPath: string | null = null;
   let previewAvailable = false;
+  let simulatorMessage: string | null = null;
+  let simulatorLaunched = false;
   let verifiedAfterAgent = false;
+  let agentExitCode: number | null = null;
   await reporter.emit({ type: "allocated", slug, sequence });
   try {
     throwIfAborted(request.signal);
@@ -710,7 +745,11 @@ export async function createShot(
       sequence,
     });
     release = await factoryReleaseFor(request);
-    created = await materializeShot({
+    const plan = request.plan ?? blankPlan(
+      loadCatalog(join(release.directory, "catalog")),
+      request.name ?? slug,
+    ).plan;
+    created = await materializeGenericShot({
       slug,
       shotsDirectory,
       release,
@@ -721,6 +760,7 @@ export async function createShot(
       agentMode: mode,
       verifyAfterAgent,
       runAfterCreate,
+      plan,
       environment: request.environment,
       now: createdAt,
       ...(request.signal === undefined ? {} : { signal: request.signal }),
@@ -778,12 +818,7 @@ export async function createShot(
         });
         verifiedAfterAgent = true;
       }
-      if (exitCode !== 0) {
-        throw new CliError(
-          `${request.agent.label} exited with status ${exitCode}; the verified local shot remains at ${created.path}`,
-          exitCode,
-        );
-      }
+      agentExitCode = exitCode;
       await reporter.emit({ type: "agent-completed", slug, sequence });
     }
 
@@ -793,7 +828,12 @@ export async function createShot(
       await verifyPublishedShot(created.path, request.environment, release);
     }
 
-    if (runAfterCreate && request.runner !== undefined) {
+    if (
+      runAfterCreate &&
+      agentExitCode !== null &&
+      agentExitCode === 0 &&
+      request.runner !== undefined
+    ) {
       const runResult = await request.runner.runShot(created.path, {
         ...(request.signal === undefined ? {} : { signal: request.signal }),
         onProgress: async (type) => {
@@ -802,6 +842,8 @@ export async function createShot(
       });
       screenshotPath = runResult.screenshotPath;
       previewAvailable = runResult.previewAvailable;
+      simulatorMessage = runResult.message ?? null;
+      simulatorLaunched = runResult.launched;
       if (runResult.screenshotPath !== null) {
         await reporter.emit({ type: "screenshot-captured", slug, sequence });
       } else if (!runResult.previewAvailable) {
@@ -827,6 +869,10 @@ export async function createShot(
       agentMode: mode,
       screenshotPath,
       previewAvailable,
+      simulatorMessage,
+      simulatorLaunched,
+      agentExitCode,
+      verified: true,
     };
   } catch (error) {
     const interrupted = request.signal?.aborted === true;
@@ -845,6 +891,47 @@ export async function createShot(
       } catch {
         // Preserve the original creation error without following an unsafe
         // path that a failed coding-agent run may have left behind.
+      }
+    }
+    if (created !== null) {
+      const isolatedPrefix = `.${slug}.unsafe-${jobId}-`;
+      const isolatedNames = readdirSync(shotsDirectory)
+        .filter((name) => name.startsWith(isolatedPrefix));
+      const candidatePath = existsSync(created.path)
+        ? created.path
+        : isolatedNames.length === 1
+          ? join(shotsDirectory, isolatedNames[0]!)
+          : null;
+      let failurePath: string | null = null;
+      if (candidatePath !== null) {
+        try {
+          const details = lstatSync(candidatePath);
+          const canonical = realpathSync(candidatePath);
+          if (
+            !details.isSymbolicLink() &&
+            details.isDirectory() &&
+            canonical !== shotsDirectory &&
+            inside(shotsDirectory, canonical)
+          ) {
+            failurePath = canonical;
+          }
+        } catch {
+          // Preserve the original failure when no safe published or isolated
+          // repository path can be proven.
+        }
+      }
+      if (failurePath !== null) {
+        throw new PublishedShotCreationError(
+          errorMessage(error),
+          {
+            name: created.metadata.app?.name ?? slug,
+            slug,
+            path: failurePath,
+            sequence,
+            skillCount: created.metadata.composition?.skills.length ?? 0,
+          },
+          error instanceof CliError ? error.exitCode : 1,
+        );
       }
     }
     throw error;

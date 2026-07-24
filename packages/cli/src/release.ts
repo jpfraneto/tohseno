@@ -111,7 +111,24 @@ function releaseIdFor(source: ReleaseSource, digest: string): string {
 
 function mapSourcePath(sourceRoot: string, path: string): SourceEntry {
   let destination: string;
-  if (path.startsWith("templates/continuity-app/")) {
+  if (path.startsWith("templates/ios-kernel/")) {
+    destination =
+      `catalog/kernels/ios-kernel/${path.slice("templates/ios-kernel/".length)}`;
+  } else if (
+    path.startsWith("templates/blank/") ||
+    path.startsWith("templates/daily-game/")
+  ) {
+    destination = `catalog/${path}`;
+  } else if (
+    path.startsWith("skills/daily-challenge/") ||
+    path.startsWith("skills/local-progress/") ||
+    path.startsWith("skills/rank-progression/") ||
+    path.startsWith("skills/share-card/")
+  ) {
+    destination = `catalog/${path}`;
+  } else if (path.startsWith("packages/skills/")) {
+    destination = `factory/skills/${path.slice("packages/skills/".length)}`;
+  } else if (path.startsWith("templates/continuity-app/")) {
     destination = `platforms/ios/base/${path.slice("templates/continuity-app/".length)}`;
   } else if (path === "skills/continuity-app/SKILL.md") {
     destination = "agent/continuity-app/SKILL.md";
@@ -171,7 +188,29 @@ async function sourceEntries(sourceRoot: string): Promise<SourceEntry[]> {
   const listedCli = await gitListedFiles(sourceRoot, "packages/cli/src");
   const cliPaths = listedCli ?? listRegularFiles(join(sourceRoot, "packages", "cli", "src"))
     .map((file) => `packages/cli/src/${file.relativePath}`);
-  const paths = [...templatePaths, ...cliPaths, ...RELEASE_SOURCE_FILES];
+  const newCatalogDirectories = [
+    "templates/ios-kernel",
+    "templates/blank",
+    "templates/daily-game",
+    "skills/daily-challenge",
+    "skills/local-progress",
+    "skills/rank-progression",
+    "skills/share-card",
+    "packages/skills",
+  ];
+  const newCatalogPaths = (
+    await Promise.all(newCatalogDirectories.map(async (directory) => {
+      const listedDirectory = await gitListedFiles(sourceRoot, directory);
+      return listedDirectory ?? listRegularFiles(join(sourceRoot, directory))
+        .map((file) => `${directory}/${file.relativePath}`);
+    }))
+  ).flat();
+  const paths = [
+    ...templatePaths,
+    ...newCatalogPaths,
+    ...cliPaths,
+    ...RELEASE_SOURCE_FILES,
+  ];
   const unique = [...new Set(paths)].sort();
   const entries = unique.map((path) => {
     const absolute = join(sourceRoot, path);

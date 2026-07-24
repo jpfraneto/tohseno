@@ -983,6 +983,25 @@ button:disabled {
   color: var(--silver-dim);
 }
 
+.progress-plan {
+  display: grid;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  grid-column: 3;
+  grid-template-columns: minmax(7rem, 0.35fr) minmax(0, 1fr);
+  border: 1px solid var(--line);
+  gap: 0.45rem 0.75rem;
+}
+
+.progress-plan dt {
+  color: var(--silver-faint);
+}
+
+.progress-plan dd {
+  margin: 0;
+  color: var(--silver);
+}
+
 .progress-event-failed .progress-event-type,
 .progress-event-failed .progress-event-message {
   color: var(--danger);
@@ -1203,6 +1222,11 @@ button:disabled {
 
   .progress-event-message {
     grid-column: 2;
+  }
+
+  .progress-plan {
+    grid-column: 2;
+    grid-template-columns: 1fr;
   }
 }
 

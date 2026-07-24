@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "daily-challenge",
+  "version": "1.0.0",
+  "title": "Daily Challenge",
+  "summary": "A deterministic five-decision local challenge and immediate scored review.",
+  "category": "experience",
+  "maturity": "experimental",
+  "platforms": ["ios"],
+  "requires": ["local-progress", "rank-progression"],
+  "conflicts": [],
+  "contributions": {
+    "overlay": "overlay",
+    "manifestFragments": [],
+    "entitlements": [],
+    "privacy": [],
+    "xcodeSourcePaths": [
+      "App/Features/DailyChallenge",
+      "Tests/DailyChallengeTests.swift"
+    ]
+  },
+  "acceptanceChecks": [
+    {
+      "id": "daily-challenge-source-present",
+      "type": "file",
+      "path": "App/Features/DailyChallenge/DailyChallengeView.swift"
+    },
+    {
+      "id": "daily-challenge-test-present",
+      "type": "file",
+      "path": "Tests/DailyChallengeTests.swift"
+    }
+  ],
+  "agentInstructions": [
+    "Keep the first five-decision run immediately playable.",
+    "Use DailyChallengeEngine as the deterministic scoring source of truth."
+  ]
+}

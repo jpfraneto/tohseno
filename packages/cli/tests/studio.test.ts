@@ -126,6 +126,8 @@ describe("Tohseno Studio local server", () => {
       const clientScriptText = await clientScript.text();
       expect(clientScriptText).toContain('return `CREATION / ${status}`;');
       expect(clientScriptText).toContain('if (!quiet) setDetailStatus("");');
+      expect(clientScriptText).toContain('"progress-plan"');
+      expect(clientScriptText).toContain('"FIRST DEFINITION OF DONE"');
       await studio.open();
       expect(opened).toBe(studio.launcherPath);
       expect(statSync(studio.launcherPath).mode & 0o777).toBe(0o600);

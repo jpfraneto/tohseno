@@ -24,6 +24,7 @@ CLOUDFLARED_RELEASE_BASE="https://github.com/cloudflare/cloudflared/releases/dow
 modify_path=1
 install_cloudflared=1
 dry_run=0
+non_interactive=0
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'tohseno installer: %s\n' "$*" >&2; exit 1; }
@@ -43,7 +44,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --version) say "$INSTALLER_VERSION"; exit 0 ;;
-    --non-interactive|--yes) ;;
+    --non-interactive|--yes) non_interactive=1 ;;
     --no-modify-path) modify_path=0 ;;
     --without-cloudflared) install_cloudflared=0 ;;
     --dry-run) dry_run=1 ;;
@@ -51,6 +52,40 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+cat <<'TOHSENO_INTRO'
+ _____ ___  _   _ ____  _____ _   _  ___
+|_   _/ _ \| | | / ___|| ____| \ | |/ _ \
+  | || | | | |_| \___ \|  _| |  \| | | | |
+  | || |_| |  _  |___) | |___| |\  | |_| |
+  |_| \___/|_| |_|____/|_____|_| \_|\___/
+
+                                      \  |  /
+>>>---------------------------------- ( (*) ) ----
+                                      /  |  \
+
+    w h e r e   c r e a t i v i t y
+    g o e s   f r o m   i d e a
+    t o   r e a l i t y.
+TOHSENO_INTRO
+say ""
+say "TOHSENO will install:"
+say ""
+say "• the TOHSENO command under ~/.tohseno"
+say "• a pinned internal Bun runtime used only by TOHSENO"
+say "• a pinned cloudflared binary for optional development previews"
+say "• one PATH entry in your shell profile when needed"
+say ""
+say "TOHSENO does not create an account, request credentials, or upload your app"
+say "intention to a TOHSENO service. The coding agent you choose operates under"
+say "that provider's own privacy and retention policy."
+say ""
+say "You do not need to install Bun. TOHSENO carries its own."
+say ""
+if [ "$non_interactive" -eq 0 ] && [ -t 0 ] && [ -t 1 ]; then
+  say "Press Enter to install; Ctrl-C to cancel."
+  IFS= read -r _tohseno_confirm
+fi
 
 [ -n "${HOME:-}" ] || die "HOME is required"
 os="${TOHSENO_INSTALL_OS:-$(uname -s)}"
@@ -614,6 +649,7 @@ installed_version=$("$wrapper" --version) || die "installed TOHSENO executable d
 PATH=$original_path
 export PATH
 path_note=""
+profile_source=""
 case ":${PATH:-}:" in
   *":$install_root/bin:"*) ;;
   *)
@@ -648,6 +684,7 @@ case ":${PATH:-}:" in
             printf '%s\n' "# <<< tohseno managed path <<<"
           } >> "$shell_file"
         fi
+        profile_source="$shell_file"
       else
         say "Skipped shell profile update because the target is not a safe regular file."
       fi
@@ -661,12 +698,33 @@ case ":${PATH:-}:" in
 esac
 
 say ""
+say "✅ TOHSENO IS READY"
+say ""
 say "TOHSENO ${CLI_VERSION} is installed at $wrapper"
-[ -z "$path_note" ] || say "$path_note"
+say "You do not need to install Bun. TOHSENO uses its pinned internal runtime."
+say ""
+say "Take your first shot:"
+say ""
+say "    tohseno"
+if [ -n "$path_note" ]; then
+  say ""
+  if [ -n "$profile_source" ]; then
+    say "If this terminal cannot find the command yet:"
+    say ""
+    say "    source \"$profile_source\""
+    say ""
+    say "or open a new terminal and run \`tohseno\`."
+  else
+    say "$path_note"
+  fi
+fi
+say ""
+say "Check this machine at any time:"
+say ""
+say "    tohseno doctor"
+say ""
 if command -v git >/dev/null 2>&1; then say "Git: found"; else say "Git: missing (required to create shots)"; fi
 if command -v xcodebuild >/dev/null 2>&1; then say "Xcode: found"; else say "Xcode: missing (shots can be created; iOS cannot launch here)"; fi
 if command -v codex >/dev/null 2>&1; then say "Codex: found"; else say "Codex: not found"; fi
 if command -v claude >/dev/null 2>&1; then say "Claude Code: found"; else say "Claude Code: not found"; fi
 if command -v cloudflared >/dev/null 2>&1 || [ -x "$install_root/bin/cloudflared" ]; then say "cloudflared: found"; else say "cloudflared: not installed (Quick Tunnels unavailable)"; fi
-say ""
-say "Next: tohseno"

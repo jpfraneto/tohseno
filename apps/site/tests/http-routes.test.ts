@@ -68,7 +68,7 @@ describe("public pages", () => {
     expect(body).toContain("IDEA A");
     expect(body).toContain("The fastest way to prototype iOS apps");
     expect(body).toContain(
-      "The open source app blueprint system for builders that have infinite ideas (and want to play with each one of them).",
+      "A local intention compiler and open app factory for builders with more ideas than time.",
     );
     expect(body).toContain(
       "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
@@ -105,7 +105,7 @@ describe("public pages", () => {
     expect(body).not.toContain("Managed intake");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
-      'content="The open source app blueprint system for builders with infinite ideas. Prototype iOS apps you can install, use, and judge."',
+      'content="A local intention compiler and open app factory for native iOS shots you can install, use, and own."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -127,7 +127,7 @@ describe("public pages", () => {
       expect(body).not.toContain('href="/intake"');
       if (path === "/docs") {
         expect(body).toContain("Take another one");
-        expect(body).toContain("Take your first shot");
+        expect(body).toContain("On an empty contact sheet, write one intention");
         expect(body).toContain("The prototype is the payoff");
         expect(body).toContain("iOS is the only implemented app platform");
         expect(body).toContain(

@@ -38,12 +38,11 @@ They must never touch the developer’s real `~/tohseno`, `~/.tohseno`, shell
 profile, Git config, Keychain, simulator data, or public network.
 
 The focused acceptance suite uses fake agents and injected child-process
-boundaries to cover launcher selection, shared CLI/Studio creation, immutable
-releases, deterministic intention normalization, private provenance,
-concurrent allocation, API/SQLite startup, readiness, Quick Tunnel parsing,
-endpoint injection, Studio request security and uploads, structured events,
-Simulator orchestration, helper teardown, logs/status/stop, stale ownership,
-production inspection, and legacy-shot compatibility.
+boundaries to cover strict planning and fallback, kernel/template/skill
+composition, dependency order, collision and lock tampering, shared CLI/Studio
+creation, immutable releases, private provenance, concurrent allocation,
+Studio security, Simulator orchestration, authoritative handoff, installer
+behavior, and legacy continuity runtime compatibility.
 
 ## Develop Studio and the shared factory
 
@@ -98,13 +97,14 @@ Build the deterministic source artifact without publishing it:
 
 ```sh
 bun run tohseno:release
-cat dist/tohseno-cli-0.3.1.json
+cat dist/tohseno-cli-0.4.0.json
 ```
 
 The installer test builds that artifact in a temporary directory, creates a
 fake checksum-pinned Bun archive, removes Bun from `PATH`, installs to an
-isolated home, creates a shot, runs its API and fake tunnel, verifies and stops
-it, re-runs the installer, and confirms a bad checksum fails closed:
+isolated home, creates and verifies a generic Blank shot, proves it has no
+inherited backend or credential requirement, re-runs the installer, and
+confirms a bad checksum fails closed:
 
 ```sh
 bun test packages/cli/tests/installer.test.ts
@@ -134,11 +134,8 @@ TOHSENO_SHOTS_DIR="$ROOT/shots" \
 bun run tohseno -- create docs-smoke \
   --platform ios --no-launch --no-interactive
 
-cd "$ROOT/shots/docs-smoke"
-bun .tohseno/machine.ts dev start --json
-bun .tohseno/machine.ts dev status --json
-bun .tohseno/machine.ts verify --json
-bun .tohseno/machine.ts dev stop --json
+tohseno verify docs-smoke
+tohseno run docs-smoke
 ```
 
 Do not add `--tunnel` to a manual smoke test unless public reachability is
@@ -167,13 +164,13 @@ bash apps/site/public/oneshot.sh --dry-run --without-cloudflared
 
 No local site command deploys Railway or publishes the CLI artifact.
 
-## Develop the iOS base
+## Develop the iOS kernel and templates
 
 The project is XcodeGen-owned. After changing `project.yml` or adding,
 removing, or moving Swift files:
 
 ```sh
-cd templates/continuity-app
+cd templates/ios-kernel/overlay
 xcodegen generate
 ```
 
@@ -181,23 +178,24 @@ Validate a changed manifest through the real CLI gate:
 
 ```sh
 cd ../..
+bun run validate templates/ios-kernel/overlay/app.manifest.json
 bun run validate templates/continuity-app/continuity.manifest.json
 ```
 
 On a Mac with an available iPhone simulator:
 
 ```sh
-cd templates/continuity-app
+cd templates/ios-kernel/overlay
 UDID=$(xcrun simctl list devices available --json | \
   bun -e 'const v=await Bun.stdin.json(); for (const ds of Object.values(v.devices)) for (const d of ds) if (d.isAvailable !== false && d.name?.startsWith("iPhone")) { console.log(d.udid); process.exit(0) }')
-xcodebuild -project Writing.xcodeproj -scheme Writing \
+xcodebuild -project Shot.xcodeproj -scheme Shot \
   -destination "platform=iOS Simulator,id=$UDID" test
 ```
 
-The base must still build with no keys. Release intentionally fails until a
-stable production API origin is configured; Debug simulator tests use the
-separate development configuration. A generated shot’s agent can instead run
-`machine dev start` followed by `machine ios launch`.
+The neutral kernel and every bundled template must build with no keys. After
+adding, removing, or moving Swift files in an overlay, regenerate its project
+and any template project that explicitly replaces generated project files.
+Continuity-v1 keeps its separate legacy XcodeGen and production-endpoint gate.
 
 ## Exercise Simulator run and live preview
 

@@ -30,6 +30,13 @@ const ARCHIVE_ROOT = `tohseno-cli-${CLI_VERSION}`;
 const INPUTS = [
   "LICENSE",
   "skills/continuity-app",
+  "skills/daily-challenge",
+  "skills/local-progress",
+  "skills/rank-progression",
+  "skills/share-card",
+  "packages/skills",
+  "packages/manifest/app.ts",
+  "packages/manifest/app.manifest.schema.json",
   "packages/manifest/cli.ts",
   "packages/manifest/continuity.manifest.schema.json",
   "packages/manifest/types.ts",
@@ -39,6 +46,9 @@ const INPUTS = [
   "packages/cli/package.json",
   "packages/cli/THIRD_PARTY_NOTICES.md",
   "templates/continuity-app",
+  "templates/ios-kernel",
+  "templates/blank",
+  "templates/daily-game",
 ] as const;
 const THIRD_PARTY_INPUTS = [
   {

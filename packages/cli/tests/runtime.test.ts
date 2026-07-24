@@ -13,6 +13,11 @@ import {
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { main } from "../src/cli.ts";
+import { resolveConfig } from "../src/config.ts";
+import { factoryReleaseFor } from "../src/creation.ts";
+import { normalizeCreationInput } from "../src/provenance.ts";
+import { materializeShot } from "../src/shot.ts";
+import { allocateShotSequence, canonicalShotsDirectory } from "../src/workspace.ts";
 import {
   delay,
   isProcessAlive,
@@ -40,17 +45,31 @@ interface Envelope {
 }
 
 async function createShot(scratch: ScratchEnvironment, slug: string): Promise<string> {
-  const io = createMemoryIo();
-  const exitCode = await main([
-    "create", slug, "--platform", "ios", "--no-launch", "--no-interactive",
-  ], {
+  const config = resolveConfig({
     cwd: scratch.root,
     environment: scratch.environment,
-    io,
+  });
+  const release = await factoryReleaseFor({
+    config,
+    environment: scratch.environment,
     sourceRoot: REPOSITORY_ROOT,
   });
-  if (exitCode !== 0) throw new Error(io.stderr.join("\n"));
-  return join(scratch.shotsDirectory, slug);
+  const shotsDirectory = canonicalShotsDirectory(scratch.shotsDirectory);
+  const sequence = await allocateShotSequence(shotsDirectory);
+  const created = await materializeShot({
+    slug,
+    shotsDirectory,
+    release,
+    selectedAgent: null,
+    sequence,
+    door: "cli",
+    input: normalizeCreationInput(),
+    agentMode: "none",
+    verifyAfterAgent: false,
+    runAfterCreate: false,
+    environment: scratch.environment,
+  });
+  return created.path;
 }
 
 async function machine(

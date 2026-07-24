@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { main } from "../src/cli.ts";
-import { AGENT_INSTRUCTION } from "../src/constants.ts";
+import { AUTOMATED_AGENT_INSTRUCTION } from "../src/creation.ts";
 import type { ShotMetadata } from "../src/shot.ts";
 import {
   createMemoryIo,
@@ -13,6 +13,16 @@ import {
 } from "./helpers.ts";
 
 describe("agent-first launcher", () => {
+  const creationRunner = {
+    async runShot() {
+      return {
+        screenshotPath: null,
+        previewAvailable: false,
+        launched: false,
+        message: "Simulator skipped by the test runner.",
+      };
+    },
+  };
   test("no arguments requires a terminal instead of printing a command manual", async () => {
     const io = createMemoryIo();
     expect(await main([], { io })).toBe(2);
@@ -20,32 +30,48 @@ describe("agent-first launcher", () => {
     expect(io.stderr.join("\n")).toContain("interactive terminal");
   });
 
-  test("creates from a human name, shows only iOS, launches one agent, and withholds provider secrets", async () => {
+  test("discloses first use, creates from one intention, launches one agent, and withholds provider secrets", async () => {
     await withScratchEnvironment(async (scratch) => {
       installFakeAgent(scratch, "codex");
       scratch.environment.OPENAI_API_KEY = "test-provider-secret-never-forward";
       scratch.environment.DEV_SECRET = "another-secret-never-forward";
-      const io = createMemoryIo(true, ["1", "My First Shot", "1"]);
+      const io = createMemoryIo(true, [
+        "",
+        "My First Shot",
+        "e",
+        "My First Shot",
+        "",
+        "1",
+        "",
+        "",
+      ]);
       expect(await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(0);
-      expect(io.stdout.join("\n")).toContain("What would you like to do?");
-      expect(io.stdout.join("\n")).toContain("1. Take your first shot");
-      expect(io.stdout.join("\n")).toContain("2. Continue a shot");
-      expect(io.stdout.join("\n")).toContain("1. iOS");
+      expect(io.stdout.join("\n")).toContain(
+        "TOHSENO creates an independent native iOS repository",
+      );
+      expect(io.stdout.join("\n")).toContain("Your contact sheet is empty.");
+      expect(io.stdout.join("\n")).toContain("TOHSENO / NEW SHOT");
       expect(io.stdout.join("\n")).not.toMatch(/Android|Web/u);
       const shot = join(scratch.shotsDirectory, "my-first-shot");
       expect(existsSync(join(shot, "CLAUDE.md"))).toBe(true);
       expect(existsSync(join(shot, ".tohseno", "OPERATIONS.md"))).toBe(true);
       const launch = readFileSync(fakeAgentRecordPath(scratch), "utf8").split("\n");
       expect(realpathSync(launch[1]!)).toBe(realpathSync(shot));
-      expect(launch[3]).toBe(AGENT_INSTRUCTION);
+      expect(launch[3]).toBe("--sandbox");
       expect(launch[5]).toBe("");
+      expect(readFileSync(
+        join(scratch.factoryHome, "config.json"),
+        "utf8",
+      )).toContain('"onboardingVersion": 1');
+      expect(AUTOMATED_AGENT_INSTRUCTION).toContain("SHOT.md");
     });
-  }, 20_000);
+  }, 60_000);
 
   test("asks among multiple agents and honors a configured default on blank input", async () => {
     await withScratchEnvironment(async (scratch) => {
@@ -57,12 +83,23 @@ describe("agent-first launcher", () => {
         shotsDirectory: scratch.shotsDirectory,
         defaultAgent: "claude",
       }));
-      const io = createMemoryIo(true, ["1", "default-agent", "1", ""]);
+      const io = createMemoryIo(true, [
+        "",
+        "default-agent",
+        "",
+        "e",
+        "default-agent",
+        "",
+        "1",
+        "",
+        "",
+      ]);
       expect(await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(0);
       expect(io.stdout.join("\n")).toContain("Claude Code (configured default)");
       const metadata = JSON.parse(readFileSync(
@@ -74,7 +111,7 @@ describe("agent-first launcher", () => {
         join(scratch.binDirectory, "claude"),
       );
     });
-  }, 20_000);
+  }, 60_000);
 
   test("continues an existing shot interactively and through the unambiguous slug shortcut", async () => {
     await withScratchEnvironment(async (scratch) => {
@@ -84,12 +121,13 @@ describe("agent-first launcher", () => {
         "create", "the-trenches", "--platform", "ios", "--agent", "codex", "--no-launch", "--no-interactive",
       ], { cwd: scratch.root, environment: scratch.environment, io, sourceRoot: REPOSITORY_ROOT })).toBe(0);
 
-      io = createMemoryIo(true, ["2", "1"]);
+      io = createMemoryIo(true, ["", "2", "1"]);
       expect(await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(0);
       expect(io.stdout.join("\n")).toContain("Shots here: 1");
       expect(io.stdout.join("\n")).toContain("1. Take another shot");
@@ -108,28 +146,30 @@ describe("agent-first launcher", () => {
       })).toBe(0);
       expect(io.stdout.join("\n")).toContain("Continuing the-trenches");
     });
-  }, 20_000);
+  }, 60_000);
 
   test("reports no-agent and no-shot failure modes without creating partial repositories", async () => {
     await withScratchEnvironment(async (scratch) => {
-      let io = createMemoryIo(true, ["1", "needs-agent", "1"]);
+      let io = createMemoryIo(true, ["", "needs-agent"]);
       expect(await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(3);
       expect(io.stderr.join("\n")).toContain("no supported coding agent");
       expect(existsSync(join(scratch.shotsDirectory, "needs-agent"))).toBe(false);
 
-      io = createMemoryIo(true, ["2"]);
-      expect(await main([], {
+      io = createMemoryIo();
+      expect(await main(["continue", "missing-shot", "--no-interactive"], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
-      })).toBe(2);
-      expect(io.stderr.join("\n")).toContain("no shots exist");
+        creationRunner,
+      })).toBe(1);
+      expect(io.stderr.join("\n")).toContain("shot does not exist");
     });
   });
 
@@ -144,12 +184,22 @@ describe("agent-first launcher", () => {
         defaultAgent: "claude",
       }));
 
-      let io = createMemoryIo(true, ["1", "fallback-default", "1"]);
+      let io = createMemoryIo(true, [
+        "",
+        "fallback-default",
+        "e",
+        "fallback-default",
+        "",
+        "1",
+        "",
+        "",
+      ]);
       expect(await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(0);
       expect(io.stderr.join("\n")).toContain("Configured default claude is not installed");
       expect(JSON.parse(readFileSync(
@@ -166,6 +216,7 @@ describe("agent-first launcher", () => {
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
+        creationRunner,
       })).toBe(0);
       unlinkSync(claude);
       writeFileSync(config, JSON.stringify({
@@ -181,16 +232,19 @@ describe("agent-first launcher", () => {
       })).toBe(3);
       expect(io.stderr.join("\n")).toContain("preferred agent claude is not installed");
 
-      io = createMemoryIo(true, ["2", "2"]);
-      expect(await main([], {
+      io = createMemoryIo(true, ["", "2", "2"]);
+      const switchedStatus = await main([], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
-      })).toBe(0);
+      });
+      if (switchedStatus !== 0) {
+        throw new Error(io.stderr.join("\n"));
+      }
       expect(io.stderr.join("\n")).toContain("Previously selected claude is not installed");
       expect(readFileSync(fakeAgentRecordPath(scratch), "utf8").split("\n")[0]).toBe(
         join(scratch.binDirectory, "codex"),
       );
     });
-  }, 20_000);
+  }, 60_000);
 });

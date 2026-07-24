@@ -2,180 +2,128 @@
 
 ## Take another one.
 
-Every idea deserves a body. Most shots miss. That is why you take a lot of
-them.
+Give TOHSENO one intention. It turns that private input into a sanitized app
+plan, composes a native starting point from a pinned catalog, opens the
+independent repository to your selected coding agent, verifies the result, and
+helps you run it in Apple Simulator.
 
 ```sh
 curl -fsSL https://tohseno.com/install.sh | bash
 tohseno
 ```
 
-Tell Codex or Claude Code what you want to make. Your agent opens inside an
-independent iOS **shot** under your shots directory (`~/tohseno/shots` by
-default) and keeps operating until the prototype is alive. You get the source,
-history, data, and the next shot.
+You get ordinary SwiftUI source, Git history, tests, a truthful manifest,
+composition locks, and local operating rails. TOHSENO operates no backend for
+generated-app content and a shot never needs TOHSENO credentials to build.
+Most shots miss. The working, owned prototype is the payoff.
 
-The prototype is the payoff. TOHSENO makes no promise of riches.
+## One intention, then a plan
 
-## The flow
+The terminal and local Studio use the same engine:
 
-1. Install TOHSENO.
-2. Run `tohseno` or open the local contact sheet with `tohseno studio`.
-3. Take your first shot, take another, or continue one.
-4. Tell the coding agent what you want to make.
+1. keep the raw intention and references private and gitignored;
+2. ask the already-selected Codex or Claude Code provider for a strict,
+   sanitized plan;
+3. fall back to the Blank template if planning is offline, times out, or is
+   invalid—never switch providers silently;
+4. show the proposed app, template, skills, data, identity, and first
+   definition of done;
+5. compose the accepted plan deterministically;
+6. commit and publish an independent repository atomically;
+7. let the coding agent finish the app;
+8. run pinned manifest, privacy, composition, and skill checks;
+9. build and launch in Simulator when the Mac supports it.
 
-The terminal launcher and Studio are two doors into the same factory. They
-allocate from the same configured `/shots` directory, apply the same pinned
-release, create the same independent Git repository, and use the same
-verification and provenance rules. Studio is not a daemon dependency: the CLI
-continues to work when Studio is closed.
-
-Explicit creation input is also available from the terminal:
+Run `tohseno` for the direct path, or `tohseno studio` for the local contact
+sheet. Explicit automation is also available:
 
 ```sh
+tohseno create my-app --no-launch --no-interactive
 tohseno create --file intention.md --reference sketch.png
+tohseno verify my-app
+tohseno run my-app
+tohseno my-app
 ```
 
-That command allocates the next numbered shot when no slug is supplied.
-`--reference` may be repeated. The ordinary interactive launcher still keeps
-the product conversation between the owner and the selected coding agent.
+Normal handoffs use cwd-independent `tohseno` commands. Bun is a pinned
+internal implementation detail; owners do not need to install or invoke it.
 
-For the complete iOS path, the machine needs macOS, Xcode, Git, and either
-[Codex](https://github.com/openai/codex) or Claude Code. TOHSENO manages its own
-pinned Bun runtime and can install a pinned `cloudflared` binary.
+## The native factory
 
-## What works today
+New shots use four separate layers:
 
-Every new iOS **shot** starts with:
+- `templates/ios-kernel` — a neutral, compiling SwiftUI shell with no writing,
+  identity, backend, analytics, or account assumptions;
+- `templates/blank` and `templates/daily-game` — bounded starting shapes;
+- `skills/` — versioned capabilities with dependencies, conflicts, file
+  ownership, acceptance checks, and immutable digests;
+- `packages/skills` — the shared loader, resolver, composer, locker, and
+  verifier used by CLI and Studio.
 
-- a compiling SwiftUI app;
-- BIP39 identity instead of an account screen;
-- crash-safe local writing;
-- a localhost Bun API with health checks;
-- deterministic SQLite migrations;
-- supervised start, status, logs, and stop;
-- optional development-only Cloudflare Quick Tunnels;
-- Debug endpoint injection and simulator launch;
-- pinned manifest, privacy, provenance, and Git verification.
+The bundled Daily Game composition is implemented with real native skills:
+deterministic daily choices, local progress, rank progression, and
+owner-initiated share cards. Blank remains the safest fallback.
 
-The local Studio contact sheet is **Implemented**:
+Every generic shot carries:
 
-```sh
-tohseno studio
-```
+- `app.manifest.json`;
+- `tohseno.skills.json` and `tohseno.skills.lock`;
+- `SHOT.md` and `DONE.md`;
+- pinned descriptors and machine/verifier code under `.tohseno/`;
+- a generated Xcode project, native tests, and its own Git history.
 
-It binds to `127.0.0.1`, reads the configured `/shots` directory, observes
-shots made by either door, and can create, verify, run, and inspect them.
-Studio itself does not upload shots or private creation input; the selected
-coding agent uses that input under its own provider and privacy settings. Port
-`4747` is the default;
-use `--port <port>` to override it, `--no-open` to leave the browser closed, or
-`--shots-dir <path>` to select the same explicit workspace as other commands.
-Studio opens through a private owner-only launcher file. Its local API, images,
-and event streams require the resulting path-scoped browser session; the
-reusable credential is never printed or embedded in the public shell.
-Studio permits one heavy Studio operation (create, run, preview, or verify) at
-a time and one managed live preview; a separate CLI process still uses the
-shared concurrency-safe allocator.
+The lock records the exact kernel, template, ordered skills, digests, and
+immutable file hashes. The verifier rejects catalog drift, undeclared
+composition changes, unsafe links, tracked private intent, or failed
+acceptance files.
 
-On a supported Mac, `tohseno run <shot>` builds, installs, launches, and
-attempts to capture the shot in Apple Simulator. A capture failure is reported
-without stopping an otherwise running app. `tohseno preview <shot>` adds an
-interactive browser stream of that same native Simulator. This is not an
-in-browser iOS emulator. The live stream uses the pinned
-[`serve-sim` 0.1.45](https://github.com/EvanBacon/serve-sim) package and
-requires macOS on Apple Silicon, a native arm64 Node.js 20 or newer, Xcode command-line tools,
-and an available iPhone Simulator. Simulator use does not require a paid Apple
-Developer Program membership. Run `tohseno doctor` for exact readiness
-diagnostics. If live preview is unsupported, the contact sheet, creation, CLI,
-and ordinary verification remain available.
+## Privacy and ownership
 
-The agent discovers those operations from the shot itself:
+Raw input lives only under gitignored `.tohseno/provenance/` in the shot. The
+sanitized plan is tracked; the private intention is not. The chosen coding
+agent can read private input under that provider’s account, privacy, and
+retention terms. TOHSENO does not forward it to a second provider or a TOHSENO
+service.
 
-```sh
-bun .tohseno/machine.ts operations --json
-```
+Every coding-agent exit, including failure, is followed by pinned verification.
+If protected provenance or rails cannot be trusted, the result is isolated
+instead of presented as ready.
 
-The global CLI also exposes them under `tohseno machine ...` for automation.
+Each shot remains ejectable from birth: no symlink to this repository, no
+global CLI dependency, no TOHSENO account, no cloud control plane, and no
+silent rewrite after a factory upgrade.
 
-## What stays yours
+## Compatibility boundary
 
-Each shot is one frame on your contact sheet and its own Git repository. It
-carries its source, history, tests, manifest, runtime playbook, migrations,
-landing page, and factory provenance.
-It has no symlink back to TOHSENO and remains operable after the global CLI is
-upgraded or removed.
+The earlier continuity writing app remains supported as metadata-v1 legacy
+architecture. Its BIP39 identity, crash-safe writing, local API/SQLite,
+AppConfig flags, production inspection, and token rails retain their pinned
+tests and behavior. They are no longer injected into every new app and are not
+claims about the generic kernel.
 
-When `create --file` or Studio receives an intention or references, the
-normalized private input stays inside the shot at
-`.tohseno/provenance/`. That directory is gitignored and contains the intention,
-copied references with their original filenames and hashes, factory/door
-metadata, options, and structured creation events. The tracked shot metadata
-contains only a non-content summary and input digest. Temporary Studio uploads
-are removed after the job succeeds, fails, or stops safely.
+Generic app creation, composition, Studio/CLI planning, verification, and
+Simulator launch are **Implemented**. External deployment, DNS, paid services,
+store submission, and other irreversible actions remain owner-approved and are
+never performed automatically.
 
-Private product intentions, credentials, app content, development databases,
-logs, generated endpoints, signing configuration, and Simulator captures do
-not enter the factory release or Git history. This repository operates no
-backend that receives content from generated apps.
-
-Every coding-agent exit, including failure, is followed by the pinned privacy
-and integrity verifier. It rejects copied private creation input, unsafe links,
-changed rails, or missing ignore rules. If that gate fails, TOHSENO moves the
-result to an explicitly unsafe hidden path instead of presenting it as a ready
-shot. A whole unfiltered shot directory still contains its private,
-gitignored provenance; inspect it before sharing an archive.
-
-TOHSENO does not independently send creation input to a TOHSENO service. The
-coding agent selected by the owner can read that input to build the app, so its
-provider and retention policy remain an explicit trust boundary.
-
-## Optional external action: launch a token
-
-A shot can launch a token under your own
-[Bankr](https://docs.bankr.bot) account through `tohseno machine token launch`:
-TOHSENO ships no server, holds no keys, and takes no fees. This is optional,
-external, irreversible, and never the reason to build. The installed Bankr
-executable first runs its non-broadcasting simulation; the owner must then
-approve the exact name, symbol, chain, and fee recipient. Provider terms and
-economics can change, so TOHSENO links them instead of making a promise.
-Details are in [CLI and machine operations](docs/CLI.md).
-
-## Current boundary
-
-iOS local development, the shared CLI/Studio factory, the local contact sheet,
-Simulator run/capture, and supported-Mac live preview are **Implemented**.
-
-Production inspection is **Implemented** and reports missing endpoints,
-persistence, backups, secrets, and deployment capabilities without changing
-external infrastructure.
-
-Automatic production deployment, monitoring, recovery, DNS changes, TestFlight
-submission, TokenMint, and SessionLink are **Proposed**. Accounts, credentials,
-costs, publishing, and destructive operations always require human approval.
-A Quick Tunnel is never a production endpoint.
-
-## Learn more
-
-- [What TOHSENO is](WHAT_TOHSENO_IS.md)
-- [Security research ledger](SECURITY_LOGS.md)
-- [Human setup and first run](docs/LOCAL_DEVELOPMENT.md)
-- [CLI and machine operations](docs/CLI.md)
-- [System architecture](docs/SYSTEM_ARCHITECTURE.md)
-- [Production boundary](docs/DEPLOYMENT.md)
-- [Ownership and ejection](docs/EJECTION.md)
-
-## Contributing
+## Development
 
 ```sh
 bun install
 bun run tohseno -- --help
-bun run validate templates/continuity-app/continuity.manifest.json
+bun run validate templates/ios-kernel/overlay/app.manifest.json
+bun test packages/skills packages/manifest packages/cli/tests
 bun run check
 ```
 
-`bun run tohseno:link` is a contributor convenience, not the product install
-path.
+Learn more:
+
+- [What TOHSENO is](WHAT_TOHSENO_IS.md)
+- [CLI and machine operations](docs/CLI.md)
+- [System architecture](docs/SYSTEM_ARCHITECTURE.md)
+- [Local development](docs/LOCAL_DEVELOPMENT.md)
+- [Ownership and ejection](docs/EJECTION.md)
+- [Deployment boundary](docs/DEPLOYMENT.md)
 
 Apache License 2.0. The license grants no trademark rights to TOHSENO or Anky;
 see [TRADEMARKS.md](TRADEMARKS.md).

@@ -1,9 +1,14 @@
 ---
 name: continuity-app
-description: Build and operate an iOS continuity app from one line of prompt by mutating the TOHSENO base app. Use when a coding agent in an independent TOHSENO shot must turn a person's sentence into a running app with seed-phrase identity, local persistence, a supervised local API, flag-gated modules, and an honest production boundary.
+description: Build and operate a legacy metadata-v1 iOS continuity app by mutating its pinned TOHSENO writing base. Use only for continuity shots that carry the historical seed-phrase identity, local persistence, supervised local API, flag-gated modules, and production boundary; this is not the generic app-factory default.
 ---
 
 # Build a continuity app
+
+This is the implemented legacy continuity-v1 protocol. It is not the neutral
+kernel, generic default, or a universal requirement for new apps. Do not apply
+it to a metadata-v2 generic composition unless an accepted generic plan
+explicitly introduces equivalent capabilities through the released catalog.
 
 You are in an independent shot that already contains a compiling, running iOS
 app — the base writing app. Your job is to mutate it toward the owner's prompt and

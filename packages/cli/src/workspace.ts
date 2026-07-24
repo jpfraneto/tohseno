@@ -389,12 +389,15 @@ export function discoverShotsInDirectory(
       if (metadata === undefined) return [];
       let name = metadata.slug;
       try {
+        const manifestName = metadata.schemaVersion === 2
+          ? "app.manifest.json"
+          : "continuity.manifest.json";
         const manifest = readBoundedJson<{
           application?: { name?: unknown };
         }>(
-          join(path, "continuity.manifest.json"),
+          join(path, manifestName),
           1_048_576,
-          "continuity manifest",
+          "app manifest",
         );
         if (
           typeof manifest.application?.name === "string" &&

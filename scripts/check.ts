@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { relative, resolve } from "node:path";
 import { validateManifest } from "../packages/manifest/validate.ts";
+import { validateAppManifest } from "../packages/manifest/app.ts";
 import { validateContract } from "../packages/contracts/validate.ts";
 import type { ContractKind } from "../packages/contracts/types.ts";
 
@@ -96,6 +97,31 @@ async function validateRepositoryJson(): Promise<void> {
         .join(", ");
       fail(`Manifest validation failed for ${path}: ${locations}`);
     }
+  }
+  for (const path of [
+    "templates/ios-kernel/overlay/app.manifest.json",
+    "templates/daily-game/overlay/app.manifest.json",
+  ]) {
+    const result = validateAppManifest(await readJson(path));
+    if (!result.valid) {
+      const locations = result.errors
+        .map((issue) => `${issue.path} (${issue.code})`)
+        .join(", ");
+      fail(`Generic app manifest validation failed for ${path}: ${locations}`);
+    }
+  }
+  for (const path of [
+    "templates/ios-kernel/kernel.json",
+    "templates/blank/template.json",
+    "templates/daily-game/template.json",
+    "skills/daily-challenge/skill.json",
+    "skills/local-progress/skill.json",
+    "skills/rank-progression/skill.json",
+    "skills/share-card/skill.json",
+    "packages/skills/app-skill.schema.json",
+    "packages/skills/template.schema.json",
+  ]) {
+    await readJson(path);
   }
 
   const expectedSchemas = [
@@ -216,7 +242,7 @@ async function validateStaticSurface(): Promise<void> {
     "{{REPOSITORY_URL}}",
     "https://community.tohseno.com",
     "The fastest way to prototype iOS apps",
-    "The open source app blueprint system for builders that have infinite ideas",
+    "A local intention compiler and open app factory for builders with more ideas than time",
     "Get rid of your recurring thoughts",
     "INFINITE SHOTS.",
     "Copy one liner installer",
@@ -376,8 +402,19 @@ async function validateOneshotPin(): Promise<void> {
     installer.startsWith("#!/bin/sh\n"),
     "install.sh must remain a portable POSIX shell script",
   );
+  const installerVersionMatch = installer.match(
+    /^INSTALLER_VERSION="([0-9]+\.[0-9]+\.[0-9]+)"$/m,
+  );
+  const installerCliVersionMatch = installer.match(
+    /^CLI_VERSION="([0-9]+\.[0-9]+\.[0-9]+)"$/m,
+  );
+  assert(
+    installerVersionMatch !== null &&
+      installerCliVersionMatch !== null &&
+      installerVersionMatch[1] === installerCliVersionMatch[1],
+    "install.sh must carry one complete, matching installer and CLI version",
+  );
   for (const phrase of [
-    'CLI_VERSION="0.3.1"',
     'install_root="${TOHSENO_INSTALL_HOME:-$HOME/.tohseno}"',
     "TOHSENO_INSTALL_CLI_SHA256",
     "checksum mismatch",
@@ -414,23 +451,31 @@ async function validateOneshotPin(): Promise<void> {
     "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash",
   );
   const pin = pinMatch[1]!;
-  assert(
-    pin === "48bada35f885216c8c2bf3ab4d51d0c935e2e01e",
-    "The thin oneshot must pin the exact published CLI 0.3.1 release commit",
-  );
   const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
   const committedScript = await capture([
     "git",
     "show",
     "HEAD:apps/site/public/oneshot.sh",
   ]);
-  const parent = committedScript === script
-    ? (await capture(["git", "rev-parse", "HEAD^"])).trim()
-    : head;
-  assert(
-    pin === parent,
-    "TOHSENO_PIN must be the direct parent of the current or pending serving commit",
-  );
+  if (committedScript !== script) {
+    assert(
+      pin === head,
+      "A pending oneshot serving change must pin its current HEAD installer commit",
+    );
+  } else {
+    const parentScript = await capture([
+      "git",
+      "show",
+      "HEAD^:apps/site/public/oneshot.sh",
+    ]);
+    if (parentScript !== script) {
+      const parent = (await capture(["git", "rev-parse", "HEAD^"])).trim();
+      assert(
+        pin === parent,
+        "A committed oneshot serving change must pin its direct parent installer commit",
+      );
+    }
+  }
   const installerShaMatch = script.match(
     /^PINNED_INSTALLER_SHA256="([0-9a-f]{64})"$/m,
   );
@@ -448,12 +493,20 @@ async function validateOneshotPin(): Promise<void> {
       installerShaMatch[1],
     "oneshot.sh installer checksum does not match the pinned commit",
   );
+  const pinnedVersion = pinnedInstaller.match(
+    /^CLI_VERSION="([0-9]+\.[0-9]+\.[0-9]+)"$/m,
+  );
+  const pinnedArtifactSha = pinnedInstaller.match(
+    /^CLI_SHA256_DEFAULT="([0-9a-f]{64})"$/m,
+  );
+  const pinnedTreeSha = pinnedInstaller.match(
+    /^CLI_TREE_SHA256_DEFAULT="([0-9a-f]{64})"$/m,
+  );
   assert(
-    pinnedInstaller.includes('CLI_VERSION="0.3.1"') &&
-      pinnedInstaller.includes(
-        'CLI_SHA256_DEFAULT="a8cbee45aacb658083c435298c4e83be062f0daa45c73951c837bc130ef37a5e"',
-      ),
-    "The pinned oneshot installer does not contain the published CLI 0.3.1 identity",
+    pinnedVersion !== null &&
+      pinnedArtifactSha !== null &&
+      pinnedTreeSha !== null,
+    "The pinned oneshot installer lacks a complete published CLI identity",
   );
   for (const phrase of [
     "thin entry point",
@@ -515,6 +568,27 @@ async function validateOneshotPin(): Promise<void> {
       fail(
         `Published CLI pin ${pin} is missing ${required}; its trust record is incomplete`,
       );
+    }
+  }
+  if (pinnedVersion[1] === "0.4.0") {
+    for (const required of [
+      "templates/ios-kernel/overlay/app.manifest.json",
+      "templates/blank/template.json",
+      "templates/daily-game/template.json",
+      "packages/skills/index.ts",
+      "packages/manifest/app.ts",
+      "skills/daily-challenge/skill.json",
+      "skills/local-progress/skill.json",
+      "skills/rank-progression/skill.json",
+      "skills/share-card/skill.json",
+    ]) {
+      try {
+        await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
+      } catch {
+        fail(
+          `Published CLI 0.4.0 pin ${pin} is missing ${required}; its generic app trust record is incomplete`,
+        );
+      }
     }
   }
 

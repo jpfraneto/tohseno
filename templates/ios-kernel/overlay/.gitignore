@@ -1,0 +1,30 @@
+# Private intention and reference provenance.
+MASTER_PROMPT.md
+MASTER_EVOLUTIONARY_PROMPT.md
+.tohseno/provenance/
+
+# Generated local artifacts and runtime state.
+.tohseno/artifacts/
+.tohseno/data/
+.tohseno/run/
+Config/Local.xcconfig
+Config/DevelopmentEndpoint.xcconfig
+app.config.json
+
+# Credentials and local environment.
+.env
+.env.*
+!.env.example
+*.p8
+*.p12
+*.pem
+*.pfx
+*.mobileprovision
+
+# Tool and operating-system output.
+.DS_Store
+node_modules/
+xcuserdata/
+DerivedData/
+build/
+.build/

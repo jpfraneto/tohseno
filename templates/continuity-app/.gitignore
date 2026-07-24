@@ -1,5 +1,6 @@
 # Private product input: one line or a whole document, never committed.
 MASTER_PROMPT.md
+MASTER_EVOLUTIONARY_PROMPT.md
 
 # Local tooling and operating-system noise.
 .DS_Store

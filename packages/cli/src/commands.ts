@@ -10,12 +10,15 @@ import {
 import { AGENT_INSTRUCTION } from "./constants.ts";
 import type { ResolvedConfig } from "./config.ts";
 import {
+  type CreationRunner,
   createShot as createShotThroughFactory,
   factoryReleaseFor,
+  PublishedShotCreationError,
 } from "./creation.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import type { CliIo } from "./io.ts";
 import type { CreationInput } from "./provenance.ts";
+import { normalizeCreationInput } from "./provenance.ts";
 import { runCaptured, runInherited } from "./process.ts";
 import {
   listCachedReleaseDirectories,
@@ -29,7 +32,12 @@ import {
 } from "./simulator.ts";
 import { adoptShot, readShotMetadata } from "./shot.ts";
 import { locateFactorySourceRoot } from "./source.ts";
-import { validateShotSlug } from "./slug.ts";
+import {
+  bundleIdForSlug,
+  displayNameForSlug,
+  slugForShotName,
+  validateShotSlug,
+} from "./slug.ts";
 import {
   discoverShotsInDirectory,
   resolveRecognizedShot,
@@ -41,6 +49,14 @@ import {
   waitForStudioSignal,
   type StudioServerHandle,
 } from "./studio/server.ts";
+import {
+  blankPlan,
+  planIntention,
+  type ShotPlan,
+  type ValidatedShotPlan,
+} from "./planning.ts";
+import { loadCatalog, resolveComposition, type AppCatalog } from "../../skills/index.ts";
+import { handoffForShot, renderHandoff } from "./handoff.ts";
 
 export type { DiscoveredShot } from "./workspace.ts";
 
@@ -50,6 +66,7 @@ export interface CommandContext {
   environment: Record<string, string | undefined>;
   io: CliIo;
   sourceRoot?: string | undefined;
+  creationRunner?: CreationRunner | undefined;
 }
 
 export interface CreateArguments {
@@ -58,6 +75,7 @@ export interface CreateArguments {
   agent?: string | undefined;
   file?: string | undefined;
   references?: readonly string[] | undefined;
+  text?: string | undefined;
   noLaunch: boolean;
   noInteractive: boolean;
 }
@@ -82,7 +100,7 @@ export async function chooseNumber(
   }
 }
 
-async function selectPlatform(arguments_: CreateArguments, io: CliIo, nonInteractive: boolean): Promise<"ios"> {
+async function selectPlatform(arguments_: CreateArguments): Promise<"ios"> {
   if (arguments_.platform !== undefined) {
     if (arguments_.platform !== "ios") {
       throw new CliError(
@@ -92,14 +110,123 @@ async function selectPlatform(arguments_: CreateArguments, io: CliIo, nonInterac
     }
     return "ios";
   }
-  if (nonInteractive) {
-    throw new CliError("non-interactive creation requires --platform ios", 2);
-  }
-  io.out("Platform:");
-  io.out("  1. iOS");
-  await chooseNumber(io, 1, "Select platform");
-  io.out();
   return "ios";
+}
+
+function renderPlan(plan: ValidatedShotPlan, io: CliIo): void {
+  io.out("TOHSENO / NEW SHOT");
+  io.out();
+  io.out(`APP            ${plan.plan.app.name}`);
+  io.out(`SLUG           ${plan.plan.app.slug}`);
+  io.out(`BUNDLE ID      ${plan.plan.app.bundleId}`);
+  io.out(`STARTING SHAPE ${plan.composition.template.descriptor.title}`);
+  io.out();
+  io.out("APP SKILLS");
+  if (plan.plan.skills.length === 0) {
+    io.out("  None — neutral kernel only");
+  } else {
+    for (const skill of plan.plan.skills) {
+      const descriptor = plan.composition.skills.find(
+        (item) => item.descriptor.id === skill.id,
+      )?.descriptor;
+      io.out(`  ✓ ${descriptor?.title ?? skill.id} — ${skill.reason}`);
+    }
+  }
+  io.out();
+  io.out(`DATA           ${plan.plan.data.strategy} — ${plan.plan.data.reason}`);
+  io.out(`IDENTITY       ${plan.plan.identity.strategy} — ${plan.plan.identity.reason}`);
+  io.out();
+  io.out("FIRST DEFINITION OF DONE");
+  plan.plan.definitionOfDone.forEach((item, index) =>
+    io.out(`  ${index + 1}. ${item}`));
+  if (plan.fallback) {
+    io.out();
+    io.out(
+      `PLAN STATUS    safe Blank fallback (${plan.fallbackReason ?? "planning unavailable"})`,
+    );
+  }
+}
+
+async function approvePlan(
+  planned: ValidatedShotPlan,
+  catalog: AppCatalog,
+  io: CliIo,
+): Promise<ValidatedShotPlan | null> {
+  let current = planned;
+  while (true) {
+    renderPlan(current, io);
+    io.out();
+    const answer = (
+      await io.prompt(
+        "Press Enter to build this. [E] Edit composition  [B] Start blank  [Q] Cancel: ",
+      )
+    ).trim().toLowerCase();
+    if (answer === "") return current;
+    if (answer === "q") return null;
+    if (answer === "b") {
+      current = blankPlan(catalog, current.plan.app.name);
+      continue;
+    }
+    if (answer !== "e") {
+      io.error("Enter E, B, Q, or press Enter.");
+      continue;
+    }
+
+    const nameInput = (
+      await io.prompt(`App name [${current.plan.app.name}]: `)
+    ).trim();
+    const name = nameInput || current.plan.app.name;
+    const suggestedSlug = slugForShotName(name);
+    const slugInput = (
+      await io.prompt(`Slug [${suggestedSlug}]: `)
+    ).trim();
+    const slug = validateShotSlug(slugInput || suggestedSlug);
+    const templates = [...catalog.templates.values()].sort((left, right) =>
+      left.descriptor.title.localeCompare(right.descriptor.title));
+    io.out("Templates:");
+    templates.forEach((template, index) =>
+      io.out(`  ${index + 1}. ${template.descriptor.title} — ${template.descriptor.summary}`));
+    const selectedTemplate = templates[
+      await chooseNumber(io, templates.length, "Template")
+    ]!;
+    const availableSkills = [...catalog.skills.values()].sort((left, right) =>
+      left.descriptor.id.localeCompare(right.descriptor.id));
+    io.out(
+      `Bundled skills: ${availableSkills.map((skill) => skill.descriptor.id).join(", ")}`,
+    );
+    const skillsInput = (
+      await io.prompt(
+        `Extra skill IDs, comma-separated [${current.plan.skills.map((skill) => skill.id).join(",")}]: `,
+      )
+    ).trim();
+    const requestedSkills = (
+      skillsInput === ""
+        ? current.plan.skills.map((skill) => skill.id)
+        : skillsInput.split(",").map((value) => value.trim()).filter(Boolean)
+    );
+    const composition = resolveComposition(catalog, {
+      schemaVersion: 1,
+      template: selectedTemplate.descriptor.id,
+      skills: requestedSkills,
+    });
+    const plan: ShotPlan = {
+      ...current.plan,
+      app: {
+        name,
+        slug,
+        bundleId: bundleIdForSlug(slug),
+      },
+      template: composition.template.descriptor.id,
+      skills: composition.skills.map((skill) => ({
+        id: skill.descriptor.id,
+        reason: current.plan.skills.find((item) =>
+          item.id === skill.descriptor.id)?.reason ??
+          `Selected for this ${composition.template.descriptor.title} starting shape.`,
+      })),
+      definitionOfDone: [...composition.template.descriptor.definitionOfDone],
+    };
+    current = { plan, composition, fallback: false };
+  }
 }
 
 async function selectAgent(
@@ -150,7 +277,17 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
     ? undefined
     : validateShotSlug(arguments_.slug);
   const nonInteractive = arguments_.noInteractive || !context.io.interactive;
-  await selectPlatform(arguments_, context.io, nonInteractive);
+  await selectPlatform(arguments_);
+  if (
+    slug !== undefined &&
+    existsSync(join(context.config.shotsDirectory, slug))
+  ) {
+    throw new CliError(
+      `target already exists; refusing to overwrite: ${
+        join(context.config.shotsDirectory, slug)
+      }`,
+    );
+  }
   const installed = detectInstalledAgents(context.environment.PATH ?? "", context.cwd);
   const selectedAgent = await selectAgent(
     arguments_,
@@ -160,6 +297,7 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
     context.config.defaultAgent,
   );
   const input: CreationInput = {
+    ...(arguments_.text === undefined ? {} : { text: arguments_.text }),
     ...(arguments_.file === undefined
       ? {}
       : {
@@ -173,41 +311,120 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
       originalName: basename(path),
     })),
   };
+  const release = await factoryReleaseFor({
+    config: context.config,
+    environment: context.environment,
+    ...(context.sourceRoot === undefined
+      ? {}
+      : { sourceRoot: context.sourceRoot }),
+  });
+  const catalog = loadCatalog(join(release.directory, "catalog"));
+  const normalized = normalizeCreationInput(input);
+  let planned = normalized.intention === null
+    ? blankPlan(catalog, slug)
+    : await planIntention({
+        intention: normalized.intention,
+        catalog,
+        agent: selectedAgent,
+        environment: context.environment,
+      });
+  if (slug !== undefined) {
+    const name = displayNameForSlug(slug);
+    planned = {
+      ...planned,
+      plan: {
+        ...planned.plan,
+        app: {
+          name,
+          slug,
+          bundleId: bundleIdForSlug(slug),
+        },
+      },
+    };
+  }
+  if (!nonInteractive) {
+    const approved = await approvePlan(planned, catalog, context.io);
+    if (approved === null) {
+      context.io.out("Shot cancelled; no repository was created.");
+      return 0;
+    }
+    planned = approved;
+  }
 
   context.io.out(
     slug === undefined
       ? `Creating the next shot in ${context.config.shotsDirectory}…`
       : `Creating ${join(context.config.shotsDirectory, slug)}…`,
   );
-  const created = await createShotThroughFactory({
-    config: context.config,
-    cwd: context.cwd,
-    environment: context.environment,
-    ...(context.sourceRoot === undefined ? {} : { sourceRoot: context.sourceRoot }),
-    ...(slug === undefined ? {} : { slug }),
-    door: "cli",
-    input,
-    agent: selectedAgent,
-    noLaunch: arguments_.noLaunch,
-    io: context.io,
-    runner: new SimulatorService({
-      environment: context.environment,
+  let created;
+  try {
+    created = await createShotThroughFactory({
+      config: context.config,
       cwd: context.cwd,
-      releasesDirectory: context.config.cacheDirectory,
-    }).creationRunner(),
-  });
+      environment: context.environment,
+      ...(context.sourceRoot === undefined ? {} : { sourceRoot: context.sourceRoot }),
+      slug: slug ?? planned.plan.app.slug,
+      door: "cli",
+      input,
+      agent: selectedAgent,
+      noLaunch: arguments_.noLaunch,
+      io: context.io,
+      runner: context.creationRunner ?? new SimulatorService({
+          environment: context.environment,
+          cwd: context.cwd,
+          releasesDirectory: context.config.cacheDirectory,
+        }).creationRunner(),
+      plan: planned.plan,
+    });
+  } catch (error) {
+    if (!(error instanceof PublishedShotCreationError)) throw error;
+    context.io.error(error.message);
+    renderHandoff(handoffForShot({
+      ...error.shot,
+      verificationPassed: false,
+      agentExitCode: null,
+      buildState: "not-attempted",
+      simulatorState: "not-attempted",
+      captureState: "not-attempted",
+    }), context.io, context.environment);
+    return error.exitCode;
+  }
   if (created.gitIdentityMissing) {
     context.io.out("Git author identity was not configured; the neutral baseline succeeded, but configure Git before later commits.");
   }
-  context.io.out(`Shot ready at ${created.path}`);
-  context.io.out(
-    `Factory release: ${created.release.metadata.releaseId}${created.release.reused ? " (cached)" : " (cached now)"}`,
-  );
-
-  if (arguments_.noLaunch || selectedAgent === null) {
-    context.io.out("Launch skipped. Run your coding agent there and tell it: Read the local AGENTS.md and begin.");
-  }
-  return 0;
+  const simulatorAttempted =
+    created.agentMode === "automated" &&
+    created.agentExitCode === 0;
+  renderHandoff(handoffForShot({
+    name: created.metadata.app?.name ?? displayNameForSlug(created.metadata.slug),
+    slug: created.metadata.slug,
+    path: created.path,
+    ...(created.metadata.sequence === undefined
+      ? {}
+      : { sequence: created.metadata.sequence }),
+    skillCount: created.metadata.composition?.skills.length ?? 0,
+    verificationPassed: created.verified,
+    agentExitCode: created.agentExitCode,
+    buildState: created.simulatorLaunched
+      ? "completed"
+      : simulatorAttempted
+        ? "failed"
+        : "not-attempted",
+    simulatorState: created.simulatorLaunched
+      ? "completed"
+      : simulatorAttempted
+        ? "failed"
+        : "not-attempted",
+    captureState: created.screenshotPath !== null
+      ? "completed"
+      : created.simulatorLaunched
+        ? "failed"
+        : "not-attempted",
+    ...(created.simulatorMessage === null
+      ? {}
+      : { simulatorReason: created.simulatorMessage }),
+  }), context.io, context.environment);
+  return created.agentExitCode ?? 0;
 }
 
 export function discoverShots(context: CommandContext): DiscoveredShot[] {
@@ -283,13 +500,34 @@ export async function continueCommand(
     [selected.executable, ...selected.launchArguments],
     { cwd: root, env: sanitizedAgentEnvironment(context.environment) },
   );
-  if (exitCode !== 0) {
-    throw new CliError(
-      `${selected.label} exited with status ${exitCode}; the shot remains at ${root}`,
-      exitCode,
-    );
-  }
-  return 0;
+  const trusted = trustedShotToolFromCache({
+    shotRoot: root,
+    releasesDirectory: context.config.cacheDirectory,
+    tool: "verify",
+  });
+  const verification = await runCaptured(
+    [process.execPath, trusted.executable],
+    {
+      cwd: trusted.root,
+      env: sanitizedAgentEnvironment(context.environment),
+    },
+  );
+  if (verification.stdout.trim()) context.io.out(verification.stdout.trim());
+  if (verification.stderr.trim()) context.io.error(verification.stderr.trim());
+  renderHandoff(handoffForShot({
+    name: metadata.app?.name ?? displayNameForSlug(metadata.slug),
+    slug: metadata.slug,
+    path: root,
+    ...(metadata.sequence === undefined ? {} : { sequence: metadata.sequence }),
+    skillCount: metadata.composition?.skills.length ?? 0,
+    verificationPassed: verification.exitCode === 0,
+    agentExitCode: exitCode,
+    buildState: "not-attempted",
+    simulatorState: "not-attempted",
+    captureState: "not-attempted",
+  }), context.io, context.environment);
+  if (exitCode !== 0) return exitCode;
+  return verification.exitCode === 0 ? 0 : 1;
 }
 
 function resolveShotArgument(value: string | undefined, context: CommandContext): string {

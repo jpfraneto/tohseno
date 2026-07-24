@@ -9,6 +9,7 @@ import {
   parseManifest,
   validateManifest,
 } from "../validate";
+import { validateAppManifest } from "../app";
 import type { ContinuityManifest } from "../types";
 
 const root = new URL("../../../", import.meta.url);
@@ -538,6 +539,41 @@ describe("continuity manifest", () => {
     expect(parseManifest(manifestText).application.name).toBe("Writing");
     expect(() => parseManifest("{not-json")).toThrow(
       "Invalid continuity manifest JSON",
+    );
+  });
+});
+
+describe("generic app manifest", () => {
+  test("accepts the neutral kernel and Daily Game manifests", async () => {
+    for (const path of [
+      "templates/ios-kernel/overlay/app.manifest.json",
+      "templates/daily-game/overlay/app.manifest.json",
+    ]) {
+      expect(validateAppManifest(await readJson(path)).valid).toBe(true);
+    }
+  });
+
+  test("does not make continuity capabilities universal", async () => {
+    const value = await readJson(
+      "templates/ios-kernel/overlay/app.manifest.json",
+    );
+    expect(JSON.stringify(value)).not.toMatch(
+      /continuity|writing|bip39|sqlite|backend/iu,
+    );
+    expect(validateAppManifest(value).valid).toBe(true);
+  });
+
+  test("requires raw intention to remain untracked", async () => {
+    const value = await readJson(
+      "templates/ios-kernel/overlay/app.manifest.json",
+    ) as {
+      privacy: { rawIntentionTracked: boolean };
+    };
+    value.privacy.rawIntentionTracked = true;
+    const result = validateAppManifest(value);
+    expect(result.valid).toBe(false);
+    expect(result.errors.map((issue) => issue.code)).toContain(
+      "private-intention",
     );
   });
 });

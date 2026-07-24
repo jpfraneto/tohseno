@@ -39,7 +39,7 @@
         <header class="document-header">
           <p class="eyebrow">TOHSENO / PRIVACY</p>
           <h1>Privacy notice</h1>
-          <p class="document-intro">No accounts, analytics, or content backend. The factory runs locally; generated app content stays on the person’s device.</p>
+          <p class="document-intro">No TOHSENO account, analytics, or generated-app content backend. The factory runs locally; each app declares its own data behavior.</p>
         </header>
 
         <section>
@@ -57,7 +57,7 @@
 
         <section>
           <h2>Apps built on these rails</h2>
-          <p>A continuity app is private by default: identity is a locally generated seed phrase, and writing lives on the device as plain files. Nothing leaves the device unless the app's manifest declares it. The baseline shot API receives health requests and stores operational metadata only; TOHSENO operates no centralized backend for generated apps and never receives their users' content. An explicitly requested Quick Tunnel makes that development API publicly reachable at a random URL until stopped, but it is never a production endpoint. Every app builds and runs without TOHSENO credentials.</p>
+          <p>New generic apps start from a neutral kernel with local, account-free defaults and no backend, analytics, writing, or identity assumption. Their manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations. TOHSENO operates no centralized backend for generated apps and never receives their users' content. Legacy continuity-v1 apps retain seed-phrase identity, device-local writing, and optional development API and Quick Tunnel rails through their pinned release. Every app builds and runs without TOHSENO credentials.</p>
         </section>
 
         <section>

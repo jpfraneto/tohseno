@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "blank",
+  "version": "1.0.0",
+  "title": "Blank Native App",
+  "summary": "A neutral native SwiftUI starting point with no assumed product mechanics.",
+  "platforms": ["ios"],
+  "kernel": "ios-kernel",
+  "skills": [],
+  "agentInstructions": [
+    "Keep the first useful interaction direct and native.",
+    "Add only the capabilities the accepted shot contract needs."
+  ],
+  "definitionOfDone": [
+    "The first useful app interaction works locally.",
+    "The app builds and launches in an iPhone Simulator when the machine supports it."
+  ]
+}

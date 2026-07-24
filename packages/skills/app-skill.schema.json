@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/app-skill-v1.json",
+  "title": "TOHSENO bundled app skill",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "title",
+    "summary",
+    "category",
+    "maturity",
+    "platforms",
+    "requires",
+    "conflicts",
+    "contributions",
+    "acceptanceChecks",
+    "agentInstructions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "category": {
+      "enum": ["experience", "data", "progression", "sharing"]
+    },
+    "maturity": { "enum": ["experimental", "stable"] },
+    "platforms": {
+      "type": "array",
+      "prefixItems": [{ "const": "ios" }],
+      "items": false
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    },
+    "contributions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overlay",
+        "manifestFragments",
+        "entitlements",
+        "privacy",
+        "xcodeSourcePaths"
+      ],
+      "properties": {
+        "overlay": { "type": "string", "minLength": 1 },
+        "manifestFragments": { "type": "array", "items": { "type": "string" } },
+        "entitlements": { "type": "array", "items": { "type": "string" } },
+        "privacy": { "type": "array", "items": { "type": "string" } },
+        "xcodeSourcePaths": { "type": "array", "items": { "type": "string" } },
+        "replaces": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "acceptanceChecks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "path"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "const": "file" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "agentInstructions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

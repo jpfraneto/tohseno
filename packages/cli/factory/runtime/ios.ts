@@ -5,6 +5,7 @@ import {
   appendStructuredLog,
   MachineError,
   runCaptured,
+  readJson,
   runtimePaths,
   safeEnvironment,
 } from "./shared.ts";
@@ -21,6 +22,60 @@ interface SimctlDevices {
 }
 
 const BUNDLE_IDENTIFIER = /^[A-Za-z0-9]+(?:\.[A-Za-z0-9-]+)+$/u;
+const XCODE_NAME = /^[A-Za-z0-9._-]+$/u;
+
+interface AppOperations {
+  project: string;
+  scheme: string;
+  product: string;
+  requiresDevelopmentService: boolean;
+}
+
+function appOperations(root: string): AppOperations {
+  const genericPath = join(root, "app.manifest.json");
+  if (!existsSync(genericPath)) {
+    return {
+      project: "Writing.xcodeproj",
+      scheme: "Writing",
+      product: "Writing",
+      requiresDevelopmentService: true,
+    };
+  }
+  const manifest = readJson<{
+    kind?: unknown;
+    platform?: unknown;
+    operations?: {
+      project?: unknown;
+      scheme?: unknown;
+      product?: unknown;
+    };
+  }>(genericPath);
+  const project = manifest.operations?.project;
+  const scheme = manifest.operations?.scheme;
+  const product = manifest.operations?.product;
+  if (
+    manifest.kind !== "app" ||
+    manifest.platform !== "ios" ||
+    typeof project !== "string" ||
+    !XCODE_NAME.test(project.replace(/\.xcodeproj$/u, "")) ||
+    !project.endsWith(".xcodeproj") ||
+    typeof scheme !== "string" ||
+    !XCODE_NAME.test(scheme) ||
+    typeof product !== "string" ||
+    !XCODE_NAME.test(product)
+  ) {
+    throw new MachineError(
+      "INVALID_CONFIGURATION",
+      "app.manifest has invalid iOS machine operations",
+    );
+  }
+  return {
+    project,
+    scheme,
+    product,
+    requiresDevelopmentService: false,
+  };
+}
 
 function executable(name: string, pathValue = process.env.PATH ?? ""): string | null {
   for (const directory of pathValue.split(delimiter).filter(Boolean)) {
@@ -65,7 +120,7 @@ export async function inspectIos(root: string): Promise<{
   simulator: { available: boolean; devices: SimulatorDevice[] };
   development: Awaited<ReturnType<typeof developmentStatus>>;
   project: string;
-  scheme: "Writing";
+  scheme: string;
   launchOperation: string;
   physicalDevice: {
     automaticLaunch: false;
@@ -77,13 +132,14 @@ export async function inspectIos(root: string): Promise<{
   const xcodebuild = executable("xcodebuild");
   const xcrun = executable("xcrun");
   const devices = xcrun ? await availableSimulators(root, xcrun) : [];
+  const operations = appOperations(root);
   return {
     implemented: true,
     xcode: { available: xcodebuild !== null && xcrun !== null, xcodebuild, xcrun },
     simulator: { available: devices.length > 0, devices },
     development: await developmentStatus(root),
-    project: join(root, "Writing.xcodeproj"),
-    scheme: "Writing",
+    project: join(root, operations.project),
+    scheme: operations.scheme,
     launchOperation: "tohseno machine ios launch --json",
     physicalDevice: {
       automaticLaunch: false,
@@ -134,7 +190,7 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
   launched: true;
   device: SimulatorDevice;
   bundleId: string;
-  endpoint: string;
+  endpoint: string | null;
   endpointMatchesBuiltApp: boolean;
   appPath: string;
   logs: string;
@@ -148,8 +204,14 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
       { dependency: !xcodebuild ? "xcodebuild" : "xcrun" },
     );
   }
+  const operations = appOperations(root);
   const development = await developmentStatus(root);
-  if (!development.healthy || !development.endpoint.configured || !development.endpoint.url) {
+  if (
+    operations.requiresDevelopmentService &&
+    (!development.healthy ||
+      !development.endpoint.configured ||
+      !development.endpoint.url)
+  ) {
     throw new MachineError(
       "UNHEALTHY_SERVICES",
       "start the shot development environment before launching iOS",
@@ -186,8 +248,8 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
 
   const build = await capturedToLog(root, log, [
     xcodebuild,
-    "-project", join(root, "Writing.xcodeproj"),
-    "-scheme", "Writing",
+    "-project", join(root, operations.project),
+    "-scheme", operations.scheme,
     "-configuration", "Debug",
     "-destination", `platform=iOS Simulator,id=${device.udid}`,
     "-derivedDataPath", derivedData,
@@ -196,7 +258,13 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
   if (build.exitCode !== 0) {
     throw new MachineError("UNHEALTHY_SERVICES", "the Debug iOS build failed", { logs: log });
   }
-  const appPath = join(derivedData, "Build", "Products", "Debug-iphonesimulator", "Writing.app");
+  const appPath = join(
+    derivedData,
+    "Build",
+    "Products",
+    "Debug-iphonesimulator",
+    `${operations.product}.app`,
+  );
   if (!existsSync(appPath)) {
     throw new MachineError("INTERNAL_FAILURE", "xcodebuild succeeded but the simulator app bundle is missing", { appPath, logs: log });
   }
@@ -225,12 +293,16 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
     environment: safeEnvironment(),
   });
   if (extracted.exitCode === 0) builtEndpoint = extracted.stdout.trim();
-  const endpointMatchesBuiltApp = builtEndpoint === null || builtEndpoint === development.endpoint.url;
+  const expectedEndpoint = development.endpoint.url;
+  const endpointMatchesBuiltApp =
+    !operations.requiresDevelopmentService ||
+    builtEndpoint === null ||
+    builtEndpoint === expectedEndpoint;
   if (!endpointMatchesBuiltApp) {
     throw new MachineError(
       "UNHEALTHY_SERVICES",
       "the built iOS app endpoint does not match the active development endpoint",
-      { activeEndpoint: development.endpoint.url, builtEndpoint, logs: log },
+      { activeEndpoint: expectedEndpoint, builtEndpoint, logs: log },
     );
   }
   const open = executable("open", "/usr/bin:/bin");
@@ -240,7 +312,7 @@ export async function launchIos(root: string, requestedUdid?: string): Promise<{
     launched: true,
     device,
     bundleId: identifier,
-    endpoint: development.endpoint.url,
+    endpoint: operations.requiresDevelopmentService ? expectedEndpoint : null,
     endpointMatchesBuiltApp,
     appPath,
     logs: log,

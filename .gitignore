@@ -11,6 +11,8 @@ data/
 .env
 .env.*
 !.env.example
+MASTER_PROMPT.md
+MASTER_EVOLUTIONARY_PROMPT.md
 
 # Editor and operating-system files
 .DS_Store

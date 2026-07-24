@@ -19,7 +19,6 @@ import {
   thirdPartyTreeSha256,
 } from "../scripts/package-release.ts";
 import { CLI_VERSION } from "../src/constants.ts";
-import { waitForProcessExit } from "../factory/runtime/shared.ts";
 import {
   REPOSITORY_ROOT,
   runGit,
@@ -32,6 +31,21 @@ const INSTALLER = join(REPOSITORY_ROOT, "apps", "site", "public", "install.sh");
 
 function sha256(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function stagedInstaller(root: string): string {
+  const source = readFileSync(INSTALLER, "utf8")
+    .replace(
+      /^INSTALLER_VERSION="[0-9]+\.[0-9]+\.[0-9]+"$/m,
+      `INSTALLER_VERSION="${CLI_VERSION}"`,
+    )
+    .replace(
+      /^CLI_VERSION="[0-9]+\.[0-9]+\.[0-9]+"$/m,
+      `CLI_VERSION="${CLI_VERSION}"`,
+    );
+  const path = join(root, "install-under-test.sh");
+  writeFileSync(path, source, { mode: 0o755 });
+  return path;
 }
 
 async function fakeBunArchive(root: string): Promise<string> {
@@ -177,6 +191,7 @@ describe("managed installer", () => {
       expect(readFileSync(repeatedArchive)).toEqual(readFileSync(releaseArchive));
       const bunArchive = await fakeBunArchive(scratch.root);
       const cloudflaredArchive = await fakeCloudflaredArchive(scratch.root);
+      const installer = stagedInstaller(scratch.root);
       const installHome = join(scratch.home, ".tohseno");
       const shots = join(scratch.root, "installed shots with spaces");
       const environment: Record<string, string | undefined> = {
@@ -199,10 +214,18 @@ describe("managed installer", () => {
       expect(noBun.exitCode).not.toBe(0);
 
       const firstInstall = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, environment);
       expect(firstInstall.exitCode).toBe(0);
       expect(firstInstall.stderr).toBe("");
+      expect(firstInstall.stdout).toContain("TOHSENO will install:");
+      expect(firstInstall.stdout).toContain(
+        "TOHSENO does not create an account, request credentials, or upload your app",
+      );
+      expect(firstInstall.stdout).toContain("You do not need to install Bun.");
+      expect(firstInstall.stdout).toContain("✅ TOHSENO IS READY");
+      expect(firstInstall.stdout).toContain("    tohseno");
+      expect(firstInstall.stdout).toContain("    tohseno doctor");
       expect(firstInstall.stdout).toContain("Installed managed Bun 1.2.18");
       expect(statSync(installHome).mode & 0o777).toBe(0o700);
       expect(statSync(join(installHome, "bin")).mode & 0o777).toBe(0o700);
@@ -248,73 +271,28 @@ describe("managed installer", () => {
       expect(created.exitCode).toBe(0);
       const shot = join(shots, "installed-acceptance");
       expect(existsSync(join(shot, ".git"))).toBe(true);
-
-      const cloudflared = writeExecutable(scratch.binDirectory, "cloudflared", [
-        "#!/bin/sh",
-        "printf '%s\\n' 'INF Requesting new quick Tunnel on trycloudflare.com' >&2",
-        "printf '%s\\n' 'INF + https://installer-acceptance-42.trycloudflare.com +' >&2",
-        "trap 'exit 0' TERM INT",
-        "while :; do sleep 1; done",
-      ].join("\n"));
-      let supervisorPid = 0;
-      let apiPid = 0;
-      let tunnelPid = 0;
-      try {
-        const startedProcess = await runProcess([
-          executable, "machine", "dev", "start", "--tunnel", "--cloudflared", cloudflared, "--json",
-        ], shot, environment);
-        expect(startedProcess.exitCode).toBe(0);
-        expect(startedProcess.stderr).toBe("");
-        const started = envelope(startedProcess.stdout);
-        expect(started).toMatchObject({
-          schemaVersion: 1,
-          ok: true,
-          operation: "dev.start",
-          result: {
-            state: "running",
-            healthy: true,
-            tunnel: {
-              url: "https://installer-acceptance-42.trycloudflare.com",
-              developmentOnly: true,
-            },
-          },
-        });
-        apiPid = started.result.api.pid;
-        tunnelPid = started.result.tunnel.pid;
-        supervisorPid = JSON.parse(
-          readFileSync(join(shot, ".tohseno", "run", "state.json"), "utf8"),
-        ).supervisor.pid as number;
-
-        const health = await (await fetch(started.result.api.healthUrl)).json() as Record<string, unknown>;
-        expect(health).toMatchObject({ status: "ok", ready: true, service: "shot-api" });
-        expect(readFileSync(join(shot, "Config", "DevelopmentEndpoint.xcconfig"), "utf8"))
-          .toContain("https:/$()/installer-acceptance-42.trycloudflare.com");
-        expect(existsSync(join(shot, ".tohseno", "data", "development.sqlite3"))).toBe(true);
-
-        const status = envelope((await runProcess([
-          executable, "machine", "dev", "status", "--json",
-        ], shot, environment)).stdout);
-        expect(status.result).toMatchObject({ state: "running", healthy: true });
-        const logs = envelope((await runProcess([
-          executable, "machine", "dev", "logs", "--service", "all", "--json",
-        ], shot, environment)).stdout);
-        expect(logs.result.logs.api.join("\n")).toContain('"event":"startup"');
-        const verified = await runProcess([executable, "machine", "verify", "--json"], shot, environment);
-        expect(verified.exitCode).toBe(0);
-        expect(envelope(verified.stdout).result.valid).toBe(true);
-      } finally {
-        await runProcess([executable, "machine", "dev", "stop", "--json"], shot, environment);
-      }
-
-      expect(await waitForProcessExit(supervisorPid, 2_000)).toBe(true);
-      expect(await waitForProcessExit(apiPid, 2_000)).toBe(true);
-      expect(await waitForProcessExit(tunnelPid, 2_000)).toBe(true);
-      expect(existsSync(join(shot, ".tohseno", "run", "state.json"))).toBe(false);
+      expect(existsSync(join(shot, "app.manifest.json"))).toBe(true);
+      expect(existsSync(join(shot, "tohseno.skills.lock"))).toBe(true);
+      expect(existsSync(join(shot, "Shot.xcodeproj"))).toBe(true);
+      expect(existsSync(join(shot, "Server"))).toBe(false);
       expect(existsSync(join(shot, "Config", "DevelopmentEndpoint.xcconfig"))).toBe(false);
+      const verified = await runProcess(
+        [executable, "machine", "verify", "--json"],
+        shot,
+        environment,
+      );
+      expect(verified.exitCode).toBe(0);
+      expect(envelope(verified.stdout).result.valid).toBe(true);
+      expect(JSON.parse(
+        readFileSync(join(shot, "app.manifest.json"), "utf8"),
+      )).toMatchObject({ kind: "app", schemaVersion: "1.0.0" });
+      expect(JSON.parse(
+        readFileSync(join(shot, "tohseno.skills.json"), "utf8"),
+      )).toEqual({ schemaVersion: 1, template: "blank", skills: [] });
       expect((await runGit(["status", "--porcelain"], shot, environment)).stdout).toBe("");
 
       const secondInstall = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, environment);
       expect(secondInstall.exitCode).toBe(0);
       expect(secondInstall.stdout).toContain(
@@ -327,7 +305,7 @@ describe("managed installer", () => {
       writeFileSync(profileVictim, "owner content\n");
       symlinkSync(profileVictim, shellProfile);
       const unsafeProfileInstall = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--without-cloudflared",
       ], scratch.root, environment);
       expect(unsafeProfileInstall.exitCode).toBe(0);
       expect(unsafeProfileInstall.stdout).toContain(
@@ -338,7 +316,7 @@ describe("managed installer", () => {
 
       linkSync(profileVictim, shellProfile);
       const hardlinkedProfileInstall = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--without-cloudflared",
       ], scratch.root, environment);
       expect(hardlinkedProfileInstall.exitCode).toBe(0);
       expect(hardlinkedProfileInstall.stdout).toContain(
@@ -353,7 +331,7 @@ describe("managed installer", () => {
         TOHSENO_INSTALL_CLOUDFLARED_SHA256: sha256(cloudflaredArchive),
       };
       const cloudflaredInstall = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path",
       ], scratch.root, cloudflaredEnvironment);
       expect(cloudflaredInstall.exitCode).toBe(0);
       expect(cloudflaredInstall.stdout).toContain(
@@ -402,7 +380,7 @@ describe("managed installer", () => {
       expect(wrapperRejectedContent.exitCode).toBe(1);
       expect(wrapperRejectedContent.stderr).toContain("CLI tree differs");
       const installerRejectedContent = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, environment);
       expect(installerRejectedContent.exitCode).toBe(1);
       expect(installerRejectedContent.stderr).toContain(
@@ -529,7 +507,7 @@ describe("managed installer", () => {
         "dir",
       );
       const tampered = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, {
         ...environment,
         TOHSENO_INSTALL_HOME: tamperedHome,
@@ -539,7 +517,7 @@ describe("managed installer", () => {
 
       const rejectedHome = join(scratch.root, "rejected install");
       const rejected = await runProcess([
-        "/bin/sh", INSTALLER, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
       ], scratch.root, {
         ...environment,
         TOHSENO_INSTALL_HOME: rejectedHome,
