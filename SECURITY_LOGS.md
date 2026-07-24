@@ -647,3 +647,23 @@ The production site deployment is the next separately authorized action and is
 not claimed by this pre-deployment ledger state. No DNS action, App Store
 action, credential rotation, financial action, volume mutation, or user-data
 access occurred. Synthetic fixtures contain no real secrets or user content.
+
+## CLI 0.4.0 release evidence
+
+CLI 0.4.0 was frozen and pushed from commit
+`fb838768fda1e6abd45aefab76b6259d422ce67b` with Git tree
+`e7c62aaf1d6cdd072f8cd5f391905206b5756552`. Before publication,
+`bun run check` passed strict TypeScript, 184 tests, manifest, static,
+deployment, installer, secret-hygiene, and whitespace gates. The neutral
+kernel and composed Daily Game had also passed four native iOS Simulator tests,
+and the Daily Game was launched and visually inspected.
+
+Two independent deterministic builds were byte-identical. The published
+archive contains 213 files, is 1,788,711 bytes, and has SHA-256
+`c2f855f29024043bcaea1740a68642315de303e6c81a166f28c48e72edfe8004`.
+Its authenticated internal-tree root has SHA-256
+`76ce7071ea668bf9acc87496d11ca96ace2200f038f0055ee61c2f02d5d492b6`.
+The public `cli-v0.4.0` release targets the frozen commit and is neither a draft
+nor a prerelease. Both public assets were downloaded into a new temporary
+directory and matched the frozen local files byte-for-byte before the
+canonical installer was changed.

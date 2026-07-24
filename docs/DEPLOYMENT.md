@@ -23,9 +23,9 @@ analytics, or generated-app content path.
 The installer expects one immutable artifact:
 
 ```text
-GitHub release tag: cli-v0.3.1
-asset:              tohseno-cli-0.3.1.tar.gz
-metadata:           tohseno-cli-0.3.1.json
+GitHub release tag: cli-v0.4.0
+asset:              tohseno-cli-0.4.0.tar.gz
+metadata:           tohseno-cli-0.4.0.json
 ```
 
 The tarball is a deterministic source distribution containing the launcher,
@@ -43,8 +43,8 @@ Prepare locally:
 ```sh
 bun run check
 bun run tohseno:release
-shasum -a 256 dist/tohseno-cli-0.3.1.tar.gz
-cat dist/tohseno-cli-0.3.1.json
+shasum -a 256 dist/tohseno-cli-0.4.0.tar.gz
+cat dist/tohseno-cli-0.4.0.json
 ```
 
 Build a second time into another temporary path and compare bytes before
@@ -79,42 +79,57 @@ Both public assets were downloaded and matched the frozen files exactly. An
 isolated install from the public artifact completed with CLI 0.3.1 and managed
 Bun 1.2.18 without changing shell profiles.
 
-The 0.3.1 release followed this sequence:
+CLI 0.4.0 is **Implemented** and was published on 2026-07-24 UTC from commit
+`fb838768fda1e6abd45aefab76b6259d422ce67b` (Git tree
+`e7c62aaf1d6cdd072f8cd5f391905206b5756552`). It adds the neutral iOS
+kernel, deterministic template and skill composition, generic app manifests,
+private intention planning, structured CLI and Studio plan visibility,
+authoritative handoffs, and the working Daily Game composition. Two clean
+builds from that exact commit were byte-identical: archive SHA-256
+`c2f855f29024043bcaea1740a68642315de303e6c81a166f28c48e72edfe8004`
+and authenticated internal-tree SHA-256
+`76ce7071ea668bf9acc87496d11ca96ace2200f038f0055ee61c2f02d5d492b6`.
+Both public assets were downloaded after publication and matched the frozen
+local files exactly.
+
+The 0.4.0 release followed this sequence:
 
 1. Land the implementation commit containing the CLI and exact factory inputs.
 2. From that exact source, run `bun run check` and `bun run tohseno:release`.
-3. Compare the generated checksum with `CLI_SHA256_DEFAULT` in
-   `apps/site/public/install.sh`; if it differs, update it and repeat the gate.
-4. With explicit publishing approval, create the versioned GitHub release and
+3. Build again into a separate temporary directory and compare both archives
+   and metadata byte-for-byte.
+4. With explicit publishing approval, push the frozen commit, create the
+   versioned GitHub release, and
    upload the two unmodified artifact files.
-5. Download the public tarball, verify its SHA-256, and run the installer in a
-   temporary home.
-6. Only a follow-up commit may change `TOHSENO_PIN` or turn `/oneshot.sh` into
-   a thin delegator to an already-published CLI.
-7. With separate site-deployment approval, run `railway up` and verify
+5. Download both public assets and compare them with the frozen files.
+6. Only after publication, update `apps/site/public/install.sh` with the exact
+   archive and internal-tree hashes and land that as a separate commit.
+7. Only a later serving commit may point `/oneshot.sh` at that installer
+   commit and its exact installer-file hash.
+8. With site-deployment approval, run `railway up` and verify
    `/healthz`, `/install.sh --help`, and an isolated install.
 
-The executed 0.3.1 publication command was:
+The executed 0.4.0 publication command was:
 
 ```sh
-gh release create cli-v0.3.1 \
-  dist/tohseno-cli-0.3.1.tar.gz \
-  dist/tohseno-cli-0.3.1.json \
-  --target 48bada35f885216c8c2bf3ab4d51d0c935e2e01e \
-  --title "TOHSENO CLI 0.3.1" \
-  --notes "Security hardening across local identity and writing, Studio sessions, private-input verification, installed release integrity, runtime ownership, setup, and the shot backend."
+gh release create cli-v0.4.0 \
+  dist/tohseno-cli-0.4.0.tar.gz \
+  dist/tohseno-cli-0.4.0.json \
+  --target fb838768fda1e6abd45aefab76b6259d422ce67b \
+  --title "TOHSENO CLI 0.4.0" \
+  --notes "Intention-driven iOS app factory: neutral kernel, deterministic template and skill composition, generic app manifests, private planning, Studio plan visibility, authoritative handoffs, and a working Daily Game composition. Built from commit fb838768fda1e6abd45aefab76b6259d422ce67b with archive SHA-256 c2f855f29024043bcaea1740a68642315de303e6c81a166f28c48e72edfe8004 and authenticated tree SHA-256 76ce7071ea668bf9acc87496d11ca96ace2200f038f0055ee61c2f02d5d492b6."
 ```
 
 No package registry publication is required by this design.
 
 ## Legacy oneshot boundary
 
-`apps/site/public/oneshot.sh` is a thin compatibility delegator. Its
-`TOHSENO_PIN` is the published 0.3.1 release commit and the direct parent of the
-serving commit. It downloads that commit's canonical installer, verifies the
-installer SHA-256, and forwards all arguments. It remains `must-revalidate`.
-Shell must never regain its own template copier, manifest validator, shot
-creator, or agent launcher.
+`apps/site/public/oneshot.sh` is a thin compatibility delegator. During the
+0.4.0 installer-pin commit it intentionally remains on the published 0.3.1
+installer. A later serving commit pins it to the committed 0.4.0 installer and
+that installer's exact SHA-256, so the pin trails the serving commit by one.
+It remains `must-revalidate`. Shell must never regain its own template copier,
+manifest validator, shot creator, or agent launcher.
 
 Before a site deployment:
 
