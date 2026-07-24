@@ -16,8 +16,8 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 
 # This must remain the direct parent of the commit serving this script.
-TOHSENO_PIN="48bada35f885216c8c2bf3ab4d51d0c935e2e01e"
-PINNED_INSTALLER_SHA256="06efde2b0a9da6e2b7bac56119b84b0f5288d40e41dbe5a6d384246336be59fb"
+TOHSENO_PIN="54790555245d76c93873bd08b033dbbe610d55ea"
+PINNED_INSTALLER_SHA256="5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5"
 PINNED_INSTALLER_URL="https://raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh"
 ONESHOT_VERSION="0.5.0"
 
@@ -47,7 +47,7 @@ usage() {
   say "TOHSENO oneshot ${ONESHOT_VERSION}"
   say ""
   say "The legacy workspace creator is retired."
-  say "This thin entry point runs the canonical TOHSENO 0.3.1 installer"
+  say "This thin entry point runs the canonical TOHSENO 0.4.0 installer"
   say "from pinned released commit ${TOHSENO_PIN} after SHA-256 verification."
   say ""
   say "Usage: oneshot.sh [installer options]"

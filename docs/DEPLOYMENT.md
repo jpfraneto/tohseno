@@ -124,12 +124,13 @@ No package registry publication is required by this design.
 
 ## Legacy oneshot boundary
 
-`apps/site/public/oneshot.sh` is a thin compatibility delegator. During the
-0.4.0 installer-pin commit it intentionally remains on the published 0.3.1
-installer. A later serving commit pins it to the committed 0.4.0 installer and
-that installer's exact SHA-256, so the pin trails the serving commit by one.
-It remains `must-revalidate`. Shell must never regain its own template copier,
-manifest validator, shot creator, or agent launcher.
+`apps/site/public/oneshot.sh` is a thin compatibility delegator. Its
+`TOHSENO_PIN` is the committed 0.4.0 installer commit
+`54790555245d76c93873bd08b033dbbe610d55ea`, and its installer-file SHA-256 is
+`5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5`.
+The pin trails the serving commit by one and remains `must-revalidate`. Shell
+must never regain its own template copier, manifest validator, shot creator,
+or agent launcher.
 
 Before a site deployment:
 

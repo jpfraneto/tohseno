@@ -300,10 +300,10 @@ describe("public pages", () => {
     );
     const body = await response.text();
     expect(body).toContain(
-      'TOHSENO_PIN="48bada35f885216c8c2bf3ab4d51d0c935e2e01e"',
+      'TOHSENO_PIN="54790555245d76c93873bd08b033dbbe610d55ea"',
     );
     expect(body).toContain(
-      'PINNED_INSTALLER_SHA256="06efde2b0a9da6e2b7bac56119b84b0f5288d40e41dbe5a6d384246336be59fb"',
+      'PINNED_INSTALLER_SHA256="5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5"',
     );
     expect(body).toContain(
       "raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh",
@@ -421,7 +421,7 @@ describe("thin pinned oneshot installer", () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain("thin entry point");
       expect(stdout).toContain(
-        "48bada35f885216c8c2bf3ab4d51d0c935e2e01e",
+        "54790555245d76c93873bd08b033dbbe610d55ea",
       );
       expect(stdout).toContain("--dry-run");
       expect(stderr).toBe("");
