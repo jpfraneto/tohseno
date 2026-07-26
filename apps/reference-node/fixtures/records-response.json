@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "records": [
+    {
+      "protocolVersion": 1,
+      "kind": "SHOT_CREATED",
+      "shotId": "shot_0JF2LSUI5jOQR7e6H3E2LuDTqz80Qwx8",
+      "sequence": 0,
+      "previousRecordHash": null,
+      "recordedAt": "2026-07-25T00:00:00.000Z",
+      "authority": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+      },
+      "body": {
+        "name": "Fixture Shot",
+        "summary": "A deliberately public canonical protocol fixture.",
+        "platform": "IOS",
+        "builder": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "lifecycle": "EVOLVING",
+        "evolution": 0
+      },
+      "signature": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw",
+        "encoding": "base64url",
+        "value": "2wmJGF6pfjCAaJ0f35-KjahAzr0ngP6fc-Th_drQTJdl5xft1YVqdgwIUCqlKmfH71_ntQygn_BHEl7AomTaBw"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "kind": "EVOLUTION_RECORDED",
+      "shotId": "shot_0JF2LSUI5jOQR7e6H3E2LuDTqz80Qwx8",
+      "sequence": 1,
+      "previousRecordHash": "sha256:940b2a89e11b5efa38fc92a7cf5633efd2493fbecf329384950b3489896f82aa",
+      "recordedAt": "2026-07-25T00:01:00.000Z",
+      "authority": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+      },
+      "body": {
+        "evolution": 1,
+        "title": "Canonical evolution",
+        "summary": "The same Shot after one public Evolution."
+      },
+      "signature": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw",
+        "encoding": "base64url",
+        "value": "PrRNNBax9Ro2Q21k_Tamw1W-q6x57BaBFpJjRmF7EaBxU4SjVZFsIYMoCbomWPFM7jZSwcanwd5nBSLOUgBPDQ"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "kind": "LIFECYCLE_TRANSITIONED",
+      "shotId": "shot_0JF2LSUI5jOQR7e6H3E2LuDTqz80Qwx8",
+      "sequence": 2,
+      "previousRecordHash": "sha256:b6e892423021602103e27963acfca40d82b40154e3f9815d85a92f82ae1207a2",
+      "recordedAt": "2026-07-25T00:02:00.000Z",
+      "authority": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+      },
+      "body": {
+        "from": "EVOLVING",
+        "to": "PUBLISHED",
+        "evidence": {
+          "source": {
+            "url": "https://source.example/shots/canonical",
+            "revision": "0123456789abcdef"
+          },
+          "download": {
+            "url": "https://download.example/shots/canonical.zip",
+            "artifactDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "manifestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        }
+      },
+      "signature": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw",
+        "encoding": "base64url",
+        "value": "RVK4FAMbKMYYYIniIo5nD6JMu-j2utCKonIKkKPIUbuTvvE6JgZhgvr3U1_hOkYc1kW9CL_BxsVgrf6e38UmBw"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "kind": "LIFECYCLE_TRANSITIONED",
+      "shotId": "shot_0JF2LSUI5jOQR7e6H3E2LuDTqz80Qwx8",
+      "sequence": 3,
+      "previousRecordHash": "sha256:1aa75b7e82fa39c5fbd57821d8e9e027bfe134fd78ee5310adea99bf48e599a7",
+      "recordedAt": "2026-07-25T00:03:00.000Z",
+      "authority": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+      },
+      "body": {
+        "from": "PUBLISHED",
+        "to": "APP_STORE",
+        "evidence": {
+          "listingId": "1234567890",
+          "listingUrl": "https://apps.apple.com/us/app/fixture-shot/id1234567890"
+        }
+      },
+      "signature": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw",
+        "encoding": "base64url",
+        "value": "Cc-M3PtHzb9NyNw4cIrXzji_1RPppq9A55KevYsXJkvlQkKaWjjLiOLsK7a5CmgidqkZdlMwBzcrEenNdqMJDQ"
+      }
+    },
+    {
+      "protocolVersion": 1,
+      "kind": "APPCOIN_LINKED",
+      "shotId": "shot_0JF2LSUI5jOQR7e6H3E2LuDTqz80Qwx8",
+      "sequence": 4,
+      "previousRecordHash": "sha256:7cdf58bd3076919cd499daac3e773849847196d8913f3c46c0f760cc9bcdcf91",
+      "recordedAt": "2026-07-25T00:04:00.000Z",
+      "authority": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+      },
+      "body": {
+        "link": {
+          "deployment": {
+            "namespace": "deployment-system",
+            "id": "fixture-deployment"
+          },
+          "network": {
+            "namespace": "network-family",
+            "id": "fixture-network"
+          },
+          "asset": {
+            "namespace": "asset-standard",
+            "id": "fixture-asset"
+          },
+          "evidence": {
+            "namespace": "public-receipt",
+            "id": "fixture-receipt",
+            "url": "https://evidence.example/fixture-receipt"
+          }
+        }
+      },
+      "signature": {
+        "identity": {
+          "role": "BUILDER",
+          "method": "tohseno-local-test-v1",
+          "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+        },
+        "suite": "ed25519-raw-v1",
+        "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+        "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw",
+        "encoding": "base64url",
+        "value": "9PmZanKMyOGpA9wbrCW2GB-_M9BlDVbbEyK5AdYEOwxepk4hOQX8q813ip6BanqEtOC03cIXwz_lunJCpnA8CQ"
+      }
+    }
+  ]
+}

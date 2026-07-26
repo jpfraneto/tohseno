@@ -1,13 +1,13 @@
 import { CLI_VERSION } from "./constants.ts";
 import {
-  adoptCommand,
   createCommand,
   doctorCommand,
-  continueCommand,
+  evolveCommand,
   listCommand,
   openCommand,
   previewCommand,
   runCommand,
+  statusCommand,
   studioCommand,
   verifyCommand,
 } from "./commands.ts";
@@ -24,8 +24,9 @@ Take another one.
 
 Usage:
   tohseno                         take a shot or open the contact sheet flow
-  tohseno <shot>                  continue a shot
-  tohseno continue <shot>         explicit continuation
+  tohseno <shot>                  evolve the same shot
+  tohseno evolve <shot>           explicit evolution
+  tohseno status [shot]           show local Shot ID, lifecycle, and Evolution
   tohseno create --file <path>    create from a Markdown intention
   tohseno verify <shot>           verify from any folder
   tohseno run <shot>              build and launch in Simulator
@@ -34,24 +35,20 @@ Usage:
 
 Agent/automation operations:
   tohseno machine operations --json [--shot <path-or-slug>]
-  tohseno machine dev start|status|logs|stop --json [--shot <path-or-slug>]
   tohseno machine ios inspect|launch --json [--shot <path-or-slug>]
   tohseno machine verify --json [--shot <path-or-slug>]
-  tohseno machine production inspect --json [--shot <path-or-slug>]
 
 Additional commands:
-  tohseno create <slug> [--platform ios] [--agent codex|claude] [--no-launch]
+  tohseno create <slug> [--agent codex|claude] [--no-launch]
   tohseno create --file <intention.md> [--reference <image> ...]
   tohseno list [--shots-dir <path>]
   tohseno open <slug> [--shots-dir <path>]
   tohseno doctor [--shots-dir <path>]
   tohseno verify [slug-or-path] [--shots-dir <path>]
-  tohseno adopt <path> [--yes] [--no-interactive]
   tohseno run <slug-or-path> [--shots-dir <path>]
   tohseno preview <slug-or-path> [--shots-dir <path>]
 
 Create options:
-  --platform ios       compatibility flag; iOS is assigned automatically
   --agent <agent>      codex or claude; both must already be installed
   --file <path>        use a UTF-8 Markdown file as creation input
   --reference <path>   attach image context to --file; repeat up to eight times
@@ -200,7 +197,7 @@ export async function main(arguments_: readonly string[], options: CliMainOption
     if (command === "create") {
       const parsed = parseOptions(
         rest,
-        ["--platform", "--agent", "--shots-dir", "--file"],
+        ["--agent", "--shots-dir", "--file"],
         ["--no-launch", "--no-interactive"],
         ["--reference"],
       );
@@ -219,7 +216,6 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
       return await createCommand({
         ...(slug === undefined ? {} : { slug }),
-        platform: parsed.values.get("--platform"),
         agent: parsed.values.get("--agent"),
         file,
         references,
@@ -283,6 +279,22 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
       return await verifyCommand(value, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
     }
+    if (command === "status") {
+      const parsed = parseOptions(rest, ["--shots-dir"], []);
+      const value = onePositional(parsed, "shot slug or path", true);
+      const config = resolveConfig({
+        cwd,
+        environment,
+        shotsDirectoryOverride: parsed.values.get("--shots-dir"),
+      });
+      return await statusCommand(value, {
+        config,
+        cwd,
+        environment,
+        io,
+        sourceRoot: options.sourceRoot,
+      });
+    }
     if (command === "run" || command === "preview") {
       const parsed = parseOptions(rest, ["--shots-dir"], []);
       const value = onePositional(parsed, "shot slug or path") ?? "";
@@ -302,7 +314,7 @@ export async function main(arguments_: readonly string[], options: CliMainOption
         ? await runCommand(value, context)
         : await previewCommand(value, context);
     }
-    if (command === "continue") {
+    if (command === "evolve") {
       const parsed = parseOptions(
         rest,
         ["--agent", "--shots-dir"],
@@ -315,17 +327,8 @@ export async function main(arguments_: readonly string[], options: CliMainOption
         shotsDirectoryOverride: parsed.values.get("--shots-dir"),
       });
       const agent = parsed.values.get("--agent");
-      return await continueCommand(value, {
+      return await evolveCommand(value, {
         ...(agent === undefined ? {} : { agent }),
-        noInteractive: parsed.flags.has("--no-interactive"),
-      }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
-    }
-    if (command === "adopt") {
-      const parsed = parseOptions(rest, ["--shots-dir"], ["--yes", "--no-interactive"]);
-      const path = onePositional(parsed, "project path") ?? "";
-      const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
-      return await adoptCommand(path, {
-        yes: parsed.flags.has("--yes"),
         noInteractive: parsed.flags.has("--no-interactive"),
       }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });
     }
@@ -335,7 +338,7 @@ export async function main(arguments_: readonly string[], options: CliMainOption
       const slug = validateShotSlug(command);
       const config = resolveConfig({ cwd, environment, shotsDirectoryOverride: parsed.values.get("--shots-dir") });
       const agent = parsed.values.get("--agent");
-      return await continueCommand(slug, {
+      return await evolveCommand(slug, {
         ...(agent === undefined ? {} : { agent }),
         noInteractive: parsed.flags.has("--no-interactive"),
       }, { config, cwd, environment, io, sourceRoot: options.sourceRoot });

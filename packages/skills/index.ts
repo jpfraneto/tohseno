@@ -101,7 +101,11 @@ function stringArray(value: unknown, label: string): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw new AppCatalogError("INVALID_DESCRIPTOR", `${label} must be an array of strings`);
   }
-  return value as string[];
+  const result = value as string[];
+  if (new Set(result).size !== result.length) {
+    throw new AppCatalogError("INVALID_DESCRIPTOR", `${label} must not contain duplicates`);
+  }
+  return result;
 }
 
 function idArray(value: unknown, label: string): string[] {
@@ -126,15 +130,22 @@ function safeRelativePath(value: unknown, label: string): string {
 }
 
 function pathArray(value: unknown, label: string): string[] {
-  return stringArray(value, label).map((item, index) =>
+  const paths = stringArray(value, label).map((item, index) =>
     safeRelativePath(item, `${label}[${index}]`));
+  if (new Set(paths).size !== paths.length) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      `${label} must not contain paths that normalize to the same value`,
+    );
+  }
+  return paths;
 }
 
 function parseAcceptance(value: unknown): AcceptanceFileCheck[] {
   if (!Array.isArray(value)) {
     throw new AppCatalogError("INVALID_DESCRIPTOR", "acceptanceChecks must be an array");
   }
-  return value.map((item, index) => {
+  const checks: AcceptanceFileCheck[] = value.map((item, index) => {
     const check = record(item);
     if (check === null) {
       throw new AppCatalogError(
@@ -155,6 +166,19 @@ function parseAcceptance(value: unknown): AcceptanceFileCheck[] {
       path: safeRelativePath(check.path, `acceptanceChecks[${index}].path`),
     };
   });
+  if (new Set(checks.map((check) => check.id)).size !== checks.length) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      "acceptanceChecks must not contain duplicate ids",
+    );
+  }
+  if (new Set(checks.map((check) => check.path)).size !== checks.length) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      "acceptanceChecks must not contain duplicate paths",
+    );
+  }
+  return checks;
 }
 
 export function validateSkillDescriptor(value: unknown): AppSkillDescriptor {
@@ -447,9 +471,52 @@ export function resolveComposition(
   catalog: AppCatalog,
   declaration: DeclaredComposition,
 ): ResolvedComposition {
+  const parsed = validateCompositionDeclaration(declaration);
+  const { template, kernel } = compositionBase(catalog, parsed);
+  const templateComposition = resolveSkillSeeds(
+    catalog,
+    template,
+    kernel,
+    template.descriptor.skills,
+  );
+  const suppliedByTemplate = new Set(
+    templateComposition.skills.map((skill) => skill.descriptor.id),
+  );
+  const overlap = parsed.skills.find((id) => suppliedByTemplate.has(id));
+  if (overlap !== undefined) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      `app skill ${overlap} is already supplied by template ${template.descriptor.id}`,
+    );
+  }
+  return resolveSkillSeeds(
+    catalog,
+    template,
+    kernel,
+    [...template.descriptor.skills, ...parsed.skills],
+  );
+}
+
+function validateCompositionDeclaration(value: unknown): DeclaredComposition {
+  const declaration = record(value);
+  if (declaration === null) {
+    throw new AppCatalogError("INVALID_DESCRIPTOR", "composition must be an object");
+  }
+  exactKeys(declaration, ["schemaVersion", "template", "skills"], "composition");
   if (declaration.schemaVersion !== 1) {
     throw new AppCatalogError("INVALID_DESCRIPTOR", "composition schemaVersion must be 1");
   }
+  return {
+    schemaVersion: 1,
+    template: identifier(declaration.template, "composition.template"),
+    skills: idArray(declaration.skills, "composition.skills"),
+  };
+}
+
+function compositionBase(
+  catalog: AppCatalog,
+  declaration: DeclaredComposition,
+): { template: CatalogTemplate; kernel: CatalogKernel } {
   const template = catalog.templates.get(declaration.template);
   if (template === undefined) {
     throw new AppCatalogError("UNKNOWN_TEMPLATE", `unknown template ${declaration.template}`);
@@ -458,8 +525,15 @@ export function resolveComposition(
   if (kernel === undefined) {
     throw new AppCatalogError("UNKNOWN_KERNEL", `unknown kernel ${template.descriptor.kernel}`);
   }
+  return { template, kernel };
+}
 
-  const selected = new Set([...template.descriptor.skills, ...declaration.skills]);
+function resolveSkillSeeds(
+  catalog: AppCatalog,
+  template: CatalogTemplate,
+  kernel: CatalogKernel,
+  seeds: readonly string[],
+): ResolvedComposition {
   const resolved: CatalogSkill[] = [];
   const visiting = new Set<string>();
   const visited = new Set<string>();
@@ -477,14 +551,13 @@ export function resolveComposition(
     }
     visiting.add(id);
     for (const dependency of [...skill.descriptor.requires].sort()) {
-      selected.add(dependency);
       visit(dependency, [...trail, id]);
     }
     visiting.delete(id);
     visited.add(id);
     resolved.push(skill);
   };
-  for (const id of [...selected].sort()) visit(id, []);
+  for (const id of [...seeds].sort()) visit(id, []);
 
   const installed = new Set(resolved.map((skill) => skill.descriptor.id));
   for (const skill of resolved) {
@@ -498,6 +571,42 @@ export function resolveComposition(
     }
   }
   return { template, kernel, skills: resolved };
+}
+
+/**
+ * Validates the complete, persisted skill list used by Shot plans and locks.
+ * Unlike resolveComposition(), this accepts no shorthand: template defaults,
+ * transitive dependencies, and canonical dependency order must all be present.
+ */
+export function resolveInstalledComposition(
+  catalog: AppCatalog,
+  declaration: DeclaredComposition,
+): ResolvedComposition {
+  const parsed = validateCompositionDeclaration(declaration);
+  const { template, kernel } = compositionBase(catalog, parsed);
+  const missingDefault = template.descriptor.skills.find((id) =>
+    !parsed.skills.includes(id)
+  );
+  if (missingDefault !== undefined) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      `installed composition is missing template skill ${missingDefault}`,
+    );
+  }
+  const composition = resolveSkillSeeds(
+    catalog,
+    template,
+    kernel,
+    parsed.skills,
+  );
+  const canonical = composition.skills.map((skill) => skill.descriptor.id);
+  if (JSON.stringify(parsed.skills) !== JSON.stringify(canonical)) {
+    throw new AppCatalogError(
+      "INVALID_DESCRIPTOR",
+      "installed composition skill list is not complete and canonical",
+    );
+  }
+  return composition;
 }
 
 function copyContribution(options: {
@@ -627,7 +736,7 @@ export function verifyLock(
   ) {
     throw new AppCatalogError("DIGEST_MISMATCH", "app skill lock has an invalid shape");
   }
-  const composition = resolveComposition(catalog, {
+  const composition = resolveInstalledComposition(catalog, {
     schemaVersion: 1,
     template: lock.template.id,
     skills: lock.skills.map((skill) => skill.id),

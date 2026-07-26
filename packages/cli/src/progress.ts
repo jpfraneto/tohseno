@@ -28,7 +28,7 @@ export type ShotProgressType =
   | "provenance-written"
   | "manifest-validated"
   | "baseline-committed"
-  | "published"
+  | "repository-created"
   | "agent-started"
   | "agent-completed"
   | "verifying"
@@ -39,6 +39,28 @@ export type ShotProgressType =
   | "completed"
   | "interrupted"
   | "failed";
+
+const SHOT_PROGRESS_TYPES: readonly ShotProgressType[] = [
+  "allocated",
+  "planning",
+  "plan-ready",
+  "preparing-release",
+  "preparing-shot",
+  "provenance-written",
+  "manifest-validated",
+  "baseline-committed",
+  "repository-created",
+  "agent-started",
+  "agent-completed",
+  "verifying",
+  "building",
+  "simulator-launching",
+  "screenshot-captured",
+  "preview-unavailable",
+  "completed",
+  "interrupted",
+  "failed",
+];
 
 export interface ShotProgressEvent {
   schemaVersion: typeof SHOT_PROGRESS_SCHEMA_VERSION;
@@ -254,6 +276,7 @@ export class ShotProgressReporter {
       ...(input.message === undefined
         ? {}
         : { message: boundedMessage(input.message) }),
+      ...(input.plan === undefined ? {} : { plan: input.plan }),
     };
     const line = `${JSON.stringify(event)}\n`;
     const descriptor = openJournalForAppend(this.journalPath);
@@ -280,17 +303,118 @@ export class ShotProgressReporter {
   }
 }
 
-function isProgressEvent(value: unknown): value is ShotProgressEvent {
+function exactProgressKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[],
+): boolean {
+  const allowed = new Set([...required, ...optional]);
+  return required.every((key) => Object.hasOwn(value, key)) &&
+    Object.keys(value).every((key) => allowed.has(key));
+}
+
+function canonicalProgressEvent(value: unknown): ShotProgressEvent | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
+    return null;
   }
-  const event = value as Partial<ShotProgressEvent>;
-  return event.schemaVersion === SHOT_PROGRESS_SCHEMA_VERSION &&
-    typeof event.jobId === "string" &&
-    SAFE_JOB_ID.test(event.jobId) &&
-    typeof event.at === "string" &&
-    typeof event.type === "string" &&
-    (event.door === "cli" || event.door === "studio");
+  const event = value as Record<string, unknown>;
+  if (
+    !exactProgressKeys(
+      event,
+      ["schemaVersion", "jobId", "at", "type", "door"],
+      ["slug", "sequence", "message", "plan"],
+    ) ||
+    event.schemaVersion !== SHOT_PROGRESS_SCHEMA_VERSION ||
+    typeof event.jobId !== "string" ||
+    !SAFE_JOB_ID.test(event.jobId) ||
+    typeof event.at !== "string" ||
+    !Number.isFinite(Date.parse(event.at)) ||
+    new Date(event.at).toISOString() !== event.at ||
+    typeof event.type !== "string" ||
+    !SHOT_PROGRESS_TYPES.includes(event.type as ShotProgressType) ||
+    (event.door !== "cli" && event.door !== "studio") ||
+    (
+      event.slug !== undefined &&
+      (
+        typeof event.slug !== "string" ||
+        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(event.slug)
+      )
+    ) ||
+    (
+      event.sequence !== undefined &&
+      (
+        !Number.isSafeInteger(event.sequence) ||
+        (event.sequence as number) < 1
+      )
+    ) ||
+    (
+      event.message !== undefined &&
+      (
+        typeof event.message !== "string" ||
+        Buffer.byteLength(event.message) > MAX_PROGRESS_MESSAGE_BYTES ||
+        /[\u0000-\u001f\u007f]/u.test(event.message)
+      )
+    )
+  ) {
+    return null;
+  }
+  if (event.plan !== undefined) {
+    if (
+      event.type !== "plan-ready" ||
+      typeof event.plan !== "object" ||
+      event.plan === null ||
+      Array.isArray(event.plan)
+    ) {
+      return null;
+    }
+    const plan = event.plan as Record<string, unknown>;
+    if (
+      !exactProgressKeys(plan, [
+        "appName",
+        "template",
+        "skills",
+        "dataStrategy",
+        "identityStrategy",
+        "definitionOfDone",
+        "fallback",
+      ], []) ||
+      typeof plan.appName !== "string" ||
+      plan.appName.trim() !== plan.appName ||
+      plan.appName.length < 1 ||
+      plan.appName.length > 80 ||
+      typeof plan.template !== "string" ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(plan.template) ||
+      !Array.isArray(plan.skills) ||
+      !plan.skills.every((skill) =>
+        typeof skill === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(skill)
+      ) ||
+      new Set(plan.skills).size !== plan.skills.length ||
+      (
+        plan.dataStrategy !== "local" &&
+        plan.dataStrategy !== "remote" &&
+        plan.dataStrategy !== "hybrid"
+      ) ||
+      (
+        plan.identityStrategy !== "none" &&
+        plan.identityStrategy !== "local-device" &&
+        plan.identityStrategy !== "wallet" &&
+        plan.identityStrategy !== "account"
+      ) ||
+      !Array.isArray(plan.definitionOfDone) ||
+      plan.definitionOfDone.length < 1 ||
+      !plan.definitionOfDone.every((item) =>
+        typeof item === "string" &&
+        item.trim() === item &&
+        item.length > 0 &&
+        item.length <= 240
+      ) ||
+      typeof plan.fallback !== "boolean"
+    ) {
+      return null;
+    }
+  }
+  return event as unknown as ShotProgressEvent;
 }
 
 export function readProgressJournal(path: string): ShotProgressEvent[] {
@@ -303,17 +427,30 @@ export function readProgressJournal(path: string): ShotProgressEvent[] {
       "creation progress journal",
     );
   } catch {
-    return [];
+    throw new CliError(
+      "creation progress journal is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+      2,
+    );
   }
   const events: ShotProgressEvent[] = [];
-  for (const line of source.split("\n")) {
+  const lines = source.split("\n");
+  for (const [index, line] of lines.entries()) {
     if (line.trim() === "") continue;
+    if (index === lines.length - 1 && !source.endsWith("\n")) {
+      break;
+    }
     try {
       const value = JSON.parse(line) as unknown;
-      if (isProgressEvent(value)) events.push(value);
+      const event = canonicalProgressEvent(value);
+      if (event === null) {
+        throw new Error("unsupported progress event");
+      }
+      events.push(event);
     } catch {
-      // A process may have stopped between append bytes. Earlier complete
-      // events remain useful; an incomplete tail is ignored.
+      throw new CliError(
+        "creation progress journal is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+        2,
+      );
     }
   }
   return events;

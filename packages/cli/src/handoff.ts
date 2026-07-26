@@ -230,17 +230,17 @@ export function handoffForShot(options: {
     evidence,
     next: blocked
       ? {
-          action: "Continue the shot from any folder.",
+          action: "Evolve the same Shot from any folder.",
           command: options.verificationPassed
             ? `tohseno ${options.slug}`
-            : `tohseno continue ${shotTarget}`,
+            : `tohseno evolve ${shotTarget}`,
           why: !options.verificationPassed
             ? "The repository must pass its pinned privacy and integrity gate before TOHSENO presents it as ready."
             : "The coding agent stopped before the accepted shot contract was completed.",
         }
       : launched
         ? {
-            action: "Use the app in Simulator and decide what the next shot needs.",
+            action: "Use the app in Simulator and decide what its next Evolution needs.",
             command: `tohseno ${options.slug}`,
             why: "A shot becomes useful through contact with the real app, not through terminal output alone.",
           }
@@ -252,10 +252,10 @@ export function handoffForShot(options: {
           },
     later: [
       {
-        label: "Continue building",
+        label: "Evolve this Shot",
         command: options.verificationPassed
           ? `tohseno ${options.slug}`
-          : `tohseno continue ${shotTarget}`,
+          : `tohseno evolve ${shotTarget}`,
       },
       { label: "Verify again", command: `tohseno verify ${shotTarget}` },
       { label: "Open Studio", command: "tohseno studio" },

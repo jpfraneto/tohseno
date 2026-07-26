@@ -31,6 +31,10 @@ import { trustedShotToolFromCache } from "../trusted-tools.ts";
 import { canonicalShotsDirectory } from "../workspace.ts";
 import { loadCatalog } from "../../../skills/index.ts";
 import {
+  type AppManifest,
+  validateAppManifest,
+} from "../../../manifest/app.ts";
+import {
   createStudioApplication,
   type StudioApplication,
   type StudioRequestLog,
@@ -94,23 +98,19 @@ async function requireSuccessfulAction(
 }
 
 function xcodeProject(shotRoot: string): string {
-  let projectName = "Writing.xcodeproj";
-  const genericManifest = join(shotRoot, "app.manifest.json");
-  if (existsSync(genericManifest)) {
-    const manifest = readBoundedJson(
-      genericManifest,
-      1_048_576,
-      "app manifest",
-    ) as { operations?: { project?: unknown } };
-    const configured = manifest.operations?.project;
-    if (
-      typeof configured !== "string" ||
-      !/^[A-Za-z0-9][A-Za-z0-9._-]*\.xcodeproj$/u.test(configured)
-    ) {
-      throw new CliError("the shot app manifest has an unsafe Xcode project name");
-    }
-    projectName = configured;
+  const value = readBoundedJson<unknown>(
+    join(shotRoot, "app.manifest.json"),
+    1_048_576,
+    "app manifest",
+  );
+  const validation = validateAppManifest(value);
+  if (!validation.valid) {
+    throw new CliError(
+      "the Shot app manifest is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+      2,
+    );
   }
+  const projectName = (value as AppManifest).operations.project;
   const project = join(shotRoot, projectName);
   if (!existsSync(project)) {
     throw new CliError("the shot is missing its generated Xcode project");

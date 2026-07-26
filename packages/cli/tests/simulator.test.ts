@@ -55,27 +55,106 @@ function writeShotFixture(
   mkdirSync(app, { recursive: true });
   writeFileSync(join(app, "Info.plist"), "test plist fixture\n");
   writeFileSync(join(local, "machine.ts"), "// pinned machine fixture\n");
+  const shotId = `shot_${"A".repeat(32)}`;
   writeFileSync(join(local, "shot.json"), `${JSON.stringify({
     schemaVersion: 1,
     slug,
     platform: "ios",
-    adopted: false,
     createdAt: "2026-07-23T00:00:00.000Z",
+    sequence: 1,
     selectedAgent: null,
-    baselineAuthor: "factory",
+    creation: {
+      door: "cli",
+      inputDigest: "b".repeat(64),
+      hasIntention: false,
+      referenceCount: 0,
+      provenancePath: ".tohseno/provenance/provenance.json",
+      options: {
+        selectedAgent: null,
+        agentMode: "none",
+        verifyAfterAgent: false,
+        runAfterCreate: false,
+      },
+    },
     factory: {
       releaseId: `content-${"a".repeat(32)}`,
-      cliVersion: "0.3.1",
-      templateVersion: "0.4.0",
-      manifestSchemaVersion: "0.4.0",
+      cliVersion: "0.5.0",
+      templateVersion: "ios-kernel-v1",
+      manifestSchemaVersion: "1.0.0",
       sourceCommit: null,
       sourceDirty: false,
       bundleDigest: "a".repeat(64),
     },
+    app: {
+      name: slug,
+      bundleId: `com.tohseno.${slug}`,
+    },
+    composition: {
+      kernel: {
+        id: "ios-kernel",
+        version: "1.0.0",
+        digest: "c".repeat(64),
+      },
+      template: {
+        id: "blank",
+        version: "1.0.0",
+        digest: "d".repeat(64),
+      },
+      skills: [],
+    },
+    sanitizedPlanDigest: "e".repeat(64),
+    protocol: {
+      version: 1,
+      shotId,
+      statePath: ".tohseno/protocol-state.json",
+    },
   }, null, 2)}\n`);
-  writeFileSync(join(shot, "continuity.manifest.json"), `${JSON.stringify({
-    application: { id: `com.tohseno.${slug}` },
-  })}\n`);
+  writeFileSync(
+    join(local, "protocol-state.json"),
+    `${JSON.stringify({
+      protocolVersion: 1,
+      shotId,
+      lifecycle: "EVOLVING",
+      evolution: 0,
+    }, null, 2)}\n`,
+  );
+  writeFileSync(
+    join(shot, "app.manifest.json"),
+    `${JSON.stringify({
+      schemaVersion: "1.0.0",
+      kind: "app",
+      application: {
+        id: `com.tohseno.${slug}`,
+        name: slug,
+      },
+      platform: "ios",
+      composition: {
+        kernel: "ios-kernel",
+        template: "blank",
+        skills: [],
+      },
+      data: { local: [], remote: [] },
+      storage: [],
+      network: [],
+      identity: { strategy: "none" },
+      entitlements: [],
+      integrations: [],
+      operations: {
+        project: "Shot.xcodeproj",
+        scheme: "Shot",
+        product: "Shot",
+      },
+      privacy: {
+        rawIntentionTracked: false,
+        appContentLeavesDevice: false,
+      },
+      production: {
+        ready: false,
+        declarations: [],
+      },
+      irreversibleOperations: [],
+    }, null, 2)}\n`,
+  );
   return { shot, local, app };
 }
 
@@ -84,19 +163,6 @@ function successfulMachineResponse(
   fixture: ReturnType<typeof writeShotFixture>,
   bundleId = `com.tohseno.${fixture.shot.split("/").at(-1) ?? ""}`,
 ): { exitCode: number; stdout: string; stderr: string } | null {
-  if (argv.includes("dev") && argv.includes("start")) {
-    return {
-      exitCode: 0,
-      stdout: JSON.stringify({
-        schemaVersion: 1,
-        ok: true,
-        operation: "dev.start",
-        shot: fixture.shot,
-        result: { state: "running" },
-      }),
-      stderr: "",
-    };
-  }
   if (argv.includes("ios") && argv.includes("launch")) {
     return {
       exitCode: 0,
@@ -163,7 +229,7 @@ describe("Simulator service boundary", () => {
     const environment = {
       PATH: "/usr/bin",
       DEVELOPER_DIR: "/Applications/Xcode-beta.app/Contents/Developer",
-      BANKR_API_KEY: "bankr-secret-must-not-cross",
+      PROVIDER_SECRET: "provider-secret-must-not-cross",
       PRIVATE_VALUE: "must-not-cross-the-boundary",
     };
     expect(sanitizedRuntimeEnvironment(environment)).toEqual({
@@ -355,8 +421,6 @@ describe("Simulator service boundary", () => {
         expect(existsSync(result.screenshotPath)).toBe(true);
       }
       expect(events.map((event) => event.type)).toEqual([
-        "development-starting",
-        "development-ready",
         "building",
         "simulator-launching",
         "simulator-launched",
@@ -544,7 +608,7 @@ describe("Simulator service boundary", () => {
           stdout: JSON.stringify({
             schemaVersion: 1,
             ok: false,
-            operation: "dev.start",
+            operation: "ios.launch",
             shot: fixture.shot,
             error: {
               code: "MISSING_DEPENDENCY",
@@ -563,7 +627,7 @@ describe("Simulator service boundary", () => {
         code: "MACHINE_FAILED",
         message: expect.stringContaining("Run `tohseno doctor`"),
         details: {
-          operation: "dev.start",
+          operation: "ios.launch",
           machineCode: "MISSING_DEPENDENCY",
           exitCode: 3,
         },

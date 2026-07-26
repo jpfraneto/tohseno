@@ -8,7 +8,7 @@
       if (!(copyButton instanceof HTMLButtonElement)) continue;
       const commandLine = copyButton
         .closest("[role='group'], .command-block")
-        ?.querySelector("[data-install-command]");
+        ?.querySelector("[data-source-command]");
       if (!(commandLine instanceof HTMLElement)) continue;
       copyButton.hidden = false;
       copyButton.setAttribute("aria-live", "polite");

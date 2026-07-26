@@ -10,17 +10,17 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 // @ts-ignore This factory template is copied beside its pinned manifest directory.
 import { APP_MANIFEST_SCHEMA_VERSION, validateAppManifest } from "./manifest/app.ts";
-// @ts-ignore This factory template is copied beside its pinned manifest directory.
-import { formatManifestIssues, validateManifest } from "./manifest/validate.ts";
-// @ts-ignore This factory template is copied beside its pinned manifest directory.
-import { CONTINUITY_MANIFEST_SCHEMA_VERSION } from "./manifest/types.ts";
-import { configuredProductionEndpoint, inspectEndpoint, inspectProduction } from "./runtime/production.ts";
 import {
+  type CanonicalShotMetadata,
   MachineError,
+  PRE_RELEASE_UNSUPPORTED,
   readBoundedRegularFile,
   readBoundedUtf8,
+  readCanonicalShotMetadata,
   runCaptured,
   safeEnvironment,
+  validateCanonicalLocalShotState,
+  validateCanonicalShotMetadata,
 } from "./runtime/shared.ts";
 
 function resolvedShotRoot(): string {
@@ -37,30 +37,27 @@ function resolvedShotRoot(): string {
 }
 
 const SHOT_ROOT = resolvedShotRoot();
-let SHOT_METADATA_SCHEMA = 1;
-let SHOT_METADATA: Record<string, unknown> | null = null;
+let SHOT_METADATA: CanonicalShotMetadata | null = null;
 let PINNED_RELEASE: Record<string, unknown> | null = null;
-const REQUIRED_IOS_FILES = [
-  "App/AppConfig.swift",
-  "App/Identity/BIP39.swift",
-  "App/Resources/bip39-english.txt",
-  "App/WritingApp.swift",
+const REQUIRED_SHOT_FILES = [
+  "App/ShotApp.swift",
+  "App/Design/DesignTokens.swift",
   "Config/App.xcconfig",
   "Config/Debug.xcconfig",
-  "Config/Production.xcconfig",
   "Config/Release.xcconfig",
-  "Backend/database.ts",
-  "Backend/server.ts",
-  "operations/production.json",
-  "scripts/validate-production-endpoint.sh",
-  "Tests/BIP39Tests.swift",
-  "Writing.xcodeproj/project.pbxproj",
-  "Writing.xcodeproj/xcshareddata/xcschemes/Writing.xcscheme",
-  "continuity.manifest.json",
+  "Tests/KernelTests.swift",
+  "Shot.xcodeproj/project.pbxproj",
+  "Shot.xcodeproj/xcshareddata/xcschemes/Shot.xcscheme",
+  "app.manifest.json",
+  "SHOT.md",
+  "DONE.md",
+  "tohseno.skills.json",
+  "tohseno.skills.lock",
+  ".tohseno/shot-plan.json",
   "project.yml",
   "site/index.html",
 ] as const;
-const PRIVATE_TRACKED_FILE = /(?:^|\/)(?:MASTER_(?:EVOLUTIONARY_)?PROMPT\.md|Local\.xcconfig|DevelopmentEndpoint\.xcconfig|app\.config\.json|\.env(?:\..*)?)$|(?:^|\/)\.tohseno\/(?:artifacts|data|provenance|run)(?:\/|$)|\.(?:p8|p12|pem|pfx|mobileprovision)$/iu;
+const PRIVATE_TRACKED_FILE = /(?:^|\/)(?:(?:MASTER_(?:EVOLUTIONARY_)?|TOHSENO_EVOLUTION_)PROMPT\.md|Local\.xcconfig|\.env(?:\..*)?)$|(?:^|\/)\.tohseno\/(?:artifacts|data|provenance|run)(?:\/|$)|\.(?:p8|p12|pem|pfx|mobileprovision)$/iu;
 const MAX_JSON_BYTES = 1_048_576;
 const MAX_INTENTION_BYTES = 1_048_576;
 const MAX_REFERENCE_BYTES = 12 * 1_048_576;
@@ -121,6 +118,26 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+function failObsoleteState(message: string): never {
+  fail(`${PRE_RELEASE_UNSUPPORTED}: ${message}`);
+}
+
+function formatIssues(
+  issues: ReadonlyArray<{
+    severity: string;
+    path: string;
+    code: string;
+    message: string;
+  }>,
+): string {
+  return issues
+    .map(
+      (issue) =>
+        `${issue.severity.toUpperCase()} ${issue.path} [${issue.code}]: ${issue.message}`,
+    )
+    .join("\n");
+}
+
 function insideShot(path: string): boolean {
   const fromRoot = relative(SHOT_ROOT, path);
   return fromRoot === "" || (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`));
@@ -134,92 +151,147 @@ function readJsonFile(path: string, label: string): unknown {
   }
 }
 
+function readCanonicalStateFile(path: string, label: string): unknown {
+  try {
+    return JSON.parse(readBoundedUtf8(path, MAX_JSON_BYTES, label)) as unknown;
+  } catch {
+    failObsoleteState(`${label} is missing or unreadable`);
+  }
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(value).sort();
+  const canonical = [...expected].sort();
+  return actual.length === canonical.length &&
+    actual.every((key, index) => key === canonical[index]);
+}
+
+function validateLocalProtocolState(
+  metadata: CanonicalShotMetadata,
+): void {
+  const pointer = metadata.protocol;
+  const stateValue = readJsonFile(
+    join(SHOT_ROOT, ".tohseno", "protocol-state.json"),
+    "local Shot protocol state",
+  );
+  let state;
+  try {
+    state = validateCanonicalLocalShotState(stateValue, pointer.shotId);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+  console.log(
+    `✓ local Shot metadata · ${state.lifecycle} · evolution ${state.evolution} · no public record claimed`,
+  );
+}
+
 function validateMetadata(): void {
-  const path = join(SHOT_ROOT, ".tohseno", "shot.json");
   const releasePath = join(SHOT_ROOT, ".tohseno", "factory-release.json");
-  if (!existsSync(path)) fail("missing .tohseno/shot.json; this project is not a recognized shot");
-  const value = readJsonFile(path, "shot metadata");
-  if (typeof value !== "object" || value === null || Array.isArray(value)) fail("shot metadata must be an object");
-  const metadata = value as Record<string, unknown>;
-  if (
-    (metadata.schemaVersion !== 1 && metadata.schemaVersion !== 2) ||
-    metadata.platform !== "ios"
-  ) {
-    fail("shot metadata has an unsupported schema or platform");
+  let metadata: CanonicalShotMetadata;
+  try {
+    metadata = readCanonicalShotMetadata(SHOT_ROOT);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fail(
+      message.includes(PRE_RELEASE_UNSUPPORTED)
+        ? message
+        : `${PRE_RELEASE_UNSUPPORTED}: canonical Shot metadata is unreadable`,
+    );
   }
-  SHOT_METADATA_SCHEMA = metadata.schemaVersion;
   SHOT_METADATA = metadata;
-  if (metadata.schemaVersion === 2) {
-    const app = metadata.app;
-    const composition = metadata.composition;
-    if (
-      metadata.architecture !== "generic-app-v1" ||
-      typeof metadata.sanitizedPlanDigest !== "string" ||
-      !/^[a-f0-9]{64}$/u.test(metadata.sanitizedPlanDigest) ||
-      typeof app !== "object" ||
-      app === null ||
-      Array.isArray(app) ||
-      typeof composition !== "object" ||
-      composition === null ||
-      Array.isArray(composition)
-    ) {
-      fail("generic shot metadata is incomplete");
-    }
-  }
-  const factory = metadata.factory;
-  if (typeof factory !== "object" || factory === null || Array.isArray(factory)) fail("shot metadata is missing factory provenance");
-  const provenance = factory as Record<string, unknown>;
-  if (
-    typeof provenance.releaseId !== "string" ||
-    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u.test(provenance.releaseId) ||
-    typeof provenance.bundleDigest !== "string" ||
-    !/^[0-9a-f]{64}$/u.test(provenance.bundleDigest) ||
-    (
-      metadata.schemaVersion === 1 &&
-      provenance.manifestSchemaVersion !== CONTINUITY_MANIFEST_SCHEMA_VERSION
-    )
-  ) {
-    fail("shot metadata has incomplete or incompatible factory provenance");
-  }
-  const releaseValue = readJsonFile(
+  validateLocalProtocolState(metadata);
+  const releaseValue = readCanonicalStateFile(
     releasePath,
     "factory release record",
   );
   if (typeof releaseValue !== "object" || releaseValue === null || Array.isArray(releaseValue)) {
-    fail("factory release record must be an object");
+    failObsoleteState("factory release record must be an object");
   }
   const release = releaseValue as Record<string, unknown>;
-  PINNED_RELEASE = release;
+  const source =
+    typeof release.source === "object" &&
+      release.source !== null &&
+      !Array.isArray(release.source)
+      ? release.source as Record<string, unknown>
+      : null;
   if (
+    !exactKeys(release, [
+      "schemaVersion",
+      "releaseId",
+      "cliVersion",
+      "templateVersion",
+      "manifestSchemaVersion",
+      "platform",
+      "source",
+      "bundleDigest",
+      "files",
+    ]) ||
     release.schemaVersion !== 1 ||
-    release.releaseId !== provenance.releaseId ||
-    release.bundleDigest !== provenance.bundleDigest ||
-    release.manifestSchemaVersion !== provenance.manifestSchemaVersion
+    release.cliVersion !== "0.5.0" ||
+    release.templateVersion !== "ios-kernel-v1" ||
+    release.manifestSchemaVersion !== APP_MANIFEST_SCHEMA_VERSION ||
+    release.platform !== "ios" ||
+    typeof release.releaseId !== "string" ||
+    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+      .test(release.releaseId) ||
+    typeof release.bundleDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(release.bundleDigest) ||
+    source === null ||
+    !exactKeys(source, ["kind", "commit", "dirty"]) ||
+    (source.kind !== "git" && source.kind !== "content") ||
+    typeof source.dirty !== "boolean" ||
+    !Array.isArray(release.files) ||
+    release.files.length > 4_096
   ) {
-    fail("shot provenance does not match its pinned factory release record");
+    failObsoleteState("factory release record is not canonical 0.5");
   }
-  const creation = metadata.creation;
-  if (creation !== undefined) {
-    if (
-      typeof creation !== "object" ||
-      creation === null ||
-      Array.isArray(creation)
-    ) {
-      fail("shot creation provenance summary must be an object");
-    }
-    const summary = creation as Record<string, unknown>;
-    if (
-      (summary.door !== "cli" && summary.door !== "studio") ||
-      typeof summary.inputDigest !== "string" ||
-      !/^[a-f0-9]{64}$/u.test(summary.inputDigest) ||
-      typeof summary.hasIntention !== "boolean" ||
-      !Number.isSafeInteger(summary.referenceCount) ||
-      (summary.referenceCount as number) < 0 ||
-      (summary.referenceCount as number) > MAX_REFERENCES ||
-      summary.provenancePath !== ".tohseno/provenance/provenance.json"
-    ) {
-      fail("shot creation provenance summary is incomplete");
-    }
+  if (
+    (
+      source.kind === "git" &&
+      (
+        typeof source.commit !== "string" ||
+        !/^[0-9a-f]{40}$/u.test(source.commit)
+      )
+    ) ||
+    (
+      source.kind === "content" &&
+      (source.commit !== null || source.dirty)
+    )
+  ) {
+    failObsoleteState("factory release source provenance is invalid");
+  }
+  PINNED_RELEASE = release;
+  const provenance = metadata.factory;
+  if (
+    release.releaseId !== provenance.releaseId ||
+    release.cliVersion !== provenance.cliVersion ||
+    release.templateVersion !== provenance.templateVersion ||
+    release.manifestSchemaVersion !== provenance.manifestSchemaVersion ||
+    release.bundleDigest !== provenance.bundleDigest ||
+    source.commit !== provenance.sourceCommit ||
+    source.dirty !== provenance.sourceDirty
+  ) {
+    failObsoleteState(
+      "Shot provenance does not match its pinned factory release record",
+    );
+  }
+  const files = releaseFiles();
+  const digest = releaseBundleDigest(files);
+  const expectedReleaseId = source.kind === "git"
+    ? `git-${source.commit as string}${
+      source.dirty ? "-dirty" : ""
+    }-${digest.slice(0, 16)}`
+    : `content-${digest.slice(0, 32)}`;
+  if (
+    digest !== release.bundleDigest ||
+    expectedReleaseId !== release.releaseId
+  ) {
+    failObsoleteState(
+      "factory release identity does not match its canonical file inventory",
+    );
   }
 }
 
@@ -230,24 +302,32 @@ function releaseFiles(): Array<{
   executable: boolean;
 }> {
   const files = PINNED_RELEASE?.files;
-  if (!Array.isArray(files)) fail("factory release record has no file inventory");
-  return files.map((value) => {
+  if (!Array.isArray(files)) {
+    failObsoleteState("factory release record has no canonical file inventory");
+  }
+  const parsed = files.map((value) => {
     if (
       typeof value !== "object" ||
       value === null ||
       Array.isArray(value)
     ) {
-      fail("factory release record has an invalid file inventory");
+      failObsoleteState("factory release record has an invalid file inventory");
     }
     const file = value as Record<string, unknown>;
     if (
+      !exactKeys(file, ["path", "sha256", "size", "executable"]) ||
       typeof file.path !== "string" ||
+      isAbsolute(file.path) ||
+      file.path.split(/[\\/]/u).some((part) =>
+        part === "" || part === "." || part === ".."
+      ) ||
       typeof file.sha256 !== "string" ||
       !/^[a-f0-9]{64}$/u.test(file.sha256) ||
-      typeof file.size !== "number" ||
+      !Number.isSafeInteger(file.size) ||
+      (file.size as number) < 0 ||
       typeof file.executable !== "boolean"
     ) {
-      fail("factory release record has an invalid file inventory");
+      failObsoleteState("factory release record has an invalid file inventory");
     }
     return file as {
       path: string;
@@ -256,6 +336,35 @@ function releaseFiles(): Array<{
       executable: boolean;
     };
   });
+  if (
+    new Set(parsed.map((file) => file.path)).size !== parsed.length ||
+    parsed.some(
+      (file, index) =>
+        index > 0 && parsed[index - 1]!.path.localeCompare(file.path) >= 0,
+    )
+  ) {
+    failObsoleteState(
+      "factory release file inventory must be unique and sorted",
+    );
+  }
+  return parsed;
+}
+
+function releaseBundleDigest(
+  files: ReturnType<typeof releaseFiles>,
+): string {
+  const hash = createHash("sha256");
+  for (const file of files) {
+    hash.update(file.path);
+    hash.update("\0");
+    hash.update(file.sha256);
+    hash.update("\0");
+    hash.update(String(file.size));
+    hash.update("\0");
+    hash.update(file.executable ? "x" : "-");
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 function releaseSubtreeDigest(prefix: string): string {
@@ -277,7 +386,7 @@ function releaseSubtreeDigest(prefix: string): string {
   return hash.digest("hex");
 }
 
-function genericLock(): {
+function appLock(): {
   factoryReleaseId: string;
   kernel: { id: string; version: string; digest: string };
   template: { id: string; version: string; digest: string };
@@ -296,6 +405,15 @@ function genericLock(): {
   const kernel = lock.kernel;
   const template = lock.template;
   if (
+    !exactKeys(lock, [
+      "schemaVersion",
+      "factoryReleaseId",
+      "kernel",
+      "template",
+      "skills",
+      "resolvedOrder",
+      "files",
+    ]) ||
     lock.schemaVersion !== 1 ||
     typeof lock.factoryReleaseId !== "string" ||
     typeof kernel !== "object" ||
@@ -306,7 +424,8 @@ function genericLock(): {
     Array.isArray(template) ||
     !Array.isArray(lock.skills) ||
     !Array.isArray(lock.resolvedOrder) ||
-    !Array.isArray(lock.files)
+    !Array.isArray(lock.files) ||
+    !lock.resolvedOrder.every((value) => typeof value === "string")
   ) {
     fail("app skill lock has an unsupported shape");
   }
@@ -320,6 +439,7 @@ function genericLock(): {
     }
     const entry = item as Record<string, unknown>;
     if (
+      !exactKeys(entry, ["id", "version", "digest"]) ||
       typeof entry.id !== "string" ||
       !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(entry.id) ||
       typeof entry.version !== "string" ||
@@ -339,6 +459,7 @@ function genericLock(): {
     }
     const file = item as Record<string, unknown>;
     if (
+      !exactKeys(file, ["path", "owner", "sha256"]) ||
       typeof file.path !== "string" ||
       isAbsolute(file.path) ||
       file.path.split(/[\\/]/u).some((part) =>
@@ -352,6 +473,20 @@ function genericLock(): {
     }
     return file as { path: string; owner: string; sha256: string };
   });
+  if (new Set(skills.map((skill) => skill.id)).size !== skills.length) {
+    fail("app skill lock contains duplicate skill ids");
+  }
+  if (
+    !lock.resolvedOrder.every((value) =>
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value)
+    ) ||
+    new Set(lock.resolvedOrder).size !== lock.resolvedOrder.length
+  ) {
+    fail("app skill lock resolvedOrder must contain unique app skill ids");
+  }
+  if (new Set(files.map((file) => file.path)).size !== files.length) {
+    fail("app skill lock contains duplicate composition file paths");
+  }
   return {
     factoryReleaseId: lock.factoryReleaseId,
     kernel: validateItem(kernel, "kernel"),
@@ -362,7 +497,7 @@ function genericLock(): {
   };
 }
 
-function validateGenericComposition(): void {
+function validateComposition(): void {
   const declaredValue = readJsonFile(
     join(SHOT_ROOT, "tohseno.skills.json"),
     "declared app composition",
@@ -375,7 +510,21 @@ function validateGenericComposition(): void {
     fail("declared app composition must be an object");
   }
   const declared = declaredValue as Record<string, unknown>;
-  const lock = genericLock();
+  if (
+    !exactKeys(declared, ["schemaVersion", "template", "skills"]) ||
+    declared.schemaVersion !== 1 ||
+    typeof declared.template !== "string" ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(declared.template) ||
+    !Array.isArray(declared.skills) ||
+    !declared.skills.every((skill) =>
+      typeof skill === "string" &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(skill)
+    ) ||
+    new Set(declared.skills).size !== declared.skills.length
+  ) {
+    fail("declared app composition is not canonical");
+  }
+  const lock = appLock();
   const plan = readJsonFile(
     join(SHOT_ROOT, ".tohseno", "shot-plan.json"),
     "sanitized shot plan",
@@ -392,12 +541,14 @@ function validateGenericComposition(): void {
     manifest === null ||
     Array.isArray(manifest)
   ) {
-    fail("generic plan and manifest must be objects");
+    fail("Shot plan and app manifest must be objects");
   }
   const planRecord = plan as Record<string, unknown>;
   const manifestRecord = manifest as Record<string, unknown>;
-  const metadataComposition = SHOT_METADATA?.composition;
-  const metadataApp = SHOT_METADATA?.app;
+  const metadata = SHOT_METADATA;
+  if (metadata === null) fail("canonical Shot metadata is unavailable");
+  const metadataComposition = metadata.composition;
+  const metadataApp = metadata.app;
   const manifestComposition = manifestRecord.composition;
   const manifestApplication = manifestRecord.application;
   const planApp = planRecord.app;
@@ -409,34 +560,27 @@ function validateGenericComposition(): void {
     : null;
   const releaseId = PINNED_RELEASE?.releaseId;
   if (
-    declared.schemaVersion !== 1 ||
     declared.template !== lock.template.id ||
-    !Array.isArray(declared.skills) ||
     JSON.stringify(declared.skills) !==
       JSON.stringify(lock.skills.map((skill) => skill.id)) ||
     lock.factoryReleaseId !== releaseId ||
     JSON.stringify(lock.resolvedOrder) !==
       JSON.stringify(lock.skills.map((skill) => skill.id)) ||
     createHash("sha256").update(JSON.stringify(plan)).digest("hex") !==
-      SHOT_METADATA?.sanitizedPlanDigest ||
-    typeof metadataComposition !== "object" ||
-    metadataComposition === null ||
-    JSON.stringify((metadataComposition as Record<string, unknown>).kernel) !==
+      metadata.sanitizedPlanDigest ||
+    JSON.stringify(metadataComposition.kernel) !==
       JSON.stringify(lock.kernel) ||
-    JSON.stringify((metadataComposition as Record<string, unknown>).template) !==
+    JSON.stringify(metadataComposition.template) !==
       JSON.stringify(lock.template) ||
-    JSON.stringify((metadataComposition as Record<string, unknown>).skills) !==
+    JSON.stringify(metadataComposition.skills) !==
       JSON.stringify(lock.skills) ||
     typeof planApp !== "object" ||
     planApp === null ||
     Array.isArray(planApp) ||
-    typeof metadataApp !== "object" ||
-    metadataApp === null ||
-    Array.isArray(metadataApp) ||
     (planApp as Record<string, unknown>).name !==
-      (metadataApp as Record<string, unknown>).name ||
+      metadataApp.name ||
     (planApp as Record<string, unknown>).bundleId !==
-      (metadataApp as Record<string, unknown>).bundleId ||
+      metadataApp.bundleId ||
     planRecord.template !== lock.template.id ||
     JSON.stringify(planSkills) !==
       JSON.stringify(lock.skills.map((skill) => skill.id)) ||
@@ -455,7 +599,7 @@ function validateGenericComposition(): void {
     (manifestApplication as Record<string, unknown>).name !==
       (planApp as Record<string, unknown>).name
   ) {
-    fail("generic plan, manifest, metadata, and exact lock do not agree");
+    fail("Shot plan, app manifest, metadata, and exact lock do not agree");
   }
   const expectedDigests = [
     [
@@ -619,29 +763,70 @@ function validatePrivateCreationProvenance(): PrivateLeakMaterial | null {
     fail("private creation provenance record must be an object");
   }
   const provenance = value as Record<string, unknown>;
+  const privateFactory =
+    typeof provenance.factory === "object" &&
+      provenance.factory !== null &&
+      !Array.isArray(provenance.factory)
+      ? provenance.factory as Record<string, unknown>
+      : null;
+  const privateOptions =
+    typeof provenance.options === "object" &&
+      provenance.options !== null &&
+      !Array.isArray(provenance.options)
+      ? provenance.options as Record<string, unknown>
+      : null;
   if (
+    !exactKeys(provenance, [
+      "schemaVersion",
+      "createdAt",
+      "door",
+      "factory",
+      "intention",
+      "references",
+      "inputDigest",
+      "options",
+      "events",
+    ]) ||
     provenance.schemaVersion !== 1 ||
     (provenance.door !== "cli" && provenance.door !== "studio") ||
     typeof provenance.createdAt !== "string" ||
     typeof provenance.inputDigest !== "string" ||
-    !/^[a-f0-9]{64}$/u.test(provenance.inputDigest)
+    !/^[a-f0-9]{64}$/u.test(provenance.inputDigest) ||
+    !Array.isArray(provenance.references) ||
+    provenance.events !== "events.jsonl" ||
+    privateFactory === null ||
+    !exactKeys(privateFactory, [
+      "releaseId",
+      "cliVersion",
+      "templateVersion",
+      "manifestSchemaVersion",
+      "bundleDigest",
+    ]) ||
+    privateOptions === null ||
+    !exactKeys(privateOptions, [
+      "selectedAgent",
+      "agentMode",
+      "verifyAfterAgent",
+      "runAfterCreate",
+    ])
   ) {
-    fail("private creation provenance record has an unsupported shape");
+    fail("private creation provenance record is not canonical");
   }
-  const metadata = readJsonFile(
-    join(SHOT_ROOT, ".tohseno", "shot.json"),
-    "shot metadata",
-  ) as Record<string, unknown>;
-  const creationSummary = metadata.creation as Record<string, unknown> | undefined;
-  const factorySummary = metadata.factory as Record<string, unknown>;
-  const privateFactory = provenance.factory as Record<string, unknown> | undefined;
+  const metadata = SHOT_METADATA;
+  if (metadata === null) fail("canonical Shot metadata is unavailable");
+  const creationSummary = metadata.creation;
+  const factorySummary = metadata.factory;
   if (
-    creationSummary === undefined ||
     creationSummary.door !== provenance.door ||
     creationSummary.inputDigest !== provenance.inputDigest ||
     metadata.createdAt !== provenance.createdAt ||
-    privateFactory?.releaseId !== factorySummary.releaseId ||
-    privateFactory?.bundleDigest !== factorySummary.bundleDigest
+    privateFactory.releaseId !== factorySummary.releaseId ||
+    privateFactory.cliVersion !== factorySummary.cliVersion ||
+    privateFactory.templateVersion !== factorySummary.templateVersion ||
+    privateFactory.manifestSchemaVersion !==
+      factorySummary.manifestSchemaVersion ||
+    privateFactory.bundleDigest !== factorySummary.bundleDigest ||
+    JSON.stringify(privateOptions) !== JSON.stringify(creationSummary.options)
   ) {
     fail("private creation provenance does not match the immutable shot summary");
   }
@@ -653,6 +838,17 @@ function validatePrivateCreationProvenance(): PrivateLeakMaterial | null {
       fail("private creation intention record must be an object or null");
     }
     const record = intention as Record<string, unknown>;
+    if (
+      !exactKeys(record, [
+        "path",
+        "sha256",
+        "bytes",
+        "components",
+      ]) ||
+      !Array.isArray(record.components)
+    ) {
+      fail("private creation intention record is not canonical");
+    }
     const intentionFile = typeof record.path === "string"
       ? privateProvenanceFile(root, record.path, MAX_INTENTION_BYTES)
       : null;
@@ -674,6 +870,62 @@ function validatePrivateCreationProvenance(): PrivateLeakMaterial | null {
       createHash("sha256").update(intentionBytes).digest("hex") !== record.sha256
     ) {
       fail("private creation intention checksum does not match");
+    }
+    for (const componentValue of record.components as unknown[]) {
+      if (
+        typeof componentValue !== "object" ||
+        componentValue === null ||
+        Array.isArray(componentValue)
+      ) {
+        fail("private creation intention component is not canonical");
+      }
+      const component = componentValue as Record<string, unknown>;
+      const keys = Object.hasOwn(component, "originalName")
+        ? [
+            "kind",
+            "originalName",
+            "sha256",
+            "bytes",
+            "byteOffset",
+            "byteLength",
+          ]
+        : ["kind", "sha256", "bytes", "byteOffset", "byteLength"];
+      if (
+        !exactKeys(component, keys) ||
+        (component.kind !== "textarea" && component.kind !== "markdown") ||
+        (
+          Object.hasOwn(component, "originalName") &&
+          (
+            component.kind !== "markdown" ||
+            typeof component.originalName !== "string" ||
+            component.originalName.length < 1
+          )
+        ) ||
+        typeof component.sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/u.test(component.sha256) ||
+        !Number.isSafeInteger(component.bytes) ||
+        !Number.isSafeInteger(component.byteOffset) ||
+        !Number.isSafeInteger(component.byteLength) ||
+        (component.bytes as number) < 1 ||
+        component.bytes !== component.byteLength ||
+        (component.byteOffset as number) < 0 ||
+        (component.byteLength as number) < 1 ||
+        (component.byteOffset as number) +
+          (component.byteLength as number) >
+          intentionBytes.length
+      ) {
+        fail("private creation intention component is not canonical");
+      }
+      const componentBytes = intentionBytes.subarray(
+        component.byteOffset as number,
+        (component.byteOffset as number) + (component.byteLength as number),
+      );
+      if (
+        createHash("sha256").update(componentBytes).digest("hex") !==
+          component.sha256
+      ) {
+        fail("private creation intention component checksum does not match");
+      }
     }
     intentionSha256 = record.sha256;
     let end = intentionBytes.length;
@@ -704,6 +956,19 @@ function validatePrivateCreationProvenance(): PrivateLeakMaterial | null {
       fail("private creation reference record must be an object");
     }
     const record = reference as Record<string, unknown>;
+    if (
+      !exactKeys(record, [
+        "path",
+        "originalName",
+        "mediaType",
+        "bytes",
+        "sha256",
+      ]) ||
+      typeof record.originalName !== "string" ||
+      typeof record.mediaType !== "string"
+    ) {
+      fail("private creation reference record is not canonical");
+    }
     const referenceFile = typeof record.path === "string"
       ? privateProvenanceFile(root, record.path, MAX_REFERENCE_BYTES)
       : null;
@@ -855,57 +1120,22 @@ function validateWorktreePrivacy(material: PrivateLeakMaterial | null): void {
 }
 
 function validateStructure(): void {
-  for (const path of REQUIRED_IOS_FILES) {
-    if (!existsSync(join(SHOT_ROOT, path))) fail(`missing required iOS file ${path}`);
-  }
-}
-
-function validateGenericStructure(): void {
-  for (const path of [
-    "App/ShotApp.swift",
-    "App/Design/DesignTokens.swift",
-    "Config/App.xcconfig",
-    "Config/Debug.xcconfig",
-    "Config/Release.xcconfig",
-    "Tests/KernelTests.swift",
-    "Shot.xcodeproj/project.pbxproj",
-    "Shot.xcodeproj/xcshareddata/xcschemes/Shot.xcscheme",
-    "app.manifest.json",
-    "SHOT.md",
-    "DONE.md",
-    "tohseno.skills.json",
-    "tohseno.skills.lock",
-    ".tohseno/shot-plan.json",
-    "project.yml",
-    "site/index.html",
-  ]) {
+  for (const path of REQUIRED_SHOT_FILES) {
     if (!existsSync(join(SHOT_ROOT, path))) {
-      fail(`missing required generic app file ${path}`);
+      fail(`missing required canonical Shot file ${path}`);
     }
   }
 }
 
 function validateManifestFile(): void {
-  const path = join(SHOT_ROOT, "continuity.manifest.json");
-  const value = readJsonFile(path, "continuity.manifest.json");
-  const result = validateManifest(value);
-  if (result.warnings.length > 0) console.error(formatManifestIssues(result.warnings));
-  if (!result.valid) {
-    console.error(formatManifestIssues(result.errors));
-    fail(`continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION} has ${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`);
-  }
-  console.log(`✓ manifest · continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION} · valid`);
-}
-
-function validateGenericManifestFile(): void {
   const path = join(SHOT_ROOT, "app.manifest.json");
   const value = readJsonFile(path, "app.manifest.json");
   const result = validateAppManifest(value);
   if (result.warnings.length > 0) {
-    console.error(formatManifestIssues(result.warnings));
+    console.error(formatIssues(result.warnings));
   }
   if (!result.valid) {
-    console.error(formatManifestIssues(result.errors));
+    console.error(formatIssues(result.errors));
     fail(
       `app.manifest ${APP_MANIFEST_SCHEMA_VERSION} has ${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`,
     );
@@ -915,29 +1145,78 @@ function validateGenericManifestFile(): void {
   );
 }
 
-function validateProductionEndpoint(): void {
-  const endpoint = configuredProductionEndpoint(SHOT_ROOT);
-  const inspection = inspectEndpoint(endpoint);
-  if (!inspection.configured) {
-    console.error("WARNING production API endpoint is not configured; production inspection will report a blocker");
-  } else if (!inspection.valid) {
-    fail(`invalid production API endpoint: ${inspection.issues.join("; ")}`);
-  } else {
-    console.log("✓ production endpoint · stable HTTPS · no development transport");
-  }
-  try {
-    const production = inspectProduction(SHOT_ROOT);
-    console.log(`✓ production contract · inspected · ${production.blockers.length} blocker${production.blockers.length === 1 ? "" : "s"}`);
-  } catch (error) {
-    fail(`invalid production contract: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
 async function validateGitAndLinks(): Promise<void> {
   const top = await run(["git", "rev-parse", "--show-toplevel"]);
   if (top.exitCode !== 0 || realpathSync(resolve(top.stdout.trim())) !== SHOT_ROOT) {
     fail("shot is not the root of an independent Git repository");
   }
+  const metadata = SHOT_METADATA;
+  if (metadata === null) fail("canonical Shot metadata is unavailable");
+  const protocol = metadata.protocol;
+  const additions = await run([
+    "git",
+    "log",
+    "--format=%H",
+    "--reverse",
+    "--diff-filter=A",
+    "--",
+    ".tohseno/shot.json",
+  ]);
+  const anchorCommit = additions.stdout.trim().split(/\r?\n/u)[0] ?? "";
+  if (additions.exitCode !== 0) {
+    fail("cannot inspect the local Shot identity baseline");
+  }
+  if (!/^[0-9a-f]{40}$/u.test(anchorCommit)) {
+    fail("canonical Shot identity has no factory baseline Git anchor");
+  }
+  const [baselineMetadata, baselineState] = await Promise.all([
+    run([
+      "git",
+      "show",
+      `${anchorCommit}:.tohseno/shot.json`,
+    ]),
+    run([
+      "git",
+      "show",
+      `${anchorCommit}:.tohseno/protocol-state.json`,
+    ]),
+  ]);
+  let baselineShotId: unknown;
+  let baselineStateShotId: unknown;
+  try {
+    const baselineMetadataValue = validateCanonicalShotMetadata(
+      JSON.parse(baselineMetadata.stdout) as unknown,
+    );
+    const baselineStateValue = JSON.parse(
+      baselineState.stdout,
+    ) as Record<string, unknown>;
+    if (
+      !exactKeys(baselineStateValue, [
+        "protocolVersion",
+        "shotId",
+        "lifecycle",
+        "evolution",
+      ]) ||
+      baselineStateValue.protocolVersion !== 1 ||
+      baselineStateValue.lifecycle !== "EVOLVING" ||
+      baselineStateValue.evolution !== 0
+    ) {
+      fail("canonical Shot identity baseline state is invalid");
+    }
+    baselineShotId = baselineMetadataValue.protocol.shotId;
+    baselineStateShotId = baselineStateValue.shotId;
+  } catch {
+    fail("canonical Shot identity baseline is unreadable");
+  }
+  if (
+    baselineMetadata.exitCode !== 0 ||
+    baselineState.exitCode !== 0 ||
+    baselineShotId !== protocol.shotId ||
+    baselineStateShotId !== protocol.shotId
+  ) {
+    fail("local Shot ID differs from its factory baseline Git anchor");
+  }
+  console.log("✓ identity · local Shot ID matches its factory baseline Git anchor");
   const listed = await run(["git", "ls-files", "-z"]);
   if (listed.exitCode !== 0) fail("cannot inspect tracked files");
   for (const trackedPath of listed.stdout.split("\0").filter(Boolean)) {
@@ -957,14 +1236,12 @@ async function validateGitAndLinks(): Promise<void> {
   for (const ignoredPath of [
     "MASTER_PROMPT.md",
     "MASTER_EVOLUTIONARY_PROMPT.md",
+    "TOHSENO_EVOLUTION_PROMPT.md",
     "Config/Local.xcconfig",
-    ".tohseno/data/development.sqlite3",
-    ".tohseno/run/state.json",
-    ".tohseno/run/logs/api.log",
+    ".tohseno/data/",
+    ".tohseno/run/logs/ios.log",
     ".tohseno/provenance/provenance.json",
     ".tohseno/artifacts/screenshot.png",
-    "Config/DevelopmentEndpoint.xcconfig",
-    "app.config.json",
     ".env",
     "credential.p8",
   ]) {
@@ -976,14 +1253,8 @@ async function validateGitAndLinks(): Promise<void> {
 
 validateMetadata();
 const privateLeakMaterial = validatePrivateCreationProvenance();
-if (SHOT_METADATA_SCHEMA === 2) {
-  validateGenericStructure();
-  validateGenericManifestFile();
-  validateGenericComposition();
-} else {
-  validateStructure();
-  validateManifestFile();
-  validateProductionEndpoint();
-}
+validateStructure();
+validateManifestFile();
+validateComposition();
 await validateGitAndLinks();
 validateWorktreePrivacy(privateLeakMaterial);

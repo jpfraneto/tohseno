@@ -213,7 +213,7 @@ describe("machine environment boundaries", () => {
       CODEX_HOME: "/tmp/synthetic-codex",
       SSH_AUTH_SOCK: "/tmp/synthetic-agent.sock",
       GH_TOKEN: "synthetic-github-secret",
-      BANKR_API_KEY: "synthetic-provider-secret",
+      PROVIDER_SECRET: "synthetic-provider-secret",
     })).toEqual({
       PATH: "/usr/bin",
       HOME: "/tmp/synthetic-home",
@@ -221,18 +221,15 @@ describe("machine environment boundaries", () => {
     });
   });
 
-  test("forwards Bankr auth only to recognized token operations", () => {
+  test("machine operations never receive ambient provider credentials", () => {
     const source = {
       PATH: "/usr/bin",
-      BANKR_API_KEY: "bankr-secret-must-not-cross",
+      PROVIDER_SECRET: "provider-secret-must-not-cross",
     };
-    for (const operation of ["dev.start", "ios.launch", "verify", "unknown"]) {
+    for (const operation of ["ios.inspect", "ios.launch", "verify", "unknown"]) {
       expect(machineRuntimeEnvironment(operation, source)).toEqual({
         PATH: "/usr/bin",
       });
-    }
-    for (const operation of ["token.status", "token.launch", "token.fees"]) {
-      expect(machineRuntimeEnvironment(operation, source)).toEqual(source);
     }
   });
 
@@ -241,16 +238,16 @@ describe("machine environment boundaries", () => {
       writeExecutable(scratch.binDirectory, "git", [
         "#!/bin/sh",
         "printf '%s\\n' \"$@\"",
-        "printf 'provider=%s\\n' \"${BANKR_API_KEY-unset}\"",
+        "printf 'provider=%s\\n' \"${PROVIDER_SECRET-unset}\"",
       ].join("\n"));
       const environment = {
         ...scratch.environment,
-        BANKR_API_KEY: "synthetic-provider-secret",
+        PROVIDER_SECRET: "synthetic-provider-secret",
         GH_TOKEN: "synthetic-github-secret",
         GIT_DIR: "/tmp/untrusted-git-dir",
       };
       expect(sanitizedGitEnvironment(environment)).not.toHaveProperty(
-        "BANKR_API_KEY",
+        "PROVIDER_SECRET",
       );
       expect(sanitizedGitEnvironment(environment)).not.toHaveProperty(
         "GH_TOKEN",
@@ -326,7 +323,7 @@ describe("coding-agent detection and selection", () => {
       writeExecutable(scratch.binDirectory, "claude", "#!/bin/sh\nexit 0");
       io = createMemoryIo();
       exitCode = await main(
-        ["create", "needs-agent-choice", "--platform", "ios", "--no-interactive"],
+        ["create", "needs-agent-choice", "--no-interactive"],
         {
           cwd: scratch.root,
           environment: scratch.environment,
@@ -348,7 +345,7 @@ describe("coding-agent detection and selection", () => {
         },
       );
       expect(exitCode).toBe(2);
-      expect(io.stderr.join("\n")).toContain("this factory release implements ios only");
+      expect(io.stderr.join("\n")).toContain("unknown option --platform");
     });
   });
 
@@ -372,7 +369,7 @@ describe("coding-agent detection and selection", () => {
     await withScratchEnvironment(async (scratch) => {
       let io = createMemoryIo(true);
       let exitCode = await main([
-        "create", "needs-agent", "--platform", "ios",
+        "create", "needs-agent",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,
@@ -384,7 +381,7 @@ describe("coding-agent detection and selection", () => {
 
       io = createMemoryIo();
       exitCode = await main([
-        "create", "needs-git", "--platform", "ios", "--no-launch", "--no-interactive",
+        "create", "needs-git", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: { ...scratch.environment, PATH: scratch.binDirectory },
@@ -396,13 +393,12 @@ describe("coding-agent detection and selection", () => {
     });
   });
 
-  test("help advertises only the implemented platform", async () => {
+  test("help exposes only canonical commands and assigns iOS without a flag", async () => {
     const io = createMemoryIo();
     expect(await main(["--help"], { io })).toBe(0);
     const help = io.stdout.join("\n");
     expect(help).toContain("Take another one.");
-    expect(help).toContain("--platform ios");
-    expect(help).toContain("iOS is assigned automatically");
+    expect(help).not.toContain("--platform");
     expect(help).toContain(
       "tohseno studio                  open the local contact sheet",
     );
@@ -414,5 +410,28 @@ describe("coding-agent detection and selection", () => {
     );
     expect(help).not.toContain("--platform android");
     expect(help).not.toContain("--platform web");
+    expect(help).not.toContain("tohseno adopt");
+    expect(help).not.toContain("tohseno continue");
+  });
+
+  test("doctor checks the neutral canonical app inputs", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const io = createMemoryIo();
+      expect(await main(["doctor"], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io,
+        sourceRoot: REPOSITORY_ROOT,
+      })).toBe(0);
+
+      const output = io.stdout.join("\n");
+      expect(output).toContain(
+        "✓ app manifest · neutral ios-kernel",
+      );
+      expect(output).toContain(
+        "✓ app catalog · blank resolves to ios-kernel",
+      );
+      expect(output).not.toContain("compatibility");
+    });
   });
 });

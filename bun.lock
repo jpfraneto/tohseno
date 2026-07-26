@@ -8,9 +8,13 @@
         "typescript": "^5.8.3",
       },
     },
+    "apps/reference-node": {
+      "name": "@tohseno/reference-node",
+      "version": "0.5.0",
+    },
     "packages/cli": {
       "name": "@tohseno/cli",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "bin": {
         "tohseno": "./src/bin.ts",
       },
@@ -18,18 +22,56 @@
         "serve-sim": "0.1.45",
       },
     },
+    "packages/identity": {
+      "name": "@tohseno/identity",
+      "version": "0.5.0",
+    },
     "packages/manifest": {
       "name": "@tohseno/manifest",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "devDependencies": {
         "ajv": "8.18.0",
       },
+    },
+    "packages/node-client": {
+      "name": "@tohseno/node-client",
+      "version": "0.5.0",
+    },
+    "packages/protocol": {
+      "name": "@tohseno/protocol",
+      "version": "0.5.0",
+    },
+    "packages/registry": {
+      "name": "@tohseno/registry",
+      "version": "0.5.0",
+    },
+    "packages/signer": {
+      "name": "@tohseno/signer",
+      "version": "0.5.0",
+    },
+    "packages/skills": {
+      "name": "@tohseno/skills",
+      "version": "0.5.0",
     },
   },
   "packages": {
     "@tohseno/cli": ["@tohseno/cli@workspace:packages/cli"],
 
+    "@tohseno/identity": ["@tohseno/identity@workspace:packages/identity"],
+
     "@tohseno/manifest": ["@tohseno/manifest@workspace:packages/manifest"],
+
+    "@tohseno/node-client": ["@tohseno/node-client@workspace:packages/node-client"],
+
+    "@tohseno/protocol": ["@tohseno/protocol@workspace:packages/protocol"],
+
+    "@tohseno/reference-node": ["@tohseno/reference-node@workspace:apps/reference-node"],
+
+    "@tohseno/registry": ["@tohseno/registry@workspace:packages/registry"],
+
+    "@tohseno/signer": ["@tohseno/signer@workspace:packages/signer"],
+
+    "@tohseno/skills": ["@tohseno/skills@workspace:packages/skills"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 

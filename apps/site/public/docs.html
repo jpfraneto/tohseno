@@ -38,12 +38,13 @@
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
           <h1>Take another one.</h1>
-          <p class="document-intro">Install the local factory once. Turn an intention into an independent iOS shot. Open it, use it, and keep moving.</p>
+          <p class="document-intro">Run the prepared local factory from source. Turn an intention into an independent iOS shot. Open it, use it, and keep moving.</p>
         </header>
 
         <nav class="docs-index" aria-label="On this page">
           <span>ON THIS PAGE</span>
           <a href="#first-shot">First shot</a>
+          <a href="#protocol">Shot protocol</a>
           <a href="#factory-doors">Factory doors</a>
           <a href="#simulator">Simulator</a>
           <a href="#local-data">What stays local</a>
@@ -53,45 +54,54 @@
 
         <section id="first-shot">
           <h2>Make the idea exist</h2>
-          <pre><code>curl -fsSL https://tohseno.com/install.sh | bash
-tohseno</code></pre>
-          <p>On an empty contact sheet, write one intention. With existing shots, choose <strong>Take another shot</strong> or <strong>Continue a shot</strong>. Every app lands as an independent repository under your configured shots directory—<code>~/tohseno/shots</code> by default. TOHSENO uses the selected Codex or Claude Code provider to propose a sanitized plan, then shows the app, template, skills, data, identity, and definition of done before building.</p>
+          <pre><code>bun install --frozen-lockfile
+bun run tohseno</code></pre>
+          <p><strong>Source preview:</strong> this checkout implements the prepared, unpublished <code>0.5.0</code> release. No installer, package, tag, or deployment has been published for it.</p>
+          <p>On an empty contact sheet, write one intention. With existing shots, choose <strong>Take another Shot</strong> or <strong>Evolve a Shot</strong>. An Evolution changes the same coherent intention; it does not create another Shot. Every app lands as an independent repository under your configured shots directory—<code>~/tohseno/shots</code> by default. TOHSENO uses the selected Codex or Claude Code provider to propose a sanitized plan, then shows the app, template, skills, data, generated-app runtime identity, and definition of done before building.</p>
           <p>The raw intention stays private and gitignored. For an explicit local input, use one UTF-8 Markdown file and repeat <code>--reference</code> for image references:</p>
-          <pre><code>tohseno create --file intention.md --reference sketch.png</code></pre>
+          <pre><code>bun run tohseno -- create --file intention.md --reference sketch.png</code></pre>
           <p>The file paths are ordinary local inputs; their private contents never enter shell arguments, the factory release, Git history, or centralized logs.</p>
           <div class="command-block">
-            <code class="command-line" id="install-command" data-install-command>{{INSTALL_COMMAND}}</code>
-            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="install-command">{{HERO_COPY_LABEL}}</button>
+            <code class="command-line" id="source-command" data-source-command>{{SOURCE_COMMAND}}</code>
+            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="source-command">{{HERO_COPY_LABEL}}</button>
           </div>
+        </section>
+
+        <section id="protocol">
+          <h2>One Shot can evolve</h2>
+          <pre><code>bun run tohseno -- evolve &lt;shot&gt;
+bun run tohseno -- status &lt;shot&gt;</code></pre>
+          <p>A <strong>Shot</strong> is one coherent software intention. An <strong>Evolution</strong> changes that same Shot and keeps its stable identity and repository. Starting another intention creates another Shot.</p>
+          <p>Distribution uses exactly three protocol states: <code>EVOLVING</code> means the Shot is not represented as publicly downloadable, <code>PUBLISHED</code> means downloadable through TOHSENO from published source, and <code>APP_STORE</code> means shipped through Apple. Evolutions can be recorded in every state; repository creation, build readiness, and app runtime state are separate.</p>
+          <p>Optional Builder-signed public records can describe Evolutions and lifecycle transitions. A signature makes the declared claims portable and verifiable as that Builder key’s attestation; it does not independently prove ownership or select between competing histories. A replaceable node can index one accepted history, but production trust roots and cross-node fork resolution remain Open. Local creation and use require no node, account, server, wallet, chain, or TOHSENO mobile app. The mobile app is intentionally absent until the first stable factory release creates it as that release’s first Shot.</p>
         </section>
 
         <section id="factory-doors">
           <h2>One factory, multiple doors</h2>
-          <pre><code>tohseno studio
-tohseno studio --port 4747 --no-open</code></pre>
+          <pre><code>bun run tohseno -- studio
+bun run tohseno -- studio --port 4747 --no-open</code></pre>
           <p>Studio is a local browser contact sheet for the same configured shots directory used by the CLI. It binds to <code>127.0.0.1</code>, never the LAN, and watches that directory for shots created through either door. Its creation form accepts a long intention, one optional Markdown file, and optional image references.</p>
           <p>Studio opens through a mode-<code>0600</code> temporary launcher file. Its one-time fragment establishes an HTTP-only, path-scoped local session and is removed from browser history immediately. The shell, command line, and printed base URL contain no reusable session credential; private reads and mutations require the session.</p>
-          <p>The terminal and Studio call the same planner and deterministic composition engine. They share the released kernel/template/skill catalog, concurrency-safe allocation, atomic publication, independent Git history, private provenance, and verification. Studio is not a daemon requirement: close it and the same shots remain available through <code>tohseno list</code>, <code>verify</code>, and <code>open</code>.</p>
+          <p>The terminal and Studio call the same planner and deterministic composition engine. They share the released kernel/template/skill catalog, concurrency-safe allocation, atomic repository creation, independent Git history, private provenance, and verification. Studio is not a daemon requirement: close it and the same shots remain available through the source CLI’s <code>list</code>, <code>verify</code>, and <code>open</code> commands.</p>
         </section>
 
         <section id="agent-operations">
           <h2>What the agent operates</h2>
-          <p>Every new shot pins its operational playbook, generic manifest, composition lock, app-skill instructions, verifier, and machine commands locally. Generic apps build and launch directly from the project, scheme, and product declared in their manifest; they do not inherit a backend or account system.</p>
-          <p>Legacy continuity-v1 shots retain their localhost API, SQLite, Debug endpoint, and optional Quick Tunnel operations through their historical pinned release. Those are not generic app requirements.</p>
+          <p>Every new Shot pins its operational playbook, app manifest, composition lock, app-skill instructions, verifier, and machine commands locally. Apps build and launch directly from the Xcode project, scheme, and product declared in that manifest; they do not inherit a backend or account system.</p>
         </section>
 
         <section id="simulator">
           <h2>Run the real Simulator</h2>
-          <pre><code>tohseno run &lt;shot&gt;
-tohseno preview &lt;shot&gt;
-tohseno doctor</code></pre>
+          <pre><code>bun run tohseno -- run &lt;shot&gt;
+bun run tohseno -- preview &lt;shot&gt;
+bun run tohseno -- doctor</code></pre>
           <p>On macOS with Xcode command-line tools and an available iPhone Simulator, <code>run</code> builds, installs, and launches the shot in Apple Simulator, then attempts a private contact-sheet capture. A failed capture does not stop an otherwise running app.</p>
           <p><code>preview</code> adds an interactive local browser stream of that same native Simulator; it is not an in-browser iOS emulator. Interactive preview additionally requires Apple Silicon, a native arm64 Node.js 20 or newer, and the pinned <code>serve-sim</code> helper. Simulator use does not require paid Apple Developer Program membership. <code>doctor</code> reports the selected Node architecture and exact readiness, and unsupported preview does not disable Studio’s contact sheet, creation, or ordinary CLI verification.</p>
         </section>
 
         <section id="prototype">
           <h2>The point</h2>
-          <p>The prototype is the payoff: a real thing on your phone that you can touch, change, keep, or leave on the contact sheet. Most shots miss. That is why you can take a lot of them. TOHSENO makes no promise of riches and never turns financial plumbing into the reason to build.</p>
+          <p>The prototype is the payoff: a real native app in iPhone Simulator that you can use, change, keep, or leave on the contact sheet. Most shots miss. That is why you can take a lot of them. TOHSENO makes no promise of riches and never turns financial plumbing into the reason to build.</p>
         </section>
 
         <section id="local-data">
@@ -104,13 +114,12 @@ tohseno doctor</code></pre>
 
         <section id="approval-boundary">
           <h2>Approval boundary</h2>
-          <p>The agent can diagnose and prepare locally. It must ask before creating accounts, spending money, handling credentials, changing DNS, publishing packages, deploying production, or submitting to an app store. TOHSENO never runs the prepared <code>fastlane beta</code> lane unprompted.</p>
-          <p>When you say “put this online,” “ship this,” or “send this to TestFlight,” the agent first performs read-only production inspection, explains the exact blockers, and requests only the authority actually needed.</p>
+          <p>The agent can diagnose and prepare locally. It must ask before creating accounts, spending money, handling credentials, changing DNS, publishing packages, deploying production, or submitting to an app store. The canonical machine exposes no deployment or store-submission command.</p>
         </section>
 
         <section id="production-boundary">
           <h2>Current production boundary</h2>
-          <p>Production inspection, stable-HTTPS validation, single-instance SQLite semantics, backup declarations, and unresolved-secret reporting are implemented. Broad VPS provisioning, deployment, monitoring, recovery, DNS changes, and store submission are not implemented. A Quick Tunnel is always rejected as a Release endpoint.</p>
+          <p>The factory prepares local source, Simulator builds, verification, and an independently owned static landing page. Broad VPS provisioning, deployment, monitoring, recovery, DNS changes, publishing, and store submission are not implemented by the canonical machine operations.</p>
           <p>iOS is the only implemented app platform. Android and web do not appear as fictional choices. Linux can run the factory and API, but only macOS with Xcode can build and launch the iOS app.</p>
         </section>
 
@@ -121,7 +130,7 @@ tohseno doctor</code></pre>
 
         <section id="automation">
           <h2>Advanced and automation use</h2>
-          <p>Humans can use <code>tohseno</code> or <code>tohseno studio</code>. Explicit commands including <code>create</code>, <code>list</code>, <code>open</code>, <code>doctor</code>, <code>verify</code>, <code>adopt</code>, <code>run</code>, and <code>preview</code> remain available for scripts and repository contributors. The detailed machine protocol is documented in each shot at <code>.tohseno/OPERATIONS.md</code> and in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>.</p>
+          <p>The prepared source CLI exposes <code>create</code>, <code>evolve</code>, <code>status</code>, <code>list</code>, <code>open</code>, <code>doctor</code>, <code>verify</code>, <code>run</code>, <code>preview</code>, and <code>studio</code>. The detailed machine protocol is documented in each Shot at <code>.tohseno/OPERATIONS.md</code> and in <a href="{{REPOSITORY_URL}}" rel="noopener">the repository</a>.</p>
         </section>
       </article>
     </main>

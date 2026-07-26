@@ -16,7 +16,7 @@ import { main } from "../src/cli.ts";
 import { resolveConfig } from "../src/config.ts";
 import {
   createShot,
-  PublishedShotCreationError,
+  MaterializedShotCreationError,
 } from "../src/creation.ts";
 import { removeTreeEvenIfReadOnly } from "../src/files.ts";
 import { readProgressJournal } from "../src/progress.ts";
@@ -26,7 +26,7 @@ import {
 } from "../src/provenance.ts";
 import type { FactoryRelease } from "../src/release.ts";
 import {
-  publishStagedShot,
+  materializeStagedShot,
   type ShotMetadata,
 } from "../src/shot.ts";
 import { allocateShotSequence } from "../src/workspace.ts";
@@ -100,7 +100,6 @@ describe("shared shot factory", () => {
         "create",
         "--file", markdown,
         "--reference", reference,
-        "--platform", "ios",
         "--no-launch",
         "--no-interactive",
       ], {
@@ -150,10 +149,48 @@ describe("shared shot factory", () => {
       const cliProvenance = readProvenance(cliRoot);
       const studioProvenance = readProvenance(studioResult.path);
 
-      expect(cliMetadata.creation?.door).toBe("cli");
-      expect(studioMetadata.creation?.door).toBe("studio");
-      expect(cliMetadata.creation?.inputDigest).toBe(studioMetadata.creation?.inputDigest);
-      expect(cliMetadata.creation?.referenceCount).toBe(1);
+      expect(cliMetadata.creation.door).toBe("cli");
+      expect(studioMetadata.creation.door).toBe("studio");
+      expect(cliMetadata.protocol.shotId).toMatch(
+        /^shot_[A-Za-z0-9_-]{32}$/,
+      );
+      expect(studioMetadata.protocol.shotId).toMatch(
+        /^shot_[A-Za-z0-9_-]{32}$/,
+      );
+      expect(cliMetadata.protocol.shotId).not.toBe(
+        studioMetadata.protocol.shotId,
+      );
+      expect(JSON.parse(readFileSync(
+        join(cliRoot, ".tohseno", "protocol-state.json"),
+        "utf8",
+      ))).toMatchObject({
+        protocolVersion: 1,
+        shotId: cliMetadata.protocol.shotId,
+        lifecycle: "EVOLVING",
+        evolution: 0,
+      });
+      expect(existsSync(
+        join(cliRoot, ".tohseno", "runtime", "ios.ts"),
+      )).toBe(true);
+      expect(existsSync(
+        join(cliRoot, ".tohseno", "runtime", "shared.ts"),
+      )).toBe(true);
+      for (const obsoleteRuntime of ["dev.ts", "production.ts", "token.ts"]) {
+        expect(existsSync(
+          join(cliRoot, ".tohseno", "runtime", obsoleteRuntime),
+        )).toBe(false);
+      }
+      for (const obsoleteManifestTool of [
+        "validate.ts",
+        "types.ts",
+        "continuity.manifest.schema.json",
+      ]) {
+        expect(existsSync(
+          join(cliRoot, ".tohseno", "manifest", obsoleteManifestTool),
+        )).toBe(false);
+      }
+      expect(cliMetadata.creation.inputDigest).toBe(studioMetadata.creation.inputDigest);
+      expect(cliMetadata.creation.referenceCount).toBe(1);
       expect(cliMetadata.factory.bundleDigest).toBe(studioMetadata.factory.bundleDigest);
       expect(cliProvenance.inputDigest).toBe(studioProvenance.inputDigest);
       expect(cliProvenance.references[0]?.originalName).toBe("reference image.png");
@@ -263,7 +300,7 @@ describe("shared shot factory", () => {
     });
   });
 
-  test("atomic publication never replaces an empty destination on macOS", async () => {
+  test("atomic repository creation never replaces an empty destination on macOS", async () => {
     await withScratchEnvironment((scratch) => {
       const staging = join(scratch.shotsDirectory, ".staged-shot");
       const destination = join(scratch.shotsDirectory, "owner-directory");
@@ -272,7 +309,7 @@ describe("shared shot factory", () => {
       mkdirSync(destination);
       writeFileSync(join(staging, "factory.txt"), "factory\n");
 
-      expect(() => publishStagedShot(staging, destination)).toThrow(
+      expect(() => materializeStagedShot(staging, destination)).toThrow(
         "refusing to overwrite",
       );
       expect(readdirSync(destination)).toEqual([]);
@@ -539,8 +576,8 @@ describe("shared shot factory", () => {
         failure = error;
       }
       expect(failure).toBeInstanceOf(Error);
-      expect(failure).toBeInstanceOf(PublishedShotCreationError);
-      if (failure instanceof PublishedShotCreationError) {
+      expect(failure).toBeInstanceOf(MaterializedShotCreationError);
+      if (failure instanceof MaterializedShotCreationError) {
         expect(failure.shot.path).toContain(
           ".failed-agent-privacy.unsafe-",
         );

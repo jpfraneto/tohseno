@@ -5,7 +5,12 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, extname, join } from "node:path";
-import type { AgentId } from "./agents.ts";
+import { isAgentId, type AgentId } from "./agents.ts";
+import {
+  CLI_VERSION,
+  IOS_TEMPLATE_VERSION,
+  MANIFEST_SCHEMA_VERSION,
+} from "./constants.ts";
 import type { CreationDoor } from "./progress.ts";
 import type { FactoryRelease } from "./release.ts";
 import { CliError } from "./errors.ts";
@@ -92,6 +97,238 @@ export interface CreationProvenance {
     runAfterCreate: boolean;
   };
   events: "events.jsonl";
+}
+
+function provenanceRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function provenanceKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(value).sort();
+  const canonical = [...expected].sort();
+  return actual.length === canonical.length &&
+    actual.every((key, index) => key === canonical[index]);
+}
+
+function canonicalTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value;
+}
+
+function canonicalSha256(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
+}
+
+function invalidProvenance(): never {
+  throw new CliError(
+    "private creation provenance is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+    2,
+  );
+}
+
+export function validateCreationProvenance(
+  value: unknown,
+): CreationProvenance {
+  const root = provenanceRecord(value);
+  if (
+    root === null ||
+    !provenanceKeys(root, [
+      "schemaVersion",
+      "createdAt",
+      "door",
+      "factory",
+      "intention",
+      "references",
+      "inputDigest",
+      "options",
+      "events",
+    ]) ||
+    root.schemaVersion !== CREATION_PROVENANCE_SCHEMA_VERSION ||
+    !canonicalTimestamp(root.createdAt) ||
+    (root.door !== "cli" && root.door !== "studio") ||
+    !canonicalSha256(root.inputDigest) ||
+    root.events !== "events.jsonl" ||
+    !Array.isArray(root.references)
+  ) {
+    return invalidProvenance();
+  }
+
+  const factory = provenanceRecord(root.factory);
+  if (
+    factory === null ||
+    !provenanceKeys(factory, [
+      "releaseId",
+      "cliVersion",
+      "templateVersion",
+      "manifestSchemaVersion",
+      "bundleDigest",
+    ]) ||
+    typeof factory.releaseId !== "string" ||
+    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+      .test(factory.releaseId) ||
+    factory.cliVersion !== CLI_VERSION ||
+    factory.templateVersion !== IOS_TEMPLATE_VERSION ||
+    factory.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION ||
+    !canonicalSha256(factory.bundleDigest)
+  ) {
+    return invalidProvenance();
+  }
+
+  const options = provenanceRecord(root.options);
+  if (
+    options === null ||
+    !provenanceKeys(options, [
+      "selectedAgent",
+      "agentMode",
+      "verifyAfterAgent",
+      "runAfterCreate",
+    ]) ||
+    (
+      options.selectedAgent !== null &&
+      (
+        typeof options.selectedAgent !== "string" ||
+        !isAgentId(options.selectedAgent)
+      )
+    ) ||
+    (
+      options.agentMode !== "interactive" &&
+      options.agentMode !== "automated" &&
+      options.agentMode !== "none"
+    ) ||
+    typeof options.verifyAfterAgent !== "boolean" ||
+    typeof options.runAfterCreate !== "boolean"
+  ) {
+    return invalidProvenance();
+  }
+
+  let intentionSha256: string | null = null;
+  if (root.intention !== null) {
+    const intention = provenanceRecord(root.intention);
+    if (
+      intention === null ||
+      !provenanceKeys(intention, [
+        "path",
+        "sha256",
+        "bytes",
+        "components",
+      ]) ||
+      intention.path !== "intention.md" ||
+      !canonicalSha256(intention.sha256) ||
+      !Number.isSafeInteger(intention.bytes) ||
+      (intention.bytes as number) < 1 ||
+      !Array.isArray(intention.components) ||
+      intention.components.length < 1
+    ) {
+      return invalidProvenance();
+    }
+    for (const value of intention.components) {
+      const component = provenanceRecord(value);
+      const hasOriginalName = component !== null &&
+        Object.hasOwn(component, "originalName");
+      if (
+        component === null ||
+        !provenanceKeys(
+          component,
+          hasOriginalName
+            ? [
+              "kind",
+              "originalName",
+              "sha256",
+              "bytes",
+              "byteOffset",
+              "byteLength",
+            ]
+            : ["kind", "sha256", "bytes", "byteOffset", "byteLength"],
+        ) ||
+        (component.kind !== "textarea" && component.kind !== "markdown") ||
+        (
+          hasOriginalName &&
+          (
+            component.kind !== "markdown" ||
+            typeof component.originalName !== "string" ||
+            component.originalName.length < 1 ||
+            component.originalName.length > 255 ||
+            component.originalName !==
+              basename(component.originalName.replaceAll("\\", "/"))
+                .normalize("NFC") ||
+            extname(component.originalName).toLowerCase() !== ".md" ||
+            /[\u0000-\u001f\u007f-\u009f]/u.test(component.originalName)
+          )
+        ) ||
+        !canonicalSha256(component.sha256) ||
+        !Number.isSafeInteger(component.bytes) ||
+        !Number.isSafeInteger(component.byteOffset) ||
+        !Number.isSafeInteger(component.byteLength) ||
+        (component.bytes as number) < 1 ||
+        component.bytes !== component.byteLength ||
+        (component.byteOffset as number) < 0 ||
+        (component.byteLength as number) < 1 ||
+        (component.byteOffset as number) +
+            (component.byteLength as number) >
+          (intention.bytes as number)
+      ) {
+        return invalidProvenance();
+      }
+    }
+    intentionSha256 = intention.sha256;
+  }
+
+  if (root.references.length > MAX_REFERENCES) {
+    return invalidProvenance();
+  }
+  const referenceHashes: string[] = [];
+  for (const value of root.references) {
+    const reference = provenanceRecord(value);
+    if (
+      reference === null ||
+      !provenanceKeys(reference, [
+        "path",
+        "originalName",
+        "mediaType",
+        "bytes",
+        "sha256",
+      ]) ||
+      typeof reference.path !== "string" ||
+      !/^references\/reference-[0-9]{3}\.(?:png|jpg|webp|gif|heic|avif)$/u
+        .test(reference.path) ||
+      typeof reference.originalName !== "string" ||
+      reference.originalName.length < 1 ||
+      reference.originalName.length > 255 ||
+      reference.originalName !==
+        basename(reference.originalName.replaceAll("\\", "/")).normalize("NFC") ||
+      /[\u0000-\u001f\u007f-\u009f]/u.test(reference.originalName) ||
+      typeof reference.mediaType !== "string" ||
+      ![
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "image/heic",
+        "image/avif",
+      ].includes(reference.mediaType) ||
+      !Number.isSafeInteger(reference.bytes) ||
+      (reference.bytes as number) < 1 ||
+      !canonicalSha256(reference.sha256)
+    ) {
+      return invalidProvenance();
+    }
+    referenceHashes.push(reference.sha256);
+  }
+  if (
+    root.inputDigest !== sha256(JSON.stringify({
+      intentionSha256,
+      references: referenceHashes,
+    }))
+  ) {
+    return invalidProvenance();
+  }
+  return root as unknown as CreationProvenance;
 }
 
 function sha256(value: string | Uint8Array): string {

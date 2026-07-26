@@ -205,8 +205,6 @@ export interface SimulatorDiagnosticsDependencies {
 }
 
 export type SimulatorProgressEvent =
-  | { type: "development-starting" }
-  | { type: "development-ready" }
   | { type: "building" }
   | { type: "simulator-launching" }
   | { type: "simulator-launched"; device: SimulatorDevice; bundleId: string }
@@ -948,8 +946,6 @@ export async function simulatorDiagnostics(
   };
 }
 
-export const diagnoseSimulator = simulatorDiagnostics;
-
 export function simulatorDoctorRecords(
   diagnostics: SimulatorDiagnostics,
 ): SimulatorDoctorRecord[] {
@@ -1425,17 +1421,6 @@ export async function runShotInSimulator(
   };
   try {
     assertNotAborted(options.signal);
-    const metadata = readShotMetadata(root);
-    if (metadata?.schemaVersion !== 2) {
-      await emitProgress(options.onProgress, { type: "development-starting" });
-      await invokeMachine(
-        executor,
-        [bunExecutable(environment), machine, "dev", "start", "--json"],
-        commandOptions,
-        "dev.start",
-      );
-      await emitProgress(options.onProgress, { type: "development-ready" });
-    }
     await emitProgress(options.onProgress, { type: "building" });
     await emitProgress(options.onProgress, { type: "simulator-launching" });
     const launchArguments = [
@@ -1528,8 +1513,6 @@ export async function runShotInSimulator(
     throw simulatorError;
   }
 }
-
-export const runSimulatorShot = runShotInSimulator;
 
 function sidecarEnvironment(
   source: Record<string, string | undefined>,
@@ -2315,5 +2298,3 @@ export function createSimulatorCreationRunner(
     },
   };
 }
-
-export const simulatorCreationRunner = createSimulatorCreationRunner;

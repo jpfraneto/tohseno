@@ -1,3 +1,0 @@
-# The Anky architectural study is a byte-for-byte provenance archive. Preserve
-# its original whitespace rather than rewriting source documents on import.
-docs/research/anky/** -whitespace

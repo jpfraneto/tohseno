@@ -15,10 +15,13 @@ workspace.
 
 Most shots miss. A bounded, owned app is still useful evidence.
 
-## What a shot is
+## Shot and Evolution
 
-A shot is an independent SwiftUI application repository. New shots do not all
-start as the same product. They start from a deterministic composition:
+A Shot is one coherent software intention with a stable identity and an
+independent SwiftUI application repository. An Evolution changes that same
+Shot. It keeps the Shot ID and repository; it is not counted as another Shot.
+New Shots do not all start as the same product. They start from a deterministic
+composition:
 
 ```text
 private intention
@@ -38,6 +41,15 @@ bounded experience shape. Skills supply versioned capabilities such as local
 progress or sharing. Each layer declares its files and digest; the resulting
 lock is verifiable without trusting the conversation that created it.
 
+Distribution is a separate three-state lifecycle:
+
+- `EVOLVING` — not represented as publicly downloadable;
+- `PUBLISHED` — downloadable through TOHSENO from published source;
+- `APP_STORE` — shipped through Apple.
+
+Evolutions may be recorded in any of these states. Creation progress, Simulator
+readiness, and app runtime state do not change those definitions.
+
 ## What AI does—and does not do
 
 The selected coding-agent provider interprets meaning once, at the plan
@@ -54,7 +66,9 @@ input elsewhere.
 
 The repository, source, history, manifest, composition lock, tests, landing
 page, and pinned operating tools leave together. A later TOHSENO release cannot
-rewrite them. There is no TOHSENO account or generated-app content backend.
+rewrite them. Each app declares its data behavior and starts from local,
+account-free defaults. There is no TOHSENO account or TOHSENO-operated
+generated-app content backend.
 
 Raw intentions and references stay in gitignored local provenance. The selected
 coding agent may read them under its provider’s privacy and retention terms.
@@ -69,35 +83,51 @@ without explicit approval.
 
 `tohseno` is the direct terminal flow. `tohseno studio` is the loopback-only
 contact sheet. Both use the same release catalog, planner, composition engine,
-allocator, private provenance, atomic publication, pinned verifier, and
-Simulator service. Studio is a local view, not infrastructure a shot depends
+allocator, private provenance, atomic repository creation, pinned verifier, and
+Simulator service. Studio is a local view, not infrastructure a Shot depends
 on.
 
-## The compatibility line
+## The optional public layer
 
-Continuity-v1 is an implemented legacy architecture: BIP39 identity,
-crash-safe writing, local API/SQLite, module flags, and its operational rails.
-Existing shots retain that behavior through their pinned release. Those
-capabilities are not universal properties of new generic apps.
+Builder-signed records can append deliberately public Evolutions, lifecycle
+transitions, and deployment-agnostic Appcoin links. Registries deterministically
+project one accepted history; nodes are replaceable indexes rather than
+ownership or consensus authorities. Each signature is a portable Builder
+attestation over declared claims, not independent proof that those claims are
+true or globally preferred. The reference node has no designated endpoint or
+record field for generated-app runtime content. Protocol policy limits it to
+deliberately submitted public records, whose summaries still require Builder
+review.
 
-The generic factory is the current default. It is private-by-default and
+Builder identity, generated-app runtime identity, release signing, Apple
+credentials, and external-action authority are distinct roles. The included
+local signer proves the interface in tests; it is not a production recovery or
+key-custody policy.
+
+No public protocol component is needed to make, evolve, build, run, or eject a
+local Shot.
+
+The factory is private-by-default and
 account-free-by-default, but manifests may truthfully declare other data,
 identity, integration, entitlement, or irreversible mechanics. Those are
 product decisions, not moral refusals.
 
 ## The honest boundary
 
-**Implemented:** generic manifests; a neutral SwiftUI kernel; Blank and Daily
+**Implemented:** the canonical app manifest; a neutral SwiftUI kernel; Blank and Daily
 Game templates; four real app skills; deterministic composition and locks;
 CLI and Studio planning; independent repositories; post-agent privacy and
 integrity verification; native build, Simulator launch, and screenshot
-capture; legacy continuity verification.
+capture; deterministic signed public Shot records; registry projection; and a
+local reference node.
 
-**Prepared:** production inspection and operator instructions that do not
-perform an external action.
+**Prepared:** the owner-ladder catalog and operator instructions that do not
+perform an external action; the CLI does not project or execute that ladder.
 
 **Proposed:** automatic production deployment, monitoring, recovery,
-TestFlight submission, TokenMint, and SessionLink.
+TestFlight submission, persistent Builder-key custody, and mobile signing.
 
-**Open:** any decision that expands disclosure, cost, ownership, or external
-authority beyond the accepted manifest and owner approval.
+**Open:** the production Builder trust root and cross-node resolution of
+competing valid histories, plus any decision that expands disclosure, cost,
+ownership, or external authority beyond the accepted manifest and owner
+approval.

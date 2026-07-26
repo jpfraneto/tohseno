@@ -11,6 +11,9 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  CLI_VERSION,
+  IOS_TEMPLATE_VERSION,
+  MANIFEST_SCHEMA_VERSION,
   MAX_FACTORY_RELEASE_BYTES,
   MAX_FACTORY_RELEASE_FILE_BYTES,
   MAX_FACTORY_RELEASE_FILES,
@@ -39,13 +42,6 @@ export interface TrustedShotTool {
   root: string;
   executable: string;
   release: PreparedRelease | null;
-}
-
-export class LegacyShotToolError extends CliError {
-  constructor(message: string) {
-    super(message, 2);
-    this.name = "LegacyShotToolError";
-  }
 }
 
 interface TrustedShotContext {
@@ -160,6 +156,16 @@ function safeReleasePath(value: string): boolean {
     );
 }
 
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(value).sort();
+  const canonical = [...expected].sort();
+  return actual.length === canonical.length &&
+    actual.every((key, index) => key === canonical[index]);
+}
+
 function readEmbeddedRelease(
   path: string,
   expected?: { releaseId: string; bundleDigest: string },
@@ -179,19 +185,36 @@ function readEmbeddedRelease(
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw integrityError("shot-local factory release record must be an object");
   }
+  const root = value as Record<string, unknown>;
   const candidate = value as Partial<FactoryRelease>;
   const source = candidate.source;
   if (
+    !exactKeys(root, [
+      "schemaVersion",
+      "releaseId",
+      "cliVersion",
+      "templateVersion",
+      "manifestSchemaVersion",
+      "platform",
+      "source",
+      "bundleDigest",
+      "files",
+    ]) ||
     candidate.schemaVersion !== 1 ||
     candidate.platform !== "ios" ||
     typeof candidate.releaseId !== "string" ||
-    typeof candidate.cliVersion !== "string" ||
-    typeof candidate.templateVersion !== "string" ||
-    typeof candidate.manifestSchemaVersion !== "string" ||
+    candidate.cliVersion !== CLI_VERSION ||
+    candidate.templateVersion !== IOS_TEMPLATE_VERSION ||
+    candidate.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION ||
     typeof candidate.bundleDigest !== "string" ||
     !/^[a-f0-9]{64}$/u.test(candidate.bundleDigest) ||
     typeof source !== "object" ||
     source === null ||
+    !exactKeys(source as unknown as Record<string, unknown>, [
+      "kind",
+      "commit",
+      "dirty",
+    ]) ||
     (source.kind !== "git" && source.kind !== "content") ||
     typeof source.dirty !== "boolean" ||
     !Array.isArray(candidate.files)
@@ -226,8 +249,10 @@ function readEmbeddedRelease(
         "shot-local factory release record has an invalid file inventory",
       );
     }
+    const entryObject = entry as unknown as Record<string, unknown>;
     const record = entry as Partial<ReleaseFileRecord>;
     if (
+      !exactKeys(entryObject, ["path", "sha256", "size", "executable"]) ||
       typeof record.path !== "string" ||
       !safeReleasePath(record.path) ||
       seen.has(record.path) ||
@@ -261,9 +286,11 @@ function readEmbeddedRelease(
     );
   }
   const required = [
-    "manifest/types.ts",
-    "manifest/validate.ts",
-    "shot/runtime/production.ts",
+    "manifest/app.manifest.schema.json",
+    "manifest/app.ts",
+    "manifest/cli.ts",
+    "shot/machine.ts",
+    "shot/runtime/ios.ts",
     "shot/runtime/shared.ts",
     "shot/verify.ts",
   ];
@@ -408,10 +435,8 @@ function assertPinnedLayout(
   const machineRecord = metadata.files.find(
     (record) => record.path === "shot/machine.ts",
   );
-  if (machineRecord === undefined && existsSync(join(local, "machine.ts"))) {
-    throw integrityError(
-      "legacy shot has an unpinned machine runtime",
-    );
+  if (machineRecord === undefined) {
+    throw integrityError("the Shot has no pinned machine runtime");
   }
 }
 
@@ -666,12 +691,7 @@ function requireToolDeclared(
 ): void {
   const path = tool === "verify" ? "shot/verify.ts" : "shot/machine.ts";
   if (!metadata.files.some((record) => record.path === path)) {
-    if (tool === "machine") {
-      throw new LegacyShotToolError(
-        "this legacy shot has no pinned machine runtime",
-      );
-    }
-    throw integrityError("this shot has no pinned verifier");
+    throw integrityError(`this Shot has no pinned ${tool} runtime`);
   }
 }
 

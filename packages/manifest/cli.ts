@@ -1,5 +1,5 @@
 /**
- * Command-line gate for continuity manifests: `bun run validate <path>`.
+ * Command-line gate for the canonical app manifest: `bun run validate <path>`.
  *
  * Exit codes: 0 valid, 1 invalid or unparseable, 2 usage/missing file.
  * Running the library file directly validates nothing; this entry point
@@ -17,13 +17,11 @@ import {
   APP_MANIFEST_SCHEMA_VERSION,
   validateAppManifest,
 } from "./app";
-import { CONTINUITY_MANIFEST_SCHEMA_VERSION } from "./types";
-import { formatManifestIssues, validateManifest } from "./validate";
 
 const MAX_MANIFEST_BYTES = 1_048_576;
 const path = Bun.argv[2];
 if (path === undefined || path === "--help" || path === "-h") {
-  console.error("usage: bun run validate <app.manifest.json|continuity.manifest.json>");
+  console.error("usage: bun run validate <app.manifest.json>");
   process.exit(2);
 }
 
@@ -84,6 +82,9 @@ try {
 } catch (error) {
   const detail = error instanceof Error ? error.message : "unknown JSON parse error";
   console.error(`✗ ${path} is not valid JSON: ${detail}`);
+  console.error(
+    "  Pre-release compatibility is unsupported. Create a fresh Shot with TOHSENO 0.5.",
+  );
   process.exit(1);
 } finally {
   if (descriptor !== undefined) closeSync(descriptor);
@@ -93,16 +94,37 @@ const root =
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-const generic = root.kind === "app" || root.schemaVersion === APP_MANIFEST_SCHEMA_VERSION;
-const result = generic ? validateAppManifest(value) : validateManifest(value);
-const label = generic
-  ? `app.manifest ${APP_MANIFEST_SCHEMA_VERSION}`
-  : `continuity.manifest ${CONTINUITY_MANIFEST_SCHEMA_VERSION}`;
+const label = `app.manifest ${APP_MANIFEST_SCHEMA_VERSION}`;
+if (
+  root.kind !== "app" ||
+  root.schemaVersion !== APP_MANIFEST_SCHEMA_VERSION
+) {
+  console.error(`✗ ${path} is not a canonical ${label}`);
+  console.error(
+    "  Pre-release compatibility is unsupported. Create a fresh Shot with TOHSENO 0.5.",
+  );
+  process.exit(1);
+}
+const result = validateAppManifest(value);
+const formatIssues = (
+  issues: ReadonlyArray<{
+    severity: string;
+    path: string;
+    code: string;
+    message: string;
+  }>,
+): string =>
+  issues
+    .map(
+      (issue) =>
+        `${issue.severity.toUpperCase()} ${issue.path} [${issue.code}]: ${issue.message}`,
+    )
+    .join("\n");
 if (result.warnings.length > 0) {
-  console.error(formatManifestIssues(result.warnings));
+  console.error(formatIssues(result.warnings));
 }
 if (!result.valid) {
-  console.error(formatManifestIssues(result.errors));
+  console.error(formatIssues(result.errors));
   console.error(
     `✗ ${path} · ${label} · ${result.errors.length} error${result.errors.length === 1 ? "" : "s"}`,
   );

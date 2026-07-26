@@ -3,14 +3,18 @@ import {
   closeSync,
   constants,
   fchmodSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
+  readSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
+import type { Stats } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import {
@@ -20,32 +24,32 @@ import {
   MAX_FACTORY_RELEASE_FILES,
 } from "../src/constants.ts";
 import {
+  assertSafeBundlePath,
   listRegularFiles,
   readBoundedRegularFile,
-  readBoundedUtf8,
 } from "../src/files.ts";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const ARCHIVE_ROOT = `tohseno-cli-${CLI_VERSION}`;
 const INPUTS = [
   "LICENSE",
-  "skills/continuity-app",
   "skills/daily-challenge",
   "skills/local-progress",
   "skills/rank-progression",
   "skills/share-card",
   "packages/skills",
+  "packages/identity",
+  "packages/signer",
+  "packages/protocol",
+  "packages/registry",
+  "packages/node-client",
   "packages/manifest/app.ts",
   "packages/manifest/app.manifest.schema.json",
   "packages/manifest/cli.ts",
-  "packages/manifest/continuity.manifest.schema.json",
-  "packages/manifest/types.ts",
-  "packages/manifest/validate.ts",
   "packages/cli/src",
   "packages/cli/factory",
   "packages/cli/package.json",
   "packages/cli/THIRD_PARTY_NOTICES.md",
-  "templates/continuity-app",
   "templates/ios-kernel",
   "templates/blank",
   "templates/daily-game",
@@ -69,14 +73,601 @@ const THIRD_PARTY_INPUTS = [
 
 interface ArchiveFile {
   path: string;
-  source?: string;
-  content?: Buffer;
+  content: Buffer;
   mode: number;
 }
 
+interface FirstPartySnapshotRecord {
+  path: string;
+  contentSha256: string;
+  gitBlobSha1: string;
+  mode: number;
+  fileSystemIdentity: string;
+}
+
+interface FirstPartySnapshot {
+  files: ArchiveFile[];
+  records: FirstPartySnapshotRecord[];
+  fingerprint: string;
+}
+
+interface StableGitReleaseSnapshot {
+  files: ArchiveFile[];
+  matchesHead: boolean;
+  source: CliReleaseSourceProvenance;
+}
+
+interface GitHeadEntry {
+  path: string;
+  object: string;
+  mode: number;
+}
+
+interface ThirdPartySnapshotFile {
+  relativePath: string;
+  content: Buffer;
+  executable: boolean;
+}
+
+const SOURCE_INVENTORY =
+  "git ls-files --cached --others --exclude-standard" as const;
 const CHECKSUM_MANIFEST = ".tohseno-install-checksums-v1";
 const EXECUTABLE_MANIFEST = ".tohseno-install-executables-v1";
 const ROOT_MANIFEST = ".tohseno-install-root-v1";
+
+export interface CliReleaseSourceProvenance {
+  kind: "git";
+  commit: string;
+  dirty: boolean;
+  inventory: typeof SOURCE_INVENTORY;
+}
+
+function runGit(root: string, arguments_: readonly string[], label: string): Buffer {
+  const git = (() => {
+    try {
+      const candidate = Bun.which("git");
+      if (candidate === null) throw new Error("Git is unavailable");
+      const canonical = realpathSync(candidate);
+      const details = lstatSync(canonical);
+      if (!details.isFile() || (details.mode & 0o111) === 0) {
+        throw new Error("Git is not executable");
+      }
+      return canonical;
+    } catch {
+      throw new Error(
+        `could not ${label}; Git is required to build a CLI release`,
+      );
+    }
+  })();
+  const result = (() => {
+    try {
+      return Bun.spawnSync(
+        [
+          git,
+          "--no-pager",
+          "--literal-pathspecs",
+          "-c",
+          "core.hooksPath=/dev/null",
+          "-c",
+          "core.fsmonitor=false",
+          "-c",
+          "core.filemode=true",
+          "-c",
+          "core.attributesFile=/dev/null",
+          "-c",
+          "core.excludesFile=/dev/null",
+          "-c",
+          "core.untrackedCache=false",
+          "-c",
+          "submodule.recurse=false",
+          "-C",
+          root,
+          ...arguments_,
+        ],
+        {
+          env: {
+            LANG: "C",
+            LC_ALL: "C",
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL: "/dev/null",
+            GIT_NO_REPLACE_OBJECTS: "1",
+            GIT_OPTIONAL_LOCKS: "0",
+            GIT_TERMINAL_PROMPT: "0",
+          },
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+    } catch {
+      throw new Error(
+        `could not ${label}; Git is required to build a CLI release`,
+      );
+    }
+  })();
+  if (result.exitCode !== 0) {
+    throw new Error(`could not ${label}; refusing to build without Git provenance`);
+  }
+  return Buffer.from(result.stdout);
+}
+
+function decodeGitUtf8(value: Uint8Array, label: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(value);
+  } catch {
+    throw new Error(`${label} contains a path that is not valid UTF-8`);
+  }
+}
+
+function decodeGitNulRecords(value: Uint8Array, label: string): string[] {
+  const output = decodeGitUtf8(value, label);
+  if (output === "") return [];
+  if (!output.endsWith("\0")) {
+    throw new Error(`${label} is missing its path terminator`);
+  }
+  const records = output.slice(0, -1).split("\0");
+  if (records.some((record) => record === "")) {
+    throw new Error(`${label} contains an empty record`);
+  }
+  return records;
+}
+
+function assertExactGitRoot(root: string): string {
+  const absolute = resolve(root);
+  const details = lstatSync(absolute);
+  if (details.isSymbolicLink() || !details.isDirectory()) {
+    throw new Error(`CLI release source must be a real directory: ${absolute}`);
+  }
+  const canonical = realpathSync(absolute);
+  const topLevel = decodeGitUtf8(
+    runGit(
+      absolute,
+      ["rev-parse", "--show-toplevel"],
+      "resolve the CLI release repository",
+    ),
+    "Git repository root",
+  ).trimEnd();
+  if (
+    topLevel === "" ||
+    /[\r\n]/u.test(topLevel) ||
+    realpathSync(topLevel) !== canonical
+  ) {
+    throw new Error("CLI release source must be the exact Git worktree root");
+  }
+  return canonical;
+}
+
+function assertSafeReleaseInput(input: string): void {
+  if (
+    input === "" ||
+    input.startsWith("/") ||
+    input.includes("\\") ||
+    /[\r\n]/u.test(input) ||
+    input.split("/").some((part) =>
+      part === "" || part === "." || part === ".."
+    )
+  ) {
+    throw new Error(`CLI release input must be a safe repository path: ${input}`);
+  }
+}
+
+export function gitReleaseInputPaths(
+  root: string,
+  inputs: readonly string[],
+): string[] {
+  const repositoryRoot = assertExactGitRoot(root);
+  if (inputs.length === 0) {
+    throw new Error("CLI release requires at least one first-party input");
+  }
+  for (const input of inputs) {
+    assertSafeReleaseInput(input);
+    const details = lstatSync(join(repositoryRoot, input));
+    if (
+      details.isSymbolicLink() ||
+      (!details.isDirectory() && !details.isFile())
+    ) {
+      throw new Error(
+        `CLI release input must be a real file or directory: ${input}`,
+      );
+    }
+  }
+
+  const paths = decodeGitNulRecords(
+    runGit(
+      repositoryRoot,
+      [
+        "ls-files",
+        "-z",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "--",
+        ...inputs,
+      ],
+      "inventory CLI release inputs",
+    ),
+    "Git release inventory",
+  );
+  const unique = [...new Set(paths)]
+    .filter((path) =>
+      lstatSync(join(repositoryRoot, path), { throwIfNoEntry: false }) !==
+        undefined
+    )
+    .sort((left, right) => left.localeCompare(right));
+  if (unique.length > MAX_FACTORY_RELEASE_FILES) {
+    throw new Error("CLI release Git inventory contains too many files");
+  }
+  for (const path of unique) {
+    if (
+      path === "" ||
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      /[\r\n]/u.test(path) ||
+      path.split("/").some((part) =>
+        part === "" || part === "." || part === ".."
+      )
+    ) {
+      throw new Error("Git release inventory contains an unsafe path");
+    }
+    if (
+      !inputs.some((input) =>
+        path === input || path.startsWith(`${input}/`)
+      )
+    ) {
+      throw new Error("Git release inventory escaped its declared inputs");
+    }
+  }
+  for (const input of inputs) {
+    if (
+      !unique.some((path) =>
+        path === input || path.startsWith(`${input}/`)
+      )
+    ) {
+      throw new Error(`CLI release input has no Git-visible files: ${input}`);
+    }
+  }
+  return unique;
+}
+
+function hasConservativeGitIndexState(root: string): boolean {
+  const tags = decodeGitNulRecords(
+    runGit(
+      root,
+      ["ls-files", "-v", "-z"],
+      "inspect CLI release index flags",
+    ),
+    "Git index flag inventory",
+  );
+  for (const record of tags) {
+    if (record.length < 3 || record[1] !== " ") {
+      throw new Error("Git index flag inventory has an unsupported record");
+    }
+    if (record[0] !== "H") {
+      return true;
+    }
+  }
+
+  const stages = decodeGitNulRecords(
+    runGit(
+      root,
+      ["ls-files", "--stage", "-z"],
+      "inspect CLI release index entries",
+    ),
+    "Git index entry inventory",
+  );
+  for (const record of stages) {
+    const tab = record.indexOf("\t");
+    if (
+      tab === -1 ||
+      !/^[0-9]{6} [0-9a-f]{40} [0-3]$/u.test(record.slice(0, tab))
+    ) {
+      throw new Error("Git index entry inventory has an unsupported record");
+    }
+    if (record.startsWith("160000 ")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function cliReleaseSourceProvenance(
+  root: string,
+): CliReleaseSourceProvenance {
+  const repositoryRoot = assertExactGitRoot(root);
+  const commit = decodeGitUtf8(
+    runGit(
+      repositoryRoot,
+      ["rev-parse", "--verify", "HEAD^{commit}"],
+      "resolve CLI release source commit",
+    ),
+    "Git source commit",
+  ).trim();
+  if (!/^[0-9a-f]{40}$/u.test(commit)) {
+    throw new Error("CLI release source commit has an unsupported identity");
+  }
+  const status = runGit(
+    repositoryRoot,
+    [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--ignore-submodules=all",
+    ],
+    "inspect CLI release source status",
+  );
+  return {
+    kind: "git",
+    commit,
+    dirty: status.length > 0 || hasConservativeGitIndexState(repositoryRoot),
+    inventory: SOURCE_INVENTORY,
+  };
+}
+
+function firstPartyPathIdentity(
+  root: string,
+  path: string,
+): { identity: string; fileIdentity: string; mode: number } {
+  let current = root;
+  const rootDetails = lstatSync(root);
+  if (rootDetails.isSymbolicLink() || !rootDetails.isDirectory()) {
+    throw new Error("CLI release repository root changed during snapshot");
+  }
+  const identities = [
+    `d:${rootDetails.dev}:${rootDetails.ino}:${rootDetails.mode}`,
+  ];
+  const parts = path.split("/");
+  for (const [index, part] of parts.entries()) {
+    current = join(current, part);
+    const details = lstatSync(current);
+    const isFile = index === parts.length - 1;
+    if (
+      details.isSymbolicLink() ||
+      (isFile
+        ? !details.isFile() || details.nlink !== 1
+        : !details.isDirectory())
+    ) {
+      throw new Error(
+        `CLI release input must be a single-link regular file beneath real directories: ${path}`,
+      );
+    }
+    const fileIdentity = isFile ? statFileIdentity(details) : "";
+    identities.push(
+      isFile
+        ? `f:${fileIdentity}`
+        : `d:${details.dev}:${details.ino}:${details.mode}`,
+    );
+    if (isFile) {
+      return {
+        identity: identities.join("\0"),
+        fileIdentity,
+        mode: (details.mode & 0o111) === 0 ? 0o644 : 0o755,
+      };
+    }
+  }
+  throw new Error(`CLI release input is not a file: ${path}`);
+}
+
+function statFileIdentity(details: Stats): string {
+  return `${details.dev}:${details.ino}:${details.mode}:${details.nlink}:${details.size}:${details.mtimeMs}:${details.ctimeMs}`;
+}
+
+function gitBlobSha1(content: Buffer): string {
+  return createHash("sha1")
+    .update(`blob ${content.length}\0`)
+    .update(content)
+    .digest("hex");
+}
+
+function snapshotFirstPartyFile(
+  root: string,
+  path: string,
+): {
+  content: Buffer;
+  mode: number;
+  fileSystemIdentity: string;
+} {
+  assertSafeBundlePath(path);
+  const before = firstPartyPathIdentity(root, path);
+  const source = join(root, path);
+  let descriptor: number | undefined;
+  let content: Buffer;
+  try {
+    descriptor = openSync(source, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = fstatSync(descriptor);
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.size > MAX_FACTORY_RELEASE_FILE_BYTES ||
+      statFileIdentity(opened) !== before.fileIdentity
+    ) {
+      throw new Error("opened file identity differs");
+    }
+    const chunks: Buffer[] = [];
+    const buffer = Buffer.allocUnsafe(65_536);
+    let total = 0;
+    while (true) {
+      const length = readSync(descriptor, buffer, 0, buffer.length, null);
+      if (length === 0) break;
+      total += length;
+      if (total > MAX_FACTORY_RELEASE_FILE_BYTES) {
+        throw new Error("file grew past its limit");
+      }
+      chunks.push(Buffer.from(buffer.subarray(0, length)));
+    }
+    if (statFileIdentity(fstatSync(descriptor)) !== before.fileIdentity) {
+      throw new Error("opened file changed while being read");
+    }
+    content = Buffer.concat(chunks, total);
+  } catch {
+    throw new Error(
+      `CLI release input changed or left its repository while being read: ${path}`,
+    );
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+  const after = firstPartyPathIdentity(root, path);
+  if (
+    before.identity !== after.identity ||
+    before.mode !== after.mode
+  ) {
+    throw new Error(`CLI release input changed while being read: ${path}`);
+  }
+  return {
+    content,
+    mode: before.mode,
+    fileSystemIdentity: before.identity,
+  };
+}
+
+function firstPartySnapshot(
+  root: string,
+  inputs: readonly string[],
+): FirstPartySnapshot {
+  const repositoryRoot = assertExactGitRoot(root);
+  const files: ArchiveFile[] = [];
+  const records: FirstPartySnapshotRecord[] = [];
+  let totalBytes = 0;
+  for (const path of gitReleaseInputPaths(repositoryRoot, inputs)) {
+    const snapshot = snapshotFirstPartyFile(repositoryRoot, path);
+    totalBytes += snapshot.content.length;
+    if (totalBytes > MAX_FACTORY_RELEASE_BYTES) {
+      throw new Error("CLI release Git snapshot exceeds the total size limit");
+    }
+    const contentSha256 = createHash("sha256")
+      .update(snapshot.content)
+      .digest("hex");
+    records.push({
+      path,
+      contentSha256,
+      gitBlobSha1: gitBlobSha1(snapshot.content),
+      mode: snapshot.mode,
+      fileSystemIdentity: snapshot.fileSystemIdentity,
+    });
+    files.push({
+      path: `${ARCHIVE_ROOT}/factory-source/${path}`,
+      content: snapshot.content,
+      mode: snapshot.mode,
+    });
+  }
+  const digest = createHash("sha256");
+  for (const record of records) {
+    digest.update(
+      `${record.path}\0${record.contentSha256}\0${record.mode}\0${record.fileSystemIdentity}\n`,
+    );
+  }
+  return {
+    files,
+    records,
+    fingerprint: digest.digest("hex"),
+  };
+}
+
+function gitHeadEntries(
+  root: string,
+  commit: string,
+  inputs: readonly string[],
+): GitHeadEntry[] {
+  const records = decodeGitNulRecords(
+    runGit(
+      root,
+      [
+        "ls-tree",
+        "-r",
+        "-z",
+        "--full-tree",
+        commit,
+        "--",
+        ...inputs,
+      ],
+      "inventory committed CLI release inputs",
+    ),
+    "Git committed release inventory",
+  );
+  return records.map((record) => {
+    const tab = record.indexOf("\t");
+    const metadata = tab === -1 ? "" : record.slice(0, tab);
+    const path = tab === -1 ? "" : record.slice(tab + 1);
+    const match =
+      /^([0-9]{6}) (blob|commit) ([0-9a-f]{40})$/u.exec(metadata);
+    if (
+      match === null ||
+      path === "" ||
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      /[\r\n]/u.test(path) ||
+      path.split("/").some((part) =>
+        part === "" || part === "." || part === ".."
+      ) ||
+      !inputs.some((input) =>
+        path === input || path.startsWith(`${input}/`)
+      )
+    ) {
+      throw new Error("Git committed release inventory is unsafe");
+    }
+    const mode = match[1] === "100644"
+      ? 0o644
+      : match[1] === "100755"
+      ? 0o755
+      : 0;
+    return {
+      path,
+      object: match[3] ?? "",
+      mode,
+    };
+  }).sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function snapshotMatchesHead(
+  root: string,
+  commit: string,
+  inputs: readonly string[],
+  snapshot: FirstPartySnapshot,
+): boolean {
+  const head = gitHeadEntries(root, commit, inputs);
+  if (head.length !== snapshot.records.length) return false;
+  return snapshot.records.every((record, index) => {
+    const expected = head[index];
+    return expected !== undefined &&
+      expected.path === record.path &&
+      expected.object === record.gitBlobSha1 &&
+      expected.mode === record.mode;
+  });
+}
+
+export function snapshotGitReleaseInputs(
+  root: string,
+  inputs: readonly string[],
+): StableGitReleaseSnapshot {
+  const sourceBefore = cliReleaseSourceProvenance(root);
+  const before = firstPartySnapshot(root, inputs);
+  const exactHeadSnapshot = snapshotMatchesHead(
+    root,
+    sourceBefore.commit,
+    inputs,
+    before,
+  );
+  const after = firstPartySnapshot(root, inputs);
+  if (before.fingerprint !== after.fingerprint) {
+    throw new Error(
+      "CLI release inputs changed while building the immutable snapshot",
+    );
+  }
+  const sourceAfter = cliReleaseSourceProvenance(root);
+  if (sourceBefore.commit !== sourceAfter.commit) {
+    throw new Error("CLI release source commit changed while building the archive");
+  }
+  return {
+    files: before.files,
+    matchesHead: exactHeadSnapshot,
+    source: {
+      ...sourceBefore,
+      dirty:
+        sourceBefore.dirty ||
+        sourceAfter.dirty ||
+        !exactHeadSnapshot,
+    },
+  };
+}
 
 export function assertThirdPartyPackageIdentity(options: {
   directory: string;
@@ -84,30 +675,76 @@ export function assertThirdPartyPackageIdentity(options: {
   version: string;
   treeSha256: string;
 }): void {
-  const directoryDetails = lstatSync(options.directory);
-  if (
-    directoryDetails.isSymbolicLink() ||
-    !directoryDetails.isDirectory()
-  ) {
+  verifiedThirdPartySnapshot(options);
+}
+
+function readThirdPartySnapshot(directory: string): ThirdPartySnapshotFile[] {
+  const directoryDetails = lstatSync(directory);
+  if (directoryDetails.isSymbolicLink() || !directoryDetails.isDirectory()) {
     throw new Error(
-      `managed release dependency is not a real directory: ${options.directory}`,
+      `managed release dependency is not a real directory: ${directory}`,
     );
   }
-  const packageJson = join(options.directory, "package.json");
-  const packageDetails = lstatSync(packageJson);
-  if (packageDetails.isSymbolicLink() || !packageDetails.isFile()) {
+  const sourceFiles = listRegularFiles(directory);
+  if (sourceFiles.length > MAX_FACTORY_RELEASE_FILES) {
+    throw new Error("managed release dependency contains too many files");
+  }
+  let totalBytes = 0;
+  return sourceFiles.map((file) => {
+    const content = readBoundedRegularFile(
+      file.absolutePath,
+      MAX_FACTORY_RELEASE_FILE_BYTES,
+      "managed release dependency file",
+    );
+    totalBytes += content.length;
+    if (totalBytes > MAX_FACTORY_RELEASE_BYTES) {
+      throw new Error("managed release dependency exceeds the total size limit");
+    }
+    return {
+      relativePath: file.relativePath.split(sep).join("/"),
+      content,
+      executable: file.executable,
+    };
+  });
+}
+
+function thirdPartySnapshotTreeSha256(
+  files: readonly ThirdPartySnapshotFile[],
+): string {
+  const digest = createHash("sha256");
+  for (const file of files) {
+    const fileSha256 = createHash("sha256")
+      .update(file.content)
+      .digest("hex");
+    digest.update(
+      `${file.relativePath}\0${file.executable ? "755" : "644"}\0${file.content.length}\0${fileSha256}\n`,
+    );
+  }
+  return digest.digest("hex");
+}
+
+function verifiedThirdPartySnapshot(options: {
+  directory: string;
+  packageName: string;
+  version: string;
+  treeSha256: string;
+}): ThirdPartySnapshotFile[] {
+  const files = readThirdPartySnapshot(options.directory);
+  const packageJson = files.find((file) =>
+    file.relativePath === "package.json"
+  );
+  if (packageJson === undefined) {
     throw new Error(
       `managed release dependency has no regular package.json: ${options.directory}`,
     );
   }
   let value: unknown;
   try {
+    if (packageJson.content.length > 65_536) {
+      throw new Error("package manifest is oversized");
+    }
     value = JSON.parse(
-      readBoundedUtf8(
-        packageJson,
-        65_536,
-        "managed dependency package manifest",
-      ),
+      new TextDecoder("utf-8", { fatal: true }).decode(packageJson.content),
     ) as unknown;
   } catch {
     throw new Error(
@@ -130,72 +767,34 @@ export function assertThirdPartyPackageIdentity(options: {
       `managed release dependency identity mismatch: expected ${options.packageName}@${options.version}, found ${foundName}@${foundVersion}`,
     );
   }
-  const actualTreeSha256 = thirdPartyTreeSha256(options.directory);
+  const actualTreeSha256 = thirdPartySnapshotTreeSha256(files);
   if (actualTreeSha256 !== options.treeSha256) {
     throw new Error(
       `managed release dependency tree mismatch for ${options.packageName}@${options.version}: expected ${options.treeSha256}, found ${actualTreeSha256}`,
     );
   }
+  return files;
 }
 
 export function thirdPartyTreeSha256(directory: string): string {
-  const digest = createHash("sha256");
-  for (const file of listRegularFiles(directory)) {
-    const content = readBoundedRegularFile(
-      file.absolutePath,
-      MAX_FACTORY_RELEASE_FILE_BYTES,
-      "managed release dependency file",
-    );
-    const fileSha256 = createHash("sha256")
-      .update(content)
-      .digest("hex");
-    digest.update(
-      `${file.relativePath.split(sep).join("/")}\0${file.executable ? "755" : "644"}\0${content.length}\0${fileSha256}\n`,
-    );
-  }
-  return digest.digest("hex");
+  return thirdPartySnapshotTreeSha256(readThirdPartySnapshot(directory));
 }
 
-function sourceFiles(): ArchiveFile[] {
-  const files: ArchiveFile[] = [];
-  for (const input of INPUTS) {
-    const source = join(ROOT, input);
-    const details = lstatSync(source);
-    if (details.isFile()) {
-      if (details.nlink !== 1) {
-        throw new Error(
-          `CLI release input must be a single-link regular file: ${input}`,
-        );
-      }
-      files.push({
-        path: `${ARCHIVE_ROOT}/factory-source/${input}`,
-        source,
-        mode: (details.mode & 0o111) === 0 ? 0o644 : 0o755,
-      });
-      continue;
-    }
-    for (const file of listRegularFiles(source)) {
-      const path = `${input}/${file.relativePath}`.split(sep).join("/");
-      files.push({
-        path: `${ARCHIVE_ROOT}/factory-source/${path}`,
-        source: file.absolutePath,
-        mode: file.executable ? 0o755 : 0o644,
-      });
-    }
-  }
+function sourceFiles(firstPartyFiles: readonly ArchiveFile[]): ArchiveFile[] {
+  const files: ArchiveFile[] = [...firstPartyFiles];
   for (const input of THIRD_PARTY_INPUTS) {
     const source = join(ROOT, input.source);
-    assertThirdPartyPackageIdentity({
+    const snapshot = verifiedThirdPartySnapshot({
       directory: source,
       packageName: input.packageName,
       version: input.version,
       treeSha256: input.treeSha256,
     });
-    for (const file of listRegularFiles(source)) {
-      const path = `${input.destination}/${file.relativePath}`.split(sep).join("/");
+    for (const file of snapshot) {
+      const path = `${input.destination}/${file.relativePath}`;
       files.push({
         path: `${ARCHIVE_ROOT}/factory-source/${path}`,
-        source: file.absolutePath,
+        content: file.content,
         mode: file.executable ? 0o755 : 0o644,
       });
     }
@@ -204,15 +803,7 @@ function sourceFiles(): ArchiveFile[] {
 }
 
 function archiveFileContent(file: ArchiveFile): Buffer {
-  if (file.content !== undefined) return file.content;
-  if (file.source !== undefined) {
-    return readBoundedRegularFile(
-      file.source,
-      MAX_FACTORY_RELEASE_FILE_BYTES,
-      "CLI release source file",
-    );
-  }
-  throw new Error(`archive file has no content source: ${file.path}`);
+  return file.content;
 }
 
 function withInstallIntegrity(files: readonly ArchiveFile[]): {
@@ -398,9 +989,11 @@ export function buildCliRelease(options: { output: string; manifest: string }): 
   size: number;
   files: number;
 } {
-  const integrity = withInstallIntegrity(sourceFiles());
+  const gitSnapshot = snapshotGitReleaseInputs(ROOT, INPUTS);
+  const integrity = withInstallIntegrity(sourceFiles(gitSnapshot.files));
   const files = integrity.files;
   const archive = archiveBytes(files);
+  const source = gitSnapshot.source;
   const sha256 = createHash("sha256").update(archive).digest("hex");
   mkdirSync(dirname(options.output), { recursive: true });
   mkdirSync(dirname(options.manifest), { recursive: true });
@@ -418,6 +1011,7 @@ export function buildCliRelease(options: { output: string; manifest: string }): 
         treeSha256: integrity.treeSha256,
         size: archive.length,
         files: files.length,
+        source,
       }, null, 2)}\n`,
     );
     renameSync(outputTemporary, options.output);

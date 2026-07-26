@@ -4,22 +4,22 @@ import {
   lstatSync,
   mkdirSync,
   readdirSync,
-  realpathSync,
   renameSync,
   rmdirSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { isAgentId, type AgentId } from "./agents.ts";
 import {
-  GENERIC_SHOT_SCHEMA_VERSION,
+  CLI_VERSION,
+  IOS_TEMPLATE_VERSION,
+  MANIFEST_SCHEMA_VERSION,
   SHOT_SCHEMA_VERSION,
 } from "./constants.ts";
 import { CliError, errorMessage } from "./errors.ts";
 import {
   assertNoExternalSymlinks,
   copyRegularFile,
-  copyTree,
   readBoundedJson,
   readBoundedUtf8,
   removeTreeEvenIfReadOnly,
@@ -34,33 +34,44 @@ import type {
   CreationDoor,
   ShotProgressInput,
 } from "./progress.ts";
-import type { FactoryRelease, PreparedRelease } from "./release.ts";
 import {
-  bundleIdForSlug,
-  displayNameForSlug,
-  slugForShotName,
-  validateShotSlug,
-} from "./slug.ts";
+  createShotProtocolPointer,
+  initialShotProtocolState,
+  readLocalShotProtocolState,
+  validateShotProtocolPointer,
+  type ShotProtocolPointer,
+} from "./protocol-state.ts";
+import type { FactoryRelease, PreparedRelease } from "./release.ts";
+import { bundleIdForSlug, validateShotSlug } from "./slug.ts";
 import {
   applyComposition,
   loadCatalog,
-  resolveComposition,
+  resolveInstalledComposition,
   type AppSkillsLock,
 } from "../../skills/index.ts";
+import {
+  type AppManifest,
+  validateAppManifest,
+} from "../../manifest/app.ts";
 import type { ShotPlan } from "./planning.ts";
 
+export const UNSUPPORTED_SHOT_STATE_MESSAGE =
+  "pre-release compatibility is unsupported; create a fresh Shot with `tohseno`" as const;
+
+interface CompositionPin {
+  id: string;
+  version: string;
+  digest: string;
+}
+
 export interface ShotMetadata {
-  schemaVersion:
-    | typeof SHOT_SCHEMA_VERSION
-    | typeof GENERIC_SHOT_SCHEMA_VERSION;
+  schemaVersion: typeof SHOT_SCHEMA_VERSION;
   slug: string;
   platform: "ios";
-  adopted: boolean;
   createdAt: string;
-  sequence?: number;
+  sequence: number;
   selectedAgent: AgentId | null;
-  baselineAuthor: "factory" | "existing-history";
-  creation?: {
+  creation: {
     door: CreationDoor;
     inputDigest: string;
     hasIntention: boolean;
@@ -70,24 +81,24 @@ export interface ShotMetadata {
   };
   factory: {
     releaseId: string;
-    cliVersion: string;
-    templateVersion: string;
-    manifestSchemaVersion: string;
+    cliVersion: typeof CLI_VERSION;
+    templateVersion: typeof IOS_TEMPLATE_VERSION;
+    manifestSchemaVersion: typeof MANIFEST_SCHEMA_VERSION;
     sourceCommit: string | null;
     sourceDirty: boolean;
     bundleDigest: string;
   };
-  architecture?: "generic-app-v1";
-  app?: {
+  app: {
     name: string;
     bundleId: string;
   };
-  composition?: {
-    kernel: { id: string; version: string; digest: string };
-    template: { id: string; version: string; digest: string };
-    skills: Array<{ id: string; version: string; digest: string }>;
+  composition: {
+    kernel: CompositionPin;
+    template: CompositionPin;
+    skills: CompositionPin[];
   };
-  sanitizedPlanDigest?: string;
+  sanitizedPlanDigest: string;
+  protocol: ShotProtocolPointer;
 }
 
 export interface CreatedShot {
@@ -96,41 +107,11 @@ export interface CreatedShot {
   gitIdentityMissing: boolean;
 }
 
-function metadataFor(
-  slug: string,
-  release: FactoryRelease,
-  options: {
-    adopted: boolean;
-    selectedAgent: AgentId | null;
-    baselineAuthor: ShotMetadata["baselineAuthor"];
-    now: Date;
-    sequence?: number;
-    creation?: ShotMetadata["creation"];
-  },
-): ShotMetadata {
-  return {
-    schemaVersion: SHOT_SCHEMA_VERSION,
-    slug,
-    platform: "ios",
-    adopted: options.adopted,
-    createdAt: options.now.toISOString(),
-    ...(options.sequence === undefined ? {} : { sequence: options.sequence }),
-    selectedAgent: options.selectedAgent,
-    baselineAuthor: options.baselineAuthor,
-    ...(options.creation === undefined ? {} : { creation: options.creation }),
-    factory: {
-      releaseId: release.releaseId,
-      cliVersion: release.cliVersion,
-      templateVersion: release.templateVersion,
-      manifestSchemaVersion: release.manifestSchemaVersion,
-      sourceCommit: release.source.commit,
-      sourceDirty: release.source.dirty,
-      bundleDigest: release.bundleDigest,
-    },
-  };
+function writeJson(path: string, value: unknown): void {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
 }
 
-function genericMetadataFor(
+function metadataFor(
   slug: string,
   release: FactoryRelease,
   options: {
@@ -142,18 +123,23 @@ function genericMetadataFor(
     lock: AppSkillsLock;
   },
 ): ShotMetadata {
-  const legacy = metadataFor(slug, release, {
-    adopted: false,
-    selectedAgent: options.selectedAgent,
-    baselineAuthor: "factory",
-    now: options.now,
-    sequence: options.sequence,
-    creation: options.creation,
-  });
   return {
-    ...legacy,
-    schemaVersion: GENERIC_SHOT_SCHEMA_VERSION,
-    architecture: "generic-app-v1",
+    schemaVersion: SHOT_SCHEMA_VERSION,
+    slug,
+    platform: "ios",
+    createdAt: options.now.toISOString(),
+    sequence: options.sequence,
+    selectedAgent: options.selectedAgent,
+    creation: options.creation,
+    factory: {
+      releaseId: release.releaseId,
+      cliVersion: CLI_VERSION,
+      templateVersion: IOS_TEMPLATE_VERSION,
+      manifestSchemaVersion: MANIFEST_SCHEMA_VERSION,
+      sourceCommit: release.source.commit,
+      sourceDirty: release.source.dirty,
+      bundleDigest: release.bundleDigest,
+    },
     app: {
       name: options.plan.app.name,
       bundleId: options.plan.app.bundleId,
@@ -166,92 +152,61 @@ function genericMetadataFor(
     sanitizedPlanDigest: createHash("sha256")
       .update(JSON.stringify(options.plan))
       .digest("hex"),
+    protocol: createShotProtocolPointer(),
   };
-}
-
-function writeJson(path: string, value: unknown): void {
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
-}
-
-function customizeManifest(root: string, slug: string): void {
-  const path = join(root, "continuity.manifest.json");
-  const value = readBoundedJson<Record<string, unknown>>(
-    path,
-    1_048_576,
-    "base continuity manifest",
-  );
-  const application = value.application;
-  if (typeof application !== "object" || application === null || Array.isArray(application)) {
-    throw new CliError("base manifest has no application object");
-  }
-  const app = application as Record<string, unknown>;
-  app.id = bundleIdForSlug(slug);
-  app.name = displayNameForSlug(slug);
-  writeJson(path, value);
-}
-
-function customizeXcconfig(root: string, slug: string): void {
-  const path = join(root, "Config", "App.xcconfig");
-  let source = readBoundedUtf8(path, 65_536, "base app configuration");
-  source = source.replace(/^APP_DISPLAY_NAME\s*=.*$/mu, `APP_DISPLAY_NAME = ${displayNameForSlug(slug)}`);
-  source = source.replace(/^APP_BUNDLE_ID\s*=.*$/mu, `APP_BUNDLE_ID = ${bundleIdForSlug(slug)}`);
-  writeFileSync(path, source, { mode: 0o644 });
-}
-
-function addVerifyScript(root: string): void {
-  const path = join(root, "package.json");
-  const value = readBoundedJson<Record<string, unknown>>(
-    path,
-    65_536,
-    "base package manifest",
-  );
-  const scriptsValue = value.scripts;
-  const scripts = typeof scriptsValue === "object" && scriptsValue !== null && !Array.isArray(scriptsValue)
-    ? scriptsValue as Record<string, unknown>
-    : {};
-  scripts.verify = "bun .tohseno/verify.ts";
-  scripts.machine = "bun .tohseno/machine.ts";
-  value.scripts = scripts;
-  writeJson(path, value);
 }
 
 function installPinnedShotFiles(
   root: string,
   release: PreparedRelease,
   metadata: ShotMetadata,
-  includeAgentInstructions: boolean,
+  lock: AppSkillsLock,
 ): void {
   const local = join(root, ".tohseno");
   mkdirSync(join(local, "manifest"), { recursive: true });
-  copyTree(join(release.directory, "manifest"), join(local, "manifest"));
-  copyRegularFile(join(release.directory, "shot", "verify.ts"), join(local, "verify.ts"), true);
-  copyRegularFile(join(release.directory, "shot", "machine.ts"), join(local, "machine.ts"), true);
-  copyTree(join(release.directory, "shot", "runtime"), join(local, "runtime"));
-  copyRegularFile(join(release.directory, "shot", "OPERATIONS.md"), join(local, "OPERATIONS.md"), false);
-  copyRegularFile(join(release.directory, "release.json"), join(local, "factory-release.json"), false);
-  writeJson(join(local, "shot.json"), metadata);
-  if (includeAgentInstructions) {
-    mkdirSync(join(root, "skills", "continuity-app"), { recursive: true });
+  for (const file of [
+    "app.ts",
+    "app.manifest.schema.json",
+    "cli.ts",
+  ]) {
     copyRegularFile(
-      join(release.directory, "agent", "continuity-app", "SKILL.md"),
-      join(root, "skills", "continuity-app", "SKILL.md"),
+      join(release.directory, "manifest", file),
+      join(local, "manifest", file),
       false,
     );
-    copyRegularFile(join(release.directory, "shot", "AGENTS.md"), join(root, "AGENTS.md"), false);
-    copyRegularFile(join(release.directory, "shot", "CLAUDE.md"), join(root, "CLAUDE.md"), false);
-    if (!existsSync(join(root, "LICENSE"))) {
-      copyRegularFile(join(release.directory, "legal", "LICENSE"), join(root, "LICENSE"), false);
-    }
   }
-}
-
-function installGenericPinnedShotFiles(
-  root: string,
-  release: PreparedRelease,
-  metadata: ShotMetadata,
-  lock: AppSkillsLock,
-): void {
-  installPinnedShotFiles(root, release, metadata, false);
+  copyRegularFile(
+    join(release.directory, "shot", "verify.ts"),
+    join(local, "verify.ts"),
+    true,
+  );
+  copyRegularFile(
+    join(release.directory, "shot", "machine.ts"),
+    join(local, "machine.ts"),
+    true,
+  );
+  for (const file of ["ios.ts", "shared.ts"]) {
+    copyRegularFile(
+      join(release.directory, "shot", "runtime", file),
+      join(local, "runtime", file),
+      false,
+    );
+  }
+  copyRegularFile(
+    join(release.directory, "shot", "OPERATIONS.md"),
+    join(local, "OPERATIONS.md"),
+    false,
+  );
+  copyRegularFile(
+    join(release.directory, "release.json"),
+    join(local, "factory-release.json"),
+    false,
+  );
+  writeJson(join(local, "shot.json"), metadata);
+  writeJson(
+    join(root, metadata.protocol.statePath),
+    initialShotProtocolState(metadata.protocol.shotId),
+  );
   copyRegularFile(
     join(release.directory, "shot", "AGENTS.md"),
     join(root, "AGENTS.md"),
@@ -263,15 +218,17 @@ function installGenericPinnedShotFiles(
     false,
   );
   for (const skill of lock.skills) {
-    const source = join(
-      release.directory,
-      "catalog",
-      "skills",
-      skill.id,
-      "SKILL.md",
+    copyRegularFile(
+      join(
+        release.directory,
+        "catalog",
+        "skills",
+        skill.id,
+        "SKILL.md",
+      ),
+      join(root, "skills", skill.id, "SKILL.md"),
+      false,
     );
-    const destination = join(root, "skills", skill.id, "SKILL.md");
-    copyRegularFile(source, destination, false);
     copyRegularFile(
       join(
         release.directory,
@@ -299,18 +256,32 @@ async function requireSuccessful(
   label: string,
   environment?: Record<string, string | undefined>,
 ): Promise<string> {
-  const result = await runCaptured(command, environment === undefined ? { cwd } : { cwd, env: environment });
+  const result = await runCaptured(
+    command,
+    environment === undefined ? { cwd } : { cwd, env: environment },
+  );
   if (result.exitCode !== 0) {
-    const detail = result.stderr.trim() || result.stdout.trim() || `exit ${result.exitCode}`;
+    const detail = result.stderr.trim() ||
+      result.stdout.trim() ||
+      `exit ${result.exitCode}`;
     throw new CliError(`${label} failed: ${detail}`);
   }
   return result.stdout;
 }
 
-async function configuredGitIdentity(root: string, environment?: Record<string, string | undefined>): Promise<boolean> {
-  const name = await runCaptured(["git", "config", "user.name"], environment === undefined ? { cwd: root } : { cwd: root, env: environment });
-  const email = await runCaptured(["git", "config", "user.email"], environment === undefined ? { cwd: root } : { cwd: root, env: environment });
-  return name.exitCode === 0 && email.exitCode === 0 && name.stdout.trim() !== "" && email.stdout.trim() !== "";
+async function configuredGitIdentity(
+  root: string,
+  environment?: Record<string, string | undefined>,
+): Promise<boolean> {
+  const options = environment === undefined
+    ? { cwd: root }
+    : { cwd: root, env: environment };
+  const name = await runCaptured(["git", "config", "user.name"], options);
+  const email = await runCaptured(["git", "config", "user.email"], options);
+  return name.exitCode === 0 &&
+    email.exitCode === 0 &&
+    name.stdout.trim() !== "" &&
+    email.stdout.trim() !== "";
 }
 
 async function initializeGit(
@@ -319,43 +290,65 @@ async function initializeGit(
   environment?: Record<string, string | undefined>,
 ): Promise<boolean> {
   await requireSuccessful(
-    ["git", "-c", "init.templateDir=", "init", "--quiet", "--initial-branch=main"],
+    [
+      "git",
+      "-c",
+      "init.templateDir=",
+      "init",
+      "--quiet",
+      "--initial-branch=main",
+    ],
     root,
     "Git initialization",
     environment,
   );
   const hasIdentity = await configuredGitIdentity(root, environment);
-  await requireSuccessful(["git", "add", "-A"], root, "Git staging", environment);
-  const commit = [
-    "git", "-c", "commit.gpgSign=false", "-c", "user.name=TOHSENO Factory",
-    "-c", "user.email=factory@tohseno.local",
-  ];
-  commit.push("commit", "--quiet", "--no-verify", "-m", `chore: create shot from ${releaseId}`);
-  await requireSuccessful(commit, root, "baseline commit", environment);
+  await requireSuccessful(
+    ["git", "add", "-A"],
+    root,
+    "Git staging",
+    environment,
+  );
+  await requireSuccessful(
+    [
+      "git",
+      "-c",
+      "commit.gpgSign=false",
+      "-c",
+      "user.name=TOHSENO Factory",
+      "-c",
+      "user.email=factory@tohseno.local",
+      "commit",
+      "--quiet",
+      "--no-verify",
+      "-m",
+      `chore: create shot from ${releaseId}`,
+    ],
+    root,
+    "baseline commit",
+    environment,
+  );
   return !hasIdentity;
 }
 
-async function validateManifestWithPinnedTool(root: string, environment?: Record<string, string | undefined>): Promise<void> {
-  const manifest = existsSync(join(root, "app.manifest.json"))
-    ? "app.manifest.json"
-    : "continuity.manifest.json";
+async function validateManifestWithPinnedTool(
+  root: string,
+  environment?: Record<string, string | undefined>,
+): Promise<void> {
   await requireSuccessful(
-    [process.execPath, ".tohseno/manifest/cli.ts", manifest],
+    [process.execPath, ".tohseno/manifest/cli.ts", "app.manifest.json"],
     root,
     "manifest validation",
     environment,
   );
 }
 
-function customizeGenericApp(
-  root: string,
-  plan: ShotPlan,
-): void {
+function customizeApp(root: string, plan: ShotPlan): void {
   const manifestPath = join(root, "app.manifest.json");
   const manifest = readBoundedJson<Record<string, unknown>>(
     manifestPath,
     1_048_576,
-    "generic app manifest",
+    "app manifest",
   );
   const application = manifest.application;
   if (
@@ -363,7 +356,7 @@ function customizeGenericApp(
     application === null ||
     Array.isArray(application)
   ) {
-    throw new CliError("generic app manifest has no application object");
+    throw new CliError("app manifest has no application object");
   }
   (application as Record<string, unknown>).id = plan.app.bundleId;
   (application as Record<string, unknown>).name = plan.app.name;
@@ -373,7 +366,7 @@ function customizeGenericApp(
   let config = readBoundedUtf8(
     configPath,
     65_536,
-    "generic app configuration",
+    "app configuration",
   );
   config = config.replace(
     /^APP_DISPLAY_NAME\s*=.*$/mu,
@@ -389,7 +382,9 @@ function customizeGenericApp(
 function shotMarkdown(plan: ShotPlan): string {
   const skills = plan.skills.length === 0
     ? "- None. Start from the neutral kernel."
-    : plan.skills.map((skill) => `- **${skill.id}** — ${skill.reason}`).join("\n");
+    : plan.skills
+      .map((skill) => `- **${skill.id}** — ${skill.reason}`)
+      .join("\n");
   const assumptions = plan.assumptions.length === 0
     ? "- None recorded."
     : plan.assumptions.map((item) => `- ${item}`).join("\n");
@@ -411,7 +406,7 @@ ${skills}
 ## Data and identity
 
 - Data: ${plan.data.strategy} — ${plan.data.reason}
-- Identity: ${plan.identity.strategy} — ${plan.identity.reason}
+- Runtime identity: ${plan.identity.strategy} — ${plan.identity.reason}
 
 ## Assumptions
 
@@ -419,166 +414,36 @@ ${assumptions}
 
 ## Boundaries
 
+- This repository is one Shot. Later changes are Evolutions of this same Shot;
+  use \`tohseno status\` for its stable local identity and tracked starting
+  state. Public lifecycle claims require a separately verified signed chain.
 - Raw intention and references remain under private, gitignored provenance.
-- The first shot does not add undeclared accounts, remote data movement, deployment, purchases, publishing, or irreversible operations.
-- Implement unresolved product behavior against \`DONE.md\`; preserve the kernel and installed capabilities as deliberate starting points.
+- The first Shot does not add undeclared accounts, remote data movement,
+  deployment, purchases, publishing, or irreversible operations.
+- Implement unresolved product behavior against \`DONE.md\`; preserve the
+  kernel and installed capabilities as deliberate starting points.
 `;
 }
 
 function doneMarkdown(plan: ShotPlan): string {
   return `# First definition of done
 
-${plan.definitionOfDone.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+${plan.definitionOfDone
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n")}
 `;
 }
 
-export async function materializeGenericShot(options: {
-  slug: string;
-  shotsDirectory: string;
-  release: PreparedRelease;
-  selectedAgent: AgentId | null;
-  sequence: number;
-  door: CreationDoor;
-  input: NormalizedCreationInput;
-  plan: ShotPlan;
-  agentMode: CreationProvenance["options"]["agentMode"];
-  verifyAfterAgent: boolean;
-  runAfterCreate: boolean;
-  environment?: Record<string, string | undefined>;
-  now?: Date;
-  signal?: AbortSignal;
-  emit?: (event: ShotProgressInput) => void | Promise<void>;
-}): Promise<CreatedShot> {
-  const destination = resolve(options.shotsDirectory, options.slug);
-  if (existsSync(destination)) {
-    throw new CliError(`target already exists; refusing to overwrite: ${destination}`);
-  }
-  mkdirSync(options.shotsDirectory, { recursive: true });
-  const staging = join(
-    options.shotsDirectory,
-    `.${options.slug}.creating-${process.pid}-${randomUUID()}`,
+async function validateShotWithPinnedTool(
+  root: string,
+  environment?: Record<string, string | undefined>,
+): Promise<void> {
+  await requireSuccessful(
+    [process.execPath, ".tohseno/verify.ts"],
+    root,
+    "shot verification",
+    environment,
   );
-  mkdirSync(staging, { mode: 0o700 });
-  const createdAt = options.now ?? new Date();
-  const progress = async (event: ShotProgressInput): Promise<void> => {
-    await options.emit?.(event);
-  };
-  try {
-    throwIfAborted(options.signal);
-    await progress({
-      type: "preparing-shot",
-      slug: options.slug,
-      sequence: options.sequence,
-    });
-    const catalog = loadCatalog(join(options.release.directory, "catalog"));
-    const composition = resolveComposition(catalog, {
-      schemaVersion: 1,
-      template: options.plan.template,
-      skills: options.plan.skills.map((skill) => skill.id),
-    });
-    const applied = applyComposition({
-      composition,
-      target: staging,
-      factoryReleaseId: options.release.metadata.releaseId,
-    });
-    customizeGenericApp(staging, options.plan);
-    writeJson(join(staging, "tohseno.skills.json"), {
-      schemaVersion: 1,
-      template: options.plan.template,
-      skills: options.plan.skills.map((skill) => skill.id),
-    });
-    writeJson(join(staging, "tohseno.skills.lock"), applied.lock);
-    mkdirSync(join(staging, ".tohseno"), { recursive: true });
-    writeJson(join(staging, ".tohseno", "shot-plan.json"), options.plan);
-    writeFileSync(join(staging, "SHOT.md"), shotMarkdown(options.plan), {
-      mode: 0o644,
-    });
-    writeFileSync(join(staging, "DONE.md"), doneMarkdown(options.plan), {
-      mode: 0o644,
-    });
-
-    const creationOptions: CreationProvenance["options"] = {
-      selectedAgent: options.selectedAgent,
-      agentMode: options.agentMode,
-      verifyAfterAgent: options.verifyAfterAgent,
-      runAfterCreate: options.runAfterCreate,
-    };
-    const metadata = genericMetadataFor(
-      options.slug,
-      options.release.metadata,
-      {
-        selectedAgent: options.selectedAgent,
-        now: createdAt,
-        sequence: options.sequence,
-        creation: {
-          door: options.door,
-          inputDigest: options.input.inputDigest,
-          hasIntention: options.input.intention !== null,
-          referenceCount: options.input.references.length,
-          provenancePath: ".tohseno/provenance/provenance.json",
-          options: creationOptions,
-        },
-        plan: options.plan,
-        lock: applied.lock,
-      },
-    );
-    installGenericPinnedShotFiles(
-      staging,
-      options.release,
-      metadata,
-      applied.lock,
-    );
-    writeCreationProvenance({
-      shotRoot: staging,
-      createdAt,
-      door: options.door,
-      release: options.release.metadata,
-      input: options.input,
-      selectedAgent: options.selectedAgent,
-      agentMode: options.agentMode,
-      verifyAfterAgent: options.verifyAfterAgent,
-      runAfterCreate: options.runAfterCreate,
-    });
-    await progress({
-      type: "provenance-written",
-      slug: options.slug,
-      sequence: options.sequence,
-    });
-    assertNoExternalSymlinks(staging);
-    await validateManifestWithPinnedTool(staging, options.environment);
-    await progress({
-      type: "manifest-validated",
-      slug: options.slug,
-      sequence: options.sequence,
-    });
-    const gitIdentityMissing = await initializeGit(
-      staging,
-      options.release.metadata.releaseId,
-      options.environment,
-    );
-    await progress({
-      type: "baseline-committed",
-      slug: options.slug,
-      sequence: options.sequence,
-    });
-    await validateShotWithPinnedTool(staging, options.environment);
-    publishStagedShot(staging, destination);
-    await progress({
-      type: "published",
-      slug: options.slug,
-      sequence: options.sequence,
-    });
-    return { path: destination, metadata, gitIdentityMissing };
-  } catch (error) {
-    removeTreeEvenIfReadOnly(staging);
-    throw new CliError(
-      `shot creation failed before publication: ${errorMessage(error)}`,
-    );
-  }
-}
-
-async function validateShotWithPinnedTool(root: string, environment?: Record<string, string | undefined>): Promise<void> {
-  await requireSuccessful([process.execPath, ".tohseno/verify.ts"], root, "shot verification", environment);
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -587,7 +452,7 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-export function publishStagedShot(
+export function materializeStagedShot(
   staging: string,
   destination: string,
 ): void {
@@ -631,6 +496,7 @@ export async function materializeShot(options: {
   sequence: number;
   door: CreationDoor;
   input: NormalizedCreationInput;
+  plan: ShotPlan;
   agentMode: CreationProvenance["options"]["agentMode"];
   verifyAfterAgent: boolean;
   runAfterCreate: boolean;
@@ -640,9 +506,16 @@ export async function materializeShot(options: {
   emit?: (event: ShotProgressInput) => void | Promise<void>;
 }): Promise<CreatedShot> {
   const destination = resolve(options.shotsDirectory, options.slug);
-  if (existsSync(destination)) throw new CliError(`target already exists; refusing to overwrite: ${destination}`);
+  if (existsSync(destination)) {
+    throw new CliError(
+      `target already exists; refusing to overwrite: ${destination}`,
+    );
+  }
   mkdirSync(options.shotsDirectory, { recursive: true });
-  const staging = join(options.shotsDirectory, `.${options.slug}.creating-${process.pid}-${randomUUID()}`);
+  const staging = join(
+    options.shotsDirectory,
+    `.${options.slug}.creating-${process.pid}-${randomUUID()}`,
+  );
   mkdirSync(staging, { mode: 0o700 });
   const createdAt = options.now ?? new Date();
   const progress = async (event: ShotProgressInput): Promise<void> => {
@@ -655,32 +528,64 @@ export async function materializeShot(options: {
       slug: options.slug,
       sequence: options.sequence,
     });
-    copyTree(join(options.release.directory, "platforms", "ios", "base"), staging);
-    customizeManifest(staging, options.slug);
-    customizeXcconfig(staging, options.slug);
-    addVerifyScript(staging);
+    const catalog = loadCatalog(join(options.release.directory, "catalog"));
+    const composition = resolveInstalledComposition(catalog, {
+      schemaVersion: 1,
+      template: options.plan.template,
+      skills: options.plan.skills.map((skill) => skill.id),
+    });
+    const applied = applyComposition({
+      composition,
+      target: staging,
+      factoryReleaseId: options.release.metadata.releaseId,
+    });
+    customizeApp(staging, options.plan);
+    writeJson(join(staging, "tohseno.skills.json"), {
+      schemaVersion: 1,
+      template: options.plan.template,
+      skills: options.plan.skills.map((skill) => skill.id),
+    });
+    writeJson(join(staging, "tohseno.skills.lock"), applied.lock);
+    mkdirSync(join(staging, ".tohseno"), { recursive: true });
+    writeJson(join(staging, ".tohseno", "shot-plan.json"), options.plan);
+    writeFileSync(join(staging, "SHOT.md"), shotMarkdown(options.plan), {
+      mode: 0o644,
+    });
+    writeFileSync(join(staging, "DONE.md"), doneMarkdown(options.plan), {
+      mode: 0o644,
+    });
+
     const creationOptions: CreationProvenance["options"] = {
       selectedAgent: options.selectedAgent,
       agentMode: options.agentMode,
       verifyAfterAgent: options.verifyAfterAgent,
       runAfterCreate: options.runAfterCreate,
     };
-    const provisionalMetadata = metadataFor(options.slug, options.release.metadata, {
-      adopted: false,
-      selectedAgent: options.selectedAgent,
-      baselineAuthor: "factory",
-      now: createdAt,
-      sequence: options.sequence,
-      creation: {
-        door: options.door,
-        inputDigest: options.input.inputDigest,
-        hasIntention: options.input.intention !== null,
-        referenceCount: options.input.references.length,
-        provenancePath: ".tohseno/provenance/provenance.json",
-        options: creationOptions,
+    const metadata = metadataFor(
+      options.slug,
+      options.release.metadata,
+      {
+        selectedAgent: options.selectedAgent,
+        now: createdAt,
+        sequence: options.sequence,
+        creation: {
+          door: options.door,
+          inputDigest: options.input.inputDigest,
+          hasIntention: options.input.intention !== null,
+          referenceCount: options.input.references.length,
+          provenancePath: ".tohseno/provenance/provenance.json",
+          options: creationOptions,
+        },
+        plan: options.plan,
+        lock: applied.lock,
       },
-    });
-    installPinnedShotFiles(staging, options.release, provisionalMetadata, true);
+    );
+    installPinnedShotFiles(
+      staging,
+      options.release,
+      metadata,
+      applied.lock,
+    );
     writeCreationProvenance({
       shotRoot: staging,
       createdAt,
@@ -697,7 +602,6 @@ export async function materializeShot(options: {
       slug: options.slug,
       sequence: options.sequence,
     });
-    throwIfAborted(options.signal);
     assertNoExternalSymlinks(staging);
     await validateManifestWithPinnedTool(staging, options.environment);
     await progress({
@@ -705,7 +609,6 @@ export async function materializeShot(options: {
       slug: options.slug,
       sequence: options.sequence,
     });
-    throwIfAborted(options.signal);
     const gitIdentityMissing = await initializeGit(
       staging,
       options.release.metadata.releaseId,
@@ -716,204 +619,290 @@ export async function materializeShot(options: {
       slug: options.slug,
       sequence: options.sequence,
     });
-    throwIfAborted(options.signal);
     await validateShotWithPinnedTool(staging, options.environment);
-    publishStagedShot(staging, destination);
+    materializeStagedShot(staging, destination);
     try {
       await progress({
-        type: "published",
+        type: "repository-created",
         slug: options.slug,
         sequence: options.sequence,
       });
     } catch {
-      // Publication is already atomic and durable. A presentation-layer
-      // progress failure cannot turn a completed shot into a failed one.
+      // Creation is already durable; UI progress cannot invalidate the Shot.
     }
-    return { path: destination, metadata: provisionalMetadata, gitIdentityMissing };
+    return { path: destination, metadata, gitIdentityMissing };
   } catch (error) {
     removeTreeEvenIfReadOnly(staging);
-    throw new CliError(`shot creation failed before publication: ${errorMessage(error)}`);
+    throw new CliError(
+      `shot creation failed before repository creation: ${errorMessage(error)}`,
+    );
   }
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+): boolean {
+  const actual = Object.keys(value).sort();
+  const canonical = [...expected].sort();
+  return actual.length === canonical.length &&
+    actual.every((key, index) => key === canonical[index]);
+}
+
+function validTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value;
+}
+
+function validPin(value: unknown): value is CompositionPin {
+  const candidate = record(value);
+  return candidate !== null &&
+    exactKeys(candidate, ["id", "version", "digest"]) &&
+    typeof candidate.id === "string" &&
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(candidate.id) &&
+    typeof candidate.version === "string" &&
+    /^[0-9]+\.[0-9]+\.[0-9]+$/u.test(candidate.version) &&
+    typeof candidate.digest === "string" &&
+    /^[a-f0-9]{64}$/u.test(candidate.digest);
+}
+
+function unsupportedShotState(root: string): CliError {
+  return new CliError(
+    `unsupported Shot state at ${resolve(root)}: ${UNSUPPORTED_SHOT_STATE_MESSAGE}`,
+    2,
+  );
+}
+
+function parseShotMetadata(value: unknown): ShotMetadata | null {
+  const candidate = record(value);
+  if (
+    candidate === null ||
+    !exactKeys(candidate, [
+      "schemaVersion",
+      "slug",
+      "platform",
+      "createdAt",
+      "sequence",
+      "selectedAgent",
+      "creation",
+      "factory",
+      "app",
+      "composition",
+      "sanitizedPlanDigest",
+      "protocol",
+    ]) ||
+    candidate.schemaVersion !== SHOT_SCHEMA_VERSION ||
+    candidate.platform !== "ios" ||
+    typeof candidate.slug !== "string" ||
+    validateShotSlug(candidate.slug) !== candidate.slug ||
+    !validTimestamp(candidate.createdAt) ||
+    !Number.isSafeInteger(candidate.sequence) ||
+    (candidate.sequence as number) < 1 ||
+    (
+      candidate.selectedAgent !== null &&
+      (
+        typeof candidate.selectedAgent !== "string" ||
+        !isAgentId(candidate.selectedAgent)
+      )
+    ) ||
+    typeof candidate.sanitizedPlanDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(candidate.sanitizedPlanDigest)
+  ) {
+    return null;
+  }
+
+  const creation = record(candidate.creation);
+  const creationOptions = record(creation?.options);
+  if (
+    creation === null ||
+    !exactKeys(creation, [
+      "door",
+      "inputDigest",
+      "hasIntention",
+      "referenceCount",
+      "provenancePath",
+      "options",
+    ]) ||
+    (creation.door !== "cli" && creation.door !== "studio") ||
+    typeof creation.inputDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(creation.inputDigest) ||
+    typeof creation.hasIntention !== "boolean" ||
+    !Number.isSafeInteger(creation.referenceCount) ||
+    (creation.referenceCount as number) < 0 ||
+    (creation.referenceCount as number) > 8 ||
+    creation.provenancePath !== ".tohseno/provenance/provenance.json" ||
+    creationOptions === null ||
+    !exactKeys(creationOptions, [
+      "selectedAgent",
+      "agentMode",
+      "verifyAfterAgent",
+      "runAfterCreate",
+    ]) ||
+    creationOptions.selectedAgent !== candidate.selectedAgent ||
+    (
+      creationOptions.selectedAgent !== null &&
+      (
+        typeof creationOptions.selectedAgent !== "string" ||
+        !isAgentId(creationOptions.selectedAgent)
+      )
+    ) ||
+    !["interactive", "automated", "none"].includes(
+      creationOptions.agentMode as string,
+    ) ||
+    typeof creationOptions.verifyAfterAgent !== "boolean" ||
+    typeof creationOptions.runAfterCreate !== "boolean"
+  ) {
+    return null;
+  }
+
+  const factory = record(candidate.factory);
+  if (
+    factory === null ||
+    !exactKeys(factory, [
+      "releaseId",
+      "cliVersion",
+      "templateVersion",
+      "manifestSchemaVersion",
+      "sourceCommit",
+      "sourceDirty",
+      "bundleDigest",
+    ]) ||
+    typeof factory.releaseId !== "string" ||
+    !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+      .test(factory.releaseId) ||
+    factory.cliVersion !== CLI_VERSION ||
+    factory.templateVersion !== IOS_TEMPLATE_VERSION ||
+    factory.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION ||
+    (
+      factory.sourceCommit !== null &&
+      (
+        typeof factory.sourceCommit !== "string" ||
+        !/^[0-9a-f]{40}$/u.test(factory.sourceCommit)
+      )
+    ) ||
+    typeof factory.sourceDirty !== "boolean" ||
+    typeof factory.bundleDigest !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(factory.bundleDigest)
+  ) {
+    return null;
+  }
+  if (
+    (
+      factory.releaseId.startsWith("content-") &&
+      (factory.sourceCommit !== null || factory.sourceDirty)
+    ) ||
+    (
+      factory.releaseId.startsWith("git-") &&
+      (
+        factory.sourceCommit === null ||
+        !factory.releaseId.startsWith(`git-${factory.sourceCommit}`) ||
+        factory.releaseId.includes("-dirty-") !== factory.sourceDirty
+      )
+    )
+  ) {
+    return null;
+  }
+
+  const app = record(candidate.app);
+  if (
+    app === null ||
+    !exactKeys(app, ["name", "bundleId"]) ||
+    typeof app.name !== "string" ||
+    app.name.length < 1 ||
+    app.name.length > 80 ||
+    app.name !== app.name.trim() ||
+    /[\u0000-\u001f\u007f-\u009f]/u.test(app.name) ||
+    app.bundleId !== bundleIdForSlug(candidate.slug)
+  ) {
+    return null;
+  }
+
+  const composition = record(candidate.composition);
+  if (
+    composition === null ||
+    !exactKeys(composition, ["kernel", "template", "skills"]) ||
+    !validPin(composition.kernel) ||
+    composition.kernel.id !== "ios-kernel" ||
+    composition.kernel.version !== "1.0.0" ||
+    !validPin(composition.template) ||
+    !Array.isArray(composition.skills) ||
+    !composition.skills.every(validPin) ||
+    new Set(
+      (composition.skills as CompositionPin[]).map((skill) => skill.id),
+    ).size !== composition.skills.length
+  ) {
+    return null;
+  }
+
+  try {
+    validateShotProtocolPointer(candidate.protocol);
+  } catch {
+    return null;
+  }
+  return candidate as unknown as ShotMetadata;
 }
 
 export function readShotMetadata(root: string): ShotMetadata | undefined {
   const path = join(root, ".tohseno", "shot.json");
-  if (!existsSync(path)) return undefined;
-  try {
-    const value = readBoundedJson<Partial<ShotMetadata>>(
-      path,
-      65_536,
-      "shot metadata",
-    );
-    const factory = value.factory;
-    const selectedAgentValid = value.selectedAgent === null ||
-      (typeof value.selectedAgent === "string" &&
-        isAgentId(value.selectedAgent));
-    const sequenceValid = value.sequence === undefined ||
-      (Number.isSafeInteger(value.sequence) && (value.sequence ?? 0) > 0);
-    const createdAtValid = typeof value.createdAt === "string" &&
-      Number.isFinite(Date.parse(value.createdAt)) &&
-      new Date(value.createdAt).toISOString() === value.createdAt;
+  if (!existsSync(path)) {
     if (
-      (value.schemaVersion !== SHOT_SCHEMA_VERSION &&
-        value.schemaVersion !== GENERIC_SHOT_SCHEMA_VERSION) ||
-      value.platform !== "ios" ||
-      typeof value.slug !== "string" ||
-      validateShotSlug(value.slug) !== value.slug ||
-      typeof value.adopted !== "boolean" ||
-      !createdAtValid ||
-      !sequenceValid ||
-      !selectedAgentValid ||
-      (value.baselineAuthor !== "factory" &&
-        value.baselineAuthor !== "existing-history") ||
-      typeof factory !== "object" ||
-      factory === null ||
-      typeof factory.releaseId !== "string" ||
-      !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
-        .test(factory.releaseId) ||
-      typeof factory.cliVersion !== "string" ||
-      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(factory.cliVersion) ||
-      typeof factory.templateVersion !== "string" ||
-      !/^[a-z0-9][a-z0-9.-]{0,127}$/u.test(factory.templateVersion) ||
-      typeof factory.manifestSchemaVersion !== "string" ||
-      !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(factory.manifestSchemaVersion) ||
-      (factory.sourceCommit !== null &&
-        (typeof factory.sourceCommit !== "string" ||
-          !/^[0-9a-f]{40}$/u.test(factory.sourceCommit))) ||
-      typeof factory.sourceDirty !== "boolean" ||
-      typeof factory.bundleDigest !== "string" ||
-      !/^[0-9a-f]{64}$/u.test(factory.bundleDigest)
+      existsSync(join(root, ".tohseno")) ||
+      existsSync(join(root, "app.manifest.json")) ||
+      existsSync(join(root, "continuity.manifest.json"))
     ) {
-      return undefined;
+      throw unsupportedShotState(root);
     }
-    if (value.schemaVersion === GENERIC_SHOT_SCHEMA_VERSION) {
-      const app = value.app;
-      const composition = value.composition;
-      if (
-        value.architecture !== "generic-app-v1" ||
-        typeof app !== "object" ||
-        app === null ||
-        typeof app.name !== "string" ||
-        app.name.trim() === "" ||
-        app.name.length > 80 ||
-        typeof app.bundleId !== "string" ||
-        !/^[A-Za-z0-9]+(?:\.[A-Za-z0-9-]+)+$/u.test(app.bundleId) ||
-        typeof composition !== "object" ||
-        composition === null ||
-        typeof composition.kernel !== "object" ||
-        composition.kernel === null ||
-        typeof composition.template !== "object" ||
-        composition.template === null ||
-        !Array.isArray(composition.skills) ||
-        typeof value.sanitizedPlanDigest !== "string" ||
-        !/^[a-f0-9]{64}$/u.test(value.sanitizedPlanDigest)
-      ) {
-        return undefined;
-      }
-      for (const item of [
-        composition.kernel,
-        composition.template,
-        ...composition.skills,
-      ]) {
-        if (
-          typeof item !== "object" ||
-          item === null ||
-          typeof item.id !== "string" ||
-          !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(item.id) ||
-          typeof item.version !== "string" ||
-          !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(item.version) ||
-          typeof item.digest !== "string" ||
-          !/^[a-f0-9]{64}$/u.test(item.digest)
-        ) {
-          return undefined;
-        }
-      }
-    }
-    if (value.creation !== undefined) {
-      const creation = value.creation;
-      const options = creation.options;
-      if (
-        typeof creation !== "object" ||
-        creation === null ||
-        (creation.door !== "cli" && creation.door !== "studio") ||
-        typeof creation.inputDigest !== "string" ||
-        !/^[0-9a-f]{64}$/u.test(creation.inputDigest) ||
-        typeof creation.hasIntention !== "boolean" ||
-        !Number.isSafeInteger(creation.referenceCount) ||
-        creation.referenceCount < 0 ||
-        creation.referenceCount > 8 ||
-        creation.provenancePath !==
-          ".tohseno/provenance/provenance.json" ||
-        typeof options !== "object" ||
-        options === null ||
-        (options.selectedAgent !== null &&
-          (typeof options.selectedAgent !== "string" ||
-            !isAgentId(options.selectedAgent))) ||
-        !["interactive", "automated", "none"].includes(options.agentMode) ||
-        typeof options.verifyAfterAgent !== "boolean" ||
-        typeof options.runAfterCreate !== "boolean"
-      ) {
-        return undefined;
-      }
-    }
-    return value as ShotMetadata;
-  } catch {
     return undefined;
   }
-}
-
-export async function adoptShot(options: {
-  path: string;
-  release: PreparedRelease;
-  environment?: Record<string, string | undefined>;
-  now?: Date;
-}): Promise<ShotMetadata> {
-  const requestedRoot = resolve(options.path);
-  const root = existsSync(requestedRoot) ? realpathSync(requestedRoot) : requestedRoot;
-  if (!existsSync(root) || !lstatSync(root).isDirectory()) throw new CliError(`adoption path is not a directory: ${root}`);
-  if (existsSync(join(root, ".tohseno"))) throw new CliError(`${root} already has .tohseno metadata; refusing to overwrite it`);
-  for (const path of ["continuity.manifest.json", "project.yml", "App/AppConfig.swift", "Writing.xcodeproj/project.pbxproj"]) {
-    if (!existsSync(join(root, path))) throw new CliError(`project is not a compatible iOS base: missing ${path}`);
-  }
-  const top = await requireSuccessful(["git", "rev-parse", "--show-toplevel"], root, "Git repository check", options.environment);
-  if (realpathSync(resolve(top.trim())) !== root) {
-    throw new CliError("adopt requires the path to be the root of its independent Git repository");
-  }
-  await requireSuccessful(
-    [process.execPath, join(options.release.directory, "manifest", "cli.ts"), join(root, "continuity.manifest.json")],
-    root,
-    "manifest validation",
-    options.environment,
-  );
-
-  const slug = slugForShotName(basename(root));
-  const metadata = metadataFor(slug, options.release.metadata, {
-    adopted: true,
-    selectedAgent: null,
-    baselineAuthor: "existing-history",
-    now: options.now ?? new Date(),
-  });
-  const temporary = join(root, `.tohseno-adopting-${process.pid}-${randomUUID()}`);
-  mkdirSync(temporary, { mode: 0o700 });
+  let metadata: ShotMetadata | null;
   try {
-    mkdirSync(join(temporary, "manifest"));
-    copyTree(join(options.release.directory, "manifest"), join(temporary, "manifest"));
-    copyRegularFile(join(options.release.directory, "shot", "verify.ts"), join(temporary, "verify.ts"), true);
-    copyRegularFile(join(options.release.directory, "shot", "machine.ts"), join(temporary, "machine.ts"), true);
-    copyTree(join(options.release.directory, "shot", "runtime"), join(temporary, "runtime"));
-    copyRegularFile(join(options.release.directory, "shot", "OPERATIONS.md"), join(temporary, "OPERATIONS.md"), false);
-    copyRegularFile(join(options.release.directory, "release.json"), join(temporary, "factory-release.json"), false);
-    writeJson(join(temporary, "shot.json"), metadata);
-    renameSync(temporary, join(root, ".tohseno"));
-    try {
-      await validateShotWithPinnedTool(root, options.environment);
-    } catch (error) {
-      removeTreeEvenIfReadOnly(join(root, ".tohseno"));
-      throw error;
-    }
-    return metadata;
-  } catch (error) {
-    removeTreeEvenIfReadOnly(temporary);
-    throw new CliError(`adoption failed without changing the app: ${errorMessage(error)}`);
+    metadata = parseShotMetadata(
+      readBoundedJson<unknown>(path, 65_536, "shot metadata"),
+    );
+  } catch {
+    throw unsupportedShotState(root);
   }
+  if (metadata === null) throw unsupportedShotState(root);
+  let state;
+  try {
+    state = readLocalShotProtocolState(root);
+  } catch {
+    throw unsupportedShotState(root);
+  }
+  if (state === null || state.shotId !== metadata.protocol.shotId) {
+    throw unsupportedShotState(root);
+  }
+  try {
+    const manifestValue = readBoundedJson<unknown>(
+      join(root, "app.manifest.json"),
+      1_048_576,
+      "Shot app manifest",
+    );
+    if (!validateAppManifest(manifestValue).valid) {
+      throw unsupportedShotState(root);
+    }
+    const manifest = manifestValue as AppManifest;
+    if (
+      manifest.application.id !== metadata.app.bundleId ||
+      manifest.application.name !== metadata.app.name ||
+      manifest.composition.kernel !== metadata.composition.kernel.id ||
+      manifest.composition.template !== metadata.composition.template.id ||
+      JSON.stringify(manifest.composition.skills) !==
+        JSON.stringify(metadata.composition.skills.map((skill) => skill.id))
+    ) {
+      throw unsupportedShotState(root);
+    }
+  } catch {
+    throw unsupportedShotState(root);
+  }
+  return metadata;
 }

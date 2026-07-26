@@ -1,8 +1,6 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import {
   chooseNumber,
-  continueCommand,
+  evolveCommand,
   createCommand,
   discoverShots,
   type CommandContext,
@@ -11,47 +9,17 @@ import {
 import { CliError } from "./errors.ts";
 import { ONBOARDING_VERSION } from "./constants.ts";
 import { writeOnboardingVersion } from "./config.ts";
-import { bunExecutable, runCaptured, sanitizedRuntimeEnvironment } from "./process.ts";
-import { trustedShotToolFromCache } from "./trusted-tools.ts";
+import { readLocalShotProtocolState } from "./protocol-state.ts";
 
-async function shotSummary(shot: DiscoveredShot, context: CommandContext): Promise<string> {
-  let runtime = "development unavailable in legacy shot";
-  const machine = join(shot.path, ".tohseno", "machine.ts");
-  if (existsSync(machine)) {
-    try {
-      const trusted = trustedShotToolFromCache({
-        shotRoot: shot.path,
-        releasesDirectory: context.config.cacheDirectory,
-        tool: "machine",
-      });
-      const inspected = await runCaptured([
-        bunExecutable(context.environment),
-        trusted.executable,
-        "dev",
-        "status",
-        "--json",
-      ], {
-        cwd: trusted.root,
-        env: sanitizedRuntimeEnvironment(context.environment),
-      });
-      const envelope = JSON.parse(inspected.stdout) as {
-        result?: { state?: unknown };
-        error?: { details?: { status?: { state?: unknown } } };
-      };
-      const state = envelope.result?.state ?? envelope.error?.details?.status?.state;
-      runtime = state === "running"
-        ? "development running"
-        : state === "starting"
-          ? "development starting"
-          : state === "unhealthy"
-            ? "development unhealthy"
-            : "development stopped";
-    } catch {
-      const statePath = join(shot.path, ".tohseno", "run", "state.json");
-      runtime = existsSync(statePath) ? "development state unreadable" : "development stopped";
-    }
+async function shotSummary(shot: DiscoveredShot): Promise<string> {
+  const state = readLocalShotProtocolState(shot.path);
+  if (state === null) {
+    throw new CliError(
+      "pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+      2,
+    );
   }
-  return `${shot.name} — iOS · repository ready · ${runtime}`;
+  return `${shot.name} — iOS · ${state.lifecycle} · Evolution ${state.evolution}`;
 }
 
 export async function interactiveLauncher(context: CommandContext): Promise<number> {
@@ -107,7 +75,7 @@ export async function interactiveLauncher(context: CommandContext): Promise<numb
   context.io.out(`  Shots here: ${shots.length}`);
   context.io.out();
   context.io.out("  1. Take another shot");
-  context.io.out("  2. Continue a shot");
+  context.io.out("  2. Evolve a shot");
   const action = await chooseNumber(context.io, 2, "Choose");
   context.io.out();
 
@@ -128,9 +96,9 @@ export async function interactiveLauncher(context: CommandContext): Promise<numb
     }, context);
   }
   context.io.out("Shots:");
-  const summaries = await Promise.all(shots.map((shot) => shotSummary(shot, context)));
+  const summaries = await Promise.all(shots.map((shot) => shotSummary(shot)));
   summaries.forEach((summary, index) => context.io.out(`  ${index + 1}. ${summary}`));
-  const selected = shots[await chooseNumber(context.io, shots.length, "Continue") ]!;
+  const selected = shots[await chooseNumber(context.io, shots.length, "Evolve") ]!;
   context.io.out();
-  return await continueCommand(selected.path, { noInteractive: false }, context);
+  return await evolveCommand(selected.path, { noInteractive: false }, context);
 }

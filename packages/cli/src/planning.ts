@@ -57,7 +57,7 @@ const PLAN_INSTRUCTION = [
   "You are the private planning phase of an iOS app factory.",
   "Read intention.md and catalog.json in the current directory.",
   "Return exactly one JSON object matching the schema described in catalog.json.",
-  "Select only listed template and skill IDs.",
+  "Select only listed template and skill IDs. List only extra skills not already supplied by the selected template.",
   "Prefer local data and no identity for a first shot unless the intention requires otherwise.",
   "Ask questions only for architectural or externally consequential decisions that cannot be deferred.",
   "Do not write files, use the network, or include the raw intention verbatim.",
@@ -336,7 +336,10 @@ function catalogPrompt(catalog: AppCatalog): string {
       app: { name: "string", slug: "string", bundleId: "string" },
       summary: "sanitized functional interpretation",
       template: "known template id",
-      skills: [{ id: "known skill id", reason: "sanitized reason" }],
+      skills: [{
+        id: "extra known skill id not supplied by the selected template",
+        reason: "sanitized reason",
+      }],
       data: { strategy: "local|remote|hybrid", reason: "string" },
       identity: {
         strategy: "none|local-device|wallet|account",

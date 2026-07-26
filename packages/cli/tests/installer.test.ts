@@ -5,6 +5,7 @@ import {
   linkSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   statSync,
   symlinkSync,
   unlinkSync,
@@ -16,6 +17,9 @@ import { describe, expect, test } from "bun:test";
 import {
   assertThirdPartyPackageIdentity,
   buildCliRelease,
+  cliReleaseSourceProvenance,
+  gitReleaseInputPaths,
+  snapshotGitReleaseInputs,
   thirdPartyTreeSha256,
 } from "../scripts/package-release.ts";
 import { CLI_VERSION } from "../src/constants.ts";
@@ -85,6 +89,254 @@ function envelope(stdout: string): any {
 }
 
 describe("managed installer", () => {
+  test("inventories Git-visible release inputs, excludes ignored files, and records dirty provenance", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const repository = join(scratch.root, "release source");
+      const input = join(repository, "input");
+      mkdirSync(input, { recursive: true });
+      writeFileSync(
+        join(repository, ".gitignore"),
+        "input/ignored.txt\n",
+      );
+      writeFileSync(join(input, "tracked.txt"), "tracked\n");
+      writeFileSync(join(repository, "outside.txt"), "outside\n");
+
+      const initialized = await runGit(
+        [
+          "-c",
+          "init.templateDir=",
+          "init",
+          "--quiet",
+          "--initial-branch=main",
+        ],
+        repository,
+        scratch.environment,
+      );
+      expect(initialized.exitCode).toBe(0);
+      expect(
+        (await runGit(["add", "-A"], repository, scratch.environment)).exitCode,
+      ).toBe(0);
+      const committed = await runGit(
+        [
+          "-c",
+          "commit.gpgSign=false",
+          "-c",
+          "user.name=CLI Test",
+          "-c",
+          "user.email=cli-test@tohseno.local",
+          "commit",
+          "--quiet",
+          "--no-verify",
+          "-m",
+          "release fixture",
+        ],
+        repository,
+        scratch.environment,
+      );
+      expect(committed.exitCode).toBe(0);
+      const commit = (
+        await runGit(["rev-parse", "HEAD"], repository, scratch.environment)
+      ).stdout.trim();
+      const fsmonitorWitness = join(scratch.root, "fsmonitor-witness");
+      const fsmonitor = writeExecutable(
+        scratch.binDirectory,
+        "untrusted-fsmonitor",
+        [
+          "#!/bin/sh",
+          `printf invoked > ${JSON.stringify(fsmonitorWitness)}`,
+        ].join("\n"),
+      );
+      expect(
+        (
+          await runGit(
+            ["config", "core.fsmonitor", fsmonitor],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+
+      expect(cliReleaseSourceProvenance(repository)).toEqual({
+        kind: "git",
+        commit,
+        dirty: false,
+        inventory:
+          "git ls-files --cached --others --exclude-standard",
+      });
+      expect(existsSync(fsmonitorWitness)).toBe(false);
+      const cleanSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(cleanSnapshot.source.dirty).toBe(false);
+      expect(cleanSnapshot.matchesHead).toBe(true);
+      expect(cleanSnapshot.files).toHaveLength(1);
+      expect(cleanSnapshot.files[0]?.content.toString("utf8")).toBe("tracked\n");
+      expect(
+        (
+          await runGit(
+            ["config", "--unset", "core.fsmonitor"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+
+      writeFileSync(join(input, "ignored.txt"), "private local content\n");
+      expect(gitReleaseInputPaths(repository, ["input"])).toEqual([
+        "input/tracked.txt",
+      ]);
+      const ignoredSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(ignoredSnapshot.source.dirty).toBe(false);
+      expect(ignoredSnapshot.matchesHead).toBe(true);
+      expect(ignoredSnapshot.files).toHaveLength(1);
+
+      writeFileSync(join(repository, "outside.txt"), "outside change\n");
+      const outsideDirtySnapshot = snapshotGitReleaseInputs(
+        repository,
+        ["input"],
+      );
+      expect(outsideDirtySnapshot.source.dirty).toBe(true);
+      expect(outsideDirtySnapshot.matchesHead).toBe(true);
+      writeFileSync(join(repository, "outside.txt"), "outside\n");
+
+      writeFileSync(join(input, "visible.txt"), "prepared source\n");
+      expect(gitReleaseInputPaths(repository, ["input"])).toEqual([
+        "input/tracked.txt",
+        "input/visible.txt",
+      ]);
+      const preparedSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(preparedSnapshot.source.dirty).toBe(true);
+      expect(preparedSnapshot.matchesHead).toBe(false);
+      const preparedFile = preparedSnapshot.files.find((file) =>
+        file.path.endsWith("/input/visible.txt")
+      );
+      expect(preparedFile?.content.toString("utf8")).toBe("prepared source\n");
+      writeFileSync(join(input, "visible.txt"), "changed after snapshot\n");
+      expect(preparedFile?.content.toString("utf8")).toBe("prepared source\n");
+
+      unlinkSync(join(input, "visible.txt"));
+      expect(
+        (
+          await runGit(
+            ["update-index", "--assume-unchanged", "input/tracked.txt"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      writeFileSync(join(input, "tracked.txt"), "hidden tracked change\n");
+      expect(
+        (
+          await runGit(
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            repository,
+            scratch.environment,
+          )
+        ).stdout,
+      ).toBe("");
+      const assumedSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(assumedSnapshot.source.dirty).toBe(true);
+      expect(assumedSnapshot.matchesHead).toBe(false);
+      expect(assumedSnapshot.files[0]?.content.toString("utf8")).toBe(
+        "hidden tracked change\n",
+      );
+      expect(
+        (
+          await runGit(
+            ["update-index", "--no-assume-unchanged", "input/tracked.txt"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      writeFileSync(join(input, "tracked.txt"), "tracked\n");
+
+      expect(
+        (
+          await runGit(
+            ["update-index", "--skip-worktree", "input/tracked.txt"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      writeFileSync(join(input, "tracked.txt"), "hidden sparse change\n");
+      const sparseSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(sparseSnapshot.source.dirty).toBe(true);
+      expect(sparseSnapshot.matchesHead).toBe(false);
+      expect(
+        (
+          await runGit(
+            ["update-index", "--no-skip-worktree", "input/tracked.txt"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      writeFileSync(join(input, "tracked.txt"), "tracked\n");
+
+      expect(
+        (
+          await runGit(
+            ["config", "core.filemode", "false"],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      chmodSync(join(input, "tracked.txt"), 0o755);
+      expect(
+        (
+          await runGit(
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            repository,
+            scratch.environment,
+          )
+        ).stdout,
+      ).toBe("");
+      const modeSnapshot = snapshotGitReleaseInputs(repository, ["input"]);
+      expect(modeSnapshot.source.dirty).toBe(true);
+      expect(modeSnapshot.matchesHead).toBe(false);
+      expect(modeSnapshot.files[0]?.mode).toBe(0o755);
+
+      chmodSync(join(input, "tracked.txt"), 0o644);
+      const nested = join(input, "nested");
+      mkdirSync(nested);
+      writeFileSync(join(nested, "tracked.txt"), "nested\n");
+      expect(
+        (await runGit(["add", "-A"], repository, scratch.environment)).exitCode,
+      ).toBe(0);
+      expect(
+        (
+          await runGit(
+            [
+              "-c",
+              "commit.gpgSign=false",
+              "-c",
+              "user.name=CLI Test",
+              "-c",
+              "user.email=cli-test@tohseno.local",
+              "commit",
+              "--quiet",
+              "--no-verify",
+              "-m",
+              "nested release input",
+            ],
+            repository,
+            scratch.environment,
+          )
+        ).exitCode,
+      ).toBe(0);
+      const savedNested = join(input, "saved-nested");
+      const externalNested = join(scratch.root, "external-nested");
+      renameSync(nested, savedNested);
+      mkdirSync(externalNested);
+      writeFileSync(join(externalNested, "tracked.txt"), "external\n");
+      symlinkSync(externalNested, nested, "dir");
+      expect(() =>
+        snapshotGitReleaseInputs(repository, ["input"])
+      ).toThrow("beneath real directories");
+    });
+  });
+
   test("rejects managed dependency identity, content, or mode drift before packaging", async () => {
     await withScratchEnvironment(async (scratch) => {
       const dependency = join(scratch.root, "third-party-dependency");
@@ -173,6 +425,15 @@ describe("managed installer", () => {
         `tohseno-cli-${CLI_VERSION}.json`,
       );
       const release = buildCliRelease({ output: releaseArchive, manifest: releaseManifest });
+      const metadata = JSON.parse(
+        readFileSync(releaseManifest, "utf8"),
+      ) as Record<string, any>;
+      expect(metadata.source.kind).toBe("git");
+      expect(metadata.source.commit).toMatch(/^[0-9a-f]{40}$/u);
+      expect(typeof metadata.source.dirty).toBe("boolean");
+      expect(metadata.source.inventory).toBe(
+        "git ls-files --cached --others --exclude-standard",
+      );
       const repeatedArchive = join(
         scratch.root,
         "repeated",
@@ -264,7 +525,6 @@ describe("managed installer", () => {
       const created = await runProcess([
         executable,
         "create", "installed-acceptance",
-        "--platform", "ios",
         "--no-launch",
         "--no-interactive",
       ], scratch.root, environment);
@@ -410,38 +670,38 @@ describe("managed installer", () => {
       );
       writeFileSync(cliArtifactMarker, cliArtifactMarkerSource);
 
-      const installedReadme = join(
+      const installedKernel = join(
         installHome,
         "versions",
         CLI_VERSION,
         "factory-source",
         "templates",
-        "continuity-app",
-        "README.md",
+        "ios-kernel",
+        "kernel.json",
       );
-      chmodSync(installedReadme, 0o755);
+      chmodSync(installedKernel, 0o755);
       expect(
         (await runProcess([executable, "--version"], scratch.root, environment))
           .exitCode,
       ).toBe(1);
-      chmodSync(installedReadme, 0o644);
-      const readmeSource = readFileSync(installedReadme);
-      unlinkSync(installedReadme);
-      symlinkSync(installedConstants, installedReadme);
+      chmodSync(installedKernel, 0o644);
+      const kernelSource = readFileSync(installedKernel);
+      unlinkSync(installedKernel);
+      symlinkSync(installedConstants, installedKernel);
       expect(
         (await runProcess([executable, "--version"], scratch.root, environment))
           .exitCode,
       ).toBe(1);
-      unlinkSync(installedReadme);
-      writeFileSync(installedReadme, readmeSource, { mode: 0o644 });
+      unlinkSync(installedKernel);
+      writeFileSync(installedKernel, kernelSource, { mode: 0o644 });
 
-      const hardlinkedReadme = join(scratch.root, "hardlinked-readme");
-      linkSync(installedReadme, hardlinkedReadme);
+      const hardlinkedKernel = join(scratch.root, "hardlinked-kernel");
+      linkSync(installedKernel, hardlinkedKernel);
       expect(
         (await runProcess([executable, "--version"], scratch.root, environment))
           .exitCode,
       ).toBe(1);
-      unlinkSync(hardlinkedReadme);
+      unlinkSync(hardlinkedKernel);
 
       const extraFile = join(
         installHome,

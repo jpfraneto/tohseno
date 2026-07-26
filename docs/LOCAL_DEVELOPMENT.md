@@ -1,16 +1,16 @@
 # Local development
 
-Repository work uses Bun 1.2.18 or newer. The product installer manages its own
-Bun; a contributor checkout may use an existing one.
+Repository work uses an existing Bun 1.2.18 or newer. The prepared managed
+artifact pins its runtime, but no 0.5.0 installer is served.
 
 ```sh
 bun install
 bun run check
 ```
 
-The full gate runs strict TypeScript, Bun tests, manifest/contract fixtures,
-public-site and installer boundaries, oneshot pin ancestry, secret hygiene, and
-Git whitespace checks.
+The full gate runs strict TypeScript, Bun tests, manifest/protocol fixtures,
+public-site and frozen-installer boundaries, deterministic artifact checks,
+secret hygiene, and Git whitespace checks.
 
 ## Develop the launcher and machine protocol
 
@@ -42,7 +42,7 @@ boundaries to cover strict planning and fallback, kernel/template/skill
 composition, dependency order, collision and lock tampering, shared CLI/Studio
 creation, immutable releases, private provenance, concurrent allocation,
 Studio security, Simulator orchestration, authoritative handoff, installer
-behavior, and legacy continuity runtime compatibility.
+behavior, and protocol-state invariants.
 
 ## Develop Studio and the shared factory
 
@@ -59,7 +59,8 @@ bun test packages/cli/tests
 `creation.test.ts` proves that CLI and Studio call the same factory, normalize
 typed text plus Markdown deterministically, hash and copy references, preserve
 equivalent provenance, and allocate concurrent sequence numbers without
-collision, including stale-owner resumption and no-clobber publication.
+collision, including stale-owner resumption and no-clobber repository
+materialization.
 Studio tests cover the application/server boundary. Simulator tests
 inject command executors and child processes, so the ordinary suite does not
 require macOS, Xcode, or a booted device.
@@ -76,12 +77,12 @@ bun run tohseno -- studio --port 4747 --no-open
 
 With `--no-open`, open the printed owner-only launcher file—not the unscoped
 base URL—to establish the private browser session. Confirm that the empty
-contact sheet loads, create a shot from typed text or Markdown plus reference
+contact sheet loads, create a Shot from typed text or Markdown plus reference
 images, watch structured progress, and verify that the resulting repository
 appears under `$STUDIO_SMOKE_ROOT/shots`. In another terminal, point
-`TOHSENO_SHOTS_DIR` at the same directory and run `tohseno list`, `verify`,
-`open`, or an explicit `create --file`; Studio should observe the external
-creation without that CLI process contacting the server.
+`TOHSENO_SHOTS_DIR` at the same directory and run the source CLI’s `list`,
+`verify`, `open`, or explicit `create --file` command; Studio should observe
+the external creation without that CLI process contacting the server.
 
 Studio must continue to reject non-loopback Host/Origin requests, mutation
 and private-read requests without its path-scoped cookie, bootstrap requests
@@ -97,12 +98,17 @@ Build the deterministic source artifact without publishing it:
 
 ```sh
 bun run tohseno:release
-cat dist/tohseno-cli-0.4.0.json
+cat dist/tohseno-cli-0.5.0.json
 ```
+
+The metadata identifies the current Git commit and marks a dirty worktree.
+Ignored files are excluded from first-party release input. Dirty builds are
+useful for local rehearsal but are never publication evidence; a published
+artifact must be rebuilt from the exact clean frozen commit.
 
 The installer test builds that artifact in a temporary directory, creates a
 fake checksum-pinned Bun archive, removes Bun from `PATH`, installs to an
-isolated home, creates and verifies a generic Blank shot, proves it has no
+isolated home, creates and verifies a Blank Shot, proves it has no
 inherited backend or credential requirement, re-runs the installer, and
 confirms a bad checksum fails closed:
 
@@ -119,27 +125,24 @@ sh apps/site/public/install.sh --dry-run
 ```
 
 The default dry run is valid only after the current artifact checksum has been
-finalized. No test modifies a real shell profile or downloads a real public
-tunnel.
+finalized. No test modifies a real shell profile or contacts public
+infrastructure.
 
-## Exercise an isolated shot manually
+## Exercise an isolated Shot manually
 
 Use explicit temporary locations and skip agent launch:
 
 ```sh
-ROOT="$(mktemp -d)"
-HOME="$ROOT/home" \
-TOHSENO_HOME="$ROOT/factory" \
-TOHSENO_SHOTS_DIR="$ROOT/shots" \
+SHOT_SMOKE_ROOT="$(mktemp -d)"
+HOME="$SHOT_SMOKE_ROOT/home" \
+TOHSENO_HOME="$SHOT_SMOKE_ROOT/factory" \
+TOHSENO_SHOTS_DIR="$SHOT_SMOKE_ROOT/shots" \
 bun run tohseno -- create docs-smoke \
-  --platform ios --no-launch --no-interactive
+  --no-launch --no-interactive
 
-tohseno verify docs-smoke
-tohseno run docs-smoke
+bun run tohseno -- verify docs-smoke
+bun run tohseno -- run docs-smoke
 ```
-
-Do not add `--tunnel` to a manual smoke test unless public reachability is
-actually needed. A real Quick Tunnel is not a CI prerequisite.
 
 ## Develop the public site
 
@@ -151,15 +154,12 @@ The site is a stateless `Bun.serve` process with raw HTML/CSS and minimal
 same-origin JavaScript. `.env.example` contains its only four settings:
 `NODE_ENV`, `PORT`, `BASE_URL`, and `TRUST_PROXY`.
 
-`/install.sh` is the canonical published installer. `/oneshot.sh` is a thin
-compatibility delegator pinned to the published release commit and to the exact
-installer SHA-256. It contains no workspace creator:
+The frozen canonical installer remains a source artifact and is deliberately
+not routed by the 0.5 site. Verify that the site exposes no installer or
+alternate bootstrap route:
 
 ```sh
-bash -n apps/site/public/oneshot.sh
-bash apps/site/public/oneshot.sh --help
-bash apps/site/public/oneshot.sh --version
-bash apps/site/public/oneshot.sh --dry-run --without-cloudflared
+bun test apps/site/tests/http-routes.test.ts
 ```
 
 No local site command deploys Railway or publishes the CLI artifact.
@@ -179,7 +179,6 @@ Validate a changed manifest through the real CLI gate:
 ```sh
 cd ../..
 bun run validate templates/ios-kernel/overlay/app.manifest.json
-bun run validate templates/continuity-app/continuity.manifest.json
 ```
 
 On a Mac with an available iPhone simulator:
@@ -195,7 +194,6 @@ xcodebuild -project Shot.xcodeproj -scheme Shot \
 The neutral kernel and every bundled template must build with no keys. After
 adding, removing, or moving Swift files in an overlay, regenerate its project
 and any template project that explicitly replaces generated project files.
-Continuity-v1 keeps its separate legacy XcodeGen and production-endpoint gate.
 
 ## Exercise Simulator run and live preview
 
@@ -231,7 +229,7 @@ through Rosetta. If only serve-sim compatibility fails,
 rerun `bun install` in the repository and confirm the lockfile still resolves
 exactly `0.1.45`; do not loosen the pin.
 
-With a recognized generated shot:
+With a recognized generated Shot:
 
 ```sh
 bun run tohseno -- run docs-smoke
@@ -240,14 +238,14 @@ bun run tohseno -- preview docs-smoke
 
 `run` should start the pinned development runtime, build, install, and launch
 the app in Apple Simulator, then attempt to write the real PNG capture to the
-shot’s gitignored `.tohseno/artifacts/screenshot.png`. If capture alone fails,
+Shot’s gitignored `.tohseno/artifacts/screenshot.png`. If capture alone fails,
 confirm that the command reports it while leaving the app running. `preview`
 repeats that run,
 opens the loopback interactive stream, and stays in the foreground until
 `Ctrl-C`; test taps, typing, and a swipe before stopping it. The browser view is
 the Mac’s real Simulator, not an in-browser emulator. Stopping the preview
 stops its owned stream helper; use the existing native Simulator controls and
-`machine dev stop` when the app or development service should also stop.
+normal process controls when the app should also stop.
 
 Only one live session is managed by a Studio process at a time. Confirm that
 closing or replacing a preview terminates the exact previously owned helper

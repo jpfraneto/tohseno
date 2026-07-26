@@ -4,20 +4,22 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { CliError } from "../errors.ts";
 import {
   readBoundedJson,
   readBoundedRegularFile,
-  readBoundedUtf8,
 } from "../files.ts";
 import {
   detectImageType,
   MAX_INTENTION_BYTES,
   MAX_REFERENCE_BYTES,
-  MAX_REFERENCES,
+  validateCreationProvenance,
+  type CreationProvenance,
 } from "../provenance.ts";
+import { readLocalShotProtocolState } from "../protocol-state.ts";
 import {
   MAX_PROGRESS_JOURNAL_BYTES,
   readProgressJournal,
@@ -155,14 +157,6 @@ interface ErrorResponse {
   status: number;
   code: string;
   message: string;
-}
-
-function isRecord(
-  value: unknown,
-): value is Record<string, unknown> {
-  return typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value);
 }
 
 function inside(root: string, candidate: string): boolean {
@@ -303,7 +297,13 @@ function safeShot(
 ): DiscoveredShot {
   try {
     return recognizedShotBySlug(shotsDirectory, slug);
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof CliError &&
+      error.message.includes("pre-release compatibility is unsupported")
+    ) {
+      throw error;
+    }
     throw new StudioHttpError(
       404,
       "shot-not-found",
@@ -355,54 +355,103 @@ function contactShot(
   shot: DiscoveredShot,
   apiBase: string,
 ): Record<string, unknown> {
-  const journal = safeRegularFile(
+  const protocol = readLocalShotProtocolState(shot.path);
+  if (protocol === null) {
+    throw new StudioHttpError(
+      409,
+      "unsupported-shot-state",
+      "Pre-release compatibility is unsupported. Create a fresh Shot with TOHSENO 0.5.",
+    );
+  }
+  const journalCandidate = join(
     shot.path,
-    join(shot.path, ".tohseno", "provenance", "events.jsonl"),
+    ".tohseno",
+    "provenance",
+    "events.jsonl",
   );
+  const journal = safeRegularFile(shot.path, journalCandidate);
   let status = "READY";
-  if (
-    journal !== null &&
-    fileWithinLimit(journal, MAX_PROGRESS_JOURNAL_BYTES)
-  ) {
-    try {
-      const events = readProgressJournal(journal).filter(
-        (event) => event.slug === shot.metadata.slug,
+  if (existsSync(journalCandidate) && journal === null) {
+    throw new CliError("the Shot progress journal is unsafe", 2);
+  }
+  if (journal !== null) {
+    if (!fileWithinLimit(journal, MAX_PROGRESS_JOURNAL_BYTES)) {
+      throw new CliError(
+        "creation progress journal is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+        2,
       );
-      status = shotOperationalStatus(events);
-    } catch {
-      // Legacy or concurrently replaced journals fall back to a usable shot.
     }
+    const events = readProgressJournal(journal).filter(
+      (event) => event.slug === shot.metadata.slug,
+    );
+    status = shotOperationalStatus(events);
   }
   return {
     slug: shot.metadata.slug,
     name: shot.name,
     createdAt: shot.metadata.createdAt,
-    sequence: shot.metadata.sequence ?? null,
+    sequence: shot.metadata.sequence,
     status,
+    shotId: protocol.shotId,
+    lifecycle: protocol.lifecycle,
+    evolution: protocol.evolution,
     screenshotUrl: screenshotUrl(shot, apiBase),
   };
 }
 
-function provenanceRecord(shot: DiscoveredShot): Record<string, unknown> | null {
+function invalidPrivateProvenance(): never {
+  throw new CliError(
+    "private creation provenance is not canonical; pre-release compatibility is unsupported; create a fresh Shot with `tohseno`",
+    2,
+  );
+}
+
+function provenanceRecord(
+  shot: DiscoveredShot,
+): CreationProvenance | null {
   const candidate = join(
     shot.path,
     ".tohseno",
     "provenance",
     "provenance.json",
   );
+  if (!existsSync(candidate)) return null;
   const path = safeRegularFile(shot.path, candidate);
-  if (path === null) return null;
-  try {
-    if (!fileWithinLimit(path, MAX_PROVENANCE_BYTES)) return null;
-    const value = readBoundedJson<unknown>(
-      path,
-      MAX_PROVENANCE_BYTES,
-      "creation provenance",
-    );
-    return isRecord(value) ? value : null;
-  } catch {
-    return null;
+  if (path === null || !fileWithinLimit(path, MAX_PROVENANCE_BYTES)) {
+    return invalidPrivateProvenance();
   }
+  let provenance: CreationProvenance;
+  try {
+    provenance = validateCreationProvenance(
+      readBoundedJson<unknown>(
+        path,
+        MAX_PROVENANCE_BYTES,
+        "creation provenance",
+      ),
+    );
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    return invalidPrivateProvenance();
+  }
+  const metadata = shot.metadata;
+  if (
+    provenance.createdAt !== metadata.createdAt ||
+    provenance.door !== metadata.creation.door ||
+    provenance.inputDigest !== metadata.creation.inputDigest ||
+    provenance.references.length !== metadata.creation.referenceCount ||
+    (provenance.intention !== null) !== metadata.creation.hasIntention ||
+    JSON.stringify(provenance.options) !==
+      JSON.stringify(metadata.creation.options) ||
+    provenance.factory.releaseId !== metadata.factory.releaseId ||
+    provenance.factory.cliVersion !== metadata.factory.cliVersion ||
+    provenance.factory.templateVersion !== metadata.factory.templateVersion ||
+    provenance.factory.manifestSchemaVersion !==
+      metadata.factory.manifestSchemaVersion ||
+    provenance.factory.bundleDigest !== metadata.factory.bundleDigest
+  ) {
+    return invalidPrivateProvenance();
+  }
+  return provenance;
 }
 
 function privateShotInput(shot: DiscoveredShot): PrivateShotInput {
@@ -412,65 +461,57 @@ function privateShotInput(shot: DiscoveredShot): PrivateShotInput {
   }
   let intention: string | null = null;
   const intentionRecord = provenance.intention;
-  if (
-    isRecord(intentionRecord) &&
-    intentionRecord.path === "intention.md"
-  ) {
+  if (intentionRecord !== null) {
     const path = safeRegularFile(
       shot.path,
       join(shot.path, ".tohseno", "provenance", "intention.md"),
     );
-    if (path !== null && fileWithinLimit(path, MAX_INTENTION_BYTES)) {
-      try {
-        intention = readBoundedUtf8(
-          path,
-          MAX_INTENTION_BYTES,
-          "private creation intention",
-        );
-      } catch {
-        intention = null;
-      }
+    if (path === null || !fileWithinLimit(path, MAX_INTENTION_BYTES)) {
+      return invalidPrivateProvenance();
+    }
+    const bytes = readBoundedRegularFile(
+      path,
+      MAX_INTENTION_BYTES,
+      "private creation intention",
+    );
+    if (
+      bytes.byteLength !== intentionRecord.bytes ||
+      createHash("sha256").update(bytes).digest("hex") !==
+        intentionRecord.sha256
+    ) {
+      return invalidPrivateProvenance();
+    }
+    try {
+      intention = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      return invalidPrivateProvenance();
     }
   }
 
-  const records = Array.isArray(provenance.references)
-    ? provenance.references.slice(0, MAX_REFERENCES)
-    : [];
   const references: SafeReference[] = [];
-  for (const value of records) {
-    if (!isRecord(value)) continue;
-    const path = value.path;
-    const originalName = value.originalName;
-    const mediaType = value.mediaType;
-    if (
-      typeof path !== "string" ||
-      !/^references\/reference-[0-9]{3}\.(?:png|jpg|webp|gif|heic|avif)$/u.test(path) ||
-      typeof originalName !== "string" ||
-      originalName.length > 255 ||
-      /[\u0000-\u001f\u007f-\u009f]/u.test(originalName) ||
-      typeof mediaType !== "string" ||
-      ![
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "image/gif",
-        "image/heic",
-        "image/avif",
-      ].includes(mediaType)
-    ) {
-      continue;
-    }
+  for (const value of provenance.references) {
     const candidate = safeRegularFile(
       shot.path,
-      join(shot.path, ".tohseno", "provenance", path),
+      join(shot.path, ".tohseno", "provenance", value.path),
     );
     if (candidate === null || !fileWithinLimit(candidate, MAX_REFERENCE_BYTES)) {
-      continue;
+      return invalidPrivateProvenance();
+    }
+    const bytes = readBoundedRegularFile(
+      candidate,
+      MAX_REFERENCE_BYTES,
+      "private creation reference",
+    );
+    if (
+      bytes.byteLength !== value.bytes ||
+      createHash("sha256").update(bytes).digest("hex") !== value.sha256
+    ) {
+      return invalidPrivateProvenance();
     }
     references.push({
       path: candidate,
-      originalFilename: basename(originalName),
-      mediaType,
+      originalFilename: basename(value.originalName),
+      mediaType: value.mediaType,
     });
   }
   return { intention, references };
@@ -492,14 +533,12 @@ function detailShot(
       imageUrl:
         `${apiBase}/shots/${encodeURIComponent(shot.metadata.slug)}/references/${index}`,
     })),
-    creation: shot.metadata.creation === undefined
-      ? null
-      : {
-        door: shot.metadata.creation.door,
-        inputDigest: shot.metadata.creation.inputDigest,
-        referenceCount: shot.metadata.creation.referenceCount,
-        options: shot.metadata.creation.options,
-      },
+    creation: {
+      door: shot.metadata.creation.door,
+      inputDigest: shot.metadata.creation.inputDigest,
+      referenceCount: shot.metadata.creation.referenceCount,
+      options: shot.metadata.creation.options,
+    },
     factory: {
       releaseId: shot.metadata.factory.releaseId,
       cliVersion: shot.metadata.factory.cliVersion,

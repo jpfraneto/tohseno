@@ -128,10 +128,14 @@ function mapSourcePath(sourceRoot: string, path: string): SourceEntry {
     destination = `catalog/${path}`;
   } else if (path.startsWith("packages/skills/")) {
     destination = `factory/skills/${path.slice("packages/skills/".length)}`;
-  } else if (path.startsWith("templates/continuity-app/")) {
-    destination = `platforms/ios/base/${path.slice("templates/continuity-app/".length)}`;
-  } else if (path === "skills/continuity-app/SKILL.md") {
-    destination = "agent/continuity-app/SKILL.md";
+  } else if (
+    path.startsWith("packages/identity/") ||
+    path.startsWith("packages/signer/") ||
+    path.startsWith("packages/protocol/") ||
+    path.startsWith("packages/registry/") ||
+    path.startsWith("packages/node-client/")
+  ) {
+    destination = `factory/${path.slice("packages/".length)}`;
   } else if (path.startsWith("packages/manifest/")) {
     destination = `manifest/${basename(path)}`;
   } else if (path === "packages/cli/factory/AGENTS.md") {
@@ -182,9 +186,6 @@ async function gitListedFiles(sourceRoot: string, path: string): Promise<string[
 }
 
 async function sourceEntries(sourceRoot: string): Promise<SourceEntry[]> {
-  const listed = await gitListedFiles(sourceRoot, "templates/continuity-app");
-  const templatePaths = listed ?? listRegularFiles(join(sourceRoot, "templates", "continuity-app"))
-    .map((file) => `templates/continuity-app/${file.relativePath}`);
   const listedCli = await gitListedFiles(sourceRoot, "packages/cli/src");
   const cliPaths = listedCli ?? listRegularFiles(join(sourceRoot, "packages", "cli", "src"))
     .map((file) => `packages/cli/src/${file.relativePath}`);
@@ -197,6 +198,11 @@ async function sourceEntries(sourceRoot: string): Promise<SourceEntry[]> {
     "skills/rank-progression",
     "skills/share-card",
     "packages/skills",
+    "packages/identity",
+    "packages/signer",
+    "packages/protocol",
+    "packages/registry",
+    "packages/node-client",
   ];
   const newCatalogPaths = (
     await Promise.all(newCatalogDirectories.map(async (directory) => {
@@ -206,7 +212,6 @@ async function sourceEntries(sourceRoot: string): Promise<SourceEntry[]> {
     }))
   ).flat();
   const paths = [
-    ...templatePaths,
     ...newCatalogPaths,
     ...cliPaths,
     ...RELEASE_SOURCE_FILES,
@@ -294,19 +299,33 @@ function parseReleaseMetadata(path: string): FactoryRelease {
   const record = value as Partial<FactoryRelease>;
   const source = record.source;
   if (
+    Object.keys(value as Record<string, unknown>).sort().join("\0") !==
+      [
+        "bundleDigest",
+        "cliVersion",
+        "files",
+        "manifestSchemaVersion",
+        "platform",
+        "releaseId",
+        "schemaVersion",
+        "source",
+        "templateVersion",
+      ].sort().join("\0") ||
     record.schemaVersion !== FACTORY_RELEASE_SCHEMA_VERSION ||
     typeof record.releaseId !== "string" ||
     !/^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
       .test(record.releaseId) ||
-    typeof record.cliVersion !== "string" ||
-    !/^[0-9]+\.[0-9]+\.[0-9]+$/u.test(record.cliVersion) ||
-    typeof record.templateVersion !== "string" ||
-    typeof record.manifestSchemaVersion !== "string" ||
+    record.cliVersion !== CLI_VERSION ||
+    record.templateVersion !== IOS_TEMPLATE_VERSION ||
+    record.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION ||
     typeof record.bundleDigest !== "string" ||
     !/^[0-9a-f]{64}$/u.test(record.bundleDigest) ||
     record.platform !== "ios" ||
     typeof source !== "object" ||
     source === null ||
+    Array.isArray(source) ||
+    Object.keys(source).sort().join("\0") !==
+      ["commit", "dirty", "kind"].sort().join("\0") ||
     (source.kind !== "git" && source.kind !== "content") ||
     typeof source.dirty !== "boolean" ||
     !Array.isArray(record.files) ||
@@ -527,7 +546,11 @@ export function useActiveCachedRelease(releasesDirectory: string): PreparedRelea
         4_096,
         "active release pointer",
       );
-      if (value.schemaVersion !== 1 || typeof value.releaseId !== "string") {
+      if (
+        Object.keys(value).length !== 2 ||
+        value.schemaVersion !== 1 ||
+        typeof value.releaseId !== "string"
+      ) {
         throw new Error("unsupported pointer shape");
       }
       releaseId = value.releaseId;
@@ -535,15 +558,9 @@ export function useActiveCachedRelease(releasesDirectory: string): PreparedRelea
       throw new CliError(`active release pointer is corrupt: ${pointerPath}: ${errorMessage(error)}`);
     }
   } else {
-    const cached = listCachedReleaseDirectories(releasesRoot);
-    if (cached.length === 1) releaseId = basename(cached[0]!);
-    else if (cached.length === 0) {
-      throw new CliError("no cached factory release is available");
-    } else {
-      throw new CliError(
-        `factory source is unavailable and ${cached.length} cached releases exist without an active-release pointer`,
-      );
-    }
+    throw new CliError(
+      "factory source is unavailable and the canonical active-release pointer is absent; pre-release cache inference is unsupported",
+    );
   }
   const directory = releasePathWithinCache(releasesRoot, releaseId);
   const metadata = verifyReleaseDirectory(directory, releaseId);

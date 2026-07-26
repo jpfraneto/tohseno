@@ -3,9 +3,10 @@ import { dirname, join, resolve } from "node:path";
 import { CliError } from "./errors.ts";
 
 function isFactorySourceRoot(path: string): boolean {
-  return existsSync(join(path, "templates", "continuity-app", "continuity.manifest.json")) &&
+  return existsSync(join(path, "templates", "ios-kernel", "kernel.json")) &&
+    existsSync(join(path, "templates", "blank", "template.json")) &&
     existsSync(join(path, "packages", "manifest", "cli.ts")) &&
-    existsSync(join(path, "skills", "continuity-app", "SKILL.md")) &&
+    existsSync(join(path, "packages", "protocol", "src", "index.ts")) &&
     existsSync(join(path, "packages", "cli", "factory", "shot-verify.ts"));
 }
 
@@ -17,7 +18,9 @@ export function locateFactorySourceRoot(
   if (override !== undefined) {
     const candidate = resolve(override);
     if (!isFactorySourceRoot(candidate)) {
-      throw new CliError(`TOHSENO_SOURCE_ROOT is not a compatible TOHSENO checkout: ${candidate}`);
+      throw new CliError(
+        `TOHSENO_SOURCE_ROOT is not a canonical TOHSENO 0.5 checkout: ${candidate}`,
+      );
     }
     return candidate;
   }

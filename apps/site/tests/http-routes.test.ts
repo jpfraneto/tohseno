@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApplication } from "../server.ts";
@@ -22,9 +21,6 @@ function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost:3000${path}`, init);
 }
 
-const oneshotPath = fileURLToPath(
-  new URL("../public/oneshot.sh", import.meta.url),
-);
 const installerPath = fileURLToPath(
   new URL("../public/install.sh", import.meta.url),
 );
@@ -45,7 +41,7 @@ const landingStylePath = fileURLToPath(
 );
 
 describe("public pages", () => {
-  test("serves the local CLI install path and no stale intake surface", async () => {
+  test("serves the canonical source-run path and no stale intake surface", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -56,13 +52,12 @@ describe("public pages", () => {
       .digest("hex")
       .slice(0, 12);
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
-    expect(body).toContain("curl -fsSL https://tohseno.com/install.sh | bash");
-    expect(body).toContain("tohseno create");
-    expect(body).toContain("tohseno studio");
+    expect(body).toContain("bun run tohseno");
+    expect(body).toContain("bun run tohseno -- studio");
     expect(body).toContain(
-      'data-copy-value="curl -fsSL https://tohseno.com/install.sh | bash"',
+      'data-copy-value="bun run tohseno"',
     );
-    expect(body).toContain("Copy one liner installer");
+    expect(body).toContain("Copy source command");
     expect(body).not.toContain("bun run tohseno:link");
     expect(body).toContain("GIVE EVERY");
     expect(body).toContain("IDEA A");
@@ -71,7 +66,7 @@ describe("public pages", () => {
       "A local intention compiler and open app factory for builders with more ideas than time.",
     );
     expect(body).toContain(
-      "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
+      "Get rid of your recurring thoughts by turning them into an app you can run, use, and judge in iPhone Simulator.",
     );
     expect(body).toContain("INFINITE SHOTS.");
     expect(body).toContain("Some shots live.");
@@ -105,7 +100,7 @@ describe("public pages", () => {
     expect(body).not.toContain("Managed intake");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
-      'content="A local intention compiler and open app factory for native iOS shots you can install, use, and own."',
+      'content="A local intention compiler and open app factory for native iOS shots you can run, use, and own in Simulator."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -131,15 +126,15 @@ describe("public pages", () => {
         expect(body).toContain("The prototype is the payoff");
         expect(body).toContain("iOS is the only implemented app platform");
         expect(body).toContain(
-          "tohseno create --file intention.md --reference sketch.png",
+          "bun run tohseno -- create --file intention.md --reference sketch.png",
         );
         expect(body).toContain("One factory, multiple doors");
-        expect(body).toContain("tohseno studio");
+        expect(body).toContain("bun run tohseno -- studio");
         expect(body).toContain(
           "binds to <code>127.0.0.1</code>, never the LAN",
         );
-        expect(body).toContain("tohseno run &lt;shot&gt;");
-        expect(body).toContain("tohseno preview &lt;shot&gt;");
+        expect(body).toContain("bun run tohseno -- run &lt;shot&gt;");
+        expect(body).toContain("bun run tohseno -- preview &lt;shot&gt;");
         expect(body).toContain("it is not an in-browser iOS emulator");
         expect(body).toContain(
           "additionally requires Apple Silicon, a native arm64 Node.js 20 or newer",
@@ -156,11 +151,11 @@ describe("public pages", () => {
           "After every coding-agent exit—including a failed one—the verifier",
         );
       } else {
-        expect(body).toContain("downloads only pinned release artifacts");
+        expect(body).toContain("Factory releases are content-addressed locally");
         expect(body).toContain(
           "requires a private local browser session for every shot read or mutation",
         );
-        expect(body).toContain("Quick Tunnel");
+        expect(body).toContain("Every app builds and runs without TOHSENO credentials");
       }
     }
   });
@@ -256,8 +251,6 @@ describe("public pages", () => {
       ["/favicon.png", "image/png"],
       ["/shot-icons/shot-001.webp", "image/webp"],
       ["/shot-icons/shot-100.webp", "image/webp"],
-      ["/install.sh", "text/x-shellscript"],
-      ["/oneshot.sh", "text/x-shellscript"],
     ];
     for (const [path, type] of expectations) {
       const response = await application.fetch(request(path));
@@ -292,39 +285,16 @@ describe("public pages", () => {
     }
   });
 
-  test("the thin oneshot delegator must revalidate so a stale pin is never served", async () => {
+  test("installer and alternate bootstrap routes are not served", async () => {
     const application = await testApplication();
-    const response = await application.fetch(request("/oneshot.sh"));
-    expect(response.headers.get("Cache-Control")).toBe(
-      "public, max-age=0, must-revalidate",
-    );
-    const body = await response.text();
-    expect(body).toContain(
-      'TOHSENO_PIN="54790555245d76c93873bd08b033dbbe610d55ea"',
-    );
-    expect(body).toContain(
-      'PINNED_INSTALLER_SHA256="5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5"',
-    );
-    expect(body).toContain(
-      "raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh",
-    );
-    expect(body).toContain("checksum mismatch for the pinned installer");
-    expect(body).toContain('/bin/sh "$installer_path" "$@"');
-    expect(body).not.toContain('mkdir -p "$target"');
-    expect(body).not.toContain('git -C "$target" init');
+    expect((await application.fetch(request("/oneshot.sh"))).status).toBe(404);
+    expect((await application.fetch(request("/install.sh"))).status).toBe(404);
   });
 
-  test("the canonical installer revalidates and exposes help without touching the machine", async () => {
-    const application = await testApplication();
-    const response = await application.fetch(request("/install.sh"));
-    expect(response.headers.get("Cache-Control")).toBe(
-      "public, max-age=0, must-revalidate",
-    );
-    const body = await response.text();
-    expect(body).toContain('CLI_VERSION="0.4.0"');
-    expect(body).toContain("TOHSENO managed installer");
-    expect(body).toContain("TOHSENO_INSTALL_CLI_SHA256");
-
+  test("the frozen canonical installer file remains unchanged and inert under help", async () => {
+    expect(
+      createHash("sha256").update(readFileSync(installerPath)).digest("hex"),
+    ).toBe("5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5");
     const child = Bun.spawn(["/bin/sh", installerPath, "--help"], {
       stdin: "ignore",
       stdout: "pipe",
@@ -399,50 +369,6 @@ describe("removed surfaces stay removed", () => {
     expect(JSON.stringify(records)).not.toContain(
       "credential-looking-path-value",
     );
-  });
-});
-
-describe("thin pinned oneshot installer", () => {
-  test("explains the pinned delegator without touching the machine", async () => {
-    const scratch = mkdtempSync(join(tmpdir(), "tohseno-oneshot-migration-"));
-    try {
-      const child = Bun.spawn(["bash", oneshotPath, "--help"], {
-        cwd: scratch,
-        env: { HOME: scratch, PATH: process.env.PATH ?? "" },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const [exitCode, stdout, stderr] = await Promise.all([
-        child.exited,
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-      ]);
-      expect(exitCode).toBe(0);
-      expect(stdout).toContain("thin entry point");
-      expect(stdout).toContain(
-        "54790555245d76c93873bd08b033dbbe610d55ea",
-      );
-      expect(stdout).toContain("--dry-run");
-      expect(stderr).toBe("");
-      expect(readdirSync(scratch)).toEqual([]);
-    } finally {
-      rmSync(scratch, { recursive: true, force: true });
-    }
-  });
-
-  test("reports its delegator version without downloading", async () => {
-    const child = Bun.spawn(["bash", oneshotPath, "--version"], {
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [exitCode, stdout] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-    ]);
-    expect(exitCode).toBe(0);
-    expect(stdout).toBe("0.5.0\n");
   });
 });
 

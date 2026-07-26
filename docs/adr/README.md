@@ -1,19 +1,17 @@
 # Architecture decision records
 
-Architecture decision records capture choices that implementation must preserve. They are not a list of aspirations: each record below is accepted for the first TOHSENO foundation.
+Architecture decision records capture choices the current implementation must
+preserve. The sequence starts with the canonical app-factory and Shot
+architecture and contains only active decisions.
 
 | ADR | Status | Decision |
 |---|---|---|
-| [0001](0001-stable-event-identity.md) | Accepted | Stable continuity event identity is separate from artifact hashes |
-| [0002](0002-sealed-artifacts-are-immutable.md) | Accepted | A sealed continuity artifact is immutable |
-| [0003](0003-reflections-are-separate-records.md) | Accepted | Reflections are separate records linked to events/artifacts |
-| [0004](0004-versioned-actual-route-signatures.md) | Accepted | Signed envelopes are versioned and bind actual method/path |
-| [0005](0005-separate-identity-recovery-from-restoration.md) | Accepted | Practice-identity recovery is separate from other restoration/ownership |
-| [0006](0006-content-hash-plus-independent-capability.md) | Accepted | Customer Markdown uses a content hash and independent capability |
-| [0007](0007-capability-authorizes-hash-identifies.md) | Accepted | Capabilities authorize; content hashes identify integrity |
-| [0008](0008-ejectable-from-birth.md) | Accepted | Every generated app is ejectable from birth |
-| [0009](0009-control-plane-metadata-only.md) | Accepted | Control plane stores operations, not end-user continuity content |
-| [0010](0010-ai-at-manifest-boundary.md) | Accepted | AI interprets meaning at the manifest boundary; runtime invariants are deterministic |
-| [0011](0011-intention-kernel-template-skill-composition.md) | Accepted | Intentions compile into a neutral kernel, one template, and a locked app-skill composition |
+| [0001](0001-ejectable-from-birth.md) | Accepted | Every generated app is independently owned and ejectable from birth |
+| [0002](0002-private-data-out-of-factory-and-node.md) | Accepted | Private intent and app-runtime content stay out of the factory and public node |
+| [0003](0003-ai-at-manifest-boundary.md) | Accepted | AI interprets intent before deterministic manifest and composition boundaries |
+| [0004](0004-intention-kernel-template-skill-composition.md) | Accepted | A Shot composes one kernel, one template, and an ordered locked skill set |
+| [0005](0005-shot-protocol-and-reference-node.md) | Accepted | Signed Shot records precede deterministic registry and node projections |
 
-Use a new ADR to change or supersede an accepted decision. Do not edit an accepted decision into a different meaning after implementation depends on it. Open product questions remain in [OPEN_QUESTIONS.md](../OPEN_QUESTIONS.md) until evidence and product ownership support a decision.
+Use a new ADR to change an accepted decision. Open product questions remain in
+[Things that are not clear yet](../../THINGS_THAT_ARE_NOT_CLEAR_FOR_TOHSENO_YET.md)
+until evidence and product ownership support a decision.

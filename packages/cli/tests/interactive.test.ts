@@ -34,7 +34,6 @@ describe("agent-first launcher", () => {
     await withScratchEnvironment(async (scratch) => {
       installFakeAgent(scratch, "codex");
       scratch.environment.OPENAI_API_KEY = "test-provider-secret-never-forward";
-      scratch.environment.DEV_SECRET = "another-secret-never-forward";
       const io = createMemoryIo(true, [
         "",
         "My First Shot",
@@ -113,13 +112,28 @@ describe("agent-first launcher", () => {
     });
   }, 60_000);
 
-  test("continues an existing shot interactively and through the unambiguous slug shortcut", async () => {
+  test("evolves an existing shot interactively and through the unambiguous slug shortcut", async () => {
     await withScratchEnvironment(async (scratch) => {
       installFakeAgent(scratch, "codex");
       let io = createMemoryIo();
       expect(await main([
-        "create", "the-trenches", "--platform", "ios", "--agent", "codex", "--no-launch", "--no-interactive",
+        "create", "the-trenches", "--agent", "codex", "--no-launch", "--no-interactive",
       ], { cwd: scratch.root, environment: scratch.environment, io, sourceRoot: REPOSITORY_ROOT })).toBe(0);
+
+      io = createMemoryIo();
+      expect(await main(["status", "the-trenches"], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io,
+      })).toBe(0);
+      expect(io.stdout.join("\n")).toMatch(
+        /SHOT ID\s+shot_[A-Za-z0-9_-]{32}/u,
+      );
+      expect(io.stdout.join("\n")).toContain("LIFECYCLE    EVOLVING");
+      expect(io.stdout.join("\n")).toContain("EVOLUTION    0");
+      expect(io.stdout.join("\n")).toContain(
+        "factory-baseline-bound local metadata; no public record claimed",
+      );
 
       io = createMemoryIo(true, ["", "2", "1"]);
       expect(await main([], {
@@ -132,7 +146,7 @@ describe("agent-first launcher", () => {
       expect(io.stdout.join("\n")).toContain("Shots here: 1");
       expect(io.stdout.join("\n")).toContain("1. Take another shot");
       expect(io.stdout.join("\n")).toContain(
-        "The Trenches — iOS · repository ready · development stopped",
+        "The Trenches — iOS · EVOLVING · Evolution 0",
       );
       expect(realpathSync(readFileSync(fakeAgentRecordPath(scratch), "utf8").split("\n")[1]!)).toBe(
         realpathSync(join(scratch.shotsDirectory, "the-trenches")),
@@ -144,7 +158,16 @@ describe("agent-first launcher", () => {
         environment: scratch.environment,
         io,
       })).toBe(0);
-      expect(io.stdout.join("\n")).toContain("Continuing the-trenches");
+      expect(io.stdout.join("\n")).toContain("Evolving the-trenches");
+      expect(io.stdout.join("\n")).toContain("Evolution 2 recorded locally");
+
+      io = createMemoryIo();
+      expect(await main(["status", "the-trenches"], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io,
+      })).toBe(0);
+      expect(io.stdout.join("\n")).toContain("EVOLUTION    2");
     });
   }, 60_000);
 
@@ -162,7 +185,7 @@ describe("agent-first launcher", () => {
       expect(existsSync(join(scratch.shotsDirectory, "needs-agent"))).toBe(false);
 
       io = createMemoryIo();
-      expect(await main(["continue", "missing-shot", "--no-interactive"], {
+      expect(await main(["evolve", "missing-shot", "--no-interactive"], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
@@ -210,7 +233,7 @@ describe("agent-first launcher", () => {
       const claude = installFakeAgent(scratch, "claude");
       io = createMemoryIo();
       expect(await main([
-        "create", "prior-claude", "--platform", "ios", "--agent", "claude", "--no-launch", "--no-interactive",
+        "create", "prior-claude", "--agent", "claude", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,

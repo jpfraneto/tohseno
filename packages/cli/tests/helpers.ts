@@ -1,6 +1,5 @@
 import {
   chmodSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -15,7 +14,6 @@ import type { CliIo } from "../src/io.ts";
 import { removeTreeEvenIfReadOnly } from "../src/files.ts";
 
 export const REPOSITORY_ROOT = resolve(import.meta.dir, "../../..");
-export const IOS_TEMPLATE_ROOT = join(REPOSITORY_ROOT, "templates", "continuity-app");
 
 const REAL_GIT = Bun.which("git") ?? (() => {
   throw new Error("CLI tests require Git");
@@ -129,7 +127,7 @@ export function installFakeAgent(scratch: ScratchEnvironment, name: "codex" | "c
   return writeExecutable(scratch.binDirectory, name, [
     "#!/bin/sh",
     "record=\"$HOME/.tohseno-test-agent-record\"",
-    "printf '%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n' \"$0\" \"$PWD\" \"$#\" \"$1\" \"$2\" \"${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}${DEV_SECRET:-}\" > \"$record\"",
+    "printf '%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n' \"$0\" \"$PWD\" \"$#\" \"$1\" \"$2\" \"${OPENAI_API_KEY:-}${ANTHROPIC_API_KEY:-}\" > \"$record\"",
     "exit_file=\"$HOME/.tohseno-test-agent-exit\"",
     "if [ -f \"$exit_file\" ]; then exit \"$(sed -n '1p' \"$exit_file\")\"; fi",
     "exit 0",
@@ -182,30 +180,6 @@ export async function runGit(
   environment: Record<string, string | undefined>,
 ): Promise<ProcessResult> {
   return runProcess([REAL_GIT, ...arguments_], cwd, environment);
-}
-
-export async function initializeCompatibleProject(
-  scratch: ScratchEnvironment,
-  directoryName = "legacy-app",
-): Promise<string> {
-  const root = join(scratch.root, directoryName);
-  cpSync(IOS_TEMPLATE_ROOT, root, { recursive: true });
-  const init = await runGit(
-    ["-c", "init.templateDir=", "init", "--quiet", "--initial-branch=main"],
-    root,
-    scratch.environment,
-  );
-  if (init.exitCode !== 0) throw new Error(init.stderr);
-  const add = await runGit(["add", "-A"], root, scratch.environment);
-  if (add.exitCode !== 0) throw new Error(add.stderr);
-  const commit = await runGit([
-    "-c", "commit.gpgSign=false",
-    "-c", "user.name=CLI Test",
-    "-c", "user.email=cli-test@tohseno.local",
-    "commit", "--quiet", "--no-verify", "-m", "test fixture",
-  ], root, scratch.environment);
-  if (commit.exitCode !== 0) throw new Error(commit.stderr);
-  return root;
 }
 
 export function listTree(root: string, relative = ""): string[] {

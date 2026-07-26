@@ -120,12 +120,26 @@ function objectArray(
     issue(issues, "type", path, "must be an array");
     return;
   }
+  const identifiers = new Map<string, number>();
   value.forEach((item, index) => {
     const itemRecord = record(item);
     if (itemRecord === null) {
       issue(issues, "type", `${path}[${index}]`, "must be an object");
     } else {
       validate(itemRecord, `${path}[${index}]`);
+      if (typeof itemRecord.id === "string") {
+        const previous = identifiers.get(itemRecord.id);
+        if (previous !== undefined) {
+          issue(
+            issues,
+            "duplicate",
+            `${path}[${index}].id`,
+            `duplicates ${path}[${previous}].id`,
+          );
+        } else {
+          identifiers.set(itemRecord.id, index);
+        }
+      }
     }
   });
 }

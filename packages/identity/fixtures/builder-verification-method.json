@@ -1,0 +1,10 @@
+{
+  "identity": {
+    "role": "BUILDER",
+    "method": "tohseno-local-test-v1",
+    "id": "test_ZK37OkTgZ-bMwiS4GSo0GYK8taVtWFd5Vq58GfCbsxE"
+  },
+  "suite": "ed25519-raw-v1",
+  "keyId": "ed25519_To-bSIxYGppAM3Usdf5rFSm34YGWe3vKpERYyyIOu2A",
+  "publicKey": "gJjRlxb0HD5bA8B2uk5Up-UuOo5qnBKetT6dKOtW7sw"
+}

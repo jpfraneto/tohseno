@@ -66,10 +66,7 @@ function dailyGamePlan(): unknown {
     },
     summary: "A deterministic five-step daily decision game.",
     template: "daily-game",
-    skills: [
-      { id: "daily-challenge", reason: "Provides the daily run." },
-      { id: "share-card", reason: "Shares an owner-initiated result." },
-    ],
+    skills: [],
     data: { strategy: "local", reason: "Progress stays on this device." },
     identity: { strategy: "none", reason: "The experience needs no account." },
     definitionOfDone: [

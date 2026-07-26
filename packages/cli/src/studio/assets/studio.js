@@ -37,6 +37,9 @@
     detailCaption: document.querySelector("#detail-caption"),
     detailCreated: document.querySelector("#detail-created"),
     detailLocation: document.querySelector("#detail-location"),
+    detailShotId: document.querySelector("#detail-shot-id"),
+    detailLifecycle: document.querySelector("#detail-lifecycle"),
+    detailEvolution: document.querySelector("#detail-evolution"),
     detailCreationActivity: document.querySelector("#detail-creation-activity"),
     detailIntention: document.querySelector("#detail-intention"),
     detailReferences: document.querySelector("#detail-references"),
@@ -68,7 +71,7 @@
     "provenance-written": "Private provenance saved locally",
     "manifest-validated": "Manifest validated",
     "baseline-committed": "Neutral baseline committed",
-    published: "Independent repository published",
+    "repository-created": "Independent repository created",
     "agent-started": "Coding agent started",
     "agent-completed": "Coding agent completed",
     building: "Building the app",
@@ -76,10 +79,58 @@
     "simulator-launching": "Launching Simulator",
     "screenshot-captured": "Simulator screenshot captured",
     "preview-unavailable": "Interactive preview unavailable",
-    completed: "Shot completed",
+    completed: "Shot creation completed",
     failed: "Creation failed",
     interrupted: "Creation interrupted",
   };
+
+  const contactShotKeys = [
+    "slug",
+    "name",
+    "createdAt",
+    "sequence",
+    "status",
+    "shotId",
+    "lifecycle",
+    "evolution",
+    "screenshotUrl",
+  ];
+  const detailShotKeys = [
+    ...contactShotKeys,
+    "intention",
+    "references",
+    "creation",
+    "factory",
+  ];
+  const progressTypes = new Set([
+    "allocated",
+    "planning",
+    "plan-ready",
+    "preparing-release",
+    "preparing-shot",
+    "provenance-written",
+    "manifest-validated",
+    "baseline-committed",
+    "repository-created",
+    "agent-started",
+    "agent-completed",
+    "verifying",
+    "building",
+    "simulator-launching",
+    "screenshot-captured",
+    "preview-unavailable",
+    "completed",
+    "interrupted",
+    "failed",
+  ]);
+  const referenceMediaTypes = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/avif",
+  ]);
 
   function isRecord(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -89,9 +140,38 @@
     return typeof value === "string" && value.trim() ? value.trim() : null;
   }
 
-  function readErrorMessage(value, fallback) {
-    if (!isRecord(value)) return fallback;
-    return asNonEmptyString(value.message) ?? asNonEmptyString(value.error) ?? fallback;
+  function hasExactKeys(value, required, optional = []) {
+    if (!isRecord(value)) return false;
+    const allowed = new Set([...required, ...optional]);
+    return required.every((key) => Object.hasOwn(value, key)) &&
+      Object.keys(value).every((key) => allowed.has(key));
+  }
+
+  function canonicalTimestamp(value) {
+    return typeof value === "string" &&
+      Number.isFinite(Date.parse(value)) &&
+      new Date(value).toISOString() === value;
+  }
+
+  function canonicalDisplayText(value, maximumLength) {
+    return typeof value === "string" &&
+      value.length >= 1 &&
+      value.length <= maximumLength &&
+      value.trim() === value &&
+      !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
+  }
+
+  function canonicalErrorMessage(value, fallback) {
+    if (
+      !hasExactKeys(value, ["error", "message"]) ||
+      typeof value.error !== "string" ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value.error) ||
+      typeof value.message !== "string" ||
+      value.message.length === 0
+    ) {
+      return fallback;
+    }
+    return value.message;
   }
 
   async function readJson(response) {
@@ -114,7 +194,12 @@
     });
     const payload = await readJson(response);
     if (!response.ok) {
-      throw new Error(readErrorMessage(payload, `Local request failed (${response.status}).`));
+      throw new Error(
+        canonicalErrorMessage(
+          payload,
+          `Local request failed (${response.status}).`,
+        ),
+      );
     }
     return payload;
   }
@@ -161,22 +246,22 @@
         },
       });
       const payload = await readJson(response);
-      const candidate = isRecord(payload)
-        ? asNonEmptyString(payload.apiBase)
-        : null;
-      if (
-        !response.ok ||
-        candidate === null ||
-        !/^\/__tohseno\/[a-f0-9]{32}\/api$/.test(candidate)
-      ) {
+      if (!response.ok) {
         throw new Error(
-          readErrorMessage(
+          canonicalErrorMessage(
             payload,
             "Studio could not establish its private local session.",
           ),
         );
       }
-      apiBase = candidate;
+      if (
+        !hasExactKeys(payload, ["apiBase"]) ||
+        typeof payload.apiBase !== "string" ||
+        !/^\/__tohseno\/[a-f0-9]{32}\/api$/.test(payload.apiBase)
+      ) {
+        throw new Error("Studio received a non-canonical session response.");
+      }
+      apiBase = payload.apiBase;
       try {
         window.sessionStorage.setItem(SESSION_API_STORAGE_KEY, apiBase);
       } catch {
@@ -227,18 +312,17 @@
   }
 
   function formatSequence(value) {
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value).padStart(3, "0");
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new Error("Studio received an invalid Shot sequence.");
     }
-    const raw = asNonEmptyString(value);
-    if (!raw) return "—";
-    return /^\d+$/.test(raw) ? raw.padStart(3, "0") : raw;
+    return String(value).padStart(3, "0");
   }
 
   function safePathSegment(value) {
-    const segment = asNonEmptyString(value);
-    if (!segment || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(segment)) return null;
-    return segment;
+    return typeof value === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value)
+      ? value
+      : null;
   }
 
   function sameOriginUrl(value) {
@@ -277,6 +361,29 @@
     }
   }
 
+  function canonicalActionPayload(value, action) {
+    if (!isRecord(value)) return null;
+    const required = action === "preview" ? ["url"] : [];
+    if (!hasExactKeys(value, required, ["message"])) return null;
+    if (
+      Object.hasOwn(value, "message") &&
+      (
+        typeof value.message !== "string" ||
+        value.message.length > 500
+      )
+    ) {
+      return null;
+    }
+    if (action !== "preview") return value;
+    const url = localPreviewUrl(value.url);
+    return url === null
+      ? null
+      : {
+          ...(Object.hasOwn(value, "message") ? { message: value.message } : {}),
+          url,
+        };
+  }
+
   function currentRoute() {
     const segments = window.location.pathname.split("/").filter(Boolean);
     if (segments.length === 0) return { type: "contact" };
@@ -307,17 +414,42 @@
     return `/shots/${encodeURIComponent(slug)}${suffix}`;
   }
 
-  function normalizedShot(value) {
-    if (!isRecord(value)) return null;
+  function canonicalContactShot(value) {
+    if (!hasExactKeys(value, contactShotKeys)) return null;
     const slug = safePathSegment(value.slug);
-    if (!slug) return null;
+    const screenshotUrl = value.screenshotUrl === null
+      ? null
+      : sameOriginUrl(value.screenshotUrl);
+    if (
+      slug === null ||
+      !canonicalDisplayText(value.name, 80) ||
+      !canonicalTimestamp(value.createdAt) ||
+      !Number.isSafeInteger(value.sequence) ||
+      value.sequence < 1 ||
+      (
+        value.status !== "CREATING" &&
+        value.status !== "INTERRUPTED" &&
+        value.status !== "READY"
+      ) ||
+      typeof value.shotId !== "string" ||
+      !/^shot_[A-Za-z0-9_-]{32}$/u.test(value.shotId) ||
+      value.lifecycle !== "EVOLVING" ||
+      !Number.isSafeInteger(value.evolution) ||
+      value.evolution < 0 ||
+      (value.screenshotUrl !== null && screenshotUrl === null)
+    ) {
+      return null;
+    }
     return {
-      ...value,
       slug,
-      name: asNonEmptyString(value.name) ?? slug,
-      createdAt: asNonEmptyString(value.createdAt),
-      screenshotUrl: sameOriginUrl(value.screenshotUrl),
-      status: asNonEmptyString(value.status),
+      name: value.name,
+      createdAt: value.createdAt,
+      sequence: value.sequence,
+      status: value.status,
+      shotId: value.shotId,
+      lifecycle: value.lifecycle,
+      evolution: value.evolution,
+      screenshotUrl,
     };
   }
 
@@ -341,11 +473,6 @@
     container.append(fallback);
   }
 
-  function creationActivityLabel(value) {
-    const status = asNonEmptyString(value) ?? "READY";
-    return `CREATION / ${status}`;
-  }
-
   function createShotFrame(shot) {
     const item = makeElement("li", "shot-frame");
     const link = makeElement("a", "shot-link");
@@ -353,7 +480,13 @@
 
     const top = makeElement("div", "frame-topline");
     top.append(makeElement("span", "frame-number", `EXP ${formatSequence(shot.sequence)}`));
-    top.append(makeElement("span", "frame-status", creationActivityLabel(shot.status)));
+    top.append(
+      makeElement(
+        "span",
+        "frame-status",
+        shot.lifecycle,
+      ),
+    );
 
     const exposure = makeElement("div", "frame-exposure");
     appendExposure(exposure, shot);
@@ -370,24 +503,36 @@
   }
 
   function compareNewestFirst(left, right) {
-    const parsedLeftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;
-    const parsedRightTime = right.createdAt ? new Date(right.createdAt).getTime() : 0;
-    const leftTime = Number.isFinite(parsedLeftTime) ? parsedLeftTime : 0;
-    const rightTime = Number.isFinite(parsedRightTime) ? parsedRightTime : 0;
+    const leftTime = new Date(left.createdAt).getTime();
+    const rightTime = new Date(right.createdAt).getTime();
     if (leftTime !== rightTime) return rightTime - leftTime;
-    const leftSequence = Number(left.sequence) || 0;
-    const rightSequence = Number(right.sequence) || 0;
-    return rightSequence - leftSequence;
+    return right.sequence - left.sequence;
   }
 
   function renderShots(payload) {
     if (!(elements.shotsGrid instanceof HTMLOListElement)) return;
-    const rawShots = isRecord(payload) && Array.isArray(payload.shots) ? payload.shots : [];
-    const shots = rawShots.map(normalizedShot).filter(Boolean).sort(compareNewestFirst);
-    const count =
-      isRecord(payload) && typeof payload.count === "number" && Number.isFinite(payload.count)
-        ? Math.max(0, payload.count)
-        : shots.length;
+    if (
+      !hasExactKeys(payload, ["count", "shots"]) ||
+      !Number.isSafeInteger(payload.count) ||
+      payload.count < 0 ||
+      !Array.isArray(payload.shots) ||
+      payload.count !== payload.shots.length
+    ) {
+      throw new Error("The local API returned a non-canonical Shot list.");
+    }
+    const shots = payload.shots.map(canonicalContactShot);
+    if (
+      shots.some((shot) => shot === null) ||
+      new Set(shots.map((shot) => shot.slug)).size !== shots.length ||
+      new Set(shots.map((shot) => shot.shotId)).size !== shots.length ||
+      new Set(shots.map((shot) => shot.sequence)).size !== shots.length ||
+      shots.some(
+        (shot, index) =>
+          index > 0 && compareNewestFirst(shots[index - 1], shot) > 0,
+      )
+    ) {
+      throw new Error("The local API returned a non-canonical Shot list.");
+    }
 
     const fragment = document.createDocumentFragment();
     if (state.jobFrame) fragment.append(state.jobFrame);
@@ -395,7 +540,7 @@
     elements.shotsGrid.replaceChildren(fragment);
 
     if (elements.shotCount instanceof HTMLElement) {
-      elements.shotCount.textContent = String(count);
+      elements.shotCount.textContent = String(payload.count);
     }
     if (elements.emptyState instanceof HTMLElement) {
       elements.emptyState.hidden = shots.length > 0 || Boolean(state.jobFrame);
@@ -469,31 +614,115 @@
     elements.detailStatus.dataset.kind = kind;
   }
 
-  function referenceData(value) {
-    if (typeof value === "string") {
-      const url = sameOriginUrl(value);
-      return url ? { name: "REFERENCE", url, imageUrl: url } : null;
+  function canonicalReference(value) {
+    if (
+      !hasExactKeys(
+        value,
+        ["originalFilename", "mediaType", "url", "imageUrl"],
+      ) ||
+      typeof value.originalFilename !== "string" ||
+      value.originalFilename.trim().length === 0 ||
+      /[\u0000-\u001f\u007f-\u009f]/u.test(value.originalFilename) ||
+      !referenceMediaTypes.has(value.mediaType)
+    ) {
+      return null;
     }
-    if (!isRecord(value)) return null;
-    const url = sameOriginUrl(value.url ?? value.href ?? value.downloadUrl);
-    const imageUrl = sameOriginUrl(value.imageUrl ?? value.thumbnailUrl ?? value.url);
-    if (!url && !imageUrl) return null;
+    const url = sameOriginUrl(value.url);
+    const imageUrl = sameOriginUrl(value.imageUrl);
+    if (url === null || imageUrl === null || url !== imageUrl) return null;
     return {
-      name:
-        asNonEmptyString(value.originalFilename) ??
-        asNonEmptyString(value.filename) ??
-        asNonEmptyString(value.name) ??
-        "REFERENCE",
-      url: url ?? imageUrl,
+      name: value.originalFilename,
+      url,
       imageUrl,
     };
   }
 
-  function renderReferences(rawReferences) {
+  function canonicalCreationDetails(value, referenceCount) {
+    // Ejection may intentionally remove gitignored private provenance while
+    // the canonical Shot metadata keeps its original reference count.
+    if (
+      !hasExactKeys(
+        value,
+        ["door", "inputDigest", "referenceCount", "options"],
+      ) ||
+      (value.door !== "cli" && value.door !== "studio") ||
+      typeof value.inputDigest !== "string" ||
+      !/^[a-f0-9]{64}$/u.test(value.inputDigest) ||
+      !Number.isSafeInteger(value.referenceCount) ||
+      value.referenceCount < 0 ||
+      value.referenceCount > 8 ||
+      (referenceCount > 0 && value.referenceCount !== referenceCount) ||
+      !hasExactKeys(
+        value.options,
+        ["selectedAgent", "agentMode", "verifyAfterAgent", "runAfterCreate"],
+      ) ||
+      (
+        value.options.selectedAgent !== null &&
+        value.options.selectedAgent !== "codex" &&
+        value.options.selectedAgent !== "claude"
+      ) ||
+      (
+        value.options.agentMode !== "none" &&
+        value.options.agentMode !== "interactive" &&
+        value.options.agentMode !== "automated"
+      ) ||
+      typeof value.options.verifyAfterAgent !== "boolean" ||
+      typeof value.options.runAfterCreate !== "boolean"
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  function canonicalFactoryDetails(value) {
+    return hasExactKeys(value, ["releaseId", "cliVersion", "templateVersion"]) &&
+      typeof value.releaseId === "string" &&
+      /^(?:git-[0-9a-f]{40}(?:-dirty)?-[0-9a-f]{16}|content-[0-9a-f]{32})$/u
+        .test(value.releaseId) &&
+      value.cliVersion === "0.5.0" &&
+      value.templateVersion === "ios-kernel-v1";
+  }
+
+  function canonicalDetailShot(value) {
+    if (!hasExactKeys(value, detailShotKeys)) return null;
+    const contact = canonicalContactShot(
+      Object.fromEntries(contactShotKeys.map((key) => [key, value[key]])),
+    );
+    if (
+      contact === null ||
+      (
+        value.intention !== null &&
+        (
+          typeof value.intention !== "string" ||
+          value.intention.trim().length === 0
+        )
+      ) ||
+      !Array.isArray(value.references) ||
+      value.references.length > 8
+    ) {
+      return null;
+    }
+    const references = value.references.map(canonicalReference);
+    if (
+      references.some((reference) => reference === null) ||
+      new Set(references.map((reference) => reference.url)).size !==
+        references.length ||
+      !canonicalCreationDetails(value.creation, references.length) ||
+      !canonicalFactoryDetails(value.factory)
+    ) {
+      return null;
+    }
+    return {
+      ...contact,
+      intention: value.intention,
+      references,
+      creation: value.creation,
+      factory: value.factory,
+    };
+  }
+
+  function renderReferences(references) {
     if (!(elements.detailReferences instanceof HTMLUListElement)) return;
-    const references = Array.isArray(rawReferences)
-      ? rawReferences.map(referenceData).filter(Boolean)
-      : [];
     const fragment = document.createDocumentFragment();
     for (const reference of references) {
       const item = document.createElement("li");
@@ -520,8 +749,10 @@
   }
 
   function renderDetail(value) {
-    const shot = normalizedShot(value);
-    if (!shot) throw new Error("The local API returned an invalid shot.");
+    const shot = canonicalDetailShot(value);
+    if (!shot) {
+      throw new Error("The local API returned a non-canonical Shot detail.");
+    }
     state.currentSlug = shot.slug;
     document.title = `${shot.name} — TOHSENO STUDIO`;
 
@@ -539,14 +770,23 @@
     if (elements.detailLocation instanceof HTMLElement) {
       elements.detailLocation.textContent = `/shots/${shot.slug}`;
     }
+    if (elements.detailShotId instanceof HTMLElement) {
+      elements.detailShotId.textContent = shot.shotId;
+    }
+    if (elements.detailLifecycle instanceof HTMLElement) {
+      elements.detailLifecycle.textContent = shot.lifecycle;
+    }
+    if (elements.detailEvolution instanceof HTMLElement) {
+      elements.detailEvolution.textContent = String(shot.evolution);
+    }
     if (elements.detailCreationActivity instanceof HTMLElement) {
-      elements.detailCreationActivity.textContent = shot.status ?? "READY";
+      elements.detailCreationActivity.textContent = shot.status;
     }
     if (elements.detailIntention instanceof HTMLElement) {
       elements.detailIntention.textContent =
-        asNonEmptyString(value.intention) ?? "No intention was found in this shot's provenance.";
+        shot.intention ?? "No intention was found in this shot's provenance.";
     }
-    renderReferences(value.references);
+    renderReferences(shot.references);
 
     if (
       elements.detailImage instanceof HTMLImageElement &&
@@ -621,13 +861,16 @@
     const slug = state.currentSlug;
     try {
       if (slug) {
-        await requestJson(
+        const payload = await requestJson(
           apiUrl(`/shots/${encodeURIComponent(slug)}/stop-preview`),
           {
             method: "POST",
             headers: mutationHeaders(),
           },
         );
+        if (canonicalActionPayload(payload, "stop-preview") === null) {
+          throw new Error("The local API returned a non-canonical action response.");
+        }
       }
     } catch (error) {
       setDetailStatus(
@@ -669,11 +912,13 @@
           headers: mutationHeaders(),
         },
       );
+      const result = canonicalActionPayload(payload, action);
+      if (result === null) {
+        throw new Error("The local API returned a non-canonical action response.");
+      }
       if (action === "preview") {
-        const previewUrl = isRecord(payload) ? localPreviewUrl(payload.url) : null;
-        if (!previewUrl) throw new Error("The preview helper returned an unsafe or invalid URL.");
         if (elements.simulatorFrame instanceof HTMLIFrameElement) {
-          elements.simulatorFrame.src = previewUrl;
+          elements.simulatorFrame.src = result.url;
           elements.simulatorFrame.hidden = false;
         }
         if (elements.previewStatus instanceof HTMLElement) {
@@ -683,8 +928,8 @@
         setDetailStatus("LIVE PREVIEW READY.");
       } else {
         setDetailStatus(
-          isRecord(payload) && asNonEmptyString(payload.message)
-            ? payload.message
+          Object.hasOwn(result, "message")
+            ? result.message
             : doneLabels[action] ?? "DONE.",
         );
         if (action === "run" || action === "verify") scheduleShotRefresh();
@@ -875,17 +1120,19 @@
     const status = state.jobFrame.querySelector(".frame-status");
     const number = state.jobFrame.querySelector(".frame-number");
     const developing = state.jobFrame.querySelector(".frame-exposure span");
-    const type = asNonEmptyString(event.type) ?? "activity";
+    const type = asNonEmptyString(event.type);
+    if (type === null) throw new Error("Studio received invalid progress.");
     if (status) status.textContent = type.toUpperCase();
     if (developing) developing.textContent = progressLabels[type] ?? type.replaceAll("-", " ");
     if (type === "allocated" && number) {
-      number.textContent = `EXP ${formatSequence(event.shot ?? event.sequence)}`;
+      number.textContent = `EXP ${formatSequence(event.sequence)}`;
     }
   }
 
   function appendProgressEvent(event) {
     if (!(elements.progressEvents instanceof HTMLOListElement)) return;
-    const type = asNonEmptyString(event.type) ?? "activity";
+    const type = asNonEmptyString(event.type);
+    if (type === null) throw new Error("Studio received invalid progress.");
     const item = document.createElement("li");
     if (type === "failed" || type === "interrupted") {
       item.classList.add("progress-event-failed");
@@ -898,38 +1145,30 @@
         asNonEmptyString(event.message) ?? progressLabels[type] ?? "Factory activity",
       ),
     );
-    if (type === "plan-ready" && isRecord(event.plan)) {
+    if (type === "plan-ready") {
       const plan = event.plan;
-      const appName = asNonEmptyString(plan.appName);
-      const template = asNonEmptyString(plan.template);
-      const dataStrategy = asNonEmptyString(plan.dataStrategy);
-      const identityStrategy = asNonEmptyString(plan.identityStrategy);
-      const skills = Array.isArray(plan.skills)
-        ? plan.skills.map(asNonEmptyString).filter(Boolean)
-        : [];
-      const done = Array.isArray(plan.definitionOfDone)
-        ? plan.definitionOfDone.map(asNonEmptyString).filter(Boolean)
-        : [];
       const details = makeElement("dl", "progress-plan");
       for (const [label, value] of [
-        ["APP", appName],
-        ["STARTING SHAPE", template],
-        ["SKILLS", skills.length === 0 ? "Neutral kernel only" : skills.join(" · ")],
-        ["DATA", dataStrategy],
-        ["IDENTITY", identityStrategy],
+        ["APP", plan.appName],
+        ["STARTING SHAPE", plan.template],
+        [
+          "SKILLS",
+          plan.skills.length === 0
+            ? "Neutral kernel only"
+            : plan.skills.join(" · "),
+        ],
+        ["DATA", plan.dataStrategy],
+        ["RUNTIME IDENTITY", plan.identityStrategy],
       ]) {
-        if (!value) continue;
         details.append(
           makeElement("dt", null, label),
           makeElement("dd", null, value),
         );
       }
-      if (done.length > 0) {
-        details.append(
-          makeElement("dt", null, "FIRST DEFINITION OF DONE"),
-          makeElement("dd", null, done.join(" · ")),
-        );
-      }
+      details.append(
+        makeElement("dt", null, "FIRST DEFINITION OF DONE"),
+        makeElement("dd", null, plan.definitionOfDone.join(" · ")),
+      );
       if (plan.fallback === true) {
         details.append(
           makeElement("dt", null, "PLAN STATUS"),
@@ -943,29 +1182,132 @@
     updateJobFrame(event);
   }
 
-  function parseEventPayload(event) {
-    if (!(event instanceof MessageEvent)) return { type: event.type };
-    try {
-      const parsed = JSON.parse(event.data);
-      if (isRecord(parsed)) {
-        return {
-          ...parsed,
-          type: asNonEmptyString(parsed.type) ?? event.type,
-        };
-      }
-    } catch {
-      // A plain-text event is still useful as a content-safe status message.
+  function canonicalPlan(value) {
+    if (
+      !hasExactKeys(value, [
+        "appName",
+        "template",
+        "skills",
+        "dataStrategy",
+        "identityStrategy",
+        "definitionOfDone",
+        "fallback",
+      ]) ||
+      !canonicalDisplayText(value.appName, 80) ||
+      typeof value.template !== "string" ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value.template) ||
+      !Array.isArray(value.skills) ||
+      !value.skills.every((skill) =>
+        typeof skill === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(skill)
+      ) ||
+      new Set(value.skills).size !== value.skills.length ||
+      (
+        value.dataStrategy !== "local" &&
+        value.dataStrategy !== "remote" &&
+        value.dataStrategy !== "hybrid"
+      ) ||
+      (
+        value.identityStrategy !== "none" &&
+        value.identityStrategy !== "local-device" &&
+        value.identityStrategy !== "wallet" &&
+        value.identityStrategy !== "account"
+      ) ||
+      !Array.isArray(value.definitionOfDone) ||
+      value.definitionOfDone.length < 1 ||
+      !value.definitionOfDone.every((item) =>
+        typeof item === "string" &&
+        item.trim() === item &&
+        item.length >= 1 &&
+        item.length <= 240
+      ) ||
+      typeof value.fallback !== "boolean"
+    ) {
+      return null;
     }
-    return {
-      type: event.type === "message" ? "activity" : event.type,
-      message: asNonEmptyString(event.data) ?? "Factory activity",
-    };
+    return value;
+  }
+
+  function canonicalProgressEvent(value, expectedJobId) {
+    if (
+      !hasExactKeys(
+        value,
+        ["schemaVersion", "jobId", "at", "type", "door"],
+        ["slug", "sequence", "message", "plan"],
+      ) ||
+      value.schemaVersion !== 1 ||
+      value.jobId !== expectedJobId ||
+      !canonicalTimestamp(value.at) ||
+      !progressTypes.has(value.type) ||
+      value.door !== "studio" ||
+      (
+        Object.hasOwn(value, "slug") &&
+        safePathSegment(value.slug) === null
+      ) ||
+      (
+        Object.hasOwn(value, "sequence") &&
+        (!Number.isSafeInteger(value.sequence) || value.sequence < 1)
+      ) ||
+      (
+        Object.hasOwn(value, "message") &&
+        (
+          typeof value.message !== "string" ||
+          new TextEncoder().encode(value.message).byteLength > 2_048 ||
+          /[\u0000-\u001f\u007f]/u.test(value.message)
+        )
+      ) ||
+      (
+        Object.hasOwn(value, "plan") &&
+        (
+          value.type !== "plan-ready" ||
+          canonicalPlan(value.plan) === null
+        )
+      ) ||
+      (value.type === "plan-ready" && !Object.hasOwn(value, "plan")) ||
+      (
+        value.type === "allocated" &&
+        (
+          !Object.hasOwn(value, "slug") ||
+          !Object.hasOwn(value, "sequence")
+        )
+      ) ||
+      (
+        value.type === "completed" &&
+        (
+          !Object.hasOwn(value, "slug") ||
+          !Object.hasOwn(value, "sequence")
+        )
+      )
+    ) {
+      return null;
+    }
+    return value;
+  }
+
+  function parseEventPayload(event, expectedJobId) {
+    if (
+      !(event instanceof MessageEvent) ||
+      typeof event.data !== "string"
+    ) {
+      throw new Error("Studio received a non-canonical factory progress event.");
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(event.data);
+    } catch {
+      throw new Error("Studio received a non-canonical factory progress event.");
+    }
+    const canonical = canonicalProgressEvent(parsed, expectedJobId);
+    if (canonical === null) {
+      throw new Error("Studio received a non-canonical factory progress event.");
+    }
+    return canonical;
   }
 
   function finishCreation(event, succeeded) {
     state.activeJobSource?.close();
     state.activeJobSource = null;
-    const slug = safePathSegment(event.slug ?? (isRecord(event.shot) ? event.shot.slug : null));
+    const slug = safePathSegment(event.slug);
     if (succeeded && slug && elements.viewCreatedShot instanceof HTMLAnchorElement) {
       elements.viewCreatedShot.href = shotHref(slug);
       elements.viewCreatedShot.hidden = false;
@@ -995,15 +1337,22 @@
     );
     state.activeJobSource = source;
     const receive = (rawEvent) => {
-      const event = parseEventPayload(rawEvent);
+      let event;
+      try {
+        event = parseEventPayload(rawEvent, jobId);
+      } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : "Studio received a non-canonical factory progress event.";
+        appendProgressEvent({ type: "failed", message });
+        finishCreation({ message }, false);
+        return;
+      }
       appendProgressEvent(event);
       if (event.type === "completed") finishCreation(event, true);
       if (event.type === "failed" || event.type === "interrupted") finishCreation(event, false);
     };
     source.addEventListener("message", receive);
-    for (const eventName of Object.keys(progressLabels)) {
-      source.addEventListener(eventName, receive);
-    }
     source.addEventListener("error", () => {
       if (source.readyState !== EventSource.CLOSED) {
         appendProgressEvent({
@@ -1036,10 +1385,21 @@
       });
       const payload = await readJson(response);
       if (!response.ok) {
-        throw new Error(readErrorMessage(payload, `The factory rejected this shot (${response.status}).`));
+        throw new Error(
+          canonicalErrorMessage(
+            payload,
+            `The factory rejected this shot (${response.status}).`,
+          ),
+        );
       }
-      const jobId = isRecord(payload) ? asNonEmptyString(payload.jobId) : null;
-      if (!jobId) throw new Error("The factory did not return a creation job.");
+      if (
+        !hasExactKeys(payload, ["jobId"]) ||
+        typeof payload.jobId !== "string" ||
+        !/^[A-Za-z0-9][A-Za-z0-9-]{7,79}$/u.test(payload.jobId)
+      ) {
+        throw new Error("The factory returned a non-canonical creation job.");
+      }
+      const jobId = payload.jobId;
 
       state.jobFrame = makeJobFrame();
       if (elements.shotsGrid instanceof HTMLOListElement) {

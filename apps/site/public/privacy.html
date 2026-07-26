@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="TOHSENO privacy: this site has no accounts, no analytics, and no forms. Generated apps keep data on the device.">
+    <meta name="description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
     <meta name="theme-color" content="#11100e">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{BRAND}}">
     <meta property="og:title" content="Privacy — {{BRAND}}">
-    <meta property="og:description" content="TOHSENO privacy: this site has no accounts, no analytics, and no forms. Generated apps keep data on the device.">
+    <meta property="og:description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
     <meta property="og:url" content="{{CANONICAL_ORIGIN}}/privacy">
     <meta property="og:image" content="{{OG_IMAGE_URL}}">
     <meta property="og:image:width" content="1200">
@@ -44,12 +44,12 @@
 
         <section>
           <h2>This website</h2>
-          <p>tohseno.com serves static pages and installer scripts. It has no accounts, no forms, no cookies, no analytics, and no third-party browser resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
+          <p>tohseno.com serves static pages. It has no accounts, no forms, no cookies, no analytics, and no third-party browser resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
         </section>
 
         <section>
-          <h2>The installer and local factory</h2>
-          <p>The installer sends no telemetry and accepts no credentials. It downloads only pinned release artifacts, verifies the archive and its complete internal inventory, and installs under <code>~/.tohseno</code>. Its wrapper rechecks managed CLI and runtime bytes before execution. The legacy oneshot URL contains no workspace creator: it downloads the canonical installer from an exact released commit, verifies that installer’s SHA-256, and delegates to it.</p>
+          <h2>The local factory</h2>
+          <p>The prepared 0.5 factory runs from this checkout and sends no TOHSENO telemetry. No 0.5 installer has been published. Factory releases are content-addressed locally, and each Shot pins the exact manifest validator, verifier, and machine runtime used to create it.</p>
           <p>TOHSENO Studio runs on the Mac and binds to <code>127.0.0.1</code>. It opens through an owner-only temporary launcher and requires a private local browser session for every shot read or mutation. Intentions, Markdown, reference images, shots, builds, and Simulator video are not uploaded to tohseno.com. The browser copies creation inputs into an isolated local staging directory, then removes that staging data after the factory finishes or fails safely.</p>
           <p>Each new shot keeps its normalized intention and reference provenance inside its own gitignored <code>.tohseno/provenance</code> directory so the owner can move the complete shot between their machines. That private input is not committed to the shot’s Git history or written to content-bearing factory logs. The verifier checks the worktree after every coding-agent exit and isolates an unsafe result. Anyone given the whole unfiltered shot directory may also receive private provenance, so owners should inspect it before sharing an archive.</p>
           <p>TOHSENO itself does not send creation input to a TOHSENO service. A coding agent selected by the owner can read that input to build the app; its provider is a separate trust boundary with its own account, privacy, and retention terms.</p>
@@ -57,7 +57,7 @@
 
         <section>
           <h2>Apps built on these rails</h2>
-          <p>New generic apps start from a neutral kernel with local, account-free defaults and no backend, analytics, writing, or identity assumption. Their manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations. TOHSENO operates no centralized backend for generated apps and never receives their users' content. Legacy continuity-v1 apps retain seed-phrase identity, device-local writing, and optional development API and Quick Tunnel rails through their pinned release. Every app builds and runs without TOHSENO credentials.</p>
+          <p>Apps start from a neutral kernel with local, account-free defaults and no backend, analytics, writing, or identity assumption. Their manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations; an accepted app may therefore declare an owner-controlled or third-party service. TOHSENO itself operates no centralized content backend for generated apps and has no path for their users' content. Every app builds and runs without TOHSENO credentials.</p>
         </section>
 
         <section>

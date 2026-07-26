@@ -43,7 +43,7 @@ import {
   type PreparedRelease,
 } from "./release.ts";
 import {
-  materializeGenericShot,
+  materializeShot,
   readShotMetadata,
   type CreatedShot,
   type ShotMetadata,
@@ -122,7 +122,7 @@ export interface CreateShotResult extends CreatedShot {
   verified: boolean;
 }
 
-export class PublishedShotCreationError extends CliError {
+export class MaterializedShotCreationError extends CliError {
   readonly shot: {
     name: string;
     slug: string;
@@ -133,11 +133,11 @@ export class PublishedShotCreationError extends CliError {
 
   constructor(
     message: string,
-    shot: PublishedShotCreationError["shot"],
+    shot: MaterializedShotCreationError["shot"],
     exitCode = 1,
   ) {
     super(message, exitCode);
-    this.name = "PublishedShotCreationError";
+    this.name = "MaterializedShotCreationError";
     this.shot = shot;
   }
 }
@@ -247,7 +247,7 @@ async function runAutomatedAgent(
   }
 }
 
-async function verifyPublishedShot(
+async function verifyMaterializedShot(
   shotRoot: string,
   environment: Record<string, string | undefined>,
   release: PreparedRelease,
@@ -471,7 +471,7 @@ function restoreProtectedCreationState(
   }
 }
 
-function isolateUnsafePublishedShot(options: {
+function isolateUnsafeMaterializedShot(options: {
   shotRoot: string;
   shotsDirectory: string;
   slug: string;
@@ -486,7 +486,9 @@ function isolateUnsafePublishedShot(options: {
     canonicalShot === root ||
     !inside(root, canonicalShot)
   ) {
-    throw new CliError("the unsafe published shot could not be isolated safely");
+    throw new CliError(
+      "the unsafe materialized shot could not be isolated safely",
+    );
   }
   const isolated = join(
     root,
@@ -505,7 +507,7 @@ async function verifyAgentResultOrIsolate(options: {
   release: PreparedRelease;
 }): Promise<void> {
   try {
-    await verifyPublishedShot(
+    await verifyMaterializedShot(
       options.shotRoot,
       options.environment,
       options.release,
@@ -513,7 +515,7 @@ async function verifyAgentResultOrIsolate(options: {
   } catch (verificationError) {
     let isolated: string;
     try {
-      isolated = isolateUnsafePublishedShot(options);
+      isolated = isolateUnsafeMaterializedShot(options);
     } catch (isolationError) {
       throw new CliError(
         `post-agent verification failed and the unsafe shot could not be isolated: ${
@@ -559,7 +561,7 @@ function enforceProtectedCreationState(options: {
     );
   } catch (repairError) {
     try {
-      const isolated = isolateUnsafePublishedShot({
+      const isolated = isolateUnsafeMaterializedShot({
         shotRoot: options.shotRoot,
         shotsDirectory: options.shotsDirectory,
         slug: options.slug,
@@ -670,7 +672,7 @@ export function terminalProgressSink(io: CliIo): ShotProgressSink {
     "provenance-written": "Private input provenance saved locally.",
     "manifest-validated": "Manifest valid.",
     "baseline-committed": "Baseline committed.",
-    published: "Shot published.",
+    "repository-created": "Independent repository created.",
     "agent-started": "Coding agent started.",
     "agent-completed": "Coding agent completed.",
     verifying: "Verifying the shot…",
@@ -749,7 +751,7 @@ export async function createShot(
       loadCatalog(join(release.directory, "catalog")),
       request.name ?? slug,
     ).plan;
-    created = await materializeGenericShot({
+    created = await materializeShot({
       slug,
       shotsDirectory,
       release,
@@ -825,7 +827,7 @@ export async function createShot(
     throwIfAborted(request.signal);
     if (verifyAfterAgent && !verifiedAfterAgent) {
       await reporter.emit({ type: "verifying", slug, sequence });
-      await verifyPublishedShot(created.path, request.environment, release);
+      await verifyMaterializedShot(created.path, request.environment, release);
     }
 
     if (
@@ -916,19 +918,19 @@ export async function createShot(
             failurePath = canonical;
           }
         } catch {
-          // Preserve the original failure when no safe published or isolated
+          // Preserve the original failure when no safe materialized or isolated
           // repository path can be proven.
         }
       }
       if (failurePath !== null) {
-        throw new PublishedShotCreationError(
+        throw new MaterializedShotCreationError(
           errorMessage(error),
           {
-            name: created.metadata.app?.name ?? slug,
+            name: created.metadata.app.name,
             slug,
             path: failurePath,
             sequence,
-            skillCount: created.metadata.composition?.skills.length ?? 0,
+            skillCount: created.metadata.composition.skills.length,
           },
           error instanceof CliError ? error.exitCode : 1,
         );

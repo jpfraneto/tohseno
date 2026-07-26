@@ -21,7 +21,7 @@
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "id": { "$ref": "#/$defs/id" },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "title": { "type": "string", "minLength": 1 },
     "summary": { "type": "string", "minLength": 1 },
@@ -31,16 +31,18 @@
     "maturity": { "enum": ["experimental", "stable"] },
     "platforms": {
       "type": "array",
-      "prefixItems": [{ "const": "ios" }],
-      "items": false
+      "const": ["ios"],
+      "uniqueItems": true
     },
     "requires": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
     },
     "conflicts": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
     },
     "contributions": {
       "type": "object",
@@ -53,30 +55,69 @@
         "xcodeSourcePaths"
       ],
       "properties": {
-        "overlay": { "type": "string", "minLength": 1 },
-        "manifestFragments": { "type": "array", "items": { "type": "string" } },
-        "entitlements": { "type": "array", "items": { "type": "string" } },
-        "privacy": { "type": "array", "items": { "type": "string" } },
-        "xcodeSourcePaths": { "type": "array", "items": { "type": "string" } },
-        "replaces": { "type": "array", "items": { "type": "string" } }
+        "overlay": { "$ref": "#/$defs/path" },
+        "manifestFragments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "entitlements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "privacy": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "xcodeSourcePaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "replaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        }
       }
     },
     "acceptanceChecks": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["id", "type", "path"],
         "properties": {
-          "id": { "type": "string" },
+          "id": { "$ref": "#/$defs/id" },
           "type": { "const": "file" },
-          "path": { "type": "string" }
+          "path": { "$ref": "#/$defs/path" }
         }
       }
     },
     "agentInstructions": {
       "type": "array",
+      "uniqueItems": true,
       "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "allOf": [
+        { "pattern": "\\S" },
+        { "pattern": "^(?![\\\\/])" },
+        { "not": { "pattern": "(?:^|[\\\\/])\\.{1,2}(?:[\\\\/]|$)" } },
+        { "not": { "pattern": "[\\\\/]{2}" } },
+        { "not": { "pattern": "[\\\\/]$" } }
+      ]
     }
   }
 }

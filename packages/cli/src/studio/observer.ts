@@ -54,7 +54,7 @@ function safeStatSignature(path: string): string {
 function shotSnapshot(
   path: string,
   createdAt: string,
-  sequence: number | undefined,
+  sequence: number,
 ): ShotSnapshot {
   const screenshotPath = join(path, ".tohseno", "artifacts", "screenshot.png");
   const screenshot = existsSync(screenshotPath)
@@ -63,12 +63,12 @@ function shotSnapshot(
   return {
     signature: [
       createdAt,
-      sequence ?? 0,
+      sequence,
       safeStatSignature(join(path, ".tohseno", "shot.json")),
       safeStatSignature(
         join(path, ".tohseno", "provenance", "events.jsonl"),
       ),
-      safeStatSignature(join(path, "continuity.manifest.json")),
+      safeStatSignature(join(path, "app.manifest.json")),
     ].join(":"),
     screenshot,
   };

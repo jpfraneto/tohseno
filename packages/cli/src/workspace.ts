@@ -93,6 +93,7 @@ function readAllocationState(path: string): AllocationState | null {
       "workspace allocation state",
     );
     if (
+      Object.keys(value).length === 2 &&
       value.schemaVersion === ALLOCATION_SCHEMA_VERSION &&
       Number.isSafeInteger(value.lastSequence) &&
       (value.lastSequence ?? 0) >= 0
@@ -102,22 +103,26 @@ function readAllocationState(path: string): AllocationState | null {
   } catch {
     // The caller fails closed below.
   }
-  throw new CliError(`workspace allocation state is invalid: ${path}`);
+  throw new CliError(
+    `workspace allocation state is invalid at ${path}; pre-release compatibility is unsupported; create a fresh Shot with \`tohseno\``,
+  );
 }
 
 function highestExistingSequence(shotsDirectory: string): number {
   const shots = discoverShotsInDirectory(shotsDirectory);
   let highest = 0;
+  const seen = new Set<number>();
   for (const shot of shots) {
-    if (
-      typeof shot.metadata.sequence === "number" &&
-      Number.isSafeInteger(shot.metadata.sequence) &&
-      shot.metadata.sequence > highest
-    ) {
-      highest = shot.metadata.sequence;
+    const sequence = shot.metadata.sequence;
+    if (seen.has(sequence)) {
+      throw new CliError(
+        "workspace Shot sequences are not canonical; pre-release compatibility is unsupported; create a fresh Shot in a new workspace",
+      );
     }
+    seen.add(sequence);
+    highest = Math.max(highest, sequence);
   }
-  return Math.max(highest, shots.length);
+  return highest;
 }
 
 function processIsAlive(pid: number): boolean {
@@ -387,31 +392,7 @@ export function discoverShotsInDirectory(
       const path = join(root, entry.name);
       const metadata = readShotMetadata(path);
       if (metadata === undefined) return [];
-      let name = metadata.slug;
-      try {
-        const manifestName = metadata.schemaVersion === 2
-          ? "app.manifest.json"
-          : "continuity.manifest.json";
-        const manifest = readBoundedJson<{
-          application?: { name?: unknown };
-        }>(
-          join(path, manifestName),
-          1_048_576,
-          "app manifest",
-        );
-        if (
-          typeof manifest.application?.name === "string" &&
-          manifest.application.name.length <= 80 &&
-          !/[\u0000-\u001f\u007f-\u009f]/u.test(
-            manifest.application.name,
-          )
-        ) {
-          name = manifest.application.name;
-        }
-      } catch {
-        // Verification owns malformed-manifest diagnostics.
-      }
-      return [{ path, metadata, name }];
+      return [{ path, metadata, name: metadata.app.name }];
     });
 }
 
@@ -424,8 +405,8 @@ export function discoverShotsNewestFirst(
     if (Number.isFinite(timeDifference) && timeDifference !== 0) {
       return timeDifference;
     }
-    const sequenceDifference = (right.metadata.sequence ?? 0) -
-      (left.metadata.sequence ?? 0);
+    const sequenceDifference = right.metadata.sequence -
+      left.metadata.sequence;
     return sequenceDifference || left.metadata.slug.localeCompare(right.metadata.slug);
   });
 }
@@ -446,7 +427,10 @@ export function recognizedShotBySlug(
   }
   const metadata = readShotMetadata(canonical);
   if (metadata === undefined || metadata.slug !== slug) {
-    throw new CliError(`not a recognized shot: ${candidate}`, 2);
+    throw new CliError(
+      `not a recognized Shot at ${candidate}; pre-release compatibility is unsupported; create a fresh Shot with \`tohseno\``,
+      2,
+    );
   }
   return discoverShotsInDirectory(root).find(
     (shot) => shot.metadata.slug === slug,
@@ -492,7 +476,10 @@ export function resolveRecognizedShot(
   const canonical = realpathSync(candidate);
   const metadata = readShotMetadata(canonical);
   if (metadata === undefined) {
-    throw new CliError(`not a recognized shot: ${canonical}`, 2);
+    throw new CliError(
+      `not a recognized Shot at ${canonical}; pre-release compatibility is unsupported; create a fresh Shot with \`tohseno\``,
+      2,
+    );
   }
   return { path: canonical, metadata, name: metadata.slug };
 }

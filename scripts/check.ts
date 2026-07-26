@@ -2,12 +2,19 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { relative, resolve } from "node:path";
-import { validateManifest } from "../packages/manifest/validate.ts";
 import { validateAppManifest } from "../packages/manifest/app.ts";
-import { validateContract } from "../packages/contracts/validate.ts";
-import type { ContractKind } from "../packages/contracts/types.ts";
+import {
+  PUBLIC_SHOT_LIFECYCLES,
+  PUBLIC_SHOT_PROTOCOL_VERSION,
+  PUBLIC_SHOT_RECORD_KINDS,
+} from "../packages/protocol/src/index.ts";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const PRIVATE_PRODUCT_INPUTS = [
+  "MASTER_PROMPT.md",
+  "MASTER_EVOLUTIONARY_PROMPT.md",
+  "TOHSENO_EVOLUTION_PROMPT.md",
+] as const;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -66,6 +73,21 @@ function listJsonFiles(relativeDirectory: string): string[] {
   return files.sort();
 }
 
+function listRegularFiles(relativeDirectory: string): string[] {
+  const directory = resolve(ROOT, relativeDirectory);
+  if (!existsSync(directory)) return [];
+  const files: string[] = [];
+  const visit = (current: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const path = resolve(current, entry.name);
+      if (entry.isDirectory()) visit(path);
+      else if (entry.isFile()) files.push(relative(ROOT, path));
+    }
+  };
+  visit(directory);
+  return files.sort();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -86,18 +108,8 @@ async function readJson(path: string): Promise<unknown> {
 }
 
 async function validateRepositoryJson(): Promise<void> {
-  console.log("\n[check] manifest examples and JSON contract corpus");
+  console.log("\n[check] canonical manifest, protocol, and registry formats");
 
-  const manifestPaths = ["templates/continuity-app/continuity.manifest.json"];
-  for (const path of manifestPaths) {
-    const result = validateManifest(await readJson(path));
-    if (!result.valid) {
-      const locations = result.errors
-        .map((issue) => `${issue.path} (${issue.code})`)
-        .join(", ");
-      fail(`Manifest validation failed for ${path}: ${locations}`);
-    }
-  }
   for (const path of [
     "templates/ios-kernel/overlay/app.manifest.json",
     "templates/daily-game/overlay/app.manifest.json",
@@ -107,7 +119,7 @@ async function validateRepositoryJson(): Promise<void> {
       const locations = result.errors
         .map((issue) => `${issue.path} (${issue.code})`)
         .join(", ");
-      fail(`Generic app manifest validation failed for ${path}: ${locations}`);
+      fail(`App manifest validation failed for ${path}: ${locations}`);
     }
   }
   for (const path of [
@@ -120,101 +132,76 @@ async function validateRepositoryJson(): Promise<void> {
     "skills/share-card/skill.json",
     "packages/skills/app-skill.schema.json",
     "packages/skills/template.schema.json",
+    "packages/skills/owner-ladder.schema.json",
+    "owner-ladders/appstore-ios.json",
   ]) {
     await readJson(path);
   }
 
-  const expectedSchemas = [
-    "continuity-artifact.schema.json",
-    "continuity-event.schema.json",
-    "continuity-proof.schema.json",
-    "continuity-reflection.schema.json",
-    "signed-request-envelope-v1.schema.json",
+  assert(
+    PUBLIC_SHOT_PROTOCOL_VERSION === 1,
+    "The public Shot protocol version must remain explicit",
+  );
+  assert(
+    JSON.stringify(PUBLIC_SHOT_LIFECYCLES) ===
+      JSON.stringify(["EVOLVING", "PUBLISHED", "APP_STORE"]),
+    "The public Shot lifecycle must contain exactly EVOLVING, PUBLISHED, and APP_STORE",
+  );
+  assert(
+    JSON.stringify(PUBLIC_SHOT_RECORD_KINDS) === JSON.stringify([
+      "SHOT_CREATED",
+      "EVOLUTION_RECORDED",
+      "LIFECYCLE_TRANSITIONED",
+      "APPCOIN_LINKED",
+    ]),
+    "The public Shot record kind set changed without a protocol version",
+  );
+  const protocolSchemaPaths = [
+    ...listJsonFiles("packages/identity/schemas"),
+    ...listJsonFiles("packages/signer/schemas"),
+    ...listJsonFiles("packages/protocol/schemas"),
+    ...listJsonFiles("packages/registry/schemas"),
   ];
-  const schemaFiles = listJsonFiles("packages/contracts/schemas");
-  for (const name of expectedSchemas) {
-    assert(
-      schemaFiles.some((path) => path.endsWith(`/${name}`)),
-      `Missing contract schema: ${name}`,
-    );
-  }
-  for (const path of schemaFiles) {
+  assert(
+    protocolSchemaPaths.length >= 4,
+    "Identity, signer, and public Shot protocol schemas are required",
+  );
+  for (const path of protocolSchemaPaths) {
     const schema = await readJson(path);
-    assert(isRecord(schema), `Contract schema must be a JSON object: ${path}`);
+    assert(isRecord(schema), `Protocol schema must be a JSON object: ${path}`);
     assert(
       schema.$schema === "https://json-schema.org/draft/2020-12/schema",
-      `Contract schema must declare JSON Schema 2020-12: ${path}`,
+      `Protocol schema must declare JSON Schema 2020-12: ${path}`,
     );
     assert(
       typeof schema.$id === "string",
-      `Contract schema must declare an $id: ${path}`,
+      `Protocol schema must declare an $id: ${path}`,
     );
   }
-
-  const fixtureFiles = listJsonFiles("packages/contracts/fixtures");
-  assert(
-    fixtureFiles.length >= 6,
-    "The contract harness must include the required golden fixture cases",
-  );
-  const contractKinds = new Set<ContractKind>([
-    "ContinuityEvent",
-    "ContinuityArtifact",
-    "ContinuityReflection",
-    "ContinuityProof",
-    "SignedRequestEnvelopeV1",
-  ]);
-  for (const path of fixtureFiles) {
-    const fixture = await readJson(path);
-    assert(
-      isRecord(fixture),
-      `Contract fixture must have an object root: ${path}`,
-    );
-    assert(
-      Array.isArray(fixture.cases),
-      `Contract fixture must contain a cases array: ${path}`,
-    );
-    assert(
-      fixture.cases.length > 0,
-      `Contract fixture must contain at least one case: ${path}`,
-    );
-
-    for (const [index, fixtureCase] of fixture.cases.entries()) {
-      const location = `${path}#cases[${index}]`;
-      assert(
-        isRecord(fixtureCase),
-        `Fixture case must be an object: ${location}`,
-      );
-      assert(
-        typeof fixtureCase.name === "string",
-        `Fixture case needs a name: ${location}`,
-      );
-      assert(
-        typeof fixtureCase.contract === "string" &&
-          contractKinds.has(fixtureCase.contract as ContractKind),
-        `Fixture case has an unknown contract: ${location}`,
-      );
-      assert(
-        typeof fixtureCase.expectedValid === "boolean",
-        `Fixture case needs expectedValid: ${location}`,
-      );
-      const result = await validateContract(
-        fixtureCase.contract as ContractKind,
-        fixtureCase.value,
-      );
-      assert(
-        result.valid === fixtureCase.expectedValid,
-        `Fixture validation disagrees with expectedValid: ${location}`,
-      );
-      if (typeof fixtureCase.expectedIssueCode === "string") {
-        assert(
-          result.issues.some(
-            (issue) => issue.code === fixtureCase.expectedIssueCode,
-          ),
-          `Fixture is missing expected issue ${fixtureCase.expectedIssueCode}: ${location}`,
-        );
-      }
-    }
+  for (const path of [
+    "packages/identity/fixtures/builder-identity.json",
+    "packages/protocol/fixtures/unsigned-shot-created.json",
+    "packages/registry/fixtures/evolving-projection.json",
+  ]) {
+    await readJson(path);
   }
+  const openapi = await readJson("apps/reference-node/openapi.json");
+  assert(isRecord(openapi), "Reference node OpenAPI document must be an object");
+  assert(openapi.openapi === "3.1.0", "Reference node must publish OpenAPI 3.1");
+  assert(isRecord(openapi.paths), "Reference node OpenAPI paths are missing");
+  for (const path of [
+    "/healthz",
+    "/openapi.json",
+    "/v1/records",
+    "/v1/shots/{shotId}",
+    "/v1/shots/{shotId}/records",
+  ]) {
+    assert(
+      Object.hasOwn(openapi.paths, path),
+      `Reference node OpenAPI route is missing: ${path}`,
+    );
+  }
+  await readText("apps/reference-node/server.ts");
 }
 
 async function validateStaticSurface(): Promise<void> {
@@ -236,7 +223,7 @@ async function validateStaticSurface(): Promise<void> {
   ];
 
   for (const required of [
-    "{{INSTALL_COMMAND}}",
+    "{{SOURCE_COMMAND}}",
     "data-copy-command",
     "data-shot-toggle",
     "{{REPOSITORY_URL}}",
@@ -245,7 +232,7 @@ async function validateStaticSurface(): Promise<void> {
     "A local intention compiler and open app factory for builders with more ideas than time",
     "Get rid of your recurring thoughts",
     "INFINITE SHOTS.",
-    "Copy one liner installer",
+    "Copy source command",
     "/shot-icons/shot-100.webp",
     'href="/docs"',
     'href="/privacy"',
@@ -297,7 +284,7 @@ async function validateStaticSurface(): Promise<void> {
 
   for (const phrase of [
     "no accounts",
-    "no telemetry",
+    "no TOHSENO telemetry",
     "Anky, Inc.",
     "support@anky.app",
   ]) {
@@ -394,10 +381,59 @@ async function validateStaticSurface(): Promise<void> {
   );
 }
 
-async function validateOneshotPin(): Promise<void> {
-  console.log("\n[check] canonical installer and legacy oneshot pin");
+async function validateGenesisBoundary(): Promise<void> {
+  console.log("\n[check] protocol genesis boundary");
+
+  for (const path of [
+    "apps/mobile",
+    "apps/tohseno-mobile",
+    "templates/tohseno-mobile",
+    "skills/tohseno-mobile",
+  ]) {
+    assert(
+      !existsSync(resolve(ROOT, path)),
+      `Reserved pre-genesis TOHSENO mobile application path must be absent: ${path}`,
+    );
+  }
+
+  const ignore = await readText(".gitignore");
+  for (const privateInput of PRIVATE_PRODUCT_INPUTS) {
+    assert(
+      ignore.split(/\r?\n/u).includes(privateInput),
+      `Private product input must remain explicitly gitignored: ${privateInput}`,
+    );
+  }
+
+  const replaceableCode = [
+    "apps/reference-node/server.ts",
+    ...[
+    "packages/identity/src",
+    "packages/signer/src",
+    "packages/protocol/src",
+    "packages/registry/src",
+    "packages/node-client/src",
+    "apps/reference-node/src",
+    ].flatMap((directory) => listRegularFiles(directory)),
+  ];
+  for (const path of replaceableCode) {
+    if (!existsSync(resolve(ROOT, path))) continue;
+    const source = await readText(path);
+    assert(
+      !source.toLowerCase().includes("tohseno.com"),
+      `Replaceable protocol and node code must not hardcode a TOHSENO hostname: ${path}`,
+    );
+  }
+}
+
+async function validateFrozenInstallerBoundary(): Promise<void> {
+  console.log("\n[check] frozen installer boundary");
 
   const installer = await readText("apps/site/public/install.sh");
+  assert(
+    createHash("sha256").update(installer).digest("hex") ===
+      "5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5",
+    "the canonical installer changed during the 0.5 clean-root pass",
+  );
   assert(
     installer.startsWith("#!/bin/sh\n"),
     "install.sh must remain a portable POSIX shell script",
@@ -443,186 +479,16 @@ async function validateOneshotPin(): Promise<void> {
     ),
     "install.sh must never execute or install mutable repository content",
   );
-
-  const script = await readText("apps/site/public/oneshot.sh");
-  const pinMatch = script.match(/^TOHSENO_PIN="([0-9a-f]{40})"$/m);
   assert(
-    pinMatch !== null,
-    "oneshot.sh must embed TOHSENO_PIN as a full 40-character commit hash",
+    !existsSync(resolve(ROOT, "apps/site/public/oneshot.sh")),
+    "there must be no alternate bootstrap entry point",
   );
-  const pin = pinMatch[1]!;
-  const head = (await capture(["git", "rev-parse", "HEAD"])).trim();
-  const committedScript = await capture([
-    "git",
-    "show",
-    "HEAD:apps/site/public/oneshot.sh",
-  ]);
-  if (committedScript !== script) {
-    assert(
-      pin === head,
-      "A pending oneshot serving change must pin its current HEAD installer commit",
-    );
-  } else {
-    const parentScript = await capture([
-      "git",
-      "show",
-      "HEAD^:apps/site/public/oneshot.sh",
-    ]);
-    if (parentScript !== script) {
-      const parent = (await capture(["git", "rev-parse", "HEAD^"])).trim();
-      assert(
-        pin === parent,
-        "A committed oneshot serving change must pin its direct parent installer commit",
-      );
-    }
-  }
-  const installerShaMatch = script.match(
-    /^PINNED_INSTALLER_SHA256="([0-9a-f]{64})"$/m,
-  );
+  const server = await readText("apps/site/server.ts");
   assert(
-    installerShaMatch !== null,
-    "oneshot.sh must pin the released installer's complete SHA-256 digest",
+    !server.includes('"/install.sh"') &&
+      !server.includes('"/oneshot.sh"'),
+    "the frozen installer artifact and alternate bootstrap must not be reachable from the 0.5 site",
   );
-  const pinnedInstaller = await capture([
-    "git",
-    "show",
-    `${pin}:apps/site/public/install.sh`,
-  ]);
-  assert(
-    createHash("sha256").update(pinnedInstaller).digest("hex") ===
-      installerShaMatch[1],
-    "oneshot.sh installer checksum does not match the pinned commit",
-  );
-  const pinnedVersion = pinnedInstaller.match(
-    /^CLI_VERSION="([0-9]+\.[0-9]+\.[0-9]+)"$/m,
-  );
-  const pinnedArtifactSha = pinnedInstaller.match(
-    /^CLI_SHA256_DEFAULT="([0-9a-f]{64})"$/m,
-  );
-  const pinnedTreeSha = pinnedInstaller.match(
-    /^CLI_TREE_SHA256_DEFAULT="([0-9a-f]{64})"$/m,
-  );
-  assert(
-    pinnedVersion !== null &&
-      pinnedArtifactSha !== null &&
-      pinnedTreeSha !== null,
-    "The pinned oneshot installer lacks a complete published CLI identity",
-  );
-  for (const phrase of [
-    "thin entry point",
-    "raw.githubusercontent.com/jpfraneto/tohseno/${TOHSENO_PIN}/apps/site/public/install.sh",
-    "checksum mismatch for the pinned installer",
-    '/bin/sh "$installer_path" "$@"',
-  ]) {
-    assert(
-      script.includes(phrase),
-      `oneshot.sh is missing pinned delegator behavior: ${phrase}`,
-    );
-  }
-  for (const obsoleteCreatorStep of [
-    'mkdir -p "$target"',
-    'cp -R "$rails_dir/templates/continuity-app/."',
-    'git -C "$target" init',
-    'agent_cmd="$(first_agent)"',
-  ]) {
-    assert(
-      !script.includes(obsoleteCreatorStep),
-      `oneshot.sh must not regain the competing workspace creator step: ${obsoleteCreatorStep}`,
-    );
-  }
-  for (const requiredCliFile of [
-    "packages/cli/package.json",
-    "packages/cli/src/bin.ts",
-    "packages/cli/src/cli.ts",
-  ]) {
-    await readText(requiredCliFile);
-  }
-
-  try {
-    await capture(["git", "merge-base", "--is-ancestor", pin, "HEAD"]);
-  } catch {
-    fail(
-      `TOHSENO_PIN ${pin} is not an ancestor of HEAD. The pin must reference a ` +
-        "published CLI commit that is already part of this history.",
-    );
-  }
-
-  for (const required of [
-    "templates/continuity-app/continuity.manifest.json",
-    "templates/continuity-app/project.yml",
-    "templates/continuity-app/Writing.xcodeproj/project.pbxproj",
-    "templates/continuity-app/App/WritingApp.swift",
-    "templates/continuity-app/App/AppConfig.swift",
-    "templates/continuity-app/App/Identity/BIP39.swift",
-    "templates/continuity-app/App/Resources/bip39-english.txt",
-    "templates/continuity-app/Tests/BIP39Tests.swift",
-    "templates/continuity-app/site/index.html",
-    "templates/continuity-app/scripts/setup.ts",
-    "templates/continuity-app/fastlane/Fastfile",
-    "templates/continuity-app/README.md",
-    "skills/continuity-app/SKILL.md",
-  ]) {
-    try {
-      await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
-    } catch {
-      fail(
-        `Published CLI pin ${pin} is missing ${required}; its trust record is incomplete`,
-      );
-    }
-  }
-  if (pinnedVersion[1] === "0.4.0") {
-    for (const required of [
-      "templates/ios-kernel/overlay/app.manifest.json",
-      "templates/blank/template.json",
-      "templates/daily-game/template.json",
-      "packages/skills/index.ts",
-      "packages/manifest/app.ts",
-      "skills/daily-challenge/skill.json",
-      "skills/local-progress/skill.json",
-      "skills/rank-progression/skill.json",
-      "skills/share-card/skill.json",
-    ]) {
-      try {
-        await capture(["git", "cat-file", "-e", `${pin}:${required}`]);
-      } catch {
-        fail(
-          `Published CLI 0.4.0 pin ${pin} is missing ${required}; its generic app trust record is incomplete`,
-        );
-      }
-    }
-  }
-
-  // Keep the released CLI pin auditable against public main.
-  // Network may legitimately be absent (offline dev, CI sandbox): skip with a
-  // warning then, but if the remote answers, the pin must be reachable from
-  // its main.
-  let remoteMain = "";
-  try {
-    await capture([
-      "git",
-      "-c",
-      "core.askPass=true",
-      "fetch",
-      "--quiet",
-      "origin",
-      "main",
-    ]);
-    remoteMain = (await capture(["git", "rev-parse", "FETCH_HEAD"])).trim();
-  } catch {
-    console.log(
-      "  ! origin unreachable — skipped verifying the pin is published; run again online before releasing",
-    );
-  }
-  if (remoteMain !== "") {
-    try {
-      await capture(["git", "merge-base", "--is-ancestor", pin, remoteMain]);
-    } catch {
-      fail(
-        `TOHSENO_PIN ${pin} is not reachable from origin/main (${remoteMain.slice(0, 7)}). ` +
-          "Push and publish the CLI release commit before deploying this thin installer.",
-      );
-    }
-  }
 }
 
 async function validateRepositoryHygiene(): Promise<void> {
@@ -635,9 +501,19 @@ async function validateRepositoryHygiene(): Promise<void> {
     "--exclude-standard",
     "-z",
   ]);
-  const paths = output.split("\0").filter(Boolean).sort();
+  const paths = output
+    .split("\0")
+    .filter((path) => path !== "" && existsSync(resolve(ROOT, path)))
+    .sort();
   for (const path of paths) {
     const name = path.split("/").at(-1) ?? path;
+    if (
+      PRIVATE_PRODUCT_INPUTS.includes(
+        name as (typeof PRIVATE_PRODUCT_INPUTS)[number],
+      )
+    ) {
+      fail(`Private product input must not be tracked or unignored: ${path}`);
+    }
     if (name.startsWith(".env") && name !== ".env.example")
       fail(`Environment file must not be tracked or unignored: ${path}`);
     if (
@@ -675,7 +551,8 @@ async function main(): Promise<void> {
   await run("test suite", [process.execPath, "test"]);
   await validateRepositoryJson();
   await validateStaticSurface();
-  await validateOneshotPin();
+  await validateGenesisBoundary();
+  await validateFrozenInstallerBoundary();
   await validateRepositoryHygiene();
   await run("unstaged whitespace errors", ["git", "diff", "--check"]);
   await run("staged whitespace errors", ["git", "diff", "--cached", "--check"]);

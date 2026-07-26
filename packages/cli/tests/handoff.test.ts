@@ -59,7 +59,7 @@ describe("authoritative handoff", () => {
     expect(failedVerifier.evidence.find((item) => item.id === "repository")?.state)
       .toBe("blocked");
     expect(failedVerifier.next.command).toBe(
-      "tohseno continue '/private/shots/unsafe'",
+      "tohseno evolve '/private/shots/unsafe'",
     );
     expect(failedVerifier.next.why).toContain("pinned privacy and integrity gate");
   });

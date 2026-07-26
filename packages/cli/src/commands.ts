@@ -13,9 +13,10 @@ import {
   type CreationRunner,
   createShot as createShotThroughFactory,
   factoryReleaseFor,
-  PublishedShotCreationError,
+  MaterializedShotCreationError,
 } from "./creation.ts";
 import { CliError, errorMessage } from "./errors.ts";
+import { readBoundedJson } from "./files.ts";
 import type { CliIo } from "./io.ts";
 import type { CreationInput } from "./provenance.ts";
 import { normalizeCreationInput } from "./provenance.ts";
@@ -30,7 +31,7 @@ import {
   simulatorDoctorRecords,
   type LivePreviewHandle,
 } from "./simulator.ts";
-import { adoptShot, readShotMetadata } from "./shot.ts";
+import { readShotMetadata } from "./shot.ts";
 import { locateFactorySourceRoot } from "./source.ts";
 import {
   bundleIdForSlug,
@@ -57,6 +58,12 @@ import {
 } from "./planning.ts";
 import { loadCatalog, resolveComposition, type AppCatalog } from "../../skills/index.ts";
 import { handoffForShot, renderHandoff } from "./handoff.ts";
+import {
+  acquireShotEvolutionLock,
+  advanceLocalShotEvolution,
+  readLocalShotProtocolState,
+  releaseShotEvolutionLock,
+} from "./protocol-state.ts";
 
 export type { DiscoveredShot } from "./workspace.ts";
 
@@ -71,7 +78,6 @@ export interface CommandContext {
 
 export interface CreateArguments {
   slug?: string | undefined;
-  platform?: string | undefined;
   agent?: string | undefined;
   file?: string | undefined;
   references?: readonly string[] | undefined;
@@ -100,19 +106,6 @@ export async function chooseNumber(
   }
 }
 
-async function selectPlatform(arguments_: CreateArguments): Promise<"ios"> {
-  if (arguments_.platform !== undefined) {
-    if (arguments_.platform !== "ios") {
-      throw new CliError(
-        `unsupported platform ${JSON.stringify(arguments_.platform)}; this factory release implements ios only`,
-        2,
-      );
-    }
-    return "ios";
-  }
-  return "ios";
-}
-
 function renderPlan(plan: ValidatedShotPlan, io: CliIo): void {
   io.out("TOHSENO / NEW SHOT");
   io.out();
@@ -134,7 +127,7 @@ function renderPlan(plan: ValidatedShotPlan, io: CliIo): void {
   }
   io.out();
   io.out(`DATA           ${plan.plan.data.strategy} — ${plan.plan.data.reason}`);
-  io.out(`IDENTITY       ${plan.plan.identity.strategy} — ${plan.plan.identity.reason}`);
+  io.out(`RUNTIME IDENTITY ${plan.plan.identity.strategy} — ${plan.plan.identity.reason}`);
   io.out();
   io.out("FIRST DEFINITION OF DONE");
   plan.plan.definitionOfDone.forEach((item, index) =>
@@ -194,14 +187,42 @@ async function approvePlan(
     io.out(
       `Bundled skills: ${availableSkills.map((skill) => skill.descriptor.id).join(", ")}`,
     );
+    const baseComposition = resolveComposition(catalog, {
+      schemaVersion: 1,
+      template: selectedTemplate.descriptor.id,
+      skills: [],
+    });
+    const baseSkillIds = new Set(
+      baseComposition.skills.map((skill) => skill.descriptor.id),
+    );
+    const installedOutsideTemplate = current.plan.template ===
+        selectedTemplate.descriptor.id
+      ? current.plan.skills
+        .map((skill) => skill.id)
+        .filter((id) => !baseSkillIds.has(id))
+      : [];
+    const dependencyIds = new Set<string>();
+    const collectDependencies = (id: string): void => {
+      const skill = catalog.skills.get(id);
+      if (skill === undefined) return;
+      for (const dependency of skill.descriptor.requires) {
+        if (dependencyIds.has(dependency)) continue;
+        dependencyIds.add(dependency);
+        collectDependencies(dependency);
+      }
+    };
+    installedOutsideTemplate.forEach(collectDependencies);
+    const currentExtraSkills = installedOutsideTemplate
+      .filter((id) => !dependencyIds.has(id))
+      .sort();
     const skillsInput = (
       await io.prompt(
-        `Extra skill IDs, comma-separated [${current.plan.skills.map((skill) => skill.id).join(",")}]: `,
+        `Extra skill IDs, comma-separated [${currentExtraSkills.join(",")}]: `,
       )
     ).trim();
     const requestedSkills = (
       skillsInput === ""
-        ? current.plan.skills.map((skill) => skill.id)
+        ? currentExtraSkills
         : skillsInput.split(",").map((value) => value.trim()).filter(Boolean)
     );
     const composition = resolveComposition(catalog, {
@@ -277,7 +298,6 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
     ? undefined
     : validateShotSlug(arguments_.slug);
   const nonInteractive = arguments_.noInteractive || !context.io.interactive;
-  await selectPlatform(arguments_);
   if (
     slug !== undefined &&
     existsSync(join(context.config.shotsDirectory, slug))
@@ -377,7 +397,7 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
       plan: planned.plan,
     });
   } catch (error) {
-    if (!(error instanceof PublishedShotCreationError)) throw error;
+    if (!(error instanceof MaterializedShotCreationError)) throw error;
     context.io.error(error.message);
     renderHandoff(handoffForShot({
       ...error.shot,
@@ -396,13 +416,11 @@ export async function createCommand(arguments_: CreateArguments, context: Comman
     created.agentMode === "automated" &&
     created.agentExitCode === 0;
   renderHandoff(handoffForShot({
-    name: created.metadata.app?.name ?? displayNameForSlug(created.metadata.slug),
+    name: created.metadata.app.name,
     slug: created.metadata.slug,
     path: created.path,
-    ...(created.metadata.sequence === undefined
-      ? {}
-      : { sequence: created.metadata.sequence }),
-    skillCount: created.metadata.composition?.skills.length ?? 0,
+    sequence: created.metadata.sequence,
+    skillCount: created.metadata.composition.skills.length,
     verificationPassed: created.verified,
     agentExitCode: created.agentExitCode,
     buildState: created.simulatorLaunched
@@ -446,7 +464,7 @@ export function listCommand(context: CommandContext): number {
   return 0;
 }
 
-async function chooseContinuationAgent(
+async function chooseEvolutionAgent(
   requested: string | undefined,
   preferredId: AgentId | null | undefined,
   context: CommandContext,
@@ -480,26 +498,99 @@ async function chooseContinuationAgent(
   return installed[await chooseNumber(context.io, installed.length, "Select coding agent", defaultIndex)]!;
 }
 
-export async function continueCommand(
+export async function evolveCommand(
   value: string,
   options: { agent?: string; noInteractive: boolean },
   context: CommandContext,
 ): Promise<number> {
   const root = requireRecognizedShot(resolveShotArgument(value, context));
   const metadata = readShotMetadata(root)!;
-  const preferred = context.config.defaultAgent ?? metadata.selectedAgent;
-  const selected = await chooseContinuationAgent(
-    options.agent,
-    preferred,
-    context,
-    options.noInteractive || !context.io.interactive,
-  );
-  context.io.out(`Continuing ${metadata.slug} at ${root}`);
-  context.io.out(`Launching ${selected.label}…`);
-  const exitCode = await runInherited(
-    [selected.executable, ...selected.launchArguments],
-    { cwd: root, env: sanitizedAgentEnvironment(context.environment) },
-  );
+  const lock = acquireShotEvolutionLock(root);
+  try {
+    const preferred = context.config.defaultAgent ?? metadata.selectedAgent;
+    const selected = await chooseEvolutionAgent(
+      options.agent,
+      preferred,
+      context,
+      options.noInteractive || !context.io.interactive,
+    );
+    context.io.out(`Evolving ${metadata.slug} at ${root}`);
+    context.io.out(`Launching ${selected.label}…`);
+    const exitCode = await runInherited(
+      [selected.executable, ...selected.launchArguments],
+      { cwd: root, env: sanitizedAgentEnvironment(context.environment) },
+    );
+    const trusted = trustedShotToolFromCache({
+      shotRoot: root,
+      releasesDirectory: context.config.cacheDirectory,
+      tool: "verify",
+    });
+    const verification = await runCaptured(
+      [process.execPath, trusted.executable],
+      {
+        cwd: trusted.root,
+        env: sanitizedAgentEnvironment(context.environment),
+      },
+    );
+    if (verification.stdout.trim()) context.io.out(verification.stdout.trim());
+    if (verification.stderr.trim()) context.io.error(verification.stderr.trim());
+    if (exitCode === 0 && verification.exitCode === 0) {
+      const state = advanceLocalShotEvolution(
+        root,
+        metadata.protocol,
+        lock,
+      );
+      context.io.out(
+        `Evolution ${state.evolution} recorded locally for ${state.shotId}.`,
+      );
+    }
+    renderHandoff(handoffForShot({
+      name: metadata.app.name,
+      slug: metadata.slug,
+      path: root,
+      sequence: metadata.sequence,
+      skillCount: metadata.composition.skills.length,
+      verificationPassed: verification.exitCode === 0,
+      agentExitCode: exitCode,
+      buildState: "not-attempted",
+      simulatorState: "not-attempted",
+      captureState: "not-attempted",
+    }), context.io, context.environment);
+    if (exitCode !== 0) return exitCode;
+    return verification.exitCode === 0 ? 0 : 1;
+  } finally {
+    releaseShotEvolutionLock(lock);
+  }
+}
+
+function resolveShotArgument(value: string | undefined, context: CommandContext): string {
+  if (value === undefined) return resolve(context.cwd);
+  const looksLikePath = isAbsolute(value) || value.startsWith(".") || value.includes(sep) || value.includes("/");
+  return looksLikePath ? resolve(context.cwd, value) : join(context.config.shotsDirectory, validateShotSlug(value));
+}
+
+function requireRecognizedShot(path: string): string {
+  if (!existsSync(path) || !lstatSync(path).isDirectory()) throw new CliError(`shot does not exist: ${path}`);
+  if (readShotMetadata(path) === undefined) {
+    throw new CliError(
+      `not a recognized Shot: ${path}; create a fresh Shot with \`tohseno\``,
+    );
+  }
+  return path;
+}
+
+export function openCommand(slug: string, context: CommandContext): number {
+  const path = requireRecognizedShot(join(context.config.shotsDirectory, validateShotSlug(slug)));
+  context.io.out(path);
+  return 0;
+}
+
+export async function statusCommand(
+  value: string | undefined,
+  context: CommandContext,
+): Promise<number> {
+  const root = requireRecognizedShot(resolveShotArgument(value, context));
+  const metadata = readShotMetadata(root)!;
   const trusted = trustedShotToolFromCache({
     shotRoot: root,
     releasesDirectory: context.config.cacheDirectory,
@@ -512,41 +603,25 @@ export async function continueCommand(
       env: sanitizedAgentEnvironment(context.environment),
     },
   );
-  if (verification.stdout.trim()) context.io.out(verification.stdout.trim());
-  if (verification.stderr.trim()) context.io.error(verification.stderr.trim());
-  renderHandoff(handoffForShot({
-    name: metadata.app?.name ?? displayNameForSlug(metadata.slug),
-    slug: metadata.slug,
-    path: root,
-    ...(metadata.sequence === undefined ? {} : { sequence: metadata.sequence }),
-    skillCount: metadata.composition?.skills.length ?? 0,
-    verificationPassed: verification.exitCode === 0,
-    agentExitCode: exitCode,
-    buildState: "not-attempted",
-    simulatorState: "not-attempted",
-    captureState: "not-attempted",
-  }), context.io, context.environment);
-  if (exitCode !== 0) return exitCode;
-  return verification.exitCode === 0 ? 0 : 1;
-}
-
-function resolveShotArgument(value: string | undefined, context: CommandContext): string {
-  if (value === undefined) return resolve(context.cwd);
-  const looksLikePath = isAbsolute(value) || value.startsWith(".") || value.includes(sep) || value.includes("/");
-  return looksLikePath ? resolve(context.cwd, value) : join(context.config.shotsDirectory, validateShotSlug(value));
-}
-
-function requireRecognizedShot(path: string): string {
-  if (!existsSync(path) || !lstatSync(path).isDirectory()) throw new CliError(`shot does not exist: ${path}`);
-  if (readShotMetadata(path) === undefined) {
-    throw new CliError(`not a recognized shot: ${path}; compatible existing projects can use tohseno adopt <path>`);
+  if (verification.exitCode !== 0) {
+    throw new CliError(
+      `shot verification failed with status ${verification.exitCode}`,
+      verification.exitCode,
+    );
   }
-  return path;
-}
-
-export function openCommand(slug: string, context: CommandContext): number {
-  const path = requireRecognizedShot(join(context.config.shotsDirectory, validateShotSlug(slug)));
-  context.io.out(path);
+  context.io.out("TOHSENO / SHOT STATUS");
+  context.io.out(`SHOT         ${metadata.slug}`);
+  context.io.out(`PATH         ${root}`);
+  const state = readLocalShotProtocolState(root);
+  if (state === null || state.shotId !== metadata.protocol.shotId) {
+    throw new CliError("local Shot protocol state does not match shot metadata");
+  }
+  context.io.out(`SHOT ID      ${state.shotId}`);
+  context.io.out(`LIFECYCLE    ${state.lifecycle}`);
+  context.io.out(`EVOLUTION    ${state.evolution}`);
+  context.io.out(
+    "SOURCE       factory-baseline-bound local metadata; no public record claimed",
+  );
   return 0;
 }
 
@@ -641,27 +716,100 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
   else ok(`coding agents: ${agents.map((agent) => agent.label).join(", ")}`);
 
   let sourceAvailable = false;
+  let release: Awaited<ReturnType<typeof factoryReleaseFor>> | undefined;
   try {
     const sourceRoot = sourceRootFor(context);
     sourceAvailable = true;
     ok(`factory source ${sourceRoot}`);
-    const manifestCheck = await runCaptured(
-      [process.execPath, join(sourceRoot, "packages", "manifest", "cli.ts"), join(sourceRoot, "templates", "continuity-app", "continuity.manifest.json")],
-      { cwd: sourceRoot, env: context.environment },
-    );
-    if (manifestCheck.exitCode === 0) ok("manifest tooling and iOS base");
-    else fail(`manifest tooling failed: ${manifestCheck.stderr.trim()}`);
+    release = await factoryReleaseFor({
+      config: context.config,
+      environment: context.environment,
+      sourceRoot,
+    });
   } catch (error) {
-    try {
-      const active = useActiveCachedRelease(context.config.cacheDirectory);
-      warn(`factory source unavailable; using verified cached release ${active.metadata.releaseId}`);
-    } catch (cacheError) {
-      fail(`${errorMessage(error)}; cached fallback failed: ${errorMessage(cacheError)}`);
+    if (sourceAvailable) {
+      fail(`current factory release preparation failed: ${errorMessage(error)}`);
+    } else {
+      try {
+        release = useActiveCachedRelease(context.config.cacheDirectory);
+        warn(
+          `factory source unavailable; using verified cached release ${release.metadata.releaseId}`,
+        );
+      } catch (cacheError) {
+        fail(`${errorMessage(error)}; cached fallback failed: ${errorMessage(cacheError)}`);
+      }
     }
   }
 
+  if (release !== undefined) {
+    const manifestTool = join(release.directory, "manifest", "cli.ts");
+    const appManifest = join(
+      release.directory,
+      "catalog",
+      "kernels",
+      "ios-kernel",
+      "overlay",
+      "app.manifest.json",
+    );
+    const appManifestCheck = await runCaptured(
+      [process.execPath, manifestTool, appManifest],
+      { cwd: release.directory, env: context.environment },
+    );
+    if (appManifestCheck.exitCode !== 0) {
+      fail(
+        `app manifest validation failed: ${
+          appManifestCheck.stderr.trim() ||
+          appManifestCheck.stdout.trim() ||
+          `status ${appManifestCheck.exitCode}`
+        }`,
+      );
+    } else {
+      try {
+        const value = readBoundedJson<{
+          composition?: {
+            kernel?: unknown;
+            template?: unknown;
+            skills?: unknown;
+          };
+        }>(appManifest, undefined, "neutral app manifest");
+        if (
+          value.composition?.kernel !== "ios-kernel" ||
+          value.composition.template !== "blank" ||
+          !Array.isArray(value.composition.skills) ||
+          value.composition.skills.length !== 0
+        ) {
+          throw new CliError(
+            "neutral app manifest must declare ios-kernel, blank, and no app skills",
+          );
+        }
+        ok("app manifest · neutral ios-kernel");
+      } catch (error) {
+        fail(`app manifest validation failed: ${errorMessage(error)}`);
+      }
+    }
+
+    try {
+      const composition = resolveComposition(
+        loadCatalog(join(release.directory, "catalog")),
+        { schemaVersion: 1, template: "blank", skills: [] },
+      );
+      if (
+        composition.kernel.descriptor.id !== "ios-kernel" ||
+        composition.template.descriptor.id !== "blank" ||
+        composition.skills.length !== 0
+      ) {
+        throw new CliError(
+          "neutral catalog composition did not resolve to blank on ios-kernel",
+        );
+      }
+      ok("app catalog · blank resolves to ios-kernel");
+    } catch (error) {
+      fail(`app catalog validation failed: ${errorMessage(error)}`);
+    }
+
+  }
+
   const cached = listCachedReleaseDirectories(context.config.cacheDirectory);
-  if (cached.length === 0 && sourceAvailable) ok("release cache is empty and ready to populate");
   for (const directory of cached) {
     try {
       const metadata = verifyReleaseDirectory(directory);
@@ -684,54 +832,9 @@ export async function doctorCommand(context: CommandContext): Promise<number> {
     else warn(record.message);
   }
 
-  if (commandOnPath("bankr", context)) ok("Bankr CLI reachable (explicit bankr executable)");
-  else warn("Bankr CLI not found; optional, only needed for token launches (npm i -g @bankr/cli)");
-  const home = context.environment.HOME;
-  if ((home !== undefined && existsSync(join(home, ".bankr", "config.json"))) || context.environment.BANKR_API_KEY) {
-    ok("Bankr credentials present");
-  } else {
-    warn("no Bankr credentials (~/.bankr/config.json or BANKR_API_KEY); optional, run `bankr login` before launching a token");
-  }
-
   context.io.out();
   context.io.out(`Doctor: ${failures} required failure${failures === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}.`);
   return failures === 0 ? 0 : 1;
-}
-
-export async function adoptCommand(
-  pathValue: string,
-  options: { yes: boolean; noInteractive: boolean },
-  context: CommandContext,
-): Promise<number> {
-  const root = resolve(context.cwd, pathValue);
-  const existing = readShotMetadata(root);
-  if (existing !== undefined) {
-    context.io.out(`Already a recognized shot: ${root}`);
-    return 0;
-  }
-  context.io.out(`Adopt existing project in place: ${root}`);
-  context.io.out("This adds only .tohseno/ with pinned metadata and validation tools.");
-  context.io.out("It does not move, rewrite, stage, or commit the app.");
-  if (!options.yes) {
-    if (options.noInteractive || !context.io.interactive) {
-      throw new CliError("adopt requires explicit confirmation; rerun with --yes", 2);
-    }
-    const answer = (await context.io.prompt("Type yes to adopt: ")).trim().toLowerCase();
-    if (answer !== "yes") {
-      context.io.out("Adoption cancelled; no project files changed.");
-      return 0;
-    }
-  }
-  const release = await factoryReleaseFor({
-    config: context.config,
-    environment: context.environment,
-    ...(context.sourceRoot === undefined ? {} : { sourceRoot: context.sourceRoot }),
-  });
-  const metadata = await adoptShot({ path: root, release, environment: context.environment });
-  context.io.out(`Adopted ${root} as an iOS shot.`);
-  context.io.out(`Pinned verifier: bun ${join(root, ".tohseno", "verify.ts")}`);
-  context.io.out(`Factory release: ${metadata.factory.releaseId}`);
-  return 0;
 }
 
 export function launchContract(): string {
@@ -742,8 +845,6 @@ function simulatorProgress(
   context: CommandContext,
 ): (event: { type: string }) => void {
   const labels: Record<string, string> = {
-    "development-starting": "Starting the shot's local development service…",
-    "development-ready": "Local development service ready.",
     building: "Building the shot for iOS Simulator…",
     "simulator-launching": "Installing and launching in iOS Simulator…",
     "simulator-launched": "Shot launched in iOS Simulator.",

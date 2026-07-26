@@ -16,7 +16,7 @@ import {
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { CliError } from "./errors.ts";
 
-const FORBIDDEN_FILE = /(?:^|\/)(?:MASTER_PROMPT\.md|Local\.xcconfig|app\.config\.json|\.env(?:\..*)?)$|\.(?:p8|p12|pem|pfx|mobileprovision)$/iu;
+const FORBIDDEN_FILE = /(?:^|\/)(?:(?:MASTER_(?:EVOLUTIONARY_)?|TOHSENO_EVOLUTION_)PROMPT\.md|Local\.xcconfig|app\.config\.json|\.env(?:\..*)?)$|\.(?:p8|p12|pem|pfx|mobileprovision)$/iu;
 export const MAX_LOCAL_JSON_BYTES = 1_048_576;
 
 export interface TreeFile {

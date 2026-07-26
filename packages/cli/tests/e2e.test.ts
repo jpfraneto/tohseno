@@ -44,7 +44,6 @@ describe("shot creation end to end", () => {
       const exitCode = await main([
         "create",
         "the-trenches",
-        "--platform", "ios",
         "--agent", "codex",
         "--no-launch",
         "--no-interactive",
@@ -66,7 +65,9 @@ describe("shot creation end to end", () => {
       expect(existsSync(join(shot, "AGENTS.md"))).toBe(true);
       expect(readFileSync(join(shot, "AGENTS.md"), "utf8")).toContain("SHOT.md");
       expect(existsSync(join(shot, ".tohseno", "verify.ts"))).toBe(true);
-      expect(existsSync(join(shot, ".tohseno", "manifest", "validate.ts"))).toBe(true);
+      expect(existsSync(join(shot, ".tohseno", "manifest", "app.ts"))).toBe(true);
+      expect(existsSync(join(shot, ".tohseno", "manifest", "cli.ts"))).toBe(true);
+      expect(existsSync(join(shot, ".tohseno", "manifest", "validate.ts"))).toBe(false);
 
       const manifest = JSON.parse(readFileSync(join(shot, "app.manifest.json"), "utf8")) as {
         application: { id: string; name: string };
@@ -82,11 +83,22 @@ describe("shot creation end to end", () => {
       ) as ShotMetadata;
       expect(metadata.slug).toBe("the-trenches");
       expect(metadata.platform).toBe("ios");
-      expect(metadata.schemaVersion).toBe(2);
-      expect(metadata.architecture).toBe("generic-app-v1");
+      expect(metadata.schemaVersion).toBe(1);
       expect(metadata.selectedAgent).toBe("codex");
-      expect(metadata.adopted).toBe(false);
-      expect(metadata.baselineAuthor).toBe("factory");
+      expect(Object.keys(metadata).sort()).toEqual([
+        "app",
+        "composition",
+        "createdAt",
+        "creation",
+        "factory",
+        "platform",
+        "protocol",
+        "sanitizedPlanDigest",
+        "schemaVersion",
+        "selectedAgent",
+        "sequence",
+        "slug",
+      ]);
       expect(typeof metadata.factory.sourceDirty).toBe("boolean");
       expect(metadata.factory.releaseId.includes("-dirty-")).toBe(metadata.factory.sourceDirty);
 
@@ -109,7 +121,10 @@ describe("shot creation end to end", () => {
         expect(file.source, file.path).not.toContain("private-owner@example.invalid");
         expect(file.source, file.path).not.toContain(REPOSITORY_ROOT);
       }
-      expect(listTree(shot).some((path) => /MASTER_PROMPT\.md|Local\.xcconfig$/u.test(path))).toBe(false);
+      expect(listTree(shot).some((path) =>
+        /(?:(?:MASTER_(?:EVOLUTIONARY_)?|TOHSENO_EVOLUTION_)PROMPT\.md|Local\.xcconfig)$/u
+          .test(path)
+      )).toBe(false);
 
       const pinnedVerify = await runProcess(
         [process.execPath, "run", "verify"],
@@ -118,6 +133,112 @@ describe("shot creation end to end", () => {
       );
       expect(pinnedVerify.exitCode).toBe(0);
       expect(pinnedVerify.stdout).toContain("manifest");
+
+      const metadataPath = join(shot, ".tohseno", "shot.json");
+      const metadataSource = readFileSync(metadataPath, "utf8");
+      const withoutIdentity = JSON.parse(metadataSource) as Record<
+        string,
+        unknown
+      >;
+      delete withoutIdentity.protocol;
+      writeFileSync(
+        metadataPath,
+        `${JSON.stringify(withoutIdentity, null, 2)}\n`,
+      );
+      const missingIdentity = await runProcess(
+        [process.execPath, ".tohseno/verify.ts"],
+        shot,
+        scratch.environment,
+      );
+      expect(missingIdentity.exitCode).not.toBe(0);
+      const missingIdentityIo = createMemoryIo();
+      expect(await main(["status", shot], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io: missingIdentityIo,
+      })).not.toBe(0);
+      writeFileSync(metadataPath, metadataSource);
+
+      const statePath = join(
+        shot,
+        ".tohseno",
+        "protocol-state.json",
+      );
+      const stateSource = readFileSync(statePath, "utf8");
+      const forgedState = {
+        ...(JSON.parse(stateSource) as Record<string, unknown>),
+        lifecycle: "APP_STORE",
+        evolution: 999,
+      };
+      writeFileSync(
+        statePath,
+        `${JSON.stringify(forgedState, null, 2)}\n`,
+      );
+      const forgedLifecycle = await runProcess(
+        [process.execPath, ".tohseno/verify.ts"],
+        shot,
+        scratch.environment,
+      );
+      expect(forgedLifecycle.exitCode).not.toBe(0);
+      writeFileSync(statePath, stateSource);
+
+      const substitutedShotId = `shot_${"A".repeat(32)}`;
+      const substitutedMetadata = JSON.parse(
+        metadataSource,
+      ) as Record<string, any>;
+      substitutedMetadata.protocol.shotId = substitutedShotId;
+      const substitutedState = JSON.parse(
+        stateSource,
+      ) as Record<string, unknown>;
+      substitutedState.shotId = substitutedShotId;
+      writeFileSync(
+        metadataPath,
+        `${JSON.stringify(substitutedMetadata, null, 2)}\n`,
+      );
+      writeFileSync(
+        statePath,
+        `${JSON.stringify(substitutedState, null, 2)}\n`,
+      );
+      const substitutedIdentity = await runProcess(
+        [process.execPath, ".tohseno/verify.ts"],
+        shot,
+        scratch.environment,
+      );
+      expect(substitutedIdentity.exitCode).not.toBe(0);
+      expect(
+        `${substitutedIdentity.stdout}\n${substitutedIdentity.stderr}`,
+      ).toContain("factory baseline Git anchor");
+      writeFileSync(metadataPath, metadataSource);
+      writeFileSync(statePath, stateSource);
+
+      const spoofManifest = join(shot, "continuity.manifest.json");
+      writeFileSync(spoofManifest, "{}\n");
+      const spoofIo = createMemoryIo();
+      expect(await main([
+        "machine", "operations", "--json", "--shot", shot,
+      ], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io: spoofIo,
+      })).toBe(2);
+      expect(spoofIo.stdout.join("\n")).not.toContain("token.launch");
+
+      unlinkSync(spoofManifest);
+
+      const inspectIo = createMemoryIo();
+      expect(await main([
+        "machine", "ios", "inspect", "--json", "--shot", shot,
+      ], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io: inspectIo,
+      })).toBe(0);
+      const inspection = JSON.parse(inspectIo.stdout.at(-1) ?? "{}") as {
+        result?: { project?: unknown; scheme?: unknown };
+      };
+      expect(inspection.result?.project).toBe(realpathSync(join(shot, "Shot.xcodeproj")));
+      expect(inspection.result?.scheme).toBe("Shot");
+
       const lockedSourcePath = join(shot, "App", "ShotApp.swift");
       const lockedSource = readFileSync(lockedSourcePath, "utf8");
       writeFileSync(lockedSourcePath, `${lockedSource}\n// undeclared lock drift\n`);
@@ -136,7 +257,7 @@ describe("shot creation end to end", () => {
         TOHSENO_SOURCE_ROOT: join(scratch.root, "factory source is offline"),
       };
       expect(await main([
-        "create", "cached-offline", "--platform", "ios", "--no-launch", "--no-interactive",
+        "create", "cached-offline", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: offlineEnvironment,
@@ -163,10 +284,19 @@ describe("shot creation end to end", () => {
         cwd: scratch.root,
         environment: scratch.environment,
         io: commandIo,
+      })).toBe(2);
+      expect(commandIo.stderr.join("\n")).toContain(
+        "pre-release compatibility is unsupported",
+      );
+      removeTreeEvenIfReadOnly(join(scratch.shotsDirectory, "corrupt-metadata"));
+      commandIo = createMemoryIo();
+      expect(await main(["list"], {
+        cwd: scratch.root,
+        environment: scratch.environment,
+        io: commandIo,
       })).toBe(0);
       expect(commandIo.stdout.join("\n")).toContain("the-trenches");
       expect(commandIo.stdout.join("\n")).not.toContain("ordinary-directory");
-      expect(commandIo.stdout.join("\n")).not.toContain("corrupt-metadata");
 
       commandIo = createMemoryIo();
       expect(await main(["open", "the-trenches"], {
@@ -208,7 +338,7 @@ describe("shot creation end to end", () => {
       writeFileSync(sentinel, "preserve me\n");
       const io = createMemoryIo();
       const exitCode = await main([
-        "create", "already-there", "--platform", "ios", "--no-launch", "--no-interactive",
+        "create", "already-there", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,
@@ -229,7 +359,7 @@ describe("shot creation end to end", () => {
       scratch.environment.TOHSENO_TEST_PRIVATE_VALUE = privateSentinel;
       const io = createMemoryIo();
       const exitCode = await main([
-        "create", "atomic-failure", "--platform", "ios", "--no-launch", "--no-interactive",
+        "create", "atomic-failure", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,
@@ -237,7 +367,9 @@ describe("shot creation end to end", () => {
         sourceRoot: REPOSITORY_ROOT,
       });
       expect(exitCode).toBe(1);
-      expect(io.stderr.join("\n")).toContain("shot creation failed before publication");
+      expect(io.stderr.join("\n")).toContain(
+        "shot creation failed before repository creation",
+      );
       expect(io.stderr.join("\n")).toContain("baseline commit failed");
       expect(io.stderr.join("\n")).not.toContain(privateSentinel);
       expect(existsSync(join(scratch.shotsDirectory, "atomic-failure"))).toBe(false);
@@ -292,7 +424,7 @@ describe("shot creation end to end", () => {
       setFakeAgentExit(scratch, 23);
       io = createMemoryIo();
       exitCode = await main([
-        "create", "agent-exit", "--platform", "ios", "--agent", "codex", "--no-interactive",
+        "create", "agent-exit", "--agent", "codex", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,
@@ -306,35 +438,23 @@ describe("shot creation end to end", () => {
     });
   }, 30_000);
 
-  test("does not treat a current shot with a deleted machine runtime as legacy", async () => {
+  test("rejects a current Shot whose pinned machine runtime is missing", async () => {
     await withScratchEnvironment(async (scratch) => {
       const io = createMemoryIo();
       expect(await main([
-        "create", "legacy-compatible", "--platform", "ios", "--no-launch", "--no-interactive",
+        "create", "runtime-missing", "--no-launch", "--no-interactive",
       ], {
         cwd: scratch.root,
         environment: scratch.environment,
         io,
         sourceRoot: REPOSITORY_ROOT,
       })).toBe(0);
-      const shot = join(scratch.shotsDirectory, "legacy-compatible");
+      const shot = join(scratch.shotsDirectory, "runtime-missing");
       const machinePath = join(shot, ".tohseno", "machine.ts");
       unlinkSync(machinePath);
 
       let machineIo = createMemoryIo();
       expect(await main(["machine", "verify", "--json"], {
-        cwd: shot,
-        environment: scratch.environment,
-        io: machineIo,
-      })).toBe(2);
-      expect(JSON.parse(machineIo.stdout[0]!)).toMatchObject({
-        ok: false,
-        error: { code: "INVALID_CONFIGURATION" },
-      });
-      expect(machineIo.stdout[0]).toContain("shot-local machine runtime is missing");
-
-      machineIo = createMemoryIo();
-      expect(await main(["machine", "dev", "status", "--json"], {
         cwd: shot,
         environment: scratch.environment,
         io: machineIo,

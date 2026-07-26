@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:tohseno:schema:public-shot-projection:v1",
+  "title": "TOHSENO public Shot projection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "shotId",
+    "name",
+    "summary",
+    "platform",
+    "builder",
+    "authority",
+    "lifecycle",
+    "evolution",
+    "createdAt",
+    "updatedAt",
+    "latestRecordHash",
+    "recordCount",
+    "evolutions",
+    "appcoins"
+  ],
+  "properties": {
+    "protocolVersion": { "const": 1 },
+    "shotId": {
+      "type": "string",
+      "pattern": "^shot_[A-Za-z0-9_-]{32}$"
+    },
+    "name": {
+      "allOf": [
+        { "$ref": "#/$defs/publicString" },
+        { "maxLength": 120 }
+      ]
+    },
+    "summary": { "$ref": "#/$defs/publicString" },
+    "platform": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,31}$"
+    },
+    "builder": {
+      "allOf": [
+        { "$ref": "urn:tohseno:schema:identity-reference:v1" },
+        {
+          "properties": {
+            "role": { "const": "BUILDER" }
+          }
+        }
+      ]
+    },
+    "continuity": {
+      "allOf": [
+        { "$ref": "urn:tohseno:schema:identity-reference:v1" },
+        {
+          "properties": {
+            "role": { "const": "CONTINUITY" }
+          }
+        }
+      ]
+    },
+    "authority": {
+      "allOf": [
+        { "$ref": "urn:tohseno:schema:verification-method:v1" },
+        {
+          "properties": {
+            "identity": {
+              "properties": {
+                "role": { "const": "BUILDER" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "lifecycle": {
+      "enum": ["EVOLVING", "PUBLISHED", "APP_STORE"]
+    },
+    "evolution": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "createdAt": { "$ref": "#/$defs/timestamp" },
+    "updatedAt": { "$ref": "#/$defs/timestamp" },
+    "latestRecordHash": { "$ref": "#/$defs/sha256" },
+    "recordCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "evolutions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evolution" }
+    },
+    "publication": { "$ref": "#/$defs/publication" },
+    "appStore": { "$ref": "#/$defs/appStore" },
+    "appcoins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/appcoin" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "lifecycle": { "const": "EVOLVING" } },
+        "required": ["lifecycle"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["publication"] },
+            { "required": ["appStore"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "lifecycle": { "const": "PUBLISHED" } },
+        "required": ["lifecycle"]
+      },
+      "then": {
+        "required": ["publication"],
+        "not": { "required": ["appStore"] }
+      }
+    },
+    {
+      "if": {
+        "properties": { "lifecycle": { "const": "APP_STORE" } },
+        "required": ["lifecycle"]
+      },
+      "then": { "required": ["publication", "appStore"] }
+    }
+  ],
+  "$defs": {
+    "publicString": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001F\\u007F]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d\\.\\d{3}Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "revision"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(?![^/?#]*@)",
+          "maxLength": 2048
+        },
+        "revision": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 200 }
+          ]
+        }
+      }
+    },
+    "download": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "artifactDigest", "manifestDigest"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(?![^/?#]*@)",
+          "maxLength": 2048
+        },
+        "artifactDigest": { "$ref": "#/$defs/sha256" },
+        "manifestDigest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "download"],
+      "properties": {
+        "source": { "$ref": "#/$defs/source" },
+        "download": { "$ref": "#/$defs/download" }
+      }
+    },
+    "appStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["listingId", "listingUrl"],
+      "properties": {
+        "listingId": { "type": "string", "pattern": "^\\d{5,20}$" },
+        "listingUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://apps\\.apple\\.com/",
+          "maxLength": 2048
+        }
+      }
+    },
+    "evolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evolution",
+        "title",
+        "summary",
+        "recordedAt",
+        "recordHash"
+      ],
+      "properties": {
+        "evolution": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 160 }
+          ]
+        },
+        "summary": { "$ref": "#/$defs/publicString" },
+        "recordedAt": { "$ref": "#/$defs/timestamp" },
+        "recordHash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "identifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "id"],
+      "properties": {
+        "namespace": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 100 }
+          ]
+        },
+        "id": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 300 }
+          ]
+        }
+      }
+    },
+    "evidenceIdentifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "id"],
+      "properties": {
+        "namespace": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 100 }
+          ]
+        },
+        "id": {
+          "allOf": [
+            { "$ref": "#/$defs/publicString" },
+            { "maxLength": 300 }
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://(?![^/?#]*@)",
+          "maxLength": 2048
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deployment", "network", "asset", "evidence"],
+      "properties": {
+        "deployment": { "$ref": "#/$defs/identifier" },
+        "network": { "$ref": "#/$defs/identifier" },
+        "asset": { "$ref": "#/$defs/identifier" },
+        "evidence": { "$ref": "#/$defs/evidenceIdentifier" }
+      }
+    },
+    "appcoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["link", "recordedAt", "recordHash"],
+      "properties": {
+        "link": { "$ref": "#/$defs/link" },
+        "recordedAt": { "$ref": "#/$defs/timestamp" },
+        "recordHash": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

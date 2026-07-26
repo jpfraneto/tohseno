@@ -54,7 +54,7 @@ function renderTemplate(
 ): string {
   const values: Record<string, string> = {
     ...PRODUCT.copy,
-    INSTALL_COMMAND: PRODUCT.installCommand,
+    SOURCE_COMMAND: PRODUCT.sourceCommand,
     REPOSITORY_URL: PRODUCT.repositoryUrl,
     ...extra,
   };
@@ -120,17 +120,6 @@ const STATIC_FILES: Record<
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/og.png": { file: "og.png", type: "image/png" },
   "/favicon.png": { file: "favicon.png", type: "image/png" },
-  "/install.sh": {
-    file: "install.sh",
-    type: "text/x-shellscript; charset=utf-8",
-    revalidate: true,
-  },
-  // Bootstrap scripts and their pins must revalidate.
-  "/oneshot.sh": {
-    file: "oneshot.sh",
-    type: "text/x-shellscript; charset=utf-8",
-    revalidate: true,
-  },
 };
 
 const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;

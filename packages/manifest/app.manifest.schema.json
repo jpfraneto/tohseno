@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tohseno.com/schemas/app-manifest-v1.json",
-  "title": "TOHSENO generic app manifest",
+  "title": "TOHSENO app manifest",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -56,12 +56,13 @@
       "additionalProperties": false,
       "required": ["local", "remote"],
       "properties": {
-        "local": { "type": "array", "items": { "type": "string" } },
-        "remote": { "type": "array", "items": { "type": "string" } }
+        "local": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "remote": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
       }
     },
     "storage": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -75,6 +76,7 @@
     },
     "network": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -82,7 +84,7 @@
         "properties": {
           "id": { "$ref": "#/$defs/id" },
           "purpose": { "type": "string", "minLength": 1 },
-          "data": { "type": "array", "items": { "type": "string" } }
+          "data": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
         }
       }
     },
@@ -94,7 +96,7 @@
         "strategy": {
           "enum": ["none", "local-device", "wallet", "account"]
         },
-        "details": { "type": "string" }
+        "details": { "type": "string", "minLength": 1 }
       }
     },
     "entitlements": {
@@ -104,6 +106,7 @@
     },
     "integrations": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -136,6 +139,7 @@
         "appContentLeavesDevice": { "type": "boolean" },
         "declarations": {
           "type": "array",
+          "uniqueItems": true,
           "items": { "type": "string" }
         }
       }
@@ -148,12 +152,14 @@
         "ready": { "type": "boolean" },
         "declarations": {
           "type": "array",
+          "uniqueItems": true,
           "items": { "type": "string" }
         }
       }
     },
     "irreversibleOperations": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,

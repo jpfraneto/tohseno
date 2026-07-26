@@ -15,6 +15,7 @@ import {
   applyComposition,
   loadCatalog,
   resolveComposition,
+  resolveInstalledComposition,
   runAcceptanceChecks,
   validateSkillDescriptor,
   verifyLock,
@@ -66,7 +67,7 @@ describe("bundled app skill catalog", () => {
       const composition = resolveComposition(catalog, {
         schemaVersion: 1,
         template: "daily-game",
-        skills: ["share-card", "daily-challenge", "share-card"],
+        skills: [],
       });
       expect(composition.skills.map((skill) => skill.descriptor.id)).toEqual([
         "local-progress",
@@ -74,6 +75,45 @@ describe("bundled app skill catalog", () => {
         "daily-challenge",
         "share-card",
       ]);
+    });
+  });
+
+  test("rejects duplicate, template-overlapping, and noncanonical persisted skill lists", () => {
+    withCatalog((root) => {
+      const catalog = loadCatalog(root);
+      expect(() => resolveComposition(catalog, {
+        schemaVersion: 1,
+        template: "blank",
+        skills: ["share-card", "share-card"],
+      })).toThrow("must not contain duplicates");
+      expect(() => resolveComposition(catalog, {
+        schemaVersion: 1,
+        template: "daily-game",
+        skills: ["share-card"],
+      })).toThrow("already supplied by template");
+      expect(() => resolveInstalledComposition(catalog, {
+        schemaVersion: 1,
+        template: "daily-game",
+        skills: [
+          "daily-challenge",
+          "local-progress",
+          "rank-progression",
+          "share-card",
+        ],
+      })).toThrow("complete and canonical");
+
+      const installed = resolveComposition(catalog, {
+        schemaVersion: 1,
+        template: "daily-game",
+        skills: [],
+      });
+      expect(resolveInstalledComposition(catalog, {
+        schemaVersion: 1,
+        template: "daily-game",
+        skills: installed.skills.map((skill) => skill.descriptor.id),
+      }).skills.map((skill) => skill.descriptor.id)).toEqual(
+        installed.skills.map((skill) => skill.descriptor.id),
+      );
     });
   });
 

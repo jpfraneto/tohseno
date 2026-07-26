@@ -2,13 +2,15 @@ import { existsSync, lstatSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import type { CommandContext } from "./commands.ts";
 import { CliError, errorMessage, MACHINE_EXIT } from "./errors.ts";
-import { bunExecutable, runCaptured, runInherited, sanitizedRuntimeEnvironment } from "./process.ts";
+import {
+  bunExecutable,
+  runCaptured,
+  runInherited,
+  sanitizedRuntimeEnvironment,
+} from "./process.ts";
 import { readShotMetadata } from "./shot.ts";
 import { validateShotSlug } from "./slug.ts";
-import {
-  LegacyShotToolError,
-  trustedShotToolFromCache,
-} from "./trusted-tools.ts";
+import { trustedShotToolFromCache } from "./trusted-tools.ts";
 
 interface GlobalMachineArguments {
   shotValue?: string;
@@ -16,7 +18,9 @@ interface GlobalMachineArguments {
   json: boolean;
 }
 
-function parseGlobalArguments(arguments_: readonly string[]): GlobalMachineArguments {
+function parseGlobalArguments(
+  arguments_: readonly string[],
+): GlobalMachineArguments {
   let shotValue: string | undefined;
   const localArguments: string[] = [];
   let json = false;
@@ -24,8 +28,12 @@ function parseGlobalArguments(arguments_: readonly string[]): GlobalMachineArgum
     const argument = arguments_[index]!;
     if (argument === "--shot") {
       const value = arguments_[index + 1];
-      if (value === undefined || value.startsWith("--")) throw new CliError("--shot requires a path or slug", 2);
-      if (shotValue !== undefined) throw new CliError("--shot may be provided only once", 2);
+      if (value === undefined || value.startsWith("--")) {
+        throw new CliError("--shot requires a path or slug", 2);
+      }
+      if (shotValue !== undefined) {
+        throw new CliError("--shot may be provided only once", 2);
+      }
       shotValue = value;
       index += 1;
     } else if (argument === "--json") {
@@ -35,7 +43,9 @@ function parseGlobalArguments(arguments_: readonly string[]): GlobalMachineArgum
     }
   }
   if (json) localArguments.push("--json");
-  return shotValue === undefined ? { localArguments, json } : { shotValue, localArguments, json };
+  return shotValue === undefined
+    ? { localArguments, json }
+    : { shotValue, localArguments, json };
 }
 
 function nearestShot(start: string): string | null {
@@ -48,54 +58,67 @@ function nearestShot(start: string): string | null {
   }
 }
 
-function resolveExplicitShot(value: string, context: CommandContext): string {
-  const looksLikePath = isAbsolute(value) || value.startsWith(".") || value.includes(sep) || value.includes("/");
+function resolveExplicitShot(
+  value: string,
+  context: CommandContext,
+): string {
+  const looksLikePath = isAbsolute(value) ||
+    value.startsWith(".") ||
+    value.includes(sep) ||
+    value.includes("/");
   return looksLikePath
     ? resolve(context.cwd, value)
     : join(context.config.shotsDirectory, validateShotSlug(value));
 }
 
-function requireShot(parsed: GlobalMachineArguments, context: CommandContext): string {
+function requireShot(
+  parsed: GlobalMachineArguments,
+  context: CommandContext,
+): string {
   const path = parsed.shotValue === undefined
     ? nearestShot(context.cwd)
     : resolveExplicitShot(parsed.shotValue, context);
   if (path === null) {
-    throw new CliError("machine operations require the current shot or an explicit --shot <path-or-slug>", 2);
+    throw new CliError(
+      "machine operations require the current Shot or an explicit --shot <path-or-slug>",
+      2,
+    );
   }
-  if (!existsSync(path) || !lstatSync(path).isDirectory()) throw new CliError(`shot does not exist: ${path}`, 2);
-  if (readShotMetadata(path) === undefined) throw new CliError(`not a recognized shot: ${path}`, 2);
+  if (!existsSync(path) || !lstatSync(path).isDirectory()) {
+    throw new CliError(`Shot does not exist: ${path}`, 2);
+  }
+  if (readShotMetadata(path) === undefined) {
+    throw new CliError(
+      `not a recognized Shot: ${path}; create a fresh Shot with \`tohseno\``,
+      2,
+    );
+  }
   return path;
 }
 
 function operationName(arguments_: readonly string[]): string {
   const values = arguments_.filter((argument) => argument !== "--json");
-  if ((values[0] === "dev" || values[0] === "ios" || values[0] === "production" || values[0] === "token") && values[1]) {
-    return `${values[0]}.${values[1]}`;
+  if (values[0] === "ios" && values[1] !== undefined) {
+    return `ios.${values[1]}`;
   }
   return values[0] ?? "unknown";
 }
 
-const BANKR_MACHINE_OPERATIONS = new Set([
-  "token.status",
-  "token.launch",
-  "token.fees",
-]);
-
 export function machineRuntimeEnvironment(
-  operation: string,
+  _operation: string,
   source: Record<string, string | undefined> = process.env,
 ): Record<string, string | undefined> {
-  const environment = sanitizedRuntimeEnvironment(source);
-  if (BANKR_MACHINE_OPERATIONS.has(operation) && source.BANKR_API_KEY !== undefined) {
-    environment.BANKR_API_KEY = source.BANKR_API_KEY;
-  }
-  return environment;
+  return sanitizedRuntimeEnvironment(source);
 }
 
 function jsonFailure(
   operation: string,
   shot: string | null,
-  code: "INVALID_CONFIGURATION" | "MISSING_DEPENDENCY" | "UNHEALTHY_SERVICES" | "INTERNAL_FAILURE",
+  code:
+    | "INVALID_CONFIGURATION"
+    | "MISSING_DEPENDENCY"
+    | "UNHEALTHY_SERVICES"
+    | "INTERNAL_FAILURE",
   message: string,
 ): string {
   return JSON.stringify({
@@ -107,70 +130,29 @@ function jsonFailure(
   });
 }
 
-async function legacyVerify(
-  root: string,
-  operation: string,
-  json: boolean,
+export async function machineCommand(
+  arguments_: readonly string[],
   context: CommandContext,
 ): Promise<number> {
-  const trusted = trustedShotToolFromCache({
-    shotRoot: root,
-    releasesDirectory: context.config.cacheDirectory,
-    tool: "verify",
-  });
-  const verifier = trusted.executable;
-  const environment = sanitizedRuntimeEnvironment(context.environment);
-  const result = await runCaptured(
-    [bunExecutable(context.environment), verifier],
-    { cwd: trusted.root, env: environment },
-  );
-  for (const line of [result.stdout.trim(), result.stderr.trim()].filter(Boolean)) context.io.error(line);
-  if (json) {
-    if (result.exitCode === 0) {
-      context.io.out(JSON.stringify({
-        schemaVersion: 1,
-        ok: true,
-        operation,
-        shot: root,
-        result: { valid: true, verifier, compatibility: "legacy-shot" },
-      }));
-    } else {
-      context.io.out(jsonFailure(operation, root, "INVALID_CONFIGURATION", `shot verification failed with status ${result.exitCode}`));
-    }
-  }
-  return result.exitCode === 0 ? 0 : MACHINE_EXIT.invalidConfiguration;
-}
-
-export async function machineCommand(arguments_: readonly string[], context: CommandContext): Promise<number> {
   const parsed = parseGlobalArguments(arguments_);
   const operation = operationName(parsed.localArguments);
   let root: string | null = null;
   try {
     root = requireShot(parsed, context);
-    let trusted;
-    try {
-      trusted = trustedShotToolFromCache({
-        shotRoot: root,
-        releasesDirectory: context.config.cacheDirectory,
-        tool: "machine",
-      });
-    } catch (error) {
-      const localArguments = parsed.localArguments.filter((argument) => argument !== "--json");
-      if (
-        error instanceof LegacyShotToolError &&
-        localArguments.length === 1 &&
-        localArguments[0] === "verify"
-      ) {
-        return await legacyVerify(root, operation, parsed.json, context);
-      }
-      throw error;
-    }
+    const trusted = trustedShotToolFromCache({
+      shotRoot: root,
+      releasesDirectory: context.config.cacheDirectory,
+      tool: "machine",
+    });
     const command = [
       bunExecutable(context.environment),
       trusted.executable,
       ...parsed.localArguments,
     ];
-    const environment = machineRuntimeEnvironment(operation, context.environment);
+    const environment = machineRuntimeEnvironment(
+      operation,
+      context.environment,
+    );
     if (!parsed.json) {
       return await runInherited(command, {
         cwd: trusted.root,
@@ -186,13 +168,22 @@ export async function machineCommand(arguments_: readonly string[], context: Com
     try {
       output = JSON.parse(result.stdout) as unknown;
     } catch {
-      context.io.out(jsonFailure(operation, root, "INTERNAL_FAILURE", "shot-local machine operation emitted invalid JSON"));
+      context.io.out(
+        jsonFailure(
+          operation,
+          root,
+          "INTERNAL_FAILURE",
+          "Shot-local machine operation emitted invalid JSON",
+        ),
+      );
       return MACHINE_EXIT.internalFailure;
     }
     context.io.out(JSON.stringify(output));
     return result.exitCode;
   } catch (error) {
-    const exitCode = error instanceof CliError ? error.exitCode : MACHINE_EXIT.internalFailure;
+    const exitCode = error instanceof CliError
+      ? error.exitCode
+      : MACHINE_EXIT.internalFailure;
     if (parsed.json) {
       const code = exitCode === MACHINE_EXIT.invalidConfiguration
         ? "INVALID_CONFIGURATION"
@@ -201,7 +192,9 @@ export async function machineCommand(arguments_: readonly string[], context: Com
           : exitCode === MACHINE_EXIT.unhealthyServices
             ? "UNHEALTHY_SERVICES"
             : "INTERNAL_FAILURE";
-      context.io.out(jsonFailure(operation, root, code, errorMessage(error)));
+      context.io.out(
+        jsonFailure(operation, root, code, errorMessage(error)),
+      );
     } else {
       context.io.error(`tohseno: ${errorMessage(error)}`);
     }

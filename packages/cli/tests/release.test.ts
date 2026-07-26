@@ -71,7 +71,7 @@ describe("immutable factory releases", () => {
     await withScratchEnvironment(async (scratch) => {
       const releases = join(scratch.factoryHome, "cache", "releases");
       const prepared = await prepareFactoryRelease(REPOSITORY_ROOT, releases);
-      const victim = join(prepared.directory, "manifest", "validate.ts");
+      const victim = join(prepared.directory, "manifest", "app.ts");
       chmodSync(victim, 0o644);
       appendFileSync(victim, "\n// corrupted by release integrity test\n");
 

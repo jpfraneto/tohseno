@@ -124,7 +124,24 @@ describe("Tohseno Studio local server", () => {
       const clientScript = await fetch(`${studio.url}/studio.js`);
       expect(clientScript.status).toBe(200);
       const clientScriptText = await clientScript.text();
-      expect(clientScriptText).toContain('return `CREATION / ${status}`;');
+      expect(clientScriptText).toContain("function canonicalContactShot(value)");
+      expect(clientScriptText).toContain("function canonicalDetailShot(value)");
+      expect(clientScriptText).toContain(
+        "function canonicalProgressEvent(value, expectedJobId)",
+      );
+      expect(clientScriptText).not.toContain("function normalizedShot(value)");
+      expect(clientScriptText).not.toContain("value.url ?? value.href");
+      expect(clientScriptText).not.toContain("value.downloadUrl");
+      expect(clientScriptText).not.toContain("value.thumbnailUrl");
+      expect(clientScriptText).not.toContain("asNonEmptyString(value.filename)");
+      expect(clientScriptText).not.toContain("event.shot ?? event.sequence");
+      expect(clientScriptText).not.toContain("event.slug ??");
+      expect(clientScriptText).not.toContain(
+        "asNonEmptyString(value.error)",
+      );
+      expect(clientScriptText).not.toContain(
+        "A plain-text event is still useful",
+      );
       expect(clientScriptText).toContain('if (!quiet) setDetailStatus("");');
       expect(clientScriptText).toContain('"progress-plan"');
       expect(clientScriptText).toContain('"FIRST DEFINITION OF DONE"');
@@ -344,6 +361,35 @@ describe("Tohseno Studio local server", () => {
     });
   });
 
+  test("rejects obsolete Shot state without adopting or mutating it", async () => {
+    await withScratchEnvironment(async (scratch) => {
+      const config = resolveConfig({
+        cwd: scratch.root,
+        environment: scratch.environment,
+      });
+      const obsoleteRoot = join(scratch.shotsDirectory, "obsolete-shot");
+      mkdirSync(obsoleteRoot, { recursive: true });
+      const obsoletePath = join(obsoleteRoot, "continuity.manifest.json");
+      const obsoleteSource = '{"schemaVersion":"unrecognized"}\n';
+      writeFileSync(obsoletePath, obsoleteSource);
+      expect(() =>
+        createStudioApplication({
+          creation: {
+            config,
+            cwd: scratch.root,
+            environment: scratch.environment,
+            sourceRoot: REPOSITORY_ROOT,
+            agent: null,
+          },
+          security: { port: 4747 },
+        })
+      ).toThrow(
+        "pre-release compatibility is unsupported; create a fresh Shot",
+      );
+      expect(readFileSync(obsoletePath, "utf8")).toBe(obsoleteSource);
+    });
+  });
+
   test("creates through the shared factory, streams progress, and validates uploads", async () => {
     await withScratchEnvironment(async (scratch) => {
       const config = resolveConfig({
@@ -412,11 +458,29 @@ describe("Tohseno Studio local server", () => {
           application,
           "/api/shots",
         );
-        expect(await listed.json()).toMatchObject({
+        const listedPayload = await listed.json() as {
+          count: number;
+          shots: Array<Record<string, unknown>>;
+        };
+        expect(Object.keys(listedPayload).sort()).toEqual(["count", "shots"]);
+        expect(Object.keys(listedPayload.shots[0] ?? {}).sort()).toEqual([
+          "createdAt",
+          "evolution",
+          "lifecycle",
+          "name",
+          "screenshotUrl",
+          "sequence",
+          "shotId",
+          "slug",
+          "status",
+        ]);
+        expect(listedPayload).toMatchObject({
           count: 1,
           shots: [{
             slug: "studio-test",
             status: "READY",
+            lifecycle: "EVOLVING",
+            evolution: 0,
             screenshotUrl: null,
           }],
         });
@@ -425,7 +489,29 @@ describe("Tohseno Studio local server", () => {
           application,
           "/api/shots/studio-test",
         );
-        expect(await detail.json()).toMatchObject({
+        const detailPayload = await detail.json() as Record<string, unknown>;
+        expect(Object.keys(detailPayload).sort()).toEqual([
+          "createdAt",
+          "creation",
+          "evolution",
+          "factory",
+          "intention",
+          "lifecycle",
+          "name",
+          "references",
+          "screenshotUrl",
+          "sequence",
+          "shotId",
+          "slug",
+          "status",
+        ]);
+        expect(
+          Object.keys(
+            (detailPayload.references as Array<Record<string, unknown>>)[0] ??
+              {},
+          ).sort(),
+        ).toEqual(["imageUrl", "mediaType", "originalFilename", "url"]);
+        expect(detailPayload).toMatchObject({
           slug: "studio-test",
           intention: "A private one-paragraph writing app.\n",
           references: [{ originalFilename: "sketch.png" }],
@@ -725,11 +811,16 @@ describe("Tohseno Studio local server", () => {
       const workspaceEvents = readProgressJournal(
         progressJournalPath(scratch.shotsDirectory, result.jobId),
       );
-      const publishedIndex = workspaceEvents.findIndex(
-        (event) => event.type === "published",
+      const repositoryCreatedIndex = workspaceEvents.findIndex(
+        (event) => event.type === "repository-created",
       );
-      if (publishedIndex < 0) throw new Error("test shot was not published");
-      const inProgress = workspaceEvents.slice(0, publishedIndex + 1);
+      if (repositoryCreatedIndex < 0) {
+        throw new Error("test shot repository was not created");
+      }
+      const inProgress = workspaceEvents.slice(
+        0,
+        repositoryCreatedIndex + 1,
+      );
       const portableJournal = join(
         result.path,
         ".tohseno",
@@ -766,13 +857,17 @@ describe("Tohseno Studio local server", () => {
       try {
         expect(await listedStatus()).toBe("CREATING");
 
-        const published = inProgress.at(-1);
-        if (published === undefined) throw new Error("test journal is empty");
+        const repositoryCreated = inProgress.at(-1);
+        if (repositoryCreated === undefined) {
+          throw new Error("test journal is empty");
+        }
         appendFileSync(
           portableJournal,
           `${JSON.stringify({
-            ...published,
-            at: new Date(Date.parse(published.at) + 1).toISOString(),
+            ...repositoryCreated,
+            at: new Date(
+              Date.parse(repositoryCreated.at) + 1,
+            ).toISOString(),
             type: "failed",
             message: "Factory stopped.",
           })}\n`,
@@ -992,7 +1087,9 @@ describe("Tohseno Studio local server", () => {
       await expect(reporter.emit({ type: "completed" })).rejects.toThrow(
         "safety limit",
       );
-      expect(readProgressJournal(reporter.journalPath)).toEqual([]);
+      expect(() => readProgressJournal(reporter.journalPath)).toThrow(
+        "creation progress journal is not canonical",
+      );
     });
   });
 });
