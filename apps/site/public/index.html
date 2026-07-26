@@ -61,22 +61,22 @@
 
         <div class="command-panel" id="start">
           <div class="command-topline">
-            <span>TOHSENO / SOURCE RUN</span>
+            <span>TOHSENO / INSTALL</span>
             <span>FROM THOUGHT TO APP.</span>
           </div>
-          <div class="command-wrap" role="group" aria-label="Run TOHSENO from source or open Studio">
+          <div class="command-wrap" role="group" aria-label="Install TOHSENO and take a Shot">
             <code
               class="command"
               id="hero-command"
-              data-source-command
-              data-copy-value="{{SOURCE_COMMAND}}"
-              aria-label="Run TOHSENO from this source checkout"
-            ><span aria-hidden="true">$ </span>{{SOURCE_COMMAND}}<br><span aria-hidden="true">$ </span>bun run tohseno -- studio</code>
-            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="Command copied" aria-label="Copy source command" aria-describedby="hero-command">
-              Copy source command
+              data-install-command
+              data-copy-value="{{INSTALL_COMMAND}}"
+              aria-label="Install TOHSENO, then take a Shot"
+            ><span aria-hidden="true">$ </span>{{INSTALL_COMMAND}}<br><span aria-hidden="true">$ </span>tohseno</code>
+            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="Installer copied" aria-label="Copy installer command" aria-describedby="hero-command">
+              Copy installer
             </button>
           </div>
-          <p class="command-note">The prepared 0.5 release runs from this checkout and verifies content-addressed factory rails. Studio stays on your machine. macOS + Xcode are required to build and launch the current iOS app.</p>
+          <p class="command-note">The 0.5 installer verifies the immutable factory release and its managed runtime before anything runs. Your Shots and Studio stay on your machine. macOS + Xcode are required to build and launch the current iOS app.</p>
         </div>
       </div>
 
@@ -356,16 +356,16 @@
           <span>READY WHEN YOU ARE</span>
           <span>LOCAL-FIRST / ACCOUNT-FREE</span>
         </div>
-        <div class="command-wrap" role="group" aria-label="Run TOHSENO from source or open Studio">
+        <div class="command-wrap" role="group" aria-label="Install TOHSENO and take a Shot">
           <code
             class="command"
             id="final-command"
-            data-source-command
-            data-copy-value="{{SOURCE_COMMAND}}"
-            aria-label="Run TOHSENO from this source checkout"
-          ><span aria-hidden="true">$ </span>{{SOURCE_COMMAND}}<br><span aria-hidden="true">$ </span>bun run tohseno -- studio</code>
-          <button class="copy-button" type="button" hidden data-copy-command data-copied-label="Command copied" aria-label="Copy source command" aria-describedby="final-command">
-            Copy source command
+            data-install-command
+            data-copy-value="{{INSTALL_COMMAND}}"
+            aria-label="Install TOHSENO, then take a Shot"
+          ><span aria-hidden="true">$ </span>{{INSTALL_COMMAND}}<br><span aria-hidden="true">$ </span>tohseno</code>
+          <button class="copy-button" type="button" hidden data-copy-command data-copied-label="Installer copied" aria-label="Copy installer command" aria-describedby="final-command">
+            Copy installer
           </button>
         </div>
       </div>

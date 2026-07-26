@@ -2,10 +2,17 @@
 
 ## Human flow
 
-Run from this source checkout:
+Install the canonical release, then take a Shot from any directory:
 
 ```sh
-bun run tohseno
+curl -fsSL https://tohseno.com/install.sh | sh
+```
+
+Open a new terminal, or follow the PATH instruction printed by the installer,
+then run:
+
+```sh
+tohseno
 ```
 
 On first use TOHSENO explains where repositories are created, what stays
@@ -24,9 +31,7 @@ cwd-independent later commands.
 
 ## Commands
 
-The block below names the managed executable interface prepared by the 0.5.0
-artifact. It is not published; from this checkout, prefix arguments with
-`bun run tohseno --`.
+The published `0.5.0` installer provides this managed executable interface:
 
 ```sh
 tohseno <shot>
@@ -41,6 +46,14 @@ tohseno run <shot>
 tohseno preview <shot>
 tohseno studio
 tohseno doctor
+```
+
+From a contributor checkout, exercise the same arguments without installing:
+
+```sh
+bun run tohseno --
+bun run tohseno -- create my-shot --no-launch --no-interactive
+bun run tohseno -- verify my-shot
 ```
 
 An Evolution changes the existing Shot; it never allocates another Shot or
@@ -88,8 +101,7 @@ tohseno machine verify --json [--shot <path-or-slug>]
 ```
 
 Direct `bun .tohseno/machine.ts ...` is the ejected interface. The
-cwd-independent `tohseno` wrapper becomes owner-facing only after the managed
-artifact is published and installed.
+cwd-independent `tohseno` wrapper is the installed owner-facing interface.
 
 ## External authority
 

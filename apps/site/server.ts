@@ -54,7 +54,7 @@ function renderTemplate(
 ): string {
   const values: Record<string, string> = {
     ...PRODUCT.copy,
-    SOURCE_COMMAND: PRODUCT.sourceCommand,
+    INSTALL_COMMAND: PRODUCT.installCommand,
     REPOSITORY_URL: PRODUCT.repositoryUrl,
     ...extra,
   };
@@ -117,6 +117,11 @@ const STATIC_FILES: Record<
     type: "text/javascript; charset=utf-8",
     revalidate: true,
   },
+  "/install.sh": {
+    file: "install.sh",
+    type: "text/x-shellscript; charset=utf-8",
+    revalidate: true,
+  },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/og.png": { file: "og.png", type: "image/png" },
   "/favicon.png": { file: "favicon.png", type: "image/png" },
@@ -129,6 +134,7 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
   if (pathname === "/healthz") return "health";
+  if (pathname === "/install.sh") return "installer";
   if (STATIC_FILES[pathname]) return "static-asset";
   if (SHOT_ICON_PATH.test(pathname)) return "shot-icon";
   return "unmatched";

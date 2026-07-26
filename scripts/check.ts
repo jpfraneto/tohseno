@@ -15,6 +15,8 @@ const PRIVATE_PRODUCT_INPUTS = [
   "MASTER_EVOLUTIONARY_PROMPT.md",
   "TOHSENO_EVOLUTION_PROMPT.md",
 ] as const;
+const PUBLIC_INSTALL_COMMAND =
+  "curl -fsSL https://tohseno.com/install.sh | sh" as const;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -211,6 +213,8 @@ async function validateStaticSurface(): Promise<void> {
   const docs = await readText("apps/site/public/docs.html");
   const privacy = await readText("apps/site/public/privacy.html");
   const robots = await readText("apps/site/public/robots.txt");
+  const siteConfig = await readText("apps/site/config.ts");
+  const siteServer = await readText("apps/site/server.ts");
   const htmlPages: Array<[string, string]> = [
     ["landing", index],
     ["docs", docs],
@@ -223,7 +227,7 @@ async function validateStaticSurface(): Promise<void> {
   ];
 
   for (const required of [
-    "{{SOURCE_COMMAND}}",
+    "{{INSTALL_COMMAND}}",
     "data-copy-command",
     "data-shot-toggle",
     "{{REPOSITORY_URL}}",
@@ -232,7 +236,7 @@ async function validateStaticSurface(): Promise<void> {
     "A local intention compiler and open app factory for builders with more ideas than time",
     "Get rid of your recurring thoughts",
     "INFINITE SHOTS.",
-    "Copy source command",
+    "Copy installer command",
     "/shot-icons/shot-100.webp",
     'href="/docs"',
     'href="/privacy"',
@@ -271,6 +275,39 @@ async function validateStaticSurface(): Promise<void> {
     "Public style and script assets must not reference other origins",
   );
   const publicCopy = htmlPages.map(([, page]) => page).join("\n");
+  assert(
+    siteConfig.includes(
+      `installCommand: ${JSON.stringify(PUBLIC_INSTALL_COMMAND)}`,
+    ),
+    "Site config must expose the exact canonical public installer command",
+  );
+  assert(
+    siteServer.includes("INSTALL_COMMAND") &&
+      siteServer.includes("PRODUCT.installCommand"),
+    "Site rendering must bind the canonical installer command placeholder",
+  );
+  for (const obsoleteSourceSurface of [
+    "{{SOURCE_COMMAND}}",
+    "data-source-command",
+    "Copy source command",
+    "COPY SOURCE COMMAND",
+    "bun run tohseno",
+    "prepared, unpublished",
+    "No 0.5 installer has been published",
+    "No installer, package, tag, or deployment has been published",
+  ]) {
+    assert(
+      !publicCopy.includes(obsoleteSourceSurface) &&
+        !siteConfig.includes(obsoleteSourceSurface) &&
+        !siteServer.includes(obsoleteSourceSurface),
+      `Public surface must not retain source-checkout release copy: ${obsoleteSourceSurface}`,
+    );
+  }
+  assert(
+    !siteConfig.includes("sourceCommand") &&
+      !siteServer.includes("SOURCE_COMMAND"),
+    "Public site must not retain the source-command template contract",
+  );
   assert(
     !publicCopy.includes('href="/intake"'),
     "Public pages must not link to the archived intake product",
@@ -425,8 +462,8 @@ async function validateGenesisBoundary(): Promise<void> {
   }
 }
 
-async function validatePinnedInstallerBoundary(): Promise<void> {
-  console.log("\n[check] pinned installer boundary");
+async function validateProductionInstallerBoundary(): Promise<void> {
+  console.log("\n[check] production installer serving boundary");
 
   const installer = await readText("apps/site/public/install.sh");
   assert(
@@ -500,9 +537,9 @@ async function validatePinnedInstallerBoundary(): Promise<void> {
   );
   const server = await readText("apps/site/server.ts");
   assert(
-    !server.includes('"/install.sh"') &&
+    server.includes('"/install.sh"') &&
       !server.includes('"/oneshot.sh"'),
-    "the pinned installer must remain unserved until the serving commit; the alternate bootstrap must remain absent",
+    "the exact pinned installer must be served and the alternate bootstrap must remain absent",
   );
 }
 
@@ -567,7 +604,7 @@ async function main(): Promise<void> {
   await validateRepositoryJson();
   await validateStaticSurface();
   await validateGenesisBoundary();
-  await validatePinnedInstallerBoundary();
+  await validateProductionInstallerBoundary();
   await validateRepositoryHygiene();
   await run("unstaged whitespace errors", ["git", "diff", "--check"]);
   await run("staged whitespace errors", ["git", "diff", "--cached", "--check"]);

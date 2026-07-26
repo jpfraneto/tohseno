@@ -39,9 +39,10 @@ const browserScriptPath = fileURLToPath(
 const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
+const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/install.sh | sh";
 
 describe("public pages", () => {
-  test("serves the canonical source-run path and no stale intake surface", async () => {
+  test("serves the canonical installer path and no stale intake surface", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -52,13 +53,13 @@ describe("public pages", () => {
       .digest("hex")
       .slice(0, 12);
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
-    expect(body).toContain("bun run tohseno");
-    expect(body).toContain("bun run tohseno -- studio");
+    expect(body).toContain(INSTALL_COMMAND);
+    expect(body).toContain("$ </span>tohseno");
     expect(body).toContain(
-      'data-copy-value="bun run tohseno"',
+      `data-copy-value="${INSTALL_COMMAND}"`,
     );
-    expect(body).toContain("Copy source command");
-    expect(body).not.toContain("bun run tohseno:link");
+    expect(body).toContain("Copy installer");
+    expect(body).not.toContain("bun run tohseno");
     expect(body).toContain("GIVE EVERY");
     expect(body).toContain("IDEA A");
     expect(body).toContain("The fastest way to prototype iOS apps");
@@ -126,15 +127,15 @@ describe("public pages", () => {
         expect(body).toContain("The prototype is the payoff");
         expect(body).toContain("iOS is the only implemented app platform");
         expect(body).toContain(
-          "bun run tohseno -- create --file intention.md --reference sketch.png",
+          "tohseno create --file intention.md --reference sketch.png",
         );
         expect(body).toContain("One factory, multiple doors");
-        expect(body).toContain("bun run tohseno -- studio");
+        expect(body).toContain("tohseno studio");
         expect(body).toContain(
           "binds to <code>127.0.0.1</code>, never the LAN",
         );
-        expect(body).toContain("bun run tohseno -- run &lt;shot&gt;");
-        expect(body).toContain("bun run tohseno -- preview &lt;shot&gt;");
+        expect(body).toContain("tohseno run &lt;shot&gt;");
+        expect(body).toContain("tohseno preview &lt;shot&gt;");
         expect(body).toContain("it is not an in-browser iOS emulator");
         expect(body).toContain(
           "additionally requires Apple Silicon, a native arm64 Node.js 20 or newer",
@@ -150,6 +151,9 @@ describe("public pages", () => {
         expect(body).toContain(
           "After every coding-agent exit—including a failed one—the verifier",
         );
+        expect(body).toContain(INSTALL_COMMAND);
+        expect(body).not.toContain("prepared, unpublished");
+        expect(body).not.toContain("bun run tohseno");
       } else {
         expect(body).toContain("Factory releases are content-addressed locally");
         expect(body).toContain(
@@ -185,6 +189,7 @@ describe("public pages", () => {
 
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(copyValue)");
+    expect(browserScript).toContain('querySelector("[data-install-command]")');
     expect(browserScript).toContain('shotToggle.setAttribute("aria-expanded"');
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
@@ -285,16 +290,37 @@ describe("public pages", () => {
     }
   });
 
-  test("installer and alternate bootstrap routes are not served", async () => {
+  test("serves the canonical installer byte-for-byte and keeps the alternate bootstrap removed", async () => {
     const application = await testApplication();
+    const expected = readFileSync(installerPath);
+    const response = await application.fetch(request("/install.sh"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "text/x-shellscript; charset=utf-8",
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(expected);
     expect((await application.fetch(request("/oneshot.sh"))).status).toBe(404);
-    expect((await application.fetch(request("/install.sh"))).status).toBe(404);
   });
 
-  test("the published 0.5.0 installer is pinned but remains unserved", async () => {
-    expect(
-      createHash("sha256").update(readFileSync(installerPath)).digest("hex"),
-    ).toBe("442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca");
+  test("serves installer HEAD metadata without installer bytes", async () => {
+    const application = await testApplication();
+    const response = await application.fetch(
+      request("/install.sh", { method: "HEAD" }),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "text/x-shellscript; charset=utf-8",
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect((await response.arrayBuffer()).byteLength).toBe(0);
+  });
+
+  test("the published 0.5.0 installer remains portable and self-identifies", async () => {
     const child = Bun.spawn(["/bin/sh", installerPath, "--help"], {
       stdin: "ignore",
       stdout: "pipe",

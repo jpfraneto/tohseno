@@ -25,8 +25,9 @@ open Shot.xcodeproj
 ```
 
 Bun here is the ejected verification toolchain dependency. A published managed
-artifact may supply it behind `tohseno verify <shot>` and
-`tohseno run <shot>`; no 0.5.0 managed artifact has been published.
+artifact supplies it behind `tohseno verify <shot>` and
+`tohseno run <shot>`. Removing that managed installation does not remove or
+invalidate the Shot’s embedded verifier and machine protocol.
 
 ## Composition ownership
 

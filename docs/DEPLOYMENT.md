@@ -8,9 +8,10 @@ approval.
 ## Public site
 
 `apps/site` is one stateless Bun process serving the landing page,
-documentation, privacy page, `GET /healthz`, and static presentation assets.
-It has no installer route, alternate bootstrap route, database, volume,
-account, form, analytics, or generated-app content path.
+documentation, privacy page, `GET /healthz`, static presentation assets, and
+the canonical `GET /install.sh` release installer. It has no alternate
+bootstrap route, application database or volume dependency, account, form,
+analytics, or generated-app content path.
 
 - Container: repository `Dockerfile`, non-root `bun` user.
 - Environment: `NODE_ENV=production`, `PORT`,
@@ -19,7 +20,8 @@ account, form, analytics, or generated-app content path.
 - Deployment command: `railway up` from the repository root, only after
   explicit owner approval.
 
-Pushing Git does not deploy the site.
+Pushing Git does not deploy the site. The installer is served with
+`Cache-Control: public, max-age=0, must-revalidate`.
 
 ## Managed CLI artifact
 
@@ -102,7 +104,7 @@ Release ordering is part of the trust boundary:
 7. With separate site-deployment approval, run `railway up` and verify
    `/healthz` and the reviewed public routes.
 
-A prepared publication command may be reviewed with placeholders:
+A future versioned publication command must be reviewed with exact values:
 
 ```sh
 gh release create "cli-v<version>" \
@@ -116,16 +118,24 @@ gh release create "cli-v<version>" \
 Do not run it without explicit owner approval. Package-registry publication is
 not required by the current installer design.
 
-## Pinned installer boundary
+## Canonical installer serving boundary
 
 `apps/site/public/install.sh` pins the exact public 0.5.0 archive and tree. Its
 reviewed SHA-256 is
 `442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca`.
 It accepts only a canonical 0.5 managed home, rejects preexisting noncanonical
-install roots without mutating them, and contains no migration branch. The site
-does not route to it in this pin commit, and there is no second installer or
-workspace creator. Serving the canonical installer is a separate reviewed
-change.
+install roots without mutating them, and contains no migration branch. The
+reviewed installer pin is commit
+[`1721e139134e1ee78fc32482a20823d06393be59`](https://github.com/jpfraneto/tohseno/commit/1721e139134e1ee78fc32482a20823d06393be59).
+The serving change exposes those exact bytes at
+`https://tohseno.com/install.sh`; `/oneshot.sh` remains absent and there is no
+second installer or workspace creator.
+
+The public installation command is:
+
+```sh
+curl -fsSL https://tohseno.com/install.sh | sh
+```
 
 ## Shot production boundary
 

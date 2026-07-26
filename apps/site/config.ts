@@ -1,6 +1,6 @@
 export const PRODUCT = Object.freeze({
   repositoryUrl: "https://github.com/jpfraneto/tohseno",
-  sourceCommand: "bun run tohseno",
+  installCommand: "curl -fsSL https://tohseno.com/install.sh | sh",
   copy: {
     BRAND: "TOHSENO",
     HEADER_NOTE: "ONE SHOT",
@@ -9,9 +9,9 @@ export const PRODUCT = Object.freeze({
     HERO_HEADLINE: "Give every idea a shot.",
     HERO_LEDE:
       "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
-    HERO_COPY_LABEL: "COPY SOURCE COMMAND",
-    HERO_COPIED_LABEL: "COMMAND COPIED",
-    HERO_STEP_1: "open the TOHSENO source",
+    HERO_COPY_LABEL: "COPY INSTALLER",
+    HERO_COPIED_LABEL: "INSTALLER COPIED",
+    HERO_STEP_1: "install TOHSENO",
     HERO_STEP_2: "run tohseno",
     HERO_STEP_3: "tell your coding agent what to make",
     HERO_REQUIREMENTS:

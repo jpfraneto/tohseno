@@ -12,13 +12,20 @@ Shot, with the same stable identity and repository. Public distribution has
 three precise protocol states: `EVOLVING`, `PUBLISHED`, and `APP_STORE`.
 
 ```sh
-bun install --frozen-lockfile
-bun run tohseno
+curl -fsSL https://tohseno.com/install.sh | sh
 ```
 
-This checkout is the implemented `0.5.0` source and its managed release is
-**Prepared**, not published. Publishing the artifact, updating the canonical
-installer, and deploying the site remain owner-approved external actions.
+Open a new terminal, or follow the PATH instruction printed by the installer,
+then run:
+
+```sh
+tohseno
+```
+
+TOHSENO `0.5.0` is **Implemented** and published from the canonical source
+commit. The public installer verifies the immutable release archive and its
+authenticated internal tree, then installs a pinned Bun runtime and the
+cwd-independent `tohseno` command.
 
 You get ordinary SwiftUI source, Git history, tests, a truthful manifest,
 composition locks, and local operating rails. New apps start with local,
@@ -44,8 +51,19 @@ The terminal and local Studio use the same engine:
 8. run pinned manifest, privacy, composition, and skill checks;
 9. build and launch in Simulator when the Mac supports it.
 
-In this prepared source checkout, use `bun run tohseno`; the managed
-`tohseno` executable is not published. Explicit source commands are:
+The installed command works from any directory:
+
+```sh
+tohseno create my-app --no-launch --no-interactive
+tohseno create --file intention.md --reference sketch.png
+tohseno evolve my-app
+tohseno status my-app
+tohseno verify my-app
+tohseno run my-app
+tohseno my-app
+```
+
+Contributors can exercise the same interface directly from a source checkout:
 
 ```sh
 bun run tohseno -- create my-app --no-launch --no-interactive
@@ -57,8 +75,8 @@ bun run tohseno -- run my-app
 bun run tohseno -- my-app
 ```
 
-The prepared managed artifact supplies cwd-independent `tohseno` commands and
-its pinned runtime, but no installer or package for 0.5.0 has been published.
+The managed release and contributor checkout use the same canonical factory
+source, manifest validator, composition engine, and Shot machine rails.
 
 ## The native factory
 

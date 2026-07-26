@@ -1,7 +1,7 @@
 # Local development
 
-Repository work uses an existing Bun 1.2.18 or newer. The prepared managed
-artifact pins its runtime, but no 0.5.0 installer is served.
+The public `0.5.0` installer manages its own pinned Bun runtime. Repository
+work continues to use an existing Bun 1.2.18 or newer:
 
 ```sh
 bun install
@@ -9,7 +9,7 @@ bun run check
 ```
 
 The full gate runs strict TypeScript, Bun tests, manifest/protocol fixtures,
-public-site and frozen-installer boundaries, deterministic artifact checks,
+public-site and published-installer boundaries, deterministic artifact checks,
 secret hygiene, and Git whitespace checks.
 
 ## Develop the launcher and machine protocol
@@ -92,9 +92,10 @@ simultaneous Studio creation. Closing it with `Ctrl-C` must delete the launcher,
 clean staging, stop watchers, and await the active job. No manual test should
 add a LAN bind or a general command endpoint.
 
-## Rehearse the managed installer
+## Rehearse the managed release
 
-Build the deterministic source artifact without publishing it:
+Rebuild the deterministic source artifact locally without replacing the
+published release:
 
 ```sh
 bun run tohseno:release
@@ -124,8 +125,8 @@ sh apps/site/public/install.sh --help
 sh apps/site/public/install.sh --dry-run
 ```
 
-The default dry run is valid only after the current artifact checksum has been
-finalized. No test modifies a real shell profile or contacts public
+The default dry run reports the checksum-pinned public artifact without
+installing it. No test modifies a real shell profile or contacts public
 infrastructure.
 
 ## Exercise an isolated Shot manually
@@ -154,9 +155,8 @@ The site is a stateless `Bun.serve` process with raw HTML/CSS and minimal
 same-origin JavaScript. `.env.example` contains its only four settings:
 `NODE_ENV`, `PORT`, `BASE_URL`, and `TRUST_PROXY`.
 
-The frozen canonical installer remains a source artifact and is deliberately
-not routed by the 0.5 site. Verify that the site exposes no installer or
-alternate bootstrap route:
+The site serves the checksum-pinned canonical installer at `/install.sh`.
+There is no alternate bootstrap route; `/oneshot.sh` must remain absent:
 
 ```sh
 bun test apps/site/tests/http-routes.test.ts

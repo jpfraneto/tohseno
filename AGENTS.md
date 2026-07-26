@@ -129,8 +129,13 @@ The canonical `0.5.0` archive and manifest are published from source commit
 `cli-v0.5.0`. Two independent clean builds and the downloaded public assets
 were byte-identical. The canonical `apps/site/public/install.sh` pins that
 exact archive and authenticated tree, rejects pre-release managed homes
-without mutation, and remains unserved until the separate serving commit.
-There is no alternate bootstrap or workspace-creation path.
+without mutation, and is served as the one public installation path. The
+installer pin is commit
+`1721e139134e1ee78fc32482a20823d06393be59`, and the reviewed installer
+SHA-256 is
+`442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca`.
+There is no alternate bootstrap or workspace-creation path; `oneshot.sh` must
+remain absent.
 
 Release ordering remains part of the trust boundary:
 
@@ -140,7 +145,9 @@ Release ordering remains part of the trust boundary:
 4. verify the downloaded archive against the frozen local bytes;
 5. pin the canonical installer in a separately reviewed follow-up while it
    remains unserved;
-6. expose that exact installer only in a later reviewed serving commit.
+6. expose that exact installer only in a later reviewed serving commit;
+7. deploy that exact serving commit through the established production path
+   and verify the public installer bytes before clean-environment use.
 
 Site deploys go out with `railway up`, not by pushing to GitHub, and no deploy
 occurs without explicit owner approval.

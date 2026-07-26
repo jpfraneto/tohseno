@@ -4,8 +4,14 @@ The TOHSENO executable is the terminal door, local Studio, and deterministic
 factory for independent native iOS Shots.
 
 ```sh
-bun run tohseno
-bun run tohseno -- studio
+curl -fsSL https://tohseno.com/install.sh | sh
+```
+
+Open a new terminal, or follow the installer’s printed PATH instruction:
+
+```sh
+tohseno
+tohseno studio
 ```
 
 Both doors normalize private input, use the selected coding agent for a strict
@@ -24,10 +30,10 @@ bun run tohseno -- verify my-app
 bun run tohseno -- run my-app
 ```
 
-The prepared, unpublished managed artifact provides the cwd-independent
-`tohseno` wrapper and its pinned runtime. Low-level ejected machine operations
-remain embedded in each Shot and are authenticated against that Shot’s pinned
-factory release.
+The published `0.5.0` managed release provides the cwd-independent `tohseno`
+wrapper and its pinned runtime. Low-level ejected machine operations remain
+embedded in each Shot and are authenticated against that Shot’s pinned factory
+release.
 
 Shots use `app.manifest.json`, `tohseno.skills.json`,
 `tohseno.skills.lock`, `SHOT.md`, and `DONE.md`.
@@ -45,5 +51,5 @@ bun run typecheck
 bun run tohseno:release
 ```
 
-Publishing a release is an external owner-approved action. See
+Publishing or replacing a release is an external owner-approved action. See
 [`docs/CLI.md`](../../docs/CLI.md) for the complete command reference.
