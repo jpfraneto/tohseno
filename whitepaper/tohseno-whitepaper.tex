@@ -123,7 +123,7 @@
 \vspace{0.45in}
 {\monolabel\small GENESIS WHITEPAPER AND CONSTITUTIONAL SPECIFICATION\par}
 \vspace{0.7em}
-{\ttfamily\small Version 0.2 --- July 26, 2026\par}
+{\ttfamily\small Version 0.3 --- July 26, 2026\par}
 {\ttfamily\small Status: Foundational, pre-stable-release (factory 0.5.0)\par}
 {\ttfamily\small Origin: JP Franetovic / Anky, Inc.\par}
 
@@ -137,9 +137,43 @@ Most shots miss. The prototype is the payoff.
 
 \vfill
 {\monolabel\scriptsize\color{halide}TOH / ROLL 01 / WRITTEN BEFORE THE FIRST STABLE RELEASE\par}
+\vspace{0.6em}
+{\itshape\small In memory of Steve Jobs.\par}
 
 \end{center}
 \end{titlepage}
+
+% =====================================================================
+% INTENT AND EPIGRAPH
+% =====================================================================
+\thispagestyle{empty}
+\vspace*{2.0in}
+\begin{center}
+\begin{minipage}{0.82\textwidth}
+This document, and the system it describes, exists in service of one
+intent: that any person who carries an idea for software should be able
+to give it a body --- to build it, hold it, run it on the phone in their
+pocket, and learn from it what it wants to become. \TOH{} is that intent
+given a system: one intention that gives birth to a factory, built so
+that millions of other intentions can be born through it. It is written
+deliberately in the language of the Apple ecosystem, and in memory of
+the man who spent his life insisting that the computer belongs in the
+hands of ordinary people --- as a bicycle for the mind.
+\end{minipage}
+
+\vspace{1.6in}
+\begin{minipage}{0.82\textwidth}
+\itshape\large
+``Everything around you that you call life was made up by people that
+were no smarter than you. And you can change it, you can influence it,
+you can build your own things that other people can use. Once you learn
+that, you'll never be the same again.''
+\end{minipage}
+
+\vspace{1em}
+{\monolabel\scriptsize\color{halide}STEVE JOBS, 1994\par}
+\end{center}
+\clearpage
 
 % =====================================================================
 % A NOTE TO WHOEVER FINDS THIS
@@ -208,8 +242,8 @@ believed software should become.
 
 \TOH{} introduces the \textbf{Shot} as a primitive for personal software.
 
-A Shot is one coherent intention embodied as an independent application and
-carried forward through a continuous lineage. The first intent creates the
+A Shot is one coherent intention embodied as an independently owned native
+iOS application and carried forward through a continuous lineage. The first intent creates the
 Shot. Subsequent intents do not create new Shots; they create
 \textbf{Evolutions} of the same Shot.
 
@@ -227,10 +261,12 @@ through Apple's App Store. These states are distribution milestones, not
 the end of development. A Shot may continue evolving indefinitely after
 publication or release.
 
-The \TOH{} factory is open-source and local-first. A builder must be able
-to install \TOH{}, create a Shot, evolve it, verify it, publish its source,
-and ship it without a \TOH{} account, mobile app, wallet, blockchain
-transaction, token, or official server. Every generated application must
+The \TOH{} factory is open-source and local-first, and it is built for the
+Apple ecosystem on purpose: the factory is a Mac, the site of truth is an
+iPhone, and the summit of distribution is the App Store. A builder must be
+able to install \TOH{}, create a Shot, evolve it, verify it, publish its
+source, and ship it without a \TOH{} account, mobile app, wallet,
+blockchain transaction, token, or official server. Every generated application must
 remain independent and operable if \TOH{} disappears --- \emph{ejectable
 from birth}, a property true at creation time, not a later export feature.
 
@@ -321,6 +357,50 @@ Take another one.
 \end{creed}
 
 % =====================================================================
+\section{The platform: Apple, on purpose}
+% =====================================================================
+
+\TOH{} builds native iOS applications. Not web apps that pretend, not
+cross-platform compromises, not Android --- iOS. This is not a limitation
+waiting to be lifted. It is a strategic decision, owned from day one.
+
+\TOH{} is for a specific person: someone who owns a Mac and an iPhone and
+wants to test their ideas on their actual phone. The Mac is the factory.
+The iPhone is where the idea becomes true or fails to. Every Shot is a
+SwiftUI application with its own Xcode project, built with Apple's
+toolchain, run in Apple's Simulator, felt on Apple's hardware, and
+distributed --- when it earns it --- through Apple's App Store. The
+canonical lifecycle does not end at ``deployed somewhere''; it ends at
+\texttt{APP\_STORE}, because that is the summit of distribution in the
+ecosystem \TOH{} inhabits.
+
+There are cloud providers where people without Macs can build and run iOS
+apps, and they serve that audience well. \TOH{} does not compete for that
+seat. It plants itself where the full loop is physically closest: the
+intention in one hand, the phone in the other.
+
+Focus of this kind is usually apologized for. \TOH{} celebrates it
+instead. The Apple ecosystem is where personal software is most personal
+--- the device people carry against their skin, the platform whose
+founding conviction was that computers belong to individual humans, built
+by the company that turned taste into an engineering discipline. There is
+more than enough market inside that focus for it to be a smart decision,
+and there is something better than market inside it: coherence. A factory
+that speaks one platform's language fluently beats a factory that speaks
+five platforms' languages badly.
+
+The commitment runs all the way down to the protocol's economics:
+\texttt{\$TOHSENO}, the genesis appcoin, launches paired with
+\texttt{\$AAPL} on Robinhood Chain (\S\ref{sec:tohsenocoin}). The coin of the factory and
+the stock of the ecosystem it builds for, bound in one market. They go
+hand in hand, because the strategy does.
+
+\begin{creed}
+One ecosystem, chosen deliberately.\\
+We build for Apple, and we are perfectly fine with that.
+\end{creed}
+
+% =====================================================================
 \section{The problem}
 % =====================================================================
 
@@ -394,14 +474,63 @@ The network is additive. It provides continuity, not permission.
 \subsection{Identity is either fragmented or invasive}
 
 Most apps create their own accounts. The same human becomes a separate
-database row everywhere. The apparent alternative is a universal
-identifier exposed to every app, which enables effortless correlation and
-surveillance.
+database row everywhere.
 
-\TOH{} seeks a third model: one underlying identity per human; a different
-identity presented to each app; explicit, human-authorized proofs when
-identities should be linked. Continuity should not require automatic
-visibility.
+The present state of the art softens the friction without changing the
+structure. \emph{Sign in with Apple} and \emph{Sign in with Google} let a
+person bring an identity instead of inventing one --- one tap, no new
+password, and Apple's variant can even hide the user's email behind a
+relay. These are real improvements, and \TOH{} apps can use them. But
+they resolve the fragmentation by routing every login through one of two
+companies. The identity is brought, not owned; the platform sees every
+door it opens for you. The apparent alternative --- a universal
+identifier exposed directly to every app --- is worse: it enables
+effortless correlation and surveillance.
+
+\TOH{} seeks a third model, built on modern cryptography rather than on a
+provider's goodwill: one underlying identity per human, held by the human;
+a different identity mathematically derived for each app, so that no two
+apps can correlate their users by default; and explicit, human-authorized
+proofs when two identities \emph{should} be linked. Continuity should not
+require automatic visibility. Section~\ref{sec:identity} specifies the
+model.
+
+\subsection{Distribution has become a race for attention}
+
+Here is the strange condition of the present moment: making an app has
+never been easier, and getting anyone to care about it has never felt
+more degrading.
+
+The distribution mechanisms that exist today --- TikTok, Instagram,
+short-form feeds, growth loops --- do not rank software by what it
+solves. They rank it by what it can make a stranger feel in 1.5 seconds.
+So builders learn, rationally, to optimize for the feed: the hook before
+the substance, the trend before the idea, the clone of last week's
+winner before the thing only they could have made. The result is a
+market flooded with copies of copies --- slop --- where the payoff goes
+to whoever reverse-engineers the algorithm fastest, and originality
+becomes a cost rather than an asset. It is a race to the bottom of the
+brainstem, and what it takes from humanity is precise: the software that
+never gets built because its builder concluded, correctly, that nobody
+would scroll past it slowly enough to notice.
+
+\TOH{} does not pretend these channels can be eliminated, and does not
+try. They are where people are. What it proposes is a different center
+of gravity. In \TOH{}, the most important artifact of the entire
+development lifecycle is the app's \textbf{one-liner}: the single
+sentence that answers ``what does this app \emph{do}?'' --- the intent
+the whole Shot revolves around. The factory asks for it first, the plan
+is judged against it, every Evolution sharpens toward it, and when the
+app finally travels through whatever channel carries it, the one-liner
+is what travels. An app built around the problem it solves can survive
+any distribution mechanism, because the sentence is the distribution.
+An app built around a distribution mechanism survives nothing, least of
+all its own success.
+
+\begin{creed}
+The feed rewards imitation.\\
+The one-liner rewards intention.
+\end{creed}
 
 \subsection{Distribution and economics are disconnected from creation}
 
@@ -440,6 +569,26 @@ larger ``Project.''
 
 Within the canonical \TOH{} ontology, the Shot is the application-level
 object.
+
+The ontology is physical, not just conceptual. Every Shot created by the
+factory lives in one place:
+
+\begin{proto}
+~/tohseno/shots/
+|-- the-trenches/
+|-- write-before-scroll/
+`-- garden-memory/
+\end{proto}
+
+One directory per Shot. Each is a complete, independent Git repository
+--- the app, its manifest, its composition lock, its pinned verifier, its
+history. Nothing is scattered across cloud dashboards, workspace tabs,
+or half-remembered folder trees. This order is not a housekeeping
+detail; it is a stance against the project hell every prolific builder
+knows, where dozens of ideas rot in inconsistent locations under
+inconsistent names. The \texttt{shots} directory \emph{is} the contact
+sheet, made literal on disk: every intention you ever gave a body, side
+by side, in one place you can always find.
 
 \subsection{The contact sheet}
 
@@ -487,14 +636,20 @@ circle remains around the same living object.
 
 A Shot receives an immutable \texttt{shotId} when it is created.
 
-The \texttt{shotId} must not be derived from mutable properties such as
-the app name, the current source tree, the latest intent, the bundle
-identifier, or the current owner. Names can change. Code can change.
-Ownership can change. The Shot remains the same.
+Formally: the Shot ID is generated exactly once, at creation time, by the
+local factory, from a cryptographically secure random source with at
+least 128 bits of entropy. It carries the prefix \texttt{shot\_} followed
+by the encoded random value, it is written into the Shot's local manifest
+at materialization, and it is never regenerated, recomputed, or reused.
+Collision resistance comes from entropy, not from coordination: no
+registry, server, or network is consulted to mint it.
 
-A Shot ID should therefore be generated once using sufficient entropy or
-another collision-resistant method and retained in the Shot's local
-manifest forever.
+The \texttt{shotId} is not derived from mutable properties such as the
+app name, the current source tree, the latest intent, the bundle
+identifier, or the current owner --- because names change, code changes,
+and ownership changes, while the Shot remains the same. An identifier
+derived from any of those would quietly become a different Shot every
+time the app grew.
 
 \subsection{Independence}
 
@@ -619,10 +774,18 @@ The purpose of continuity is to keep this loop intact. The app becomes a
 conversation between intention and reality.
 
 A shot becomes useful through contact with the real app, not through
-terminal output alone. Ideas become true in use. And the loop has one more
-arm, easily forgotten and deliberately honored: \emph{keep, evolve, or
-kill it --- then take another shot.} Ending a Shot well is a legitimate
-exit from the loop. Built to be used. Allowed to die.
+terminal output alone. Ideas become true in use. And the loop has one
+more arm, easily forgotten and deliberately honored: \emph{keep it,
+evolve it, or set it down --- then take another shot.}
+
+Setting a Shot down is not an action in the system, and deliberately so.
+There is no kill command, no archive ceremony, no deletion ritual. A
+builder simply stops evolving a Shot, and that is fine --- it is an
+ordinary part of the lifecycle of making. The Shot \emph{is still there},
+whole, in the \texttt{shots} directory: its repository intact, its
+history intact, its Shot ID unchanged, ready for the builder to return
+in a week or in a decade. A resting Shot is not a dead Shot. It is an
+exposure on the contact sheet, waiting to be looked at again.
 
 % =====================================================================
 \section{Lifecycle}
@@ -722,7 +885,8 @@ This distinction prevents the registry from becoming a gatekeeper.
 conceptually simple:
 
 \begin{proto}
-install tohseno
+curl -fsSL https://tohseno.com/install.sh | sh
+
 tohseno            # take the first shot
 tohseno create
 tohseno evolve
@@ -730,6 +894,11 @@ tohseno verify
 tohseno run
 tohseno publish
 \end{proto}
+
+One line to install, one intention to begin. The installer pins exact
+versions and checksums of everything it places on the machine, and the
+factory it installs re-verifies its own integrity every time it runs
+(\S\ref{sec:supplychain}).
 
 The exact command surface may evolve, but the principle does not:
 
@@ -754,20 +923,31 @@ verification, and authority.
 
 The builder gives one private intention. A coding agent --- owner-selected
 and replaceable --- reads it once, in a sandbox with no approvals and no
-network write authority, and returns a small, sanitized, validated plan: a
-name, a starting shape, a set of installed capabilities, a data posture,
-an identity posture, a first definition of done. The plan is shown to the
-human for approval before anything is built. If the agent is offline,
-slow, or wrong, the factory falls back to a blank starting shape --- never
-to another provider chosen on the builder's behalf.
+network write authority, and returns a small, sanitized, validated plan:
+a name, a \textbf{one-liner}, a starting shape, a set of installed
+capabilities, a data posture, an identity posture, a first definition of
+done. The one-liner is the hallmark of the Shot: the single sentence
+that answers ``what does this app \emph{do}?'' It is the intent the
+whole Shot revolves around, and every later Evolution is measured
+against it. The plan is shown to the human for approval before anything
+is built. If the agent is offline, slow, or wrong, the factory falls
+back to a blank starting shape --- never to another provider chosen on
+the builder's behalf.
 
-From the approved plan onward, determinism takes over. Composition is a
-locked overlay of a neutral kernel, a starting template, and
-dependency-ordered capabilities, fingerprinted file by file. The
-repository is materialized atomically: manifest, composition lock, pinned
-verifier, provenance, Git baseline --- all created and verified before the
-directory becomes visible. The agent then works \emph{inside} that
-already-true repository, with a sanitized environment and bounded
+From the approved plan onward, determinism takes over. Determinism means
+something exact: from this point, no model, no randomness, and no
+judgment participates. The same approved plan, run through the same
+factory release, produces the same repository, file for file, hash for
+hash --- today, tomorrow, or on a stranger's machine in ten years.
+Composition is a locked overlay of a neutral kernel, a starting
+template, and dependency-ordered capabilities, fingerprinted file by
+file. The repository is materialized atomically: manifest, composition
+lock, pinned verifier, provenance, Git baseline --- all created and
+verified before the directory becomes visible. Deterministic steps can
+be audited, reproduced, and trusted without trusting anyone's
+intelligence, which is precisely why the factory reserves them for
+everything that carries authority. The agent then works \emph{inside}
+that already-true repository, with a sanitized environment and bounded
 authority, and its result is verified again after it exits. A failing
 result is isolated, not presented as ready.
 
@@ -825,11 +1005,19 @@ Not all claims have equal strength. \TOH{} must never blur that
 distinction.
 
 The same honesty governs the moment of handoff. When a Shot is born, the
-factory --- not the agent --- delivers the report: what was verified, what
-was built, what launched, where the screenshot landed. The agent builds,
-but \TOH{} is the only party allowed to say it worked, because its
-statement is backed by executable evidence rather than enthusiasm. The
-report ends with exactly one next action, and the reason for it:
+factory --- not the agent --- delivers the report: what was verified,
+what was built, what launched, where the screenshot landed. The agent
+builds, but \TOH{} is the only party allowed to say it worked. The
+distinction is concrete. A coding agent reports success in prose, and
+prose can be wrong, optimistic, or confabulated. The factory's statement
+is different in kind: it is the output of checks that actually executed
+--- the compiler compiled, the tests ran and passed, the Simulator
+booted, the app launched, the screenshot exists at a path you can open.
+Every line of the report corresponds to a command that ran and an
+artifact you can inspect. That is what ``backed by executable evidence
+rather than enthusiasm'' means: the factory does not believe the agent,
+it checks the work --- and it extends you the same courtesy. The report
+ends with exactly one next action, and the reason for it:
 
 \begin{proto}
 NEXT
@@ -859,10 +1047,12 @@ Frictionless at the surface.
 \section{How this document speaks: the honesty vocabulary}
 % =====================================================================
 
-A whitepaper written before a stable release faces a temptation: to
-describe the dreamed system and the running system in the same tense.
-\TOH{} refuses that tense. Throughout the project --- and throughout this
-document --- claims are classified with a four-word vocabulary:
+This document travels with the system it describes, and it uses the
+system's own native language for describing itself. Inside the \TOH{}
+repository, every capability, every document, and every promise is
+classified with a four-word vocabulary, enforced as consistently as any
+type check. The same vocabulary governs this whitepaper, so that the
+document is not a brochure about the system but an instrument of it:
 
 \begin{description}[leftmargin=1.6em, style=nextline]
 \item[\statustag{IMPLEMENTED}] Exercised by a live code path and testable
@@ -887,17 +1077,17 @@ The human ladder from built Shot to App Store listing, and the
 reference-node runbook, are \statustag{PREPARED}.
 
 Publication records flowing from real builders, deployed nodes, persistent
-builder identity, the mobile app, registry anchoring, and appcoin links in
-the wild are \statustag{PROPOSED}.
+builder identity, the mobile app, the registry contract on Robinhood
+Chain, and appcoin links in the wild are \statustag{PROPOSED} --- their
+designs fixed, their deployments ahead.
 
-The production trust root, cross-node fork resolution, anchoring
-economics, the commercial boundary, and several questions collected in
-\S\ref{sec:open} are \statustag{OPEN}.
+The production trust root, cross-node fork resolution, and several
+questions collected in \S\ref{sec:open} are \statustag{OPEN}.
 
 Stale confident instructions are worse than an honest unknown. A future
 reader comparing this document against a future system should be able to
 tell exactly which promises were running, which were staged, and which
-were still dreams --- and hold the project to the difference.
+were still ahead --- and hold the project to the difference.
 
 % =====================================================================
 \section{Continuity}
@@ -952,6 +1142,7 @@ the identity model.
 
 % =====================================================================
 \section{Identity}
+\label{sec:identity}
 % =====================================================================
 
 \subsection{There is no global seed phrase}
@@ -978,6 +1169,16 @@ The \TOH{} mobile app is a preferred premium custodian, not a protocol
 monopoly. The root secret must never be transmitted to a node or generated
 app.
 
+The root is the human's property, and property can move. A person who
+creates their Continuity Root inside the \TOH{} mobile app must be able
+to export it --- through an explicit, authenticated, deliberately
+unhurried flow --- and carry it to a hardware wallet, another compatible
+signer, or an implementation that does not exist yet. The derivation
+scheme is part of the open protocol, so an exported root reproduces the
+same app-specific identities everywhere. Custody is a service \TOH{}
+offers; it is never a wall around the exit. An identity that cannot
+leave its first home is not held --- it is kept.
+
 \subsection{Builder identity}
 
 A builder may derive or designate a stable public identity for authorship.
@@ -997,6 +1198,16 @@ record may eventually show Shots created, Shots published, App Store
 releases, verified source histories, community feedback, appcoin
 relationships, node attestations. The purpose is not gamification for its
 own sake. It is a credible body of work --- a public contact sheet.
+
+In a world where the cost of producing software collapses, what a person
+has \emph{chosen} to make becomes the most honest record of who they
+are. A builder's \TOH{} profile is their accumulated expression of
+taste: which intentions they considered worth a body, which ones they
+carried for years, which ones they set down, which ones strangers came
+to love. It is the curriculum vitae of the modern world --- not a list
+of claims about past employment, but a verifiable lineage of things
+made, each one signed, timestamped, and inspectable by anyone. A r\'esum\'e
+asserts. A contact sheet shows.
 
 \subsection{User identity}
 
@@ -1027,8 +1238,25 @@ continuity root from becoming a universal tracking number.
 
 \subsection{Explicit cross-app proofs}
 
-A person may choose to prove that two app-specific identities belong to
-the same root. The signer presents a human-readable request:
+Why would a person ever want two of their app identities linked? Because
+some of the best experiences of personal software are cross-app by
+nature. A writing app and a meditation app made by the same builder
+might offer a shared streak. A game might grant a veteran's rank to
+players who supported the builder's earlier Shot. A community app might
+recognize, with the user's blessing, that this newcomer is a trusted
+regular from a sibling app. Continuity is valuable precisely because
+relationships accumulate across software.
+
+The question is who controls the accumulation. \TOH{}'s answer starts
+from its data posture: each app's data belongs to that app, on the
+user's device, by default. There is no shared \TOH{} database of user
+behavior, no ambient profile quietly enriched as a person moves between
+apps. If two apps are to share anything --- even the bare fact that
+their users are the same human --- that linkage must be created by the
+human, deliberately, one pair at a time.
+
+So a person may choose to prove that two app-specific identities belong
+to the same root. The signer presents a human-readable request:
 
 \begin{proto}
 THE TRENCHES wants to confirm
@@ -1077,6 +1305,32 @@ custodial backdoor. Compatible recovery methods may include encrypted
 recovery packages; backups secured by the platform; user-chosen recovery
 contacts; social recovery; key rotation signed by the current key; and
 recovery policies held in contract accounts.
+
+Because \TOH{} apps are iOS apps, ``secured by the platform'' means
+something specific, and this document should talk the Apple language it
+targets. The state of the art available to every \TOH{} app today: the
+\textbf{Secure Enclave}, a dedicated hardware subsystem that can
+generate and hold keys which never leave the chip, unlockable with
+\textbf{Face~ID} or \textbf{Touch~ID} through the LocalAuthentication
+framework; \textbf{Keychain Services}, the system's encrypted credential
+store, with per-item access controls; \textbf{iCloud Keychain},
+end-to-end encrypted synchronization and recovery of keychain material
+across a person's devices, protected so that Apple itself cannot read
+it; \textbf{passkeys}, platform-native WebAuthn credentials that already
+give hundreds of millions of people daily experience with
+phishing-resistant public-key authentication; and \textbf{App~Attest},
+which lets a server verify it is talking to a legitimate, unmodified
+app on genuine hardware. These are the strongest consumer-grade key
+custody primitives ever shipped at scale, present in the pocket of
+every \TOH{} user by default.
+
+The identity model of \S\ref{sec:identity} is designed to sit on top of
+exactly this substrate: the Continuity Root guarded by the Secure
+Enclave and biometrics, recovered through end-to-end encrypted iCloud
+Keychain or the user's own explicit export, with derived app keys that
+never need to leave the device at all. This is a further dividend of
+building for one ecosystem on purpose: the protocol does not have to
+assume the weakest device in the world; it can assume an iPhone.
 
 A rotated key may assume current control while old authorship signatures
 remain valid historical facts.
@@ -1158,18 +1412,63 @@ not by memory of what the builder thought before using it.
 
 \subsection{Subscription boundary}
 
-\TOH{} may charge monthly or yearly for the mobile experience and hosted
-convenience: synchronized builder identity; secure mobile signing;
-cross-device recovery; hosted public builder profile; feedback routing;
-intent sharpening; community discovery; node relay and gas sponsorship;
-premium network indexing; continuity across connected apps.
+The \TOH{} mobile app is subscription-based. Not freemium, not
+ad-supported, not free-with-an-asterisk: paid, plainly, from the first
+screen.
 
-It must not purchase the right to own, build, or continue operating one's
-own source code.
+The first screen of the app is the paywall, and the paywall is a
+covenant. Before proceeding, the user acknowledges four things: the
+\TOH{} whitepaper (this document); the Terms and Conditions; the Privacy
+Policy; and the existence of the open-source repository from which
+\TOH{} is born. Then the two plans, and nothing else:
+
+\begin{proto}
+MONTHLY   $11.99
+YEARLY    $111
+\end{proto}
+
+No free trial. No free tier. No double interpretations. The \TOH{}
+mobile app is a premium experience, priced like one, and honest about it
+at the door. A hard paywall is the most truthful interface a paid
+product can have: it respects the user enough to state the terms before
+taking a minute of their attention, and it respects the product enough
+not to amputate it into a demo.
+
+The subscription buys the mobile experience and hosted convenience:
+synchronized builder identity; secure mobile signing; cross-device
+recovery; hosted public builder profile; feedback routing; intent
+sharpening; community discovery; node relay and gas sponsorship; premium
+network indexing; continuity across connected apps.
+
+It must not purchase the right to own, build, or continue operating
+one's own source code.
 
 \begin{creed}
 \TOH{} charges for continuity, not freedom.
 \end{creed}
+
+And the paywall carries one more line, the most unusual one, because the
+strongest proof of an open factory is an open exit standing right next
+to the cash register:
+
+\begin{proto}
+Don't want to pay?
+Build your own. This is the intent:
+
+  "A continuity client for my TOHSENO shots:
+   identity vault, signer, feedback inbox."
+
+Run it as a Shot in your own TOHSENO factory,
+then follow the tutorial: tohseno.com/build-your-own
+\end{proto}
+
+The official app is worth paying for because of what surrounds it ---
+custody, recovery, hosting, relay, care. But the capability itself is
+not hostage. Anyone can take the published intent, run it through the
+same public factory, and own their result. A company confident enough
+to hand every customer the blueprint of the product is making a claim
+no marketing page can make: the open factory is real, and the
+subscription is a choice.
 
 \subsection{The genesis invariant}
 \label{sec:genesis}
@@ -1303,7 +1602,16 @@ Nodes should not initially decide whether an app is good; whether an idea
 is original enough; whether the creator ``deserves'' authorship; whether a
 token is economically wise; whether an app is culturally important.
 
-\TOH{} records claims and evidence. It does not claim omniscience.
+\TOH{} records claims and evidence. It does not claim omniscience --- and
+this is not modesty, it is architecture. \TOH{} is dumb and deterministic
+by design. The protocol, the registry, the nodes, the verifiers: all of
+them are machinery that checks signatures, compares hashes, and follows
+rules that anyone can re-run. Everything dynamic in the system --- the
+meaning, the judgment, the taste, the decision of what deserves to exist
+--- lives in exactly two places: human intent, and the AI that interprets
+it at the boundary. The dumbness of the base layer is what makes it
+trustworthy for a century; the intelligence at the edge is what makes it
+alive today.
 
 \subsection{Existing consensus, not a new blockchain}
 
@@ -1311,6 +1619,17 @@ token is economically wise; whether an app is culturally important.
 An existing chain can provide ordering, timestamps, transaction finality,
 and globally readable events. Nodes provide the surrounding work: storage,
 indexing, verification, availability, relaying, discovery.
+
+The chain is chosen: \textbf{the first \TOH{} registry anchors on
+Robinhood Chain.} This is a decision, not a survey of options. Robinhood
+Chain is where tokenized equities trade --- including \texttt{\$AAPL},
+the stock of the ecosystem every Shot is built for --- which makes it
+the one chain where \TOH{}'s economic layer can sit beside the economy
+it references (\S\ref{sec:tohsenocoin}). The registry design remains
+portable in principle, as all replaceable infrastructure must be; but
+the canonical deployment target is fixed, and this document says so
+plainly rather than keeping a door open for the appearance of
+neutrality.
 
 This keeps the protocol narrow.
 
@@ -1320,8 +1639,8 @@ The likely path is:
 
 \begin{description}[leftmargin=1.6em, style=nextline]
 \item[Stage 0 --- Local-only.] The factory works with no node.
-\item[Stage 1 --- Official node.] Anky, Inc.\ or another initial steward
-operates the first node.
+\item[Stage 1 --- Official node.] Anky, Inc.\ operates the first node.
+Ownership of this responsibility is taken from the beginning, by name.
 \item[Stage 2 --- Community mirrors.] Anyone can run a node that syncs
 public records, mirrors manifests, and serves discovery.
 \item[Stage 3 --- Active relayers.] Multiple authorized or bonded nodes
@@ -1341,7 +1660,18 @@ The organism must breathe before its metabolism is financialized.
 \section{Public memory and the registry}
 % =====================================================================
 
-\subsection{The purpose of the registry}
+\subsection{What the registry is}
+
+Concretely, the registry is a smart contract deployed on Robinhood
+Chain: an append-only log that accepts small signed facts and content
+hashes, emits them as globally readable events, and refuses everything
+else. Its source code is open and part of the protocol repository. Its
+contract address, deployment transaction, and verified source link will
+be pinned into Version 1.0 of this document at deployment, so that the
+constitution and the contract reference each other permanently. Until
+that pin exists, the registry is \statustag{PROPOSED}: designed,
+schema-complete, and unanchored --- and this document says so rather
+than gesturing at an address that does not yet exist.
 
 The registry answers small, durable questions:
 
@@ -1364,12 +1694,20 @@ must not erase it. This permits key rotation, appcoin migration, control
 transfer, deprecation, corrected metadata, and new lifecycle milestones.
 History remains visible.
 
-Records are portable builder attestations, not network truth. An honest
-registry knows the difference and says so.
+Records are portable builder attestations, not network truth. Plainly:
+a record is a statement a builder signed --- ``I created this Shot,''
+``I published this source fingerprint'' --- and anyone, anywhere, with
+no permission from any node, can verify that the signature is genuine
+and the hashes match. That is what \emph{portable} means: the proof
+travels with the record itself. What the network does \emph{not} do is
+vouch for the statement's deeper truth. The registry proves that this
+identity said this thing at this time; it does not prove the thing said
+was wise, original, or honest. An honest registry knows the difference
+and says so.
 
 \subsection{Record types}
 
-A minimal protocol may define records such as:
+Protocol version 1 defines exactly these record types:
 
 \begin{proto}
 SHOT_CLAIM
@@ -1380,8 +1718,9 @@ CONTROL_TRANSFER
 DEPRECATION
 \end{proto}
 
-The exact encoding may evolve through protocol versions, but the semantic
-boundaries should remain clear. Unknown fields fail validation. There are
+The encoding may evolve through future protocol versions, but the
+semantic boundaries do not drift: a version 1 record means in fifty
+years what it means today. Unknown fields fail validation. There are
 deliberately no fields for raw prompts, private provenance digests, local
 databases, app-user content, conversations, credentials, secrets,
 unpublished source bytes, or model reasoning. A safe-looking summary can
@@ -1494,9 +1833,14 @@ agent conversations; local databases; secrets; signing keys; user data;
 private feedback; internal analytics; device identifiers; recovery
 material.
 
-Private-by-default and account-free are defaults, not refusals. A manifest
-may truthfully declare other data, identity, integration, entitlement, or
-irreversible mechanics. Those are product decisions the builder makes in
+Private-by-default and account-free are defaults, not refusals.
+\emph{Account-free} means exactly this: creating, evolving, running, and
+owning a Shot requires no signup, no email address, no login, no
+username, and no session with any \TOH{} service --- there is no account
+to create because none is needed. \emph{Private-by-default} means the
+generated app stores its data locally on the user's device unless its
+manifest truthfully declares otherwise. A manifest may declare other
+data, identity, integration, entitlement, or irreversible mechanics. Those are product decisions the builder makes in
 the open --- streaks, paywalls, and scores are tools, not sins --- and the
 manifest exists so that such declarations are explicit rather than
 implied.
@@ -1524,11 +1868,13 @@ than ordinary interface taps.
 
 \subsection{Definition}
 
-An \textbf{Appcoin} is an optional economic artifact canonically linked to
-a Shot. It may represent a community's shared attention; a way to fund
-continued development; an instrument for distribution; access, membership,
-or coordination; a market around an app's cultural motion; an experiment
-whose meaning evolves with the Shot.
+An \textbf{Appcoin} is a cryptocurrency attached to a Shot: an optional
+economic artifact, deployable on any blockchain, tied to its Shot at the
+registry level through a signed, canonical link. It may represent a
+community's shared attention; a way to fund continued development; an
+instrument for distribution; access, membership, or coordination; a
+market around an app's cultural motion; an experiment whose meaning
+evolves with the Shot.
 
 An appcoin is not the Shot. The Shot can exist without a coin. The coin
 should point back to a Shot.
@@ -1590,11 +1936,27 @@ subscription-funded public service; app-specific economic rules.
 to.
 
 \subsection{\texttt{\$TOHSENO}}
+\label{sec:tohsenocoin}
 
-The intended genesis is for \texttt{\$TOHSENO} to become the first
-canonical appcoin recorded by the stable protocol and linked to the \TOH{}
-Genesis Shot. Its deployment mechanism remains replaceable. Its potential
-roles are distinct:
+\texttt{\$TOHSENO} will become the first canonical appcoin recorded by
+the stable protocol and linked to the \TOH{} Genesis Shot. Its launch is
+a fixed decision, stated here without hedging: \textbf{\texttt{\$TOHSENO}
+will be deployed via Bankr on Robinhood Chain, paired with
+\texttt{\$AAPL}.}
+
+The pairing is the strategy, made economic. \TOH{} builds natively and
+exclusively for the Apple ecosystem (\S2); Robinhood Chain is where
+tokenized equities live; \texttt{\$AAPL} is the tokenized stock of the
+company whose platform every Shot inhabits. Pairing the factory's coin
+with the ecosystem's stock encodes the alignment in the market
+structure itself: the liquidity of \texttt{\$TOHSENO} is denominated in
+the very ecosystem it commits to. It is a declaration no roadmap slide
+can match --- they go hand in hand because the strategy does. Bankr is
+the deployment mechanism because it is the simplest credible path from
+decision to deployed contract; the appcoin protocol remains
+launcher-agnostic for every other builder.
+
+Its roles are distinct:
 
 \begin{enumerate}
 \item \textbf{Appcoin of the \TOH{} mobile app.} It is economically
@@ -1604,6 +1966,11 @@ staked or earned by nodes performing verifiable work.
 \item \textbf{Shared economic surface of the ecosystem.} Future appcoin
 adapters may choose to route explicit value toward the network or
 \texttt{\$TOHSENO}.
+\item \textbf{Distribution and sustenance of the idea itself.} The coin
+carries the \TOH{} story into markets where software ideas rarely
+travel, and explicit, consented fee routing around it can fund the
+continued development of the open factory --- so that the thing that
+pays for \TOH{}'s future is the same thing that spreads its thesis.
 \end{enumerate}
 
 None of these roles may make \texttt{\$TOHSENO} mandatory for local
@@ -1794,10 +2161,16 @@ only the requested identities become linkable
 \end{proto}
 
 % =====================================================================
-\section{A minimal protocol model}
+\section{The protocol model}
 % =====================================================================
 
-The following model is illustrative, not a frozen wire format.
+The following are the version 1 shapes of the protocol's core objects,
+as implemented and validated in the open repository. Field-level
+encoding is governed by the canonical-encoding rules of
+\S\ref{sec:canonical}; unknown fields fail validation. Values shown as
+\texttt{"..."} are placeholders for real hashes, identifiers, and URIs.
+Future protocol versions may add shapes, but these remain interpretable
+forever.
 
 \subsection{Local Shot manifest}
 
@@ -1966,6 +2339,7 @@ nonces, deadlines, record IDs, previous-record references, and chain and
 contract domains.
 
 \subsection{Canonical encoding}
+\label{sec:canonical}
 
 Hashing requires deterministic encoding. The protocol must define field
 order; Unicode normalization; number representation; timestamp
@@ -1980,7 +2354,21 @@ rotation; clear environment separation; no plaintext secrets in
 repositories. The mobile signer may improve key safety, but must not be
 the only safe path.
 
+Practically, on the platforms \TOH{} actually inhabits, ``secure system
+storage'' names concrete Apple technologies. On the Mac that runs the
+factory: the macOS Keychain for builder credentials, with the Secure
+Enclave available on Apple silicon for hardware-bound keys. On the
+iPhone that runs the Shots: Keychain Services with per-item access
+control, Secure Enclave key generation, Face~ID and Touch~ID gating
+through LocalAuthentication, end-to-end encrypted iCloud Keychain for
+recovery, passkeys for service authentication, and App~Attest for
+proving app integrity to a counterpart (\S\ref{sec:identity}). \TOH{}
+does not reinvent any of this machinery; it stands on it, names it, and
+reserves its own cryptography for what the platform cannot know: the
+protocol's identity derivation and signed public records.
+
 \subsection{Supply chain honesty}
+\label{sec:supplychain}
 
 The path from ``curl'' to ``factory'' is part of the security model. An
 installer should pin exact versions and checksums; refuse insecure
@@ -2034,7 +2422,7 @@ it.
 If \TOH{} participates economically in appcoins, the relationship must be
 explicit. The builder should be able to see who receives fees; why; at
 what rate; through which contract or provider; and whether the
-relationship can change. Hidden extraction would contradict the protocol's
+relationship can change. Hidden extraction contradicts the protocol's
 purpose.
 
 \subsection{The network as a service before a market}
@@ -2214,7 +2602,9 @@ implementation.
 \subsection{The Shot}
 \begin{enumerate}[itemsep=0.1em]
 \item One coherent intention creates one Shot.
-\item A Shot is the application-level object.
+\item A Shot is the application-level object, and it is a native iOS
+application: \TOH{} builds for the Apple ecosystem deliberately and
+exclusively.
 \item A Shot evolves.
 \item An Evolution is not a new Shot.
 \item The Shot ID remains stable across names, versions, owners, and
@@ -2317,26 +2707,40 @@ forkable if its steward abandons these invariants.
 
 This document fixes the ontology, not every implementation decision. The
 project keeps its unresolved decisions in a public list whose stated goal
-is its own deletion: \emph{the asymptote of that file is empty.} At the
-time of writing, the following remain deliberately open:
+is its own deletion: \emph{the asymptote of that file is empty.}
+
+Since the previous version of this document, several questions stopped
+being questions. The registry chain is Robinhood Chain.
+\texttt{\$TOHSENO} deploys via Bankr, paired with \texttt{\$AAPL}. The
+mobile app is subscription-only behind a hard paywall, at \$11.99
+monthly and \$111 yearly. Anky, Inc.\ operates the first node, by name.
+The platform is Apple's, exclusively and deliberately. Each decision is
+recorded above where it belongs, and deleted here.
+
+At the time of writing, the following remain deliberately open:
 
 \begin{itemize}
 \item The path currently stops at Simulator: how should the factory
 accompany the human ladder to a physical device and a live listing without
 pretending to automate what it cannot?
-\item Which canonical chain should host the first registry?
-\item Which signature scheme best balances wallet compatibility, passkeys,
-and device security?
+\item Which signature scheme best balances Robinhood Chain wallet
+compatibility with the Apple-native substrate (Secure Enclave keys,
+passkeys) the identity model is designed to sit on?
 \item What is the production Builder trust root, and how should competing
 valid histories for the same Shot ID be resolved across nodes? (Protocol
 version 1 has no fork-resolution rule.)
+\item What is the standardized export format for the Continuity Root, so
+that a root created in the official mobile app provably reproduces the
+same identities in any compatible signer?
 \item How should source availability be proven across independent nodes?
 \item Which manifest storage should be default before decentralized
-pinning is mature?
+pinning is mature? (This document's own permanence on Arweave suggests
+one candidate.)
 \item How should organization and co-creator control be represented?
 \item What constitutes strong App Store ownership verification?
 \item How should key recovery work without making the official mobile app
-custodial?
+custodial, given end-to-end encrypted iCloud Keychain as the platform
+baseline?
 \item Which feedback should be public, private, encrypted, or anonymous?
 \item How should a published Shot declare licensing and fork
 relationships?
@@ -2349,8 +2753,9 @@ another coordination model?
 identifiers?
 \item Which continuity capabilities belong in every generated app
 template?
-\item Can any commercial layer be added while preserving the account-free
-local factory?
+\item What exactly does the build-your-own continuity-client tutorial
+(\S11.5) contain, and what support does the published intent require to
+be honestly reproducible by a stranger?
 \item What exactly must the stable release demonstrate before the Genesis
 Shot is created?
 \end{itemize}
@@ -2413,7 +2818,12 @@ appears. The Shot evolves.
 
 Some Shots remain private and serve one human well. Some are published and
 invite others inside. Some reach the App Store. Some become communities.
-Some acquire appcoins. Some are forgotten. Some survive their creators.
+Some acquire appcoins. Some rest on the contact sheet for years and are
+picked up again. Some become startups that transform the life of their
+creator in ways that cannot possibly be comprehended in advance ---
+because they solved a problem no one before them had solved that way,
+and distributed it in a way that let people discover it. Some survive
+their creators.
 
 The protocol does not decide which path deserves to happen. Its
 responsibility is simpler and harder:
@@ -2441,25 +2851,63 @@ of every build, the one this whole system exists to make easy to accept:
 {\displayfont\Large Take another one.}
 \end{center}
 
+\vspace{2.5em}
+\begin{center}
+\begin{minipage}{0.6\textwidth}
+\centering\itshape
+``Stay hungry. Stay foolish.''
+\end{minipage}
+
+\vspace{0.8em}
+{\monolabel\scriptsize\color{halide}STEVE JOBS, STANFORD, 2005\par}
+\end{center}
+
 \vspace{2em}
 \creedrule
 
 % =====================================================================
-% COLOPHON
+% APPENDIX: PROVENANCE
 % =====================================================================
 \clearpage
+\section*{Appendix: Provenance of this document}
+
+This whitepaper practices what it specifies. Each version is uploaded to
+Arweave, a permanent content-addressed store, and each subsequent version
+records the permanent addresses of its predecessors here. The lineage of
+the constitution is itself append-only: a version may be superseded, but
+its existence cannot be erased.
+
+\begin{description}[leftmargin=1.6em, style=nextline]
+\item[\statustag{VERSION 0.1 --- JULY 25, 2026}]
+The preliminary draft, written as Markdown in the factory repository.
+Superseded by Version 0.2.
+\item[\statustag{VERSION 0.2 --- JULY 26, 2026}]
+The first formal typeset edition. Permanently stored at:\\
+{\small\url{https://arweave.net/1-YtqgrwKAVbnANYlX-z47OGnBBXI5m_0NaSID9TAJE}}
+\item[\statustag{VERSION 0.3 --- JULY 26, 2026}]
+This document. Its permanent address will be recorded by Version 0.4, or
+by Version 1.0, whichever follows.
+\end{description}
+
+Version 1.0 is reserved: it will be finalized alongside the first stable
+release and signed with the bootstrap builder identity, so that the
+constitution and the system it describes reach stability together. It
+will pin the registry's contract address on Robinhood Chain and the
+permanent addresses of every prior version. The loom must be complete
+before it weaves its first flag.
+
+% =====================================================================
+% COLOPHON
+% =====================================================================
+\vspace{2.5em}
 \section*{Colophon}
 
-This document is Version 0.2 of the \TOH{} Genesis Whitepaper. It
-supersedes the preliminary draft of July 25, 2026, and was written against
-factory release 0.5.0, before the first stable release and before the
-Genesis Shot exists.
-
-It is versioned deliberately. Version 1.0 of this document is reserved: it
-will be finalized alongside the first stable release and signed with the
-bootstrap builder identity, so that the constitution and the system it
-describes reach stability together. The loom must be complete before it
-weaves its first flag.
+This document is Version 0.3 of the \TOH{} Genesis Whitepaper. It
+supersedes Version 0.2 and the preliminary draft of July 25, 2026, and
+was written against factory release 0.5.0, before the first stable
+release and before the Genesis Shot exists. It is written in memory of
+Steve Jobs, whose conviction --- that ordinary people should hold the
+means of making --- is the intention this entire system gives a body to.
 
 The document is typeset in EB~Garamond and IBM~Plex~Mono, in the darkroom
 palette of the \TOH{} factory: near-black ink, silver-halide grey, and one
@@ -2470,7 +2918,7 @@ server, waiting for whoever finds it.
 
 \vspace{1.5em}
 {\monolabel\scriptsize\color{halide}
-TOHSENO / GENESIS WHITEPAPER / V0.2 / JULY 2026\\[0.3em]
+TOHSENO / GENESIS WHITEPAPER / V0.3 / JULY 2026\\[0.3em]
 GIVE EVERY IDEA A SHOT. MOST SHOTS MISS. THE PROTOTYPE IS THE PAYOFF.\\[0.3em]
 END OF ROLL 01\par}
 

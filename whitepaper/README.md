@@ -1,8 +1,12 @@
 # TOHSENO — Genesis Whitepaper
 
 `tohseno-whitepaper.pdf` is the formal edition of the Genesis Whitepaper
-(Version 0.2, July 26, 2026), written against factory release 0.5.0 and
+(Version 0.3, July 26, 2026), written against factory release 0.5.0 and
 intended for permanent content-addressed storage (Arweave).
+
+Version history is recorded in the document's Provenance appendix.
+v0.2 is permanently stored at
+<https://arweave.net/1-YtqgrwKAVbnANYlX-z47OGnBBXI5m_0NaSID9TAJE>.
 
 Version 1.0 of this document is reserved: it will be finalized alongside the
 first stable release and signed with the bootstrap builder identity.
