@@ -4,8 +4,10 @@ import {
   existsSync,
   linkSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   statSync,
   symlinkSync,
   unlinkSync,
@@ -471,6 +473,50 @@ describe("managed installer", () => {
         TOHSENO_SHOTS_DIR: shots,
       };
 
+      const obsoleteHome = join(scratch.root, "obsolete managed home");
+      const obsoleteState = join(obsoleteHome, "versions", "0.4.0", "state");
+      mkdirSync(join(obsoleteHome, "versions", "0.4.0"), { recursive: true });
+      writeFileSync(obsoleteState, "pre-0.5 state\n");
+      const rejectedObsolete = await runProcess([
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+      ], scratch.root, {
+        ...environment,
+        TOHSENO_INSTALL_HOME: obsoleteHome,
+      });
+      expect(rejectedObsolete.exitCode).toBe(1);
+      expect(rejectedObsolete.stderr).toContain(
+        "existing TOHSENO install state is not canonical 0.5.0; pre-release compatibility is unsupported and no files were changed",
+      );
+      expect(readFileSync(obsoleteState, "utf8")).toBe("pre-0.5 state\n");
+      expect(
+        existsSync(join(obsoleteHome, ".tohseno-managed-home-v1")),
+      ).toBe(false);
+      const obsoleteDryRun = await runProcess([
+        "/bin/sh", installer, "--dry-run",
+      ], scratch.root, {
+        ...environment,
+        TOHSENO_INSTALL_HOME: obsoleteHome,
+      });
+      expect(obsoleteDryRun.exitCode).toBe(1);
+      expect(obsoleteDryRun.stderr).toContain(
+        "pre-release compatibility is unsupported and no files were changed",
+      );
+      expect(readFileSync(obsoleteState, "utf8")).toBe("pre-0.5 state\n");
+
+      const emptyExistingHome = join(scratch.root, "empty existing home");
+      mkdirSync(emptyExistingHome);
+      const rejectedEmpty = await runProcess([
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+      ], scratch.root, {
+        ...environment,
+        TOHSENO_INSTALL_HOME: emptyExistingHome,
+      });
+      expect(rejectedEmpty.exitCode).toBe(1);
+      expect(rejectedEmpty.stderr).toContain(
+        "existing TOHSENO install state is not canonical 0.5.0",
+      );
+      expect(readdirSync(emptyExistingHome)).toEqual([]);
+
       const noBun = await runProcess(["/bin/sh", "-c", "command -v bun"], scratch.root, environment);
       expect(noBun.exitCode).not.toBe(0);
 
@@ -490,9 +536,28 @@ describe("managed installer", () => {
       expect(firstInstall.stdout).toContain("Installed managed Bun 1.2.18");
       expect(statSync(installHome).mode & 0o777).toBe(0o700);
       expect(statSync(join(installHome, "bin")).mode & 0o777).toBe(0o700);
+      const managedHomeMarker = join(
+        installHome,
+        ".tohseno-managed-home-v1",
+      );
+      expect(readFileSync(managedHomeMarker, "utf8")).toBe(
+        "tohseno-managed-home-v1\n",
+      );
       const executable = join(installHome, "bin", "tohseno");
       expect(existsSync(executable)).toBe(true);
       expect((await runProcess([executable, "--version"], scratch.root, environment)).stdout.trim()).toBe(CLI_VERSION);
+      const managedHomeMarkerSource = readFileSync(managedHomeMarker);
+      unlinkSync(managedHomeMarker);
+      const wrapperRejectedManagedHome = await runProcess(
+        [executable, "--version"],
+        scratch.root,
+        environment,
+      );
+      expect(wrapperRejectedManagedHome.exitCode).toBe(1);
+      expect(wrapperRejectedManagedHome.stderr).toContain(
+        "managed home format differs",
+      );
+      writeFileSync(managedHomeMarker, managedHomeMarkerSource, { mode: 0o644 });
       const installedCli = join(
         installHome,
         "versions",
@@ -560,6 +625,43 @@ describe("managed installer", () => {
       );
       expect(secondInstall.stdout).toContain("Managed Bun 1.2.18 already verified");
 
+      const incompatibleVersion = join(
+        installHome,
+        "versions",
+        "0.4.0",
+      );
+      mkdirSync(incompatibleVersion);
+      const incompatibleWitness = join(incompatibleVersion, "state");
+      writeFileSync(incompatibleWitness, "obsolete\n");
+      const rejectedMixedVersions = await runProcess([
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+      ], scratch.root, environment);
+      expect(rejectedMixedVersions.exitCode).toBe(1);
+      expect(rejectedMixedVersions.stderr).toContain(
+        "pre-release compatibility is unsupported and no files were changed",
+      );
+      expect(readFileSync(incompatibleWitness, "utf8")).toBe("obsolete\n");
+      unlinkSync(incompatibleWitness);
+      rmdirSync(incompatibleVersion);
+
+      const bunBinaryMarker = join(
+        installHome,
+        "runtime",
+        "bun-1.2.18",
+        ".binary.sha256",
+      );
+      const bunBinaryMarkerSource = readFileSync(bunBinaryMarker);
+      unlinkSync(bunBinaryMarker);
+      const rejectedMissingBunMarker = await runProcess([
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path", "--without-cloudflared",
+      ], scratch.root, environment);
+      expect(rejectedMissingBunMarker.exitCode).toBe(1);
+      expect(rejectedMissingBunMarker.stderr).toContain(
+        "pre-release compatibility is unsupported; use a fresh install root",
+      );
+      expect(existsSync(bunBinaryMarker)).toBe(false);
+      writeFileSync(bunBinaryMarker, bunBinaryMarkerSource, { mode: 0o644 });
+
       const profileVictim = join(scratch.root, "profile-victim");
       const shellProfile = join(scratch.home, ".profile");
       writeFileSync(profileVictim, "owner content\n");
@@ -601,6 +703,24 @@ describe("managed installer", () => {
         installHome,
         "tools",
         "cloudflared-2026.5.2",
+      );
+      const cloudflaredBinaryMarker = `${managedCloudflared}.binary.sha256`;
+      const cloudflaredBinaryMarkerSource = readFileSync(
+        cloudflaredBinaryMarker,
+      );
+      unlinkSync(cloudflaredBinaryMarker);
+      const rejectedMissingCloudflaredMarker = await runProcess([
+        "/bin/sh", installer, "--non-interactive", "--no-modify-path",
+      ], scratch.root, cloudflaredEnvironment);
+      expect(rejectedMissingCloudflaredMarker.exitCode).toBe(1);
+      expect(rejectedMissingCloudflaredMarker.stderr).toContain(
+        "pre-release compatibility is unsupported and no files were changed",
+      );
+      expect(existsSync(cloudflaredBinaryMarker)).toBe(false);
+      writeFileSync(
+        cloudflaredBinaryMarker,
+        cloudflaredBinaryMarkerSource,
+        { mode: 0o644 },
       );
       const cloudflaredSource = readFileSync(managedCloudflared);
       writeFileSync(
@@ -773,7 +893,9 @@ describe("managed installer", () => {
         TOHSENO_INSTALL_HOME: tamperedHome,
       });
       expect(tampered.exitCode).toBe(1);
-      expect(tampered.stderr).toContain("managed CLI version is not a real directory");
+      expect(tampered.stderr).toContain(
+        "existing TOHSENO install state is not canonical 0.5.0",
+      );
 
       const rejectedHome = join(scratch.root, "rejected install");
       const rejected = await runProcess([
@@ -785,7 +907,7 @@ describe("managed installer", () => {
       });
       expect(rejected.exitCode).toBe(1);
       expect(rejected.stderr).toContain("checksum mismatch");
-      expect(existsSync(join(rejectedHome, "versions", CLI_VERSION))).toBe(false);
+      expect(existsSync(rejectedHome)).toBe(false);
     });
   }, 45_000);
 });

@@ -425,14 +425,14 @@ async function validateGenesisBoundary(): Promise<void> {
   }
 }
 
-async function validateFrozenInstallerBoundary(): Promise<void> {
-  console.log("\n[check] frozen installer boundary");
+async function validatePinnedInstallerBoundary(): Promise<void> {
+  console.log("\n[check] pinned installer boundary");
 
   const installer = await readText("apps/site/public/install.sh");
   assert(
     createHash("sha256").update(installer).digest("hex") ===
-      "5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5",
-    "the canonical installer changed during the 0.5 clean-root pass",
+      "442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca",
+    "the canonical installer differs from the reviewed 0.5.0 pin",
   );
   assert(
     installer.startsWith("#!/bin/sh\n"),
@@ -447,13 +447,16 @@ async function validateFrozenInstallerBoundary(): Promise<void> {
   assert(
     installerVersionMatch !== null &&
       installerCliVersionMatch !== null &&
-      installerVersionMatch[1] === installerCliVersionMatch[1],
-    "install.sh must carry one complete, matching installer and CLI version",
+      installerVersionMatch[1] === "0.5.0" &&
+      installerCliVersionMatch[1] === "0.5.0",
+    "install.sh must carry the one canonical 0.5.0 installer and CLI version",
   );
   for (const phrase of [
     'install_root="${TOHSENO_INSTALL_HOME:-$HOME/.tohseno}"',
     "TOHSENO_INSTALL_CLI_SHA256",
     "checksum mismatch",
+    'MANAGED_HOME_MARKER=".tohseno-managed-home-v1"',
+    "pre-release compatibility is unsupported",
     "--non-interactive",
     "--dry-run",
     "TOHSENO_SOURCE_ROOT",
@@ -467,7 +470,15 @@ async function validateFrozenInstallerBoundary(): Promise<void> {
   const cliChecksum = installer.match(/^CLI_SHA256_DEFAULT="([0-9a-f]{64})"$/m);
   assert(
     cliChecksum !== null,
-    "install.sh must pin the prepared CLI artifact with a complete SHA-256 digest",
+    "install.sh must pin the published CLI artifact with a complete SHA-256 digest",
+  );
+  assert(
+    cliChecksum?.[1] ===
+      "9737b8a87b6c203a5275ec5cf4e6c6a616f9e05e7da3dc8821d7f2b4c3111313" &&
+      installer.includes(
+        'CLI_TREE_SHA256_DEFAULT="dea1607ca84f056061c890f718c242733cbf089cc4e3f4701d88e750eb236367"',
+      ),
+    "install.sh must pin the exact published 0.5.0 archive and tree",
   );
   assert(
     !installer.includes("__TOHSENO_CLI_SHA256__"),
@@ -480,6 +491,10 @@ async function validateFrozenInstallerBoundary(): Promise<void> {
     "install.sh must never execute or install mutable repository content",
   );
   assert(
+    !/migration|0\.4\.0|oneshot/iu.test(installer),
+    "install.sh must not contain pre-0.5 migration or alternate-bootstrap behavior",
+  );
+  assert(
     !existsSync(resolve(ROOT, "apps/site/public/oneshot.sh")),
     "there must be no alternate bootstrap entry point",
   );
@@ -487,7 +502,7 @@ async function validateFrozenInstallerBoundary(): Promise<void> {
   assert(
     !server.includes('"/install.sh"') &&
       !server.includes('"/oneshot.sh"'),
-    "the frozen installer artifact and alternate bootstrap must not be reachable from the 0.5 site",
+    "the pinned installer must remain unserved until the serving commit; the alternate bootstrap must remain absent",
   );
 }
 
@@ -552,7 +567,7 @@ async function main(): Promise<void> {
   await validateRepositoryJson();
   await validateStaticSurface();
   await validateGenesisBoundary();
-  await validateFrozenInstallerBoundary();
+  await validatePinnedInstallerBoundary();
   await validateRepositoryHygiene();
   await run("unstaged whitespace errors", ["git", "diff", "--check"]);
   await run("staged whitespace errors", ["git", "diff", "--cached", "--check"]);

@@ -124,10 +124,13 @@ Before handing off:
 
 ### Release discipline
 
-The `0.5.0` source artifact is prepared but unpublished. The frozen
-`apps/site/public/install.sh` file is not served by the 0.5 site and must not be
-changed as part of source preparation. There is no alternate bootstrap or
-workspace-creation path.
+The canonical `0.5.0` archive and manifest are published from source commit
+`3c471ad8dc1a42349e445b6e378fd21f0e7613d2` at
+`cli-v0.5.0`. Two independent clean builds and the downloaded public assets
+were byte-identical. The canonical `apps/site/public/install.sh` pins that
+exact archive and authenticated tree, rejects pre-release managed homes
+without mutation, and remains unserved until the separate serving commit.
+There is no alternate bootstrap or workspace-creation path.
 
 Release ordering remains part of the trust boundary:
 
@@ -135,8 +138,9 @@ Release ordering remains part of the trust boundary:
 2. build the deterministic archive twice from that exact clean commit;
 3. publish the versioned archive only with explicit owner approval;
 4. verify the downloaded archive against the frozen local bytes;
-5. update and expose the canonical installer only in a separately reviewed,
-   explicitly approved follow-up.
+5. pin the canonical installer in a separately reviewed follow-up while it
+   remains unserved;
+6. expose that exact installer only in a later reviewed serving commit.
 
 Site deploys go out with `railway up`, not by pushing to GitHub, and no deploy
 occurs without explicit owner approval.

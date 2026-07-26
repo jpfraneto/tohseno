@@ -291,10 +291,10 @@ describe("public pages", () => {
     expect((await application.fetch(request("/install.sh"))).status).toBe(404);
   });
 
-  test("the frozen canonical installer file remains unchanged and inert under help", async () => {
+  test("the published 0.5.0 installer is pinned but remains unserved", async () => {
     expect(
       createHash("sha256").update(readFileSync(installerPath)).digest("hex"),
-    ).toBe("5356d0cd3fa4e7b569587f5846a8d92837b6507034b856b0cf1953097e208bc5");
+    ).toBe("442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca");
     const child = Bun.spawn(["/bin/sh", installerPath, "--help"], {
       stdin: "ignore",
       stdout: "pipe",
@@ -306,6 +306,7 @@ describe("public pages", () => {
       new Response(child.stderr).text(),
     ]);
     expect(exitCode).toBe(0);
+    expect(stdout).toContain("TOHSENO installer 0.5.0");
     expect(stdout).toContain("--non-interactive");
     expect(stdout).toContain("managed Bun runtime");
     expect(stderr).toBe("");

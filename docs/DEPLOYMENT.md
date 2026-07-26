@@ -23,14 +23,28 @@ Pushing Git does not deploy the site.
 
 ## Managed CLI artifact
 
-The `0.5.0` source artifact is **Prepared**, not published. Its deterministic
-archive contains the launcher, factory source, canonical manifest tooling,
-composition engine, protocol packages, app capabilities, neutral iOS kernel,
-templates, and pinned Shot machine rails. The installer separately acquires
-its pinned runtime dependencies and verifies every downloaded archive before
-extraction.
+The `0.5.0` source artifact is **Implemented** and published at
+[`cli-v0.5.0`](https://github.com/jpfraneto/tohseno/releases/tag/cli-v0.5.0).
+Its deterministic archive contains the launcher, factory source, canonical
+manifest tooling, composition engine, protocol packages, app capabilities,
+neutral iOS kernel, templates, and pinned Shot machine rails. The installer
+separately acquires its pinned runtime dependencies and verifies every
+downloaded archive before extraction.
 
-Prepare the artifact locally:
+Release evidence:
+
+- source commit:
+  `3c471ad8dc1a42349e445b6e378fd21f0e7613d2`;
+- archive SHA-256:
+  `9737b8a87b6c203a5275ec5cf4e6c6a616f9e05e7da3dc8821d7f2b4c3111313`;
+- authenticated tree SHA-256:
+  `dea1607ca84f056061c890f718c242733cbf089cc4e3f4701d88e750eb236367`;
+- 204 regular files, 1,740,256 compressed bytes, and 5,405,658
+  uncompressed content bytes;
+- two independent clean builds and both downloaded public assets matched
+  byte-for-byte.
+
+Reproduce the artifact locally from the source commit:
 
 ```sh
 bun run check
@@ -39,7 +53,7 @@ shasum -a 256 dist/tohseno-cli-0.5.0.tar.gz
 cat dist/tohseno-cli-0.5.0.json
 ```
 
-This is a rehearsal, not publication.
+Rebuilding locally does not publish or replace the immutable release.
 
 ## Source provenance
 
@@ -102,12 +116,15 @@ gh release create "cli-v<version>" \
 Do not run it without explicit owner approval. Package-registry publication is
 not required by the current installer design.
 
-## Frozen installer boundary
+## Pinned installer boundary
 
-`apps/site/public/install.sh` remains byte-frozen during the 0.5 source pass.
-The site does not route to it, and there is no second installer or workspace
-creator. Updating or serving the canonical installer is a later external
-release action requiring explicit owner approval and a separately reviewed
+`apps/site/public/install.sh` pins the exact public 0.5.0 archive and tree. Its
+reviewed SHA-256 is
+`442325c0355ed4b2ba3896367bfd5e143bb0e481c4d84e09df08a702ef9528ca`.
+It accepts only a canonical 0.5 managed home, rejects preexisting noncanonical
+install roots without mutating them, and contains no migration branch. The site
+does not route to it in this pin commit, and there is no second installer or
+workspace creator. Serving the canonical installer is a separate reviewed
 change.
 
 ## Shot production boundary
