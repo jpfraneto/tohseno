@@ -173,6 +173,13 @@ h3 {
   text-decoration: none;
 }
 
+.wordmark-enso {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 1.6em;
+  height: 1.6em;
+}
+
 .reverse-note {
   color: var(--signal);
   font-family: var(--mono);
@@ -1174,7 +1181,8 @@ h3 {
 
 @media (max-width: 54rem) {
   .site-nav a:nth-child(1),
-  .site-nav a:nth-child(3) {
+  .site-nav a:nth-child(2),
+  .site-nav a:nth-child(4) {
     display: none;
   }
 
@@ -1280,7 +1288,7 @@ h3 {
     font-size: 0.57rem;
   }
 
-  .site-nav a:nth-child(2) {
+  .site-nav a:nth-child(3) {
     display: none;
   }
 

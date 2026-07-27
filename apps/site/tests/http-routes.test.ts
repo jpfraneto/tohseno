@@ -64,7 +64,7 @@ describe("public pages", () => {
     expect(body).toContain("IDEA A");
     expect(body).toContain("The fastest way to prototype iOS apps");
     expect(body).toContain(
-      "A local intention compiler and open app factory for builders with more ideas than time.",
+      "An open-source factory for independent iOS apps, for builders with more ideas than time.",
     );
     expect(body).toContain(
       "Get rid of your recurring thoughts by turning them into an app you can run, use, and judge in iPhone Simulator.",
@@ -89,6 +89,8 @@ describe("public pages", () => {
     expect(shotIcons.size).toBe(100);
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toContain("four years");
+    expect(body).toContain('href="/whitepaper.pdf"');
+    expect(body).toContain('src="/logo.svg"');
     expect(body).toContain(">Community</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('target="_blank"');
@@ -101,7 +103,7 @@ describe("public pages", () => {
     expect(body).not.toContain("Managed intake");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
-      'content="A local intention compiler and open app factory for native iOS shots you can run, use, and own in Simulator."',
+      'content="An open-source factory for independent iOS apps — native shots you can run, use, and own in Simulator."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -254,6 +256,8 @@ describe("public pages", () => {
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
       ["/favicon.png", "image/png"],
+      ["/logo.svg", "image/svg+xml"],
+      ["/whitepaper.pdf", "application/pdf"],
       ["/shot-icons/shot-001.webp", "image/webp"],
       ["/shot-icons/shot-100.webp", "image/webp"],
     ];
