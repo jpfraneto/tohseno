@@ -161,7 +161,6 @@ bun run check
 
 Learn more:
 
-- [What TOHSENO is](WHAT_TOHSENO_IS.md)
 - [CLI and machine operations](docs/CLI.md)
 - [Shot protocol](docs/PROTOCOL.md)
 - [Genesis invariant](docs/GENESIS.md)

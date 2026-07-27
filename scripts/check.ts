@@ -233,7 +233,7 @@ async function validateStaticSurface(): Promise<void> {
     "{{REPOSITORY_URL}}",
     "https://community.tohseno.com",
     "The fastest way to prototype iOS apps",
-    "A local intention compiler and open app factory for builders with more ideas than time",
+    "An open-source factory for independent iOS apps, for builders with more ideas than time.",
     "Get rid of your recurring thoughts",
     "INFINITE SHOTS.",
     "Copy installer command",
