@@ -1,15 +1,16 @@
 # TOHSENO — Genesis Whitepaper
 
 `tohseno-whitepaper.pdf` is the formal edition of the Genesis Whitepaper
-(Version 0.3, July 26, 2026), written against factory release 0.5.0 and
-intended for permanent content-addressed storage (Arweave).
+(Version 1.0, July 27, 2026) — "An Open-Source Factory for Independent
+iOS Apps" — intended for permanent content-addressed storage (Arweave).
 
-Version history is recorded in the document's Provenance appendix.
-v0.2 is permanently stored at
-<https://arweave.net/1-YtqgrwKAVbnANYlX-z47OGnBBXI5m_0NaSID9TAJE>.
+v1.0 is the constitutional source of truth for the protocol: the Shot,
+Contact, the evidence discipline, the authority boundary, the ownership
+model, conformance, and the permanent commitment to the Apple ecosystem.
 
-Version 1.0 of this document is reserved: it will be finalized alongside the
-first stable release and signed with the bootstrap builder identity.
+Prior versions: v0.2 is permanently stored at
+<https://arweave.net/1-YtqgrwKAVbnANYlX-z47OGnBBXI5m_0NaSID9TAJE>;
+v0.3 is recorded in git history.
 
 ## Build
 
