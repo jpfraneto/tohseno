@@ -23,3 +23,4 @@ TOHSENO_EVOLUTION_PROMPT.md
 # Local test and diagnostic output
 tmp/
 *.log
+*.ptc
