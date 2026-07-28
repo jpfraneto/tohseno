@@ -8,59 +8,125 @@
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
-    <main>
-      <header>
-        <div class="mark" aria-hidden="true"></div>
-        <div>
-          <p class="eyebrow">TOHSENO</p>
-          <h1>Print an app.</h1>
-        </div>
-        <span id="connection" class="connection">connecting</span>
-      </header>
+    <main class="studio">
+      <aside class="rail">
+        <header class="brand">
+          <div class="mark" aria-hidden="true"></div>
+          <div>
+            <strong>TOHSENO</strong>
+            <span id="connection">connecting</span>
+          </div>
+        </header>
 
-      <section class="workspace" aria-label="Shot intake">
-        <form id="shot-form">
-          <div class="row">
-            <label>
-              <span>App name</span>
-              <input id="app-name" name="app_name" required pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">
-            </label>
-            <label>
-              <span>Shot</span>
-              <select id="mode" name="mode">
-                <option value="create">Create</option>
-                <option value="evolve">Evolve</option>
-              </select>
-            </label>
+        <button id="new-shot" class="primary-action" type="button">
+          <span class="plus">+</span>
+          <span><strong>New shot</strong><small>Create an app</small></span>
+        </button>
+
+        <section id="empty-selection" class="empty-selection">
+          <p>Choose an app on the phone.</p>
+          <span>Its latest shot will run in Simulator.</span>
+        </section>
+
+        <section id="selection" class="selection" hidden>
+          <div class="selected-app">
+            <div id="selected-icon" class="selected-icon"></div>
+            <div>
+              <h1 id="selected-name"></h1>
+              <span id="selected-location"></span>
+            </div>
           </div>
 
-          <label class="prompt-label">
-            <span>Describe the app</span>
-            <textarea id="prompt" name="prompt" required placeholder="A focused, offline app that…"></textarea>
-          </label>
-
-          <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Attach up to eight reference images">
-            <input id="images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
-            <p>Drop reference images here</p>
-            <span>png, jpg, heic, or webp · up to 8</span>
+          <div class="shot-stepper" aria-label="Shot history">
+            <button id="previous-shot" type="button" aria-label="Previous shot">‹</button>
+            <span id="shot-position">Shot 1 of 1</span>
+            <button id="next-shot" type="button" aria-label="Next shot">›</button>
           </div>
-          <div id="attachments" class="attachments" aria-live="polite"></div>
 
-          <button id="submit" type="submit">Print shot</button>
-        </form>
+          <button id="evolve" class="evolve-action" type="button">Evolve this app</button>
+          <button id="open-simulator" class="secondary-action" type="button">Open Simulator to interact</button>
+          <button id="back-home" class="text-action" type="button">Show all apps</button>
+        </section>
 
-        <aside aria-label="Live press output">
-          <div class="press-head">
+        <section class="phone-slots" aria-label="Free iPhone app slots">
+          <div>
+            <strong>iPhone</strong>
+            <span id="slot-label">0 of 3 installed</span>
+          </div>
+          <div id="slot-dots" class="slot-dots" aria-hidden="true"></div>
+        </section>
+
+        <section class="press">
+          <div class="press-heading">
             <span>Live press</span>
-            <button id="clear" class="quiet" type="button">Clear</button>
+            <button id="clear" type="button">Clear</button>
           </div>
           <div id="events" class="events" role="log" aria-live="polite">
             <p class="empty">The press is waiting.</p>
           </div>
-        </aside>
+        </section>
+      </aside>
+
+      <section class="canvas" aria-label="iPhone Simulator">
+        <div class="device">
+          <div class="device-screen">
+            <div id="status-bar" class="status-bar" aria-hidden="true">
+              <span>9:41</span>
+              <span class="dynamic-island"></span>
+              <span>● ●</span>
+            </div>
+
+            <div id="library-home" class="library-home">
+              <div id="app-grid" class="app-grid" aria-label="Your apps"></div>
+              <p id="no-apps" class="no-apps">Your apps will appear here.</p>
+            </div>
+
+            <div id="running-app" class="running-app" hidden>
+              <div id="simulator-loading" class="simulator-loading">
+                <div class="loading-icon"></div>
+                <strong>Opening shot…</strong>
+                <span>Building for Simulator</span>
+              </div>
+              <img id="simulator-screen" alt="Live screen from Apple Simulator">
+            </div>
+
+            <div id="home-indicator" class="home-indicator" aria-hidden="true"></div>
+          </div>
+        </div>
       </section>
     </main>
+
+    <dialog id="composer">
+      <form id="shot-form" method="dialog">
+        <div class="composer-head">
+          <div>
+            <span id="composer-kicker">CREATE</span>
+            <h2 id="composer-title">New shot</h2>
+          </div>
+          <button id="close-composer" type="button" aria-label="Close">×</button>
+        </div>
+
+        <label id="app-name-label">
+          <span>App name</span>
+          <input id="app-name" name="app_name" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">
+        </label>
+
+        <label>
+          <span id="prompt-label">Describe the app</span>
+          <textarea id="prompt" name="prompt" required placeholder="A focused, offline app that…"></textarea>
+        </label>
+
+        <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Attach up to eight reference images">
+          <input id="images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
+          <strong>Drop reference images</strong>
+          <span>Up to 8</span>
+        </div>
+        <div id="attachments" class="attachments" aria-live="polite"></div>
+
+        <button id="submit" class="submit-shot" type="submit">Create app</button>
+      </form>
+    </dialog>
+
     <script src="/app.js" defer></script>
   </body>
 </html>
-

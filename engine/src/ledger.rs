@@ -285,6 +285,31 @@ impl Ledger {
         })
     }
 
+    pub fn list_shots(&self, app_name: &str) -> Result<Vec<Shot>, LedgerError> {
+        self.load_app(app_name)?;
+        let shots_directory = self.app_dir(app_name).join("shots");
+        let mut shots = Vec::new();
+        for entry in fs::read_dir(shots_directory)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let Ok(number) = entry.file_name().to_string_lossy().parse::<u32>() else {
+                continue;
+            };
+            let shot = Shot {
+                app_name: app_name.into(),
+                number,
+                path: entry.path(),
+            };
+            if shot.complete_path().is_file() {
+                shots.push(shot);
+            }
+        }
+        shots.sort_by_key(|shot| shot.number);
+        Ok(shots)
+    }
+
     fn assert_writable(&self, shot: &Shot) -> Result<(), LedgerError> {
         if shot.complete_path().exists() {
             Err(LedgerError::ShotFinalized(shot.number))
@@ -379,6 +404,15 @@ mod tests {
         assert_eq!(
             ledger.load_app("paper-press").unwrap().parents.get("2"),
             Some(&1)
+        );
+        assert_eq!(
+            ledger
+                .list_shots("paper-press")
+                .unwrap()
+                .iter()
+                .map(|shot| shot.number)
+                .collect::<Vec<_>>(),
+            [1]
         );
     }
 

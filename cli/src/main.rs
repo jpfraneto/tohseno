@@ -1,5 +1,6 @@
 mod intake;
 mod renderer;
+mod simulator;
 mod studio_server;
 
 use clap::{Parser, Subcommand};
