@@ -1,4 +1,0 @@
-#include "App.xcconfig"
-#include? "Local.xcconfig"
-
-SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG
