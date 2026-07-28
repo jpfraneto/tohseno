@@ -1,5 +1,6 @@
 mod intake;
 mod renderer;
+mod studio_server;
 
 use clap::{Parser, Subcommand};
 use renderer::Renderer;
@@ -106,14 +107,7 @@ async fn dispatch(command: Command, bus: &EventBus) -> Result<(), Box<dyn std::e
             Engine::discover(bus.clone())?.retire(&app_name).await?;
         }
         Command::Studio { port } => {
-            bus.emit(Event::status(format!(
-                "opening studio on port {}…",
-                if port == 0 {
-                    "auto".into()
-                } else {
-                    port.to_string()
-                }
-            )));
+            studio_server::serve(port, bus.clone()).await?;
         }
         Command::Doctor { background } => {
             let engine = Engine::discover(bus.clone())?;

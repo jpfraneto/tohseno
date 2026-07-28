@@ -7,8 +7,12 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+base64.workspace = true
 clap.workspace = true
 crossterm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
 tokio.workspace = true
 tohseno-engine = { path = "../engine" }
 

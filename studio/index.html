@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>TOHSENO Studio</title>
+    <link rel="stylesheet" href="/style.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <p class="eyebrow">TOHSENO</p>
+          <h1>Print an app.</h1>
+        </div>
+        <span id="connection" class="connection">connecting</span>
+      </header>
+
+      <section class="workspace" aria-label="Shot intake">
+        <form id="shot-form">
+          <div class="row">
+            <label>
+              <span>App name</span>
+              <input id="app-name" name="app_name" required pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">
+            </label>
+            <label>
+              <span>Shot</span>
+              <select id="mode" name="mode">
+                <option value="create">Create</option>
+                <option value="evolve">Evolve</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="prompt-label">
+            <span>Describe the app</span>
+            <textarea id="prompt" name="prompt" required placeholder="A focused, offline app that…"></textarea>
+          </label>
+
+          <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Attach up to eight reference images">
+            <input id="images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
+            <p>Drop reference images here</p>
+            <span>png, jpg, heic, or webp · up to 8</span>
+          </div>
+          <div id="attachments" class="attachments" aria-live="polite"></div>
+
+          <button id="submit" type="submit">Print shot</button>
+        </form>
+
+        <aside aria-label="Live press output">
+          <div class="press-head">
+            <span>Live press</span>
+            <button id="clear" class="quiet" type="button">Clear</button>
+          </div>
+          <div id="events" class="events" role="log" aria-live="polite">
+            <p class="empty">The press is waiting.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
+
