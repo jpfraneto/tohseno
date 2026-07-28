@@ -1,6 +1,6 @@
 export const PRODUCT = Object.freeze({
   repositoryUrl: "https://github.com/jpfraneto/tohseno",
-  installCommand: "curl -fsSL https://tohseno.com/install.sh | sh",
+  installCommand: "curl -fsSL https://tohseno.com/oneshot.sh | bash",
   copy: {
     BRAND: "TOHSENO",
     HEADER_NOTE: "ONE SHOT",

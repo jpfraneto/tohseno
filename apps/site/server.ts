@@ -122,6 +122,11 @@ const STATIC_FILES: Record<
     type: "text/x-shellscript; charset=utf-8",
     revalidate: true,
   },
+  "/oneshot.sh": {
+    file: "oneshot.sh",
+    type: "text/x-shellscript; charset=utf-8",
+    revalidate: true,
+  },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/logo.svg": { file: "logo.svg", type: "image/svg+xml" },
   "/whitepaper.pdf": {
@@ -141,6 +146,7 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/privacy") return "privacy-page";
   if (pathname === "/healthz") return "health";
   if (pathname === "/install.sh") return "installer";
+  if (pathname === "/oneshot.sh") return "installer";
   if (pathname === "/whitepaper.pdf") return "whitepaper";
   if (STATIC_FILES[pathname]) return "static-asset";
   if (SHOT_ICON_PATH.test(pathname)) return "shot-icon";

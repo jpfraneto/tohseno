@@ -24,6 +24,9 @@ function request(path: string, init: RequestInit = {}): Request {
 const installerPath = fileURLToPath(
   new URL("../public/install.sh", import.meta.url),
 );
+const oneshotInstallerPath = fileURLToPath(
+  new URL("../public/oneshot.sh", import.meta.url),
+);
 const openGraphImagePath = fileURLToPath(
   new URL("../public/og.png", import.meta.url),
 );
@@ -39,7 +42,7 @@ const browserScriptPath = fileURLToPath(
 const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
-const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/install.sh | sh";
+const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
   test("serves the canonical installer path and no stale intake surface", async () => {
@@ -294,7 +297,7 @@ describe("public pages", () => {
     }
   });
 
-  test("serves the canonical installer byte-for-byte and keeps the alternate bootstrap removed", async () => {
+  test("serves the legacy and one-shot installers byte-for-byte", async () => {
     const application = await testApplication();
     const expected = readFileSync(installerPath);
     const response = await application.fetch(request("/install.sh"));
@@ -306,7 +309,19 @@ describe("public pages", () => {
       "public, max-age=0, must-revalidate",
     );
     expect(Buffer.from(await response.arrayBuffer())).toEqual(expected);
-    expect((await application.fetch(request("/oneshot.sh"))).status).toBe(404);
+
+    const expectedOneshot = readFileSync(oneshotInstallerPath);
+    const oneshotResponse = await application.fetch(request("/oneshot.sh"));
+    expect(oneshotResponse.status).toBe(200);
+    expect(oneshotResponse.headers.get("Content-Type")).toBe(
+      "text/x-shellscript; charset=utf-8",
+    );
+    expect(oneshotResponse.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect(Buffer.from(await oneshotResponse.arrayBuffer())).toEqual(
+      expectedOneshot,
+    );
   });
 
   test("serves installer HEAD metadata without installer bytes", async () => {
