@@ -56,6 +56,12 @@ enum Command {
 #[tokio::main]
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
+        if error
+            .downcast_ref::<tohseno_engine::EngineError>()
+            .is_some_and(|error| matches!(error, tohseno_engine::EngineError::SlotLimit))
+        {
+            std::process::exit(1);
+        }
         eprintln!("tohseno: {error}");
         std::process::exit(1);
     }
@@ -78,8 +84,10 @@ async fn dispatch(command: Command, bus: &EventBus) -> Result<(), Box<dyn std::e
             app_name,
             prompt_file,
         } => {
+            let engine = Engine::discover(bus.clone())?;
+            engine.prime_toolchain();
             let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-            Engine::discover(bus.clone())?
+            engine
                 .create(ShotRequest {
                     app_name,
                     intent: Intent::parse(&prompt),
@@ -90,8 +98,10 @@ async fn dispatch(command: Command, bus: &EventBus) -> Result<(), Box<dyn std::e
             app_name,
             prompt_file,
         } => {
+            let engine = Engine::discover(bus.clone())?;
+            engine.prime_toolchain();
             let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-            Engine::discover(bus.clone())?
+            engine
                 .evolve(ShotRequest {
                     app_name,
                     intent: Intent::parse(&prompt),

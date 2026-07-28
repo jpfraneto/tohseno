@@ -61,10 +61,7 @@ impl Intent {
         for range in ranges.into_iter().rev() {
             prompt.replace_range(range, "");
         }
-        Self {
-            prompt: tidy_removed_paths(&prompt),
-            images,
-        }
+        Self { prompt, images }
     }
 
     pub fn with_images(mut self, additional_images: impl IntoIterator<Item = PathBuf>) -> Self {
@@ -88,7 +85,7 @@ impl Intent {
                 .and_then(|name| name.to_str())
                 .unwrap_or("image");
             if index >= MAX_IMAGES {
-                events.emit(Event::status(format!("ignored {original_name} · 8 of 8.")));
+                events.emit(Event::status(format!("ignored {original_name} · 8 of 8")));
                 continue;
             }
             let target_name = unique_name(original_name, &mut used_names);
@@ -96,7 +93,7 @@ impl Intent {
             ledger.write_shot_file(shot, Path::new("images").join(&target_name), &contents)?;
             copied_names.push(target_name.clone());
             events.emit(Event::status(format!(
-                "attached {target_name} · {} of 8.",
+                "attached {target_name} · {} of 8",
                 copied_names.len()
             )));
         }
@@ -206,16 +203,6 @@ fn path_tokens(input: &str) -> Vec<Token> {
     tokens
 }
 
-fn tidy_removed_paths(value: &str) -> String {
-    value
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_owned()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,14 +219,14 @@ mod tests {
                 PathBuf::from("/tmp/detail view.jpeg")
             ]
         );
-        assert_eq!(intent.prompt, "Build this\n with\nand keep this.");
+        assert_eq!(intent.prompt, "Build this\n with \nand keep this.");
     }
 
     #[test]
     fn unrelated_absolute_paths_remain_prompt_text() {
-        let intent = Intent::parse("Read /tmp/notes.md and build an app.");
+        let intent = Intent::parse("  Read /tmp/notes.md and build an app.\n");
         assert!(intent.images.is_empty());
-        assert_eq!(intent.prompt, "Read /tmp/notes.md and build an app.");
+        assert_eq!(intent.prompt, "  Read /tmp/notes.md and build an app.\n");
     }
 
     #[test]

@@ -167,9 +167,17 @@ impl Engine {
     pub async fn refresh(&self, app_name: Option<&str>) -> Result<(), EngineError> {
         self.wait_for_apple_prerequisites().await?;
         let apps = if let Some(app_name) = app_name {
-            vec![self.ledger.load_app(app_name)?]
+            let app = self.ledger.load_app(app_name)?;
+            if app.retired {
+                self.check_slot_limit()?;
+            }
+            vec![app]
         } else {
-            self.ledger.list_apps()?
+            self.ledger
+                .list_apps()?
+                .into_iter()
+                .filter(|app| !app.retired)
+                .collect()
         };
         for app in apps.into_iter().filter(|app| app.latest_shot.is_some()) {
             let shot = self.ledger.latest_shot(&app.name)?.unwrap();
@@ -235,6 +243,16 @@ impl Engine {
         }
     }
 
+    /// Starts Apple's installer before the user begins describing the app so
+    /// toolchain download time overlaps with the intent gate.
+    pub fn prime_toolchain(&self) {
+        if toolchain::check() == ToolchainState::Missing {
+            let _ = toolchain::trigger_install();
+            self.events
+                .emit(Event::status("starting the Apple toolchain installation…"));
+        }
+    }
+
     fn check_slot_limit(&self) -> Result<(), EngineError> {
         let active = self
             .ledger
@@ -244,6 +262,10 @@ impl Engine {
             .collect::<Vec<_>>();
         if active.len() >= 3 {
             let candidate = &active[0].name;
+            self.emit_upsell_once(
+                "slots",
+                "A paid Apple Developer membership raises this limit: developer.apple.com.",
+            )?;
             self.events.emit(Event::handoff(format!(
                 "Run `tohseno retire {candidate}` to free one iPhone slot."
             )));

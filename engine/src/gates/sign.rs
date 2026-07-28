@@ -64,7 +64,7 @@ pub fn development_team() -> Result<String, SignError> {
         None,
     )
     .map_err(|_| SignError::IdentityMissing)?;
-    let xcode_teams = parse_xcode_team_ids(&String::from_utf8_lossy(&defaults.stdout));
+    let xcode_teams = parse_xcode_personal_team_ids(&String::from_utf8_lossy(&defaults.stdout));
     certificate_teams
         .into_iter()
         .find(|team| xcode_teams.contains(team))
@@ -180,14 +180,16 @@ fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn parse_xcode_team_ids(defaults: &str) -> Vec<String> {
+fn parse_xcode_personal_team_ids(defaults: &str) -> Vec<String> {
     defaults
-        .lines()
+        .split("},")
+        .filter(|entry| entry.contains("isFreeProvisioningTeam = 1;"))
+        .flat_map(str::lines)
         .filter_map(|line| {
-            let line = line.trim();
-            line.strip_prefix("teamID = ")
+            line.trim()
+                .strip_prefix("teamID = ")
                 .and_then(|value| value.strip_suffix(';'))
-                .map(str::to_owned)
+                .map(ToOwned::to_owned)
         })
         .collect()
 }
@@ -211,7 +213,12 @@ mod tests {
         let defaults = r#"{
             teamID = R8G2NH6ZA9;
             teamName = "Personal Team";
+            isFreeProvisioningTeam = 1;
+        },
+        {
+            teamID = PAIDTEAM01;
+            isFreeProvisioningTeam = 0;
         }"#;
-        assert_eq!(parse_xcode_team_ids(defaults), ["R8G2NH6ZA9"]);
+        assert_eq!(parse_xcode_personal_team_ids(defaults), ["R8G2NH6ZA9"]);
     }
 }

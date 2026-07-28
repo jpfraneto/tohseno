@@ -1,0 +1,47 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    strategy:
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust target
+        run: rustup target add "${{ matrix.target }}"
+      - name: Build release binary
+        run: cargo build --release --locked --target "${{ matrix.target }}" --bin tohseno
+      - name: Name release binary
+        run: |
+          mkdir artifacts
+          cp "target/${{ matrix.target }}/release/tohseno" "artifacts/tohseno-${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tohseno-${{ matrix.target }}
+          path: artifacts/tohseno-${{ matrix.target }}
+
+  publish:
+    needs: build
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Attach release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" artifacts/* oneshot/oneshot.sh --generate-notes
+

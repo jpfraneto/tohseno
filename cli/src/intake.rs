@@ -29,7 +29,7 @@ pub fn collect(prompt_file: Option<&Path>, events: &EventBus) -> io::Result<Stri
     } else {
         let mut prompt = String::new();
         io::stdin().read_to_string(&mut prompt)?;
-        Ok(prompt.trim_end().to_owned())
+        Ok(prompt)
     }
 }
 
@@ -110,7 +110,7 @@ impl<W: Write> MultilineBox<W> {
                     }
                     KeyCode::Enter => {
                         writeln!(self.writer)?;
-                        return Ok(self.prompt.trim().to_owned());
+                        return Ok(self.prompt);
                     }
                     KeyCode::Backspace => {
                         self.prompt.pop();

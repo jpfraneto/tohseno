@@ -8,6 +8,7 @@ use tohseno_engine::{Engine, Event, EventBus, ShotRequest};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 
 const INDEX: &str = include_str!("../../studio/index.html");
 const STYLE: &str = include_str!("../../studio/style.css");
@@ -52,20 +53,26 @@ pub async fn serve(port: u16, events: EventBus) -> Result<(), Box<dyn std::error
         events,
         press: Arc::new(Mutex::new(())),
     };
+    let mut tasks = JoinSet::new();
 
     loop {
         tokio::select! {
             accepted = listener.accept() => {
                 let (socket, _) = accepted?;
                 let state = state.clone();
-                tokio::spawn(async move {
+                tasks.spawn(async move {
                     if let Err(error) = handle(socket, state).await {
                         eprintln!("studio: {error}");
                     }
                 });
             }
+            completed = tasks.join_next(), if !tasks.is_empty() => {
+                let _ = completed;
+            }
             signal = tokio::signal::ctrl_c() => {
                 signal?;
+                tasks.abort_all();
+                while tasks.join_next().await.is_some() {}
                 return Ok(());
             }
         }
@@ -106,27 +113,26 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                 r#"{"accepted":true}"#,
             )
             .await?;
+            socket.shutdown().await?;
 
             let events = state.events.clone();
             let press = state.press.clone();
-            tokio::spawn(async move {
-                let _staging = staging;
-                let _guard = press.lock().await;
-                let request = ShotRequest {
-                    app_name: submission.app_name,
-                    intent: Intent::parse(&submission.prompt).with_images(image_paths),
-                };
-                let outcome = match Engine::discover(events.clone()) {
-                    Ok(engine) => match submission.mode {
-                        ShotMode::Create => engine.create(request).await.map(|_| ()),
-                        ShotMode::Evolve => engine.evolve(request).await.map(|_| ()),
-                    },
-                    Err(error) => Err(error),
-                };
-                if let Err(error) = outcome {
-                    events.emit(Event::status(format!("engine stopped: {error}")));
-                }
-            });
+            let _staging = staging;
+            let _guard = press.lock().await;
+            let request = ShotRequest {
+                app_name: submission.app_name,
+                intent: Intent::parse(&submission.prompt).with_images(image_paths),
+            };
+            let outcome = match Engine::discover(events.clone()) {
+                Ok(engine) => match submission.mode {
+                    ShotMode::Create => engine.create(request).await.map(|_| ()),
+                    ShotMode::Evolve => engine.evolve(request).await.map(|_| ()),
+                },
+                Err(error) => Err(error),
+            };
+            if let Err(error) = outcome {
+                events.emit(Event::status(format!("engine stopped: {error}")));
+            }
         }
         _ => respond(&mut socket, 404, "text/plain; charset=utf-8", "not found").await?,
     }

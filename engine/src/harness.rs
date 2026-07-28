@@ -27,7 +27,7 @@ impl Harness {
                 Err(HarnessError::Missing(_)) => {
                     if !announced {
                         self.events.emit(Event::handoff(
-                            "Install Claude Code from claude.ai/code, then return here.",
+                            "Run `curl -fsSL https://claude.ai/install.sh | bash`, then return here.",
                         ));
                         announced = true;
                     }

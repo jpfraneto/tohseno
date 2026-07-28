@@ -37,6 +37,9 @@ pub fn compile(
     substitute_shot_number(&shot.source_path(), shot.number)?;
     let project = sign::find_project(&shot.source_path()).ok_or(BuildError::ProjectMissing)?;
     let derived_data = temporary_path("build");
+    // The repair gate precedes the human device gate, so Apple's generic iOS
+    // device destination proves arm64/iOS compilation here; the signed gate
+    // rebuilds against the exact cabled device immediately afterward.
     let output = Command::new("xcodebuild")
         .current_dir(shot.source_path())
         .args([

@@ -66,7 +66,7 @@ form.addEventListener("submit", async (event) => {
     if (!response.ok) throw new Error(await response.text());
     submit.textContent = "Shot in progress";
   } catch (error) {
-    appendEvent("handoff", `Fix the intake and try again: ${error.message}`);
+    appendEvent("status", `intake rejected: ${error.message}`);
     submit.disabled = false;
     submit.textContent = "Print shot";
   }
@@ -80,6 +80,10 @@ const appendEvent = (kind, message) => {
   eventLog.append(line);
   eventLog.scrollTop = eventLog.scrollHeight;
   if (kind === "result") {
+    submit.disabled = false;
+    submit.textContent = "Print shot";
+  }
+  if (kind === "status" && message.startsWith("engine stopped:")) {
     submit.disabled = false;
     submit.textContent = "Print shot";
   }
@@ -103,4 +107,3 @@ stream.onmessage = (event) => {
   const item = JSON.parse(event.data);
   appendEvent(item.kind, item.message);
 };
-
