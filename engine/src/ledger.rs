@@ -58,6 +58,8 @@ pub struct AppRecord {
     pub created_at_unix: u64,
     pub latest_shot: Option<u32>,
     #[serde(default)]
+    pub retired: bool,
+    #[serde(default)]
     pub parents: BTreeMap<String, u32>,
 }
 
@@ -141,6 +143,7 @@ impl Ledger {
             bundle_id: bundle_id.into(),
             created_at_unix: now_unix(),
             latest_shot: None,
+            retired: false,
             parents: BTreeMap::new(),
         };
         self.write_record(&record)?;
@@ -256,6 +259,30 @@ impl Ledger {
                 .join("shots")
                 .join(format!("{number:04}")),
         }))
+    }
+
+    pub fn set_retired(&self, app_name: &str, retired: bool) -> Result<(), LedgerError> {
+        let mut record = self.load_app(app_name)?;
+        record.retired = retired;
+        self.write_record(&record)
+    }
+
+    pub fn shot(&self, app_name: &str, number: u32) -> Result<Shot, LedgerError> {
+        let path = self
+            .app_dir(app_name)
+            .join("shots")
+            .join(format!("{number:04}"));
+        if !path.is_dir() {
+            return Err(LedgerError::Io(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("shot {number} does not exist"),
+            )));
+        }
+        Ok(Shot {
+            app_name: app_name.into(),
+            number,
+            path,
+        })
     }
 
     fn assert_writable(&self, shot: &Shot) -> Result<(), LedgerError> {

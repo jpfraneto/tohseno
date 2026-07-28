@@ -57,10 +57,22 @@ pub fn check() -> Result<DeviceState, DeviceError> {
     let json = fs::read_to_string(&json_path).map_err(DeviceError::Io);
     let _ = fs::remove_file(&json_path);
     output?;
-    parse(&json?)
+    let usb_registry = std::process::Command::new("ioreg")
+        .args(["-p", "IOUSB", "-l", "-w", "0"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+        .unwrap_or_default();
+    parse_with_usb_registry(&json?, &usb_registry)
 }
 
+#[cfg(test)]
 fn parse(json: &str) -> Result<DeviceState, DeviceError> {
+    parse_with_usb_registry(json, "")
+}
+
+fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState, DeviceError> {
     let response: Response = serde_json::from_str(json).map_err(DeviceError::Json)?;
     let mut saw_wired_untrusted = false;
     let mut saw_wired_without_developer_mode = false;
@@ -71,7 +83,12 @@ fn parse(json: &str) -> Result<DeviceState, DeviceError> {
         {
             continue;
         }
-        if !is_wired(entry.connection_properties.transport_type.as_deref()) {
+        let registry_has_udid = entry
+            .hardware_properties
+            .udid
+            .as_deref()
+            .is_some_and(|udid| usb_registry.contains(udid));
+        if !is_wired(entry.connection_properties.transport_type.as_deref()) && !registry_has_udid {
             // A paired Wi-Fi device must never satisfy the cable-only invariant.
             continue;
         }
@@ -97,6 +114,10 @@ fn parse(json: &str) -> Result<DeviceState, DeviceError> {
         Ok(DeviceState::TrustRequired)
     } else if saw_wired_without_developer_mode {
         Ok(DeviceState::DeveloperModeRequired)
+    } else if usb_registry.contains("iPhone") || usb_registry.contains("Apple Mobile Device") {
+        // USB sees the phone but CoreDevice does not yet know it, which is the
+        // observable pre-Trust state.
+        Ok(DeviceState::TrustRequired)
     } else {
         Ok(DeviceState::CableMissing)
     }

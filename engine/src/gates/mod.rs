@@ -1,7 +1,10 @@
+pub mod build;
 pub mod device;
+pub mod identity;
 pub mod install;
 pub mod intent;
 pub mod sign;
+pub mod toolchain;
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;

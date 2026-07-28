@@ -5,7 +5,8 @@ use clap::{Parser, Subcommand};
 use renderer::Renderer;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
-use tohseno_engine::{Event, EventBus, Ledger};
+use tohseno_engine::gates::intent::Intent;
+use tohseno_engine::{Engine, Event, EventBus, Ledger, ShotRequest};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -63,43 +64,46 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let bus = EventBus::default();
     let renderer = Renderer::new(io::stdout(), io::stdout().is_terminal());
     let render_task = tokio::spawn(renderer.follow(bus.subscribe()));
+    let outcome = dispatch(cli.command, &bus).await;
+    drop(bus);
+    render_task.await??;
+    outcome
+}
 
-    match cli.command {
-        Command::List => list(&bus)?,
+async fn dispatch(command: Command, bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
+    match command {
+        Command::List => list(bus)?,
         Command::Create {
             app_name,
             prompt_file,
         } => {
-            let prompt = intake::collect(prompt_file.as_deref(), &bus)?;
-            let intent = tohseno_engine::gates::intent::Intent::parse(&prompt);
-            bus.emit(Event::status(format!("preparing shot 1 of {app_name}…")));
-            bus.emit(Event::status(format!(
-                "captured {} characters and {} images.",
-                intent.prompt.chars().count(),
-                intent.images.len().min(8)
-            )));
+            let prompt = intake::collect(prompt_file.as_deref(), bus)?;
+            Engine::discover(bus.clone())?
+                .create(ShotRequest {
+                    app_name,
+                    intent: Intent::parse(&prompt),
+                })
+                .await?;
         }
         Command::Evolve {
             app_name,
             prompt_file,
         } => {
-            let prompt = intake::collect(prompt_file.as_deref(), &bus)?;
-            let intent = tohseno_engine::gates::intent::Intent::parse(&prompt);
-            bus.emit(Event::status(format!(
-                "preparing the next shot of {app_name}…"
-            )));
-            bus.emit(Event::status(format!(
-                "captured {} characters and {} images.",
-                intent.prompt.chars().count(),
-                intent.images.len().min(8)
-            )));
+            let prompt = intake::collect(prompt_file.as_deref(), bus)?;
+            Engine::discover(bus.clone())?
+                .evolve(ShotRequest {
+                    app_name,
+                    intent: Intent::parse(&prompt),
+                })
+                .await?;
         }
         Command::Refresh { app_name } => {
-            let subject = app_name.as_deref().unwrap_or("every app");
-            bus.emit(Event::status(format!("refreshing {subject}…")));
+            Engine::discover(bus.clone())?
+                .refresh(app_name.as_deref())
+                .await?;
         }
         Command::Retire { app_name } => {
-            bus.emit(Event::status(format!("retiring {app_name}…")));
+            Engine::discover(bus.clone())?.retire(&app_name).await?;
         }
         Command::Studio { port } => {
             bus.emit(Event::status(format!(
@@ -112,14 +116,13 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             )));
         }
         Command::Doctor { background } => {
+            let engine = Engine::discover(bus.clone())?;
             if !background {
                 bus.emit(Event::status("checking this Mac…"));
             }
+            engine.doctor_once()?;
         }
     }
-
-    drop(bus);
-    render_task.await??;
     Ok(())
 }
 
@@ -130,11 +133,18 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
         bus.emit(Event::status("no apps yet."));
     } else {
         for app in apps {
-            let shots = app
-                .latest_shot
-                .map(|shot| format!("shots 1–{shot}"))
-                .unwrap_or_else(|| "no complete shots".into());
-            bus.emit(Event::status(format!("{} · {shots}", app.name)));
+            let detail = if let Some(number) = app.latest_shot {
+                let shot = ledger.shot(&app.name, number)?;
+                let artifact = shot.artifact_path().join(format!("{}.app", app.name));
+                let expiry = tohseno_engine::gates::sign::days_until_expiry(&artifact)
+                    .map(|days| format!("{days} days until expiry"))
+                    .unwrap_or_else(|| "signing profile unavailable".into());
+                format!("shots 1–{number} · {expiry}")
+            } else {
+                "no complete shots".into()
+            };
+            let retired = if app.retired { " · retired" } else { "" };
+            bus.emit(Event::status(format!("{} · {detail}{retired}", app.name)));
         }
     }
     Ok(())

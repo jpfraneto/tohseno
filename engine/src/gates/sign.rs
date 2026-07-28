@@ -3,6 +3,8 @@ use crate::gates::device::Device;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug)]
 pub struct SignRequest<'a> {
@@ -45,12 +47,27 @@ pub fn development_team() -> Result<String, SignError> {
     )
     .map_err(SignError::Command)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout
+    let certificate_teams = stdout
         .lines()
-        .find(|line| line.contains("\"Apple Development:"))
-        .and_then(|line| line.rsplit_once('('))
-        .and_then(|(_, suffix)| suffix.strip_suffix(")\""))
-        .map(str::to_owned)
+        .filter(|line| line.contains("\"Apple Development:"))
+        .filter_map(|line| line.rsplit_once('('))
+        .filter_map(|(_, suffix)| suffix.strip_suffix(")\""))
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let defaults = run_checked(
+        "defaults",
+        [
+            "read",
+            "com.apple.dt.Xcode",
+            "IDEProvisioningTeamByIdentifier",
+        ],
+        None,
+    )
+    .map_err(|_| SignError::IdentityMissing)?;
+    let xcode_teams = parse_xcode_team_ids(&String::from_utf8_lossy(&defaults.stdout));
+    certificate_teams
+        .into_iter()
+        .find(|team| xcode_teams.contains(team))
         .ok_or(SignError::IdentityMissing)
 }
 
@@ -103,7 +120,42 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
     Ok(artifact)
 }
 
-fn find_project(source: &Path) -> Option<PathBuf> {
+pub fn days_until_expiry(app: &Path) -> Option<i64> {
+    let profile = app.join("embedded.mobileprovision");
+    let output = Command::new("security")
+        .args(["cms", "-D", "-i"])
+        .arg(profile)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let plist = String::from_utf8(output.stdout).ok()?;
+    let key = "<key>ExpirationDate</key>";
+    let remainder = plist.split_once(key)?.1;
+    let raw_date = remainder
+        .split_once("<date>")?
+        .1
+        .split_once("</date>")?
+        .0
+        .trim();
+    let parsed = Command::new("/bin/date")
+        .args(["-j", "-f", "%Y-%m-%dT%H:%M:%SZ", raw_date, "+%s"])
+        .output()
+        .ok()?;
+    if !parsed.status.success() {
+        return None;
+    }
+    let expiry = String::from_utf8(parsed.stdout)
+        .ok()?
+        .trim()
+        .parse::<i64>()
+        .ok()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64;
+    Some((expiry - now).div_euclid(86_400))
+}
+
+pub(crate) fn find_project(source: &Path) -> Option<PathBuf> {
     fs::read_dir(source)
         .ok()?
         .filter_map(Result::ok)
@@ -128,6 +180,18 @@ fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+fn parse_xcode_team_ids(defaults: &str) -> Vec<String> {
+    defaults
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            line.strip_prefix("teamID = ")
+                .and_then(|value| value.strip_suffix(';'))
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,5 +204,14 @@ mod tests {
             find_project(directory.path()).unwrap(),
             directory.path().join("Press.xcodeproj")
         );
+    }
+
+    #[test]
+    fn reads_team_ids_from_xcode_account_defaults() {
+        let defaults = r#"{
+            teamID = R8G2NH6ZA9;
+            teamName = "Personal Team";
+        }"#;
+        assert_eq!(parse_xcode_team_ids(defaults), ["R8G2NH6ZA9"]);
     }
 }
