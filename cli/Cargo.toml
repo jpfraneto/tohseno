@@ -7,9 +7,10 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+clap.workspace = true
+tokio.workspace = true
 tohseno-engine = { path = "../engine" }
 
 [[bin]]
 name = "tohseno"
 path = "src/main.rs"
-
