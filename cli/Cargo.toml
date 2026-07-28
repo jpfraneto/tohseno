@@ -8,8 +8,12 @@ rust-version.workspace = true
 
 [dependencies]
 clap.workspace = true
+crossterm.workspace = true
 tokio.workspace = true
 tohseno-engine = { path = "../engine" }
+
+[dev-dependencies]
+tempfile = "3.15"
 
 [[bin]]
 name = "tohseno"

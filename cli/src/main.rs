@@ -1,3 +1,4 @@
+mod intake;
 mod renderer;
 
 use clap::{Parser, Subcommand};
@@ -65,12 +66,32 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Command::List => list(&bus)?,
-        Command::Create { app_name, .. } => {
+        Command::Create {
+            app_name,
+            prompt_file,
+        } => {
+            let prompt = intake::collect(prompt_file.as_deref(), &bus)?;
+            let intent = tohseno_engine::gates::intent::Intent::parse(&prompt);
             bus.emit(Event::status(format!("preparing shot 1 of {app_name}…")));
+            bus.emit(Event::status(format!(
+                "captured {} characters and {} images.",
+                intent.prompt.chars().count(),
+                intent.images.len().min(8)
+            )));
         }
-        Command::Evolve { app_name, .. } => {
+        Command::Evolve {
+            app_name,
+            prompt_file,
+        } => {
+            let prompt = intake::collect(prompt_file.as_deref(), &bus)?;
+            let intent = tohseno_engine::gates::intent::Intent::parse(&prompt);
             bus.emit(Event::status(format!(
                 "preparing the next shot of {app_name}…"
+            )));
+            bus.emit(Event::status(format!(
+                "captured {} characters and {} images.",
+                intent.prompt.chars().count(),
+                intent.images.len().min(8)
             )));
         }
         Command::Refresh { app_name } => {

@@ -1,5 +1,6 @@
 pub mod device;
 pub mod install;
+pub mod intent;
 pub mod sign;
 
 use std::ffi::{OsStr, OsString};
