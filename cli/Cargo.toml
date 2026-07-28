@@ -1,0 +1,15 @@
+[package]
+name = "tohseno"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tohseno-engine = { path = "../engine" }
+
+[[bin]]
+name = "tohseno"
+path = "src/main.rs"
+
