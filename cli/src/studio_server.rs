@@ -15,6 +15,9 @@ use tokio::task::JoinSet;
 const INDEX: &str = include_str!("../../studio/index.html");
 const STYLE: &str = include_str!("../../studio/style.css");
 const SCRIPT: &str = include_str!("../../studio/app.js");
+const BRAND_COLORS: &str = include_str!("../../brand/tokens/colors.css");
+const CORE_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-core-circle.svg");
+const MICRO_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-micro-circle.png");
 const MAX_BODY: usize = 160 * 1024 * 1024;
 
 #[derive(Clone)]
@@ -140,6 +143,15 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         }
         ("GET", "/app.js") => {
             respond(&mut socket, 200, "text/javascript; charset=utf-8", SCRIPT).await?
+        }
+        ("GET", "/brand/tokens/colors.css") => {
+            respond(&mut socket, 200, "text/css; charset=utf-8", BRAND_COLORS).await?
+        }
+        ("GET", "/brand/logos/tohseno-core-circle.svg") => {
+            respond_bytes(&mut socket, 200, "image/svg+xml", CORE_CIRCLE).await?
+        }
+        ("GET", "/brand/logos/tohseno-micro-circle.png") => {
+            respond_bytes(&mut socket, 200, "image/png", MICRO_CIRCLE).await?
         }
         ("GET", "/events") => stream_events(socket, state.events).await?,
         ("POST", "/shots") => {
