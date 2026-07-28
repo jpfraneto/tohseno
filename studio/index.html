@@ -93,6 +93,12 @@
             <button id="close-composer" type="button" aria-label="Close intention">×</button>
           </header>
 
+          <label id="harness-label">
+            <span>Coding agent</span>
+            <select id="harness" name="harness" required aria-describedby="harness-status"></select>
+            <small id="harness-status">Detecting agents on this Mac…</small>
+          </label>
+
           <label id="app-name-label">
             <span>App name</span>
             <input id="app-name" name="app_name" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">

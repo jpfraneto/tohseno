@@ -30,6 +30,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -43,6 +44,7 @@ button {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
   outline: 1px solid var(--amber);
@@ -570,6 +572,7 @@ body.resizing {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--iron);
@@ -582,6 +585,11 @@ textarea {
 input {
   height: 44px;
   padding: 0 12px;
+}
+
+select {
+  height: 44px;
+  padding: 0 34px 0 12px;
 }
 
 textarea {
@@ -598,14 +606,25 @@ textarea::placeholder {
 }
 
 input:focus,
+select:focus,
 textarea:focus,
 .drop-zone:focus {
   border-color: var(--silver);
 }
 
 input:disabled,
+select:disabled,
 textarea:disabled {
   color: var(--ash);
+}
+
+#harness-status {
+  display: block;
+  margin-top: 7px;
+  color: var(--ash);
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 8px;
+  line-height: 1.4;
 }
 
 .drop-zone {

@@ -29,12 +29,18 @@ enum Command {
         app_name: String,
         #[arg(long, value_name = "PATH")]
         prompt_file: Option<PathBuf>,
+        /// Use a detected coding agent by id: hermes, codex, claude, grok, or opencode.
+        #[arg(long, value_name = "AGENT")]
+        harness: Option<String>,
     },
     /// Create a new complete shot using the previous shot as context.
     Evolve {
         app_name: String,
         #[arg(long, value_name = "PATH")]
         prompt_file: Option<PathBuf>,
+        /// Use a detected coding agent by id: hermes, codex, claude, grok, or opencode.
+        #[arg(long, value_name = "AGENT")]
+        harness: Option<String>,
     },
     /// Re-sign and install the latest shot of one app or every app.
     Refresh { app_name: Option<String> },
@@ -84,28 +90,34 @@ async fn dispatch(command: Command, bus: &EventBus) -> Result<(), Box<dyn std::e
         Command::Create {
             app_name,
             prompt_file,
+            harness,
         } => {
             let engine = Engine::discover(bus.clone())?;
+            let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
             engine.prime_toolchain();
             let prompt = intake::collect(prompt_file.as_deref(), bus)?;
             engine
                 .create(ShotRequest {
                     app_name,
                     intent: Intent::parse(&prompt),
+                    harness,
                 })
                 .await?;
         }
         Command::Evolve {
             app_name,
             prompt_file,
+            harness,
         } => {
             let engine = Engine::discover(bus.clone())?;
+            let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
             engine.prime_toolchain();
             let prompt = intake::collect(prompt_file.as_deref(), bus)?;
             engine
                 .evolve(ShotRequest {
                     app_name,
                     intent: Intent::parse(&prompt),
+                    harness,
                 })
                 .await?;
         }

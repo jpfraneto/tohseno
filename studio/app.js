@@ -31,6 +31,8 @@ const ui = {
   composerSupport: document.querySelector("#composer-support"),
   closeComposer: document.querySelector("#close-composer"),
   form: document.querySelector("#shot-form"),
+  harness: document.querySelector("#harness"),
+  harnessStatus: document.querySelector("#harness-status"),
   appNameLabel: document.querySelector("#app-name-label"),
   appName: document.querySelector("#app-name"),
   promptLabel: document.querySelector("#prompt-label"),
@@ -43,6 +45,7 @@ const ui = {
 };
 
 let library = { apps: [], iphone_slots_used: 0, iphone_slot_limit: 3 };
+let harnesses = [];
 let selectedApp = null;
 let selectedShot = null;
 let composerMode = "create";
@@ -93,6 +96,42 @@ const loadLibrary = async () => {
   renderLibrary();
   renderSelection();
   renderSlots();
+};
+
+const loadHarnesses = async () => {
+  const response = await fetch("/api/harnesses", { cache: "no-store" });
+  if (!response.ok) throw new Error(await response.text());
+  const payload = await response.json();
+  harnesses = payload.harnesses.filter((harness) => harness.installed);
+  renderHarnesses();
+};
+
+const renderHarnesses = () => {
+  const selected = harnesses.find((harness) => harness.selected) || harnesses[0];
+  if (!selected) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No coding agents found";
+    ui.harness.replaceChildren(option);
+    ui.harness.disabled = true;
+    ui.harnessStatus.textContent = "Install a supported coding agent to take a Shot.";
+    updateSubmitState();
+    return;
+  }
+
+  const options = harnesses.map((harness) => {
+    const option = document.createElement("option");
+    option.value = harness.id;
+    option.textContent = harness.label;
+    option.selected = harness.id === selected.id;
+    return option;
+  });
+  ui.harness.replaceChildren(...options);
+  ui.harness.disabled = pressActive;
+  ui.harnessStatus.textContent = harnesses.length === 1
+    ? "1 agent detected on this Mac."
+    : `${harnesses.length} agents detected on this Mac.`;
+  updateSubmitState();
 };
 
 const renderLibrary = () => {
@@ -228,13 +267,18 @@ ui.openSimulator.addEventListener("click", async () => {
 
 const updateSubmitState = () => {
   const validName = composerMode === "evolve" || (ui.appName.validity.valid && ui.appName.value.length > 0);
-  const ready = validName && ui.prompt.value.trim().length > 0 && !pressActive && !shotCompleted;
+  const ready = validName
+    && ui.harness.value.length > 0
+    && ui.prompt.value.trim().length > 0
+    && !pressActive
+    && !shotCompleted;
   ui.submit.disabled = !ready;
 };
 
 const setComposerBusy = (busy) => {
   pressActive = busy;
   ui.form.setAttribute("aria-busy", String(busy));
+  ui.harness.disabled = busy || harnesses.length === 0;
   ui.appName.disabled = busy;
   ui.prompt.disabled = busy;
   ui.imageInput.disabled = busy;
@@ -250,6 +294,8 @@ const openComposer = (mode) => {
   shotCompleted = false;
   renderFiles();
   ui.form.reset();
+  const selectedHarness = harnesses.find((harness) => harness.selected) || harnesses[0];
+  ui.harness.value = selectedHarness?.id || "";
 
   if (mode === "create") {
     ui.composerKicker.textContent = "CREATE";
@@ -327,7 +373,7 @@ for (const name of ["dragleave", "drop"]) {
 }
 ui.dropZone.addEventListener("drop", (event) => acceptFiles(event.dataTransfer.files));
 
-for (const field of [ui.appName, ui.prompt]) {
+for (const field of [ui.harness, ui.appName, ui.prompt]) {
   field.addEventListener("input", () => {
     shotCompleted = false;
     updateSubmitState();
@@ -355,6 +401,7 @@ ui.form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         mode: composerMode,
         app_name: appName,
+        harness: ui.harness.value,
         prompt: ui.prompt.value,
         images: await Promise.all(files.map(filePayload)),
       }),
@@ -382,12 +429,16 @@ const appendEvent = (kind, message) => {
     pressActive = false;
     shotCompleted = true;
     ui.form.setAttribute("aria-busy", "false");
+    ui.harness.disabled = harnesses.length === 0;
     ui.appName.disabled = false;
     ui.prompt.disabled = false;
     ui.imageInput.disabled = false;
     ui.dropZone.setAttribute("aria-disabled", "false");
     ui.submit.textContent = "Shot complete";
     ui.submit.disabled = true;
+    for (const harness of harnesses) {
+      harness.selected = harness.id === ui.harness.value;
+    }
 
     loadLibrary().then(() => {
       const app = library.apps.find((candidate) => candidate.name === completed.appName);
@@ -467,4 +518,6 @@ stream.onmessage = (event) => {
   appendEvent(item.kind, item.message);
 };
 
-loadLibrary().catch((error) => appendEvent("status", `library unavailable: ${error.message}`));
+Promise.all([loadLibrary(), loadHarnesses()]).catch((error) => {
+  appendEvent("status", `studio data unavailable: ${error.message}`);
+});

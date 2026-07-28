@@ -39,10 +39,16 @@ impl Config {
         let path = root.join("config.toml");
         if !path.exists() {
             let config = Self::default();
-            fs::write(&path, toml::to_string_pretty(&config)?)?;
+            config.save(root)?;
             return Ok(config);
         }
         Ok(toml::from_str(&fs::read_to_string(path)?)?)
+    }
+
+    pub fn save(&self, root: &Path) -> Result<(), ConfigError> {
+        fs::create_dir_all(root)?;
+        fs::write(root.join("config.toml"), toml::to_string_pretty(self)?)?;
+        Ok(())
     }
 }
 
@@ -102,5 +108,18 @@ mod tests {
         assert_eq!(config.harness.command, "claude");
         assert_eq!(config.max_repair_passes, 8);
         assert!(directory.path().join("config.toml").is_file());
+    }
+
+    #[test]
+    fn persists_a_selected_harness_without_losing_other_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut config = Config::default();
+        config.harness.command = "/usr/local/bin/codex".into();
+        config.max_repair_passes = 5;
+        config.save(directory.path()).unwrap();
+
+        let loaded = Config::load_or_create(directory.path()).unwrap();
+        assert_eq!(loaded.harness.command, "/usr/local/bin/codex");
+        assert_eq!(loaded.max_repair_passes, 5);
     }
 }

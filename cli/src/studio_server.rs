@@ -33,6 +33,8 @@ struct ShotSubmission {
     app_name: String,
     prompt: String,
     #[serde(default)]
+    harness: Option<String>,
+    #[serde(default)]
     images: Vec<UploadedImage>,
 }
 
@@ -69,6 +71,11 @@ struct LibraryApp {
     shots: Vec<u32>,
     retired: bool,
     icon_url: String,
+}
+
+#[derive(Debug, Serialize)]
+struct HarnessesResponse {
+    harnesses: Vec<tohseno_engine::HarnessOption>,
 }
 
 pub async fn serve(port: u16, events: EventBus) -> Result<(), Box<dyn std::error::Error>> {
@@ -112,6 +119,9 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     let request = read_request(&mut socket).await?;
     if request.method == "GET" && request.path == "/api/apps" {
         return serve_library(&mut socket).await;
+    }
+    if request.method == "GET" && request.path == "/api/harnesses" {
+        return serve_harnesses(&mut socket, &state).await;
     }
     if request.method == "GET" && request.path.starts_with("/api/icon/") {
         return serve_icon(&mut socket, &request.path).await;
@@ -186,6 +196,7 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
             let request = ShotRequest {
                 app_name: submission.app_name,
                 intent: Intent::parse(&submission.prompt).with_images(image_paths),
+                harness: submission.harness,
             };
             let outcome = match Engine::discover(events.clone()) {
                 Ok(engine) => match submission.mode {
@@ -200,6 +211,18 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         }
         _ => respond(&mut socket, 404, "text/plain; charset=utf-8", "not found").await?,
     }
+    Ok(())
+}
+
+async fn serve_harnesses(
+    socket: &mut TcpStream,
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let engine = Engine::discover(state.events.clone())?;
+    let body = serde_json::to_string(&HarnessesResponse {
+        harnesses: engine.harnesses(),
+    })?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
 }
 

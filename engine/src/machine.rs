@@ -1,4 +1,4 @@
-use crate::config::{Config, ConfigError};
+use crate::config::{Config, ConfigError, HarnessConfig};
 use crate::events::{Event, EventBus};
 use crate::gates::device::{self, DeviceState};
 use crate::gates::identity::{self, IdentityState};
@@ -6,7 +6,9 @@ use crate::gates::intent::{Intent, IntentError};
 use crate::gates::toolchain::{self, ToolchainState};
 use crate::gates::{build, install, sign};
 use crate::genome::{Genome, GenomeError};
-use crate::harness::{Harness, HarnessError, HarnessMode};
+use crate::harness::{
+    discover_harnesses, selected_harness, Harness, HarnessError, HarnessMode, HarnessOption,
+};
 use crate::ledger::{sanitize_component, Ledger, LedgerError, Shot};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -17,6 +19,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub struct ShotRequest {
     pub app_name: String,
     pub intent: Intent,
+    pub harness: Option<String>,
 }
 
 pub struct Engine {
@@ -52,17 +55,23 @@ impl Engine {
         &self.ledger
     }
 
+    pub fn harnesses(&self) -> Vec<HarnessOption> {
+        discover_harnesses(&self.config.harness)
+    }
+
     pub async fn create(&self, request: ShotRequest) -> Result<Shot, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
+        let harness = self.harness_for_request(request.harness.as_deref())?;
         self.check_slot_limit()?;
         let bundle_id = bundle_id(&request.app_name)?;
         self.ledger.create_app(&request.app_name, &bundle_id)?;
         let shot = self.ledger.reserve_shot(&request.app_name, None)?;
-        self.run_shot(request, shot, bundle_id, None).await
+        self.run_shot(request, shot, bundle_id, None, harness).await
     }
 
     pub async fn evolve(&self, request: ShotRequest) -> Result<Shot, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
+        let harness = self.harness_for_request(request.harness.as_deref())?;
         let app = self.ledger.load_app(&request.app_name)?;
         let previous = self
             .ledger
@@ -71,8 +80,14 @@ impl Engine {
         let shot = self
             .ledger
             .reserve_shot(&request.app_name, Some(previous.number))?;
-        self.run_shot(request, shot, app.bundle_id, Some(previous.source_path()))
-            .await
+        self.run_shot(
+            request,
+            shot,
+            app.bundle_id,
+            Some(previous.source_path()),
+            harness,
+        )
+        .await
     }
 
     async fn run_shot(
@@ -81,6 +96,7 @@ impl Engine {
         shot: Shot,
         bundle_id: String,
         previous_source: Option<PathBuf>,
+        harness_config: HarnessConfig,
     ) -> Result<Shot, EngineError> {
         self.events
             .emit(Event::status(format!("preparing shot {}…", shot.number)));
@@ -96,8 +112,8 @@ impl Engine {
             previous_source.as_deref(),
         )?;
 
-        let harness_mode = self.wait_for_prerequisites().await?;
-        let harness = Harness::new(self.config.harness.clone(), self.events.clone());
+        let harness_mode = self.wait_for_prerequisites(&harness_config).await?;
+        let harness = Harness::new(harness_config, self.events.clone());
         self.events.emit(Event::status(format!(
             "writing shot {} of {}…",
             shot.number, request.app_name
@@ -285,9 +301,25 @@ impl Engine {
         Ok(())
     }
 
-    async fn wait_for_prerequisites(&self) -> Result<HarnessMode, EngineError> {
+    fn harness_for_request(&self, requested: Option<&str>) -> Result<HarnessConfig, EngineError> {
+        let Some(requested) = requested else {
+            return Ok(self.config.harness.clone());
+        };
+        let harness = selected_harness(requested)?;
+        if harness.command != self.config.harness.command {
+            let mut config = self.config.clone();
+            config.harness = harness.clone();
+            config.save(self.ledger.root())?;
+        }
+        Ok(harness)
+    }
+
+    async fn wait_for_prerequisites(
+        &self,
+        harness_config: &HarnessConfig,
+    ) -> Result<HarnessMode, EngineError> {
         self.wait_for_apple_prerequisites().await?;
-        Harness::new(self.config.harness.clone(), self.events.clone())
+        Harness::new(harness_config.clone(), self.events.clone())
             .wait_until_available()
             .await
             .map_err(EngineError::Harness)
