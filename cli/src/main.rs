@@ -11,7 +11,9 @@ use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use tohseno_engine::gates::intent::Intent;
 use tohseno_engine::public_submission::EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION;
-use tohseno_engine::{Engine, Event, EventBus, Ledger, ShotRequest};
+use tohseno_engine::{
+    ConductedCreation, Config, Engine, Event, EventBus, HarnessOption, Ledger, ShotRequest,
+};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -39,6 +41,17 @@ enum Command {
         /// or an absolute path to your own TASK.md-compatible agent executable.
         #[arg(long, value_name = "AGENT")]
         harness: Option<String>,
+    },
+    /// Seal the app folder's current state as the next Evolution.
+    ///
+    /// However the folder got there — your own agent, Xcode, an editor —
+    /// `shot` snapshots it, runs every gate, signs the record, and appends
+    /// an immutable Evolution. Run it inside the folder or pass the name.
+    Shot {
+        app_name: Option<String>,
+        /// One line recorded as this Evolution's intention.
+        #[arg(long, value_name = "TEXT")]
+        note: Option<String>,
     },
     /// Create a new complete shot using the previous shot as context.
     Evolve {
@@ -285,16 +298,38 @@ async fn dispatch(
             harness,
         } => {
             let engine = Engine::discover(bus.clone())?;
-            let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
-            engine.prime_toolchain();
-            let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-            engine
-                .create(ShotRequest {
-                    app_name,
+            let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
+            if harness.is_none() && interactive {
+                // Conducted: the builder's own agent, in their own session,
+                // working in the visible folder. `tohseno shot` seals it.
+                let options = engine.harnesses();
+                let agent_id = intake::choose_harness(&options, None, bus)?;
+                engine.prime_toolchain();
+                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
+                let creation = engine.create_folder(&ShotRequest {
+                    app_name: app_name.clone(),
                     intent: Intent::parse(&prompt),
-                    harness,
-                })
-                .await?;
+                    harness: None,
+                })?;
+                let agent =
+                    agent_id.and_then(|id| options.into_iter().find(|option| option.id == id));
+                conduct_agent(&creation, agent.as_ref(), &app_name, bus);
+            } else {
+                let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
+                engine.prime_toolchain();
+                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
+                engine
+                    .create(ShotRequest {
+                        app_name,
+                        intent: Intent::parse(&prompt),
+                        harness,
+                    })
+                    .await?;
+            }
+        }
+        Command::Shot { app_name, note } => {
+            let (engine, name) = engine_for(app_name, bus)?;
+            engine.seal(&name, note.as_deref()).await?;
         }
         Command::Evolve {
             app_name,
@@ -401,6 +436,81 @@ async fn dispatch(
         },
     }
     Ok(())
+}
+
+/// Resolves the engine and app name, git-style: an explicit name uses the
+/// configured homes; no name walks up from the current directory to the
+/// nearest folder carrying a `.tohseno` ledger.
+fn engine_for(
+    app_name: Option<String>,
+    bus: &EventBus,
+) -> Result<(Engine, String), Box<dyn std::error::Error>> {
+    if let Some(name) = app_name {
+        return Ok((Engine::discover(bus.clone())?, name));
+    }
+    let mut directory = std::env::current_dir()?;
+    loop {
+        if directory.join(".tohseno").join("app.toml").is_file() {
+            let (ledger, name) = Ledger::for_app_folder(&directory)?;
+            ledger.initialize()?;
+            let config = Config::load_or_create(ledger.machine_root())?;
+            return Ok((Engine::at(ledger, bus.clone(), config), name));
+        }
+        if !directory.pop() {
+            break;
+        }
+    }
+    Err("run this inside an app folder, or pass the app name".into())
+}
+
+/// Opens the builder's own agent in a new Terminal window on the folder.
+fn conduct_agent(
+    creation: &ConductedCreation,
+    agent: Option<&HarnessOption>,
+    app_name: &str,
+    bus: &EventBus,
+) {
+    let folder = creation.folder.display();
+    let Some(agent) = agent else {
+        bus.emit(Event::handoff(format!(
+            "open a terminal in {folder}, run your coding agent, then: tohseno shot {app_name}"
+        )));
+        return;
+    };
+    let instruction = format!(
+        "Read .tohseno/TASK.md first, then build the complete app in this folder. When it builds, tell me to run: tohseno shot {app_name}"
+    );
+    let shell = format!(
+        "cd {} && {} {}",
+        shell_quote(&creation.folder.to_string_lossy()),
+        agent.command,
+        shell_quote(&instruction)
+    );
+    let script = format!(
+        "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
+        shell.replace('\\', "\\\\").replace('"', "\\\"")
+    );
+    let opened = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    if opened {
+        bus.emit(Event::handoff(format!(
+            "{} is working in {folder} — when it's done: tohseno shot {app_name}",
+            agent.label
+        )));
+    } else {
+        bus.emit(Event::handoff(format!(
+            "open a terminal in {folder}, run {}, then: tohseno shot {app_name}",
+            agent.label
+        )));
+    }
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
 }
 
 fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {

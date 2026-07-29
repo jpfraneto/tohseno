@@ -118,7 +118,7 @@ pub struct BuilderIdentityManager {
 impl BuilderIdentityManager {
     pub fn for_ledger(ledger: &Ledger) -> Self {
         Self {
-            root: ledger.root().join("identity"),
+            root: ledger.machine_root().join("identity"),
         }
     }
 

@@ -43,9 +43,49 @@ pub fn substitute_shot_number(source: &Path, shot_number: u32) -> Result<usize, 
         let Ok(text) = String::from_utf8(bytes) else {
             return Ok(());
         };
-        if text.contains(SHOT_TOKEN) {
-            substitutions += text.matches(SHOT_TOKEN).count();
-            fs::write(path, text.replace(SHOT_TOKEN, &shot_number.to_string()))?;
+        let mut updated = text.clone();
+        if updated.contains(SHOT_TOKEN) {
+            substitutions += updated.matches(SHOT_TOKEN).count();
+            updated = updated.replace(SHOT_TOKEN, &shot_number.to_string());
+        }
+        // A sealed world carries a concrete CURRENT_PROJECT_VERSION; when the
+        // working tree is sealed again the version line advances to the new
+        // sequence so CFBundleVersion keeps equaling the Evolution number.
+        if path
+            .file_name()
+            .is_some_and(|name| name == "project.pbxproj")
+        {
+            let advanced = updated
+                .lines()
+                .map(|line| {
+                    let trimmed = line.trim_start();
+                    if let Some(value) = trimmed.strip_prefix("CURRENT_PROJECT_VERSION = ") {
+                        if let Some(value) = value.strip_suffix(';') {
+                            if value
+                                .trim()
+                                .chars()
+                                .all(|character| character.is_ascii_digit())
+                                && value.trim() != shot_number.to_string()
+                            {
+                                substitutions += 1;
+                                let indent = &line[..line.len() - trimmed.len()];
+                                return format!("{indent}CURRENT_PROJECT_VERSION = {shot_number};");
+                            }
+                        }
+                    }
+                    line.to_owned()
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let advanced = if updated.ends_with('\n') {
+                format!("{advanced}\n")
+            } else {
+                advanced
+            };
+            updated = advanced;
+        }
+        if updated != text {
+            fs::write(path, updated)?;
         }
         Ok(())
     })?;

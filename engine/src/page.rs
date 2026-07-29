@@ -125,7 +125,10 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
     let icon = select_icon(&shot.source_path())?;
     let registry = deployed_registry_coordinates()?;
 
-    let output_path = ledger.root().join("public").join(&verified.record.slug);
+    let output_path = ledger
+        .briefing_dir(app_name)
+        .join("public")
+        .join(&verified.record.slug);
     let page = render_html(&verified.record, &verified.fascia, registry.as_ref());
     let files = [
         ("index.html", page.into_bytes()),
@@ -147,7 +150,7 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
             canonical_json_line(&verified.conformance, "conformance report")?,
         ),
     ];
-    replace_page_directory(ledger.root(), &output_path, &files)?;
+    replace_page_directory(&ledger.briefing_dir(app_name), &output_path, &files)?;
 
     Ok(PageBuildReport {
         output_path,
@@ -482,11 +485,11 @@ fn escape_html(value: &str) -> String {
 }
 
 fn replace_page_directory(
-    ledger_root: &Path,
+    owner_root: &Path,
     destination: &Path,
     files: &[(&str, Vec<u8>)],
 ) -> Result<(), PageError> {
-    let public_root = ledger_root.join("public");
+    let public_root = owner_root.join("public");
     ensure_real_directory(&public_root)?;
     if destination.parent() != Some(public_root.as_path()) {
         return Err(PageError::UnsafePath(destination.display().to_string()));

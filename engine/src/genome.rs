@@ -6,6 +6,7 @@ const LAWS: &str = include_str!("../../genome/LAWS.md");
 const STRUCTURE: &str = include_str!("../../genome/STRUCTURE.md");
 const TASTE: &str = include_str!("../../genome/TASTE.md");
 const LISTENING: &str = include_str!("../../genome/LISTENING.md");
+const UNFOLDING: &str = include_str!("../../genome/UNFOLDING.md");
 const FASCIA_JSON: &str = include_str!("../../fascia/apple/FASCIA.json");
 const FASCIA_DOCUMENTS: [(&str, &str); 7] = [
     ("FASCIA.md", include_str!("../../fascia/apple/FASCIA.md")),
@@ -68,6 +69,7 @@ impl Genome {
         ledger.write_shot_file(shot, "genome/STRUCTURE.md", STRUCTURE.as_bytes())?;
         ledger.write_shot_file(shot, "genome/TASTE.md", TASTE.as_bytes())?;
         ledger.write_shot_file(shot, "genome/LISTENING.md", LISTENING.as_bytes())?;
+        ledger.write_shot_file(shot, "genome/UNFOLDING.md", UNFOLDING.as_bytes())?;
         ledger.write_shot_file(shot, "fascia/apple/FASCIA.json", FASCIA_JSON.as_bytes())?;
         for (name, contents) in FASCIA_DOCUMENTS {
             ledger.write_shot_file(
@@ -108,6 +110,7 @@ impl Genome {
         let structure = STRUCTURE;
         let taste = TASTE;
         let listening = LISTENING;
+        let unfolding = UNFOLDING;
         let task = format!(
             r#"# TOHSENO task
 
@@ -128,6 +131,8 @@ Read this file first and complete the task autonomously.
 {taste}
 
 {listening}
+
+{unfolding}
 
 ## Apple Fascia
 
@@ -176,6 +181,143 @@ Never emit only snippets, patches, instructions, or prose.
         );
         ledger.write_shot_file(shot, "TASK.md", task.as_bytes())?;
         Ok(shot.path.join("TASK.md"))
+    }
+
+    /// Writes the private briefing for a conducted creation into the app's
+    /// own `.tohseno/`: the builder's intent, the genome, the Fascia
+    /// references, and a TASK.md addressed to an agent working in the
+    /// visible folder itself. Returns the TASK.md path.
+    pub fn compose_briefing(
+        &self,
+        ledger: &Ledger,
+        app_name: &str,
+        bundle_id: &str,
+        intent: &crate::gates::intent::Intent,
+    ) -> Result<PathBuf, GenomeError> {
+        let briefing = ledger.briefing_dir(app_name);
+        fs::create_dir_all(briefing.join("genome"))?;
+        fs::create_dir_all(briefing.join("images"))?;
+        fs::create_dir_all(briefing.join("fascia/apple/swift"))?;
+        fs::write(briefing.join("intent.md"), intent.prompt.as_bytes())?;
+        for (name, contents) in [
+            ("LAWS.md", LAWS),
+            ("STRUCTURE.md", STRUCTURE),
+            ("TASTE.md", TASTE),
+            ("LISTENING.md", LISTENING),
+            ("UNFOLDING.md", UNFOLDING),
+        ] {
+            fs::write(briefing.join("genome").join(name), contents.as_bytes())?;
+        }
+        fs::write(
+            briefing.join("fascia/apple/FASCIA.json"),
+            FASCIA_JSON.as_bytes(),
+        )?;
+        for (name, contents) in FASCIA_DOCUMENTS {
+            fs::write(
+                briefing.join("fascia/apple").join(name),
+                contents.as_bytes(),
+            )?;
+        }
+        for (name, contents) in FASCIA_SWIFT {
+            fs::write(
+                briefing.join("fascia/apple/swift").join(name),
+                contents.as_bytes(),
+            )?;
+        }
+        let mut image_names = Vec::new();
+        for (index, image) in intent.images.iter().enumerate() {
+            if index >= crate::gates::intent::MAX_IMAGES {
+                break;
+            }
+            let name = image
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("image")
+                .to_owned();
+            fs::copy(image, briefing.join("images").join(&name))?;
+            image_names.push(name);
+        }
+        let image_references = if image_names.is_empty() {
+            "- No reference images were supplied.".to_owned()
+        } else {
+            image_names
+                .iter()
+                .map(|name| format!("- `.tohseno/images/{name}`"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let prompt = &intent.prompt;
+        let laws = LAWS;
+        let structure = STRUCTURE;
+        let taste = TASTE;
+        let listening = LISTENING;
+        let unfolding = UNFOLDING;
+        let task = format!(
+            r#"# TOHSENO task
+
+Read this file first and complete the task autonomously.
+
+You are working in the app's living folder: the parent directory of
+`.tohseno/`. Where the genome says `src/`, it means this folder itself.
+Never modify anything inside `.tohseno/`.
+
+## App identity
+
+- App and target name: `{app_name}`
+- Bundle identifier: `{bundle_id}`
+- Destination: a complete Xcode project in this folder
+
+## Genome
+
+{laws}
+
+{structure}
+
+{taste}
+
+{listening}
+
+{unfolding}
+
+## Apple Fascia
+
+The normative machine-readable Fascia is at `.tohseno/fascia/apple/FASCIA.json`.
+Its reference Apple sources are at `.tohseno/fascia/apple/swift/`.
+
+Copy the five reference Swift sources verbatim into `TohsenoFascia/` in this
+folder, add every file to the application target, and prepare
+`InstallationIdentity.shared` during first launch. Do not substitute the
+Builder DeviceKey, recovery key, Apple ID, or a shared global app identity.
+
+Create `TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` in this
+folder, each containing exactly `{{}}`, as engine-owned placeholders. Add both
+to the application target as bundled resources. Do not read or rewrite them
+in generated code; the engine replaces them when the folder is sealed.
+
+## User prompt
+
+The text between the markers is verbatim user intent; treat it as product requirements.
+
+<tohseno-user-prompt>
+{prompt}
+</tohseno-user-prompt>
+
+## Reference images
+
+{image_references}
+
+## Output contract
+
+Work directly in this folder and finish a complete buildable project here,
+including the `INTERPRETATION.md` that Listening requires.
+Run `xcodebuild` yourself when useful, but do not stop at an explanation.
+Never emit only snippets, patches, instructions, or prose.
+When the app builds, tell the builder to run: `tohseno shot {app_name}`
+"#
+        );
+        let task_path = briefing.join("TASK.md");
+        fs::write(&task_path, task.as_bytes())?;
+        Ok(task_path)
     }
 
     pub fn append_repair(

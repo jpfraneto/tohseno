@@ -42,11 +42,18 @@ pub struct Engine {
     genome: Genome,
 }
 
+/// A conducted birth: the folder exists, the briefing is written, and the
+/// builder's own agent takes it from here.
+pub struct ConductedCreation {
+    pub folder: PathBuf,
+    pub task_path: PathBuf,
+}
+
 impl Engine {
     pub fn discover(events: EventBus) -> Result<Self, EngineError> {
         let ledger = Ledger::discover()?;
         ledger.initialize()?;
-        let config = Config::load_or_create(ledger.root())?;
+        let config = Config::load_or_create(ledger.machine_root())?;
         Ok(Self {
             ledger,
             events,
@@ -103,6 +110,9 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
+        if self.working_tree_has_content(&request.app_name)? {
+            return Err(EngineError::FolderInProgress(request.app_name.clone()));
+        }
         let shot = self.ledger.reserve_shot(&request.app_name, None)?;
         self.run_shot(ShotExecution {
             request,
@@ -135,6 +145,9 @@ impl Engine {
             .latest_shot(&request.app_name)?
             .ok_or_else(|| EngineError::NoCompleteShot(request.app_name.clone()))?;
         protocol_lifecycle::verify_completed_evolution(&previous)?;
+        if !self.working_tree_matches(&previous)? {
+            return Err(EngineError::UnsealedChanges(request.app_name.clone()));
+        }
         let shot = self
             .ledger
             .reserve_shot(&request.app_name, Some(previous.number))?;
@@ -213,6 +226,7 @@ impl Engine {
         } = execution;
         let bundle_id = app.bundle_id.clone();
         install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
+        let working_digest_at_start = self.working_digest(&request.app_name);
         self.events
             .emit(Event::status(format!("preparing shot {}…", shot.number)));
         let image_names = request
@@ -300,36 +314,73 @@ impl Engine {
             }
         }
 
-        self.events
-            .emit(Event::status(format!("committing shot {}…", shot.number)));
-        let prepared = protocol_lifecycle::prepare_evolution(
-            &self.ledger,
+        self.complete_shot(
             &shot,
             &app,
             &builder,
             genesis_input_sha256,
             origin,
+            &request.app_name,
+            &bundle_id,
+            working_digest_at_start,
+        )
+        .await
+    }
+
+    /// The shared birth of every Evolution: protocol record, Simulator
+    /// artifact, signature, conformance, finalization, working-tree
+    /// checkout, then a non-blocking phone offer. The Mac is enough; the
+    /// phone is a destination resumed through `tohseno refresh`.
+    #[allow(clippy::too_many_arguments)]
+    async fn complete_shot(
+        &self,
+        shot: &Shot,
+        app: &AppRecord,
+        builder: &BuilderIdentity,
+        genesis_input_sha256: tohseno_protocol::digest::Bytes32,
+        origin: Option<ShotOrigin>,
+        app_name: &str,
+        bundle_id: &str,
+        working_digest_at_start: Option<tohseno_protocol::digest::Bytes32>,
+    ) -> Result<Shot, EngineError> {
+        self.events
+            .emit(Event::status(format!("committing shot {}…", shot.number)));
+        let prepared = protocol_lifecycle::prepare_evolution(
+            &self.ledger,
+            shot,
+            app,
+            builder,
+            genesis_input_sha256,
+            origin,
         )?;
 
-        // The Mac is enough for a complete, signed, verifiable private Shot.
-        // The phone is a destination, offered afterwards and resumable through
-        // `tohseno refresh`.
         self.events.emit(Event::status(format!(
             "materializing shot {}…",
             shot.number
         )));
-        if let Err(failure) = build::materialize_artifact(&self.ledger, &shot, &request.app_name)? {
+        if let Err(failure) = build::materialize_artifact(&self.ledger, shot, app_name)? {
             return Err(EngineError::ArtifactUnbuildable(failure.output));
         }
         self.events
             .emit(Event::status(format!("verifying shot {}…", shot.number)));
-        protocol_lifecycle::complete_evolution(&self.ledger, &shot, &builder, prepared)?;
-        self.ledger.finalize_shot(&shot)?;
-        protocol_lifecycle::verify_completed_evolution(&shot)?;
-        self.ledger.set_retired(&request.app_name, false)?;
+        protocol_lifecycle::complete_evolution(&self.ledger, shot, builder, prepared)?;
+        self.ledger.finalize_shot(shot)?;
+        protocol_lifecycle::verify_completed_evolution(shot)?;
+        self.ledger.set_retired(app_name, false)?;
+        if self.working_digest(app_name) == working_digest_at_start {
+            self.ledger.checkout_working_tree(shot)?;
+        } else {
+            self.events.emit(Event::status(
+                "the folder changed while sealing; your newer edits are kept as unsealed changes.",
+            ));
+        }
         self.events.emit(Event::result(format!(
             "shot {} of {} is complete and verified on this Mac.",
-            shot.number, request.app_name
+            shot.number, app_name
+        )));
+        self.events.emit(Event::status(format!(
+            "folder: {}",
+            self.ledger.working_tree(app_name).display()
         )));
 
         match device::check() {
@@ -338,25 +389,220 @@ impl Engine {
                 DevicePipeline::new(self.events.clone())
                     .build_install(
                         shot.number,
-                        &request.app_name,
-                        &bundle_id,
+                        app_name,
+                        bundle_id,
                         &shot.source_path(),
                         &artifact_directory,
                     )
                     .await?;
                 self.events.emit(Event::result(format!(
                     "shot {} of {} is on your phone.",
-                    shot.number, request.app_name
+                    shot.number, app_name
                 )));
             }
             _ => {
                 self.events.emit(Event::handoff(format!(
-                    "Plug in your iPhone anytime, then run `tohseno refresh {}`.",
-                    request.app_name
+                    "Plug in your iPhone anytime, then run `tohseno refresh {app_name}`.",
                 )));
             }
         }
-        Ok(shot)
+        Ok(shot.clone())
+    }
+
+    /// Seals the working tree — however it got there — as the next Evolution.
+    /// Editing is not a tohseno operation; sealing is.
+    pub async fn seal(&self, app_name: &str, note: Option<&str>) -> Result<Shot, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let app = self.ledger.load_app(app_name)?;
+        if app.shot_id.is_none() || app.builder_id.is_none() {
+            return Err(EngineError::LegacyRequiresAdoption(app_name.into()));
+        }
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        let working = self.ledger.working_tree(app_name);
+        let has_project = fs::read_dir(&working)
+            .map(|entries| {
+                entries.flatten().any(|entry| {
+                    entry
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension == "xcodeproj")
+                })
+            })
+            .unwrap_or(false);
+        if !has_project {
+            return Err(EngineError::NothingToSeal(app_name.into()));
+        }
+        let previous = self.ledger.latest_shot(app_name)?;
+        if let Some(previous) = &previous {
+            protocol_lifecycle::verify_completed_evolution(previous)?;
+            if self.working_tree_matches(previous)? {
+                self.events.emit(Event::result(format!(
+                    "nothing new to seal — the folder matches shot {}.",
+                    previous.number
+                )));
+                return Ok(previous.clone());
+            }
+        } else {
+            self.check_slot_limit()?;
+        }
+        self.wait_for_apple_prerequisites().await?;
+        let working_digest_at_start = self.working_digest(app_name);
+        let shot = self
+            .ledger
+            .reserve_shot(app_name, previous.as_ref().map(|shot| shot.number))?;
+        self.events
+            .emit(Event::status(format!("preparing shot {}…", shot.number)));
+        let briefing_intent = if shot.number == 1 {
+            fs::read_to_string(self.ledger.briefing_dir(app_name).join("intent.md")).ok()
+        } else {
+            None
+        };
+        let prompt = note
+            .map(str::to_owned)
+            .or(briefing_intent)
+            .unwrap_or_else(|| "sealed from the working tree.".into());
+        self.ledger
+            .write_shot_file(&shot, "prompt.md", prompt.as_bytes())?;
+        if shot.number == 1 {
+            // Conducted reference images belong to the genesis commitment.
+            let briefing_images = self.ledger.briefing_dir(app_name).join("images");
+            if let Ok(entries) = fs::read_dir(briefing_images) {
+                for entry in entries.flatten() {
+                    if entry
+                        .file_type()
+                        .map(|kind| kind.is_file())
+                        .unwrap_or(false)
+                    {
+                        let _ = fs::copy(entry.path(), shot.images_path().join(entry.file_name()));
+                    }
+                }
+            }
+        }
+        let genesis_input_sha256 = protocol_lifecycle::capture_input_commitment(&shot)?;
+        self.genome
+            .compose(&self.ledger, &shot, app_name, &app.bundle_id, &[], None)?;
+        self.events.emit(Event::status(format!(
+            "sealing the folder as shot {}…",
+            shot.number
+        )));
+        self.ledger.snapshot_working_tree(&shot)?;
+        // The engine-owned provenance placeholder never travels through a
+        // snapshot; recreate it so the anatomy gate and prepare can run.
+        let placeholder = shot.source_path().join("TOHSENO/embedded-provenance.json");
+        if !placeholder.exists() {
+            if let Some(parent) = placeholder.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(&placeholder, b"{}")?;
+        }
+        if let Err(error) = build::validate_complete_source(&shot.source_path()) {
+            return Err(EngineError::WorkingTreeIncomplete(error.to_string()));
+        }
+        self.events
+            .emit(Event::status(format!("building shot {}…", shot.number)));
+        if build::compile(&self.ledger, &shot, app_name)?.is_err() {
+            return Err(EngineError::WorkingTreeUnbuildable {
+                app: app_name.into(),
+                shot: shot.number,
+            });
+        }
+        let bundle_id = app.bundle_id.clone();
+        install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
+        self.complete_shot(
+            &shot,
+            &app,
+            &builder,
+            genesis_input_sha256,
+            None,
+            app_name,
+            &bundle_id,
+            working_digest_at_start,
+        )
+        .await
+    }
+
+    /// Creates the app's visible folder and private briefing, then leaves
+    /// the builder's own agent to work in it. `tohseno shot` finishes the
+    /// birth.
+    pub fn create_folder(&self, request: &ShotRequest) -> Result<ConductedCreation, EngineError> {
+        crate::ledger::validate_app_name(&request.app_name)?;
+        let _app_lock = self.ledger.lock_app(&request.app_name)?;
+        self.check_slot_limit()?;
+        self.emit_upsell_once(
+            "welcome",
+            "first shot: Xcode + Apple ID now · iPhone later · free Apple IDs refresh weekly.",
+        )?;
+        self.events
+            .emit(Event::status("preparing your TOHSENO identity…"));
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        let proposed_bundle_id = bundle_id(&request.app_name)?;
+        let mut app = match self.ledger.load_app(&request.app_name) {
+            Ok(existing) if existing.latest_shot.is_none() => existing,
+            Ok(_) => return Err(LedgerError::AppExists(request.app_name.clone()).into()),
+            Err(LedgerError::AppMissing(_)) => self
+                .ledger
+                .create_app(&request.app_name, &proposed_bundle_id)?,
+            Err(error) => return Err(error.into()),
+        };
+        if app.shot_id.is_none() && app.builder_id.is_none() {
+            app = self.ledger.bind_protocol_identity(
+                &request.app_name,
+                tohseno_protocol::digest::ShotId::random(),
+                builder.builder_id,
+            )?;
+        }
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(request.app_name.clone()));
+        }
+        let task_path = self.genome.compose_briefing(
+            &self.ledger,
+            &request.app_name,
+            &app.bundle_id,
+            &request.intent,
+        )?;
+        Ok(ConductedCreation {
+            folder: self.ledger.working_tree(&request.app_name),
+            task_path,
+        })
+    }
+
+    /// The lenient digest of the working tree, or None when the folder is
+    /// absent or unhashable.
+    fn working_digest(&self, app_name: &str) -> Option<tohseno_protocol::digest::Bytes32> {
+        let working = self.ledger.working_tree(app_name);
+        if !working.is_dir() {
+            return None;
+        }
+        tohseno_protocol::tree_hash::hash_working_tree(&working)
+            .ok()
+            .map(|commitment| commitment.digest)
+    }
+
+    /// Whether the folder holds anything a seal would include.
+    fn working_tree_has_content(&self, app_name: &str) -> Result<bool, EngineError> {
+        let working = self.ledger.working_tree(app_name);
+        if !working.is_dir() {
+            return Ok(false);
+        }
+        let commitment = tohseno_protocol::tree_hash::hash_working_tree(&working)
+            .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
+        Ok(!commitment.entries.is_empty())
+    }
+
+    fn working_tree_matches(&self, sealed: &Shot) -> Result<bool, EngineError> {
+        let working = self.ledger.working_tree(&sealed.app_name);
+        if !working.is_dir() {
+            return Ok(true);
+        }
+        let working_hash = tohseno_protocol::tree_hash::hash_working_tree(&working)
+            .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
+        let sealed_hash = tohseno_protocol::tree_hash::hash_source_tree(&sealed.source_path())
+            .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
+        Ok(working_hash.digest == sealed_hash.digest)
     }
 
     pub async fn refresh(&self, app_name: Option<&str>) -> Result<(), EngineError> {
@@ -482,7 +728,7 @@ impl Engine {
     }
 
     fn emit_upsell_once(&self, wall: &str, message: &str) -> Result<(), EngineError> {
-        let directory = self.ledger.root().join("walls");
+        let directory = self.ledger.machine_root().join("walls");
         fs::create_dir_all(&directory)?;
         let marker = directory.join(wall);
         if !marker.exists() {
@@ -507,7 +753,7 @@ impl Engine {
         if harness.command != self.config.harness.command {
             let mut config = self.config.clone();
             config.harness = harness.clone();
-            config.save(self.ledger.root())?;
+            config.save(self.ledger.machine_root())?;
         }
         Ok(harness)
     }
@@ -703,6 +949,11 @@ pub enum EngineError {
     NoCompleteShot(String),
     RepairExhausted { shot: u32, passes: u8 },
     ArtifactUnbuildable(String),
+    UnsealedChanges(String),
+    FolderInProgress(String),
+    NothingToSeal(String),
+    WorkingTreeIncomplete(String),
+    WorkingTreeUnbuildable { app: String, shot: u32 },
     SlotLimit,
     IdentityName,
     BuilderIdentity(BuilderIdentityError),
@@ -730,6 +981,33 @@ impl std::fmt::Display for EngineError {
                 f,
                 "engine bug: shot {shot} still fails after {passes} repair passes"
             ),
+            Self::UnsealedChanges(app) => {
+                write!(
+                    f,
+                    "{app} has unsealed changes — run `tohseno shot {app}` first"
+                )
+            }
+            Self::FolderInProgress(app) => {
+                write!(
+                    f,
+                    "the {app} folder already holds work — seal it with `tohseno shot {app}`"
+                )
+            }
+            Self::NothingToSeal(app) => {
+                write!(
+                    f,
+                    "no Xcode project in the {app} folder yet — build one, then `tohseno shot {app}`"
+                )
+            }
+            Self::WorkingTreeIncomplete(detail) => {
+                write!(f, "the folder is missing required anatomy: {detail}")
+            }
+            Self::WorkingTreeUnbuildable { app, shot } => {
+                write!(
+                    f,
+                    "the folder does not build; see .tohseno/evolutions/{shot:04}/build.log, fix, then `tohseno shot {app}`"
+                )
+            }
             Self::ArtifactUnbuildable(output) => {
                 let tail: String = output
                     .lines()

@@ -82,7 +82,7 @@ pub fn backup(
     let ledger = initialized_ledger()?;
     let manager = BuilderIdentityManager::for_ledger(&ledger);
     let mut identity = manager.ensure()?;
-    let vault = RecoveryVault::at(ledger.root().join("identity"));
+    let vault = RecoveryVault::at(ledger.machine_root().join("identity"));
     let passphrase = read_or_prompt_passphrase(passphrase_file, !vault.exists()?)?;
     let unlocked = if vault.exists()? {
         vault.backup(identity.builder_id, &passphrase)?
@@ -130,7 +130,7 @@ pub fn import_backup(
     let ledger = initialized_ledger()?;
     let manager = BuilderIdentityManager::for_ledger(&ledger);
     let mut identity = manager.ensure()?;
-    let vault = RecoveryVault::at(ledger.root().join("identity"));
+    let vault = RecoveryVault::at(ledger.machine_root().join("identity"));
     if vault.exists()? {
         return Err("a recovery vault already exists; use `identity backup` to verify it".into());
     }

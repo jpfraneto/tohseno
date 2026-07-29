@@ -11,6 +11,12 @@ use tohseno_protocol::identity::BuilderId;
 const APP_RECORD_LIMIT: u64 = 1024 * 1024;
 const COMPLETE_MARKER: &[u8] = b"complete\n";
 const DEFAULT_CANDIDATE_DATA_DIRECTORY: &str = ".tohseno-genesis";
+const DEFAULT_FAMILY_DIRECTORY: &str = "Desktop/Tohseno";
+/// The in-folder ledger every Shot carries (ADR 0003).
+const APP_LEDGER_DIRECTORY: &str = ".tohseno";
+/// Names an app can never take when apps share a directory with machine
+/// state (`TOHSENO_DATA_ROOT` mode) or with ledger internals.
+const RESERVED_APP_NAMES: &[&str] = &["identity", "locks", "walls", "apps", "config", "incomplete"];
 
 #[derive(Debug)]
 pub enum LedgerError {
@@ -120,7 +126,11 @@ impl Shot {
 
 #[derive(Clone, Debug)]
 pub struct Ledger {
+    /// The family home: every child is one app's visible working folder.
     root: PathBuf,
+    /// Machine-scoped state (identity, config, locks, walls) — the
+    /// `~/.gitconfig` of TOHSENO, never the home of apps.
+    machine_root: PathBuf,
 }
 
 /// A process-scoped lease for one app's mutable lifecycle.
@@ -150,29 +160,102 @@ impl Ledger {
                 "HOME is not set",
             ))
         })?;
+        let home = Path::new(&home);
+        let family = match std::env::var_os("TOHSENO_HOME") {
+            Some(configured) => {
+                let family = PathBuf::from(configured);
+                if !family.is_absolute() {
+                    return Err(LedgerError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "TOHSENO_HOME must be an absolute path",
+                    )));
+                }
+                family
+            }
+            None => home.join(DEFAULT_FAMILY_DIRECTORY),
+        };
         // This binary is the isolated Genesis candidate. The already-shipped
         // v0.6 binary retains its own `~/.tohseno` default; candidate code
         // must never discover or mutate that stable ledger implicitly.
-        Ok(Self::at(default_candidate_data_root(Path::new(&home))))
+        Ok(Self::at_homes(family, default_candidate_data_root(home)))
+    }
+
+    /// Resolves the ledger for a specific app folder, wherever it stands —
+    /// the folder's parent becomes the family home for this invocation.
+    pub fn for_app_folder(folder: &Path) -> Result<(Self, String), LedgerError> {
+        let canonical = fs::canonicalize(folder)?;
+        let name = canonical
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| LedgerError::InvalidName(canonical.display().to_string()))?
+            .to_owned();
+        validate_app_name(&name)?;
+        let parent = canonical
+            .parent()
+            .ok_or_else(|| LedgerError::Corrupt("app folder has no parent".into()))?
+            .to_path_buf();
+        let machine_root = match std::env::var_os("TOHSENO_DATA_ROOT") {
+            Some(configured) => {
+                let machine_root = PathBuf::from(configured);
+                if !machine_root.is_absolute() {
+                    return Err(LedgerError::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "TOHSENO_DATA_ROOT must be an absolute path",
+                    )));
+                }
+                machine_root
+            }
+            None => {
+                let home = std::env::var_os("HOME").ok_or_else(|| {
+                    LedgerError::Io(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        "HOME is not set",
+                    ))
+                })?;
+                default_candidate_data_root(Path::new(&home))
+            }
+        };
+        Ok((Self::at_homes(parent, machine_root), name))
     }
 
     pub fn at(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        let root = root.into();
+        Self {
+            machine_root: root.clone(),
+            root,
+        }
+    }
+
+    pub fn at_homes(root: impl Into<PathBuf>, machine_root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: root.into(),
+            machine_root: machine_root.into(),
+        }
     }
 
     pub fn root(&self) -> &Path {
         &self.root
     }
 
+    pub fn machine_root(&self) -> &Path {
+        &self.machine_root
+    }
+
+    /// The app's visible folder: its living working tree.
+    pub fn working_tree(&self, app_name: &str) -> PathBuf {
+        self.app_dir(app_name)
+    }
+
     pub fn initialize(&self) -> Result<(), LedgerError> {
-        if self.root.exists() {
-            require_real_directory(&self.root)?;
-        } else {
-            fs::create_dir_all(&self.root)?;
-            require_real_directory(&self.root)?;
+        for root in [&self.root, &self.machine_root] {
+            if root.exists() {
+                require_real_directory(root)?;
+            } else {
+                fs::create_dir_all(root)?;
+                require_real_directory(root)?;
+            }
         }
-        ensure_real_directory(&self.root.join("apps"))?;
-        ensure_real_directory(&self.root.join("locks"))?;
+        ensure_real_directory(&self.machine_root.join("locks"))?;
         Ok(())
     }
 
@@ -190,7 +273,7 @@ impl Ledger {
 
     fn lock_named(&self, name: &str, busy_label: &str) -> Result<AppLock, LedgerError> {
         self.initialize()?;
-        let locks = self.root.join("locks");
+        let locks = self.machine_root.join("locks");
         require_real_directory(&locks)?;
         let path = locks.join(format!("{name}.lock"));
         match fs::symlink_metadata(&path) {
@@ -224,7 +307,8 @@ impl Ledger {
             Err(error) => return Err(error.into()),
         }
         fs::create_dir(&app_dir)?;
-        fs::create_dir(app_dir.join("shots"))?;
+        fs::create_dir(self.tohseno_dir(name))?;
+        fs::create_dir(self.shots_dir(name))?;
         let record = AppRecord {
             name: name.into(),
             bundle_id: bundle_id.into(),
@@ -242,8 +326,11 @@ impl Ledger {
     pub fn load_app(&self, name: &str) -> Result<AppRecord, LedgerError> {
         validate_app_name(name)?;
         require_real_directory(&self.root)?;
-        require_real_directory(&self.root.join("apps"))?;
-        for directory in [self.app_dir(name), self.app_dir(name).join("shots")] {
+        for directory in [
+            self.app_dir(name),
+            self.tohseno_dir(name),
+            self.shots_dir(name),
+        ] {
             match fs::symlink_metadata(&directory) {
                 Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                     return Err(unsafe_path_error());
@@ -255,7 +342,7 @@ impl Ledger {
                 Err(error) => return Err(error.into()),
             }
         }
-        let path = self.app_dir(name).join("app.toml");
+        let path = self.tohseno_dir(name).join("app.toml");
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -284,12 +371,24 @@ impl Ledger {
     pub fn list_apps(&self) -> Result<Vec<AppRecord>, LedgerError> {
         self.initialize()?;
         let mut records = Vec::new();
-        for entry in fs::read_dir(self.root.join("apps"))? {
+        for entry in fs::read_dir(&self.root)? {
             let entry = entry?;
-            if entry.file_type()?.is_dir() {
-                if let Ok(record) = self.load_app(&entry.file_name().to_string_lossy()) {
-                    records.push(record);
-                }
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else { continue };
+            // A folder is an app exactly when it carries its own ledger.
+            if !entry
+                .path()
+                .join(APP_LEDGER_DIRECTORY)
+                .join("app.toml")
+                .is_file()
+            {
+                continue;
+            }
+            if let Ok(record) = self.load_app(name) {
+                records.push(record);
             }
         }
         records.sort_by(|left, right| left.name.cmp(&right.name));
@@ -300,7 +399,7 @@ impl Ledger {
     /// `finalize_shot`; finalized shots are rejected by all ledger write APIs.
     pub fn reserve_shot(&self, app_name: &str, parent: Option<u32>) -> Result<Shot, LedgerError> {
         let mut record = self.load_app(app_name)?;
-        let shots_dir = self.app_dir(app_name).join("shots");
+        let shots_dir = self.shots_dir(app_name);
         let number = next_sequence(&record)?;
         let path = shots_dir.join(format!("{number:04}"));
         if path.exists() {
@@ -329,7 +428,7 @@ impl Ledger {
         number: u32,
         path: &Path,
     ) -> Result<(), LedgerError> {
-        let archive_root = self.app_dir(app_name).join("incomplete");
+        let archive_root = self.tohseno_dir(app_name).join("incomplete");
         fs::create_dir_all(&archive_root)?;
         let timestamp = now_unix();
         for ordinal in 1_u32.. {
@@ -395,10 +494,7 @@ impl Ledger {
         Ok(record.latest_shot.map(|number| Shot {
             app_name: app_name.into(),
             number,
-            path: self
-                .app_dir(app_name)
-                .join("shots")
-                .join(format!("{number:04}")),
+            path: self.shots_dir(app_name).join(format!("{number:04}")),
         }))
     }
 
@@ -444,10 +540,7 @@ impl Ledger {
                 "shot sequence must be at least 1".into(),
             ));
         }
-        let path = self
-            .app_dir(app_name)
-            .join("shots")
-            .join(format!("{number:04}"));
+        let path = self.shots_dir(app_name).join(format!("{number:04}"));
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(LedgerError::Corrupt(format!(
@@ -472,7 +565,7 @@ impl Ledger {
 
     pub fn list_shots(&self, app_name: &str) -> Result<Vec<Shot>, LedgerError> {
         let record = self.load_app(app_name)?;
-        let shots_directory = self.app_dir(app_name).join("shots");
+        let shots_directory = self.shots_dir(app_name);
         let mut shots = Vec::new();
         for entry in fs::read_dir(shots_directory)? {
             let entry = entry?;
@@ -509,7 +602,7 @@ impl Ledger {
                 "shot sequence must be at least 1".into(),
             ));
         }
-        let shots = self.app_dir(&shot.app_name).join("shots");
+        let shots = self.shots_dir(&shot.app_name);
         require_real_directory(&shots)?;
         let expected = shots.join(format!("{:04}", shot.number));
         if shot.path != expected {
@@ -527,7 +620,20 @@ impl Ledger {
     }
 
     fn app_dir(&self, name: &str) -> PathBuf {
-        self.root.join("apps").join(name)
+        self.root.join(name)
+    }
+
+    fn tohseno_dir(&self, name: &str) -> PathBuf {
+        self.app_dir(name).join(APP_LEDGER_DIRECTORY)
+    }
+
+    fn shots_dir(&self, name: &str) -> PathBuf {
+        self.tohseno_dir(name).join("evolutions")
+    }
+
+    /// The private briefing home inside the app's own ledger.
+    pub fn briefing_dir(&self, name: &str) -> PathBuf {
+        self.tohseno_dir(name)
     }
 
     /// `.complete` is the immutable commit point. If a process stops after
@@ -535,10 +641,7 @@ impl Ledger {
     /// single next sequence into the derived app head.
     fn recover_interrupted_finalization(&self, record: &mut AppRecord) -> Result<(), LedgerError> {
         if let Some(number) = record.latest_shot {
-            let current = self
-                .app_dir(&record.name)
-                .join("shots")
-                .join(format!("{number:04}"));
+            let current = self.shots_dir(&record.name).join(format!("{number:04}"));
             require_real_shot_directory(&current, number)?;
             if !has_valid_completion_marker(&current, number)? {
                 return Err(LedgerError::Corrupt(format!(
@@ -550,10 +653,7 @@ impl Ledger {
         let Some(number) = record.latest_shot.unwrap_or(0).checked_add(1) else {
             return Ok(());
         };
-        let path = self
-            .app_dir(&record.name)
-            .join("shots")
-            .join(format!("{number:04}"));
+        let path = self.shots_dir(&record.name).join(format!("{number:04}"));
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(LedgerError::Corrupt(format!(
@@ -608,7 +708,7 @@ impl Ledger {
 
     fn write_record(&self, record: &AppRecord) -> Result<(), LedgerError> {
         validate_app_record(record, &record.name)?;
-        let directory = self.app_dir(&record.name);
+        let directory = self.tohseno_dir(&record.name);
         require_real_directory(&directory)?;
         let path = directory.join("app.toml");
         match fs::symlink_metadata(&path) {
@@ -646,6 +746,188 @@ impl Ledger {
         }
         unreachable!()
     }
+}
+
+impl Ledger {
+    /// Copies the living working tree into a reserved shot's `src/`,
+    /// skipping everything a sealed world forbids (the in-folder ledger,
+    /// VCS state, Finder droppings, logs, user-local Xcode state).
+    pub fn snapshot_working_tree(&self, shot: &Shot) -> Result<(), LedgerError> {
+        self.assert_writable(shot)?;
+        let source = self.working_tree(&shot.app_name);
+        require_real_directory(&source)?;
+        copy_working_entries(&source, &source, &shot.source_path())?;
+        Ok(())
+    }
+
+    /// Makes the working tree exactly mirror one shot's sealed world.
+    /// Entries a sealed world forbids (`.tohseno`, `.git`, `.DS_Store`, …)
+    /// are preserved untouched; everything else is replaced.
+    pub fn checkout_working_tree(&self, shot: &Shot) -> Result<(), LedgerError> {
+        validate_app_name(&shot.app_name)?;
+        let expected = self
+            .shots_dir(&shot.app_name)
+            .join(format!("{:04}", shot.number));
+        if shot.path != expected {
+            return Err(LedgerError::Corrupt(format!(
+                "shot {} has a path outside its ledger sequence",
+                shot.number
+            )));
+        }
+        let target = self.working_tree(&shot.app_name);
+        require_real_directory(&target)?;
+        // Copy first, prune second: a failure mid-checkout leaves the folder
+        // with everything it had plus part of the seal — never gutted.
+        let mut sealed = std::collections::BTreeSet::new();
+        collect_relative_paths(&shot.source_path(), &shot.source_path(), &mut sealed)?;
+        copy_sealed_entries(&shot.source_path(), &target)?;
+        prune_extraneous_entries(&target, &target, &sealed)?;
+        Ok(())
+    }
+}
+
+fn collect_relative_paths(
+    root: &Path,
+    directory: &Path,
+    paths: &mut std::collections::BTreeSet<String>,
+) -> Result<(), LedgerError> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| LedgerError::Corrupt("sealed world walked outside itself".into()))?
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
+        if entry.file_type()?.is_dir() {
+            collect_relative_paths(root, &entry.path(), paths)?;
+        }
+        paths.insert(relative);
+    }
+    Ok(())
+}
+
+/// Removes entries the seal does not contain, preserving forbidden entries
+/// (secrets, VCS state, the in-folder ledger, user-local Xcode state) and
+/// names strict hashing could not express, at **any** depth. A directory
+/// that still shelters preserved entries survives.
+fn prune_extraneous_entries(
+    root: &Path,
+    directory: &Path,
+    sealed: &std::collections::BTreeSet<String>,
+) -> Result<(), LedgerError> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let Some(_) = entry.file_name().to_str() else {
+            continue;
+        };
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| LedgerError::Corrupt("working tree walked outside itself".into()))?
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
+        if tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
+            || relative.chars().any(char::is_control)
+        {
+            continue;
+        }
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            prune_extraneous_entries(root, &entry.path(), sealed)?;
+            if !sealed.contains(&relative) && fs::read_dir(entry.path())?.next().is_none() {
+                fs::remove_dir(entry.path())?;
+            }
+        } else if !sealed.contains(&relative) {
+            fs::remove_file(entry.path())?;
+        }
+    }
+    Ok(())
+}
+
+/// Working-tree → snapshot copy: refuses symlinks, skips forbidden entries.
+fn copy_working_entries(
+    root: &Path,
+    directory: &Path,
+    destination: &Path,
+) -> Result<(), LedgerError> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| LedgerError::Corrupt("working tree walked outside itself".into()))?
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
+        // Forbidden entries are skipped before the symlink refusal so a
+        // symlinked `.git` (worktrees) cannot block a snapshot. Engine-owned
+        // protocol sidecars are also skipped: a sealed world must never
+        // carry unsigned bytes under those exact names. Names strict hashing
+        // could not express (control characters, non-UTF-8) are left behind
+        // rather than sealed.
+        if tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
+            || tohseno_protocol::tree_hash::exclusion_reason(&relative).is_some()
+            || relative.chars().any(char::is_control)
+            || entry.file_name().to_str().is_none()
+        {
+            continue;
+        }
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(LedgerError::Corrupt(format!(
+                "refusing symlink in the working tree: {}",
+                entry.path().display()
+            )));
+        }
+        let target = destination.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_working_entries(root, &entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Sealed snapshot → working tree copy: the source is already clean.
+fn copy_sealed_entries(source: &Path, destination: &Path) -> Result<(), LedgerError> {
+    match fs::symlink_metadata(destination) {
+        Ok(metadata) if !metadata.is_dir() => {
+            fs::remove_file(destination)?;
+        }
+        _ => {}
+    }
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(LedgerError::Corrupt(format!(
+                "refusing symlink in a sealed world: {}",
+                entry.path().display()
+            )));
+        }
+        let target = destination.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_sealed_entries(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            if fs::symlink_metadata(&target)
+                .map(|metadata| metadata.is_dir())
+                .unwrap_or(false)
+            {
+                fs::remove_dir_all(&target)?;
+            }
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
 }
 
 fn next_sequence(record: &AppRecord) -> Result<u32, LedgerError> {
@@ -938,6 +1220,7 @@ pub fn validate_app_name(name: &str) -> Result<(), LedgerError> {
     if name.is_empty()
         || name.len() > 63
         || sanitize_component(name) != name
+        || RESERVED_APP_NAMES.contains(&name)
         || !name
             .chars()
             .next()
@@ -992,6 +1275,88 @@ mod tests {
                 .collect::<Vec<_>>(),
             [1]
         );
+    }
+
+    #[test]
+    fn apps_are_visible_folders_carrying_their_own_ledger() {
+        let temporary = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(temporary.path());
+        ledger
+            .create_app("press", "com.tohseno.test.press")
+            .unwrap();
+        assert_eq!(ledger.working_tree("press"), temporary.path().join("press"));
+        assert!(temporary.path().join("press/.tohseno/app.toml").is_file());
+        assert!(temporary.path().join("press/.tohseno/evolutions").is_dir());
+        // A random visible folder without a ledger is not an app.
+        fs::create_dir(temporary.path().join("holiday-photos")).unwrap();
+        let names = ledger
+            .list_apps()
+            .unwrap()
+            .into_iter()
+            .map(|app| app.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["press"]);
+        assert!(matches!(
+            ledger.create_app("identity", "com.tohseno.test.identity"),
+            Err(LedgerError::InvalidName(_))
+        ));
+    }
+
+    #[test]
+    fn snapshot_and_checkout_keep_the_working_tree_and_seal_in_agreement() {
+        let temporary = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(temporary.path());
+        ledger
+            .create_app("press", "com.tohseno.test.press")
+            .unwrap();
+        let working = ledger.working_tree("press");
+        fs::write(working.join("App.swift"), b"struct App {}\n").unwrap();
+        fs::create_dir(working.join("Assets")).unwrap();
+        fs::write(working.join("Assets/a.json"), b"{}\n").unwrap();
+        // Junk a living folder accumulates never enters a sealed world.
+        fs::write(working.join(".DS_Store"), b"finder\n").unwrap();
+        fs::create_dir(working.join(".git")).unwrap();
+        fs::write(working.join(".git/HEAD"), b"ref\n").unwrap();
+
+        let shot = ledger.reserve_shot("press", None).unwrap();
+        ledger.snapshot_working_tree(&shot).unwrap();
+        assert!(shot.source_path().join("App.swift").is_file());
+        assert!(!shot.source_path().join(".DS_Store").exists());
+        assert!(!shot.source_path().join(".git").exists());
+        assert!(!shot.source_path().join(".tohseno").exists());
+        assert_eq!(
+            tohseno_protocol::tree_hash::hash_working_tree(&working)
+                .unwrap()
+                .digest,
+            tohseno_protocol::tree_hash::hash_source_tree(&shot.source_path())
+                .unwrap()
+                .digest
+        );
+
+        // The sealed world changes; checkout mirrors it, preserving junk —
+        // including forbidden entries nested inside replaceable directories.
+        fs::write(shot.source_path().join("App.swift"), b"struct App2 {}\n").unwrap();
+        fs::write(working.join("scratch.swift"), b"let x = 1\n").unwrap();
+        fs::create_dir_all(working.join("press.xcodeproj/xcuserdata")).unwrap();
+        fs::write(
+            working.join("press.xcodeproj/xcuserdata/state.plist"),
+            b"user\n",
+        )
+        .unwrap();
+        fs::create_dir_all(working.join("Certs")).unwrap();
+        fs::write(working.join("Certs/key.pem"), b"secret\n").unwrap();
+        ledger.checkout_working_tree(&shot).unwrap();
+        assert_eq!(
+            fs::read(working.join("App.swift")).unwrap(),
+            b"struct App2 {}\n"
+        );
+        assert!(!working.join("scratch.swift").exists());
+        assert!(working.join(".git/HEAD").is_file());
+        assert!(working.join(".tohseno/app.toml").is_file());
+        assert!(working
+            .join("press.xcodeproj/xcuserdata/state.plist")
+            .is_file());
+        assert!(working.join("Certs/key.pem").is_file());
     }
 
     #[test]
@@ -1068,7 +1433,7 @@ mod tests {
         let retry = ledger.reserve_shot("press", None).unwrap();
         assert_eq!(retry.number, 1);
         assert!(!retry.path.join("build.log").exists());
-        let archived = temporary.path().join("apps/press/incomplete");
+        let archived = temporary.path().join("press/.tohseno/incomplete");
         let attempts = fs::read_dir(archived).unwrap().collect::<Vec<_>>();
         assert_eq!(attempts.len(), 1);
         assert_eq!(
@@ -1137,7 +1502,7 @@ mod tests {
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
         let shot = ledger.reserve_shot("press", None).unwrap();
-        let record_path = temporary.path().join("ledger/apps/press/app.toml");
+        let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let corrupted = fs::read_to_string(&record_path)
             .unwrap()
             .replace("name = \"press\"", "name = \"../outside\"");
@@ -1160,7 +1525,7 @@ mod tests {
         // Simulate a stop after the marker became durable but before app.toml
         // was atomically replaced.
         fs::write(shot.complete_path(), COMPLETE_MARKER).unwrap();
-        let record_path = temporary.path().join("ledger/apps/press/app.toml");
+        let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let before =
             toml::from_str::<AppRecord>(&fs::read_to_string(&record_path).unwrap()).unwrap();
         assert_eq!(before.latest_shot, None);
@@ -1182,7 +1547,7 @@ mod tests {
             .unwrap();
         let shot = ledger.reserve_shot("press", None).unwrap();
         fs::write(shot.complete_path(), b"completE\n").unwrap();
-        let record_path = temporary.path().join("ledger/apps/press/app.toml");
+        let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let unchanged = fs::read(&record_path).unwrap();
 
         assert!(matches!(
@@ -1264,7 +1629,7 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let record_path = temporary.path().join("ledger/apps/press/app.toml");
+        let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let outside = temporary.path().join("outside.toml");
         fs::write(&outside, fs::read(&record_path).unwrap()).unwrap();
         fs::remove_file(&record_path).unwrap();

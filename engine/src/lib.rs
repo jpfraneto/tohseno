@@ -24,4 +24,4 @@ pub use config::Config;
 pub use events::{Event, EventBus};
 pub use harness::HarnessOption;
 pub use ledger::{AppRecord, Ledger, LedgerError, Shot};
-pub use machine::{DevicePipeline, Engine, EngineError, ShotRequest};
+pub use machine::{ConductedCreation, DevicePipeline, Engine, EngineError, ShotRequest};

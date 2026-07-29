@@ -881,9 +881,9 @@ fn report_unfinished_app(
     if ledger.load_app(target).is_err() || !ledger.list_shots(target)?.is_empty() {
         return Ok(false);
     }
-    let app_dir = ledger.root().join("apps").join(target);
+    let app_dir = ledger.root().join(target).join(".tohseno");
     let mut attempts: Vec<PathBuf> = Vec::new();
-    for parent in [app_dir.join("shots"), app_dir.join("incomplete")] {
+    for parent in [app_dir.join("evolutions"), app_dir.join("incomplete")] {
         let Ok(entries) = fs::read_dir(parent) else {
             continue;
         };
