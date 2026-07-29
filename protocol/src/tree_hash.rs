@@ -21,6 +21,7 @@ pub const SELF_REFERENTIAL_EXCLUSIONS: &[&str] = &[
 
 const EXCLUDED_DIRECTORY_COMPONENTS: &[&str] = &[
     ".git",
+    ".tohseno",
     ".build",
     ".swiftpm",
     "DerivedData",
@@ -168,6 +169,71 @@ pub fn forbidden_source_reason(normalized_path: &str) -> Option<&'static str> {
         return Some("signing, log, or user-local artifact is forbidden inside source");
     }
     None
+}
+
+/// Hashes a living working tree with the same rules as [`hash_source_tree`],
+/// except entries that a sealed world *forbids* (VCS state, `.tohseno`,
+/// Finder droppings, logs, user-local Xcode state) are silently skipped
+/// instead of rejected. A clean sealed snapshot and the working tree it was
+/// taken from therefore produce the same digest, which is what makes
+/// "unsealed changes" a checkable fact. Sealed records must never use this;
+/// they keep the strict [`hash_source_tree`].
+pub fn hash_working_tree(root: &Path) -> Result<SourceTreeCommitment> {
+    let root_metadata = metadata(root)?;
+    if root_metadata.file_type().is_symlink() {
+        return Err(ProtocolError::TreeSymlink(root.display().to_string()));
+    }
+    if !root_metadata.is_dir() {
+        return Err(ProtocolError::TreeEntryType(root.display().to_string()));
+    }
+    let mut entries = Vec::new();
+    walk_lenient(root, root, &mut entries)?;
+    entries.sort_by(|left, right| left.path.as_bytes().cmp(right.path.as_bytes()));
+    let digest = hash_entries(&entries)?;
+    Ok(SourceTreeCommitment { digest, entries })
+}
+
+fn walk_lenient(root: &Path, directory: &Path, entries: &mut Vec<SourceTreeEntry>) -> Result<()> {
+    let iterator = fs::read_dir(directory).map_err(|source| ProtocolError::TreeIo {
+        path: directory.display().to_string(),
+        source,
+    })?;
+    for item in iterator {
+        let item = item.map_err(|source| ProtocolError::TreeIo {
+            path: directory.display().to_string(),
+            source,
+        })?;
+        let path = item.path();
+        let relative = path
+            .strip_prefix(root)
+            .map_err(|_| ProtocolError::InvalidTreePath(path.display().to_string()))?;
+        // Living folders carry names strict hashing cannot express
+        // (Finder's "Icon\r", non-UTF-8); they are skipped, not fatal.
+        let Ok(normalized) = normalize_relative_path(relative) else {
+            continue;
+        };
+        // Skipped entries are skipped even when they are symlinks, so a
+        // symlinked `.git` (worktrees) cannot block a working-tree hash.
+        if exclusion_reason(&normalized).is_some() || forbidden_source_reason(&normalized).is_some()
+        {
+            continue;
+        }
+        let metadata = metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(ProtocolError::TreeSymlink(normalized));
+        }
+        if metadata.is_dir() {
+            walk_lenient(root, &path, entries)?;
+        } else if metadata.is_file() {
+            entries.push(SourceTreeEntry {
+                path: normalized,
+                content_sha256: hash_regular_file(&path, &metadata)?,
+            });
+        }
+        // Sockets, FIFOs, and other specials are skipped: the snapshot
+        // never copies them, so they can never enter a sealed world.
+    }
+    Ok(())
 }
 
 fn walk(root: &Path, directory: &Path, entries: &mut Vec<SourceTreeEntry>) -> Result<()> {
@@ -379,5 +445,30 @@ mod tests {
             hash_source_tree(root.path()),
             Err(ProtocolError::TreeForbidden(path)) if path == "build"
         ));
+    }
+
+    #[test]
+    fn working_tree_hash_matches_its_clean_snapshot() {
+        let working = tempfile::tempdir().unwrap();
+        fs::write(working.path().join("App.swift"), b"struct App {}\n").unwrap();
+        fs::create_dir(working.path().join("Assets")).unwrap();
+        fs::write(working.path().join("Assets/a.json"), b"{}\n").unwrap();
+        // Junk a living folder accumulates, forbidden inside a sealed world.
+        fs::write(working.path().join(".DS_Store"), b"finder\n").unwrap();
+        fs::create_dir(working.path().join(".git")).unwrap();
+        fs::write(working.path().join(".git/HEAD"), b"ref\n").unwrap();
+        fs::create_dir(working.path().join(".tohseno")).unwrap();
+        fs::write(working.path().join(".tohseno/app.toml"), b"name\n").unwrap();
+
+        let clean = tempfile::tempdir().unwrap();
+        fs::write(clean.path().join("App.swift"), b"struct App {}\n").unwrap();
+        fs::create_dir(clean.path().join("Assets")).unwrap();
+        fs::write(clean.path().join("Assets/a.json"), b"{}\n").unwrap();
+
+        assert!(hash_source_tree(working.path()).is_err());
+        assert_eq!(
+            hash_working_tree(working.path()).unwrap().digest,
+            hash_source_tree(clean.path()).unwrap().digest
+        );
     }
 }
