@@ -26,13 +26,13 @@ func installationIdentityIsStableWithinOneAppAndUnlinkedAcrossApps() async throw
         secureEnclaveAvailable: { false }
     )
 
-    let firstKey = try await first.prepare()
+    let firstKey = try first.prepare()
     #expect(firstKey.backend == .softwareThisDeviceOnly)
-    #expect(try await firstReloaded.descriptor() == firstKey)
-    #expect(try await second.prepare().installationID != firstKey.installationID)
+    #expect(try firstReloaded.descriptor() == firstKey)
+    #expect(try second.prepare().installationID != firstKey.installationID)
 
     let message = Data("narrow consent".utf8)
-    let signature = try await first.sign(message: message)
+    let signature = try first.sign(message: message)
     let x = try #require(Data(fasciaHex: firstKey.x, expectedBytes: 32))
     let y = try #require(Data(fasciaHex: firstKey.y, expectedBytes: 32))
     let r = try #require(Data(fasciaHex: signature.r, expectedBytes: 32))

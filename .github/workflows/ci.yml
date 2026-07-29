@@ -73,8 +73,10 @@ jobs:
       - name: Validate the normative Apple Fascia
         run: sh fascia/apple/tests/validate-fascia.sh
       - name: Build and test Apple Fascia reference sources
+        # The fascia sources are copied verbatim into every generated app;
+        # a single warning here becomes a warning in every world.
         run: |
-          swift build --package-path fascia/apple
+          swift build --package-path fascia/apple -Xswiftc -warnings-as-errors
           swift test --package-path fascia/apple
       - name: Build generated fixture for Simulator
         run: |

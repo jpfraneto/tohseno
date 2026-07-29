@@ -64,7 +64,7 @@ public enum InstallationIdentityError: Error, Equatable, Sendable {
 /// Generated applications call `prepare()` during first launch. No public
 /// method returns a private key, Secure Enclave representation, or Keychain
 /// payload.
-public actor InstallationIdentity {
+public final class InstallationIdentity: @unchecked Sendable {
     public static let shared = InstallationIdentity(
         applicationIdentifier: Bundle.main.bundleIdentifier ?? ""
     )

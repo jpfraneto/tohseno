@@ -13,7 +13,7 @@ pub const DEFAULT_FASCIA_EXCLUSIONS: &[&str] = &[".build", ".swiftpm", "Package.
 /// This is intentionally a source constant, not an environment-selected
 /// value. Update it only alongside an explicit candidate Fascia revision.
 pub const PINNED_APPLE_FASCIA_SHA256: &str =
-    "0x75d80349643ec24537283f215cf3c793d3949a5cb7c6d13bfbefffcd8ea38e7f";
+    "0x329b21be15d304dfc8cb7c47cf7e16f820e533c67de428d4d43d46025afca2e8";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FasciaInputEntry {

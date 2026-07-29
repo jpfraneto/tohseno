@@ -152,7 +152,7 @@
       "id": "apple-fascia-reference",
       "status": "automatically_verified",
       "result": "The closed manifest/file-inventory validator passed; Swift build passed; 8 tests passed with 0 failures.",
-      "fascia_commitment": "0x75d80349643ec24537283f215cf3c793d3949a5cb7c6d13bfbefffcd8ea38e7f"
+      "fascia_commitment": "0x329b21be15d304dfc8cb7c47cf7e16f820e533c67de428d4d43d46025afca2e8"
     },
     {
       "id": "generated-simulator-fixture",

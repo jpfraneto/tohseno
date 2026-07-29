@@ -340,7 +340,7 @@ public struct ContinuityEnvelope: Codable, Equatable, Sendable {
         expiresAt: UInt64,
         nowUnix: UInt64
     ) async throws -> ContinuityEnvelope {
-        let key = try await identity.descriptor()
+        let key = try identity.descriptor()
         let statement = ContinuityStatement(
             issuer: ContinuityIssuer(
                 installationID: key.installationID,
@@ -354,7 +354,7 @@ public struct ContinuityEnvelope: Codable, Equatable, Sendable {
             expiresAt: expiresAt
         )
         try statement.validate(nowUnix: nowUnix)
-        let signed = try await identity.sign(message: statement.canonicalJSON())
+        let signed = try identity.sign(message: statement.canonicalJSON())
         guard signed.digest == (try statement.digest()).fasciaHex(prefix: true) else {
             throw ContinuityError.invalidSignature
         }

@@ -95,7 +95,7 @@ Implementation is not deployment or lifecycle evidence.
   Swift tests. The pinned tree commitment is:
 
   ```text
-  0x75d80349643ec24537283f215cf3c793d3949a5cb7c6d13bfbefffcd8ea38e7f
+  0x329b21be15d304dfc8cb7c47cf7e16f820e533c67de428d4d43d46025afca2e8
   ```
 
 - The generated HelloWorld fixture built for generic iOS Simulator with
