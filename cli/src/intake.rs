@@ -20,6 +20,12 @@ pub fn choose_harness(
         .collect::<Vec<_>>();
 
     if let Some(requested) = requested {
+        if Path::new(requested).is_absolute() {
+            events.emit(EngineEvent::status(format!(
+                "using your own coding agent at {requested}."
+            )));
+            return Ok(Some(requested.to_owned()));
+        }
         let option = options
             .iter()
             .find(|option| option.id.eq_ignore_ascii_case(requested))
@@ -68,16 +74,9 @@ pub fn collect(prompt_file: Option<&Path>, events: &EventBus) -> io::Result<Stri
         return fs::read_to_string(path);
     }
 
-    let automatic = std::env::current_dir()?.join("MASTER_PROMPT.md");
-    if automatic.is_file() {
-        events.emit(EngineEvent::handoff(
-            "Press y to use MASTER_PROMPT.md or n to type this shot.",
-        ));
-        if confirm()? {
-            return fs::read_to_string(automatic);
-        }
-    }
-
+    events.emit(EngineEvent::status(
+        "what you write here stays on this Mac; publishing is a separate signed choice.",
+    ));
     if io::stdin().is_terminal() && io::stdout().is_terminal() {
         MultilineBox::new(io::stdout()).read()
     } else {
@@ -85,30 +84,6 @@ pub fn collect(prompt_file: Option<&Path>, events: &EventBus) -> io::Result<Stri
         io::stdin().read_to_string(&mut prompt)?;
         Ok(prompt)
     }
-}
-
-fn confirm() -> io::Result<bool> {
-    if !io::stdin().is_terminal() {
-        let mut answer = String::new();
-        io::stdin().read_line(&mut answer)?;
-        return Ok(answer.trim().eq_ignore_ascii_case("y"));
-    }
-    terminal::enable_raw_mode()?;
-    let answer = loop {
-        if let Event::Key(key) = event::read()? {
-            if key.kind != KeyEventKind::Press {
-                continue;
-            }
-            match key.code {
-                KeyCode::Char('y') | KeyCode::Char('Y') => break true,
-                KeyCode::Char('n') | KeyCode::Char('N') => break false,
-                _ => {}
-            }
-        }
-    };
-    terminal::disable_raw_mode()?;
-    writeln!(io::stdout())?;
-    Ok(answer)
 }
 
 struct TerminalGuard;
