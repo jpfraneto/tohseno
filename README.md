@@ -48,15 +48,15 @@ An engine-written `AGENTS.md` in every folder tells whatever agent enters
 to obey the genome, maintain the Shot's `MEMORY.md`, and run that command
 itself when its work is whole — the builder never has to remember it.
 
-A Shot completes on the Mac: once the world builds, the engine materializes
-a Simulator artifact, signs the record, and verifies it — no iPhone
-required. `tohseno-genesis refresh my-app` installs a completed Shot on a
-phone whenever one is cabled. Interactive `create` opens your own detected
-agent in a new terminal on the folder; `--harness <id|/absolute/path>`
-instead drives an agent headlessly inside the isolation boundary, where
-stock agents currently cannot authenticate — the planned fix is the
-credential broker in
-[`docs/adr/0002-harness-credential-broker.md`](docs/adr/0002-harness-credential-broker.md).
+An Evolution completes on the Mac: once the world builds, the engine
+materializes a Simulator artifact, captures a `preview.png` of the running
+first screen, signs the record, and verifies it — no iPhone required.
+`tohseno-genesis refresh my-app` installs the latest Evolution on a phone
+whenever one is cabled. `create` opens your own agent in a new terminal on
+the folder, launched to work uninterrupted (`claude
+--dangerously-skip-permissions`, `codex --yolo`); TOHSENO never drives
+agents itself, so no credential machinery exists or is needed
+(ADR 0002 is superseded by ADR 0003).
 
 Do not use that candidate command as evidence of a release today: no candidate
 tag or release artifact has been published yet. The release workflow requires

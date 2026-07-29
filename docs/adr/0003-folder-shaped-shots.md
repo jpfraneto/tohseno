@@ -135,3 +135,41 @@ Owner review corrected the ontology and collapsed the surface:
 - Internal type names (`Shot` as the evolution-directory handle,
   `reserve_shot`, …) still predate this ontology; renaming them is
   mechanical follow-up work and changes no behavior.
+
+## Second amendment — the minimal expression that just works (same day)
+
+- **The driven/sandboxed harness mode is deleted.** Every mode that is not
+  essential is noise. TOHSENO finds the builder's agent, opens it in the
+  builder's own session on the folder with its uninterrupted-work flags
+  (`claude --dangerously-skip-permissions`, `codex --yolo`), and steps
+  back. The repair loop, the Seatbelt boundary, and the credential broker
+  (ADR 0002) all vanish with the mode they served.
+- **The CLI is minimal:** `create <name>` (the intake box also swallows a
+  dropped prompt file and reference images), `evolve [--note]`, `adopt`
+  (the current folder becomes a Shot), `refresh`, `list`, `verify`,
+  `inspect`, `studio`, plus the protocol surface. No `--harness`, no
+  `--prompt-file`, no modes.
+- **References live at `.tohseno/references/`;** dropped text files become
+  the intention verbatim; evolve intents wait in `.tohseno/pending-intent.md`
+  until the next recording carries them into history.
+- **WORLD is the seventh organ** (story, design system, asset prompts in
+  the signed world; `page build` renders it) and **every Evolution gets
+  eyes**: a Simulator `preview.png` captured at recording time, shown by
+  Studio and the static page.
+- **The internal rename landed:** the engine and CLI now say `Evolution`
+  everywhere (`reserve_evolution`, `latest_evolution`, …); only the
+  protocol crate keeps its canonical `Shot*` schema names, which are
+  correct — they name the Shot, not its evolutions.
+
+### Notes from the second adversarial review
+
+- Adoption pre-flights before any side effect (`<name>.xcodeproj` and
+  `TohsenoFascia/` must exist) and re-roots a latest evolution that no
+  longer verifies as an honest `LegacyAdoption` origin — which also gives
+  worlds stranded by a fascia repin a way forward.
+- The static page now names its own excerpts: WORLD.md's story and the
+  recorded preview are the only world content it shows, and it says so.
+- Accepted as candidate behavior: the fascia repin invalidates
+  previously recorded evolutions (re-root via `adopt`); `--json verify`
+  tag values follow the Evolution rename; the Simulator preview is a
+  best-effort screenshot, not a deterministic artifact.

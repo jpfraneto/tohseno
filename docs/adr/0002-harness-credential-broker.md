@@ -1,6 +1,6 @@
 # ADR 0002 — Harness credential broker
 
-**Status:** proposed (design accepted; implementation pending)
+**Status:** superseded by ADR 0003 — the driven/sandboxed harness mode was removed entirely; TOHSENO conducts the builder's own agent in the builder's own session, so no broker is needed
 **Date:** 2026-07-29
 
 ## Context

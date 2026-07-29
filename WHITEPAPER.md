@@ -82,14 +82,16 @@ can inspect:
 - declared network and Apple capabilities;
 - deterministic conformance receipts.
 
-The Genome guides the intelligence that creates an app. It has six organs:
-Laws (what must always hold), Structure (the skeleton), Taste (how it
-should feel), Listening (how to read the builder — their language is the
-app's language, a thin intention is distilled into one complete gesture, a
-thick intention is a contract), Unfolding (how a world grows — whole at
-every rest, so any pause is recordable), and Memory (the Shot remembers —
-every decision made on the builder's behalf, every law-forced deviation,
-and the current state live in the world's own `MEMORY.md`).
+The Genome guides the intelligence that creates an app. It has seven
+organs: Laws (what must always hold), Structure (the skeleton), Taste (how
+it should feel), Listening (how to read the builder — their language is
+the app's language, a thin intention is distilled into one complete
+gesture, a thick intention is a contract), Unfolding (how a world grows —
+whole at every rest, so any pause is recordable), Memory (the Shot
+remembers — decisions, deviations, and current state live in the world's
+own `MEMORY.md`), and World (the Shot casts more than code — its story,
+its design system, and ready-to-run asset prompts live in `WORLD.md`,
+because marketing grows from the same seed).
 
 The Fascia is checked by ordinary deterministic code. An LLM is never the
 conformance judge.
@@ -180,9 +182,10 @@ the protocol language and it is not the creator of a Shot.
 ## Independent factories and nodes
 
 The first TOHSENO CLI and Studio are one doorway. They are not a required
-doorway. The same is true one level down: the coding agent is not canonical
-either — `tohseno create <app> --harness /path/to/agent` accepts any
-executable that fulfills the TASK.md contract inside the same sandbox.
+doorway. The same is true one level down: the coding agent is not
+canonical either. TOHSENO does not drive agents at all — it constitutes
+whatever agent the builder already uses, through the standing orders in
+the folder, and that agent records each Evolution itself.
 
 The normative schemas, byte rules, vectors, and conformance tests allow another
 factory to read a Shot, verify it, and create the next complete Evolution. A
