@@ -7,5 +7,10 @@
 - Set `CURRENT_PROJECT_VERSION` to the literal token `__TOHSENO_SHOT__`; TOHSENO replaces it before building.
 - Set `MARKETING_VERSION = 1.0`, `SWIFT_VERSION = 5.0`, and target iPhone.
 - Include `CFBundleDisplayName`, a launch screen declaration, and required usage-description keys for every protected API used.
+- Add all five `TohsenoFascia/*.swift` reference files to the application target
+  and prepare `InstallationIdentity.shared` during first launch.
+- Include the engine-produced `TOHSENO/embedded-provenance.json` as a bundled
+  resource without editing it.
 - Keep the project discoverable by `xcodebuild -project <app-name>.xcodeproj -scheme <app-name>`.
-
+- Write `src/INTERPRETATION.md` (source-only; never a bundled resource) as
+  Listening requires: reading, decisions, deviations.
