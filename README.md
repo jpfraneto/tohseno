@@ -33,14 +33,24 @@ The candidate uses `~/.tohseno-genesis/` and the command
 `tohseno-genesis`; it does not replace the stable `~/.tohseno/` ledger or
 `tohseno` binary.
 
-In the candidate, a Shot completes on the Mac: once the generated world
-builds, the engine materializes a Simulator artifact, signs the record, and
-verifies it — no iPhone required. `tohseno-genesis refresh my-app` installs a
-completed Shot on a phone whenever one is cabled. The coding agent is not
-canonical either: `--harness /absolute/path/to/agent` runs any
-TASK.md-compatible executable inside the same isolation boundary. Stock
-agents currently cannot authenticate inside that boundary; the planned fix is
-the credential broker in
+In the candidate, apps are visible folders under `~/Desktop/Tohseno/`
+(override with `TOHSENO_HOME`), each carrying its own ledger in `.tohseno/`
+(ADR 0003). Edit the folder with anything — your coding agent, Xcode, an
+editor — then seal its state as the next signed Evolution:
+
+```sh
+cd ~/Desktop/Tohseno/my-app
+tohseno-genesis shot
+```
+
+A Shot completes on the Mac: once the world builds, the engine materializes
+a Simulator artifact, signs the record, and verifies it — no iPhone
+required. `tohseno-genesis refresh my-app` installs a completed Shot on a
+phone whenever one is cabled. Interactive `create` opens your own detected
+agent in a new terminal on the folder; `--harness <id|/absolute/path>`
+instead drives an agent headlessly inside the isolation boundary, where
+stock agents currently cannot authenticate — the planned fix is the
+credential broker in
 [`docs/adr/0002-harness-credential-broker.md`](docs/adr/0002-harness-credential-broker.md).
 
 Do not use that candidate command as evidence of a release today: no candidate

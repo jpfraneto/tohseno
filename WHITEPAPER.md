@@ -109,6 +109,15 @@ birth requirement: installation happens immediately when a phone is present
 and resumes later through `tohseno refresh` when it is not. An unfinished
 attempt never poisons the lineage, and a finished Shot can always evolve.
 
+A Shot is a visible folder. The app lives as an ordinary directory the
+builder can open with any tool — their coding agent, Xcode, an editor — and
+it carries its own ledger inside `.tohseno/`: identity binding, sealed
+Evolutions, records, signatures. Editing is not a protocol operation;
+*sealing* is. `tohseno shot` seals the folder's current state — however it
+got there — as the next signed Evolution, the way a commit seals a working
+tree. Because the folder carries everything, moving the folder moves the
+Shot: portability is a property of the object, not a service.
+
 Prompts, reference images, unpublished source, app data, usage, recovery
 material, and continuity relationships stay local by default. Publication is a
 separate signed act. The builder chooses which commitment and public artifact,
