@@ -138,9 +138,37 @@ impl BuilderIdentityManager {
         Ok(identity)
     }
 
+    /// The helper bridge, preferring a previously earned Enclave-capable
+    /// bundle: keys made by the earned bundle live in its keychain access
+    /// group, which the bare helper cannot see.
+    fn bridge(&self) -> Result<AppleIdentityBridge, AppleIdentityError> {
+        if let Some(earned) = crate::enclave::earned_helper(&self.root) {
+            return AppleIdentityBridge::at(earned);
+        }
+        AppleIdentityBridge::discover()
+    }
+
     pub fn ensure(&self) -> Result<BuilderIdentity, BuilderIdentityError> {
-        let bridge = AppleIdentityBridge::discover()?;
-        self.ensure_with_bridge(&bridge)
+        let bridge = self.bridge()?;
+        match self.ensure_with_bridge(&bridge) {
+            Err(BuilderIdentityError::Apple(AppleIdentityError::HelperFailure {
+                ref code,
+                ..
+            })) if code == "secure_enclave_unavailable" => {
+                // The bare helper cannot reach the Enclave; earn a
+                // provisioned bundle with the builder's own Xcode session
+                // and try once more.
+                let earned = crate::enclave::earn(bridge.executable(), &self.root)
+                    .map_err(|error| {
+                        BuilderIdentityError::InvalidConfiguration(format!(
+                            "Secure Enclave access could not be earned: {error}"
+                        ))
+                    })?;
+                let bridge = AppleIdentityBridge::at(earned)?;
+                self.ensure_with_bridge(&bridge)
+            }
+            outcome => outcome,
+        }
     }
 
     pub fn ensure_with_bridge(
@@ -236,7 +264,7 @@ impl BuilderIdentityManager {
         identity: &BuilderIdentity,
         digest: Bytes32,
     ) -> Result<SignatureSidecar, BuilderIdentityError> {
-        let bridge = AppleIdentityBridge::discover()?;
+        let bridge = self.bridge()?;
         self.sign_record_digest_with_bridge(identity, digest, &bridge)
     }
 
@@ -265,7 +293,7 @@ impl BuilderIdentityManager {
         identity: &BuilderIdentity,
         digest: Bytes32,
     ) -> Result<DetachedP256Signature, BuilderIdentityError> {
-        let bridge = AppleIdentityBridge::discover()?;
+        let bridge = self.bridge()?;
         self.sign_digest_with_bridge(identity, digest, &bridge)
     }
 
