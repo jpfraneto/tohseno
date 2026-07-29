@@ -47,13 +47,21 @@ pub fn development_team() -> Result<String, SignError> {
     )
     .map_err(SignError::Command)?;
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let certificate_teams = stdout
-        .lines()
-        .filter(|line| line.contains("\"Apple Development:"))
-        .filter_map(|line| line.rsplit_once('('))
-        .filter_map(|(_, suffix)| suffix.strip_suffix(")\""))
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
+    if !stdout.contains("\"Apple Development:") {
+        return Err(SignError::IdentityMissing);
+    }
+    // The authoritative team is the certificate's OU. The CN's parenthetical
+    // suffix is an Xcode-managed certificate label, not a Team ID, so it is
+    // only a last-resort candidate.
+    let mut certificate_teams = certificate_team_ids().unwrap_or_default();
+    certificate_teams.extend(
+        stdout
+            .lines()
+            .filter(|line| line.contains("\"Apple Development:"))
+            .filter_map(|line| line.rsplit_once('('))
+            .filter_map(|(_, suffix)| suffix.strip_suffix(")\""))
+            .map(ToOwned::to_owned),
+    );
     let defaults = run_checked(
         "defaults",
         [
@@ -64,16 +72,60 @@ pub fn development_team() -> Result<String, SignError> {
         None,
     )
     .map_err(|_| SignError::IdentityMissing)?;
-    let xcode_teams = parse_xcode_personal_team_ids(&String::from_utf8_lossy(&defaults.stdout));
+    let xcode_teams = parse_xcode_team_ids(&String::from_utf8_lossy(&defaults.stdout));
     certificate_teams
         .into_iter()
         .find(|team| xcode_teams.contains(team))
         .ok_or(SignError::IdentityMissing)
 }
 
+/// Team IDs (subject OU) of every local Apple Development signing certificate.
+fn certificate_team_ids() -> Result<Vec<String>, SignError> {
+    let output = run_checked(
+        "security",
+        ["find-certificate", "-a", "-c", "Apple Development", "-p"],
+        None,
+    )
+    .map_err(SignError::Command)?;
+    let pem = String::from_utf8_lossy(&output.stdout).into_owned();
+    let mut teams = Vec::new();
+    for block in pem.split_inclusive("-----END CERTIFICATE-----") {
+        let Some(start) = block.find("-----BEGIN CERTIFICATE-----") else {
+            continue;
+        };
+        let certificate = tempfile::NamedTempFile::new().map_err(SignError::Io)?;
+        fs::write(certificate.path(), &block[start..]).map_err(SignError::Io)?;
+        let Ok(subject) = run_checked(
+            "openssl",
+            [
+                OsString::from("x509"),
+                OsString::from("-noout"),
+                OsString::from("-subject"),
+                OsString::from("-in"),
+                certificate.path().as_os_str().to_owned(),
+            ],
+            None,
+        ) else {
+            continue;
+        };
+        let subject = String::from_utf8_lossy(&subject.stdout).into_owned();
+        for field in subject.split(&[',', '/'][..]) {
+            if let Some(value) = field.trim().strip_prefix("OU=") {
+                let value = value.trim();
+                if !value.is_empty() {
+                    teams.push(value.to_owned());
+                }
+            }
+        }
+    }
+    Ok(teams)
+}
+
 pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
     let team = development_team()?;
-    let project = find_project(request.source).ok_or(SignError::ProjectMissing)?;
+    let project = find_project(request.source)
+        .map_err(SignError::Io)?
+        .ok_or(SignError::ProjectMissing)?;
     let derived_data = request.artifact_directory.join("DerivedData");
     fs::create_dir_all(request.artifact_directory).map_err(SignError::Io)?;
     let destination = request
@@ -92,7 +144,10 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
         format!("id={destination}").into(),
         "-derivedDataPath".into(),
         derived_data.clone().into_os_string(),
+        "-disableAutomaticPackageResolution".into(),
+        "-onlyUsePackageVersionsFromResolvedFile".into(),
         "-allowProvisioningUpdates".into(),
+        "ENABLE_USER_SCRIPT_SANDBOXING=YES".into(),
         "CODE_SIGN_STYLE=Automatic".into(),
         format!("DEVELOPMENT_TEAM={team}").into(),
         format!("PRODUCT_BUNDLE_IDENTIFIER={}", request.bundle_id).into(),
@@ -117,6 +172,18 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
         fs::remove_dir_all(&artifact).map_err(SignError::Io)?;
     }
     copy_directory(&built_app, &artifact).map_err(SignError::Io)?;
+    run_checked(
+        "/usr/bin/codesign",
+        [
+            OsString::from("--verify"),
+            OsString::from("--deep"),
+            OsString::from("--strict"),
+            OsString::from("--verbose=2"),
+            artifact.clone().into_os_string(),
+        ],
+        None,
+    )
+    .map_err(SignError::Command)?;
     Ok(artifact)
 }
 
@@ -155,15 +222,34 @@ pub fn days_until_expiry(app: &Path) -> Option<i64> {
     Some((expiry - now).div_euclid(86_400))
 }
 
-pub(crate) fn find_project(source: &Path) -> Option<PathBuf> {
-    fs::read_dir(source)
-        .ok()?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .find(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "xcodeproj")
-        })
+pub(crate) fn find_project(source: &Path) -> std::io::Result<Option<PathBuf>> {
+    let mut projects = Vec::new();
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "xcodeproj")
+        {
+            let file_type = entry.file_type()?;
+            if file_type.is_symlink() || !file_type.is_dir() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Xcode project is not a real directory: {}", path.display()),
+                ));
+            }
+            projects.push(path);
+        }
+    }
+    projects.sort();
+    match projects.len() {
+        0 => Ok(None),
+        1 => Ok(projects.pop()),
+        count => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("expected exactly one Xcode project, observed {count}"),
+        )),
+    }
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
@@ -171,20 +257,28 @@ fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("refusing symlink while copying {}", entry.path().display()),
+            ));
+        }
+        if file_type.is_dir() {
             copy_directory(&entry.path(), &target)?;
-        } else {
+        } else if file_type.is_file() {
             fs::copy(entry.path(), target)?;
         }
     }
     Ok(())
 }
 
-fn parse_xcode_personal_team_ids(defaults: &str) -> Vec<String> {
+/// Every team Xcode can automatically provision for, personal or paid.
+/// Restricting this to free personal teams locked out builders whose only
+/// membership is a company team.
+fn parse_xcode_team_ids(defaults: &str) -> Vec<String> {
     defaults
-        .split("},")
-        .filter(|entry| entry.contains("isFreeProvisioningTeam = 1;"))
-        .flat_map(str::lines)
+        .lines()
         .filter_map(|line| {
             line.trim()
                 .strip_prefix("teamID = ")
@@ -203,13 +297,21 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::create_dir(directory.path().join("Press.xcodeproj")).unwrap();
         assert_eq!(
-            find_project(directory.path()).unwrap(),
+            find_project(directory.path()).unwrap().unwrap(),
             directory.path().join("Press.xcodeproj")
         );
     }
 
     #[test]
-    fn reads_team_ids_from_xcode_account_defaults() {
+    fn project_discovery_rejects_ambiguity() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir(directory.path().join("One.xcodeproj")).unwrap();
+        fs::create_dir(directory.path().join("Two.xcodeproj")).unwrap();
+        assert!(find_project(directory.path()).is_err());
+    }
+
+    #[test]
+    fn reads_personal_and_company_team_ids_from_xcode_account_defaults() {
         let defaults = r#"{
             teamID = R8G2NH6ZA9;
             teamName = "Personal Team";
@@ -219,6 +321,6 @@ mod tests {
             teamID = PAIDTEAM01;
             isFreeProvisioningTeam = 0;
         }"#;
-        assert_eq!(parse_xcode_personal_team_ids(defaults), ["R8G2NH6ZA9"]);
+        assert_eq!(parse_xcode_team_ids(defaults), ["R8G2NH6ZA9", "PAIDTEAM01"]);
     }
 }
