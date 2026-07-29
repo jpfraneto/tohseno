@@ -1,0 +1,40 @@
+{
+  "": {
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/master.swiftdeps"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/ContinuityEnvelope.swift": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.dia"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/InstallationIdentity.swift": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.dia"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/LocalPersistence.swift": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.dia"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/Provenance.swift": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.dia"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/TohsenoMetadata.swift": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.dia"
+  }
+}

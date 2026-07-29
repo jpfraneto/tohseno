@@ -1,0 +1,393 @@
+{
+  "schema": "tohseno.genesis-candidate-report/1",
+  "candidate": {
+    "protocol": "tohseno",
+    "version": "1.0.0-rc.1",
+    "codename": "GENESIS",
+    "canonical_release": false,
+    "status": "protocol candidate, not canonical release",
+    "ready_for_prerelease": false,
+    "ready_for_cleanup": false
+  },
+  "session": {
+    "started_at": "2026-07-29T00:09:35Z",
+    "ended_at": "2026-07-29T04:35:58Z",
+    "scope": "local implementation, automated candidate evidence, and a read-only cable observation available without a physical-device lifecycle or transaction authorization"
+  },
+  "environment": {
+    "operating_system": "macOS 26.5 (build 25F71)",
+    "kernel": "Darwin 25.5.0 arm64",
+    "architecture": "arm64",
+    "xcode": "Xcode 26.3 (build 17C529)",
+    "ios_simulator_sdk": "26.2",
+    "rust": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "cargo": "cargo 1.88.0",
+    "swift": "Apple Swift 6.2.4 (swiftlang-6.2.4.1.4 clang-1700.6.4.2)",
+    "foundry": "forge 1.3.5-stable (9979a41b5daa5da1572d973d7ac5a3dd2afc0221)"
+  },
+  "source": {
+    "branch": "main",
+    "git_commit": "9d1458400407d35da084f799d461e059017a0f61",
+    "working_tree_clean": false,
+    "dirty_package_source_state_sha256": "0353b4cc02eb713387e5914853b0cbe50385f579ba22417dfa62e32c841f0320",
+    "qualification": "The package records the exact nonignored working-tree state present at build time. The final evidence report was refreshed afterward; all implementation changes and the installer test were already in the recorded build state, but neither the historical commit nor that build-time digest identifies the final report bytes. A real clean commit remains required."
+  },
+  "implemented": [
+    {
+      "id": "protocol-core",
+      "status": "implemented",
+      "evidence": [
+        "protocol/src",
+        "protocol/schemas",
+        "protocol/test-vectors",
+        "protocol/SPECIFICATION.md",
+        "protocol/CONFORMANCE.md"
+      ],
+      "details": "Closed RFC 8785 JSON objects, P-256 signatures, BuilderID and action semantics, source/Fascia commitments, Shot lineage, legacy adoption, continuity proofs, Genesis material, and exact AppMetadata."
+    },
+    {
+      "id": "apple-identity-and-fascia",
+      "status": "implemented",
+      "evidence": [
+        "apple-identity",
+        "fascia/apple"
+      ],
+      "details": "Secure Enclave bridge, explicit software-only test backend, app-scoped InstallationKey, finite source inventory, local-first storage, consentful continuity, privacy, provenance, and distribution surfaces."
+    },
+    {
+      "id": "local-factory-and-verifier",
+      "status": "implemented",
+      "evidence": [
+        "engine/src/protocol_lifecycle.rs",
+        "engine/src/verifier.rs",
+        "engine/src/harness.rs",
+        "engine/src/ledger.rs",
+        "cli/src/protocol_commands.rs"
+      ],
+      "details": "Crash-safe append-only Shots, exact retained-artifact verification, candidate-only bundle/keychain namespaces, sandboxed generation, static pages, and offline lineage verification."
+    },
+    {
+      "id": "guarded-public-lifecycle",
+      "status": "implemented",
+      "evidence": [
+        "engine/src/public_network.rs",
+        "engine/src/public_actions.rs",
+        "engine/src/public_submission.rs",
+        "scripts/lifecycle-mainnet.sh"
+      ],
+      "details": "Block-pinned reads, exact runtime and nonce checks, Secure Enclave action signing, deterministic calldata, private create-new artifacts, optional hardware/named-keystore relay, a separate exact authorization for lazy BuilderAccount deployment, duplicate-key-strict receipts, transaction-by-hash envelope binding, and post-state verification. Default behavior is signed preparation without broadcast."
+    },
+    {
+      "id": "candidate-contracts",
+      "status": "implemented",
+      "qualification": "Non-upgradeable, locally testable, explicitly unaudited, and not deployed.",
+      "evidence": [
+        "contracts/src",
+        "contracts/test",
+        "contracts/deployments/robinhood-mainnet-genesis.json"
+      ]
+    },
+    {
+      "id": "candidate-artifact-and-installer-path",
+      "status": "implemented",
+      "evidence": [
+        "scripts/build-genesis-bundle.sh",
+        "scripts/build-normalized-tar.py",
+        "scripts/release-package-integrity.py",
+        "scripts/release-candidate.sh",
+        "oneshot/oneshot.sh",
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml"
+      ],
+      "details": "Exact manifests, descriptor-anchored staging and cleanup, atomic Darwin/Linux package exchange, dirty and clean provenance, normalized Genesis archives, isolated transactional candidate installation, and least-privilege prerelease workflows machine-gated by readiness, external release/tag protection evidence, and explicit authorization. Assets stage in a commit-bound retry-safe draft, are clobbered to the exact set, downloaded and compared, and the live peeled tag is checked again immediately before publication. A lost publish response converges only through exact immutable-release re-verification; cleanup readiness remains a separate post-release acceptance signal."
+    }
+  ],
+  "automatically_verified": [
+    {
+      "id": "p256verify-official-public-rpc",
+      "status": "automatically_verified",
+      "checked_at": "2026-07-29T03:41:55Z",
+      "chain_id": 4663,
+      "precompile": "0x0000000000000000000000000000000000000100",
+      "input": "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca6050232ba3a8be6b94d5ec80a6d9d1190a436effe50d85a1eee859b8cc6af9bd5c2e184cd60b855d442f5b3c7b11eb6c4e0ae7525fe710fab9aa7c77a67f79e6fadd762927b10512bae3eddcfe467828128bad2903269919f7086069c8c4df6c732838c7787964eaac00e5921fb1498a60f4606766b3d9685001558d1a974e7341513e",
+      "output": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "evidence": "genesis/lifecycle/P256_PROBE.json",
+      "qualification": "The evidence preserves the exact precompile target, call input, normalized result, timestamp, and endpoint kind, not the full JSON-RPC envelope or raw HTTP response. This is not TOHSENO deployment evidence."
+    },
+    {
+      "id": "live-candidate-network-status",
+      "status": "automatically_verified",
+      "checked_at": "2026-07-29T03:50:09Z",
+      "evidence": "genesis/lifecycle/NETWORK_STATUS.json",
+      "evidence_sha256": "62f105ffd564104879ed062206d5c634f3d903822ce685ea0b4af59e26770d01",
+      "result": {
+        "chain_id": 4663,
+        "candidate_ready": false,
+        "deterministic_deployer_code": "exact",
+        "p256verify": "exact",
+        "builder_account_factory": "no code at planned address",
+        "shot_registry": "no code at planned address",
+        "shot_relations": "no code at planned address"
+      },
+      "qualification": "Only read-only eth_chainId, eth_getCode, and eth_call methods were used."
+    },
+    {
+      "id": "integrated-rust-workspace",
+      "status": "automatically_verified",
+      "result": "Formatting and workspace Clippy with warnings denied passed. Locked all-target/all-feature tests passed: CLI 30, engine 107, protocol unit 25, protocol integration/conformance 8; 170 passed and 0 failed in total.",
+      "details": "Coverage includes strict metadata and continuity JSON, authority replacement rejection, sandbox boundaries, immutable ledger behavior, public preparation/signing, engine-enforced BuilderAccount deployment authorization, receipt/transaction-envelope binding with retained post-broadcast identifiers on failure, post-state checks, app/global lock ordering, offline verification, and exact protocol fixtures."
+    },
+    {
+      "id": "protocol-schemas-and-vectors",
+      "status": "automatically_verified",
+      "result": "All 12 schemas are closed Draft 2020-12 JSON; both committed vector files are present; protocol-v1.json regenerated byte-for-byte; exact Rust/Swift AppMetadata and continuity fixtures passed."
+    },
+    {
+      "id": "apple-identity-software-backend",
+      "status": "automatically_verified",
+      "result": "Swift build passed; 7 tests passed with 0 failures.",
+      "qualification": "This verifies the explicit software test backend and bridge behavior. It is not Secure Enclave lifecycle evidence."
+    },
+    {
+      "id": "apple-fascia-reference",
+      "status": "automatically_verified",
+      "result": "The closed manifest/file-inventory validator passed; Swift build passed; 8 tests passed with 0 failures.",
+      "fascia_commitment": "0x75d80349643ec24537283f215cf3c793d3949a5cb7c6d13bfbefffcd8ea38e7f"
+    },
+    {
+      "id": "generated-simulator-fixture",
+      "status": "automatically_verified",
+      "result": "The HelloWorld fixture built successfully for generic iOS Simulator with automatic package resolution disabled, the only-use-resolved-versions flag passed, user-script sandboxing enabled, and code signing disabled.",
+      "details": "The fixture has no external package dependency and no Package.resolved, so resolved-file enforcement itself was not exercised.",
+      "qualification": "A Simulator build is not an iPhone signing, installation, launch, restart, or refresh result."
+    },
+    {
+      "id": "candidate-contract-tests",
+      "status": "automatically_verified",
+      "result": "52 Foundry unit, fuzz, and invariant tests passed; 0 failed; 0 skipped. Formatting, size build, ABIs, creation bytecode, and the deployment plan matched.",
+      "qualification": "Foundry emitted non-failing naming and hashing-efficiency notes. Tests are not a smart-contract audit or deployment."
+    },
+    {
+      "id": "genesis-bundle-reproducibility",
+      "status": "automatically_verified",
+      "checksums": {
+        "GENESIS.json": "0d4f7100cee827905e5ad93528ad95d80f12c81a583ac536d3c1b01c2782b80f",
+        "FILES.sha256": "7a841a27c3e9981d4a8198be9d959561839b9a3c75a55359a82141e82b9eefab",
+        "tohseno-genesis-materials.tar.gz": "a1e6f25a5a1b983d84e2959233d1c86794355dc010f695237c75b5a31405766c"
+      },
+      "manifest_entries": 63,
+      "bundle_files_including_manifest": 64,
+      "archive_bytes": 84919,
+      "archive_members": 80,
+      "result": "Two independent bundle builds and two metadata-normalized archives matched byte-for-byte; exact internal manifest coverage verified."
+    },
+    {
+      "id": "archive-and-package-adversarial-regressions",
+      "status": "automatically_verified",
+      "result": "Normalized-archive and release-package integrity suites rejected missing/bad/incomplete manifests, extra files, symlinks, special entries, unsafe roots, and a symlinked dist output; prior outputs survived failed builds and atomic replacement/cleanup passed."
+    },
+    {
+      "id": "local-dirty-candidate-package",
+      "status": "automatically_verified",
+      "target": "aarch64-apple-darwin",
+      "architecture": "arm64",
+      "minimum_macos": "13.0",
+      "manifest_entries": 108,
+      "checksums": {
+        "bin/tohseno": "c2937e4507a7ff143c3a6620afb3a684abc6c8d0ef0e91c4b35317ed4e76b09d",
+        "bin/tohseno-apple-identity": "1f3c4f7b01eed5a649bcc9de79939e045a5670480b9c129f095c0e959269706b",
+        "RELEASE.json": "76c3f2a502491b8a8cee71ad2493f634d9e4d4da2913765d8a59afcd674bbbae",
+        "CHECKSUMS.sha256": "0a8eec4c57fdd61f6f74046ba7f5e6c32d505e1c5fe37ec2837216611b64c5c0"
+      },
+      "result": "Exact manifest coverage, checksums, thin architecture, exact minimum OS, both version smokes, and protocol JSON smoke passed.",
+      "qualification": "This is a local dirty-tree package, not a tagged, downloaded, or system-installed candidate release."
+    },
+    {
+      "id": "clean-snapshot-release-mode",
+      "status": "automatically_verified",
+      "result": "A separate throwaway clean Git repository exercised the detached clean-snapshot build. RELEASE.json recorded dirty=false with its exact temporary commit/source-state, all 108 package manifest entries verified, and both binaries were thin arm64 with minimum macOS 13.0.",
+      "qualification": "The temporary repository and commit were test fixtures, not retained release identifiers."
+    },
+    {
+      "id": "isolated-genesis-installer-regressions",
+      "status": "automatically_verified",
+      "result": "Two local-fixture installs switched the candidate release, preserved unrelated shell configuration and stable .tohseno state, routed through current, and matched package/archive bytes. Outer checksum failure, incomplete inner manifest, stable-root overlap, symlinked stable state, and late rollback failure all failed closed without changing installed fixture state.",
+      "qualification": "The temporary fixture was removed. This is installer implementation evidence, not installation of a published candidate."
+    },
+    {
+      "id": "static-surfaces",
+      "status": "automatically_verified",
+      "result": "Shell syntax, Python compilation, Studio JavaScript syntax, protocol-page JSON, evidence JSON, all source JSON in the checked sets, and both workflow YAML files parsed; release authorization/permission checks, the exact five-call GitHub REST API 2026-03-10 pin, and scoped diff checks passed."
+    }
+  ],
+  "manually_observed": [
+    {
+      "id": "physical-device-connection",
+      "status": "manually_observed",
+      "result": "Connected and available over USB",
+      "iphone_device_model": "iPhone 15",
+      "qualification": "A read-only xcdevice query observed the model and USB availability. Raw device-list files were privately discarded; no device name, serial number, UDID, ECID, or other unnecessary identifier was retained. Build, signing, installation, launch, restart, and refresh were not attempted or claimed."
+    }
+  ],
+  "installed_artifacts": {
+    "status": "not_completed",
+    "checksums": null,
+    "reason": "No published v1.0.0-rc.1 artifact was installed through TOHSENO_CHANNEL=genesis. Only disposable local installer fixtures were exercised."
+  },
+  "identity": {
+    "status": "not_completed",
+    "builder_id": null,
+    "public_device_key_fingerprint": null,
+    "initial_device_authority": "implemented and fail-closed",
+    "recovery": {
+      "encrypted_local_backup": "implemented but not created for a Genesis identity",
+      "account_recovery": "deferred",
+      "replacement_authorization": "deferred",
+      "revocation_and_rotation": "deferred",
+      "secrets_recorded": false,
+      "qualification": "The current local proof chain authorizes only the initial DeviceKey. A backup import is local key restoration, not BuilderAccount recovery or replacement authority."
+    },
+    "reason": "The isolated hardware-backed Genesis Builder identity was not created."
+  },
+  "deployment": {
+    "status": "not_completed",
+    "chain_id": 4663,
+    "create2_deployer": {
+      "address": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "runtime_code_hash": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989",
+      "live_read": "exact"
+    },
+    "addresses": {
+      "deployed": {
+        "builder_account_factory": null,
+        "shot_registry": null,
+        "shot_relations": null,
+        "builder_account": null
+      },
+      "planned_create2": {
+        "builder_account_factory": "0xb802f0ef1595734f2529f602f2473d829d6aafaf",
+        "shot_registry": "0x5daf4fa6c285afb4b19978ad56a3892e7676cc68",
+        "shot_relations": "0xb7dc8acfbfc5d93146e4e88d12e5223a5e6a3b83"
+      }
+    },
+    "transaction_hashes": {
+      "builder_account_factory": null,
+      "shot_registry": null,
+      "shot_relations": null,
+      "builder_account": null
+    },
+    "bytecode_hashes": {
+      "builder_account_factory_init_code": "0xc54e36542c975b6bde3868afded9d3d342e01defdfd0b2c8bc3e25c417526b28",
+      "shot_registry_init_code": "0x8d76b602133b97f4d0adb171cb0a8339f77be15e76b64d3cb2c4077434ffb482",
+      "shot_relations_init_code": "0x50d9e77a0d400b506cc3e0ea439a508a2f243f430245085ee508461b1ff66ea5",
+      "builder_account_factory_expected_runtime": "0x1f44f9fa643277e05f5a9d1f6a05b4cee9264c261a423021c5e0c7f5da3b312a",
+      "shot_registry_expected_runtime": "0xac64e4933d88d40c18af598f7ebf7bc8f7b829e1a61acb8e380d4ac670f31478",
+      "shot_relations_expected_runtime": "0x909ba083f6b186b08f80d5ea465878f7a0c909f1c65b11d2ed8ca11a40669de5",
+      "observed_candidate_runtime": null
+    },
+    "reason": "The planned candidate addresses contain no code. No deployment signer, exact operator authorization, or transaction was supplied; nothing was broadcast."
+  },
+  "shot_lifecycle": {
+    "status": "not_completed",
+    "shot_id": null,
+    "evolution_1_commitment": null,
+    "evolution_2_commitment": null,
+    "source_tree_commitments": [],
+    "generated_app_fascia_commitment": null,
+    "conformance_outputs": [],
+    "installation": "not_completed",
+    "launch": "not_completed",
+    "restart_and_refresh": "not_completed",
+    "privacy_boundaries": "implemented and unit-tested, not observed on a real Genesis app"
+  },
+  "public_witness": {
+    "status": "not_completed",
+    "registry_reads": [],
+    "prepared_action_artifacts": [],
+    "handle_claim": {
+      "status": "not_completed",
+      "handle": "tohseno",
+      "transaction_hash": null
+    },
+    "appcoin_relation": {
+      "status": "not_completed",
+      "reason": "No exact token address was supplied and no public Shot exists. No token address was inferred."
+    },
+    "qualification": "The guarded code path is implemented and tested, but no real Secure Enclave signature, relay receipt, registry transition, or post-state exists."
+  },
+  "independent_verifier": {
+    "implementation_status": "automatically_verified",
+    "real_genesis_output_status": "not_completed",
+    "output": null,
+    "reason": "Offline verifier fixtures and failure cases pass, but there are no real Genesis Evolution records to verify."
+  },
+  "release": {
+    "status": "not_completed",
+    "prerelease_authorized": false,
+    "immutable_release_policy_verified": false,
+    "release_tag_protection_verified": false,
+    "tag": null,
+    "release_url": null,
+    "local_package_assembled": true,
+    "clean_snapshot_mode_verified": true,
+    "published_candidate_installed": false,
+    "stable_channel_untouched": true,
+    "final_arweave_publication": "pending",
+    "reason": "The hardware-backed identity, physical-device lifecycle, real Evolutions, public deployment, and public witness loop have not passed, so no tag or prerelease was created."
+  },
+  "commands_executed": {
+    "scope": "evidence-producing commands; audit-only inspection commands are omitted",
+    "commands": [
+      "cargo fmt --all --check",
+      "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "cargo test --locked --workspace --all-targets --all-features",
+      "cmp <(cargo run --quiet --locked -p tohseno-protocol --example generate_vectors) protocol/test-vectors/protocol-v1.json",
+      "find protocol/schemas -type f -name '*.json' ... jq Draft-2020-12 checks",
+      "swift build --package-path apple-identity",
+      "swift test --package-path apple-identity",
+      "sh fascia/apple/tests/validate-fascia.sh",
+      "swift build --package-path fascia/apple",
+      "swift test --package-path fascia/apple",
+      "xcodebuild -project engine/fixtures/hello-world/HelloWorld.xcodeproj -scheme HelloWorld -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -disableAutomaticPackageResolution -onlyUsePackageVersionsFromResolvedFile CODE_SIGNING_ALLOWED=NO ENABLE_USER_SCRIPT_SANDBOXING=YES build",
+      "forge fmt --root contracts --check",
+      "forge build --root contracts --sizes",
+      "forge test --root contracts -vvv",
+      "scripts/build-contract-abi.sh --check",
+      "find oneshot scripts fascia/apple/tests -type f -name '*.sh' ... sh -n",
+      "python3 -m py_compile scripts/build-normalized-tar.py scripts/release-package-integrity.py",
+      "scripts/test-normalized-archive.sh",
+      "scripts/test-release-package-integrity.sh",
+      "node --check studio/app.js",
+      "Ruby YAML safe parsing for .github/workflows/ci.yml and release.yml",
+      "JSON parsing and pinned invariant checks for schemas, vectors, deployment, site, probe, and reports",
+      "scripts/build-genesis-bundle.sh (expected dirty-gate rejection)",
+      "TOHSENO_ALLOW_DIRTY_BUNDLE=1 scripts/build-genesis-bundle.sh (twice)",
+      "TOHSENO_ALLOW_DIRTY_BUNDLE=1 scripts/build-genesis-bundle.sh --check",
+      "python3 scripts/release-package-integrity.py verify-manifest --root dist/genesis --manifest-name FILES.sha256",
+      "scripts/build-genesis-archive.sh dist/tohseno-genesis-materials.tar.gz",
+      "scripts/build-genesis-archive.sh dist/tohseno-genesis-materials-second.tar.gz",
+      "cmp dist/tohseno-genesis-materials.tar.gz dist/tohseno-genesis-materials-second.tar.gz",
+      "scripts/release-candidate.sh (expected dirty-gate rejection)",
+      "TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE=1 scripts/release-candidate.sh",
+      "isolated clean Git fixture: scripts/release-candidate.sh and exact provenance/architecture/minimum-OS verification",
+      "scripts/test-genesis-installer.sh dist/release-candidate/aarch64-apple-darwin dist/tohseno-genesis-materials.tar.gz",
+      "cargo run --quiet --locked -p tohseno -- --json network status",
+      "scripts/probe-p256.sh --output genesis/lifecycle/P256_PROBE.json",
+      "xcrun devicectl list devices --quiet --timeout 10 --json-output <private-temporary-file> (sanitized read-only inspection; raw file discarded)",
+      "system_profiler SPUSBDataType -json (sanitized read-only cross-check; raw file discarded)",
+      "xcrun xcdevice list --timeout 5 (sanitized model/availability/interface extraction; raw file discarded)",
+      "git diff --check"
+    ]
+  },
+  "remaining_blockers": [
+    "Commit coherent candidate inputs so a durable Git commit identifies the candidate source bytes, then run the prepared GitHub Actions workflow.",
+    "Provide the harness an explicit credential broker that preserves the Seatbelt no-secret boundary; current credential isolation intentionally fails closed for agents that require host credentials.",
+    "Complete the Secure Enclave identity, Apple signing, install, launch, restart, and refresh gates on the connected physical iPhone.",
+    "Define and implement a verified BuilderAccount replacement/recovery proof chain before claiming device authorization, revocation, rotation, or account recovery.",
+    "Create and independently verify real Genesis Evolution 1 and Evolution 2 records.",
+    "Obtain explicit deployment configuration and operator authorization, deploy and verify the unaudited candidate contracts, and create the BuilderAccount.",
+    "Publish the signed lineage, verify registry state through independent RPC reads, and claim the tohseno handle through the normal action path.",
+    "Associate an appcoin only if an exact token address is supplied after the public Shot exists.",
+    "Enable and verify GitHub release immutability plus a no-update/no-delete tag rule for v1.0.0-rc.1. After every other pre-release candidate gate passes, record both protections, candidate.ready_for_prerelease, and explicit prerelease authorization, then create v1.0.0-rc.1. Install and exercise that published prerelease before recording candidate.ready_for_cleanup; leave v1.0.0, the stable installer, announcements, and final Arweave publication untouched."
+  ]
+}

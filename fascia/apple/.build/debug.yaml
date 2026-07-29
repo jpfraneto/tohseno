@@ -1,0 +1,112 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module": ["<TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module>"]
+  "TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.module": ["<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.module>"]
+  "TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test": ["<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test>"]
+  "TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module": ["<TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module>"]
+  "main": ["<TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module>"]
+  "test": ["<TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module>","<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test>","<TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module>"]
+default: "main"
+nodes:
+  "/Users/kithkui/code/tohseno.com/fascia/apple/swift/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+  "/Users/kithkui/code/tohseno.com/fascia/apple/tests/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/kithkui/code/tohseno.com/fascia/apple/swift/ContinuityEnvelope.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/InstallationIdentity.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/LocalPersistence.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/Provenance.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/TohsenoMetadata.swift"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/sources"]
+    description: "Write auxiliary file /Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/sources"
+
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.derived/runner.swift"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/sources"]
+    description: "Write auxiliary file /Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/sources"
+
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.derived/runner.swift":
+    tool: test-entry-point-tool
+    inputs: []
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.derived/runner.swift"]
+
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/runner.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/FasciaReferenceTests.swift.o"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.product/Objects.LinkFileList"
+
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/kithkui/code/tohseno.com/fascia/apple/tests/FasciaReferenceTests.swift"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/sources"]
+    description: "Write auxiliary file /Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/sources"
+
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+
+  "<TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFascia.swiftmodule"]
+    outputs: ["<TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module>"]
+
+  "<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/runner.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaPackageTests.swiftmodule"]
+    outputs: ["<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.module>"]
+
+  "<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test>":
+    tool: phony
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.xctest/Contents/MacOS/TohsenoAppleFasciaPackageTests"]
+    outputs: ["<TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test>"]
+
+  "<TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/FasciaReferenceTests.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaTests.swiftmodule"]
+    outputs: ["<TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module>"]
+
+  "C.TohsenoAppleFascia-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/swift/ContinuityEnvelope.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/InstallationIdentity.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/LocalPersistence.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/Provenance.swift","/Users/kithkui/code/tohseno.com/fascia/apple/swift/TohsenoMetadata.swift","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/sources"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFascia.swiftmodule"]
+    description: "Compiling Swift Module 'TohsenoAppleFascia' (5 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","TohsenoAppleFascia","-emit-dependencies","-emit-module","-emit-module-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFascia.swiftmodule","-output-file-map","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/sources","-I","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j8","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/include/TohsenoAppleFascia-Swift.h","-swift-version","6","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","apple"]
+
+  "C.TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.derived/runner.swift","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaTests.swiftmodule","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/sources"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/runner.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaPackageTests.swiftmodule"]
+    description: "Compiling Swift Module 'TohsenoAppleFasciaPackageTests' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","TohsenoAppleFasciaPackageTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaPackageTests.swiftmodule","-output-file-map","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/sources","-I","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j8","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/include/TohsenoAppleFasciaPackageTests-Swift.h","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","apple"]
+
+  "C.TohsenoAppleFasciaPackageTests-arm64-apple-macosx26.0-debug.test":
+    tool: shell
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/ContinuityEnvelope.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/InstallationIdentity.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/LocalPersistence.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/Provenance.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFascia.build/TohsenoMetadata.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.build/runner.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/FasciaReferenceTests.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.product/Objects.LinkFileList"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.xctest/Contents/MacOS/TohsenoAppleFasciaPackageTests"]
+    description: "Linking ./.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.xctest/Contents/MacOS/TohsenoAppleFasciaPackageTests"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-L","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug","-o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.xctest/Contents/MacOS/TohsenoAppleFasciaPackageTests","-module-name","TohsenoAppleFasciaPackageTests","-Xlinker","-no_warn_duplicate_libraries","-Xlinker","-bundle","-Xlinker","-rpath","-Xlinker","@loader_path/../../../","@/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaPackageTests.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx14.0","-Xlinker","-add_ast_path","-Xlinker","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFascia.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaPackageTests.swiftmodule","-Xlinker","-add_ast_path","-Xlinker","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaTests.swiftmodule","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g"]
+
+  "C.TohsenoAppleFasciaTests-arm64-apple-macosx26.0-debug.module":
+    tool: shell
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/tests/FasciaReferenceTests.swift","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFascia.swiftmodule","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/sources"]
+    outputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/FasciaReferenceTests.swift.o","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaTests.swiftmodule"]
+    description: "Compiling Swift Module 'TohsenoAppleFasciaTests' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","TohsenoAppleFasciaTests","-emit-dependencies","-emit-module","-emit-module-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules/TohsenoAppleFasciaTests.swiftmodule","-output-file-map","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/output-file-map.json","-parse-as-library","-incremental","-c","@/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/TohsenoAppleFasciaTests.build/sources","-I","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-Xfrontend","-enable-cross-import-overlays","-j8","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-swift-version","6","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","apple"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/kithkui/code/tohseno.com/fascia/apple/swift/","/Users/kithkui/code/tohseno.com/fascia/apple/tests/","/Users/kithkui/code/tohseno.com/fascia/apple/Package.swift","/Users/kithkui/code/tohseno.com/fascia/apple/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

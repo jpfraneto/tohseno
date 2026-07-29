@@ -10,11 +10,16 @@ rust-version.workspace = true
 base64.workspace = true
 clap.workspace = true
 crossterm.workspace = true
+libc = "=0.2.189"
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tohseno-engine = { path = "../engine" }
+tohseno-protocol = { path = "../protocol" }
+qrcode = { version = "=0.14.1", default-features = false, features = ["svg"] }
+rpassword = "=7.4.0"
+zeroize = "=1.8.1"
 
 [dev-dependencies]
 tempfile = "3.15"

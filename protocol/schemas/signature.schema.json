@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/signature.schema.json",
+  "title": "TOHSENO Evolution signature sidecar",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "algorithm",
+    "digest",
+    "public_key",
+    "signature",
+    "low_s"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.signature/1"
+    },
+    "algorithm": {
+      "const": "p256"
+    },
+    "digest": {
+      "$ref": "common.schema.json#/$defs/bytes32"
+    },
+    "public_key": {
+      "$ref": "common.schema.json#/$defs/p256PublicKey"
+    },
+    "signature": {
+      "$ref": "common.schema.json#/$defs/p256Signature"
+    },
+    "low_s": {
+      "const": true
+    }
+  },
+  "$comment": "The digest is SHA-256(RFC8785(record)); the sidecar itself is excluded. Verify P-256 over that 32-byte prehash exactly and reject high-s."
+}

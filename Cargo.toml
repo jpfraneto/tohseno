@@ -1,13 +1,13 @@
 [workspace]
-members = ["engine", "cli"]
+members = ["engine", "cli", "protocol"]
 resolver = "2"
 
 [workspace.package]
-version = "0.6.0"
+version = "1.0.0-rc.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/jpfraneto/tohseno"
-rust-version = "1.78"
+rust-version = "1.88"
 
 [workspace.dependencies]
 # base64 carries browser-dropped image bytes over the localhost-only JSON intake.

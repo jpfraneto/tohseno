@@ -1,0 +1,13 @@
+{
+  "": {
+    "dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/TohsenoAppleFasciaPackageTests.d",
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/TohsenoAppleFasciaPackageTests.o",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/master.swiftdeps"
+  },
+  "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.derived/runner.swift": {
+    "object": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/kithkui/code/tohseno.com/fascia/apple/.build/arm64-apple-macosx/release/TohsenoAppleFasciaPackageTests.build/runner.dia"
+  }
+}

@@ -1,150 +1,241 @@
-# MASTER_PROMPT — TOHSENO v0.6.0
+# TOHSENO Constitution — GENESIS Candidate
 
-You are the compiler. This file is the genome of the build. Read it completely before writing any code. Everything you produce must be derivable from what is written here. Where this file is silent, choose the simplest option that preserves the invariants.
+**Version:** `1.0.0-rc.1`
+**Codename:** `GENESIS`
+**Status:** protocol candidate; not the canonical release
 
-## What TOHSENO is
+This file is the constitutional center of the TOHSENO repository. Normative
+byte encodings, validation rules, and conformance requirements live in
+`protocol/`; the Apple connective structure lives in `fascia/apple/`; deployed
+contract coordinates, when they exist, live in signed candidate deployment
+records. Prose never overrides those executable artifacts.
 
-TOHSENO is a printing press for iOS apps. A person on a Mac runs one command, describes an app in words and up to 8 images, and TOHSENO — driving their coding agent of choice — produces a complete iOS app installed on the iPhone connected to their Mac by cable. One shot in, one running app out. The person never reads documentation, because the pipeline is the documentation: the system tells them exactly one next step at a time, and does everything else itself.
+The previous local-factory constitution is preserved verbatim at
+`history/MASTER_PROMPT-v0.6.0.md`.
 
-TOHSENO is free software. It charges nothing. The only money in the system flows from the user to Apple ($99/yr developer account), and only when the user chooses permanence and App Store publishing. The free Apple ID path is the default and it fully works.
+## Declaration
 
-## Non-negotiable invariants
+> TOHSENO is an open protocol for creating and evolving Apple apps from a
+> shared, machine-verifiable structure.
 
-1. **Total function.** For any valid input (name + prompt + 0–8 images), the output is always a complete, buildable, installable iOS app. Never a partial result. If the generated code fails to build, the engine loops the errors back to the harness internally until it builds. The user experiences one shot.
-2. **Shots are integers.** Every generation is a shot: `1, 2, 3…` per app. A shot is a complete world — full source, never a diff. Shots are append-only and never mutated or deleted by the engine.
-3. **Shot number = CFBundleVersion.** The system's ontology and Apple's ontology are the same object. No mapping layer.
-4. **Filesystem is the database.** No SQLite, no server-side state, no accounts, no telemetry, no network calls except: downloading the harness's model traffic (the harness's own business) and Apple's toolchain. Everything TOHSENO knows lives in plain files under `~/.tohseno/`.
-5. **One handoff sentence at a time.** Every state in the pipeline either passes automatically or emits exactly one imperative sentence to the human and waits, verifying completion before advancing. If a step cannot be expressed in one sentence, the state machine is wrong — fix the machine, not the wording.
-6. **Cable only.** Mac ↔ iPhone over USB. No wifi pairing, no network discovery. Refused branches are sentences nobody reads.
-7. **Apple rails for everything.** `xcodebuild`, `xcrun devicectl`, free personal-team signing, standard SwiftUI apps with zero third-party dependencies in generated code. macOS is the only host platform.
-8. **The harness is a plugin.** TOHSENO never talks to a model. It spawns the user's coding agent (Claude Code first) as a subprocess with a prepared workspace and streams its output. Harness choice is config, not code.
+> A Shot is one app, its permanent identity, and its signed history.
 
-## Repository layout to create
+> Every Shot belongs to its builder. Any compatible factory can understand and
+> continue it.
+
+> One canonical rulebook. No canonical doorway.
+
+The application, CLI, Studio, node, website, and services made by JP and Anky,
+Inc. are the first entry point. They are not privileged by the protocol.
+
+## Canonical surfaces
+
+Only these artifacts may define TOHSENO compatibility:
+
+1. The protocol specification: ownership, signed actions, lineage, and public
+   records.
+2. The TOHSENO Apple Fascia: the finite connective anatomy shared by compatible
+   generated applications.
+3. Versioned schemas: exact fields, types, encodings, hashes, signatures, and
+   allowed values.
+4. A specifically identified, non-upgradeable registry deployment: a neutral
+   public witness, never the creator of a Shot.
+5. Conformance tests: deterministic checks that do not call generative
+   intelligence.
+
+No client, factory, server, relayer, node, company, token, app, or domain is
+canonical.
+
+## Identity law
+
+Four identities remain separate:
+
+- A **BuilderID** is the durable controller of Shots. In this candidate it is a
+  deterministic smart-account address expressed as
+  `eip155:4663:0x<address>`.
+- A **Builder DeviceKey** is one replaceable P-256 signing authority held by a
+  physical device. It is an authorized signer, not the builder's permanent
+  identity.
+- A **Recovery Root** is optional, separate from ordinary signing, and used
+  only to recover BuilderID control. A BIP-39 recovery mnemonic derives a
+  secp256k1 Ethereum authority at the documented BIP-44 path. Recovery material
+  is never placed in a generated application.
+- An **InstallationKey** is an app-specific P-256 identity created by one
+  installation of one generated application. It does not identify the builder,
+  a person across applications, an Apple ID, or a TOHSENO account.
+
+No raw private key or mnemonic may be logged, embedded in a Shot, sent to a
+server, or moved between devices. Hardware-backed Apple key storage is used
+where available. Software-backed keys are visibly test-only.
+
+Apple signing readiness is an Apple distribution gate. It is not protocol
+identity.
+
+## Shot law
+
+A Shot has one cryptographically random 32-byte ShotID. The ShotID is stable
+across every Evolution.
+
+Each Evolution is one complete, append-only source world:
 
 ```text
-tohseno/
-├── MASTER_PROMPT.md          # this file
-├── LICENSE                    # already present, keep
-├── TRADEMARKS.md              # already present, keep
-├── README.md                  # short; the one-liner, the loop, the invariants
-├── Cargo.toml                 # workspace
-├── engine/                    # crate: tohseno-engine (library, no UI opinions)
-│   └── src/
-│       ├── ledger.rs          # shot directories, app registry
-│       ├── machine.rs         # the gate state machine
-│       ├── gates/             # one module per gate (toolchain, identity, device, sign, install, …)
-│       ├── harness.rs         # subprocess contract, stream parsing, repair loop
-│       ├── genome.rs          # loads genome/ and composes the shot workspace
-│       └── events.rs          # the event types: Status, Handoff, Result, HarnessLine
-├── cli/                       # crate: tohseno (the binary; thin frontend over engine)
-├── studio/                    # embedded static web UI served by `tohseno studio` on localhost
-├── genome/                    # the laws every shot starts from (see Genome section)
-├── oneshot/oneshot.sh         # the installer, served at tohseno.com/oneshot.sh
-└── .github/workflows/release.yml
+Evolution sequence = filesystem Shot number = CFBundleVersion
 ```
 
-The engine is a library crate with no terminal or HTTP code in it. The CLI and the studio are both subscribers to the same event stream. Rust stable, minimal dependencies (clap, tokio, serde, notify or similar; justify anything beyond that in a comment).
+Evolution 1 has no previous commitment. Evolution N points to the canonical
+commitment of Evolution N-1. Failed or incomplete directories are not accepted
+Evolutions and never become the recognized head.
 
-## The state machine
+A complete Evolution contains:
 
-`tohseno create <app-name>` runs this line. Each gate: check → auto-pass, or emit one Handoff sentence → poll until verified → advance.
+- the user's local intention and references, kept private by default;
+- a complete Apple project;
+- the Apple Fascia;
+- a canonical Shot record;
+- a detached P-256 signature;
+- deterministic conformance evidence;
+- build and installation evidence appropriate to the claimed state.
 
-1. **toolchain** — Xcode + Command Line Tools present (`xcode-select -p`, `xcodebuild -version`). If missing, trigger install and continue other gates in parallel where possible; the download should overlap with the intent gate so waiting disappears into creating.
-2. **identity** — an Apple ID is signed into Xcode (check for a development certificate / team via `security find-identity -v -p codesigning`). Handoff if absent: "Open Xcode → Settings → Accounts and sign in with your Apple ID."
-3. **intent** — collect the shot input (see Input UX below). Produces `prompt.md` and `images/` in the shot directory.
-4. **generation** — spawn the harness in the shot workspace (see Harness contract). Stream every line to subscribers: this is the theater — the user watches their app being written.
-5. **repair** — `xcodebuild build` against a connected-device destination. On failure, feed the error log back to the harness with the instruction to fix and nothing else. Repeat until green or `max_repair_passes` (default 8) is exhausted; exhaustion is an engine bug surfaced honestly, not a user task. All passes live inside the same shot.
-6. **device** — iPhone visible via `xcrun devicectl list devices`. Handoffs in order as needed: "Plug in your iPhone with a cable." → "Tap Trust on your iPhone." → "Enable Developer Mode: Settings → Privacy & Security → Developer Mode, then let your phone restart." Poll after each.
-7. **sign** — build a signed .app with automatic signing, personal team, `CFBundleVersion` = shot number, bundle id `com.tohseno.<username>.<app-name>` (username from `whoami`, sanitized).
-8. **install** — `xcrun devicectl device install app`, then launch it.
-9. **alive** — Result line: "shot N of <app-name> is on your phone."
+The Evolution commitment is SHA-256 over the RFC 8785 canonical bytes of the
+closed Shot record. The signature sidecar is not part of the signed record and
+therefore cannot make the commitment self-referential.
 
-`tohseno evolve <app-name>` runs the same line but the intent gate opens with the previous shot's source available to the harness as context, and the new shot is recorded with `parent = <previous shot>`. Evolution produces a new integer shot; it never edits an old one.
+Finalized Evolution directories are immutable. Legacy adoption creates a new,
+honest Evolution and never fabricates signatures for old work.
 
-`tohseno refresh [<app-name>]` re-signs and re-installs the latest shot(s) — this is how free-tier 7-day expiry is made invisible. `tohseno list` prints apps, shots, and days-until-expiry from the profile inside each artifact.
+## Genome and Fascia
 
-**Slots.** Free Apple IDs allow 3 sideloaded apps on a device at once. Model this explicitly: creating a 4th app emits one line offering to retire one (`tohseno retire <app-name>` removes it from the phone, never from the ledger). Evolving never costs a slot. When a user hits an Apple wall that $99 removes (expiry fatigue, App Store desire), the upsell is exactly one Status line pointing at developer.apple.com — once per wall, never before.
+The **Genome** guides generative intelligence. It may contain prose, taste,
+examples, and open-ended product requirements.
 
-## Shot ledger
+The **Fascia** is deterministic compatibility law. It defines required files,
+interfaces, installation identity, local-first storage, privacy, consentful
+continuity, provenance, distribution metadata, capabilities, and conformance
+gates.
+
+Intelligence may create any purpose or appearance. A simple program decides
+whether the generated result kept the Fascia's finite promises.
+
+Generated applications use SwiftUI and Apple frameworks with no third-party
+runtime dependencies by default. They open to useful behavior without an
+account wall. Storage is local first. Network access and sensitive Apple
+capabilities are declared exactly; undeclared sensitive capability use fails
+conformance.
+
+## Consentful continuity
+
+Installations are unlinkable by default. Two installations may establish only
+a narrow relationship chosen by the user through an expiring, nonced, signed,
+transport-neutral continuity envelope.
+
+The envelope identifies its issuer, intended audience, originating Shot,
+explicit scope, nonce, and expiration. It contains no universal human
+identifier, global app graph, shared private key, or unrelated local data.
+
+No TOHSENO or Anky identity server is required to create or verify continuity.
+
+## Privacy and publication
+
+Private by default:
+
+- prompts and reference images;
+- local application data and usage;
+- unpublished source and Shots;
+- continuity links;
+- device inventory and recovery material.
+
+Only an explicit signed action may publish:
+
+- an Evolution commitment and public lineage head;
+- its controller and publication state;
+- a builder-selected public URI;
+- a handle, appcoin relation, or App Store attestation.
+
+The registry witnesses a Shot that already exists. It does not create the Shot
+and does not receive private content.
+
+## Signatures and authority
+
+The protocol keeps four judgments distinct:
 
 ```text
-~/.tohseno/
-├── config.toml                # harness command, defaults
-└── apps/<app-name>/
-    ├── app.toml               # bundle id, created_at, latest shot, parent map
-    └── shots/0001/
-        ├── prompt.md          # exactly what the user gave
-        ├── images/            # 0–8 images, original filenames
-        ├── src/               # the complete generated Xcode project
-        ├── build.log          # full xcodebuild output, all repair passes
-        ├── harness.log        # full harness stream
-        └── artifact/          # the signed .app / .xcarchive
+Cryptography: this key signed this digest.
+Schema: this digest means this exact action.
+BuilderID: this key is authorized to act.
+Contract: this public transition is therefore valid.
 ```
 
-Shot directories are written once and never touched again. Greppable, diffable, ownable, forever.
+Local and public verifiers must reproduce the same judgment. P-256 signatures
+use fixed-width components and require low `s`. Public action digests include
+the chain ID, verifying contract, action type, replay protection, and deadline
+where specified.
 
-## Input UX (the intent gate)
+## Neutral public witness
 
-Match the feel of modern AI CLIs: a bordered multiline input box at the bottom of the terminal (Enter submits, Shift+Enter or Option+Enter for newline, paste-friendly). Three ways in, all first-class:
+The candidate registry is non-upgradeable and has no founder, official-client,
+factory, node, relayer, or company privilege. Anyone may relay a valid signed
+action. Relaying never grants ownership.
 
-- **Type** the prompt directly in the box.
-- **Drag and drop images onto the terminal window.** macOS pastes file paths into the input; detect absolute paths ending in png/jpg/jpeg/heic/webp anywhere in the submitted text, copy those files into the shot's `images/`, strip the paths from the prompt text, and confirm with one Status line per image ("attached mockup.png · 2 of 8"). Cap at 8; the 9th gets one line and is ignored.
-- **`--prompt-file path/to/MASTER_PROMPT.md`** flag, or auto-detect: if the current working directory contains a `MASTER_PROMPT.md` when `tohseno create` runs, ask in one sentence whether to use it.
+The core registry stores only controller, current head, integer sequence,
+public state, and optional public content commitment. Human-readable handles,
+appcoin associations, and App Store attestations live in a separate relations
+contract.
 
-`tohseno studio` serves the same intake as a localhost web page (embedded static assets, no build step at runtime): drag-drop zone, textarea, and a live view of the event stream during generation. The studio talks to the engine over a local HTTP + SSE (or WebSocket) endpoint the engine exposes on 127.0.0.1 only.
+`$TOHSENO` is optional. It is never required to create, own, verify, publish,
+evolve, transfer, or use a Shot. Its coordinates are never guessed.
 
-## CLI output discipline
+## Replaceability
 
-Every line the engine emits is one of exactly three kinds, and the renderer enforces it:
+Local creation, evolution, signing, verification, installation, and use do not
+depend on an Anky, Inc. server. Publication may use any relayer. A node indexes
+and mirrors public facts; it does not own them.
 
-- **Status** — dim. The machine has the ball. `building shot 3…`
-- **Handoff** — bright/bold. The human has the ball. One imperative sentence. Never two at once.
-- **Result** — colored accent. `shot 3 of replyguy-trencher is on your phone.`
+Another implementation is compatible only if it can consume the normative
+schemas and vectors, reproduce commitments, verify signatures and lineage, and
+pass conformance without importing the TOHSENO engine or Studio.
 
-Plus the raw **harness stream** during generation, visually distinct (indented/dimmed) so the theater is watchable but never confused with TOHSENO's own three voices. No spinners with paragraphs, no walls of text, no emoji. The whole session should read like a ping-pong match transcript.
+## Product experience
 
-## Harness contract
-
-`config.toml` holds `harness.command` (default: Claude Code in non-interactive/print mode with streamed output; verify the current flags of the installed `claude` binary at runtime with `--help` rather than assuming). The engine:
-
-1. Composes the shot workspace: `genome/` contents + `prompt.md` + `images/` + (for evolve) previous shot's `src/`.
-2. Writes a single `TASK.md` the harness reads first, containing: the genome's laws, the user's prompt verbatim, image references, and the output contract (a complete Xcode project in `src/` that builds with `xcodebuild` for iOS 17+, SwiftUI, zero external dependencies, app icon generated as solid-color placeholder with the app's initial if no icon image was provided).
-3. Spawns the harness in that directory, streams stdout as HarnessLine events, waits for exit.
-4. Runs the repair loop (state 5) by re-invoking the harness with `build.log`'s errors appended to TASK.md's repair section.
-
-If no harness is found on the machine, the toolchain gate emits one Handoff pointing at the harness's own installer, then polls.
-
-## Genome
-
-`genome/` ships with TOHSENO and is copied into every shot workspace. Create it with these files, written by you now, kept short and law-like (constraints, not code):
-
-- `LAWS.md` — the output contract: complete project, iOS 17+, SwiftUI only, zero dependencies, offline-first, no accounts or sign-in screens, no tracking, everything the app stores lives on-device, build must pass with automatic signing. One screen must be reachable and useful within 2 seconds of first launch.
-- `STRUCTURE.md` — the exact Xcode project shape to generate (project.pbxproj expectations, target name = app name, Info.plist keys, where CFBundleVersion is injected by the engine — the harness leaves it as the literal token `__TOHSENO_SHOT__` and the engine substitutes).
-- `TASTE.md` — minimal design tokens: system fonts, SF Symbols, respect dark mode, generous whitespace, no hamburger menus, no onboarding carousels.
-
-No template project. No starter code. The genome is laws; every line of the app is drawn in the shot.
-
-## Installer and release
-
-`oneshot/oneshot.sh`: detects macOS + architecture, downloads the `tohseno` binary for the machine's arch from the GitHub release tagged `v0.6.0` on `jpfraneto/tohseno`, installs to `~/.tohseno/bin`, adds to PATH via the user's shell rc with one printed sentence, verifies with `tohseno --version`, and immediately (in the background) checks the toolchain gate so the Xcode download can start before the user's first `create`. The script accepts no secrets, sends no telemetry, creates no accounts.
-
-`.github/workflows/release.yml`: on tag push `v*`, build release binaries for `aarch64-apple-darwin` and `x86_64-apple-darwin` on a macOS runner, attach both plus `oneshot.sh` to the GitHub release. Version in `Cargo.toml` is `0.6.0`.
-
-## Definition of done
-
-On a brand-new Mac with nothing but a browser and an iPhone with a cable:
+Protocol complexity stays below the ordinary loop:
 
 ```sh
 curl -fsSL https://tohseno.com/oneshot.sh | bash
-tohseno create replyguy-trencher
+tohseno create my-app
 ```
 
-…the user types a prompt (or drops a MASTER_PROMPT.md and images), follows at most the handful of one-sentence handoffs (Xcode install, Apple ID, cable, Trust, Developer Mode), watches the harness write the app, and ends with replyguy-trencher running on their phone as shot 1. `tohseno evolve replyguy-trencher` then produces shot 2 from a follow-up prompt. `~/.tohseno/apps/replyguy-trencher/shots/` contains both complete worlds.
+The user describes an app. TOHSENO creates it, repairs it until it builds,
+installs it, and records a valid Evolution. Identity appears as infrastructure,
+not homework. The engine keeps its four voices: `Status`, `Handoff`, `Result`,
+and `HarnessLine`.
 
-## Do not build
+## Candidate release discipline
 
-No publish/community features, no wifi pairing, no Android, no Linux/Windows hosts, no payments, no accounts, no analytics, no database, no cloud, no App Store submission automation, no chain integration. Every one of these is deliberately absent from v0.6.0.
+This repository may build and exercise `1.0.0-rc.1` against Robinhood Chain
+mainnet. Candidate addresses are experimental and must be accompanied by exact
+source, bytecode, transaction, probe, and lifecycle evidence.
 
-## How to work
+This candidate must not:
 
-Work in this order: (1) engine crate skeleton with events + ledger + a machine that can run gates 6–8 against a pre-built hello-world .app you generate once by hand — the device pipeline is the risk, prove it first; (2) CLI renderer with the three voices; (3) intent gate input UX; (4) harness integration + genome + repair loop; (5) studio; (6) oneshot.sh + release workflow. Commit at each milestone with plain messages. When an Apple tool's flags differ from what's written here, trust the tool's `--help` on this machine over this file and note the deviation in a comment.
+- tag or claim `v1.0.0`;
+- declare any deployment immutable or canonical;
+- replace the stable installer or public protocol page;
+- update DEX Screener or announce the protocol;
+- publish the final permanent Arweave Genesis Bundle;
+- open an unrestricted public gas relayer;
+- claim an unexecuted build, installation, deployment, or verification.
+
+The release candidate is complete only when the closed loop has been exercised:
+
+```text
+intention
+→ app
+→ Fascia
+→ signed Shot
+→ deterministic verification
+→ public witness
+→ Evolution
+→ independent verification
+```
+
+Until then, reports distinguish `implemented`, `automatically verified`,
+`manually observed`, `deployed`, and `not completed`.

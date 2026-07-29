@@ -1,0 +1,532 @@
+{
+  "builder_account_create2": {
+    "constructor_abi_words": [
+      "x",
+      "y"
+    ],
+    "creation_bytecode_hex": "0x60006000",
+    "factory": "0xcccccccccccccccccccccccccccccccccccccccc",
+    "predicted_builder_id": "eip155:4663:0xd61a46959559cf3152bcacecb2c8458cff00153f",
+    "recovery_in_prediction": false,
+    "salt": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "candidate": "1.0.0-rc.1",
+  "continuity": {
+    "active_window": [
+      {
+        "now_unix": 999,
+        "valid": false
+      },
+      {
+        "now_unix": 1000,
+        "valid": true
+      },
+      {
+        "now_unix": 1999,
+        "valid": true
+      },
+      {
+        "now_unix": 2000,
+        "valid": false
+      }
+    ],
+    "canonical": {
+      "envelope": {
+        "schema": "tohseno.continuity/1",
+        "signature": {
+          "algorithm": "p256",
+          "digest": "0x27789de0a4755178f597e4a0bc1a74ea07fc094c9b97cdd9e9b1d9dacdd2f698",
+          "low_s": true,
+          "signature": {
+            "r": "0x83540dfa2ac6106c6cc7be785bf0d2e3907ef8faa08cb9bf25afdc81207a0463",
+            "s": "0x61950ddd55a522e347cb70fc2d67f78c39c4b89acdeba9e5acb0a01a4f243bc7"
+          }
+        },
+        "statement": {
+          "audience": {
+            "installation_id": null,
+            "shot_id": "0x3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "claims": [
+            "0_start",
+            "reading-progress",
+            "theme.preference",
+            "user_state"
+          ],
+          "expires_at": 2000,
+          "issued_at": 1000,
+          "issuer": {
+            "installation_id": "0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc",
+            "public_key": {
+              "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+              "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+            }
+          },
+          "nonce": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "originating_shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "schema": "tohseno.continuity-statement/1"
+        }
+      },
+      "rfc8785": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}",
+      "sha256": "0x27789de0a4755178f597e4a0bc1a74ea07fc094c9b97cdd9e9b1d9dacdd2f698",
+      "statement": {
+        "audience": {
+          "installation_id": null,
+          "shot_id": "0x3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "claims": [
+          "0_start",
+          "reading-progress",
+          "theme.preference",
+          "user_state"
+        ],
+        "expires_at": 2000,
+        "issued_at": 1000,
+        "issuer": {
+          "installation_id": "0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc",
+          "public_key": {
+            "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+            "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+          }
+        },
+        "nonce": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "originating_shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "schema": "tohseno.continuity-statement/1"
+      }
+    },
+    "invalid_statements": [
+      {
+        "name": "claims_out_of_order",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"user_state\",\"theme.preference\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "duplicate_claim",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"reading.progress\",\"reading.progress\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "too_many_claims",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"claim00\",\"claim01\",\"claim02\",\"claim03\",\"claim04\",\"claim05\",\"claim06\",\"claim07\",\"claim08\",\"claim09\",\"claim10\",\"claim11\",\"claim12\",\"claim13\",\"claim14\",\"claim15\",\"claim16\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "colon_claim",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"reading:progress\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "leading_separator",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"_reading\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "adjacent_separators",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"reading._progress\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "trailing_separator",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"reading.\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "zero_audience_shot_id",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "zero_originating_shot_id",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "zero_nonce",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "zero_issued_at",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":0,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "expiration_not_after_issue",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":1000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "expiration_exceeds_safe_integer",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":9007199254740992,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "wrong_installation_id",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x5555555555555555555555555555555555555555555555555555555555555555\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "invalid_p256_public_key",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x37d6e5ef150197ec69c85288f2c463bb1d9b47c66acb5e65a7ffe74d3ac22ee8\",\"public_key\":{\"x\":\"0x0000000000000000000000000000000000000000000000000000000000000000\",\"y\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "missing_explicit_audience_installation_id",
+        "statement_json": "{\"audience\":{\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\"}"
+      },
+      {
+        "name": "unknown_statement_field",
+        "statement_json": "{\"audience\":{\"installation_id\":null,\"shot_id\":\"0x3333333333333333333333333333333333333333333333333333333333333333\"},\"claims\":[\"0_start\",\"reading-progress\",\"theme.preference\",\"user_state\"],\"expires_at\":2000,\"issued_at\":1000,\"issuer\":{\"installation_id\":\"0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc\",\"public_key\":{\"x\":\"0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16\",\"y\":\"0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a\"}},\"nonce\":\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"originating_shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"schema\":\"tohseno.continuity-statement/1\",\"unexpected\":true}"
+      }
+    ],
+    "valid_statements": [
+      {
+        "name": "maximum_claim_count",
+        "statement": {
+          "audience": {
+            "installation_id": null,
+            "shot_id": "0x3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "claims": [
+            "claim00",
+            "claim01",
+            "claim02",
+            "claim03",
+            "claim04",
+            "claim05",
+            "claim06",
+            "claim07",
+            "claim08",
+            "claim09",
+            "claim10",
+            "claim11",
+            "claim12",
+            "claim13",
+            "claim14",
+            "claim15"
+          ],
+          "expires_at": 2000,
+          "issued_at": 1000,
+          "issuer": {
+            "installation_id": "0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc",
+            "public_key": {
+              "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+              "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+            }
+          },
+          "nonce": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "originating_shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "schema": "tohseno.continuity-statement/1"
+        }
+      },
+      {
+        "name": "recipient_scoped",
+        "statement": {
+          "audience": {
+            "installation_id": "0x4444444444444444444444444444444444444444444444444444444444444444",
+            "shot_id": "0x3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          "claims": [
+            "0_start",
+            "reading-progress",
+            "theme.preference",
+            "user_state"
+          ],
+          "expires_at": 2000,
+          "issued_at": 1000,
+          "issuer": {
+            "installation_id": "0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc",
+            "public_key": {
+              "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+              "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+            }
+          },
+          "nonce": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "originating_shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "schema": "tohseno.continuity-statement/1"
+        }
+      }
+    ]
+  },
+  "eip712": {
+    "authorize_device": {
+      "digest": "0x6b39182116e781dca10b35a49afa086bb0ab8c2e5bd4e2ca9a72bd2bafbf7c64",
+      "struct_hash": "0xd20d941228a079035f637121730f979d59f6f6546eaca27718d18e125392704e",
+      "type_string": "AuthorizeDevice(address account,bytes32 keyId,uint256 x,uint256 y,uint32 permissions,uint64 nonce,uint64 deadline)",
+      "value": {
+        "account": "0x8888888888888888888888888888888888888888",
+        "deadline": 2000000000,
+        "key_id": "0x34da18f8be8504eaf62a2abda0e0162b1a12ed06d63dd1bf0cd5b0d1e6614b3c",
+        "nonce": 0,
+        "permissions": 3,
+        "type": "AUTHORIZE_DEVICE",
+        "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+        "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+      }
+    },
+    "builder_account_domain": {
+      "separator": "0xeea66a1222c9cdea17e97be49b5315572da1145a32b921dfb39e611fb8053243",
+      "value": {
+        "chain_id": 4663,
+        "name": "TOHSENO BuilderAccount",
+        "verifying_contract": "0x8888888888888888888888888888888888888888",
+        "version": "1"
+      }
+    },
+    "create_shot": {
+      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144ae0315377fca81edaba2e1aad31b4e642a25cd7bec11beaecf9f8758262bdfd463d6b3f99227d27f0ed4506eb985d3a8a6e15d5149bbe34929d6a11bbcf18ec28",
+      "digest": "0x1c8e1b917d505c390dd2ff23cc6e2ecdc90f31f62ed877a92c4ede9e416296e3",
+      "signature": {
+        "r": "0xe0315377fca81edaba2e1aad31b4e642a25cd7bec11beaecf9f8758262bdfd46",
+        "s": "0x3d6b3f99227d27f0ed4506eb985d3a8a6e15d5149bbe34929d6a11bbcf18ec28"
+      },
+      "struct_hash": "0xd9f3d55675c4a18df2d5b21ba91eaf9ebc9844508165891e42bd16a66f53e637",
+      "type_string": "CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)",
+      "value": {
+        "content_commitment": "0x9999999999999999999999999999999999999999999999999999999999999999",
+        "controller": "0x2222222222222222222222222222222222222222",
+        "deadline": 2000000000,
+        "head": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+        "nonce": 0,
+        "public_state": "PUBLISHED",
+        "sequence": 1,
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "CREATE_SHOT"
+      }
+    },
+    "domain_type": "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+    "recover_account": {
+      "digest": "0x6dd23a12ff80898b8baffffe3de1cf252331f744d39d6d54a431066798339751",
+      "new_recovery_must_be_nonzero": true,
+      "struct_hash": "0x8f910536dd8506a73d07072b70d4b53b30d84aa4c783cba28489b84919f25f20",
+      "type_string": "RecoverAccount(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)",
+      "value": {
+        "account": "0x8888888888888888888888888888888888888888",
+        "current_recovery": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "deadline": 2000000000,
+        "new_key_id": "0x34da18f8be8504eaf62a2abda0e0162b1a12ed06d63dd1bf0cd5b0d1e6614b3c",
+        "new_recovery": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "new_x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+        "new_y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a",
+        "nonce": 0,
+        "type": "RECOVER_ACCOUNT"
+      }
+    },
+    "registry_domain": {
+      "separator": "0x32ddb2e70e4aaf3cff84cc373e1924594726f5c59baf562021655b6a4d3f4a07",
+      "value": {
+        "chain_id": 4663,
+        "name": "TOHSENO ShotRegistry",
+        "verifying_contract": "0x6666666666666666666666666666666666666666",
+        "version": "1"
+      }
+    },
+    "relations_domain": {
+      "separator": "0x5b9b0cff7f002ed2108c2a3e9807580c97db999cb89f58a14a994d3edfe7ad7f",
+      "value": {
+        "chain_id": 4663,
+        "name": "TOHSENO ShotRelations",
+        "verifying_contract": "0x7777777777777777777777777777777777777777",
+        "version": "1"
+      }
+    },
+    "type_hashes": {
+      "AppendEvolution(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 sequence,bytes32 contentCommitment,uint64 nonce,uint64 deadline)": "0x3a0d9d9dfaedfea172f8ba24e22ce2e86abf77a208168a5246f7a7be2d72de67",
+      "AssociateAppcoin(bytes32 shotId,uint256 chainId,address token,uint64 nonce,uint64 deadline)": "0x7872c921a764a03a974ddf09ac8a0086034006a1a64534f83111087a00ff71d7",
+      "AttestAppStore(bytes32 shotId,bytes32 bundleIdHash,uint64 storeId,bytes32 evolutionHead,uint64 nonce,uint64 deadline)": "0xb6f951e532ceef1e89f76812699e4039dac302f458a23fa83e69dffa475d1e96",
+      "AuthorizeDevice(address account,bytes32 keyId,uint256 x,uint256 y,uint32 permissions,uint64 nonce,uint64 deadline)": "0xcdb0126f85b19b28642fc350e8d771c41afd39854da572f865a3612c3242ee95",
+      "ClaimHandle(bytes32 shotId,bytes32 handleHash,uint64 nonce,uint64 deadline)": "0x01bbf31631b6914cf984c8f743c927970ade109f7195087d5670a72ae645ac0d",
+      "CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)": "0xe627bc9302992c61fc4043b351fb7d7551f9ed0e0753a1e76a0e68e7a9a60b99",
+      "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)": "0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f",
+      "RecoverAccount(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)": "0x539858b6492297e81f07fffbe9f57c1363d0529cf5783087d05848f72fedb820",
+      "ReleaseHandle(bytes32 shotId,bytes32 handleHash,uint64 nonce,uint64 deadline)": "0x1671629a28ceca947ec5843ce55671eda943cfcc82e96017424e06ce90c17e74",
+      "RemoveAppcoin(bytes32 shotId,uint256 chainId,address token,uint64 nonce,uint64 deadline)": "0xd28f6beda3c41ce6f132f41a0800be466a97d65ab19b16c69f5a9202fa85ef3e",
+      "RevokeDevice(address account,bytes32 keyId,uint64 nonce,uint64 deadline)": "0xc3323bbac7e11d8f4946087779bc3f90a673ec602cab93c377d33aa1f5648f8e",
+      "SetPublicState(bytes32 shotId,bytes32 currentHead,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)": "0x1ab3043484eb2409f5e939f9f5666eac599cffe910808e5711554613bc513c2c",
+      "SetRecovery(address account,address recovery,uint64 nonce,uint64 deadline)": "0xb6ec3e464c0650bda67f76c0b0d7d72afcd16d403c610d18cd7793118c1a6ed4",
+      "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 sequence,uint64 nonce,uint64 deadline)": "0x0de266e673064af8f761f1bf3366a2565f963d431128044ec828ab11fcff4e62"
+    }
+  },
+  "fascia_tree": {
+    "entries": [
+      {
+        "content_length": 55,
+        "content_sha256": "0x019f0fa72a6e7378baadf220c1594703e05468e1063508bdd97a303b9f35ab31",
+        "path": "FASCIA.md"
+      },
+      {
+        "content_length": 63,
+        "content_sha256": "0x55fed2aa45fc39f6769bda7427d24e9f0d9bfae2593cb1aa5f0077a7d7c98b38",
+        "path": "swift/Identity.swift"
+      }
+    ],
+    "excluded_paths": [
+      ".build",
+      ".swiftpm",
+      "Package.resolved"
+    ],
+    "sha256": "0xc81c89934742990567b97eaf87503be30869eb6d7f4803e634202376ec4e832d",
+    "stream": "concatenated sorted u64be(path_len)||path||u64be(content_len)||raw_content; no prefix or count"
+  },
+  "fixed_p256_key": {
+    "device_key_id": "0x34da18f8be8504eaf62a2abda0e0162b1a12ed06d63dd1bf0cd5b0d1e6614b3c",
+    "device_key_id_law": "keccak256(x32||y32)",
+    "installation_id": "0x8906e93b48e387220ce9d7081cdd62cfda42258c8c1a3b8c80e7a65eec7c67bc",
+    "installation_id_law": "sha256(\"TOHSENO-INSTALLATION-ID-V1\\0\"||x32||y32)",
+    "public_key": {
+      "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+      "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+    }
+  },
+  "genesis_input": {
+    "domain_hex": "0x544f4853454e4f2d47454e455349532d494e5055542d563100",
+    "images": [
+      {
+        "content_sha256": "0x10f53e528e1605a3c92f21fbd4bba016d852dd0aa76aa0681aee2f06b2048acd",
+        "filename": "cover.png",
+        "raw_hex": "0x89504e470d0a7261772d61"
+      },
+      {
+        "content_sha256": "0x956d9dd927992ebda0f99da233994808fbd7f8b90069ebd4a4c292b09c82999d",
+        "filename": "reference.jpg",
+        "raw_hex": "0xffd87261772d62ffd9"
+      }
+    ],
+    "prompt_hex": "0x4275696c642061207175696574206669656c64206e6f7465626f6f6b2e0a",
+    "prompt_utf8": "Build a quiet field notebook.\n",
+    "sha256": "0xace2418f77d2ed4184a2f141e902ce349c438949c94ac3544495f31993ed1848"
+  },
+  "legacy_adoption": {
+    "child": {
+      "builder_id": "eip155:4663:0x2222222222222222222222222222222222222222",
+      "bundle_id": "com.tohseno.adopted-field-notebook",
+      "bundle_version": 9,
+      "created_at": "2026-07-28T14:00:00Z",
+      "factory": {
+        "implementation": "tohseno/genesis-factory",
+        "source_commit": "0123456789abcdef0123456789abcdef01234567",
+        "version": "1.0.0-rc.1"
+      },
+      "fascia": "tohseno.apple/1",
+      "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "genesis_input_sha256": "0x3434343434343434343434343434343434343434343434343434343434343434",
+      "previous": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+      "protocol": "tohseno",
+      "schema": "tohseno.shot/1",
+      "sequence": 9,
+      "shot_id": "0x1212121212121212121212121212121212121212121212121212121212121212",
+      "slug": "adopted-field-notebook",
+      "source_tree_sha256": "0x4646464646464646464646464646464646464646464646464646464646464646"
+    },
+    "child_sha256": "0x444f43f24f21a443103edf1950faf245dcdae41d59c1dfcc951394da07532caa",
+    "child_sidecar": {
+      "algorithm": "p256",
+      "digest": "0x444f43f24f21a443103edf1950faf245dcdae41d59c1dfcc951394da07532caa",
+      "low_s": true,
+      "public_key": {
+        "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+        "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+      },
+      "schema": "tohseno.signature/1",
+      "signature": {
+        "r": "0xd6c9858ba68f4bffd97164bf297f646d2fe76a65455ebac8f5fc5329ed4b01ef",
+        "s": "0x7556eee03ff2ffc9b05e66165c8f7204fbec5b8889f34d0d0463a21c0ba9142b"
+      }
+    },
+    "root": {
+      "builder_id": "eip155:4663:0x2222222222222222222222222222222222222222",
+      "bundle_id": "com.tohseno.adopted-field-notebook",
+      "bundle_version": 8,
+      "created_at": "2026-07-28T13:00:00Z",
+      "factory": {
+        "implementation": "tohseno/genesis-factory",
+        "source_commit": "0123456789abcdef0123456789abcdef01234567",
+        "version": "1.0.0-rc.1"
+      },
+      "fascia": "tohseno.apple/1",
+      "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "genesis_input_sha256": "0x3434343434343434343434343434343434343434343434343434343434343434",
+      "origin": {
+        "kind": "legacy_adoption",
+        "legacy_latest_shot": 7,
+        "legacy_source_sha256": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "previous": null,
+      "protocol": "tohseno",
+      "schema": "tohseno.shot/1",
+      "sequence": 8,
+      "shot_id": "0x1212121212121212121212121212121212121212121212121212121212121212",
+      "slug": "adopted-field-notebook",
+      "source_tree_sha256": "0x4545454545454545454545454545454545454545454545454545454545454545"
+    },
+    "root_sha256": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+    "root_sidecar": {
+      "algorithm": "p256",
+      "digest": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+      "low_s": true,
+      "public_key": {
+        "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+        "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+      },
+      "schema": "tohseno.signature/1",
+      "signature": {
+        "r": "0xd97a048838076f412602ef5bbb59bab8f5e2ec044e200e44c40a0d95919b9a87",
+        "s": "0x018abe50f74e460c40e6ae09ce237b51740e5beb7f338ec3bd3afa01926d4965"
+      }
+    }
+  },
+  "record": {
+    "invalid_high_s_signature": {
+      "r": "0x5f20afece6aaf4451a4c0be1de3420744c1aad0f4eb5b02bb83a066f862c45ad",
+      "s": "0xcf274a23ea626d89a35c945df38d491f643eb50c1138c9f06daa6d8b9ba0e8df"
+    },
+    "mutated_sha256": "0x0603dcd75e2ed4ac697941114365536b5a5ae71d2306ec1fca78caf491e3b035",
+    "mutation": {
+      "field": "slug",
+      "value": "quiet-field-notebook-mutated"
+    },
+    "rfc8785": "{\"builder_id\":\"eip155:4663:0x2222222222222222222222222222222222222222\",\"bundle_id\":\"com.tohseno.quiet-field-notebook\",\"bundle_version\":1,\"created_at\":\"2026-07-28T12:34:56Z\",\"factory\":{\"implementation\":\"tohseno/genesis-factory\",\"source_commit\":\"0123456789abcdef0123456789abcdef01234567\",\"version\":\"1.0.0-rc.1\"},\"fascia\":\"tohseno.apple/1\",\"fascia_sha256\":\"0x5555555555555555555555555555555555555555555555555555555555555555\",\"genesis_input_sha256\":\"0x3333333333333333333333333333333333333333333333333333333333333333\",\"previous\":null,\"protocol\":\"tohseno\",\"schema\":\"tohseno.shot/1\",\"sequence\":1,\"shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"slug\":\"quiet-field-notebook\",\"source_tree_sha256\":\"0x4444444444444444444444444444444444444444444444444444444444444444\"}",
+    "sha256": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+    "sidecar": {
+      "algorithm": "p256",
+      "digest": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+      "low_s": true,
+      "public_key": {
+        "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+        "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+      },
+      "schema": "tohseno.signature/1",
+      "signature": {
+        "r": "0x5f20afece6aaf4451a4c0be1de3420744c1aad0f4eb5b02bb83a066f862c45ad",
+        "s": "0x30d8b5db159d92775ca36ba20c72b6e058a845a195ded494860f5d3760c23c72"
+      }
+    },
+    "value": {
+      "builder_id": "eip155:4663:0x2222222222222222222222222222222222222222",
+      "bundle_id": "com.tohseno.quiet-field-notebook",
+      "bundle_version": 1,
+      "created_at": "2026-07-28T12:34:56Z",
+      "factory": {
+        "implementation": "tohseno/genesis-factory",
+        "source_commit": "0123456789abcdef0123456789abcdef01234567",
+        "version": "1.0.0-rc.1"
+      },
+      "fascia": "tohseno.apple/1",
+      "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "genesis_input_sha256": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "previous": null,
+      "protocol": "tohseno",
+      "schema": "tohseno.shot/1",
+      "sequence": 1,
+      "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "slug": "quiet-field-notebook",
+      "source_tree_sha256": "0x4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  },
+  "schema": "tohseno.test-vectors/1",
+  "source_tree": {
+    "domain_hex": "0x544f4853454e4f2d534f555243452d545245452d563100",
+    "entries": [
+      {
+        "content_sha256": "0xb13d1eedae2195f0cd18254d6a8da5f20b0784056287b52c4fdabac5cc9d1b11",
+        "path": "App.swift"
+      },
+      {
+        "content_sha256": "0x3551f978c691a277b301e68c90cc74e5bd8329cd43d47a33499ef22f22c03b8c",
+        "path": "TOHSENO/fascia.json"
+      }
+    ],
+    "excluded_paths": [
+      "TOHSENO/shot.json",
+      "TOHSENO/signature.json",
+      "TOHSENO/conformance.json",
+      "TOHSENO/embedded-provenance.json"
+    ],
+    "sha256": "0x0f0d3f8b347340f1315074c21d7a8937424213f82a2f9c94bda65a17898b2884"
+  }
+}

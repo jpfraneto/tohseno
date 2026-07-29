@@ -1,6 +1,6 @@
+pub mod apple_signing;
 pub mod build;
 pub mod device;
-pub mod identity;
 pub mod install;
 pub mod intent;
 pub mod sign;

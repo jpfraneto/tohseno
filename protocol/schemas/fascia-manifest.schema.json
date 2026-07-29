@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/fascia-manifest.schema.json",
+  "title": "Concrete per-Shot Apple Fascia manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "schema",
+    "fascia",
+    "required_files",
+    "installation_identity",
+    "capabilities",
+    "storage",
+    "network",
+    "privacy",
+    "distribution"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "tohseno"
+    },
+    "schema": {
+      "const": "tohseno.fascia/1"
+    },
+    "fascia": {
+      "const": "tohseno.apple/1"
+    },
+    "required_files": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "TOHSENO/shot.json",
+          "TOHSENO/signature.json",
+          "TOHSENO/fascia.json",
+          "TOHSENO/conformance.json",
+          "TOHSENO/embedded-provenance.json",
+          "TOHSENO/FASCIA.md",
+          "TOHSENO/IDENTITY.md",
+          "TOHSENO/STORAGE.md",
+          "TOHSENO/CONTINUITY.md",
+          "TOHSENO/PRIVACY.md",
+          "TOHSENO/PROVENANCE.md",
+          "TOHSENO/DISTRIBUTION.md",
+          "TohsenoFascia/InstallationIdentity.swift",
+          "TohsenoFascia/ContinuityEnvelope.swift",
+          "TohsenoFascia/LocalPersistence.swift",
+          "TohsenoFascia/Provenance.swift",
+          "TohsenoFascia/TohsenoMetadata.swift"
+        ]
+      }
+    },
+    "installation_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "scope",
+        "hardware_backed_when_available"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "p256"
+        },
+        "scope": {
+          "const": "app_installation"
+        },
+        "hardware_backed_when_available": {
+          "const": true
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability",
+          "purpose",
+          "entitlement"
+        ],
+        "properties": {
+          "capability": {
+            "enum": [
+              "local_storage",
+              "network_access",
+              "private_cloudkit_sync",
+              "storekit",
+              "notifications",
+              "camera",
+              "microphone",
+              "location",
+              "contacts",
+              "health",
+              "bluetooth",
+              "other_apple_entitlement"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "entitlement": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "capability": {
+                  "const": "other_apple_entitlement"
+                }
+              },
+              "required": [
+                "capability"
+              ]
+            },
+            "then": {
+              "properties": {
+                "entitlement": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "entitlement": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "contains": {
+        "properties": {
+          "capability": {
+            "const": "local_storage"
+          }
+        },
+        "required": [
+          "capability"
+        ]
+      }
+    },
+    "storage": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "purpose"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "swift_data",
+              "user_defaults",
+              "keychain",
+              "secure_enclave",
+              "files",
+              "private_cloudkit"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "network": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "endpoint",
+          "purpose",
+          "data_categories"
+        ],
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "data_categories": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "telemetry",
+        "tracking",
+        "account_required",
+        "silent_identity_linkage"
+      ],
+      "properties": {
+        "telemetry": {
+          "const": false
+        },
+        "tracking": {
+          "const": false
+        },
+        "account_required": {
+          "const": false
+        },
+        "silent_identity_linkage": {
+          "const": false
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_id",
+        "bundle_version",
+        "surfaces",
+        "state",
+        "app_store_id"
+      ],
+      "properties": {
+        "bundle_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(?:\\.[A-Za-z0-9][A-Za-z0-9-]*)+$",
+          "maxLength": 255
+        },
+        "bundle_version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "iphone",
+              "ipad",
+              "vision"
+            ]
+          }
+        },
+        "state": {
+          "enum": [
+            "local",
+            "published",
+            "app_store"
+          ]
+        },
+        "app_store_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "common.schema.json#/$defs/positiveSafeUint"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "app_store"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "app_store_id": {
+                "$ref": "common.schema.json#/$defs/positiveSafeUint"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "app_store_id": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$comment": "The verifier also enforces uniqueness by capability, storage kind, and endpoint; CloudKit/network declarations must agree with capability declarations."
+}

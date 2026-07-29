@@ -42,6 +42,37 @@ const ui = {
   attachments: document.querySelector("#attachments"),
   submit: document.querySelector("#submit"),
   librarySplitter: document.querySelector("#library-splitter"),
+  protocolReadiness: document.querySelector("#protocol-readiness"),
+  identityStatus: document.querySelector("#identity-status"),
+  builderId: document.querySelector("#builder-id"),
+  deviceStatus: document.querySelector("#device-status"),
+  recoveryStatus: document.querySelector("#recovery-status"),
+  identityDetail: document.querySelector("#identity-detail"),
+  networkStatus: document.querySelector("#network-status"),
+  networkName: document.querySelector("#network-name"),
+  deploymentStatus: document.querySelector("#deployment-status"),
+  p256Status: document.querySelector("#p256-status"),
+  networkDetail: document.querySelector("#network-detail"),
+  pairingLimitation: document.querySelector("#pairing-limitation"),
+  pairingPayloadGroup: document.querySelector("#pairing-payload-group"),
+  pairingQr: document.querySelector("#pairing-qr"),
+  pairingPayload: document.querySelector("#pairing-payload"),
+  copyPairing: document.querySelector("#copy-pairing"),
+  shotProtocol: document.querySelector("#shot-protocol"),
+  shotState: document.querySelector("#shot-state"),
+  shotId: document.querySelector("#shot-id"),
+  evolutionStatus: document.querySelector("#evolution-status"),
+  signatureStatus: document.querySelector("#signature-status"),
+  fasciaStatus: document.querySelector("#fascia-status"),
+  conformanceStatus: document.querySelector("#conformance-status"),
+  publishedStatus: document.querySelector("#published-status"),
+  registryStatus: document.querySelector("#registry-status"),
+  handleStatus: document.querySelector("#handle-status"),
+  appcoinStatus: document.querySelector("#appcoin-status"),
+  shotProtocolDetail: document.querySelector("#shot-protocol-detail"),
+  verifyShot: document.querySelector("#verify-shot"),
+  publishShot: document.querySelector("#publish-shot"),
+  protocolJson: document.querySelector("#protocol-json"),
 };
 
 let library = { apps: [], iphone_slots_used: 0, iphone_slot_limit: 3 };
@@ -56,6 +87,14 @@ let pendingShot = null;
 let pressActive = false;
 let shotCompleted = false;
 let launchSequence = 0;
+let protocolSequence = 0;
+let protocolOverview = null;
+let shotProtocol = null;
+
+const studioJsonHeaders = {
+  "content-type": "application/json",
+  "x-tohseno-studio": "1",
+};
 
 const escapeInitial = (name) => (name.trim()[0] || "T").toUpperCase();
 
@@ -105,6 +144,153 @@ const loadHarnesses = async () => {
   harnesses = payload.harnesses.filter((harness) => harness.installed);
   renderHarnesses();
 };
+
+const humanStatus = (value) => String(value || "unknown")
+  .replaceAll("_", " ")
+  .replace(/^\w/, (letter) => letter.toUpperCase());
+
+const renderProtocolInspector = () => {
+  ui.protocolJson.textContent = JSON.stringify({
+    overview: protocolOverview,
+    selected_shot: shotProtocol,
+  }, null, 2);
+};
+
+const renderProtocolOverview = () => {
+  if (!protocolOverview) return;
+  const { identity, network, pairing, publish } = protocolOverview;
+  const device = identity.device_keys[0];
+
+  ui.protocolReadiness.textContent = protocolOverview.candidate_version;
+  ui.identityStatus.textContent = identity.status === "ready" ? "Ready" : humanStatus(identity.status);
+  ui.identityStatus.dataset.status = identity.status === "ready" ? "pass" : "pending";
+  ui.builderId.textContent = identity.builder_id || "Not created";
+  ui.builderId.title = identity.builder_id || "";
+  ui.deviceStatus.textContent = device
+    ? `${device.label} · ${humanStatus(device.status)}`
+    : "Pending";
+  ui.deviceStatus.title = device?.key_id || "";
+  ui.recoveryStatus.textContent = humanStatus(identity.recovery_status);
+  ui.identityDetail.textContent = identity.detail;
+
+  const deploymentRecorded = network.deployment_evidence;
+  ui.networkStatus.textContent = deploymentRecorded ? "Recorded" : "Candidate";
+  ui.networkStatus.dataset.status = deploymentRecorded ? "pass" : "pending";
+  ui.networkName.textContent = `${network.name} · ${network.chain_id}`;
+  ui.deploymentStatus.textContent = humanStatus(network.deployment_status);
+  ui.p256Status.textContent = humanStatus(network.p256_status);
+  ui.networkDetail.textContent = network.connectivity === "not_queried"
+    ? "Studio made no RPC call. Contract and P-256 status comes only from embedded local evidence."
+    : `Connectivity: ${humanStatus(network.connectivity)}.`;
+
+  ui.pairingLimitation.textContent = pairing.limitation;
+  ui.pairingPayloadGroup.hidden = !pairing.target_payload;
+  ui.pairingPayload.value = pairing.target_payload || "";
+  if (pairing.qr_available && pairing.qr_url) {
+    ui.pairingQr.src = pairing.qr_url;
+  } else {
+    ui.pairingQr.removeAttribute("src");
+  }
+
+  ui.publishShot.disabled = true;
+  ui.publishShot.title = publish.reason;
+  renderProtocolInspector();
+};
+
+const loadProtocolOverview = async () => {
+  const response = await fetch("/api/protocol", { cache: "no-store" });
+  if (!response.ok) throw new Error(await response.text());
+  protocolOverview = await response.json();
+  renderProtocolOverview();
+};
+
+const renderShotProtocol = () => {
+  if (!shotProtocol) {
+    ui.shotProtocol.hidden = true;
+    renderProtocolInspector();
+    return;
+  }
+  ui.shotProtocol.hidden = false;
+  const evolution = shotProtocol.evolution;
+  const verified = shotProtocol.verification.status === "pass";
+  ui.shotState.textContent = shotProtocol.adoption_required
+    ? "Needs adoption"
+    : verified
+      ? "Verified · Private"
+      : "Private";
+  ui.shotState.dataset.status = verified ? "pass" : "pending";
+  ui.shotId.textContent = evolution?.shot_id || "Legacy, unsigned";
+  ui.shotId.title = evolution?.shot_id || "";
+  ui.evolutionStatus.textContent = evolution
+    ? `Evolution ${evolution.sequence}${shotProtocol.current ? " · current" : ""}`
+    : "Not yet in protocol";
+  ui.signatureStatus.textContent = shotProtocol.signature.status === "valid"
+    ? "Verified"
+    : humanStatus(shotProtocol.signature.status);
+  ui.fasciaStatus.textContent = shotProtocol.fascia.status === "valid"
+    ? shotProtocol.fascia.id
+    : humanStatus(shotProtocol.fascia.status);
+  ui.conformanceStatus.textContent = shotProtocol.conformance.status === "pass"
+    ? `Verified · ${shotProtocol.conformance.passed} checks`
+    : humanStatus(shotProtocol.conformance.status);
+  ui.publishedStatus.textContent = shotProtocol.published_state === "not_published"
+    ? "No · Private"
+    : humanStatus(shotProtocol.published_state);
+  ui.registryStatus.textContent = shotProtocol.registry_head || "None";
+  ui.handleStatus.textContent = shotProtocol.handle.value || humanStatus(shotProtocol.handle.status);
+  ui.appcoinStatus.textContent = shotProtocol.appcoin.value || humanStatus(shotProtocol.appcoin.status);
+  ui.shotProtocolDetail.textContent = shotProtocol.adoption_required
+    ? shotProtocol.verification.detail
+    : `${shotProtocol.verification.detail} No public registry receipt or transaction is present.`;
+  ui.verifyShot.disabled = false;
+  ui.verifyShot.textContent = "Verify";
+  renderProtocolInspector();
+};
+
+const loadShotProtocol = async (app, shot) => {
+  const sequence = ++protocolSequence;
+  ui.shotProtocol.hidden = false;
+  ui.shotState.textContent = "Checking";
+  ui.verifyShot.disabled = true;
+  ui.verifyShot.textContent = "Verifying…";
+  try {
+    const response = await fetch(`/api/protocol/shot/${app.name}/${shot}`, { cache: "no-store" });
+    if (!response.ok) throw new Error(await response.text());
+    const payload = await response.json();
+    if (sequence !== protocolSequence) return;
+    shotProtocol = payload;
+    renderShotProtocol();
+  } catch (error) {
+    if (sequence !== protocolSequence) return;
+    shotProtocol = null;
+    ui.shotProtocol.hidden = false;
+    ui.shotState.textContent = "Unavailable";
+    ui.shotState.dataset.status = "fail";
+    ui.shotProtocolDetail.textContent = `Protocol facts unavailable: ${error.message}`;
+    ui.verifyShot.disabled = false;
+    ui.verifyShot.textContent = "Try verification again";
+    renderProtocolInspector();
+  }
+};
+
+ui.verifyShot.addEventListener("click", () => {
+  if (selectedApp && selectedShot) loadShotProtocol(selectedApp, selectedShot);
+});
+
+ui.copyPairing.addEventListener("click", async () => {
+  const value = ui.pairingPayload.value;
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    ui.pairingPayload.select();
+    document.execCommand("copy");
+  }
+  ui.copyPairing.textContent = "Copied";
+  setTimeout(() => {
+    ui.copyPairing.textContent = "Copy target context";
+  }, 1400);
+});
 
 const renderHarnesses = () => {
   const selected = harnesses.find((harness) => harness.selected) || harnesses[0];
@@ -191,6 +377,7 @@ const selectApp = async (app, shot) => {
   selectedShot = shot;
   renderLibrary();
   renderSelection();
+  loadShotProtocol(app, shot);
 
   ui.simulatorEmpty.hidden = true;
   ui.runningApp.hidden = false;
@@ -206,7 +393,7 @@ const selectApp = async (app, shot) => {
   try {
     const response = await fetch("/api/simulator/launch", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: studioJsonHeaders,
       body: JSON.stringify({ app_name: app.name, shot }),
     });
     if (!response.ok) throw new Error(await response.text());
@@ -241,6 +428,9 @@ const showSimulatorEmpty = () => {
   launchSequence += 1;
   selectedApp = null;
   selectedShot = null;
+  protocolSequence += 1;
+  shotProtocol = null;
+  renderShotProtocol();
   renderLibrary();
   renderSelection();
   ui.runningApp.hidden = true;
@@ -262,7 +452,11 @@ ui.nextShot.addEventListener("click", () => {
 ui.showLibrary.addEventListener("click", showSimulatorEmpty);
 
 ui.openSimulator.addEventListener("click", async () => {
-  await fetch("/api/simulator/focus", { method: "POST" });
+  await fetch("/api/simulator/focus", {
+    method: "POST",
+    headers: studioJsonHeaders,
+    body: "{}",
+  });
 });
 
 const updateSubmitState = () => {
@@ -397,7 +591,7 @@ ui.form.addEventListener("submit", async (event) => {
   try {
     const response = await fetch("/shots", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: studioJsonHeaders,
       body: JSON.stringify({
         mode: composerMode,
         app_name: appName,
@@ -518,6 +712,6 @@ stream.onmessage = (event) => {
   appendEvent(item.kind, item.message);
 };
 
-Promise.all([loadLibrary(), loadHarnesses()]).catch((error) => {
+Promise.all([loadLibrary(), loadHarnesses(), loadProtocolOverview()]).catch((error) => {
   appendEvent("status", `studio data unavailable: ${error.message}`);
 });

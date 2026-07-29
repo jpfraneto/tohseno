@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/continuity.schema.json",
+  "title": "TOHSENO installation-continuity envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "statement",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.continuity/1"
+    },
+    "statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "issuer",
+        "audience",
+        "originating_shot_id",
+        "claims",
+        "nonce",
+        "issued_at",
+        "expires_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.continuity-statement/1"
+        },
+        "issuer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "installation_id",
+            "public_key"
+          ],
+          "properties": {
+            "installation_id": {
+              "$ref": "common.schema.json#/$defs/bytes32"
+            },
+            "public_key": {
+              "$ref": "common.schema.json#/$defs/p256PublicKey"
+            }
+          }
+        },
+        "audience": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shot_id",
+            "installation_id"
+          ],
+          "properties": {
+            "shot_id": {
+              "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+            },
+            "installation_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "common.schema.json#/$defs/bytes32"
+                }
+              ]
+            }
+          }
+        },
+        "originating_shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "$comment": "Claims are ASCII and the protocol verifier additionally requires strict lexicographic ordering.",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$",
+            "maxLength": 64
+          }
+        },
+        "nonce": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/bytes32"
+            },
+            {
+              "not": {
+                "const": "0x0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            }
+          ]
+        },
+        "issued_at": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "The verifier derives installation_id from issuer.public_key and requires expires_at > issued_at."
+    },
+    "signature": {
+      "$ref": "common.schema.json#/$defs/detachedP256Signature"
+    }
+  },
+  "$comment": "The signature digest is SHA-256(RFC8785(statement)) and is verified as one P-256 prehash. The verifier also checks the supplied verification time against [issued_at, expires_at)."
+}

@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.org/schemas/tohseno.apple-fascia-definition-1.schema.json",
+  "title": "TOHSENO Apple Fascia Definition 1",
+  "description": "The closed machine-readable shape of the GENESIS Apple Fascia definition. This is not the per-Shot tohseno.fascia/1 sidecar schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "schema",
+    "fascia",
+    "candidate",
+    "application_shell",
+    "required_files",
+    "required_interfaces",
+    "installation_identity",
+    "storage",
+    "continuity",
+    "privacy",
+    "provenance",
+    "distribution",
+    "capability_vocabulary",
+    "capability_rules",
+    "fascia_commitment",
+    "conformance_gates"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "tohseno"
+    },
+    "schema": {
+      "const": "tohseno.apple-fascia-definition/1"
+    },
+    "fascia": {
+      "const": "tohseno.apple/1"
+    },
+    "candidate": {
+      "$ref": "#/$defs/candidate"
+    },
+    "application_shell": {
+      "$ref": "#/$defs/applicationShell"
+    },
+    "required_files": {
+      "$ref": "#/$defs/requiredFiles"
+    },
+    "required_interfaces": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/requiredInterface"
+      }
+    },
+    "installation_identity": {
+      "$ref": "#/$defs/installationIdentity"
+    },
+    "storage": {
+      "$ref": "#/$defs/storage"
+    },
+    "continuity": {
+      "$ref": "#/$defs/continuity"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "distribution": {
+      "$ref": "#/$defs/distribution"
+    },
+    "capability_vocabulary": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "capability_rules": {
+      "$ref": "#/$defs/capabilityRules"
+    },
+    "fascia_commitment": {
+      "$ref": "#/$defs/fasciaCommitment"
+    },
+    "conformance_gates": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/conformanceGate"
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "codename",
+        "status"
+      ],
+      "properties": {
+        "version": {
+          "const": "1.0.0-rc.1"
+        },
+        "codename": {
+          "const": "GENESIS"
+        },
+        "status": {
+          "const": "protocol_candidate_not_canonical"
+        }
+      }
+    },
+    "applicationShell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "framework",
+        "minimum_os",
+        "third_party_runtime_dependencies",
+        "useful_screen_without_onboarding",
+        "account_wall"
+      ],
+      "properties": {
+        "framework": {
+          "const": "SwiftUI"
+        },
+        "minimum_os": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "iOS"
+          ],
+          "properties": {
+            "iOS": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "third_party_runtime_dependencies": {
+          "const": false
+        },
+        "useful_screen_without_onboarding": {
+          "const": true
+        },
+        "account_wall": {
+          "const": false
+        }
+      }
+    },
+    "requiredFiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shot_sidecars",
+        "documentation",
+        "swift_sources",
+        "embedded_metadata"
+      ],
+      "properties": {
+        "shot_sidecars": {
+          "$ref": "#/$defs/stringList"
+        },
+        "documentation": {
+          "$ref": "#/$defs/stringList"
+        },
+        "swift_sources": {
+          "$ref": "#/$defs/stringList"
+        },
+        "embedded_metadata": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "requiredInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "requirements"
+      ],
+      "properties": {
+        "name": {
+          "enum": [
+            "InstallationIdentity",
+            "ContinuityEnvelope",
+            "LocalPersistence",
+            "Provenance",
+            "TohsenoMetadata"
+          ]
+        },
+        "source": {
+          "type": "string",
+          "pattern": "^TohsenoFascia/[A-Za-z][A-Za-z0-9]+\\.swift$"
+        },
+        "requirements": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "installationIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "scope",
+        "default_backend",
+        "fallback_backend",
+        "keychain_synchronizable",
+        "shared_access_group",
+        "central_registration",
+        "forbidden_links"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "p256"
+        },
+        "scope": {
+          "const": "one_installation_of_one_app"
+        },
+        "default_backend": {
+          "const": "secure_enclave"
+        },
+        "fallback_backend": {
+          "const": "software_this_device_only_for_simulator_or_unavailable_hardware"
+        },
+        "keychain_synchronizable": {
+          "const": false
+        },
+        "shared_access_group": {
+          "const": false
+        },
+        "central_registration": {
+          "const": false
+        },
+        "forbidden_links": {
+          "$ref": "#/$defs/stringList"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default",
+        "structured_domain_state",
+        "small_preferences",
+        "small_secrets_and_key_references",
+        "eligible_signing_authority",
+        "documents_and_exports",
+        "cloudkit"
+      ],
+      "properties": {
+        "default": {
+          "const": "local_first"
+        },
+        "structured_domain_state": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "small_preferences": {
+          "const": "UserDefaults"
+        },
+        "small_secrets_and_key_references": {
+          "const": "Keychain"
+        },
+        "eligible_signing_authority": {
+          "const": "SecureEnclave"
+        },
+        "documents_and_exports": {
+          "const": "files"
+        },
+        "cloudkit": {
+          "const": "optional_and_explicitly_declared"
+        }
+      }
+    },
+    "continuity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "default",
+        "statement_schema",
+        "canonicalization",
+        "digest",
+        "required_statement_fields",
+        "signature_algorithm",
+        "transports",
+        "official_service_required"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.continuity/1"
+        },
+        "default": {
+          "const": "unlinkable"
+        },
+        "statement_schema": {
+          "const": "tohseno.continuity-statement/1"
+        },
+        "canonicalization": {
+          "const": "RFC8785"
+        },
+        "digest": {
+          "const": "sha256_of_canonical_statement"
+        },
+        "required_statement_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "signature_algorithm": {
+          "const": "p256_over_declared_sha256_prehash"
+        },
+        "transports": {
+          "$ref": "#/$defs/stringList"
+        },
+        "official_service_required": {
+          "const": false
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "telemetry_default",
+        "tracking",
+        "silent_identity_linkage",
+        "prompt_upload",
+        "private_shot_upload",
+        "local_content_upload",
+        "network_must_be_declared"
+      ],
+      "properties": {
+        "telemetry_default": {
+          "const": false
+        },
+        "tracking": {
+          "const": false
+        },
+        "silent_identity_linkage": {
+          "const": false
+        },
+        "prompt_upload": {
+          "const": false
+        },
+        "private_shot_upload": {
+          "const": false
+        },
+        "local_content_upload": {
+          "const": false
+        },
+        "network_must_be_declared": {
+          "const": true
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_fields",
+        "optional_fields",
+        "forbidden_fields",
+        "embedded_metadata_source_tree_exclusion"
+      ],
+      "properties": {
+        "required_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "optional_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "forbidden_fields": {
+          "$ref": "#/$defs/stringList"
+        },
+        "embedded_metadata_source_tree_exclusion": {
+          "const": "TOHSENO/embedded-provenance.json"
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "states",
+        "bundle_version_rule",
+        "apple_surfaces_from_project",
+        "app_store_attestation_explicit"
+      ],
+      "properties": {
+        "states": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "local",
+              "published",
+              "app_store"
+            ]
+          }
+        },
+        "bundle_version_rule": {
+          "const": "CFBundleVersion_equals_sequence"
+        },
+        "apple_surfaces_from_project": {
+          "const": true
+        },
+        "app_store_attestation_explicit": {
+          "const": true
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sensitive"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "local_storage",
+            "network_access",
+            "private_cloudkit_sync",
+            "storekit",
+            "notifications",
+            "camera",
+            "microphone",
+            "location",
+            "contacts",
+            "health",
+            "bluetooth",
+            "other_apple_entitlements"
+          ]
+        },
+        "sensitive": {
+          "type": "boolean"
+        },
+        "requires": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "const": "other_apple_entitlements"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "then": {
+            "required": [
+              "requires"
+            ]
+          }
+        }
+      ]
+    },
+    "capabilityRules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unknown_capability",
+        "undeclared_sensitive_capability",
+        "network_access",
+        "private_cloudkit_sync",
+        "usage_descriptions",
+        "entitlements"
+      ],
+      "properties": {
+        "unknown_capability": {
+          "const": "failure"
+        },
+        "undeclared_sensitive_capability": {
+          "const": "failure"
+        },
+        "network_access": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "private_cloudkit_sync": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "usage_descriptions": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "entitlements": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "fasciaCommitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "root",
+        "included",
+        "excluded_paths",
+        "exclusion_matching",
+        "symlinks_and_special_files",
+        "path_encoding",
+        "path_order",
+        "entry_encoding",
+        "stream_encoding",
+        "empty_tree"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "root": {
+          "const": "fascia/apple"
+        },
+        "included": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "excluded_paths": {
+          "$ref": "#/$defs/stringList"
+        },
+        "exclusion_matching": {
+          "const": "root_relative_P_equals_E_or_P_has_prefix_E_slash"
+        },
+        "symlinks_and_special_files": {
+          "const": "failure"
+        },
+        "path_encoding": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "path_order": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "entry_encoding": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "stream_encoding": {
+          "const": "concatenation_of_sorted_entries_without_prefix_or_count"
+        },
+        "empty_tree": {
+          "const": "sha256_of_empty_byte_string"
+        }
+      }
+    },
+    "conformanceGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "failure"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "required_files",
+            "target_membership",
+            "installation_identity_bootstrap",
+            "third_party_dependencies",
+            "capability_declarations",
+            "privacy_boundary",
+            "bundle_identity",
+            "bundle_version",
+            "provenance",
+            "offline_build"
+          ]
+        },
+        "failure": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,540 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/actions.schema.json",
+  "title": "TOHSENO EIP-712 action wire types",
+  "$defs": {
+    "createShot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "controller",
+        "head",
+        "sequence",
+        "public_state",
+        "content_commitment",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "CREATE_SHOT"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "sequence": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "public_state": {
+          "const": "PUBLISHED"
+        },
+        "content_commitment": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "A native root uses sequence 1. A signed legacy-adoption root may begin at legacy_latest_shot + 1; its Shot record proves that origin."
+    },
+    "appendEvolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "previous_head",
+        "new_head",
+        "sequence",
+        "content_commitment",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "APPEND_EVOLUTION"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "previous_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "new_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "sequence": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "content_commitment": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "The verifier additionally requires new_head != previous_head; deployed state supplies the expected prior head, sequence, and nonce."
+    },
+    "transferShot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "current_controller",
+        "new_controller",
+        "current_head",
+        "sequence",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "TRANSFER_SHOT"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "current_controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "current_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "sequence": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "The verifier additionally requires new_controller != current_controller."
+    },
+    "setPublicState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "current_head",
+        "sequence",
+        "public_state",
+        "content_commitment",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "SET_PUBLIC_STATE"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "current_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "sequence": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "public_state": {
+          "enum": [
+            "PUBLISHED",
+            "APP_STORE"
+          ]
+        },
+        "content_commitment": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "Deployed state enforces monotonic PUBLISHED -> APP_STORE public state."
+    },
+    "claimHandle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "handle_hash",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "CLAIM_HANDLE"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "handle_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "releaseHandle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "handle_hash",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "RELEASE_HANDLE"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "handle_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "associateAppcoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "chain_id",
+        "token",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "ASSOCIATE_APPCOIN"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "chain_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "token": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "removeAppcoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "chain_id",
+        "token",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "REMOVE_APPCOIN"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "chain_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "token": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "attestAppStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "bundle_id_hash",
+        "store_id",
+        "evolution_head",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "ATTEST_APP_STORE"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "bundle_id_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "store_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "evolution_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "publicAction": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/createShot"
+        },
+        {
+          "$ref": "#/$defs/appendEvolution"
+        },
+        {
+          "$ref": "#/$defs/transferShot"
+        },
+        {
+          "$ref": "#/$defs/setPublicState"
+        },
+        {
+          "$ref": "#/$defs/claimHandle"
+        },
+        {
+          "$ref": "#/$defs/releaseHandle"
+        },
+        {
+          "$ref": "#/$defs/associateAppcoin"
+        },
+        {
+          "$ref": "#/$defs/removeAppcoin"
+        },
+        {
+          "$ref": "#/$defs/attestAppStore"
+        }
+      ]
+    },
+    "authorizeDevice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "key_id",
+        "x",
+        "y",
+        "permissions",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "AUTHORIZE_DEVICE"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "key_id": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "x": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "y": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "permissions": {
+          "enum": [
+            1,
+            2,
+            3
+          ]
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "key_id must equal Keccak-256(x32 || y32), with no prefix; (x,y) must be a valid P-256 point."
+    },
+    "revokeDevice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "key_id",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "REVOKE_DEVICE"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "key_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "setRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "recovery",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "SET_RECOVERY"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "recoverAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "current_recovery",
+        "new_recovery",
+        "new_key_id",
+        "new_x",
+        "new_y",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "RECOVER_ACCOUNT"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "current_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_key_id": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "new_x": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "new_y": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "new_recovery MUST be nonzero. new_key_id must equal Keccak-256(new_x32 || new_y32), and the new point must be valid P-256."
+    },
+    "deviceAction": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/authorizeDevice"
+        },
+        {
+          "$ref": "#/$defs/revokeDevice"
+        },
+        {
+          "$ref": "#/$defs/setRecovery"
+        },
+        {
+          "$ref": "#/$defs/recoverAccount"
+        }
+      ]
+    },
+    "deviceAuthorizableAction": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/authorizeDevice"
+        },
+        {
+          "$ref": "#/$defs/revokeDevice"
+        },
+        {
+          "$ref": "#/$defs/setRecovery"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/device-authorization.schema.json",
+  "title": "P-256-authorized TOHSENO Builder device action",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "domain",
+    "action",
+    "signer",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.device-authorization/1"
+    },
+    "domain": {
+      "allOf": [
+        {
+          "$ref": "common.schema.json#/$defs/eip712Domain"
+        },
+        {
+          "properties": {
+            "name": {
+              "const": "TOHSENO BuilderAccount"
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "$ref": "actions.schema.json#/$defs/deviceAuthorizableAction"
+    },
+    "signer": {
+      "$ref": "common.schema.json#/$defs/p256PublicKey"
+    },
+    "authorization": {
+      "$ref": "common.schema.json#/$defs/detachedP256Signature"
+    }
+  },
+  "$comment": "RECOVER_ACCOUNT is deliberately excluded: it is authorized by the distinct BIP-39/BIP-44 secp256k1 recovery authority. Other digests use the frozen BuilderAccount EIP-712 domain."
+}

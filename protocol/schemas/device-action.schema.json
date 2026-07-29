@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/device-action.schema.json",
+  "title": "TOHSENO BuilderAccount EIP-712 action",
+  "$ref": "actions.schema.json#/$defs/deviceAction"
+}

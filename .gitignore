@@ -1,3 +1,20 @@
 /target/
-.DS_Store
+/dist/
+/apple-identity/.build/
+/contracts/cache/
+/contracts/out/
+/contracts/broadcast/
+/genesis/lifecycle/private/
+__pycache__/
+*.py[cod]
 
+.env
+.env.*
+!.env.example
+*.keystore
+*.mnemonic
+*.p12
+*.pem
+*.private-key
+
+.DS_Store

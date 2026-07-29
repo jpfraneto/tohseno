@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050505">
+  <meta name="description" content="TOHSENO is the open protocol for creating and evolving Apple apps from a shared, machine-verifiable structure.">
+  <title>TOHSENO Protocol — GENESIS Candidate</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --void: #050505;
+      --carbon: #0d0d0e;
+      --graphite: #19191a;
+      --iron: #2b2b2d;
+      --ash: #686964;
+      --silver: #a7a8a2;
+      --bone: #f1ede4;
+      --amber: #ff5a00;
+      --ember: #351607;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--void); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--void);
+      color: var(--bone);
+      font-size: 17px;
+      line-height: 1.58;
+    }
+
+    a { color: inherit; text-decoration-color: var(--ash); text-underline-offset: .25em; }
+    a:hover { text-decoration-color: var(--amber); }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--amber);
+      outline-offset: 4px;
+    }
+
+    .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+    nav {
+      display: flex;
+      min-height: 76px;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--iron);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 13px;
+      color: var(--bone);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .19em;
+      text-decoration: none;
+    }
+
+    .ring {
+      width: 25px;
+      height: 25px;
+      border: 3px solid var(--amber);
+      border-radius: 48% 52% 47% 53% / 52% 48% 54% 46%;
+      transform: rotate(-8deg);
+    }
+
+    .nav-state {
+      color: var(--silver);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    main { overflow: hidden; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(280px, .7fr);
+      gap: clamp(48px, 8vw, 110px);
+      padding: clamp(82px, 12vw, 150px) 0 84px;
+      align-items: end;
+    }
+
+    .eyebrow, .section-label {
+      margin: 0 0 19px;
+      color: var(--silver);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin: 0;
+      font-size: clamp(50px, 8vw, 108px);
+      font-weight: 620;
+      letter-spacing: -.065em;
+      line-height: .91;
+    }
+
+    .hero-copy {
+      max-width: 690px;
+      margin: 38px 0 0;
+      color: var(--silver);
+      font-size: clamp(19px, 2.1vw, 25px);
+      line-height: 1.42;
+    }
+
+    .candidate {
+      padding: 24px;
+      border: 1px solid var(--iron);
+      background: var(--carbon);
+    }
+
+    .candidate strong {
+      display: block;
+      margin-bottom: 26px;
+      color: var(--amber);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: 12px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .candidate dl { display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; margin: 0; }
+    .candidate dt { color: var(--ash); }
+    .candidate dd { margin: 0; color: var(--bone); text-align: right; }
+
+    .lifecycle {
+      padding: 33px 0;
+      border-top: 1px solid var(--iron);
+      border-bottom: 1px solid var(--iron);
+      color: var(--silver);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: clamp(11px, 1.2vw, 14px);
+      line-height: 2;
+      overflow-wrap: anywhere;
+    }
+
+    .lifecycle b { color: var(--bone); font-weight: 500; }
+    .lifecycle span { color: var(--amber); padding: 0 .45em; }
+
+    section {
+      display: grid;
+      grid-template-columns: minmax(180px, .45fr) minmax(0, 1.55fr);
+      gap: clamp(42px, 9vw, 130px);
+      padding: clamp(82px, 11vw, 145px) 0;
+      border-bottom: 1px solid var(--iron);
+    }
+
+    h2 {
+      max-width: 770px;
+      margin: 0 0 29px;
+      font-size: clamp(35px, 5.2vw, 70px);
+      font-weight: 590;
+      letter-spacing: -.047em;
+      line-height: 1.02;
+    }
+
+    .lead { max-width: 760px; margin: 0; color: var(--silver); font-size: 21px; }
+    .principles {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 58px;
+      border: 1px solid var(--iron);
+      background: var(--iron);
+    }
+
+    .principle { min-height: 230px; padding: 28px; background: var(--carbon); }
+    .principle small {
+      color: var(--amber);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .principle h3 { margin: 42px 0 12px; font-size: 23px; font-weight: 570; }
+    .principle p { margin: 0; color: var(--silver); font-size: 15px; }
+
+    .identity-list { margin: 55px 0 0; padding: 0; list-style: none; counter-reset: identity; }
+    .identity-list li {
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr);
+      gap: 20px;
+      padding: 25px 0;
+      border-top: 1px solid var(--iron);
+      counter-increment: identity;
+    }
+    .identity-list li::before {
+      content: "0" counter(identity);
+      color: var(--amber);
+      font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+      font-size: 11px;
+    }
+    .identity-list strong { display: block; margin-bottom: 7px; font-size: 19px; }
+    .identity-list p { margin: 0; color: var(--silver); }
+
+    .boundary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 56px;
+    }
+    .boundary article { padding: 28px; border: 1px solid var(--iron); }
+    .boundary h3 { margin: 0 0 24px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    .boundary ul { margin: 0; padding-left: 19px; color: var(--silver); }
+    .boundary li + li { margin-top: 9px; }
+    .private h3 { color: var(--bone); }
+    .public h3 { color: var(--amber); }
+
+    pre {
+      margin: 54px 0 0;
+      padding: 25px 27px;
+      overflow-x: auto;
+      border: 1px solid var(--iron);
+      background: var(--carbon);
+      color: var(--bone);
+      font: 13px/1.7 "SF Mono", SFMono-Regular, ui-monospace, monospace;
+    }
+
+    .not-yet { background: linear-gradient(130deg, var(--carbon), var(--void)); }
+    .not-yet ul { max-width: 720px; margin: 48px 0 0; padding: 0; list-style: none; }
+    .not-yet li { padding: 15px 0; border-top: 1px solid var(--iron); color: var(--silver); }
+    .not-yet li::before { content: "—"; margin-right: 15px; color: var(--amber); }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 30px;
+      padding: 42px 0 70px;
+      color: var(--ash);
+      font-size: 13px;
+    }
+    footer strong { color: var(--bone); font-weight: 540; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 28px, 1180px); }
+      .nav-state { display: none; }
+      .hero, section { grid-template-columns: 1fr; }
+      .hero { padding-top: 70px; }
+      .candidate { max-width: 470px; }
+      .principles, .boundary { grid-template-columns: 1fr; }
+      .principle { min-height: 200px; }
+      footer { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <nav aria-label="Protocol navigation">
+      <a class="brand" href="#top"><span class="ring" aria-hidden="true"></span>TOHSENO</a>
+      <span class="nav-state">protocol candidate · 1.0.0-rc.1</span>
+    </nav>
+  </header>
+
+  <main id="top">
+    <div class="shell">
+      <div class="hero">
+        <div>
+          <p class="eyebrow">The open protocol for personal Apple software</p>
+          <h1>One rulebook.<br>No canonical doorway.</h1>
+          <p class="hero-copy">A Shot is one Apple app, its permanent identity, and its signed history. Any compatible factory can understand it and continue it.</p>
+        </div>
+        <aside class="candidate" aria-label="Candidate status">
+          <strong>GENESIS</strong>
+          <dl>
+            <dt>Version</dt><dd>1.0.0-rc.1</dd>
+            <dt>Network</dt><dd>eip155:4663</dd>
+            <dt>Status</dt><dd>candidate</dd>
+            <dt>Canonical</dt><dd>no</dd>
+          </dl>
+        </aside>
+      </div>
+
+      <div class="lifecycle" aria-label="Protocol lifecycle">
+        <b>intention</b><span>→</span><b>app</b><span>→</span><b>Fascia</b><span>→</span><b>signed Shot</b><span>→</span><b>verify</b><span>→</span><b>public witness</b><span>→</span><b>Evolution</b>
+      </div>
+
+      <section>
+        <p class="section-label">01 · The Shot</p>
+        <div>
+          <h2>A complete world, not a diff.</h2>
+          <p class="lead">One random ShotID survives every Evolution. Each integer Evolution is a complete source world, the app's CFBundleVersion, and one signed link in an immutable lineage.</p>
+          <div class="principles">
+            <article class="principle">
+              <small>Permanent</small>
+              <h3>Stable identity</h3>
+              <p>The slug, bundle ID, website, token, factory, and server may change. The 32-byte ShotID does not.</p>
+            </article>
+            <article class="principle">
+              <small>Exact</small>
+              <h3>Known anatomy</h3>
+              <p>The finite Apple Fascia declares identity, storage, privacy, continuity, provenance, and capabilities.</p>
+            </article>
+            <article class="principle">
+              <small>Owned</small>
+              <h3>Signed history</h3>
+              <p>Canonical records use deterministic bytes, SHA-256 commitments, and low-s P-256 signatures.</p>
+            </article>
+            <article class="principle">
+              <small>Portable</small>
+              <h3>Factory freedom</h3>
+              <p>The next complete Evolution may be created by any implementation that passes the same protocol law.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <p class="section-label">02 · Identity</p>
+        <div>
+          <h2>The builder is durable. Keys and devices are replaceable.</h2>
+          <p class="lead">TOHSENO keeps ownership, signing authority, recovery, and app-user identity deliberately separate.</p>
+          <ol class="identity-list">
+            <li><div><strong>BuilderID</strong><p>A stable smart-account address that controls Shots. It is not a username, Apple ID, company account, or permanent key.</p></div></li>
+            <li><div><strong>Builder DeviceKey</strong><p>A hardware-backed P-256 key authorized for exact protocol actions. A lost key can be revoked without moving the Shot.</p></div></li>
+            <li><div><strong>Recovery Root</strong><p>An optional, separately secured Ethereum recovery authority. It never enters a generated application.</p></div></li>
+            <li><div><strong>InstallationKey</strong><p>An app-specific P-256 identity created by one app installation. It creates no universal cross-app user profile.</p></div></li>
+          </ol>
+        </div>
+      </section>
+
+      <section>
+        <p class="section-label">03 · Privacy</p>
+        <div>
+          <h2>Private first. Public by signature.</h2>
+          <p class="lead">A registry witnesses a Shot that already exists. It never receives the person's prompts, reference images, app data, usage, recovery material, or private continuity graph.</p>
+          <div class="boundary">
+            <article class="private">
+              <h3>Private by default</h3>
+              <ul>
+                <li>intention and reference images</li>
+                <li>unpublished source and local app data</li>
+                <li>installation identities and continuity links</li>
+                <li>device inventory and recovery material</li>
+              </ul>
+            </article>
+            <article class="public">
+              <h3>Explicit signed action</h3>
+              <ul>
+                <li>Evolution commitment and public head</li>
+                <li>controller and publication state</li>
+                <li>builder-selected public artifact URI</li>
+                <li>handle, appcoin, or App Store relation</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <p class="section-label">04 · Replaceability</p>
+        <div>
+          <h2>Nodes index. Builders own.</h2>
+          <p class="lead">Anyone may relay a valid action. The messenger gains no ownership. No official app, node, factory, company, token, or website is recognized by the contracts.</p>
+          <pre><code>Cryptography  →  this key signed this digest
+Schema        →  this digest means this exact action
+BuilderID     →  this key is authorized
+Registry      →  the public transition is valid</code></pre>
+        </div>
+      </section>
+
+      <section>
+        <p class="section-label">05 · Conformance</p>
+        <div>
+          <h2>Compatibility is a testable claim.</h2>
+          <p class="lead">A deterministic verifier reproduces record bytes and commitments, checks P-256 authority and ordered lineage, inspects the Apple project and Fascia, and reports evidence for every judgment. It never asks an LLM whether an app conforms.</p>
+          <pre><code>$ tohseno verify my-app
+
+✓ record
+✓ signature
+✓ lineage
+✓ Apple Fascia
+✓ source commitment
+✓ privacy boundary
+
+CONFORMANT</code></pre>
+        </div>
+      </section>
+
+      <section class="not-yet">
+        <p class="section-label">Candidate boundary</p>
+        <div>
+          <h2>Live enough to break. Not final enough to canonize.</h2>
+          <p class="lead">GENESIS exists to exercise the complete lifecycle against reality and leave exact evidence. Candidate code and deployments remain experimental and unaudited.</p>
+          <ul>
+            <li>No v1.0.0 tag or canonical deployment claim</li>
+            <li>No stable installer replacement or protocol announcement</li>
+            <li>No permanent Arweave Genesis publication</li>
+            <li>No unrestricted public gas relayer</li>
+            <li>No token requirement and no guessed $TOHSENO coordinates</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="shell">
+    <span><strong>First in history. Equal under the protocol.</strong></span>
+    <span>JP / Anky, Inc. · GENESIS candidate</span>
+  </footer>
+</body>
+</html>
+

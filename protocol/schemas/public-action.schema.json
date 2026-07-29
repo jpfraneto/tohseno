@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/public-action.schema.json",
+  "title": "Signed TOHSENO public action",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "domain",
+    "action",
+    "signer",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.public-action/1"
+    },
+    "domain": {
+      "$ref": "common.schema.json#/$defs/eip712Domain"
+    },
+    "action": {
+      "$ref": "actions.schema.json#/$defs/publicAction"
+    },
+    "signer": {
+      "$ref": "common.schema.json#/$defs/p256PublicKey"
+    },
+    "authorization": {
+      "$ref": "common.schema.json#/$defs/detachedP256Signature"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "CREATE_SHOT",
+                  "APPEND_EVOLUTION",
+                  "TRANSFER_SHOT",
+                  "SET_PUBLIC_STATE"
+                ]
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "properties": {
+          "domain": {
+            "properties": {
+              "name": {
+                "const": "TOHSENO ShotRegistry"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "domain": {
+            "properties": {
+              "name": {
+                "const": "TOHSENO ShotRelations"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "authorization.digest must equal Keccak-256(0x1901 || domainSeparator || structHash). Authorization is one low-s P-256 signature over that exact prehash; deployed BuilderAccount authorization is a separate stateful check."
+}

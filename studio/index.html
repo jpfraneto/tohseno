@@ -37,6 +37,85 @@
             <span>Your apps will live here.</span>
           </section>
 
+          <details id="protocol-panel" class="protocol-panel">
+            <summary>
+              <span>Protocol</span>
+              <span id="protocol-readiness">loading</span>
+            </summary>
+            <div class="protocol-content">
+              <section aria-labelledby="identity-heading">
+                <div class="protocol-section-heading">
+                  <h2 id="identity-heading">Your identity</h2>
+                  <span id="identity-status" class="protocol-badge">Pending</span>
+                </div>
+                <dl class="protocol-facts">
+                  <div><dt>BuilderID</dt><dd id="builder-id">Not created</dd></div>
+                  <div><dt>This Mac</dt><dd id="device-status">Pending</dd></div>
+                  <div><dt>Recovery</dt><dd id="recovery-status">Pending</dd></div>
+                </dl>
+                <p id="identity-detail" class="protocol-note"></p>
+              </section>
+
+              <section aria-labelledby="network-heading">
+                <div class="protocol-section-heading">
+                  <h2 id="network-heading">Protocol network</h2>
+                  <span id="network-status" class="protocol-badge">Checking</span>
+                </div>
+                <dl class="protocol-facts">
+                  <div><dt>Network</dt><dd id="network-name">Robinhood Chain</dd></div>
+                  <div><dt>Contracts</dt><dd id="deployment-status">Checking</dd></div>
+                  <div><dt>P-256</dt><dd id="p256-status">Not queried</dd></div>
+                </dl>
+                <p id="network-detail" class="protocol-note"></p>
+              </section>
+
+              <section id="pairing-section" aria-labelledby="pairing-heading">
+                <div class="protocol-section-heading">
+                  <h2 id="pairing-heading">Authorize a device</h2>
+                  <span class="protocol-badge">Copy</span>
+                </div>
+                <p id="pairing-limitation" class="protocol-note"></p>
+                <div id="pairing-payload-group" hidden>
+                  <figure class="pairing-qr">
+                    <img id="pairing-qr" alt="Pairing target QR">
+                    <figcaption>Pairing target QR · exact public JSON below</figcaption>
+                  </figure>
+                  <label class="payload-label" for="pairing-payload">Pairing target context</label>
+                  <textarea id="pairing-payload" class="protocol-payload" rows="7" readonly></textarea>
+                  <button id="copy-pairing" class="protocol-action" type="button">Copy target context</button>
+                </div>
+              </section>
+
+              <section id="shot-protocol" aria-labelledby="shot-protocol-heading" hidden>
+                <div class="protocol-section-heading">
+                  <h2 id="shot-protocol-heading">Selected Shot</h2>
+                  <span id="shot-state" class="protocol-badge">Private</span>
+                </div>
+                <dl class="protocol-facts">
+                  <div><dt>ShotID</dt><dd id="shot-id">Legacy</dd></div>
+                  <div><dt>Evolution</dt><dd id="evolution-status">Not signed</dd></div>
+                  <div><dt>Signature</dt><dd id="signature-status">Not present</dd></div>
+                  <div><dt>Fascia</dt><dd id="fascia-status">Not present</dd></div>
+                  <div><dt>Conformance</dt><dd id="conformance-status">Not checked</dd></div>
+                  <div><dt>Published</dt><dd id="published-status">No</dd></div>
+                  <div><dt>Registry head</dt><dd id="registry-status">None</dd></div>
+                  <div><dt>Handle</dt><dd id="handle-status">Pending</dd></div>
+                  <div><dt>Appcoin</dt><dd id="appcoin-status">Pending</dd></div>
+                </dl>
+                <p id="shot-protocol-detail" class="protocol-note"></p>
+                <div class="protocol-actions">
+                  <button id="verify-shot" class="protocol-action" type="button">Verify</button>
+                  <button id="publish-shot" class="protocol-action experimental" type="button" disabled>Experimental publish</button>
+                </div>
+              </section>
+
+              <details class="advanced-inspector">
+                <summary>Advanced inspector</summary>
+                <pre id="protocol-json">Loading protocol facts…</pre>
+              </details>
+            </div>
+          </details>
+
           <section id="selection" class="selection" hidden>
             <div class="selected-app">
               <div id="selected-icon" class="selected-icon"></div>

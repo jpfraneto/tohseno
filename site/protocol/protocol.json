@@ -1,0 +1,12 @@
+{
+  "schema": "tohseno.protocol-page/1",
+  "protocol": "tohseno",
+  "candidate_version": "1.0.0-rc.1",
+  "codename": "GENESIS",
+  "status": "protocol candidate, not canonical release",
+  "chain_id": 4663,
+  "canonical": false,
+  "stable_installer_untouched": true,
+  "final_arweave_publication": "pending"
+}
+

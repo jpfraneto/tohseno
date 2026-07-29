@@ -1,0 +1,322 @@
+{
+  "protocol": "tohseno",
+  "schema": "tohseno.apple-fascia-definition/1",
+  "fascia": "tohseno.apple/1",
+  "candidate": {
+    "version": "1.0.0-rc.1",
+    "codename": "GENESIS",
+    "status": "protocol_candidate_not_canonical"
+  },
+  "application_shell": {
+    "framework": "SwiftUI",
+    "minimum_os": {
+      "iOS": "17.0"
+    },
+    "third_party_runtime_dependencies": false,
+    "useful_screen_without_onboarding": true,
+    "account_wall": false
+  },
+  "required_files": {
+    "shot_sidecars": [
+      "TOHSENO/shot.json",
+      "TOHSENO/signature.json",
+      "TOHSENO/fascia.json",
+      "TOHSENO/conformance.json"
+    ],
+    "documentation": [
+      "TOHSENO/FASCIA.md",
+      "TOHSENO/IDENTITY.md",
+      "TOHSENO/STORAGE.md",
+      "TOHSENO/CONTINUITY.md",
+      "TOHSENO/PRIVACY.md",
+      "TOHSENO/PROVENANCE.md",
+      "TOHSENO/DISTRIBUTION.md"
+    ],
+    "swift_sources": [
+      "TohsenoFascia/InstallationIdentity.swift",
+      "TohsenoFascia/ContinuityEnvelope.swift",
+      "TohsenoFascia/LocalPersistence.swift",
+      "TohsenoFascia/Provenance.swift",
+      "TohsenoFascia/TohsenoMetadata.swift"
+    ],
+    "embedded_metadata": "TOHSENO/embedded-provenance.json"
+  },
+  "required_interfaces": [
+    {
+      "name": "InstallationIdentity",
+      "source": "TohsenoFascia/InstallationIdentity.swift",
+      "requirements": [
+        "app_specific_p256",
+        "secure_enclave_when_available",
+        "keychain_this_device_only",
+        "no_private_key_export",
+        "deterministic_public_identifier"
+      ]
+    },
+    {
+      "name": "ContinuityEnvelope",
+      "source": "TohsenoFascia/ContinuityEnvelope.swift",
+      "requirements": [
+        "explicit_audience",
+        "originating_shot_id",
+        "narrow_claims",
+        "nonce",
+        "expiration",
+        "p256_signature",
+        "transport_neutral",
+        "bounded_duplicate_free_transport_json"
+      ]
+    },
+    {
+      "name": "LocalPersistence",
+      "source": "TohsenoFascia/LocalPersistence.swift",
+      "requirements": [
+        "local_first",
+        "atomic_files",
+        "preferences_only_user_defaults",
+        "no_implicit_cloud"
+      ]
+    },
+    {
+      "name": "Provenance",
+      "source": "TohsenoFascia/Provenance.swift",
+      "requirements": [
+        "embedded_public_facts",
+        "bundle_identity_check",
+        "bundle_version_check",
+        "no_secret_material"
+      ]
+    },
+    {
+      "name": "TohsenoMetadata",
+      "source": "TohsenoFascia/TohsenoMetadata.swift",
+      "requirements": [
+        "shot_id",
+        "sequence",
+        "evolution_commitment",
+        "builder_id",
+        "factory",
+        "distribution",
+        "capabilities",
+        "closed_bounded_duplicate_free_transport_json"
+      ]
+    }
+  ],
+  "installation_identity": {
+    "algorithm": "p256",
+    "scope": "one_installation_of_one_app",
+    "default_backend": "secure_enclave",
+    "fallback_backend": "software_this_device_only_for_simulator_or_unavailable_hardware",
+    "keychain_synchronizable": false,
+    "shared_access_group": false,
+    "central_registration": false,
+    "forbidden_links": [
+      "builder_device_key",
+      "builder_recovery",
+      "apple_id",
+      "global_tohseno_user",
+      "another_generated_app"
+    ]
+  },
+  "storage": {
+    "default": "local_first",
+    "structured_domain_state": "SwiftData_where_appropriate",
+    "small_preferences": "UserDefaults",
+    "small_secrets_and_key_references": "Keychain",
+    "eligible_signing_authority": "SecureEnclave",
+    "documents_and_exports": "files",
+    "cloudkit": "optional_and_explicitly_declared"
+  },
+  "continuity": {
+    "schema": "tohseno.continuity/1",
+    "default": "unlinkable",
+    "statement_schema": "tohseno.continuity-statement/1",
+    "canonicalization": "RFC8785",
+    "digest": "sha256_of_canonical_statement",
+    "required_statement_fields": [
+      "issuer",
+      "audience",
+      "originating_shot_id",
+      "claims",
+      "nonce",
+      "issued_at",
+      "expires_at"
+    ],
+    "signature_algorithm": "p256_over_declared_sha256_prehash",
+    "transports": [
+      "qr",
+      "file",
+      "deep_link"
+    ],
+    "official_service_required": false
+  },
+  "privacy": {
+    "telemetry_default": false,
+    "tracking": false,
+    "silent_identity_linkage": false,
+    "prompt_upload": false,
+    "private_shot_upload": false,
+    "local_content_upload": false,
+    "network_must_be_declared": true
+  },
+  "provenance": {
+    "required_fields": [
+      "protocol",
+      "schema",
+      "fascia",
+      "shot_id",
+      "builder_id",
+      "sequence",
+      "previous",
+      "evolution_commitment",
+      "source_tree_sha256",
+      "fascia_sha256",
+      "factory",
+      "bundle_id",
+      "bundle_version",
+      "distribution",
+      "capabilities",
+      "network"
+    ],
+    "optional_fields": [
+      "registry",
+      "origin"
+    ],
+    "forbidden_fields": [
+      "builder_device_private_key",
+      "builder_recovery_material",
+      "installation_private_key",
+      "private_prompt",
+      "private_app_data"
+    ],
+    "embedded_metadata_source_tree_exclusion": "TOHSENO/embedded-provenance.json"
+  },
+  "distribution": {
+    "states": [
+      "local",
+      "published",
+      "app_store"
+    ],
+    "bundle_version_rule": "CFBundleVersion_equals_sequence",
+    "apple_surfaces_from_project": true,
+    "app_store_attestation_explicit": true
+  },
+  "capability_vocabulary": [
+    {
+      "id": "local_storage",
+      "sensitive": false
+    },
+    {
+      "id": "network_access",
+      "sensitive": true
+    },
+    {
+      "id": "private_cloudkit_sync",
+      "sensitive": true
+    },
+    {
+      "id": "storekit",
+      "sensitive": true
+    },
+    {
+      "id": "notifications",
+      "sensitive": true
+    },
+    {
+      "id": "camera",
+      "sensitive": true
+    },
+    {
+      "id": "microphone",
+      "sensitive": true
+    },
+    {
+      "id": "location",
+      "sensitive": true
+    },
+    {
+      "id": "contacts",
+      "sensitive": true
+    },
+    {
+      "id": "health",
+      "sensitive": true
+    },
+    {
+      "id": "bluetooth",
+      "sensitive": true
+    },
+    {
+      "id": "other_apple_entitlements",
+      "sensitive": true,
+      "requires": "explicit_entitlement_identifiers"
+    }
+  ],
+  "capability_rules": {
+    "unknown_capability": "failure",
+    "undeclared_sensitive_capability": "failure",
+    "network_access": "endpoints_and_purpose_required",
+    "private_cloudkit_sync": "container_and_opt_in_required",
+    "usage_descriptions": "must_match_protected_apis",
+    "entitlements": "must_match_declarations"
+  },
+  "fascia_commitment": {
+    "algorithm": "sha256",
+    "root": "fascia/apple",
+    "included": "all_regular_files_except_declared_exclusions",
+    "excluded_paths": [
+      ".build",
+      ".swiftpm",
+      "Package.resolved"
+    ],
+    "exclusion_matching": "root_relative_P_equals_E_or_P_has_prefix_E_slash",
+    "symlinks_and_special_files": "failure",
+    "path_encoding": "relative_UTF-8_NFC_with_slash_separators",
+    "path_order": "unsigned_UTF-8_lexicographic",
+    "entry_encoding": "u64be(path_length)||path_bytes||u64be(content_length)||raw_content_bytes",
+    "stream_encoding": "concatenation_of_sorted_entries_without_prefix_or_count",
+    "empty_tree": "sha256_of_empty_byte_string"
+  },
+  "conformance_gates": [
+    {
+      "id": "required_files",
+      "failure": "missing_required_fascia_material"
+    },
+    {
+      "id": "target_membership",
+      "failure": "required_swift_source_not_in_application_target"
+    },
+    {
+      "id": "installation_identity_bootstrap",
+      "failure": "application_does_not_prepare_installation_identity"
+    },
+    {
+      "id": "third_party_dependencies",
+      "failure": "undeclared_or_forbidden_runtime_dependency"
+    },
+    {
+      "id": "capability_declarations",
+      "failure": "capability_project_mismatch"
+    },
+    {
+      "id": "privacy_boundary",
+      "failure": "secret_or_private_input_embedded"
+    },
+    {
+      "id": "bundle_identity",
+      "failure": "record_and_project_bundle_identifier_mismatch"
+    },
+    {
+      "id": "bundle_version",
+      "failure": "CFBundleVersion_does_not_equal_sequence"
+    },
+    {
+      "id": "provenance",
+      "failure": "embedded_and_signed_provenance_mismatch"
+    },
+    {
+      "id": "offline_build",
+      "failure": "application_does_not_build_from_declared_source"
+    }
+  ]
+}

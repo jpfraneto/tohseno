@@ -1,0 +1,313 @@
+name: genesis-candidate-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: genesis-candidate-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust protocol, engine, and CLI
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      - name: Tests, examples, and documentation targets
+        run: cargo test --locked --workspace --all-targets --all-features
+      - name: Verify the committed cross-language protocol vector
+        run: |
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_vectors \
+            >"$RUNNER_TEMP/protocol-v1.json"
+          cmp "$RUNNER_TEMP/protocol-v1.json" protocol/test-vectors/protocol-v1.json
+      - name: Verify schemas are closed Draft 2020-12 JSON
+        run: |
+          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 12
+          find protocol/schemas -type f -name '*.json' -print0 |
+            xargs -0 -n1 jq -e \
+              '."$schema" == "https://json-schema.org/draft/2020-12/schema"'
+      - name: Candidate CLI smoke
+        run: |
+          cargo run --quiet --locked -p tohseno -- --json protocol info |
+            jq -e '.protocol == "tohseno" and .candidate_version == "1.0.0-rc.1"'
+          cargo run --quiet --locked -p tohseno -- --version |
+            grep -F '1.0.0-rc.1'
+
+  apple:
+    name: Apple identity, Fascia, and Simulator fixture
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build Apple identity bridge
+        run: swift build --package-path apple-identity
+      - name: Test the software-backed identity bridge
+        run: swift test --package-path apple-identity
+      - name: Validate the normative Apple Fascia
+        run: sh fascia/apple/tests/validate-fascia.sh
+      - name: Build and test Apple Fascia reference sources
+        run: |
+          swift build --package-path fascia/apple
+          swift test --package-path fascia/apple
+      - name: Build generated fixture for Simulator
+        run: |
+          xcodebuild \
+            -project engine/fixtures/hello-world/HelloWorld.xcodeproj \
+            -scheme HelloWorld \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -disableAutomaticPackageResolution \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=YES \
+            build
+
+  contracts:
+    name: Solidity, fuzz, invariants, and generated artifacts
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
+        with:
+          version: v1.3.5
+      - name: Solidity formatting
+        run: forge fmt --root contracts --check
+      - name: Solidity build
+        run: forge build --root contracts --sizes
+      - name: Unit, fuzz, and invariant tests
+        run: forge test --root contracts -vvv
+      - name: Reject stale ABI, bytecode, or deployment-plan artifacts
+        run: scripts/build-contract-abi.sh --check
+
+  candidate-artifacts:
+    name: Static surfaces and deterministic candidate artifacts
+    needs: [rust, apple, contracts]
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+      - name: Static Studio and protocol-page checks
+        run: |
+          test -s studio/index.html
+          test -s studio/style.css
+          test -s studio/app.js
+          test -s site/protocol/index.html
+          test -s site/protocol/protocol.json
+          node --check studio/app.js
+          jq -e \
+            '.protocol == "tohseno" and .canonical == false' \
+            site/protocol/protocol.json
+          jq -e \
+            '.schema == "tohseno.genesis-candidate-report/1"
+             and .candidate.version == "1.0.0-rc.1"
+             and .candidate.canonical_release == false
+             and (.candidate.ready_for_prerelease | type == "boolean")
+             and (.candidate.ready_for_cleanup | type == "boolean")
+             and (.release.prerelease_authorized | type == "boolean")
+             and (.release.immutable_release_policy_verified | type == "boolean")
+             and (.release.release_tag_protection_verified | type == "boolean")
+             and (
+               .release.prerelease_authorized == false
+               or (
+                 .candidate.ready_for_prerelease == true
+                 and .release.immutable_release_policy_verified == true
+                 and .release.release_tag_protection_verified == true
+               )
+             )' \
+            genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
+          if grep -R -E \
+            '<script[^>]+src=|<link[^>]+href="https?://' \
+            site/protocol/index.html; then
+            echo "site/protocol must remain self-contained" >&2
+            exit 1
+          fi
+      - name: Installer and release-script syntax
+        run: |
+          find oneshot scripts fascia/apple/tests \
+            -type f -name '*.sh' -print0 |
+            xargs -0 -n1 sh -n
+          scripts/test-normalized-archive.sh
+          scripts/test-release-package-integrity.sh
+      - name: Audit release workflow trust boundaries
+        run: |
+          ruby <<'RUBY'
+          require "open3"
+          require "yaml"
+
+          workflow = YAML.safe_load_file(
+            ".github/workflows/release.yml",
+            aliases: true
+          )
+          unless workflow.fetch("permissions") == {"contents" => "read"}
+            abort "release workflow must default to contents: read"
+          end
+
+          jobs = workflow.fetch("jobs")
+          write_jobs = jobs.each_with_object([]) do |(name, job), names|
+            names << name if job.dig("permissions", "contents") == "write"
+          end
+          unless write_jobs == ["publish"]
+            abort "only the publish job may have contents: write"
+          end
+
+          checkout_steps = jobs.values.flat_map do |job|
+            job.fetch("steps", []).select do |step|
+              step.fetch("uses", "").start_with?("actions/checkout@")
+            end
+          end
+          if checkout_steps.empty? || checkout_steps.any? {
+               |step| step.dig("with", "persist-credentials") != false
+             }
+            abort "every release checkout must disable persisted credentials"
+          end
+
+          publish_steps = jobs.fetch("publish").fetch("steps")
+          release_step = publish_steps.find do |step|
+            step["name"] == "Verify event tag target and attach release files"
+          end
+          abort "release trust-boundary step is missing" unless release_step
+
+          script = release_step.fetch("run")
+          required_fragments = [
+            '"$GITHUB_EVENT_NAME" != "push"',
+            '"$GITHUB_REF_TYPE" != "tag"',
+            'git/ref/tags/${GITHUB_REF_NAME}',
+            '.ref == $ref',
+            'max_tag_depth=8',
+            'git/tags/$object_sha',
+            '.sha == $sha',
+            '"$object_sha" != "$GITHUB_SHA"',
+            "verify_live_tag",
+            "--draft",
+            "TOHSENO GENESIS source commit:",
+            "load_matching_release",
+            "release_is_draft",
+            "gh release upload",
+            "--clobber",
+            "application/octet-stream",
+            "cmp",
+            "gh release edit",
+            "--draft=false",
+            ".draft == false",
+            ".immutable == true",
+            "--verify-tag"
+          ]
+          missing = required_fragments.reject { |fragment| script.include?(fragment) }
+          abort "release trust-boundary checks missing: #{missing.join(", ")}" \
+            unless missing.empty?
+
+          api_version_header = "X-GitHub-Api-Version: 2026-03-10"
+          unless script.scan("X-GitHub-Api-Version:").length == 5 &&
+                 script.scan(api_version_header).length == 5 &&
+                 !script.include?("2022-11-28")
+            abort "all five release REST calls must pin API version 2026-03-10"
+          end
+
+          query_offset = script.index("git/ref/tags/")
+          release_offset = script.index("gh release create")
+          unless query_offset && release_offset && query_offset < release_offset
+            abort "live tag verification must precede release creation"
+          end
+          unless script.scan(/^\s*verify_live_tag\s*$/).length == 3
+            abort "live tag verification must cover draft, publish, and retry paths"
+          end
+          publish_offset = script.index("gh release edit")
+          unless publish_offset && release_offset < publish_offset
+            abort "assets must attach to a draft before publication"
+          end
+
+          _stdout, stderr, status = Open3.capture3(
+            "bash",
+            "-n",
+            stdin_data: script
+          )
+          abort "release publish shell is invalid: #{stderr}" unless status.success?
+          RUBY
+      - name: Build and independently recheck the Genesis bundle
+        run: |
+          scripts/build-genesis-bundle.sh
+          scripts/build-genesis-bundle.sh --check
+          (
+            cd dist/genesis
+            python3 ../../scripts/release-package-integrity.py \
+              verify-manifest \
+              --root . \
+              --manifest-name FILES.sha256
+            shasum -a 256 -c FILES.sha256
+            jq -e \
+              '.canonical_release == false
+               and .candidate_version == "1.0.0-rc.1"
+               and .deployment.candidate.status
+                   == "planned, undeployed, non-canonical and unaudited"' \
+              GENESIS.json
+          )
+          scripts/build-genesis-archive.sh \
+            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz"
+          scripts/build-genesis-archive.sh \
+            "$RUNNER_TEMP/tohseno-genesis-materials-second.tar.gz"
+          cmp \
+            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz" \
+            "$RUNNER_TEMP/tohseno-genesis-materials-second.tar.gz"
+          tar -tzf \
+            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz" >/dev/null
+      - name: Assemble and smoke-test the release-candidate package
+        run: |
+          scripts/release-candidate.sh
+          candidate_target="$(rustc -vV | awk '/^host:/ {print $2}')"
+          package="dist/release-candidate/$candidate_target"
+          (
+            cd "$package"
+            python3 ../../../scripts/release-package-integrity.py \
+              verify-manifest \
+              --root .
+            shasum -a 256 -c CHECKSUMS.sha256
+            jq -e \
+              '.schema == "tohseno.release/1" and .dirty == false' \
+              RELEASE.json
+          )
+          "$package/bin/tohseno" --version | grep -F '1.0.0-rc.1'
+          "$package/bin/tohseno-apple-identity" --version |
+            grep -F '1.0.0-rc.1'
+          "$package/bin/tohseno" --json protocol info |
+            jq -e '.protocol == "tohseno" and .candidate_version == "1.0.0-rc.1"'
+          scripts/test-genesis-installer.sh \
+            "$package" \
+            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz"
+      - name: Reject tracked generated drift
+        run: git diff --exit-code --

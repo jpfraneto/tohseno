@@ -1,0 +1,69 @@
+{
+  "schema": "tohseno.network-status-evidence/1",
+  "checked_at": "2026-07-29T03:50:09Z",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "request_policy": "read-only eth_chainId, eth_getCode, and eth_call",
+  "result": {
+    "schema": "tohseno.network-status/1",
+    "ready": false,
+    "chain_id": 4663,
+    "checks": [
+      {
+        "id": "candidate.plan",
+        "status": "pass",
+        "expected": "strict embedded GENESIS deployment plan",
+        "observed": "planned, undeployed baseline parsed and CREATE2 coordinates reproduced",
+        "evidence": "embedded:contracts/deployments/robinhood-mainnet-genesis.json"
+      },
+      {
+        "id": "network.chain_id",
+        "status": "pass",
+        "expected": "4663",
+        "observed": "4663",
+        "evidence": "rpc:eth_chainId"
+      },
+      {
+        "id": "network.code.deployer",
+        "status": "pass",
+        "expected": "69 bytes, keccak256 0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989",
+        "observed": "69 bytes with keccak256 0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989",
+        "evidence": "rpc:eth_getCode:0x4e59b44847b379578588920ca78fbf26c0b4956c"
+      },
+      {
+        "id": "network.code.builder_account_factory",
+        "status": "fail",
+        "expected": "9846 bytes, keccak256 0x1f44f9fa643277e05f5a9d1f6a05b4cee9264c261a423021c5e0c7f5da3b312a",
+        "observed": "no code at the planned address; candidate is undeployed",
+        "evidence": "rpc:eth_getCode:0xb802f0ef1595734f2529f602f2473d829d6aafaf"
+      },
+      {
+        "id": "network.code.shot_registry",
+        "status": "fail",
+        "expected": "8203 bytes, keccak256 0xac64e4933d88d40c18af598f7ebf7bc8f7b829e1a61acb8e380d4ac670f31478",
+        "observed": "no code at the planned address; candidate is undeployed",
+        "evidence": "rpc:eth_getCode:0x5daf4fa6c285afb4b19978ad56a3892e7676cc68"
+      },
+      {
+        "id": "network.code.shot_relations",
+        "status": "fail",
+        "expected": "9199 bytes, keccak256 0x909ba083f6b186b08f80d5ea465878f7a0c909f1c65b11d2ed8ca11a40669de5",
+        "observed": "no code at the planned address; candidate is undeployed",
+        "evidence": "rpc:eth_getCode:0xb7dc8acfbfc5d93146e4e88d12e5223a5e6a3b83"
+      },
+      {
+        "id": "network.p256verify",
+        "status": "pass",
+        "expected": "EIP-7951 known vector returns exactly 32-byte integer 1",
+        "observed": "exact 32-byte integer 1",
+        "evidence": "rpc:eth_call:0x0000000000000000000000000000000000000100"
+      },
+      {
+        "id": "network.relations.registry",
+        "status": "not_checked",
+        "expected": "0x5daf4fa6c285afb4b19978ad56a3892e7676cc68",
+        "observed": "registry or relations runtime code was not verified",
+        "evidence": "rpc:eth_call:ShotRelations.registry()"
+      }
+    ]
+  }
+}

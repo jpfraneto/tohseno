@@ -3,45 +3,488 @@ name: release
 on:
   push:
     tags:
-      - "v*"
+      - "v1.0.0-rc.1"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  authorize-prerelease:
+    name: Require recorded prerelease authorization
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify prerelease readiness and explicit authorization
+        run: |
+          jq -e \
+            '.schema == "tohseno.genesis-candidate-report/1"
+             and .candidate.version == "1.0.0-rc.1"
+             and .candidate.canonical_release == false
+             and .candidate.ready_for_prerelease == true
+             and .release.prerelease_authorized == true
+             and .release.immutable_release_policy_verified == true
+             and .release.release_tag_protection_verified == true' \
+            genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
+
   build:
+    needs: [verify, authorize-prerelease]
     runs-on: macos-14
     strategy:
       matrix:
-        target:
-          - aarch64-apple-darwin
-          - x86_64-apple-darwin
+        include:
+          - target: aarch64-apple-darwin
+            mach_o_arch: arm64
+          - target: x86_64-apple-darwin
+            mach_o_arch: x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.88.0
+          targets: ${{ matrix.target }}
       - name: Install Rust target
         run: rustup target add "${{ matrix.target }}"
-      - name: Build release binary
-        run: cargo build --release --locked --target "${{ matrix.target }}" --bin tohseno
-      - name: Name release binary
+      - name: Assemble the verified clean-snapshot package
+        env:
+          TOHSENO_RELEASE_TARGET: ${{ matrix.target }}
+        run: scripts/release-candidate.sh
+      - name: Verify and name release artifacts
         run: |
+          package="dist/release-candidate/${{ matrix.target }}"
+          expected_source_state="$(
+            python3 scripts/release-package-integrity.py source-state \
+              --repository-root .
+          )"
+          (
+            cd "$package"
+            python3 ../../../scripts/release-package-integrity.py \
+              verify-manifest \
+              --root .
+            jq -e \
+              --arg commit "$(git rev-parse 'HEAD^{commit}')" \
+              --arg source_state "$expected_source_state" \
+              --arg target '${{ matrix.target }}' \
+              '.schema == "tohseno.release/1"
+               and .version == "1.0.0-rc.1"
+               and .codename == "GENESIS"
+               and .target == $target
+               and .source_commit == $commit
+               and .source_state_sha256 == $source_state
+               and .dirty == false
+               and .channel == "genesis"
+               and .prerelease == true
+               and .stable_untouched == true' \
+              RELEASE.json
+          )
+          verify_macho() {
+            binary="$1"
+            expected_architecture="$2"
+            actual_architectures="$(lipo -archs "$binary")"
+            if [ "$actual_architectures" != "$expected_architecture" ]; then
+              printf 'unexpected architectures for %s: %s\n' \
+                "$binary" "$actual_architectures" >&2
+              return 1
+            fi
+            build_versions="$(
+              vtool -show-build "$binary" |
+                awk '
+                  $1 == "platform" { platform = $2 }
+                  $1 == "minos" { print platform ":" $2 }
+                '
+            )"
+            if [ "$build_versions" != "MACOS:13.0" ]; then
+              printf 'unexpected build versions for %s: %s\n' \
+                "$binary" "$build_versions" >&2
+              return 1
+            fi
+          }
+          verify_macho \
+            "$package/bin/tohseno" \
+            '${{ matrix.mach_o_arch }}'
+          verify_macho \
+            "$package/bin/tohseno-apple-identity" \
+            '${{ matrix.mach_o_arch }}'
           mkdir artifacts
-          cp "target/${{ matrix.target }}/release/tohseno" "artifacts/tohseno-${{ matrix.target }}"
-      - uses: actions/upload-artifact@v4
+          cp "$package/bin/tohseno" "artifacts/tohseno-${{ matrix.target }}"
+          cp \
+            "$package/bin/tohseno-apple-identity" \
+            "artifacts/tohseno-apple-identity-${{ matrix.target }}"
+          cp \
+            "$package/RELEASE.json" \
+            "artifacts/tohseno-release-${{ matrix.target }}.json"
+          cp \
+            "$package/CHECKSUMS.sha256" \
+            "artifacts/tohseno-checksums-${{ matrix.target }}.sha256"
+          COPYFILE_DISABLE=1 tar -czf \
+            "artifacts/tohseno-release-candidate-${{ matrix.target }}.tar.gz" \
+            -C dist/release-candidate \
+            "${{ matrix.target }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tohseno-${{ matrix.target }}
           path: artifacts/tohseno-${{ matrix.target }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tohseno-apple-identity-${{ matrix.target }}
+          path: artifacts/tohseno-apple-identity-${{ matrix.target }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tohseno-release-provenance-${{ matrix.target }}
+          path: |
+            artifacts/tohseno-release-${{ matrix.target }}.json
+            artifacts/tohseno-checksums-${{ matrix.target }}.sha256
+            artifacts/tohseno-release-candidate-${{ matrix.target }}.tar.gz
 
   publish:
     needs: build
     runs-on: macos-14
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: 1.88.0
+      - uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1
+        with:
+          version: v1.3.5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
-      - name: Attach release files
+      - name: Assemble candidate material
+        run: |
+          scripts/build-contract-abi.sh --check
+          scripts/build-genesis-bundle.sh
+          scripts/build-genesis-bundle.sh --check
+          scripts/build-genesis-archive.sh \
+            artifacts/tohseno-genesis-materials.tar.gz
+          cp oneshot/oneshot.sh artifacts/oneshot.sh
+          python3 scripts/release-package-integrity.py write-manifest \
+            --root artifacts \
+            --manifest-name SHA256SUMS
+          python3 scripts/release-package-integrity.py verify-manifest \
+            --root artifacts \
+            --manifest-name SHA256SUMS
+      - name: Verify event tag target and attach release files
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/* oneshot/oneshot.sh --generate-notes
+        run: |
+          verify_live_tag() {
+          if [ "$GITHUB_EVENT_NAME" != "push" ] ||
+            [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            printf 'release publication requires an exact tag push event\n' >&2
+            exit 1
+          fi
+          expected_ref="refs/tags/$GITHUB_REF_NAME"
+          if [ "$GITHUB_REF" != "$expected_ref" ]; then
+            printf 'event ref %s does not match expected tag ref %s\n' \
+              "$GITHUB_REF" "$expected_ref" >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$GITHUB_SHA" |
+            grep -Eq '^[0-9a-f]{40}$'; then
+            printf 'event SHA is not a full lowercase Git object ID\n' >&2
+            exit 1
+          fi
 
+          ref_json="$(
+            gh api \
+              --method GET \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}"
+          )"
+          ref_object="$(
+            printf '%s\n' "$ref_json" |
+              jq -er --arg ref "$expected_ref" '
+                if (
+                  type == "object"
+                  and .ref == $ref
+                  and ((.object | type) == "object")
+                  and (
+                    .object.type == "commit"
+                    or .object.type == "tag"
+                  )
+                  and ((.object.sha | type) == "string")
+                  and (.object.sha | test("^[0-9a-f]{40}$"))
+                ) then
+                  [.object.type, .object.sha] | @tsv
+                else
+                  error("invalid or mismatched Git tag ref response")
+                end
+              '
+          )"
+          IFS=$'\t' read -r object_type object_sha <<<"$ref_object"
+
+          max_tag_depth=8
+          tag_depth=0
+          while [ "$object_type" = "tag" ]; do
+            tag_depth="$((tag_depth + 1))"
+            if [ "$tag_depth" -gt "$max_tag_depth" ]; then
+              printf 'annotated tag chain exceeds depth %s\n' \
+                "$max_tag_depth" >&2
+              exit 1
+            fi
+            tag_json="$(
+              gh api \
+                --method GET \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2026-03-10' \
+                "repos/${GITHUB_REPOSITORY}/git/tags/$object_sha"
+            )"
+            tag_object="$(
+              printf '%s\n' "$tag_json" |
+                jq -er --arg sha "$object_sha" '
+                  if (
+                    type == "object"
+                    and .sha == $sha
+                    and ((.object | type) == "object")
+                    and (
+                      .object.type == "commit"
+                      or .object.type == "tag"
+                    )
+                    and ((.object.sha | type) == "string")
+                    and (.object.sha | test("^[0-9a-f]{40}$"))
+                  ) then
+                    [.object.type, .object.sha] | @tsv
+                  else
+                    error("invalid annotated Git tag response")
+                  end
+                '
+            )"
+            IFS=$'\t' read -r object_type object_sha <<<"$tag_object"
+          done
+
+          if [ "$object_type" != "commit" ]; then
+            printf 'tag resolved to unsupported Git object type %s\n' \
+              "$object_type" >&2
+            exit 1
+          fi
+          if [ "$object_sha" != "$GITHUB_SHA" ]; then
+            printf 'live tag commit %s does not match event commit %s\n' \
+              "$object_sha" "$GITHUB_SHA" >&2
+            exit 1
+          fi
+          }
+
+          load_matching_release() {
+            gh api \
+              --method GET \
+              --paginate \
+              --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" |
+              jq -er --arg tag "$GITHUB_REF_NAME" '
+                [
+                  .[][]
+                  | select(.tag_name == $tag)
+                ] as $matches
+                | if ($matches | length) == 1 then
+                    $matches[0]
+                  else
+                    error(
+                      "expected exactly one release for the event tag"
+                    )
+                  end
+              '
+          }
+
+          verify_live_tag
+          release_marker="TOHSENO GENESIS source commit: $GITHUB_SHA"
+          releases_json="$(
+            gh api \
+              --method GET \
+              --paginate \
+              --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2026-03-10' \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100"
+          )"
+          matching_release_count="$(
+            printf '%s\n' "$releases_json" |
+              jq -er --arg tag "$GITHUB_REF_NAME" '
+                [
+                  .[][]
+                  | select(.tag_name == $tag)
+                ]
+                | length
+              '
+          )"
+          case "$matching_release_count" in
+            0)
+              gh release create \
+                "$GITHUB_REF_NAME" \
+                --draft \
+                --prerelease \
+                --verify-tag \
+                --generate-notes \
+                --notes "$release_marker"
+              ;;
+            1) ;;
+            *)
+              printf 'expected at most one release for tag %s; found %s\n' \
+                "$GITHUB_REF_NAME" "$matching_release_count" >&2
+              exit 1
+              ;;
+          esac
+
+          release_json="$(load_matching_release)"
+          printf '%s\n' "$release_json" |
+            jq -e \
+              --arg tag "$GITHUB_REF_NAME" \
+              --arg marker "$release_marker" '
+                .tag_name == $tag
+                and .prerelease == true
+                and (.draft | type) == "boolean"
+                and ((.body | type) == "string")
+                and (.body | contains($marker))
+                and ((.assets | type) == "array")
+              ' >/dev/null
+
+          local_assets=(artifacts/*)
+          if [ "${#local_assets[@]}" -eq 0 ] ||
+            [ "${local_assets[0]}" = "artifacts/*" ]; then
+            printf 'no release assets were assembled\n' >&2
+            exit 1
+          fi
+          expected_asset_names="$(
+            for local_asset in "${local_assets[@]}"; do
+              if [ ! -f "$local_asset" ] || [ -L "$local_asset" ]; then
+                printf 'release asset is not a real regular file: %s\n' \
+                  "$local_asset" >&2
+                exit 1
+              fi
+              basename "$local_asset"
+            done | LC_ALL=C sort
+          )"
+
+          verify_remote_assets() {
+            observed_asset_names="$(
+              printf '%s\n' "$release_json" |
+                jq -r '.assets[].name' |
+                LC_ALL=C sort
+            )"
+            if [ "$observed_asset_names" != "$expected_asset_names" ]; then
+              printf 'uploaded release asset set was not exact\n' >&2
+              exit 1
+            fi
+            verification_directory="$RUNNER_TEMP/tohseno-release-assets"
+            if [ -e "$verification_directory" ]; then
+              printf 'release verification directory already exists: %s\n' \
+                "$verification_directory" >&2
+              exit 1
+            fi
+            mkdir "$verification_directory"
+            for local_asset in "${local_assets[@]}"; do
+              asset_name="$(basename "$local_asset")"
+              downloaded_asset="$verification_directory/$asset_name"
+              asset_id="$(
+                printf '%s\n' "$release_json" |
+                  jq -er --arg name "$asset_name" '
+                    [
+                      .assets[]
+                      | select(
+                          .name == $name
+                          and .state == "uploaded"
+                          and (.id | type) == "number"
+                        )
+                    ] as $matches
+                    | if ($matches | length) == 1 then
+                        $matches[0].id
+                      else
+                        error("release asset was missing or ambiguous")
+                      end
+                  '
+              )"
+              gh api \
+                --method GET \
+                -H 'Accept: application/octet-stream' \
+                -H 'X-GitHub-Api-Version: 2026-03-10' \
+                "repos/${GITHUB_REPOSITORY}/releases/assets/$asset_id" \
+                >"$downloaded_asset"
+              if [ ! -f "$downloaded_asset" ] ||
+                [ -L "$downloaded_asset" ] ||
+                ! cmp "$local_asset" "$downloaded_asset"; then
+                printf 'downloaded release asset did not match: %s\n' \
+                  "$asset_name" >&2
+                exit 1
+              fi
+            done
+            downloaded_asset_count="$(
+              find "$verification_directory" -type f | wc -l | tr -d ' '
+            )"
+            if [ "$downloaded_asset_count" -ne "${#local_assets[@]}" ]; then
+              printf 'downloaded release asset set was not exact\n' >&2
+              exit 1
+            fi
+          }
+
+          release_is_draft="$(
+            printf '%s\n' "$release_json" | jq -r '.draft | tostring'
+          )"
+          if [ "$release_is_draft" = "false" ]; then
+            printf '%s\n' "$release_json" |
+              jq -e '.immutable == true' >/dev/null
+            verify_remote_assets
+            verify_live_tag
+            exit 0
+          fi
+          if [ "$release_is_draft" != "true" ]; then
+            printf 'release draft state was invalid\n' >&2
+            exit 1
+          fi
+
+          unexpected_assets="$(
+            comm -23 \
+              <(
+                printf '%s\n' "$release_json" |
+                  jq -r '.assets[].name' |
+                  LC_ALL=C sort
+              ) \
+              <(printf '%s\n' "$expected_asset_names")
+          )"
+          if [ -n "$unexpected_assets" ]; then
+            printf 'draft contains unexpected release assets:\n%s\n' \
+              "$unexpected_assets" >&2
+            exit 1
+          fi
+
+          gh release upload \
+            "$GITHUB_REF_NAME" \
+            "${local_assets[@]}" \
+            --clobber
+
+          release_json="$(load_matching_release)"
+          verify_remote_assets
+
+          verify_live_tag
+          gh release edit \
+            "$GITHUB_REF_NAME" \
+            --draft=false \
+            --prerelease \
+            --verify-tag
+          published_release_json="$(load_matching_release)"
+          printf '%s\n' "$published_release_json" |
+            jq -e \
+              --arg tag "$GITHUB_REF_NAME" \
+              --arg marker "$release_marker" \
+              --argjson expected_count "${#local_assets[@]}" '
+                .tag_name == $tag
+                and .draft == false
+                and .prerelease == true
+                and .immutable == true
+                and ((.body | type) == "string")
+                and (.body | contains($marker))
+                and (.assets | length) == $expected_count
+              ' >/dev/null
