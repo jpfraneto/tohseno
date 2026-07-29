@@ -1,7 +1,8 @@
+use crate::builder_identity::{BuilderIdentity, BuilderIdentityError, BuilderIdentityManager};
 use crate::config::{Config, ConfigError, HarnessConfig};
 use crate::events::{Event, EventBus};
+use crate::gates::apple_signing::{self, AppleSigningState};
 use crate::gates::device::{self, DeviceState};
-use crate::gates::identity::{self, IdentityState};
 use crate::gates::intent::{Intent, IntentError};
 use crate::gates::toolchain::{self, ToolchainState};
 use crate::gates::{build, install, sign};
@@ -9,17 +10,29 @@ use crate::genome::{Genome, GenomeError};
 use crate::harness::{
     discover_harnesses, selected_harness, Harness, HarnessError, HarnessMode, HarnessOption,
 };
-use crate::ledger::{sanitize_component, Ledger, LedgerError, Shot};
+use crate::ledger::{sanitize_component, AppRecord, Ledger, LedgerError, Shot};
+use crate::protocol_lifecycle::{self, ProtocolLifecycleError};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tohseno_protocol::record::ShotOrigin;
 
 #[derive(Clone, Debug)]
 pub struct ShotRequest {
     pub app_name: String,
     pub intent: Intent,
     pub harness: Option<String>,
+}
+
+struct ShotExecution {
+    request: ShotRequest,
+    shot: Shot,
+    app: AppRecord,
+    previous_source: Option<PathBuf>,
+    harness_config: HarnessConfig,
+    builder: BuilderIdentity,
+    origin: Option<ShotOrigin>,
 }
 
 pub struct Engine {
@@ -61,48 +74,151 @@ impl Engine {
 
     pub async fn create(&self, request: ShotRequest) -> Result<Shot, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
+        let _app_lock = self.ledger.lock_app(&request.app_name)?;
         let harness = self.harness_for_request(request.harness.as_deref())?;
         self.check_slot_limit()?;
-        let bundle_id = bundle_id(&request.app_name)?;
-        self.ledger.create_app(&request.app_name, &bundle_id)?;
+        self.emit_upsell_once(
+            "welcome",
+            "first shot: this Mac needs Xcode and an Apple ID signed into Xcode. Your iPhone joins later — cable, one Developer Mode restart, and on a free Apple ID a weekly `tohseno refresh`.",
+        )?;
+        self.events
+            .emit(Event::status("preparing your TOHSENO identity…"));
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        let proposed_bundle_id = bundle_id(&request.app_name)?;
+        let mut app = match self.ledger.load_app(&request.app_name) {
+            Ok(existing) if existing.latest_shot.is_none() => existing,
+            Ok(_) => return Err(LedgerError::AppExists(request.app_name.clone()).into()),
+            Err(LedgerError::AppMissing(_)) => self
+                .ledger
+                .create_app(&request.app_name, &proposed_bundle_id)?,
+            Err(error) => return Err(error.into()),
+        };
+        if app.shot_id.is_none() && app.builder_id.is_none() {
+            app = self.ledger.bind_protocol_identity(
+                &request.app_name,
+                tohseno_protocol::digest::ShotId::random(),
+                builder.builder_id,
+            )?;
+        }
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(request.app_name.clone()));
+        }
         let shot = self.ledger.reserve_shot(&request.app_name, None)?;
-        self.run_shot(request, shot, bundle_id, None, harness).await
+        self.run_shot(ShotExecution {
+            request,
+            shot,
+            app,
+            previous_source: None,
+            harness_config: harness,
+            builder,
+            origin: None,
+        })
+        .await
     }
 
     pub async fn evolve(&self, request: ShotRequest) -> Result<Shot, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
+        let _app_lock = self.ledger.lock_app(&request.app_name)?;
         let harness = self.harness_for_request(request.harness.as_deref())?;
         let app = self.ledger.load_app(&request.app_name)?;
+        if app.shot_id.is_none() || app.builder_id.is_none() {
+            return Err(EngineError::LegacyRequiresAdoption(
+                request.app_name.clone(),
+            ));
+        }
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(request.app_name.clone()));
+        }
         let previous = self
             .ledger
             .latest_shot(&request.app_name)?
             .ok_or_else(|| EngineError::NoCompleteShot(request.app_name.clone()))?;
+        protocol_lifecycle::verify_completed_evolution(&previous)?;
         let shot = self
             .ledger
             .reserve_shot(&request.app_name, Some(previous.number))?;
-        self.run_shot(
+        self.run_shot(ShotExecution {
             request,
             shot,
-            app.bundle_id,
-            Some(previous.source_path()),
-            harness,
-        )
+            app,
+            previous_source: Some(previous.source_path()),
+            harness_config: harness,
+            builder,
+            origin: None,
+        })
         .await
     }
 
-    async fn run_shot(
+    pub async fn adopt(
         &self,
-        request: ShotRequest,
-        shot: Shot,
-        bundle_id: String,
-        previous_source: Option<PathBuf>,
-        harness_config: HarnessConfig,
+        app_name: &str,
+        requested_harness: Option<&str>,
     ) -> Result<Shot, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let harness = self.harness_for_request(requested_harness)?;
+        let mut app = self.ledger.load_app(app_name)?;
+        if app.shot_id.is_some() || app.builder_id.is_some() {
+            return Err(EngineError::AlreadyProtocol(app_name.into()));
+        }
+        let previous = self
+            .ledger
+            .latest_shot(app_name)?
+            .ok_or_else(|| EngineError::NoCompleteShot(app_name.into()))?;
+        let legacy_source_sha256 =
+            tohseno_protocol::tree_hash::hash_source_tree(&previous.source_path())
+                .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?
+                .digest;
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        app = self.ledger.bind_protocol_identity(
+            app_name,
+            tohseno_protocol::digest::ShotId::random(),
+            builder.builder_id,
+        )?;
+        let shot = self.ledger.reserve_shot(app_name, Some(previous.number))?;
+        let request = ShotRequest {
+            app_name: app_name.into(),
+            intent: Intent {
+                prompt: "Adopt this existing unsigned app into the TOHSENO protocol without changing its purpose or private local behavior.".into(),
+                images: Vec::new(),
+            },
+            harness: requested_harness.map(str::to_owned),
+        };
+        let origin = ShotOrigin::LegacyAdoption {
+            legacy_latest_shot: previous.number,
+            legacy_source_sha256,
+        };
+        self.run_shot(ShotExecution {
+            request,
+            shot,
+            app,
+            previous_source: Some(previous.source_path()),
+            harness_config: harness,
+            builder,
+            origin: Some(origin),
+        })
+        .await
+    }
+
+    async fn run_shot(&self, execution: ShotExecution) -> Result<Shot, EngineError> {
+        let ShotExecution {
+            request,
+            shot,
+            app,
+            previous_source,
+            harness_config,
+            builder,
+            origin,
+        } = execution;
+        let bundle_id = app.bundle_id.clone();
+        install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
         self.events
             .emit(Event::status(format!("preparing shot {}…", shot.number)));
         let image_names = request
             .intent
             .write_to_shot(&self.ledger, &shot, &self.events)?;
+        let genesis_input_sha256 = protocol_lifecycle::capture_input_commitment(&shot)?;
         self.genome.compose(
             &self.ledger,
             &shot,
@@ -126,10 +242,34 @@ impl Engine {
                 "Read TASK.md first, then build the complete app in src/ and verify your work.",
             )
             .await?;
-        build::validate_complete_source(&shot.source_path())?;
 
         let mut repair_pass = 0;
         loop {
+            if let Err(error) = build::validate_complete_source(&shot.source_path()) {
+                if repair_pass >= self.config.max_repair_passes {
+                    return Err(EngineError::RepairExhausted {
+                        shot: shot.number,
+                        passes: self.config.max_repair_passes,
+                    });
+                }
+                repair_pass += 1;
+                self.events.emit(Event::status(format!(
+                    "repairing shot {} · pass {} of {}…",
+                    shot.number, repair_pass, self.config.max_repair_passes
+                )));
+                self.genome
+                    .append_repair(&self.ledger, &shot, repair_pass, &error.to_string())?;
+                harness
+                    .run(
+                        &self.ledger,
+                        &shot,
+                        harness_mode,
+                        "Read TASK.md, restore the missing Apple Fascia anatomy, and leave the complete corrected project in src/.",
+                    )
+                    .await?;
+                continue;
+            }
+
             self.events
                 .emit(Event::status(format!("building shot {}…", shot.number)));
             match build::compile(&self.ledger, &shot, &request.app_name)? {
@@ -150,7 +290,6 @@ impl Engine {
                             "Read TASK.md, fix the latest build failure, and leave the complete corrected project in src/.",
                         )
                         .await?;
-                    build::validate_complete_source(&shot.source_path())?;
                 }
                 Err(_) => {
                     return Err(EngineError::RepairExhausted {
@@ -161,22 +300,62 @@ impl Engine {
             }
         }
 
-        let pipeline = DevicePipeline::new(self.events.clone());
-        pipeline
-            .build_install(
-                shot.number,
-                &request.app_name,
-                &bundle_id,
-                &shot.source_path(),
-                &shot.artifact_path(),
-            )
-            .await?;
+        self.events
+            .emit(Event::status(format!("committing shot {}…", shot.number)));
+        let prepared = protocol_lifecycle::prepare_evolution(
+            &self.ledger,
+            &shot,
+            &app,
+            &builder,
+            genesis_input_sha256,
+            origin,
+        )?;
+
+        // The Mac is enough for a complete, signed, verifiable private Shot.
+        // The phone is a destination, offered afterwards and resumable through
+        // `tohseno refresh`.
+        self.events.emit(Event::status(format!(
+            "materializing shot {}…",
+            shot.number
+        )));
+        if let Err(failure) = build::materialize_artifact(&self.ledger, &shot, &request.app_name)? {
+            return Err(EngineError::ArtifactUnbuildable(failure.output));
+        }
+        self.events
+            .emit(Event::status(format!("verifying shot {}…", shot.number)));
+        protocol_lifecycle::complete_evolution(&self.ledger, &shot, &builder, prepared)?;
         self.ledger.finalize_shot(&shot)?;
+        protocol_lifecycle::verify_completed_evolution(&shot)?;
         self.ledger.set_retired(&request.app_name, false)?;
         self.events.emit(Event::result(format!(
-            "shot {} of {} is on your phone.",
+            "shot {} of {} is complete and verified on this Mac.",
             shot.number, request.app_name
         )));
+
+        match device::check() {
+            Ok(DeviceState::Ready(_)) => {
+                let artifact_directory = temporary_path("install");
+                DevicePipeline::new(self.events.clone())
+                    .build_install(
+                        shot.number,
+                        &request.app_name,
+                        &bundle_id,
+                        &shot.source_path(),
+                        &artifact_directory,
+                    )
+                    .await?;
+                self.events.emit(Event::result(format!(
+                    "shot {} of {} is on your phone.",
+                    shot.number, request.app_name
+                )));
+            }
+            _ => {
+                self.events.emit(Event::handoff(format!(
+                    "Plug in your iPhone anytime and run `tohseno refresh {}` to put shot {} on it.",
+                    request.app_name, shot.number
+                )));
+            }
+        }
         Ok(shot)
     }
 
@@ -196,7 +375,16 @@ impl Engine {
                 .collect()
         };
         for app in apps.into_iter().filter(|app| app.latest_shot.is_some()) {
+            let _app_lock = self.ledger.lock_app(&app.name)?;
+            let app = self.ledger.load_app(&app.name)?;
+            if app.latest_shot.is_none() {
+                continue;
+            }
+            if app.retired {
+                self.check_slot_limit()?;
+            }
             let shot = self.ledger.latest_shot(&app.name)?.unwrap();
+            protocol_lifecycle::verify_completed_evolution(&shot)?;
             let recorded_artifact = shot.artifact_path().join(format!("{}.app", app.name));
             if sign::days_until_expiry(&recorded_artifact).is_some_and(|days| days <= 0) {
                 self.emit_upsell_once(
@@ -228,14 +416,17 @@ impl Engine {
     }
 
     pub async fn retire(&self, app_name: &str) -> Result<(), EngineError> {
-        self.wait_for_apple_prerequisites().await?;
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
         let app = self.ledger.load_app(app_name)?;
+        install::require_candidate_namespace(&app.bundle_id).map_err(EngineError::Install)?;
+        self.wait_for_apple_prerequisites().await?;
         let device = DevicePipeline::new(self.events.clone())
             .wait_for_device()
             .await?;
         self.events
             .emit(Event::status(format!("retiring {app_name}…")));
-        install::retire(&device, &app.bundle_id).map_err(EngineError::Command)?;
+        install::retire(&device, &app.bundle_id).map_err(EngineError::Install)?;
         self.ledger.set_retired(app_name, true)?;
         self.events.emit(Event::result(format!(
             "{app_name} is off your phone and remains in your ledger."
@@ -305,6 +496,13 @@ impl Engine {
         let Some(requested) = requested else {
             return Ok(self.config.harness.clone());
         };
+        if Path::new(requested).is_absolute() {
+            // A bring-your-own agent is a one-shot choice, never persisted
+            // over the builder's configured default.
+            return Ok(HarnessConfig {
+                command: crate::harness::command_for_path(Path::new(requested)),
+            });
+        }
         let harness = selected_harness(requested)?;
         if harness.command != self.config.harness.command {
             let mut config = self.config.clone();
@@ -343,16 +541,16 @@ impl Engine {
             }
         }
 
-        let mut identity_announced = false;
+        let mut apple_signing_announced = false;
         loop {
-            match identity::check() {
-                IdentityState::Ready { .. } => return Ok(()),
-                IdentityState::Missing => {
-                    if !identity_announced {
+            match apple_signing::check() {
+                AppleSigningState::Ready { .. } => return Ok(()),
+                AppleSigningState::Missing => {
+                    if !apple_signing_announced {
                         self.events.emit(Event::handoff(
                             "Open Xcode → Settings → Accounts and sign in with your Apple ID.",
                         ));
-                        identity_announced = true;
+                        apple_signing_announced = true;
                     }
                     tokio::time::sleep(Duration::from_secs(2)).await;
                 }
@@ -410,6 +608,7 @@ impl DevicePipeline {
         source: &Path,
         artifact_directory: &Path,
     ) -> Result<(), EngineError> {
+        install::require_candidate_namespace(bundle_id).map_err(EngineError::Install)?;
         let device = self.wait_for_device().await?;
         self.events
             .emit(Event::status(format!("signing shot {shot_number}…")));
@@ -424,8 +623,8 @@ impl DevicePipeline {
         .map_err(EngineError::Sign)?;
         self.events
             .emit(Event::status(format!("installing shot {shot_number}…")));
-        install::install(&device, &app).map_err(EngineError::Command)?;
-        install::launch(&device, bundle_id).map_err(EngineError::Command)?;
+        install::install(&device, &app, bundle_id).map_err(EngineError::Install)?;
+        install::launch(&device, bundle_id).map_err(EngineError::Install)?;
         Ok(())
     }
 
@@ -463,13 +662,20 @@ fn bundle_id(app_name: &str) -> Result<String, EngineError> {
     if !output.status.success() {
         return Err(EngineError::IdentityName);
     }
-    let username = sanitize_component(String::from_utf8_lossy(&output.stdout).trim());
+    Ok(candidate_bundle_id(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        app_name,
+    ))
+}
+
+fn candidate_bundle_id(local_username: &str, app_name: &str) -> String {
+    let username = sanitize_component(local_username);
     let username = if username.is_empty() {
         "user".to_owned()
     } else {
         username
     };
-    Ok(format!("com.tohseno.{username}.{app_name}"))
+    format!("{}{username}.{app_name}", install::CANDIDATE_BUNDLE_PREFIX)
 }
 
 fn temporary_path(label: &str) -> PathBuf {
@@ -493,11 +699,17 @@ pub enum EngineError {
     Build(build::BuildError),
     Device(device::DeviceError),
     Sign(sign::SignError),
-    Command(crate::gates::CommandError),
+    Install(install::InstallError),
     NoCompleteShot(String),
     RepairExhausted { shot: u32, passes: u8 },
+    ArtifactUnbuildable(String),
     SlotLimit,
     IdentityName,
+    BuilderIdentity(BuilderIdentityError),
+    ProtocolLifecycle(ProtocolLifecycleError),
+    LegacyRequiresAdoption(String),
+    BuilderMismatch(String),
+    AlreadyProtocol(String),
 }
 
 impl std::fmt::Display for EngineError {
@@ -512,14 +724,38 @@ impl std::fmt::Display for EngineError {
             Self::Build(error) => write!(f, "{error}"),
             Self::Device(error) => write!(f, "{error}"),
             Self::Sign(error) => write!(f, "{error}"),
-            Self::Command(error) => write!(f, "{error}"),
+            Self::Install(error) => write!(f, "{error}"),
             Self::NoCompleteShot(app) => write!(f, "{app} has no complete shot to evolve"),
             Self::RepairExhausted { shot, passes } => write!(
                 f,
                 "engine bug: shot {shot} still fails after {passes} repair passes"
             ),
+            Self::ArtifactUnbuildable(output) => {
+                let tail: String = output
+                    .lines()
+                    .filter(|line| line.contains("error"))
+                    .take(8)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(
+                    f,
+                    "the iOS device build passed but the Simulator artifact failed:\n{tail}"
+                )
+            }
             Self::SlotLimit => write!(f, "the free Apple ID app limit is full"),
             Self::IdentityName => write!(f, "could not determine the local username"),
+            Self::BuilderIdentity(error) => write!(f, "{error}"),
+            Self::ProtocolLifecycle(error) => write!(f, "{error}"),
+            Self::LegacyRequiresAdoption(app) => {
+                write!(f, "{app} predates signed Shots; run `tohseno adopt {app}`")
+            }
+            Self::BuilderMismatch(app) => write!(
+                f,
+                "{app} belongs to a different BuilderID than the active local identity"
+            ),
+            Self::AlreadyProtocol(app) => {
+                write!(f, "{app} already has a signed TOHSENO identity")
+            }
         }
     }
 }
@@ -568,8 +804,40 @@ impl From<build::BuildError> for EngineError {
     }
 }
 
+impl From<BuilderIdentityError> for EngineError {
+    fn from(value: BuilderIdentityError) -> Self {
+        Self::BuilderIdentity(value)
+    }
+}
+
+impl From<ProtocolLifecycleError> for EngineError {
+    fn from(value: ProtocolLifecycleError) -> Self {
+        Self::ProtocolLifecycle(value)
+    }
+}
+
 impl From<EngineError> for std::io::Error {
     fn from(value: EngineError) -> Self {
         std::io::Error::other(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_bundle_identity_uses_the_candidate_device_namespace() {
+        let bundle_id = candidate_bundle_id("Alice Example", "quiet-press");
+        assert_eq!(bundle_id, "org.tohseno.genesis.alice-example.quiet-press");
+        install::require_candidate_namespace(&bundle_id).unwrap();
+    }
+
+    #[test]
+    fn candidate_namespace_preserves_a_deterministic_fallback_identity() {
+        assert_eq!(
+            candidate_bundle_id("---", "press"),
+            "org.tohseno.genesis.user.press"
+        );
     }
 }
