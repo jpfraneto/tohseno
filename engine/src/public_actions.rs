@@ -130,7 +130,7 @@ pub enum RelayArgument {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ExpectedPublicState {
-    Shot {
+    Evolution {
         controller: Address20,
         head: Bytes32,
         sequence: u64,
@@ -397,7 +397,7 @@ fn plan_publish(
                 nonce: registry.create_nonce,
                 deadline,
             }),
-            ExpectedPublicState::Shot {
+            ExpectedPublicState::Evolution {
                 controller: authority.account,
                 head: commitment,
                 sequence: u64::from(record.sequence),
@@ -434,7 +434,7 @@ fn plan_publish(
             nonce: registry.shot_nonce,
             deadline,
         }),
-        ExpectedPublicState::Shot {
+        ExpectedPublicState::Evolution {
             controller: authority.account,
             head: commitment,
             sequence: u64::from(record.sequence),
@@ -646,7 +646,7 @@ pub fn verify_submitted_state(
     match (&package.signed_action.action, &package.expected_state) {
         (
             PublicAction::CreateShot { .. } | PublicAction::AppendEvolution { .. },
-            ExpectedPublicState::Shot {
+            ExpectedPublicState::Evolution {
                 controller,
                 head,
                 sequence,
@@ -755,7 +755,7 @@ fn verify_package_read_bindings(
                 ..
             },
             RelayArgument::None,
-            ExpectedPublicState::Shot {
+            ExpectedPublicState::Evolution {
                 controller: expected_controller,
                 head: expected_head,
                 sequence: expected_sequence,
@@ -795,7 +795,7 @@ fn verify_package_read_bindings(
                 ..
             },
             RelayArgument::None,
-            ExpectedPublicState::Shot {
+            ExpectedPublicState::Evolution {
                 controller,
                 head,
                 sequence: expected_sequence,

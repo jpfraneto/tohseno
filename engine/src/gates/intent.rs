@@ -1,5 +1,5 @@
 use crate::events::{Event, EventBus};
-use crate::ledger::{Ledger, LedgerError, Shot};
+use crate::ledger::{Evolution, Ledger, LedgerError};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -49,17 +49,32 @@ impl Intent {
         let tokens = path_tokens(submission);
         let mut ranges = Vec::new();
         let mut images = Vec::new();
+        let mut dropped_texts = Vec::new();
         for token in tokens {
             let path = PathBuf::from(token.value);
             if path.is_absolute() && is_supported_image(&path) {
                 ranges.push(token.start..token.end);
                 images.push(path);
+            } else if path.is_absolute() && is_supported_text(&path) {
+                // A dropped MASTER_PROMPT.md (or any text file) IS the
+                // intention; its contents replace the path in place.
+                if let Ok(contents) = fs::read_to_string(&path) {
+                    ranges.push(token.start..token.end);
+                    dropped_texts.push(contents);
+                }
             }
         }
 
+        ranges.sort_by_key(|range| range.start);
         let mut prompt = submission.to_owned();
         for range in ranges.into_iter().rev() {
             prompt.replace_range(range, "");
+        }
+        // A dropped prompt file replaces the intention only when the box held
+        // nothing but dropped files; prose that merely mentions a path is
+        // never silently rewritten.
+        if !dropped_texts.is_empty() && prompt.trim().is_empty() {
+            prompt = dropped_texts.join("\n\n");
         }
         Self { prompt, images }
     }
@@ -72,10 +87,10 @@ impl Intent {
     pub fn write_to_shot(
         &self,
         ledger: &Ledger,
-        shot: &Shot,
+        shot: &Evolution,
         events: &EventBus,
     ) -> Result<Vec<String>, IntentError> {
-        ledger.write_shot_file(shot, "prompt.md", self.prompt.as_bytes())?;
+        ledger.write_evolution_file(shot, "prompt.md", self.prompt.as_bytes())?;
         let mut copied_names = Vec::new();
         let mut used_names = HashSet::new();
 
@@ -90,7 +105,7 @@ impl Intent {
             }
             let target_name = unique_name(original_name, &mut used_names);
             let contents = fs::read(path)?;
-            ledger.write_shot_file(shot, Path::new("images").join(&target_name), &contents)?;
+            ledger.write_evolution_file(shot, Path::new("images").join(&target_name), &contents)?;
             copied_names.push(target_name.clone());
             events.emit(Event::status(format!(
                 "attached {target_name} · {} of 8",
@@ -99,6 +114,17 @@ impl Intent {
         }
         Ok(copied_names)
     }
+}
+
+fn is_supported_text(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            ["md", "markdown", "txt"]
+                .iter()
+                .any(|candidate| extension.eq_ignore_ascii_case(candidate))
+        })
+        && path.is_file()
 }
 
 fn is_supported_image(path: &Path) -> bool {
@@ -236,7 +262,7 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         let mut paths = Vec::new();
         for number in 1..=9 {
             let path = temporary.path().join(format!("{number}.png"));

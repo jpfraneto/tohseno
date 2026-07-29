@@ -23,5 +23,5 @@ pub mod verifier;
 pub use config::Config;
 pub use events::{Event, EventBus};
 pub use harness::HarnessOption;
-pub use ledger::{AppRecord, Ledger, LedgerError, Shot};
+pub use ledger::{AppRecord, Evolution, Ledger, LedgerError};
 pub use machine::{ConductedCreation, DevicePipeline, Engine, EngineError, ShotRequest};

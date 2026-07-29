@@ -1,5 +1,5 @@
 use super::sign;
-use crate::ledger::{Ledger, LedgerError, Shot};
+use crate::ledger::{Evolution, Ledger, LedgerError};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;
@@ -94,7 +94,7 @@ pub fn substitute_shot_number(source: &Path, shot_number: u32) -> Result<usize, 
 
 pub fn compile(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     app_name: &str,
 ) -> Result<Result<(), BuildFailure>, BuildError> {
     substitute_shot_number(&shot.source_path(), shot.number)?;
@@ -131,7 +131,7 @@ pub fn compile(
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    ledger.append_shot_log(
+    ledger.append_evolution_log(
         shot,
         "build.log",
         format!("\n===== build pass =====\n{combined}\n===== end build pass =====\n").as_bytes(),
@@ -150,7 +150,7 @@ pub fn compile(
 /// provenance resource, and runtime boundary the conformance gate inspects.
 pub fn materialize_artifact(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     app_name: &str,
 ) -> Result<Result<PathBuf, BuildFailure>, BuildError> {
     let project = sign::find_project(&shot.source_path())?.ok_or(BuildError::ProjectMissing)?;
@@ -183,7 +183,7 @@ pub fn materialize_artifact(
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    ledger.append_shot_log(
+    ledger.append_evolution_log(
         shot,
         "build.log",
         format!("\n===== artifact pass =====\n{combined}\n===== end artifact pass =====\n")

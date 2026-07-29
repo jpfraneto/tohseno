@@ -2,27 +2,16 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     #[serde(default)]
     pub harness: HarnessConfig,
-    #[serde(default = "default_max_repair_passes")]
-    pub max_repair_passes: u8,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HarnessConfig {
     #[serde(default = "default_harness_command")]
     pub command: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            harness: HarnessConfig::default(),
-            max_repair_passes: default_max_repair_passes(),
-        }
-    }
 }
 
 impl Default for HarnessConfig {
@@ -54,10 +43,6 @@ impl Config {
 
 fn default_harness_command() -> String {
     "claude".into()
-}
-
-fn default_max_repair_passes() -> u8 {
-    8
 }
 
 #[derive(Debug)]
@@ -106,7 +91,6 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let config = Config::load_or_create(directory.path()).unwrap();
         assert_eq!(config.harness.command, "claude");
-        assert_eq!(config.max_repair_passes, 8);
         assert!(directory.path().join("config.toml").is_file());
     }
 
@@ -115,11 +99,9 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let mut config = Config::default();
         config.harness.command = "/usr/local/bin/codex".into();
-        config.max_repair_passes = 5;
         config.save(directory.path()).unwrap();
 
         let loaded = Config::load_or_create(directory.path()).unwrap();
         assert_eq!(loaded.harness.command, "/usr/local/bin/codex");
-        assert_eq!(loaded.max_repair_passes, 5);
     }
 }

@@ -5,7 +5,7 @@
 //! application artifacts are not traversed or copied except that a declared
 //! app icon may be selected from an asset catalog.
 
-use crate::ledger::{validate_app_name, AppRecord, Ledger, LedgerError, Shot};
+use crate::ledger::{validate_app_name, AppRecord, Evolution, Ledger, LedgerError};
 use crate::{protocol_lifecycle, verifier};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -105,7 +105,7 @@ impl From<std::io::Error> for PageError {
 pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageError> {
     validate_app_name(app_name)?;
     let app = load_app_without_symlinks(ledger, app_name)?;
-    let shot = latest_complete_shot(ledger, &app)?;
+    let shot = latest_complete_evolution(ledger, &app)?;
     let fascia_reference = protocol_lifecycle::reference_fascia_root()
         .map_err(|error| PageError::InvalidState(error.to_string()))?;
     let offline = verifier::verify_shot_directory(&shot.path, &fascia_reference);
@@ -124,13 +124,21 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
     let verified = verify_sidecars(&app, &shot)?;
     let icon = select_icon(&shot.source_path())?;
     let registry = deployed_registry_coordinates()?;
+    let world = fs::read_to_string(shot.source_path().join("WORLD.md")).ok();
+    let preview = fs::read(shot.path.join("preview.png")).ok();
 
     let output_path = ledger
         .briefing_dir(app_name)
         .join("public")
         .join(&verified.record.slug);
-    let page = render_html(&verified.record, &verified.fascia, registry.as_ref());
-    let files = [
+    let page = render_html(
+        &verified.record,
+        &verified.fascia,
+        registry.as_ref(),
+        world.as_deref(),
+        preview.is_some(),
+    );
+    let mut files = vec![
         ("index.html", page.into_bytes()),
         (
             "shot.json",
@@ -150,6 +158,9 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
             canonical_json_line(&verified.conformance, "conformance report")?,
         ),
     ];
+    if let Some(preview) = preview {
+        files.push(("preview.png", preview));
+    }
     replace_page_directory(&ledger.briefing_dir(app_name), &output_path, &files)?;
 
     Ok(PageBuildReport {
@@ -174,12 +185,12 @@ struct VerifiedPageInput {
 
 fn load_app_without_symlinks(ledger: &Ledger, app_name: &str) -> Result<AppRecord, PageError> {
     require_real_directory(ledger.root())?;
-    let apps = ledger.root().join("apps");
-    require_real_directory(&apps)?;
-    let app_directory = apps.join(app_name);
+    let app_directory = ledger.working_tree(app_name);
     require_real_directory(&app_directory)?;
-    require_real_directory(&app_directory.join("shots"))?;
-    require_regular_file(&app_directory.join("app.toml"))?;
+    let ledger_directory = app_directory.join(".tohseno");
+    require_real_directory(&ledger_directory)?;
+    require_real_directory(&ledger_directory.join("evolutions"))?;
+    require_regular_file(&ledger_directory.join("app.toml"))?;
 
     let app = ledger.load_app(app_name)?;
     if app.name != app_name {
@@ -190,15 +201,14 @@ fn load_app_without_symlinks(ledger: &Ledger, app_name: &str) -> Result<AppRecor
     Ok(app)
 }
 
-fn latest_complete_shot(ledger: &Ledger, app: &AppRecord) -> Result<Shot, PageError> {
+fn latest_complete_evolution(ledger: &Ledger, app: &AppRecord) -> Result<Evolution, PageError> {
     let number = app
-        .latest_shot
+        .latest_evolution
         .ok_or_else(|| PageError::NoCompleteShot(app.name.clone()))?;
     let shot_path = ledger
-        .root()
-        .join("apps")
-        .join(&app.name)
-        .join("shots")
+        .working_tree(&app.name)
+        .join(".tohseno")
+        .join("evolutions")
         .join(format!("{number:04}"));
     require_real_directory(&shot_path)?;
     let marker = shot_path.join(".complete");
@@ -209,14 +219,14 @@ fn latest_complete_shot(ledger: &Ledger, app: &AppRecord) -> Result<Shot, PageEr
         )));
     }
     require_real_directory(&shot_path.join("TOHSENO"))?;
-    Ok(Shot {
+    Ok(Evolution {
         app_name: app.name.clone(),
         number,
         path: shot_path,
     })
 }
 
-fn verify_sidecars(app: &AppRecord, shot: &Shot) -> Result<VerifiedPageInput, PageError> {
+fn verify_sidecars(app: &AppRecord, shot: &Evolution) -> Result<VerifiedPageInput, PageError> {
     let protocol_root = shot.path.join("TOHSENO");
     let record: ShotRecord = read_closed_json(&protocol_root.join("shot.json"), "Shot record")?;
     let signature: SignatureSidecar =
@@ -400,6 +410,8 @@ fn render_html(
     record: &ShotRecord,
     fascia: &FasciaManifest,
     registry: Option<&RegistryCoordinates>,
+    world: Option<&str>,
+    has_preview: bool,
 ) -> String {
     let app = escape_html(&record.slug);
     let shot_id = escape_html(&record.shot_id.to_string());
@@ -410,6 +422,18 @@ fn render_html(
         DistributionState::Local => "Local",
         DistributionState::Published => "Published in app metadata",
         DistributionState::AppStore => "App Store in app metadata",
+    };
+    let world_markup = match world {
+        Some(text) => format!(
+            "<section><h2>World</h2><pre class=\"world\">{}</pre></section>\n",
+            escape_html(text)
+        ),
+        None => String::new(),
+    };
+    let preview_markup = if has_preview {
+        "<section><h2>Latest evolution</h2><img class=\"preview\" src=\"preview.png\" alt=\"the app's current first screen\" width=\"280\"></section>\n".to_owned()
+    } else {
+        String::new()
     };
     let registry_markup = match registry {
         Some(coordinates) => format!(
@@ -437,7 +461,7 @@ fn render_html(
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n\
 <meta name=\"color-scheme\" content=\"dark\">\n\
 <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\">\n\
-<title>{app} · TOHSENO Shot</title>\n\
+<title>{app} · TOHSENO Evolution</title>\n\
 <style>\n\
 :root{{--ink:#f6f1e8;--muted:#aaa39a;--line:#35312d;--paper:#171513;--panel:#201d1a;--accent:#e2ff62;--blue:#80bfff}}\
 *{{box-sizing:border-box}}html{{background:var(--paper);color:var(--ink);font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}}\
@@ -458,9 +482,11 @@ a{{color:var(--blue);text-underline-offset:3px}}footer{{color:var(--muted);font-
 <header><img class=\"icon\" src=\"icon.png\" width=\"112\" height=\"112\" alt=\"{app} app icon\"><div><div class=\"eyebrow\">TOHSENO Shot</div><h1>{app}</h1><div class=\"badges\"><span class=\"badge verified\">Locally verified</span><span class=\"badge\">Private</span><span class=\"badge\">Evolution {sequence}</span></div></div></header>\n\
 <section><h2>Identity</h2><dl class=\"facts\"><div><dt>ShotID</dt><dd class=\"mono\">{shot_id}</dd></div><div><dt>BuilderID</dt><dd class=\"mono\">{builder_id}</dd></div><div><dt>Bundle</dt><dd class=\"mono\">{bundle_id}</dd></div><div><dt>Signed at</dt><dd>{created_at}</dd></div></dl></section>\n\
 <section><h2>Verification</h2><p>This Evolution’s closed record and low-s P-256 signature verified locally. Its Fascia declaration and conformance receipt are valid and bound to the same Shot.</p><p><a href=\"shot.json\">Shot record</a> · <a href=\"fascia.json\">Fascia</a> · <a href=\"assets/signature.json\">Signature</a> · <a href=\"assets/conformance.json\">Conformance</a></p></section>\n\
-<section><h2>Public state</h2><dl class=\"facts\"><div><dt>Protocol state</dt><dd>Private</dd></div><div><dt>App metadata</dt><dd>{distribution}</dd></div><div><dt>Source</dt><dd>Not published</dd></div></dl><p class=\"quiet\">A local static page is not a publication receipt. No prompt, input image, source tree, build log, or app artifact is included.</p></section>\n\
+<section><h2>Public state</h2><dl class=\"facts\"><div><dt>Protocol state</dt><dd>Private</dd></div><div><dt>App metadata</dt><dd>{distribution}</dd></div><div><dt>Source</dt><dd>Not published</dd></div></dl><p class=\"quiet\">A local static page is not a publication receipt. No prompt, input image, full source tree, build log, or app artifact is included; the story and preview above, when present, are the only excerpts and come from the world’s own WORLD.md and recorded first screen.</p></section>\n\
 <section><h2>Registry candidate</h2>{registry_markup}</section>\n\
-<footer>Generated deterministically from public Shot facts. TOHSENO protocol candidate 1.0.0-rc.1.</footer>\n\
+{preview_markup}\
+{world_markup}\
+<footer>Generated from public Evolution facts and the world’s own story. TOHSENO protocol candidate 1.0.0-rc.1.</footer>\n\
 </main>\n\
 </body>\n\
 </html>\n",
@@ -938,10 +964,10 @@ mod tests {
         }
     }
 
-    fn write_json<T: Serialize>(ledger: &Ledger, shot: &Shot, path: &str, value: &T) {
+    fn write_json<T: Serialize>(ledger: &Ledger, shot: &Evolution, path: &str, value: &T) {
         let mut bytes = serde_json::to_vec_pretty(value).unwrap();
         bytes.push(b'\n');
-        ledger.write_shot_file(shot, path, &bytes).unwrap();
+        ledger.write_evolution_file(shot, path, &bytes).unwrap();
     }
 
     fn complete_fixture() -> (tempfile::TempDir, Ledger, ShotRecord) {
@@ -952,23 +978,23 @@ mod tests {
         ledger
             .bind_protocol_identity(&record.slug, record.shot_id, record.builder_id)
             .unwrap();
-        let shot = ledger.reserve_shot(&record.slug, None).unwrap();
+        let shot = ledger.reserve_evolution(&record.slug, None).unwrap();
         ledger
-            .write_shot_file(
+            .write_evolution_file(
                 &shot,
                 "prompt.md",
                 b"PRIVATE-PROMPT: launch the confidential paper press",
             )
             .unwrap();
         ledger
-            .write_shot_file(
+            .write_evolution_file(
                 &shot,
                 "images/private-reference.txt",
                 b"PRIVATE-IMAGE-BYTES",
             )
             .unwrap();
         ledger
-            .write_shot_file(
+            .write_evolution_file(
                 &shot,
                 "src/Private.swift",
                 b"let builderSecret = \"PRIVATE-SOURCE-BYTES\"",
@@ -983,7 +1009,7 @@ mod tests {
             "TOHSENO/conformance.json",
             &conformance(&record),
         );
-        ledger.finalize_shot(&shot).unwrap();
+        ledger.finalize_evolution(&shot).unwrap();
         (temporary, ledger, record)
     }
 
@@ -1016,7 +1042,7 @@ mod tests {
     fn page_projection_is_byte_identical_and_private_by_default() {
         let (_temporary, ledger, record) = complete_fixture();
         let output = ledger.root().join("public").join(&record.slug);
-        let html = render_html(&record, &fascia(&record), None);
+        let html = render_html(&record, &fascia(&record), None, None, false);
         let files = [
             ("index.html", html.as_bytes().to_vec()),
             (
@@ -1054,7 +1080,7 @@ mod tests {
     #[test]
     fn record_signature_fascia_and_conformance_tampering_are_rejected() {
         let (_temporary, ledger, record) = complete_fixture();
-        let shot = ledger.latest_shot(&record.slug).unwrap().unwrap();
+        let shot = ledger.latest_evolution(&record.slug).unwrap().unwrap();
         let record_path = shot.path.join("TOHSENO/shot.json");
         let original_record = fs::read(&record_path).unwrap();
         let mut changed_record = record.clone();
@@ -1105,7 +1131,7 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let (_temporary, ledger, record) = complete_fixture();
-        let shot = ledger.latest_shot(&record.slug).unwrap().unwrap();
+        let shot = ledger.latest_evolution(&record.slug).unwrap().unwrap();
         let sidecar = shot.path.join("TOHSENO/conformance.json");
         let target = shot.path.join("TOHSENO/conformance-target.json");
         fs::rename(&sidecar, &target).unwrap();

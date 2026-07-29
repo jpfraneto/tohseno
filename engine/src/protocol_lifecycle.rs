@@ -7,7 +7,7 @@ use crate::builder_identity::{
     initial_device_builder_id, BuilderIdentity, BuilderIdentityError, BuilderIdentityManager,
 };
 use crate::gates::build;
-use crate::ledger::{AppRecord, Ledger, LedgerError, Shot};
+use crate::ledger::{AppRecord, Evolution, Ledger, LedgerError};
 use crate::verifier;
 use bip39::{Language, Mnemonic};
 use serde::Serialize;
@@ -57,7 +57,7 @@ pub struct CompletedEvolution {
 
 pub fn prepare_evolution(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     app: &AppRecord,
     builder: &BuilderIdentity,
     expected_genesis_input_sha256: Bytes32,
@@ -150,7 +150,7 @@ pub fn prepare_evolution(
 
 pub fn complete_evolution(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     builder: &BuilderIdentity,
     prepared: PreparedEvolution,
 ) -> Result<CompletedEvolution, ProtocolLifecycleError> {
@@ -267,7 +267,7 @@ pub fn complete_evolution(
 
 /// Seals the user's raw prompt and copied input-image bytes before an external
 /// harness receives access to the Shot workspace.
-pub fn capture_input_commitment(shot: &Shot) -> Result<Bytes32, ProtocolLifecycleError> {
+pub fn capture_input_commitment(shot: &Evolution) -> Result<Bytes32, ProtocolLifecycleError> {
     let prompt = fs::read(shot.prompt_path())?;
     let mut images = Vec::new();
     for entry in fs::read_dir(shot.images_path())? {
@@ -293,7 +293,7 @@ pub fn capture_input_commitment(shot: &Shot) -> Result<Bytes32, ProtocolLifecycl
 
 fn previous_commitment(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     origin: Option<&ShotOrigin>,
 ) -> Result<Option<Bytes32>, ProtocolLifecycleError> {
     if let Some(ShotOrigin::LegacyAdoption {
@@ -339,7 +339,7 @@ fn previous_commitment(
 /// This is called before an old source tree is used as evolution context and
 /// again after the harness returns, so a process with workspace access cannot
 /// silently rewrite the append-only parent.
-pub fn verify_completed_evolution(shot: &Shot) -> Result<(), ProtocolLifecycleError> {
+pub fn verify_completed_evolution(shot: &Evolution) -> Result<(), ProtocolLifecycleError> {
     let report = verifier::verify_shot_directory(&shot.path, &reference_fascia_root()?);
     if report.conformant {
         Ok(())
@@ -476,7 +476,7 @@ pub(crate) fn inspect_fascia(
 }
 
 fn local_checks(
-    shot: &Shot,
+    shot: &Evolution,
     prepared: &PreparedEvolution,
 ) -> Result<Vec<ConformanceCheck>, ProtocolLifecycleError> {
     let mut checks = Vec::new();
@@ -782,12 +782,12 @@ fn check_token(path: &str) -> String {
 
 fn write_json<T: Serialize>(
     ledger: &Ledger,
-    shot: &Shot,
+    shot: &Evolution,
     relative: &str,
     value: &T,
 ) -> Result<(), ProtocolLifecycleError> {
     let bytes = json_bytes(value)?;
-    ledger.write_shot_file(shot, relative, &bytes)?;
+    ledger.write_evolution_file(shot, relative, &bytes)?;
     Ok(())
 }
 
@@ -798,7 +798,7 @@ fn json_bytes<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtocolLifecycleError
 }
 
 fn verify_exact_json_file<T: Serialize>(
-    shot: &Shot,
+    shot: &Evolution,
     relative: &str,
     expected: &T,
     label: &str,
@@ -1264,7 +1264,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let ledger = Ledger::at(directory.path());
         ledger.create_app("press", "com.example.press").unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         fs::write(shot.prompt_path(), b"Make it.\n").unwrap();
         fs::write(shot.images_path().join("z.png"), b"z").unwrap();
         fs::write(shot.images_path().join("a.png"), b"a").unwrap();
@@ -1285,7 +1285,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let ledger = Ledger::at(directory.path());
         ledger.create_app("press", "com.example.press").unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         fs::write(shot.prompt_path(), b"Make it.\n").unwrap();
         let sealed = capture_input_commitment(&shot).unwrap();
         fs::write(shot.prompt_path(), b"Make something else.\n").unwrap();

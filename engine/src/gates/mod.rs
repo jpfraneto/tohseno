@@ -3,6 +3,7 @@ pub mod build;
 pub mod device;
 pub mod install;
 pub mod intent;
+pub mod preview;
 pub mod sign;
 pub mod toolchain;
 

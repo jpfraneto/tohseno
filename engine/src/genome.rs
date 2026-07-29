@@ -1,4 +1,4 @@
-use crate::ledger::{Ledger, LedgerError, Shot};
+use crate::ledger::{Evolution, Ledger, LedgerError};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -8,6 +8,7 @@ const TASTE: &str = include_str!("../../genome/TASTE.md");
 const LISTENING: &str = include_str!("../../genome/LISTENING.md");
 const UNFOLDING: &str = include_str!("../../genome/UNFOLDING.md");
 const MEMORY: &str = include_str!("../../genome/MEMORY.md");
+const WORLD: &str = include_str!("../../genome/WORLD.md");
 const FASCIA_JSON: &str = include_str!("../../fascia/apple/FASCIA.json");
 const FASCIA_DOCUMENTS: [(&str, &str); 7] = [
     ("FASCIA.md", include_str!("../../fascia/apple/FASCIA.md")),
@@ -60,29 +61,34 @@ impl Genome {
     pub fn compose(
         &self,
         ledger: &Ledger,
-        shot: &Shot,
+        shot: &Evolution,
         app_name: &str,
         bundle_id: &str,
         image_names: &[String],
         previous_source: Option<&Path>,
     ) -> Result<PathBuf, GenomeError> {
-        ledger.write_shot_file(shot, "genome/LAWS.md", LAWS.as_bytes())?;
-        ledger.write_shot_file(shot, "genome/STRUCTURE.md", STRUCTURE.as_bytes())?;
-        ledger.write_shot_file(shot, "genome/TASTE.md", TASTE.as_bytes())?;
-        ledger.write_shot_file(shot, "genome/LISTENING.md", LISTENING.as_bytes())?;
-        ledger.write_shot_file(shot, "genome/UNFOLDING.md", UNFOLDING.as_bytes())?;
-        ledger.write_shot_file(shot, "genome/MEMORY.md", MEMORY.as_bytes())?;
-        ledger.write_shot_file(shot, "fascia/apple/FASCIA.json", FASCIA_JSON.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/LAWS.md", LAWS.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/STRUCTURE.md", STRUCTURE.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/TASTE.md", TASTE.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/LISTENING.md", LISTENING.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/UNFOLDING.md", UNFOLDING.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/MEMORY.md", MEMORY.as_bytes())?;
+        ledger.write_evolution_file(shot, "genome/WORLD.md", WORLD.as_bytes())?;
+        ledger.write_evolution_file(shot, "fascia/apple/FASCIA.json", FASCIA_JSON.as_bytes())?;
         for (name, contents) in FASCIA_DOCUMENTS {
-            ledger.write_shot_file(
+            ledger.write_evolution_file(
                 shot,
                 Path::new("fascia/apple").join(name),
                 contents.as_bytes(),
             )?;
-            ledger.write_shot_file(shot, Path::new("TOHSENO").join(name), contents.as_bytes())?;
+            ledger.write_evolution_file(
+                shot,
+                Path::new("TOHSENO").join(name),
+                contents.as_bytes(),
+            )?;
         }
         for (name, contents) in FASCIA_SWIFT {
-            ledger.write_shot_file(
+            ledger.write_evolution_file(
                 shot,
                 Path::new("fascia/apple/swift").join(name),
                 contents.as_bytes(),
@@ -114,6 +120,7 @@ impl Genome {
         let listening = LISTENING;
         let unfolding = UNFOLDING;
         let memory = MEMORY;
+        let world = WORLD;
         let task = format!(
             r#"# TOHSENO task
 
@@ -139,6 +146,8 @@ Read this file first and complete the task autonomously.
 
 {memory}
 
+{world}
+
 ## Apple Fascia
 
 The normative machine-readable Fascia is at `fascia/apple/FASCIA.json`.
@@ -156,7 +165,7 @@ resources. Do not read or rewrite them in generated code. The engine replaces
 them with the concrete Fascia declaration and public provenance before the
 signed device build. Embedded provenance is explicitly excluded from the
 source commitment to avoid self-reference; the concrete Fascia declaration is
-included. The protocol documents already present at the Shot root under
+included. The protocol documents already present at the Evolution root under
 `TOHSENO/` are also engine-owned; do not delete or rewrite them. The engine
 writes the record, signature, Fascia instance, and conformance receipt there.
 
@@ -179,12 +188,12 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Output contract
 
 Work directly in this workspace and finish a complete buildable project in `src/`,
-including the `src/MEMORY.md` that Memory requires.
+including the `src/MEMORY.md` and `src/WORLD.md` that Memory and World require.
 Run `xcodebuild` yourself when useful, but do not stop at an explanation.
 Never emit only snippets, patches, instructions, or prose.
 "#
         );
-        ledger.write_shot_file(shot, "TASK.md", task.as_bytes())?;
+        ledger.write_evolution_file(shot, "TASK.md", task.as_bytes())?;
         Ok(shot.path.join("TASK.md"))
     }
 
@@ -198,13 +207,13 @@ Never emit only snippets, patches, instructions, or prose.
             let contents = format!(
                 r#"# This folder is a TOHSENO Shot
 
-One Shot, one intent, many Evolutions — all of them this same app.
+One Evolution, one intent, many Evolutions — all of them this same app.
 The sealed history lives in `.tohseno/evolutions/`; this folder is the
 living world of `{app_name}`.
 
 Before working:
 
-- Read `MEMORY.md` — the Shot's own memory of how it came to be and where it stands.
+- Read `MEMORY.md` — the Evolution's own memory of how it came to be and where it stands.
 - Read `.tohseno/TASK.md` — the current briefing and the builder's intent.
 - Obey the genome in `.tohseno/genome/` — laws, structure, taste, listening, unfolding, memory.
 
@@ -212,14 +221,14 @@ While working:
 
 - Never modify anything inside `.tohseno/`.
 - Keep this folder a complete, buildable world at every rest.
-- Update `MEMORY.md` before you stop.
+- Update `MEMORY.md` before you stop; keep `WORLD.md` true to the app.
 
 When the work builds and is whole, record it yourself:
 
     tohseno evolve
 
 That runs the gates, signs the record, and appends the next Evolution to
-this Shot's history. The builder should never have to remember it.
+this Evolution's history. The builder should never have to remember it.
 "#
             );
             fs::write(&agents, contents)?;
@@ -248,7 +257,7 @@ this Shot's history. The builder should never have to remember it.
     ) -> Result<PathBuf, GenomeError> {
         let briefing = ledger.briefing_dir(app_name);
         fs::create_dir_all(briefing.join("genome"))?;
-        fs::create_dir_all(briefing.join("images"))?;
+        fs::create_dir_all(briefing.join("references"))?;
         fs::create_dir_all(briefing.join("fascia/apple/swift"))?;
         fs::write(briefing.join("intent.md"), intent.prompt.as_bytes())?;
         for (name, contents) in [
@@ -258,6 +267,7 @@ this Shot's history. The builder should never have to remember it.
             ("LISTENING.md", LISTENING),
             ("UNFOLDING.md", UNFOLDING),
             ("MEMORY.md", MEMORY),
+            ("WORLD.md", WORLD),
         ] {
             fs::write(briefing.join("genome").join(name), contents.as_bytes())?;
         }
@@ -287,7 +297,7 @@ this Shot's history. The builder should never have to remember it.
                 .and_then(|name| name.to_str())
                 .unwrap_or("image")
                 .to_owned();
-            fs::copy(image, briefing.join("images").join(&name))?;
+            fs::copy(image, briefing.join("references").join(&name))?;
             image_names.push(name);
         }
         let image_references = if image_names.is_empty() {
@@ -295,7 +305,7 @@ this Shot's history. The builder should never have to remember it.
         } else {
             image_names
                 .iter()
-                .map(|name| format!("- `.tohseno/images/{name}`"))
+                .map(|name| format!("- `.tohseno/references/{name}`"))
                 .collect::<Vec<_>>()
                 .join("\n")
         };
@@ -306,6 +316,7 @@ this Shot's history. The builder should never have to remember it.
         let listening = LISTENING;
         let unfolding = UNFOLDING;
         let memory = MEMORY;
+        let world = WORLD;
         let task = format!(
             r#"# TOHSENO task
 
@@ -334,6 +345,8 @@ Never modify anything inside `.tohseno/`.
 {unfolding}
 
 {memory}
+
+{world}
 
 ## Apple Fascia
 
@@ -365,7 +378,7 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Output contract
 
 Work directly in this folder and finish a complete buildable project here,
-including the `MEMORY.md` that Memory requires.
+including the `MEMORY.md` and `WORLD.md` that Memory and World require.
 Run `xcodebuild` yourself when useful, but do not stop at an explanation.
 Never emit only snippets, patches, instructions, or prose.
 When the work builds and is whole, record it yourself: `tohseno evolve`
@@ -379,7 +392,7 @@ When the work builds and is whole, record it yourself: `tohseno evolve`
     pub fn append_repair(
         &self,
         ledger: &Ledger,
-        shot: &Shot,
+        shot: &Evolution,
         pass: u8,
         build_output: &str,
     ) -> Result<(), GenomeError> {
@@ -387,7 +400,7 @@ When the work builds and is whole, record it yourself: `tohseno evolve`
         let section = format!(
             "\n\n## Repair pass {pass}\n\nThe project failed to build; fix only the project, preserve the user's intent, and leave a complete project in `src/`. The complete log is in `build.log`.\n\n```text\n{distilled}\n```\n"
         );
-        ledger.append_shot_log(shot, "TASK.md", section.as_bytes())?;
+        ledger.append_evolution_log(shot, "TASK.md", section.as_bytes())?;
         Ok(())
     }
 }
@@ -487,9 +500,9 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         ledger
-            .write_shot_file(&shot, "prompt.md", b"Make a quiet notebook.")
+            .write_evolution_file(&shot, "prompt.md", b"Make a quiet notebook.")
             .unwrap();
         Genome
             .compose(&ledger, &shot, "press", "com.tohseno.test.press", &[], None)

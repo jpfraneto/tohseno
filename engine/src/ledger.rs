@@ -74,7 +74,9 @@ pub struct AppRecord {
     pub name: String,
     pub bundle_id: String,
     pub created_at_unix: u64,
-    pub latest_shot: Option<u32>,
+    /// Accepts the pre-rename key so no existing ledger's head is zeroed.
+    #[serde(alias = "latest_shot")]
+    pub latest_evolution: Option<u32>,
     /// Absent only for ledgers created before the Genesis protocol candidate.
     #[serde(default)]
     pub shot_id: Option<ShotId>,
@@ -88,13 +90,13 @@ pub struct AppRecord {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Shot {
+pub struct Evolution {
     pub app_name: String,
     pub number: u32,
     pub path: PathBuf,
 }
 
-impl Shot {
+impl Evolution {
     pub fn prompt_path(&self) -> PathBuf {
         self.path.join("prompt.md")
     }
@@ -308,12 +310,40 @@ impl Ledger {
         }
         fs::create_dir(&app_dir)?;
         fs::create_dir(self.tohseno_dir(name))?;
-        fs::create_dir(self.shots_dir(name))?;
+        fs::create_dir(self.evolutions_dir(name))?;
         let record = AppRecord {
             name: name.into(),
             bundle_id: bundle_id.into(),
             created_at_unix: now_unix(),
-            latest_shot: None,
+            latest_evolution: None,
+            shot_id: None,
+            builder_id: None,
+            retired: false,
+            parents: BTreeMap::new(),
+        };
+        self.write_record(&record)?;
+        Ok(record)
+    }
+
+    /// Adopts an existing plain folder in the family home as a Shot: the
+    /// folder gains its `.tohseno/` ledger and nothing else changes.
+    pub fn adopt_app(&self, name: &str, bundle_id: &str) -> Result<AppRecord, LedgerError> {
+        validate_app_name(name)?;
+        self.initialize()?;
+        let app_dir = self.app_dir(name);
+        require_real_directory(&app_dir)?;
+        match fs::symlink_metadata(self.tohseno_dir(name)) {
+            Ok(_) => return Err(LedgerError::AppExists(name.into())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        fs::create_dir(self.tohseno_dir(name))?;
+        fs::create_dir(self.evolutions_dir(name))?;
+        let record = AppRecord {
+            name: name.into(),
+            bundle_id: bundle_id.into(),
+            created_at_unix: now_unix(),
+            latest_evolution: None,
             shot_id: None,
             builder_id: None,
             retired: false,
@@ -329,7 +359,7 @@ impl Ledger {
         for directory in [
             self.app_dir(name),
             self.tohseno_dir(name),
-            self.shots_dir(name),
+            self.evolutions_dir(name),
         ] {
             match fs::symlink_metadata(&directory) {
                 Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
@@ -396,14 +426,18 @@ impl Ledger {
     }
 
     /// Reserves the next integer shot. A reserved shot is writable until
-    /// `finalize_shot`; finalized shots are rejected by all ledger write APIs.
-    pub fn reserve_shot(&self, app_name: &str, parent: Option<u32>) -> Result<Shot, LedgerError> {
+    /// `finalize_evolution`; finalized shots are rejected by all ledger write APIs.
+    pub fn reserve_evolution(
+        &self,
+        app_name: &str,
+        parent: Option<u32>,
+    ) -> Result<Evolution, LedgerError> {
         let mut record = self.load_app(app_name)?;
-        let shots_dir = self.shots_dir(app_name);
+        let evolutions_dir = self.evolutions_dir(app_name);
         let number = next_sequence(&record)?;
-        let path = shots_dir.join(format!("{number:04}"));
+        let path = evolutions_dir.join(format!("{number:04}"));
         if path.exists() {
-            self.archive_incomplete_shot(app_name, number, &path)?;
+            self.archive_incomplete_evolution(app_name, number, &path)?;
         }
         fs::create_dir(&path)?;
         for child in ["images", "src", "artifact"] {
@@ -413,7 +447,7 @@ impl Ledger {
             record.parents.insert(number.to_string(), parent_number);
             self.write_record(&record)?;
         }
-        Ok(Shot {
+        Ok(Evolution {
             app_name: app_name.into(),
             number,
             path,
@@ -422,7 +456,7 @@ impl Ledger {
 
     /// Preserves a failed or interrupted attempt without allowing it to consume
     /// the next protocol sequence number.
-    fn archive_incomplete_shot(
+    fn archive_incomplete_evolution(
         &self,
         app_name: &str,
         number: u32,
@@ -442,9 +476,9 @@ impl Ledger {
         unreachable!()
     }
 
-    pub fn write_shot_file(
+    pub fn write_evolution_file(
         &self,
-        shot: &Shot,
+        shot: &Evolution,
         relative_path: impl AsRef<Path>,
         contents: &[u8],
     ) -> Result<(), LedgerError> {
@@ -458,9 +492,9 @@ impl Ledger {
         Ok(())
     }
 
-    pub fn append_shot_log(
+    pub fn append_evolution_log(
         &self,
-        shot: &Shot,
+        shot: &Evolution,
         relative_path: &str,
         contents: &[u8],
     ) -> Result<(), LedgerError> {
@@ -474,7 +508,7 @@ impl Ledger {
         Ok(())
     }
 
-    pub fn finalize_shot(&self, shot: &Shot) -> Result<(), LedgerError> {
+    pub fn finalize_evolution(&self, shot: &Evolution) -> Result<(), LedgerError> {
         self.assert_writable(shot)?;
         let mut record = self.load_app(&shot.app_name)?;
         if next_sequence(&record)? != shot.number {
@@ -484,17 +518,17 @@ impl Ledger {
             )));
         }
         self.publish_completion_marker(shot)?;
-        record.latest_shot = Some(shot.number);
+        record.latest_evolution = Some(shot.number);
         self.write_record(&record)?;
         Ok(())
     }
 
-    pub fn latest_shot(&self, app_name: &str) -> Result<Option<Shot>, LedgerError> {
+    pub fn latest_evolution(&self, app_name: &str) -> Result<Option<Evolution>, LedgerError> {
         let record = self.load_app(app_name)?;
-        Ok(record.latest_shot.map(|number| Shot {
+        Ok(record.latest_evolution.map(|number| Evolution {
             app_name: app_name.into(),
             number,
-            path: self.shots_dir(app_name).join(format!("{number:04}")),
+            path: self.evolutions_dir(app_name).join(format!("{number:04}")),
         }))
     }
 
@@ -533,14 +567,14 @@ impl Ledger {
         }
     }
 
-    pub fn shot(&self, app_name: &str, number: u32) -> Result<Shot, LedgerError> {
+    pub fn shot(&self, app_name: &str, number: u32) -> Result<Evolution, LedgerError> {
         validate_app_name(app_name)?;
         if number == 0 {
             return Err(LedgerError::Corrupt(
                 "shot sequence must be at least 1".into(),
             ));
         }
-        let path = self.shots_dir(app_name).join(format!("{number:04}"));
+        let path = self.evolutions_dir(app_name).join(format!("{number:04}"));
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(LedgerError::Corrupt(format!(
@@ -556,18 +590,18 @@ impl Ledger {
             }
             Err(error) => return Err(error.into()),
         }
-        Ok(Shot {
+        Ok(Evolution {
             app_name: app_name.into(),
             number,
             path,
         })
     }
 
-    pub fn list_shots(&self, app_name: &str) -> Result<Vec<Shot>, LedgerError> {
+    pub fn list_evolutions(&self, app_name: &str) -> Result<Vec<Evolution>, LedgerError> {
         let record = self.load_app(app_name)?;
-        let shots_directory = self.shots_dir(app_name);
+        let evolutions_directory = self.evolutions_dir(app_name);
         let mut shots = Vec::new();
-        for entry in fs::read_dir(shots_directory)? {
+        for entry in fs::read_dir(evolutions_directory)? {
             let entry = entry?;
             let Ok(number) = entry.file_name().to_string_lossy().parse::<u32>() else {
                 continue;
@@ -577,13 +611,13 @@ impl Ledger {
                     "shot {number} is not a real directory"
                 )));
             }
-            let shot = Shot {
+            let shot = Evolution {
                 app_name: app_name.into(),
                 number,
                 path: entry.path(),
             };
             if has_valid_completion_marker(&shot.path, number)? {
-                if record.latest_shot.is_none_or(|latest| number > latest) {
+                if record.latest_evolution.is_none_or(|latest| number > latest) {
                     return Err(LedgerError::Corrupt(format!(
                         "shot {number} is complete but app.toml does not recognize it"
                     )));
@@ -595,14 +629,14 @@ impl Ledger {
         Ok(shots)
     }
 
-    fn assert_writable(&self, shot: &Shot) -> Result<(), LedgerError> {
+    fn assert_writable(&self, shot: &Evolution) -> Result<(), LedgerError> {
         validate_app_name(&shot.app_name)?;
         if shot.number == 0 {
             return Err(LedgerError::Corrupt(
                 "shot sequence must be at least 1".into(),
             ));
         }
-        let shots = self.shots_dir(&shot.app_name);
+        let shots = self.evolutions_dir(&shot.app_name);
         require_real_directory(&shots)?;
         let expected = shots.join(format!("{:04}", shot.number));
         if shot.path != expected {
@@ -627,7 +661,7 @@ impl Ledger {
         self.app_dir(name).join(APP_LEDGER_DIRECTORY)
     }
 
-    fn shots_dir(&self, name: &str) -> PathBuf {
+    fn evolutions_dir(&self, name: &str) -> PathBuf {
         self.tohseno_dir(name).join("evolutions")
     }
 
@@ -640,8 +674,10 @@ impl Ledger {
     /// durably creating it but before replacing app.toml, replay only that
     /// single next sequence into the derived app head.
     fn recover_interrupted_finalization(&self, record: &mut AppRecord) -> Result<(), LedgerError> {
-        if let Some(number) = record.latest_shot {
-            let current = self.shots_dir(&record.name).join(format!("{number:04}"));
+        if let Some(number) = record.latest_evolution {
+            let current = self
+                .evolutions_dir(&record.name)
+                .join(format!("{number:04}"));
             require_real_shot_directory(&current, number)?;
             if !has_valid_completion_marker(&current, number)? {
                 return Err(LedgerError::Corrupt(format!(
@@ -650,10 +686,12 @@ impl Ledger {
             }
         }
 
-        let Some(number) = record.latest_shot.unwrap_or(0).checked_add(1) else {
+        let Some(number) = record.latest_evolution.unwrap_or(0).checked_add(1) else {
             return Ok(());
         };
-        let path = self.shots_dir(&record.name).join(format!("{number:04}"));
+        let path = self
+            .evolutions_dir(&record.name)
+            .join(format!("{number:04}"));
         match fs::symlink_metadata(&path) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(LedgerError::Corrupt(format!(
@@ -668,11 +706,11 @@ impl Ledger {
             return Ok(());
         }
 
-        record.latest_shot = Some(number);
+        record.latest_evolution = Some(number);
         self.write_record(record)
     }
 
-    fn publish_completion_marker(&self, shot: &Shot) -> Result<(), LedgerError> {
+    fn publish_completion_marker(&self, shot: &Evolution) -> Result<(), LedgerError> {
         let marker = shot.complete_path();
         let prefix = format!(".complete.tmp-{}", std::process::id());
         for ordinal in 1_u32.. {
@@ -752,7 +790,7 @@ impl Ledger {
     /// Copies the living working tree into a reserved shot's `src/`,
     /// skipping everything a sealed world forbids (the in-folder ledger,
     /// VCS state, Finder droppings, logs, user-local Xcode state).
-    pub fn snapshot_working_tree(&self, shot: &Shot) -> Result<(), LedgerError> {
+    pub fn snapshot_working_tree(&self, shot: &Evolution) -> Result<(), LedgerError> {
         self.assert_writable(shot)?;
         let source = self.working_tree(&shot.app_name);
         require_real_directory(&source)?;
@@ -763,10 +801,10 @@ impl Ledger {
     /// Makes the working tree exactly mirror one shot's sealed world.
     /// Entries a sealed world forbids (`.tohseno`, `.git`, `.DS_Store`, …)
     /// are preserved untouched; everything else is replaced.
-    pub fn checkout_working_tree(&self, shot: &Shot) -> Result<(), LedgerError> {
+    pub fn checkout_working_tree(&self, shot: &Evolution) -> Result<(), LedgerError> {
         validate_app_name(&shot.app_name)?;
         let expected = self
-            .shots_dir(&shot.app_name)
+            .evolutions_dir(&shot.app_name)
             .join(format!("{:04}", shot.number));
         if shot.path != expected {
             return Err(LedgerError::Corrupt(format!(
@@ -932,7 +970,7 @@ fn copy_sealed_entries(source: &Path, destination: &Path) -> Result<(), LedgerEr
 
 fn next_sequence(record: &AppRecord) -> Result<u32, LedgerError> {
     record
-        .latest_shot
+        .latest_evolution
         .unwrap_or(0)
         .checked_add(1)
         .ok_or_else(|| LedgerError::Corrupt(format!("{} exhausted the shot sequence", record.name)))
@@ -1099,7 +1137,7 @@ fn sync_directory(_path: &Path) -> Result<(), LedgerError> {
     Ok(())
 }
 
-fn prepare_shot_path(shot: &Shot, relative_path: &Path) -> Result<PathBuf, LedgerError> {
+fn prepare_shot_path(shot: &Evolution, relative_path: &Path) -> Result<PathBuf, LedgerError> {
     let components = relative_path
         .components()
         .map(|component| match component {
@@ -1163,7 +1201,7 @@ fn validate_app_record(record: &AppRecord, expected_name: &str) -> Result<(), Le
             "{expected_name} has an invalid bundle identifier"
         )));
     }
-    if record.created_at_unix == 0 || record.latest_shot == Some(0) {
+    if record.created_at_unix == 0 || record.latest_evolution == Some(0) {
         return Err(LedgerError::Corrupt(format!(
             "{expected_name} has invalid ledger chronology"
         )));
@@ -1249,18 +1287,18 @@ mod tests {
         ledger
             .create_app("paper-press", "com.tohseno.test.paper-press")
             .unwrap();
-        let first = ledger.reserve_shot("paper-press", None).unwrap();
+        let first = ledger.reserve_evolution("paper-press", None).unwrap();
         assert_eq!(first.number, 1);
         ledger
-            .write_shot_file(&first, "prompt.md", b"Make a press.")
+            .write_evolution_file(&first, "prompt.md", b"Make a press.")
             .unwrap();
-        ledger.finalize_shot(&first).unwrap();
+        ledger.finalize_evolution(&first).unwrap();
         assert!(matches!(
-            ledger.write_shot_file(&first, "prompt.md", b"mutation"),
+            ledger.write_evolution_file(&first, "prompt.md", b"mutation"),
             Err(LedgerError::ShotFinalized(1))
         ));
 
-        let second = ledger.reserve_shot("paper-press", Some(1)).unwrap();
+        let second = ledger.reserve_evolution("paper-press", Some(1)).unwrap();
         assert_eq!(second.number, 2);
         assert_eq!(
             ledger.load_app("paper-press").unwrap().parents.get("2"),
@@ -1268,7 +1306,7 @@ mod tests {
         );
         assert_eq!(
             ledger
-                .list_shots("paper-press")
+                .list_evolutions("paper-press")
                 .unwrap()
                 .iter()
                 .map(|shot| shot.number)
@@ -1318,7 +1356,7 @@ mod tests {
         fs::create_dir(working.join(".git")).unwrap();
         fs::write(working.join(".git/HEAD"), b"ref\n").unwrap();
 
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         ledger.snapshot_working_tree(&shot).unwrap();
         assert!(shot.source_path().join("App.swift").is_file());
         assert!(!shot.source_path().join(".DS_Store").exists());
@@ -1425,12 +1463,12 @@ mod tests {
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
 
-        let failed = ledger.reserve_shot("press", None).unwrap();
+        let failed = ledger.reserve_evolution("press", None).unwrap();
         ledger
-            .write_shot_file(&failed, "build.log", b"failed")
+            .write_evolution_file(&failed, "build.log", b"failed")
             .unwrap();
 
-        let retry = ledger.reserve_shot("press", None).unwrap();
+        let retry = ledger.reserve_evolution("press", None).unwrap();
         assert_eq!(retry.number, 1);
         assert!(!retry.path.join("build.log").exists());
         let archived = temporary.path().join("press/.tohseno/incomplete");
@@ -1475,13 +1513,13 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
 
         let outside = temporary.path().join("outside");
         fs::create_dir(&outside).unwrap();
         symlink(&outside, shot.path.join("escape")).unwrap();
         assert!(ledger
-            .write_shot_file(&shot, "escape/owned", b"escaped")
+            .write_evolution_file(&shot, "escape/owned", b"escaped")
             .is_err());
         assert!(!outside.join("owned").exists());
 
@@ -1489,7 +1527,7 @@ mod tests {
         fs::write(&outside_log, b"untouched").unwrap();
         symlink(&outside_log, shot.path.join("build.log")).unwrap();
         assert!(ledger
-            .append_shot_log(&shot, "build.log", b"escaped")
+            .append_evolution_log(&shot, "build.log", b"escaped")
             .is_err());
         assert_eq!(fs::read(outside_log).unwrap(), b"untouched");
     }
@@ -1501,14 +1539,14 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let corrupted = fs::read_to_string(&record_path)
             .unwrap()
             .replace("name = \"press\"", "name = \"../outside\"");
         fs::write(record_path, corrupted).unwrap();
 
-        assert!(ledger.finalize_shot(&shot).is_err());
+        assert!(ledger.finalize_evolution(&shot).is_err());
         assert!(!shot.complete_path().exists());
         assert!(!temporary.path().join("ledger/apps/outside").exists());
     }
@@ -1520,7 +1558,7 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
 
         // Simulate a stop after the marker became durable but before app.toml
         // was atomically replaced.
@@ -1528,14 +1566,17 @@ mod tests {
         let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let before =
             toml::from_str::<AppRecord>(&fs::read_to_string(&record_path).unwrap()).unwrap();
-        assert_eq!(before.latest_shot, None);
+        assert_eq!(before.latest_evolution, None);
 
         let recovered = ledger.load_app("press").unwrap();
-        assert_eq!(recovered.latest_shot, Some(1));
+        assert_eq!(recovered.latest_evolution, Some(1));
         let persisted =
             toml::from_str::<AppRecord>(&fs::read_to_string(&record_path).unwrap()).unwrap();
-        assert_eq!(persisted.latest_shot, Some(1));
-        assert_eq!(ledger.reserve_shot("press", Some(1)).unwrap().number, 2);
+        assert_eq!(persisted.latest_evolution, Some(1));
+        assert_eq!(
+            ledger.reserve_evolution("press", Some(1)).unwrap().number,
+            2
+        );
     }
 
     #[test]
@@ -1545,7 +1586,7 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         fs::write(shot.complete_path(), b"completE\n").unwrap();
         let record_path = temporary.path().join("ledger/press/.tohseno/app.toml");
         let unchanged = fs::read(&record_path).unwrap();
@@ -1564,9 +1605,9 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        ledger.reserve_shot("press", None).unwrap();
+        ledger.reserve_evolution("press", None).unwrap();
         let mut record = ledger.load_app("press").unwrap();
-        record.latest_shot = Some(1);
+        record.latest_evolution = Some(1);
         ledger.write_record(&record).unwrap();
 
         assert!(matches!(
@@ -1584,14 +1625,14 @@ mod tests {
             .unwrap();
         let outside = temporary.path().join("outside");
         fs::create_dir(&outside).unwrap();
-        let forged = Shot {
+        let forged = Evolution {
             app_name: "press".into(),
             number: 1,
             path: outside.clone(),
         };
 
         assert!(matches!(
-            ledger.finalize_shot(&forged),
+            ledger.finalize_evolution(&forged),
             Err(LedgerError::Corrupt(_))
         ));
         assert!(!outside.join(".complete").exists());
@@ -1607,7 +1648,7 @@ mod tests {
         ledger
             .create_app("press", "com.tohseno.test.press")
             .unwrap();
-        let shot = ledger.reserve_shot("press", None).unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
         let outside = temporary.path().join("outside-marker");
         fs::write(&outside, COMPLETE_MARKER).unwrap();
         symlink(&outside, shot.complete_path()).unwrap();

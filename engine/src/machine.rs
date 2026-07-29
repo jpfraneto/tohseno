@@ -1,16 +1,14 @@
 use crate::builder_identity::{BuilderIdentity, BuilderIdentityError, BuilderIdentityManager};
-use crate::config::{Config, ConfigError, HarnessConfig};
+use crate::config::{Config, ConfigError};
 use crate::events::{Event, EventBus};
 use crate::gates::apple_signing::{self, AppleSigningState};
 use crate::gates::device::{self, DeviceState};
 use crate::gates::intent::{Intent, IntentError};
 use crate::gates::toolchain::{self, ToolchainState};
-use crate::gates::{build, install, sign};
+use crate::gates::{build, install, preview, sign};
 use crate::genome::{Genome, GenomeError};
-use crate::harness::{
-    discover_harnesses, selected_harness, Harness, HarnessError, HarnessMode, HarnessOption,
-};
-use crate::ledger::{sanitize_component, AppRecord, Ledger, LedgerError, Shot};
+use crate::harness::{discover_harnesses, launch_command, HarnessOption};
+use crate::ledger::{sanitize_component, AppRecord, Evolution, Ledger, LedgerError};
 use crate::protocol_lifecycle::{self, ProtocolLifecycleError};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,17 +20,14 @@ use tohseno_protocol::record::ShotOrigin;
 pub struct ShotRequest {
     pub app_name: String,
     pub intent: Intent,
-    pub harness: Option<String>,
 }
 
-struct ShotExecution {
-    request: ShotRequest,
-    shot: Shot,
-    app: AppRecord,
-    previous_source: Option<PathBuf>,
-    harness_config: HarnessConfig,
-    builder: BuilderIdentity,
-    origin: Option<ShotOrigin>,
+/// The outcome of `evolve`: either the folder's state became history, or the
+/// builder's own agent was handed the intent to work on.
+pub enum Evolved {
+    Recorded(Evolution),
+    NothingNew(Evolution),
+    Conducted(ConductedCreation),
 }
 
 pub struct Engine {
@@ -42,11 +37,12 @@ pub struct Engine {
     genome: Genome,
 }
 
-/// A conducted birth: the folder exists, the briefing is written, and the
-/// builder's own agent takes it from here.
+/// Conducted work: the folder is ready and the builder's own agent takes it
+/// from here, launched with this exact instruction.
 pub struct ConductedCreation {
     pub folder: PathBuf,
-    pub task_path: PathBuf,
+    pub agent_command: Option<String>,
+    pub instruction: String,
 }
 
 impl Engine {
@@ -79,10 +75,12 @@ impl Engine {
         discover_harnesses(&self.config.harness)
     }
 
-    pub async fn create(&self, request: ShotRequest) -> Result<Shot, EngineError> {
+    /// Takes the Shot: creates the visible folder, writes the briefing and
+    /// standing orders, and hands the builder's own agent the work. The
+    /// agent records evolution 1 itself with `tohseno evolve`.
+    pub fn create(&self, request: &ShotRequest) -> Result<ConductedCreation, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
-        let harness = self.harness_for_request(request.harness.as_deref())?;
         self.check_slot_limit()?;
         self.emit_upsell_once(
             "welcome",
@@ -93,7 +91,7 @@ impl Engine {
         let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
         let proposed_bundle_id = bundle_id(&request.app_name)?;
         let mut app = match self.ledger.load_app(&request.app_name) {
-            Ok(existing) if existing.latest_shot.is_none() => existing,
+            Ok(existing) if existing.latest_evolution.is_none() => existing,
             Ok(_) => return Err(LedgerError::AppExists(request.app_name.clone()).into()),
             Err(LedgerError::AppMissing(_)) => self
                 .ledger
@@ -113,23 +111,28 @@ impl Engine {
         if self.working_tree_has_content(&request.app_name)? {
             return Err(EngineError::FolderInProgress(request.app_name.clone()));
         }
-        let shot = self.ledger.reserve_shot(&request.app_name, None)?;
-        self.run_shot(ShotExecution {
-            request,
-            shot,
-            app,
-            previous_source: None,
-            harness_config: harness,
-            builder,
-            origin: None,
+        self.genome.compose_briefing(
+            &self.ledger,
+            &request.app_name,
+            &app.bundle_id,
+            &request.intent,
+        )?;
+        self.genome.write_standing_orders(
+            &self.ledger.working_tree(&request.app_name),
+            &request.app_name,
+        )?;
+        Ok(ConductedCreation {
+            folder: self.ledger.working_tree(&request.app_name),
+            agent_command: self.preferred_agent_command(),
+            instruction: "Read AGENTS.md, then .tohseno/TASK.md, and build the complete app in this folder. When it builds and is whole, record it yourself by running: tohseno evolve".into(),
         })
-        .await
     }
 
-    pub async fn evolve(&self, request: ShotRequest) -> Result<Shot, EngineError> {
+    /// Evolves the Shot. Whatever the folder holds becomes history first;
+    /// with an intent, the builder's own agent is then handed the work.
+    pub async fn evolve(&self, request: &ShotRequest) -> Result<Evolved, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
-        let harness = self.harness_for_request(request.harness.as_deref())?;
         let app = self.ledger.load_app(&request.app_name)?;
         if app.shot_id.is_none() || app.builder_id.is_none() {
             return Err(EngineError::LegacyRequiresAdoption(
@@ -140,226 +143,157 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
-        // Whatever the folder holds is history first: work done outside
-        // tohseno is recorded as its own Evolution before any agent runs.
-        let previous = match self.ledger.latest_shot(&request.app_name)? {
+        let latest = self.ledger.latest_evolution(&request.app_name)?;
+        let recorded = match &latest {
             Some(previous) => {
-                protocol_lifecycle::verify_completed_evolution(&previous)?;
-                if self.working_tree_matches(&previous)? {
-                    previous
+                protocol_lifecycle::verify_completed_evolution(previous)?;
+                if self.working_tree_matches(previous)? {
+                    None
                 } else {
-                    self.record_locked(&request.app_name, &app, &builder, None)
-                        .await?
+                    Some(
+                        self.record_locked(&request.app_name, &app, &builder, None, None)
+                            .await?,
+                    )
                 }
             }
-            None if self.working_tree_has_content(&request.app_name)? => {
-                self.record_locked(&request.app_name, &app, &builder, None)
-                    .await?
-            }
+            None if self.working_tree_has_content(&request.app_name)? => Some(
+                self.record_locked(&request.app_name, &app, &builder, None, None)
+                    .await?,
+            ),
             None => return Err(EngineError::NoCompleteShot(request.app_name.clone())),
         };
         if request.intent.prompt.trim().is_empty() {
-            if self.working_tree_matches(&previous)? {
-                self.events.emit(Event::result(format!(
-                    "nothing new — the folder already matches evolution {}.",
-                    previous.number
-                )));
-            }
-            return Ok(previous);
+            return Ok(match recorded {
+                Some(shot) => Evolved::Recorded(shot),
+                None => {
+                    let previous = latest.expect("clean tree implies a recorded evolution");
+                    self.events.emit(Event::result(format!(
+                        "nothing new — the folder already matches evolution {}.",
+                        previous.number
+                    )));
+                    Evolved::NothingNew(previous)
+                }
+            });
         }
-        let shot = self
+        // The intent waits in the folder; whoever records next carries it
+        // into that Evolution's history.
+        fs::write(
+            self.ledger
+                .briefing_dir(&request.app_name)
+                .join("pending-intent.md"),
+            request.intent.prompt.as_bytes(),
+        )?;
+        let references = self
             .ledger
-            .reserve_shot(&request.app_name, Some(previous.number))?;
-        self.run_shot(ShotExecution {
-            request,
-            shot,
-            app,
-            previous_source: Some(previous.source_path()),
-            harness_config: harness,
-            builder,
-            origin: None,
-        })
-        .await
+            .briefing_dir(&request.app_name)
+            .join("references");
+        fs::create_dir_all(&references)?;
+        for image in request
+            .intent
+            .images
+            .iter()
+            .take(crate::gates::intent::MAX_IMAGES)
+        {
+            if let Some(name) = image.file_name() {
+                let _ = fs::copy(image, references.join(name));
+            }
+        }
+        let instruction = format!(
+            "Read AGENTS.md and MEMORY.md. The builder asks: {}\nEvolve the app in this folder accordingly. When it builds and is whole, record it yourself by running: tohseno evolve",
+            request.intent.prompt.trim()
+        );
+        Ok(Evolved::Conducted(ConductedCreation {
+            folder: self.ledger.working_tree(&request.app_name),
+            agent_command: self.preferred_agent_command(),
+            instruction,
+        }))
     }
 
-    pub async fn adopt(
-        &self,
-        app_name: &str,
-        requested_harness: Option<&str>,
-    ) -> Result<Shot, EngineError> {
+    /// Adopts an existing plain folder as a Shot: it gains its `.tohseno/`
+    /// ledger, its standing orders, and its first recorded Evolution —
+    /// without changing a byte of the app itself before the record.
+    pub async fn adopt(&self, app_name: &str) -> Result<Evolution, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
-        let harness = self.harness_for_request(requested_harness)?;
-        let mut app = self.ledger.load_app(app_name)?;
-        if app.shot_id.is_some() || app.builder_id.is_some() {
-            return Err(EngineError::AlreadyProtocol(app_name.into()));
+        // Adoption must fail before any side effect: the folder needs an
+        // Xcode project named after itself and the fascia anatomy in place.
+        let working = self.ledger.working_tree(app_name);
+        if !working.join(format!("{app_name}.xcodeproj")).is_dir() {
+            return Err(EngineError::NotAdoptable(app_name.into()));
         }
-        let previous = self
-            .ledger
-            .latest_shot(app_name)?
-            .ok_or_else(|| EngineError::NoCompleteShot(app_name.into()))?;
-        let legacy_source_sha256 =
-            tohseno_protocol::tree_hash::hash_source_tree(&previous.source_path())
-                .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?
-                .digest;
+        if !working.join("TohsenoFascia").is_dir() {
+            return Err(EngineError::NotAdoptable(app_name.into()));
+        }
+        self.events
+            .emit(Event::status("preparing your TOHSENO identity…"));
         let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
-        app = self.ledger.bind_protocol_identity(
-            app_name,
-            tohseno_protocol::digest::ShotId::random(),
-            builder.builder_id,
-        )?;
-        let shot = self.ledger.reserve_shot(app_name, Some(previous.number))?;
-        let request = ShotRequest {
-            app_name: app_name.into(),
-            intent: Intent {
-                prompt: "Adopt this existing unsigned app into the TOHSENO protocol without changing its purpose or private local behavior.".into(),
-                images: Vec::new(),
-            },
-            harness: requested_harness.map(str::to_owned),
-        };
-        let origin = ShotOrigin::LegacyAdoption {
-            legacy_latest_shot: previous.number,
-            legacy_source_sha256,
-        };
-        self.run_shot(ShotExecution {
-            request,
-            shot,
-            app,
-            previous_source: Some(previous.source_path()),
-            harness_config: harness,
-            builder,
-            origin: Some(origin),
-        })
-        .await
-    }
-
-    async fn run_shot(&self, execution: ShotExecution) -> Result<Shot, EngineError> {
-        let ShotExecution {
-            request,
-            shot,
-            app,
-            previous_source,
-            harness_config,
-            builder,
-            origin,
-        } = execution;
-        let bundle_id = app.bundle_id.clone();
-        install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
-        let working_digest_at_start = self.working_digest(&request.app_name);
-        self.events.emit(Event::status(format!(
-            "preparing evolution {}…",
-            shot.number
-        )));
-        let image_names = request
-            .intent
-            .write_to_shot(&self.ledger, &shot, &self.events)?;
-        let genesis_input_sha256 = protocol_lifecycle::capture_input_commitment(&shot)?;
-        self.genome.compose(
-            &self.ledger,
-            &shot,
-            &request.app_name,
-            &bundle_id,
-            &image_names,
-            previous_source.as_deref(),
-        )?;
-
-        let harness_mode = self.wait_for_prerequisites(&harness_config).await?;
-        let harness = Harness::new(harness_config, self.events.clone());
-        self.events.emit(Event::status(format!(
-            "writing evolution {} of {}…",
-            shot.number, request.app_name
-        )));
-        harness
-            .run(
-                &self.ledger,
-                &shot,
-                harness_mode,
-                "Read TASK.md first, then build the complete app in src/ and verify your work.",
-            )
-            .await?;
-
-        let mut repair_pass = 0;
-        loop {
-            if let Err(error) = build::validate_complete_source(&shot.source_path()) {
-                if repair_pass >= self.config.max_repair_passes {
-                    return Err(EngineError::RepairExhausted {
-                        shot: shot.number,
-                        passes: self.config.max_repair_passes,
-                    });
-                }
-                repair_pass += 1;
-                self.events.emit(Event::status(format!(
-                    "repairing evolution {} · pass {} of {}…",
-                    shot.number, repair_pass, self.config.max_repair_passes
-                )));
-                self.genome
-                    .append_repair(&self.ledger, &shot, repair_pass, &error.to_string())?;
-                harness
-                    .run(
-                        &self.ledger,
-                        &shot,
-                        harness_mode,
-                        "Read TASK.md, restore the missing Apple Fascia anatomy, and leave the complete corrected project in src/.",
-                    )
-                    .await?;
-                continue;
+        let proposed_bundle_id = bundle_id(app_name)?;
+        let mut app = match self.ledger.load_app(app_name) {
+            Ok(existing) => existing,
+            Err(LedgerError::AppMissing(_)) => {
+                self.ledger.adopt_app(app_name, &proposed_bundle_id)?
             }
-
-            self.events.emit(Event::status(format!(
-                "building evolution {}…",
-                shot.number
-            )));
-            match build::compile(&self.ledger, &shot, &request.app_name)? {
-                Ok(()) => break,
-                Err(failure) if repair_pass < self.config.max_repair_passes => {
-                    repair_pass += 1;
-                    self.events.emit(Event::status(format!(
-                        "repairing evolution {} · pass {} of {}…",
-                        shot.number, repair_pass, self.config.max_repair_passes
-                    )));
-                    self.genome
-                        .append_repair(&self.ledger, &shot, repair_pass, &failure.output)?;
-                    harness
-                        .run(
-                            &self.ledger,
-                            &shot,
-                            harness_mode,
-                            "Read TASK.md, fix the latest build failure, and leave the complete corrected project in src/.",
-                        )
-                        .await?;
-                }
-                Err(_) => {
-                    return Err(EngineError::RepairExhausted {
-                        shot: shot.number,
-                        passes: self.config.max_repair_passes,
-                    });
-                }
-            }
+            Err(error) => return Err(error.into()),
+        };
+        if app.shot_id.is_none() && app.builder_id.is_none() {
+            app = self.ledger.bind_protocol_identity(
+                app_name,
+                tohseno_protocol::digest::ShotId::random(),
+                builder.builder_id,
+            )?;
         }
-
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
         self.genome
-            .write_standing_orders(&shot.source_path(), &request.app_name)?;
-        self.complete_shot(
-            &shot,
+            .write_standing_orders(&self.ledger.working_tree(app_name), app_name)?;
+        // A latest evolution that no longer verifies (a stranded pre-repin
+        // world, or an unsigned past) is honest legacy: the adoption records
+        // a fresh root that names it without inventing history for it.
+        let origin = match self.ledger.latest_evolution(app_name)? {
+            Some(previous)
+                if protocol_lifecycle::verify_completed_evolution(&previous).is_err() =>
+            {
+                let legacy_source_sha256 =
+                    tohseno_protocol::tree_hash::hash_source_tree(&previous.source_path())
+                        .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?
+                        .digest;
+                Some(ShotOrigin::LegacyAdoption {
+                    legacy_latest_shot: previous.number,
+                    legacy_source_sha256,
+                })
+            }
+            _ => None,
+        };
+        self.record_locked(
+            app_name,
             &app,
             &builder,
-            genesis_input_sha256,
+            Some("adopted: this folder becomes a Shot without changing its purpose."),
             origin,
-            &request.app_name,
-            &bundle_id,
-            working_digest_at_start,
         )
         .await
     }
 
-    /// The shared birth of every Evolution: protocol record, Simulator
+    /// The launch line for the builder's preferred (or first installed)
+    /// agent, with its uninterrupted-work arguments.
+    fn preferred_agent_command(&self) -> Option<String> {
+        let options = discover_harnesses(&self.config.harness);
+        let chosen = options
+            .iter()
+            .find(|option| option.selected && option.installed)
+            .or_else(|| options.iter().find(|option| option.installed))?;
+        Some(launch_command(chosen))
+    }
+
+    /// The shared birth of every Evolution: protocol record, Simulator    /// The shared birth of every Evolution: protocol record, Simulator
     /// artifact, signature, conformance, finalization, working-tree
     /// checkout, then a non-blocking phone offer. The Mac is enough; the
     /// phone is a destination resumed through `tohseno refresh`.
     #[allow(clippy::too_many_arguments)]
-    async fn complete_shot(
+    async fn finish_evolution(
         &self,
-        shot: &Shot,
+        shot: &Evolution,
         app: &AppRecord,
         builder: &BuilderIdentity,
         genesis_input_sha256: tohseno_protocol::digest::Bytes32,
@@ -367,7 +301,7 @@ impl Engine {
         app_name: &str,
         bundle_id: &str,
         working_digest_at_start: Option<tohseno_protocol::digest::Bytes32>,
-    ) -> Result<Shot, EngineError> {
+    ) -> Result<Evolution, EngineError> {
         self.events.emit(Event::status(format!(
             "committing evolution {}…",
             shot.number
@@ -385,15 +319,25 @@ impl Engine {
             "materializing evolution {}…",
             shot.number
         )));
-        if let Err(failure) = build::materialize_artifact(&self.ledger, shot, app_name)? {
-            return Err(EngineError::ArtifactUnbuildable(failure.output));
+        let artifact = match build::materialize_artifact(&self.ledger, shot, app_name)? {
+            Ok(artifact) => artifact,
+            Err(failure) => return Err(EngineError::ArtifactUnbuildable(failure.output)),
+        };
+        self.events.emit(Event::status(format!(
+            "looking at evolution {}…",
+            shot.number
+        )));
+        if let Err(reason) = preview::capture(&artifact, bundle_id, &shot.path.join("preview.png"))
+        {
+            self.events
+                .emit(Event::status(format!("no preview: {reason}")));
         }
         self.events.emit(Event::status(format!(
             "verifying evolution {}…",
             shot.number
         )));
         protocol_lifecycle::complete_evolution(&self.ledger, shot, builder, prepared)?;
-        self.ledger.finalize_shot(shot)?;
+        self.ledger.finalize_evolution(shot)?;
         protocol_lifecycle::verify_completed_evolution(shot)?;
         self.ledger.set_retired(app_name, false)?;
         if self.working_digest(app_name) == working_digest_at_start {
@@ -441,7 +385,11 @@ impl Engine {
     /// Records the working tree — however it got there — as the next
     /// Evolution of this one Shot. Editing is never a tohseno operation;
     /// recording is.
-    pub async fn record(&self, app_name: &str, note: Option<&str>) -> Result<Shot, EngineError> {
+    pub async fn record(
+        &self,
+        app_name: &str,
+        note: Option<&str>,
+    ) -> Result<Evolution, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
         let app = self.ledger.load_app(app_name)?;
@@ -452,7 +400,7 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(app_name.into()));
         }
-        self.record_locked(app_name, &app, &builder, note).await
+        self.record_locked(app_name, &app, &builder, note, None).await
     }
 
     /// The recording body, run while the app lock is already held.
@@ -462,7 +410,8 @@ impl Engine {
         app: &AppRecord,
         builder: &BuilderIdentity,
         note: Option<&str>,
-    ) -> Result<Shot, EngineError> {
+        origin: Option<ShotOrigin>,
+    ) -> Result<Evolution, EngineError> {
         let working = self.ledger.working_tree(app_name);
         let has_project = fs::read_dir(&working)
             .map(|entries| {
@@ -477,15 +426,17 @@ impl Engine {
         if !has_project {
             return Err(EngineError::NothingToSeal(app_name.into()));
         }
-        let previous = self.ledger.latest_shot(app_name)?;
+        let previous = self.ledger.latest_evolution(app_name)?;
         if let Some(previous) = &previous {
-            protocol_lifecycle::verify_completed_evolution(previous)?;
-            if self.working_tree_matches(previous)? {
-                self.events.emit(Event::result(format!(
-                    "nothing new — the folder already matches evolution {}.",
-                    previous.number
-                )));
-                return Ok(previous.clone());
+            if origin.is_none() {
+                protocol_lifecycle::verify_completed_evolution(previous)?;
+                if self.working_tree_matches(previous)? {
+                    self.events.emit(Event::result(format!(
+                        "nothing new — the folder already matches evolution {}.",
+                        previous.number
+                    )));
+                    return Ok(previous.clone());
+                }
             }
         } else {
             self.check_slot_limit()?;
@@ -494,11 +445,18 @@ impl Engine {
         let working_digest_at_start = self.working_digest(app_name);
         let shot = self
             .ledger
-            .reserve_shot(app_name, previous.as_ref().map(|shot| shot.number))?;
+            .reserve_evolution(app_name, previous.as_ref().map(|shot| shot.number))?;
         self.events.emit(Event::status(format!(
             "preparing evolution {}…",
             shot.number
         )));
+        // An evolve-conducted intent waits in the folder until the work is
+        // recorded; consuming it carries the builder's words into history.
+        let pending_path = self.ledger.briefing_dir(app_name).join("pending-intent.md");
+        let pending_intent = fs::read_to_string(&pending_path).ok().filter(|text| {
+            let _ = fs::remove_file(&pending_path);
+            !text.trim().is_empty()
+        });
         let briefing_intent = if shot.number == 1 {
             fs::read_to_string(self.ledger.briefing_dir(app_name).join("intent.md")).ok()
         } else {
@@ -506,13 +464,14 @@ impl Engine {
         };
         let prompt = note
             .map(str::to_owned)
+            .or(pending_intent)
             .or(briefing_intent)
             .unwrap_or_else(|| "recorded from the working tree.".into());
         self.ledger
-            .write_shot_file(&shot, "prompt.md", prompt.as_bytes())?;
+            .write_evolution_file(&shot, "prompt.md", prompt.as_bytes())?;
         if shot.number == 1 {
             // Conducted reference images belong to the genesis commitment.
-            let briefing_images = self.ledger.briefing_dir(app_name).join("images");
+            let briefing_images = self.ledger.briefing_dir(app_name).join("references");
             if let Ok(entries) = fs::read_dir(briefing_images) {
                 for entry in entries.flatten() {
                     if entry
@@ -559,66 +518,17 @@ impl Engine {
         }
         let bundle_id = app.bundle_id.clone();
         install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
-        self.complete_shot(
+        self.finish_evolution(
             &shot,
             app,
             builder,
             genesis_input_sha256,
-            None,
+            origin,
             app_name,
             &bundle_id,
             working_digest_at_start,
         )
         .await
-    }
-
-    /// Creates the app's visible folder and private briefing, then leaves
-    /// the builder's own agent to work in it. `tohseno shot` finishes the
-    /// birth.
-    pub fn create_folder(&self, request: &ShotRequest) -> Result<ConductedCreation, EngineError> {
-        crate::ledger::validate_app_name(&request.app_name)?;
-        let _app_lock = self.ledger.lock_app(&request.app_name)?;
-        self.check_slot_limit()?;
-        self.emit_upsell_once(
-            "welcome",
-            "first shot: Xcode + Apple ID now · iPhone later · free Apple IDs refresh weekly.",
-        )?;
-        self.events
-            .emit(Event::status("preparing your TOHSENO identity…"));
-        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
-        let proposed_bundle_id = bundle_id(&request.app_name)?;
-        let mut app = match self.ledger.load_app(&request.app_name) {
-            Ok(existing) if existing.latest_shot.is_none() => existing,
-            Ok(_) => return Err(LedgerError::AppExists(request.app_name.clone()).into()),
-            Err(LedgerError::AppMissing(_)) => self
-                .ledger
-                .create_app(&request.app_name, &proposed_bundle_id)?,
-            Err(error) => return Err(error.into()),
-        };
-        if app.shot_id.is_none() && app.builder_id.is_none() {
-            app = self.ledger.bind_protocol_identity(
-                &request.app_name,
-                tohseno_protocol::digest::ShotId::random(),
-                builder.builder_id,
-            )?;
-        }
-        if app.builder_id != Some(builder.builder_id) {
-            return Err(EngineError::BuilderMismatch(request.app_name.clone()));
-        }
-        let task_path = self.genome.compose_briefing(
-            &self.ledger,
-            &request.app_name,
-            &app.bundle_id,
-            &request.intent,
-        )?;
-        self.genome.write_standing_orders(
-            &self.ledger.working_tree(&request.app_name),
-            &request.app_name,
-        )?;
-        Ok(ConductedCreation {
-            folder: self.ledger.working_tree(&request.app_name),
-            task_path,
-        })
     }
 
     /// The lenient digest of the working tree, or None when the folder is
@@ -644,7 +554,7 @@ impl Engine {
         Ok(!commitment.entries.is_empty())
     }
 
-    fn working_tree_matches(&self, sealed: &Shot) -> Result<bool, EngineError> {
+    fn working_tree_matches(&self, sealed: &Evolution) -> Result<bool, EngineError> {
         let working = self.ledger.working_tree(&sealed.app_name);
         if !working.is_dir() {
             return Ok(true);
@@ -671,16 +581,19 @@ impl Engine {
                 .filter(|app| !app.retired)
                 .collect()
         };
-        for app in apps.into_iter().filter(|app| app.latest_shot.is_some()) {
+        for app in apps
+            .into_iter()
+            .filter(|app| app.latest_evolution.is_some())
+        {
             let _app_lock = self.ledger.lock_app(&app.name)?;
             let app = self.ledger.load_app(&app.name)?;
-            if app.latest_shot.is_none() {
+            if app.latest_evolution.is_none() {
                 continue;
             }
             if app.retired {
                 self.check_slot_limit()?;
             }
-            let shot = self.ledger.latest_shot(&app.name)?.unwrap();
+            let shot = self.ledger.latest_evolution(&app.name)?.unwrap();
             protocol_lifecycle::verify_completed_evolution(&shot)?;
             let recorded_artifact = shot.artifact_path().join(format!("{}.app", app.name));
             if sign::days_until_expiry(&recorded_artifact).is_some_and(|days| days <= 0) {
@@ -762,7 +675,7 @@ impl Engine {
             .ledger
             .list_apps()?
             .into_iter()
-            .filter(|app| !app.retired && app.latest_shot.is_some())
+            .filter(|app| !app.retired && app.latest_evolution.is_some())
             .collect::<Vec<_>>();
         if active.len() >= 3 {
             let candidate = &active[0].name;
@@ -787,37 +700,6 @@ impl Engine {
             self.events.emit(Event::status(message));
         }
         Ok(())
-    }
-
-    fn harness_for_request(&self, requested: Option<&str>) -> Result<HarnessConfig, EngineError> {
-        let Some(requested) = requested else {
-            return Ok(self.config.harness.clone());
-        };
-        if Path::new(requested).is_absolute() {
-            // A bring-your-own agent is a one-shot choice, never persisted
-            // over the builder's configured default.
-            return Ok(HarnessConfig {
-                command: crate::harness::command_for_path(Path::new(requested)),
-            });
-        }
-        let harness = selected_harness(requested)?;
-        if harness.command != self.config.harness.command {
-            let mut config = self.config.clone();
-            config.harness = harness.clone();
-            config.save(self.ledger.machine_root())?;
-        }
-        Ok(harness)
-    }
-
-    async fn wait_for_prerequisites(
-        &self,
-        harness_config: &HarnessConfig,
-    ) -> Result<HarnessMode, EngineError> {
-        self.wait_for_apple_prerequisites().await?;
-        Harness::new(harness_config.clone(), self.events.clone())
-            .wait_until_available()
-            .await
-            .map_err(EngineError::Harness)
     }
 
     async fn wait_for_apple_prerequisites(&self) -> Result<(), EngineError> {
@@ -877,7 +759,7 @@ impl DevicePipeline {
 
     pub async fn run(
         &self,
-        shot: &Shot,
+        shot: &Evolution,
         app_name: &str,
         bundle_id: &str,
         source: &Path,
@@ -993,16 +875,15 @@ pub enum EngineError {
     Ledger(LedgerError),
     Intent(IntentError),
     Genome(GenomeError),
-    Harness(HarnessError),
     Build(build::BuildError),
     Device(device::DeviceError),
     Sign(sign::SignError),
     Install(install::InstallError),
     NoCompleteShot(String),
-    RepairExhausted { shot: u32, passes: u8 },
     ArtifactUnbuildable(String),
     FolderInProgress(String),
     NothingToSeal(String),
+    NotAdoptable(String),
     WorkingTreeIncomplete(String),
     WorkingTreeUnbuildable { app: String, shot: u32 },
     SlotLimit,
@@ -1022,20 +903,23 @@ impl std::fmt::Display for EngineError {
             Self::Ledger(error) => write!(f, "{error}"),
             Self::Intent(error) => write!(f, "{error}"),
             Self::Genome(error) => write!(f, "{error}"),
-            Self::Harness(error) => write!(f, "{error}"),
             Self::Build(error) => write!(f, "{error}"),
             Self::Device(error) => write!(f, "{error}"),
             Self::Sign(error) => write!(f, "{error}"),
             Self::Install(error) => write!(f, "{error}"),
-            Self::NoCompleteShot(app) => write!(f, "{app} has no complete shot to evolve"),
-            Self::RepairExhausted { shot, passes } => write!(
-                f,
-                "engine bug: shot {shot} still fails after {passes} repair passes"
-            ),
+            Self::NoCompleteShot(app) => {
+                write!(f, "{app} has no recorded evolution yet — build in the folder, then `tohseno evolve`")
+            }
             Self::FolderInProgress(app) => {
                 write!(
                     f,
                     "the {app} folder already holds work — `tohseno evolve {app}` records it"
+                )
+            }
+            Self::NotAdoptable(app) => {
+                write!(
+                    f,
+                    "adoption needs `{app}.xcodeproj` and `TohsenoFascia/` in the {app} folder first"
                 )
             }
             Self::NothingToSeal(app) => {
@@ -1070,7 +954,10 @@ impl std::fmt::Display for EngineError {
             Self::BuilderIdentity(error) => write!(f, "{error}"),
             Self::ProtocolLifecycle(error) => write!(f, "{error}"),
             Self::LegacyRequiresAdoption(app) => {
-                write!(f, "{app} predates signed Shots; run `tohseno adopt {app}`")
+                write!(
+                    f,
+                    "{app} predates signed Evolutions — cd into its folder, then `tohseno adopt`"
+                )
             }
             Self::BuilderMismatch(app) => write!(
                 f,
@@ -1112,12 +999,6 @@ impl From<IntentError> for EngineError {
 impl From<GenomeError> for EngineError {
     fn from(value: GenomeError) -> Self {
         Self::Genome(value)
-    }
-}
-
-impl From<HarnessError> for EngineError {
-    fn from(value: HarnessError) -> Self {
-        Self::Harness(value)
     }
 }
 
