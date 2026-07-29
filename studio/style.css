@@ -1175,3 +1175,39 @@ textarea:disabled {
     transition: none !important;
   }
 }
+
+.working-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent, #0a7) 12%, transparent);
+  font-size: 13px;
+}
+
+.expiry-state {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #d97706 14%, transparent);
+  font-size: 13px;
+}
+
+.expiry-state.expired {
+  background: color-mix(in srgb, #dc2626 16%, transparent);
+}
+
+.memory-panel {
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+.memory-panel pre {
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+  opacity: 0.85;
+}

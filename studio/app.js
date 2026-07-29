@@ -13,6 +13,14 @@ const ui = {
   nextShot: document.querySelector("#next-shot"),
   shotPosition: document.querySelector("#shot-position"),
   evolve: document.querySelector("#evolve"),
+  workingState: document.querySelector("#working-state"),
+  recordEvolution: document.querySelector("#record-evolution"),
+  openFolder: document.querySelector("#open-folder"),
+  expiryState: document.querySelector("#expiry-state"),
+  expiryLabel: document.querySelector("#expiry-label"),
+  refreshApp: document.querySelector("#refresh-app"),
+  memoryPanel: document.querySelector("#memory-panel"),
+  memoryText: document.querySelector("#memory-text"),
   openSimulator: document.querySelector("#open-simulator"),
   slotLabel: document.querySelector("#slot-label"),
   slotDots: document.querySelector("#slot-dots"),
@@ -31,8 +39,6 @@ const ui = {
   composerSupport: document.querySelector("#composer-support"),
   closeComposer: document.querySelector("#close-composer"),
   form: document.querySelector("#shot-form"),
-  harness: document.querySelector("#harness"),
-  harnessStatus: document.querySelector("#harness-status"),
   appNameLabel: document.querySelector("#app-name-label"),
   appName: document.querySelector("#app-name"),
   promptLabel: document.querySelector("#prompt-label"),
@@ -76,7 +82,6 @@ const ui = {
 };
 
 let library = { apps: [], iphone_slots_used: 0, iphone_slot_limit: 3 };
-let harnesses = [];
 let selectedApp = null;
 let selectedShot = null;
 let composerMode = "create";
@@ -129,20 +134,12 @@ const loadLibrary = async () => {
   if (selectedApp) {
     selectedApp = library.apps.find((app) => app.name === selectedApp.name) || null;
     if (selectedApp && !selectedApp.shots.includes(selectedShot)) {
-      selectedShot = selectedApp.latest_shot;
+      selectedShot = selectedApp.latest_evolution;
     }
   }
   renderLibrary();
   renderSelection();
   renderSlots();
-};
-
-const loadHarnesses = async () => {
-  const response = await fetch("/api/harnesses", { cache: "no-store" });
-  if (!response.ok) throw new Error(await response.text());
-  const payload = await response.json();
-  harnesses = payload.harnesses.filter((harness) => harness.installed);
-  renderHarnesses();
 };
 
 const humanStatus = (value) => String(value || "unknown")
@@ -273,6 +270,49 @@ const loadShotProtocol = async (app, shot) => {
   }
 };
 
+ui.recordEvolution.addEventListener("click", async () => {
+  if (!selectedApp) return;
+  ui.recordEvolution.disabled = true;
+  try {
+    await fetch("/api/evolve", {
+      method: "POST",
+      headers: studioJsonHeaders,
+      body: JSON.stringify({ app_name: selectedApp.name }),
+    });
+  } finally {
+    setTimeout(() => {
+      ui.recordEvolution.disabled = false;
+      loadLibrary();
+    }, 1500);
+  }
+});
+
+ui.openFolder.addEventListener("click", () => {
+  if (!selectedApp) return;
+  fetch("/api/open", {
+    method: "POST",
+    headers: studioJsonHeaders,
+    body: JSON.stringify({ app_name: selectedApp.name }),
+  });
+});
+
+ui.refreshApp.addEventListener("click", async () => {
+  if (!selectedApp) return;
+  ui.refreshApp.disabled = true;
+  try {
+    await fetch("/api/refresh", {
+      method: "POST",
+      headers: studioJsonHeaders,
+      body: JSON.stringify({ app_name: selectedApp.name }),
+    });
+  } finally {
+    setTimeout(() => {
+      ui.refreshApp.disabled = false;
+      loadLibrary();
+    }, 1500);
+  }
+});
+
 ui.verifyShot.addEventListener("click", () => {
   if (selectedApp && selectedShot) loadShotProtocol(selectedApp, selectedShot);
 });
@@ -292,41 +332,13 @@ ui.copyPairing.addEventListener("click", async () => {
   }, 1400);
 });
 
-const renderHarnesses = () => {
-  const selected = harnesses.find((harness) => harness.selected) || harnesses[0];
-  if (!selected) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "No coding agents found";
-    ui.harness.replaceChildren(option);
-    ui.harness.disabled = true;
-    ui.harnessStatus.textContent = "Install a supported coding agent to take a Shot.";
-    updateSubmitState();
-    return;
-  }
-
-  const options = harnesses.map((harness) => {
-    const option = document.createElement("option");
-    option.value = harness.id;
-    option.textContent = harness.label;
-    option.selected = harness.id === selected.id;
-    return option;
-  });
-  ui.harness.replaceChildren(...options);
-  ui.harness.disabled = pressActive;
-  ui.harnessStatus.textContent = harnesses.length === 1
-    ? "1 agent detected on this Mac."
-    : `${harnesses.length} agents detected on this Mac.`;
-  updateSubmitState();
-};
-
 const renderLibrary = () => {
   const tiles = library.apps.map((app) => {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "app-tile";
     if (selectedApp?.name === app.name) tile.classList.add("selected");
-    tile.setAttribute("aria-label", `Run ${app.name}, Shot ${app.latest_shot}`);
+    tile.setAttribute("aria-label", `Run ${app.name}, evolution ${app.latest_evolution}`);
     tile.setAttribute("aria-pressed", selectedApp?.name === app.name ? "true" : "false");
 
     const name = document.createElement("strong");
@@ -335,10 +347,10 @@ const renderLibrary = () => {
 
     const meta = document.createElement("span");
     meta.className = "app-meta";
-    meta.textContent = app.shots.length === 1 ? "1 Shot" : `${app.shots.length} Shots`;
+    meta.textContent = app.shots.length === 1 ? "1 evolution" : `${app.shots.length} evolutions`;
 
-    tile.append(icon(app, app.latest_shot), name, meta);
-    tile.addEventListener("click", () => selectApp(app, app.latest_shot));
+    tile.append(icon(app, app.latest_evolution), name, meta);
+    tile.addEventListener("click", () => selectApp(app, app.latest_evolution));
     return tile;
   });
 
@@ -367,7 +379,25 @@ const renderSelection = () => {
   ui.selectedIcon.replaceChildren(...icon(selectedApp, selectedShot, "selected-icon").childNodes);
   ui.selectedName.textContent = selectedApp.name;
   ui.selectedLocation.textContent = selectedApp.retired ? "Local library" : "Installed on iPhone";
-  ui.shotPosition.textContent = `Shot ${selectedShot} of ${selectedApp.latest_shot}`;
+  ui.shotPosition.textContent = `Evolution ${selectedShot} of ${selectedApp.latest_evolution}`;
+  ui.workingState.hidden = !selectedApp.unrecorded_changes;
+  const days = selectedApp.expires_in_days;
+  if (typeof days === "number" && days <= 7) {
+    ui.expiryState.hidden = false;
+    ui.expiryState.classList.toggle("expired", days <= 0);
+    ui.expiryLabel.textContent =
+      days <= 0 ? "this install has died" :
+      days === 1 ? "dies tomorrow" :
+      `dies in ${days} days`;
+  } else {
+    ui.expiryState.hidden = true;
+  }
+  if (selectedApp.memory) {
+    ui.memoryPanel.hidden = false;
+    ui.memoryText.textContent = selectedApp.memory;
+  } else {
+    ui.memoryPanel.hidden = true;
+  }
   ui.previousShot.disabled = index <= 0;
   ui.nextShot.disabled = index < 0 || index >= selectedApp.shots.length - 1;
 };
@@ -382,9 +412,9 @@ const selectApp = async (app, shot) => {
   ui.simulatorEmpty.hidden = true;
   ui.runningApp.hidden = false;
   ui.showLibrary.hidden = false;
-  ui.simulatorTitle.textContent = `${app.name} · Shot ${shot}`;
+  ui.simulatorTitle.textContent = `${app.name} · Evolution ${shot}`;
   ui.simulatorLoading.hidden = false;
-  ui.simulatorLoading.querySelector("strong").textContent = "Opening Shot…";
+  ui.simulatorLoading.querySelector("strong").textContent = "Opening evolution…";
   ui.simulatorLoading.querySelector("span").textContent = "Building for Simulator";
   ui.simulatorScreen.removeAttribute("src");
 
@@ -403,7 +433,7 @@ const selectApp = async (app, shot) => {
   } catch (error) {
     if (sequence !== launchSequence) return;
     appendEvent("status", `Simulator stopped: ${error.message}`);
-    ui.simulatorLoading.querySelector("strong").textContent = "Could not open Shot";
+    ui.simulatorLoading.querySelector("strong").textContent = "Could not open this evolution";
     ui.simulatorLoading.querySelector("span").textContent = "Read the live press for details";
   }
 };
@@ -462,7 +492,6 @@ ui.openSimulator.addEventListener("click", async () => {
 const updateSubmitState = () => {
   const validName = composerMode === "evolve" || (ui.appName.validity.valid && ui.appName.value.length > 0);
   const ready = validName
-    && ui.harness.value.length > 0
     && ui.prompt.value.trim().length > 0
     && !pressActive
     && !shotCompleted;
@@ -472,7 +501,6 @@ const updateSubmitState = () => {
 const setComposerBusy = (busy) => {
   pressActive = busy;
   ui.form.setAttribute("aria-busy", String(busy));
-  ui.harness.disabled = busy || harnesses.length === 0;
   ui.appName.disabled = busy;
   ui.prompt.disabled = busy;
   ui.imageInput.disabled = busy;
@@ -488,8 +516,6 @@ const openComposer = (mode) => {
   shotCompleted = false;
   renderFiles();
   ui.form.reset();
-  const selectedHarness = harnesses.find((harness) => harness.selected) || harnesses[0];
-  ui.harness.value = selectedHarness?.id || "";
 
   if (mode === "create") {
     ui.composerKicker.textContent = "CREATE";
@@ -499,7 +525,7 @@ const openComposer = (mode) => {
     ui.appName.required = true;
     ui.promptLabel.textContent = "Make the intention exact";
   } else {
-    ui.composerKicker.textContent = `SHOT ${selectedApp.latest_shot + 1}`;
+    ui.composerKicker.textContent = `SHOT ${selectedApp.latest_evolution + 1}`;
     ui.composerTitle.textContent = `Evolve ${composerAppName}`;
     ui.composerSupport.textContent = "Use teaches the next evolution.";
     ui.appNameLabel.hidden = true;
@@ -567,7 +593,7 @@ for (const name of ["dragleave", "drop"]) {
 }
 ui.dropZone.addEventListener("drop", (event) => acceptFiles(event.dataTransfer.files));
 
-for (const field of [ui.harness, ui.appName, ui.prompt]) {
+for (const field of [ui.appName, ui.prompt]) {
   field.addEventListener("input", () => {
     shotCompleted = false;
     updateSubmitState();
@@ -595,7 +621,6 @@ ui.form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         mode: composerMode,
         app_name: appName,
-        harness: ui.harness.value,
         prompt: ui.prompt.value,
         images: await Promise.all(files.map(filePayload)),
       }),
@@ -623,20 +648,16 @@ const appendEvent = (kind, message) => {
     pressActive = false;
     shotCompleted = true;
     ui.form.setAttribute("aria-busy", "false");
-    ui.harness.disabled = harnesses.length === 0;
     ui.appName.disabled = false;
     ui.prompt.disabled = false;
     ui.imageInput.disabled = false;
     ui.dropZone.setAttribute("aria-disabled", "false");
     ui.submit.textContent = "Shot complete";
     ui.submit.disabled = true;
-    for (const harness of harnesses) {
-      harness.selected = harness.id === ui.harness.value;
-    }
 
     loadLibrary().then(() => {
       const app = library.apps.find((candidate) => candidate.name === completed.appName);
-      if (app) selectApp(app, app.latest_shot);
+      if (app) selectApp(app, app.latest_evolution);
     });
   }
 
@@ -712,6 +733,6 @@ stream.onmessage = (event) => {
   appendEvent(item.kind, item.message);
 };
 
-Promise.all([loadLibrary(), loadHarnesses(), loadProtocolOverview()]).catch((error) => {
+Promise.all([loadLibrary(), loadProtocolOverview()]).catch((error) => {
   appendEvent("status", `studio data unavailable: ${error.message}`);
 });

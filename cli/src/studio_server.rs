@@ -61,8 +61,6 @@ struct ShotSubmission {
     app_name: String,
     prompt: String,
     #[serde(default)]
-    harness: Option<String>,
-    #[serde(default)]
     images: Vec<UploadedImage>,
 }
 
@@ -95,10 +93,14 @@ struct LibraryResponse {
 #[derive(Debug, Serialize)]
 struct LibraryApp {
     name: String,
-    latest_shot: u32,
+    latest_evolution: u32,
     shots: Vec<u32>,
     retired: bool,
     icon_url: String,
+    folder: String,
+    unrecorded_changes: bool,
+    memory: Option<String>,
+    expires_in_days: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -348,6 +350,15 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     if request.method == "GET" && request.path.starts_with("/api/icon/") {
         return serve_icon(&mut socket, &request.path).await;
     }
+    if request.method == "POST" && request.path == "/api/evolve" {
+        return record_evolution(&mut socket, &request.body, &state).await;
+    }
+    if request.method == "POST" && request.path == "/api/open" {
+        return open_folder(&mut socket, &request.body).await;
+    }
+    if request.method == "POST" && request.path == "/api/refresh" {
+        return refresh_app(&mut socket, &request.body, &state).await;
+    }
     if request.method == "POST" && request.path == "/api/simulator/launch" {
         return launch_simulator(&mut socket, &request.body, &state).await;
     }
@@ -418,12 +429,17 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
             let request = ShotRequest {
                 app_name: submission.app_name,
                 intent: Intent::parse(&submission.prompt).with_images(image_paths),
-                harness: submission.harness,
             };
             let outcome = match Engine::discover(events.clone()) {
                 Ok(engine) => match submission.mode {
-                    ShotMode::Create => engine.create(request).await.map(|_| ()),
-                    ShotMode::Evolve => engine.evolve(request).await.map(|_| ()),
+                    ShotMode::Create => engine
+                        .create(&request)
+                        .map(|creation| conduct_from_studio(&creation, &events)),
+                    ShotMode::Evolve => engine.evolve(&request).await.map(|evolved| {
+                        if let tohseno_engine::machine::Evolved::Conducted(creation) = evolved {
+                            conduct_from_studio(&creation, &events);
+                        }
+                    }),
                 },
                 Err(error) => Err(error),
             };
@@ -434,6 +450,133 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         _ => respond(&mut socket, 404, "text/plain; charset=utf-8", "not found").await?,
     }
     Ok(())
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EvolveRequest {
+    app_name: String,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+/// Records the folder's current state as the next Evolution, exactly like
+/// `tohseno evolve` with no intent.
+async fn record_evolution(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request: EvolveRequest = serde_json::from_slice(body)?;
+    respond(
+        socket,
+        202,
+        "application/json; charset=utf-8",
+        r#"{"accepted":true}"#,
+    )
+    .await?;
+    socket.shutdown().await?;
+    let events = state.events.clone();
+    let press = state.press.clone();
+    let _guard = press.lock().await;
+    let outcome = match Engine::discover(events.clone()) {
+        Ok(engine) => engine
+            .record(&request.app_name, request.note.as_deref())
+            .await
+            .map(|_| ()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = outcome {
+        events.emit(Event::status(format!("engine stopped: {error}")));
+    }
+    Ok(())
+}
+
+/// Re-signs and reinstalls the latest Evolution, exactly like `tohseno refresh`.
+async fn refresh_app(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request: OpenFolderRequest = serde_json::from_slice(body)?;
+    respond(
+        socket,
+        202,
+        "application/json; charset=utf-8",
+        r#"{"accepted":true}"#,
+    )
+    .await?;
+    socket.shutdown().await?;
+    let events = state.events.clone();
+    let press = state.press.clone();
+    let _guard = press.lock().await;
+    let outcome = match Engine::discover(events.clone()) {
+        Ok(engine) => engine.refresh(Some(&request.app_name)).await,
+        Err(error) => Err(error),
+    };
+    if let Err(error) = outcome {
+        events.emit(Event::status(format!("engine stopped: {error}")));
+    }
+    Ok(())
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct OpenFolderRequest {
+    app_name: String,
+}
+
+/// Reveals the app's living folder in Finder.
+async fn open_folder(
+    socket: &mut TcpStream,
+    body: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request: OpenFolderRequest = serde_json::from_slice(body)?;
+    tohseno_engine::ledger::validate_app_name(&request.app_name)?;
+    let ledger = Ledger::discover()?;
+    let folder = ledger.working_tree(&request.app_name);
+    let _ = std::process::Command::new("open").arg(&folder).spawn();
+    respond(
+        socket,
+        200,
+        "application/json; charset=utf-8",
+        r#"{"opened":true}"#,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Studio conducts exactly like the CLI: the builder's own agent, their own
+/// session, one visible Terminal window on the folder.
+fn conduct_from_studio(creation: &tohseno_engine::ConductedCreation, events: &EventBus) {
+    let folder = creation.folder.display();
+    let Some(agent_command) = &creation.agent_command else {
+        events.emit(Event::handoff(format!(
+            "open a terminal in {folder} and run your coding agent — AGENTS.md guides it."
+        )));
+        return;
+    };
+    let quote = |value: &str| format!("'{}'", value.replace('\'', "'\\''"));
+    let shell = format!(
+        "cd {} && {} {}",
+        quote(&creation.folder.to_string_lossy()),
+        agent_command,
+        quote(&creation.instruction)
+    );
+    let opened = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(format!(
+            "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
+            shell.replace('\\', "\\\\").replace('"', "\\\"")
+        ))
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    if opened {
+        events.emit(Event::handoff(format!(
+            "your agent is working in {folder} — it records each evolution itself."
+        )));
+    } else {
+        events.emit(Event::handoff(format!("in {folder}, run: {shell}")));
+    }
 }
 
 async fn serve_harnesses(
@@ -792,22 +935,45 @@ async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error:
     let records = ledger.list_apps()?;
     let iphone_slots_used = records
         .iter()
-        .filter(|app| !app.retired && app.latest_shot.is_some())
+        .filter(|app| !app.retired && app.latest_evolution.is_some())
         .count();
     let mut apps = Vec::new();
     for app in records {
-        let Some(latest_shot) = app.latest_shot else {
+        let Some(latest_evolution) = app.latest_evolution else {
             continue;
         };
-        let shots = ledger
-            .list_shots(&app.name)?
+        let shots: Vec<u32> = ledger
+            .list_evolutions(&app.name)?
             .into_iter()
             .map(|shot| shot.number)
             .collect();
+        let folder = ledger.working_tree(&app.name);
+        let latest = ledger.shot(&app.name, latest_evolution)?;
+        let unrecorded_changes = match (
+            tohseno_protocol::tree_hash::hash_working_tree(&folder),
+            tohseno_protocol::tree_hash::hash_source_tree(&latest.source_path()),
+        ) {
+            (Ok(working), Ok(sealed)) => working.digest != sealed.digest,
+            _ => false,
+        };
+        let memory = std::fs::symlink_metadata(folder.join("MEMORY.md"))
+            .ok()
+            .filter(|metadata| metadata.is_file() && metadata.len() <= 64 * 1024)
+            .and_then(|_| std::fs::read_to_string(folder.join("MEMORY.md")).ok())
+            .map(|text| text.chars().take(6000).collect());
+        let artifact = latest.artifact_path().join(format!("{}.app", app.name));
+        let expires_in_days = tohseno_engine::gates::sign::days_until_expiry(&artifact);
         apps.push(LibraryApp {
-            icon_url: format!("/api/icon/{app_name}/{latest_shot}", app_name = app.name),
+            icon_url: format!(
+                "/api/icon/{app_name}/{latest_evolution}",
+                app_name = app.name
+            ),
+            folder: folder.display().to_string(),
+            unrecorded_changes,
+            memory,
+            expires_in_days,
             name: app.name,
-            latest_shot,
+            latest_evolution,
             shots,
             retired: app.retired,
         });
@@ -859,8 +1025,8 @@ async fn serve_shot_protocol(
             return Ok(());
         }
     };
-    let complete_shots = ledger.list_shots(app_name)?;
-    let Some(shot) = complete_shots
+    let finish_evolutions = ledger.list_evolutions(app_name)?;
+    let Some(shot) = finish_evolutions
         .into_iter()
         .find(|candidate| candidate.number == shot_number)
     else {
@@ -869,7 +1035,7 @@ async fn serve_shot_protocol(
     };
     let body = serde_json::to_string(&shot_protocol_facts(
         &app.name,
-        app.latest_shot == Some(shot_number),
+        app.latest_evolution == Some(shot_number),
         &shot,
     ))?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
@@ -879,7 +1045,7 @@ async fn serve_shot_protocol(
 fn shot_protocol_facts(
     app_name: &str,
     current: bool,
-    shot: &tohseno_engine::Shot,
+    shot: &tohseno_engine::Evolution,
 ) -> ShotProtocolFacts {
     let record_path = Path::new("TOHSENO/shot.json");
     let record_exists = fs::symlink_metadata(shot.path.join(record_path)).is_ok();
@@ -1204,7 +1370,7 @@ async fn serve_icon(
     let ledger = Ledger::discover()?;
     let shot = ledger.shot(app_name, shot_number)?;
     if !ledger
-        .list_shots(app_name)?
+        .list_evolutions(app_name)?
         .iter()
         .any(|candidate| candidate.number == shot_number)
     {
