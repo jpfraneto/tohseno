@@ -111,3 +111,27 @@ the new sequence before the compile gate.
   isolated candidates and can be re-created.
 - Studio gains a truthful model for "unsealed changes" and can offer the
   seal as its primary action.
+
+## Amendment — one Shot, many Evolutions; the agent records (same day)
+
+Owner review corrected the ontology and collapsed the surface:
+
+- **A Shot is the enduring intent behind an app.** One Shot per folder,
+  permanent ShotID; every recorded state is an Evolution *of that same
+  Shot*. All voices now say "evolution N of emilia", never "shot N".
+- **The `shot` verb and "seal" vocabulary are retired.** Recording an
+  Evolution is what `tohseno evolve` means: with nothing else, it records
+  the folder's current state (recording is to worlds what `git commit` is
+  to files); with a prompt it first records any out-of-band work, then
+  drives a headless agent — no refusal states, no "unsealed changes".
+- **The virus model.** The engine writes `AGENTS.md` (+ a `CLAUDE.md`
+  pointer) into every world — the standing file agents auto-read. It
+  carries the constitution and the closing habit: *record it yourself:
+  `tohseno evolve`*. TOHSENO never drives the builder's agent; the ontology
+  permeates whatever enters the folder.
+- **MEMORY is the sixth organ.** `MEMORY.md`, inside the signed world, is
+  the Shot's memory of its own becoming and current state; it absorbs the
+  earlier `INTERPRETATION.md`. Agents read it first and update it last.
+- Internal type names (`Shot` as the evolution-directory handle,
+  `reserve_shot`, …) still predate this ontology; renaming them is
+  mechanical follow-up work and changes no behavior.

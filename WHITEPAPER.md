@@ -82,13 +82,14 @@ can inspect:
 - declared network and Apple capabilities;
 - deterministic conformance receipts.
 
-The Genome guides the intelligence that creates an app. It has four organs:
-Laws, Structure, Taste, and Listening. Listening governs how intelligence
-reads an intention — the builder's language is the app's language, a thin
-intention is distilled into one complete gesture, a thick intention is a
-contract, and every decision made on the builder's behalf, including any
-law-forced deviation from an explicit request, is written into the world as
-`INTERPRETATION.md`.
+The Genome guides the intelligence that creates an app. It has six organs:
+Laws (what must always hold), Structure (the skeleton), Taste (how it
+should feel), Listening (how to read the builder — their language is the
+app's language, a thin intention is distilled into one complete gesture, a
+thick intention is a contract), Unfolding (how a world grows — whole at
+every rest, so any pause is recordable), and Memory (the Shot remembers —
+every decision made on the builder's behalf, every law-forced deviation,
+and the current state live in the world's own `MEMORY.md`).
 
 The Fascia is checked by ordinary deterministic code. An LLM is never the
 conformance judge.
@@ -109,14 +110,24 @@ birth requirement: installation happens immediately when a phone is present
 and resumes later through `tohseno refresh` when it is not. An unfinished
 attempt never poisons the lineage, and a finished Shot can always evolve.
 
-A Shot is a visible folder. The app lives as an ordinary directory the
-builder can open with any tool — their coding agent, Xcode, an editor — and
-it carries its own ledger inside `.tohseno/`: identity binding, sealed
-Evolutions, records, signatures. Editing is not a protocol operation;
-*sealing* is. `tohseno shot` seals the folder's current state — however it
-got there — as the next signed Evolution, the way a commit seals a working
-tree. Because the folder carries everything, moving the folder moves the
-Shot: portability is a property of the object, not a service.
+A Shot is a visible folder — and there is only ever one Shot per app: the
+enduring intent behind it. Its recorded states are Evolutions of that same
+Shot, never new Shots. The folder is an ordinary directory the builder can
+open with any tool — their coding agent, Xcode, an editor — and it carries
+its own ledger inside `.tohseno/`: identity binding, recorded Evolutions,
+records, signatures. Editing is never a protocol operation; *evolving* is.
+`tohseno evolve` records the folder's current state — however it got there —
+as the next signed Evolution, the way a commit records a working tree.
+Because the folder carries everything, moving the folder moves the Shot:
+portability is a property of the object, not a service.
+
+The folder also carries its own constitution and its own memory. An
+engine-written `AGENTS.md` — the standing file coding agents read on
+arrival — constitutes any agent that enters by any door: obey the genome,
+keep the world whole, and record each finished Evolution yourself. A
+`MEMORY.md` inside the signed world is the Shot's memory of how it came to
+be and where it stands. TOHSENO does not drive the agents; its ontology
+permeates whatever works in the folder.
 
 Prompts, reference images, unpublished source, app data, usage, recovery
 material, and continuity relationships stay local by default. Publication is a

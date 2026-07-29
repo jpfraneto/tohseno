@@ -7,6 +7,7 @@ const STRUCTURE: &str = include_str!("../../genome/STRUCTURE.md");
 const TASTE: &str = include_str!("../../genome/TASTE.md");
 const LISTENING: &str = include_str!("../../genome/LISTENING.md");
 const UNFOLDING: &str = include_str!("../../genome/UNFOLDING.md");
+const MEMORY: &str = include_str!("../../genome/MEMORY.md");
 const FASCIA_JSON: &str = include_str!("../../fascia/apple/FASCIA.json");
 const FASCIA_DOCUMENTS: [(&str, &str); 7] = [
     ("FASCIA.md", include_str!("../../fascia/apple/FASCIA.md")),
@@ -70,6 +71,7 @@ impl Genome {
         ledger.write_shot_file(shot, "genome/TASTE.md", TASTE.as_bytes())?;
         ledger.write_shot_file(shot, "genome/LISTENING.md", LISTENING.as_bytes())?;
         ledger.write_shot_file(shot, "genome/UNFOLDING.md", UNFOLDING.as_bytes())?;
+        ledger.write_shot_file(shot, "genome/MEMORY.md", MEMORY.as_bytes())?;
         ledger.write_shot_file(shot, "fascia/apple/FASCIA.json", FASCIA_JSON.as_bytes())?;
         for (name, contents) in FASCIA_DOCUMENTS {
             ledger.write_shot_file(
@@ -102,15 +104,16 @@ impl Genome {
                 .join("\n")
         };
         let previous = if previous_source.is_some() {
-            "A complete prior shot is available read-only as design context in `previous-src/`; create a new full world in `src/` and do not edit `previous-src/`."
+            "The previous evolution of this Shot is available read-only as design context in `previous-src/`; create a new full world in `src/` and do not edit `previous-src/`."
         } else {
-            "There is no prior shot."
+            "This is evolution 1; there is no previous evolution."
         };
         let laws = LAWS;
         let structure = STRUCTURE;
         let taste = TASTE;
         let listening = LISTENING;
         let unfolding = UNFOLDING;
+        let memory = MEMORY;
         let task = format!(
             r#"# TOHSENO task
 
@@ -133,6 +136,8 @@ Read this file first and complete the task autonomously.
 {listening}
 
 {unfolding}
+
+{memory}
 
 ## Apple Fascia
 
@@ -174,13 +179,60 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Output contract
 
 Work directly in this workspace and finish a complete buildable project in `src/`,
-including the `src/INTERPRETATION.md` that Listening requires.
+including the `src/MEMORY.md` that Memory requires.
 Run `xcodebuild` yourself when useful, but do not stop at an explanation.
 Never emit only snippets, patches, instructions, or prose.
 "#
         );
         ledger.write_shot_file(shot, "TASK.md", task.as_bytes())?;
         Ok(shot.path.join("TASK.md"))
+    }
+
+    /// Writes the standing orders any coding agent auto-reads on entering
+    /// the folder: `AGENTS.md` (with a `CLAUDE.md` pointer). This is how the
+    /// tohseno ontology permeates work tohseno never drives — the agent
+    /// itself records each finished Evolution. Engine-owned; written once.
+    pub fn write_standing_orders(&self, folder: &Path, app_name: &str) -> Result<(), GenomeError> {
+        let agents = folder.join("AGENTS.md");
+        if !agents.exists() {
+            let contents = format!(
+                r#"# This folder is a TOHSENO Shot
+
+One Shot, one intent, many Evolutions — all of them this same app.
+The sealed history lives in `.tohseno/evolutions/`; this folder is the
+living world of `{app_name}`.
+
+Before working:
+
+- Read `MEMORY.md` — the Shot's own memory of how it came to be and where it stands.
+- Read `.tohseno/TASK.md` — the current briefing and the builder's intent.
+- Obey the genome in `.tohseno/genome/` — laws, structure, taste, listening, unfolding, memory.
+
+While working:
+
+- Never modify anything inside `.tohseno/`.
+- Keep this folder a complete, buildable world at every rest.
+- Update `MEMORY.md` before you stop.
+
+When the work builds and is whole, record it yourself:
+
+    tohseno evolve
+
+That runs the gates, signs the record, and appends the next Evolution to
+this Shot's history. The builder should never have to remember it.
+"#
+            );
+            fs::write(&agents, contents)?;
+        }
+        let claude = folder.join("CLAUDE.md");
+        if !claude.exists() {
+            fs::write(
+                &claude,
+                "Read AGENTS.md.
+",
+            )?;
+        }
+        Ok(())
     }
 
     /// Writes the private briefing for a conducted creation into the app's
@@ -205,6 +257,7 @@ Never emit only snippets, patches, instructions, or prose.
             ("TASTE.md", TASTE),
             ("LISTENING.md", LISTENING),
             ("UNFOLDING.md", UNFOLDING),
+            ("MEMORY.md", MEMORY),
         ] {
             fs::write(briefing.join("genome").join(name), contents.as_bytes())?;
         }
@@ -252,6 +305,7 @@ Never emit only snippets, patches, instructions, or prose.
         let taste = TASTE;
         let listening = LISTENING;
         let unfolding = UNFOLDING;
+        let memory = MEMORY;
         let task = format!(
             r#"# TOHSENO task
 
@@ -278,6 +332,8 @@ Never modify anything inside `.tohseno/`.
 {listening}
 
 {unfolding}
+
+{memory}
 
 ## Apple Fascia
 
@@ -309,10 +365,10 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Output contract
 
 Work directly in this folder and finish a complete buildable project here,
-including the `INTERPRETATION.md` that Listening requires.
+including the `MEMORY.md` that Memory requires.
 Run `xcodebuild` yourself when useful, but do not stop at an explanation.
 Never emit only snippets, patches, instructions, or prose.
-When the app builds, tell the builder to run: `tohseno shot {app_name}`
+When the work builds and is whole, record it yourself: `tohseno evolve`
 "#
         );
         let task_path = briefing.join("TASK.md");

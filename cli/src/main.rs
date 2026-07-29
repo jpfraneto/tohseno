@@ -42,22 +42,20 @@ enum Command {
         #[arg(long, value_name = "AGENT")]
         harness: Option<String>,
     },
-    /// Seal the app folder's current state as the next Evolution.
+    /// Record the folder's current state as the Shot's next Evolution.
     ///
     /// However the folder got there — your own agent, Xcode, an editor —
-    /// `shot` snapshots it, runs every gate, signs the record, and appends
-    /// an immutable Evolution. Run it inside the folder or pass the name.
-    Shot {
+    /// `evolve` snapshots it, runs every gate, signs the record, and appends
+    /// it to this one Shot's history. Run it inside the folder or pass the
+    /// name. With `--prompt-file` (or piped text) it first records any new
+    /// work, then drives a headless agent for the next Evolution.
+    Evolve {
         app_name: Option<String>,
+        #[arg(long, value_name = "PATH")]
+        prompt_file: Option<PathBuf>,
         /// One line recorded as this Evolution's intention.
         #[arg(long, value_name = "TEXT")]
         note: Option<String>,
-    },
-    /// Create a new complete shot using the previous shot as context.
-    Evolve {
-        app_name: String,
-        #[arg(long, value_name = "PATH")]
-        prompt_file: Option<PathBuf>,
         /// Use a detected coding agent by id (hermes, codex, claude, grok, opencode)
         /// or an absolute path to your own TASK.md-compatible agent executable.
         #[arg(long, value_name = "AGENT")]
@@ -313,7 +311,7 @@ async fn dispatch(
                 })?;
                 let agent =
                     agent_id.and_then(|id| options.into_iter().find(|option| option.id == id));
-                conduct_agent(&creation, agent.as_ref(), &app_name, bus);
+                conduct_agent(&creation, agent.as_ref(), bus);
             } else {
                 let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
                 engine.prime_toolchain();
@@ -327,26 +325,28 @@ async fn dispatch(
                     .await?;
             }
         }
-        Command::Shot { app_name, note } => {
-            let (engine, name) = engine_for(app_name, bus)?;
-            engine.seal(&name, note.as_deref()).await?;
-        }
         Command::Evolve {
             app_name,
             prompt_file,
+            note,
             harness,
         } => {
-            let engine = Engine::discover(bus.clone())?;
-            let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
-            engine.prime_toolchain();
-            let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-            engine
-                .evolve(ShotRequest {
-                    app_name,
-                    intent: Intent::parse(&prompt),
-                    harness,
-                })
-                .await?;
+            let (engine, name) = engine_for(app_name, bus)?;
+            let wants_agent = prompt_file.is_some() || !io::stdin().is_terminal();
+            if wants_agent {
+                let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
+                engine.prime_toolchain();
+                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
+                engine
+                    .evolve(ShotRequest {
+                        app_name: name,
+                        intent: Intent::parse(&prompt),
+                        harness,
+                    })
+                    .await?;
+            } else {
+                engine.record(&name, note.as_deref()).await?;
+            }
         }
         Command::Refresh { app_name } => {
             Engine::discover(bus.clone())?
@@ -464,22 +464,15 @@ fn engine_for(
 }
 
 /// Opens the builder's own agent in a new Terminal window on the folder.
-fn conduct_agent(
-    creation: &ConductedCreation,
-    agent: Option<&HarnessOption>,
-    app_name: &str,
-    bus: &EventBus,
-) {
+fn conduct_agent(creation: &ConductedCreation, agent: Option<&HarnessOption>, bus: &EventBus) {
     let folder = creation.folder.display();
     let Some(agent) = agent else {
         bus.emit(Event::handoff(format!(
-            "open a terminal in {folder}, run your coding agent, then: tohseno shot {app_name}"
+            "open a terminal in {folder} and run your coding agent — AGENTS.md guides it."
         )));
         return;
     };
-    let instruction = format!(
-        "Read .tohseno/TASK.md first, then build the complete app in this folder. When it builds, tell me to run: tohseno shot {app_name}"
-    );
+    let instruction = "Read AGENTS.md, then .tohseno/TASK.md, and build the complete app in this folder. When it builds and is whole, record it yourself by running: tohseno evolve".to_owned();
     let shell = format!(
         "cd {} && {} {}",
         shell_quote(&creation.folder.to_string_lossy()),
@@ -498,12 +491,12 @@ fn conduct_agent(
         .unwrap_or(false);
     if opened {
         bus.emit(Event::handoff(format!(
-            "{} is working in {folder} — when it's done: tohseno shot {app_name}",
+            "{} is working in {folder} — it records each evolution itself.",
             agent.label
         )));
     } else {
         bus.emit(Event::handoff(format!(
-            "open a terminal in {folder}, run {}, then: tohseno shot {app_name}",
+            "open a terminal in {folder} and run {} — AGENTS.md guides it.",
             agent.label
         )));
     }
@@ -526,9 +519,9 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
                 let expiry = tohseno_engine::gates::sign::days_until_expiry(&artifact)
                     .map(|days| format!("{days} days until expiry"))
                     .unwrap_or_else(|| "signing profile unavailable".into());
-                format!("shots 1–{number} · {expiry}")
+                format!("evolutions 1–{number} · {expiry}")
             } else {
-                "no complete shots".into()
+                "no complete evolutions".into()
             };
             let retired = if app.retired { " · retired" } else { "" };
             bus.emit(Event::status(format!("{} · {detail}{retired}", app.name)));

@@ -35,7 +35,7 @@ pub async fn launch(
         .spawn();
 
     events.emit(Event::status(format!(
-        "opening shot {shot_number} of {app_name} in Simulator…"
+        "opening evolution {shot_number} of {app_name} in Simulator…"
     )));
     let build_directory = tempfile::tempdir()?;
     let app_bundle = build(
@@ -68,7 +68,7 @@ pub async fn launch(
     )
     .await?;
     events.emit(Event::status(format!(
-        "shot {shot_number} of {app_name} is running in Simulator."
+        "evolution {shot_number} of {app_name} is running in Simulator."
     )));
     Ok(SimulatorSession {
         device_id: device.udid,

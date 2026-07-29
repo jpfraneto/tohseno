@@ -35,13 +35,18 @@ The candidate uses `~/.tohseno-genesis/` and the command
 
 In the candidate, apps are visible folders under `~/Desktop/Tohseno/`
 (override with `TOHSENO_HOME`), each carrying its own ledger in `.tohseno/`
-(ADR 0003). Edit the folder with anything — your coding agent, Xcode, an
-editor — then seal its state as the next signed Evolution:
+(ADR 0003). One Shot per app — the enduring intent — with many recorded
+Evolutions. Edit the folder with anything — your coding agent, Xcode, an
+editor — and record its state as the next signed Evolution:
 
 ```sh
 cd ~/Desktop/Tohseno/my-app
-tohseno-genesis shot
+tohseno-genesis evolve
 ```
+
+An engine-written `AGENTS.md` in every folder tells whatever agent enters
+to obey the genome, maintain the Shot's `MEMORY.md`, and run that command
+itself when its work is whole — the builder never has to remember it.
 
 A Shot completes on the Mac: once the world builds, the engine materializes
 a Simulator artifact, signs the record, and verifies it — no iPhone

@@ -140,13 +140,32 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
-        let previous = self
-            .ledger
-            .latest_shot(&request.app_name)?
-            .ok_or_else(|| EngineError::NoCompleteShot(request.app_name.clone()))?;
-        protocol_lifecycle::verify_completed_evolution(&previous)?;
-        if !self.working_tree_matches(&previous)? {
-            return Err(EngineError::UnsealedChanges(request.app_name.clone()));
+        // Whatever the folder holds is history first: work done outside
+        // tohseno is recorded as its own Evolution before any agent runs.
+        let previous = match self.ledger.latest_shot(&request.app_name)? {
+            Some(previous) => {
+                protocol_lifecycle::verify_completed_evolution(&previous)?;
+                if self.working_tree_matches(&previous)? {
+                    previous
+                } else {
+                    self.record_locked(&request.app_name, &app, &builder, None)
+                        .await?
+                }
+            }
+            None if self.working_tree_has_content(&request.app_name)? => {
+                self.record_locked(&request.app_name, &app, &builder, None)
+                    .await?
+            }
+            None => return Err(EngineError::NoCompleteShot(request.app_name.clone())),
+        };
+        if request.intent.prompt.trim().is_empty() {
+            if self.working_tree_matches(&previous)? {
+                self.events.emit(Event::result(format!(
+                    "nothing new — the folder already matches evolution {}.",
+                    previous.number
+                )));
+            }
+            return Ok(previous);
         }
         let shot = self
             .ledger
@@ -227,8 +246,10 @@ impl Engine {
         let bundle_id = app.bundle_id.clone();
         install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
         let working_digest_at_start = self.working_digest(&request.app_name);
-        self.events
-            .emit(Event::status(format!("preparing shot {}…", shot.number)));
+        self.events.emit(Event::status(format!(
+            "preparing evolution {}…",
+            shot.number
+        )));
         let image_names = request
             .intent
             .write_to_shot(&self.ledger, &shot, &self.events)?;
@@ -245,7 +266,7 @@ impl Engine {
         let harness_mode = self.wait_for_prerequisites(&harness_config).await?;
         let harness = Harness::new(harness_config, self.events.clone());
         self.events.emit(Event::status(format!(
-            "writing shot {} of {}…",
+            "writing evolution {} of {}…",
             shot.number, request.app_name
         )));
         harness
@@ -268,7 +289,7 @@ impl Engine {
                 }
                 repair_pass += 1;
                 self.events.emit(Event::status(format!(
-                    "repairing shot {} · pass {} of {}…",
+                    "repairing evolution {} · pass {} of {}…",
                     shot.number, repair_pass, self.config.max_repair_passes
                 )));
                 self.genome
@@ -284,14 +305,16 @@ impl Engine {
                 continue;
             }
 
-            self.events
-                .emit(Event::status(format!("building shot {}…", shot.number)));
+            self.events.emit(Event::status(format!(
+                "building evolution {}…",
+                shot.number
+            )));
             match build::compile(&self.ledger, &shot, &request.app_name)? {
                 Ok(()) => break,
                 Err(failure) if repair_pass < self.config.max_repair_passes => {
                     repair_pass += 1;
                     self.events.emit(Event::status(format!(
-                        "repairing shot {} · pass {} of {}…",
+                        "repairing evolution {} · pass {} of {}…",
                         shot.number, repair_pass, self.config.max_repair_passes
                     )));
                     self.genome
@@ -314,6 +337,8 @@ impl Engine {
             }
         }
 
+        self.genome
+            .write_standing_orders(&shot.source_path(), &request.app_name)?;
         self.complete_shot(
             &shot,
             &app,
@@ -343,8 +368,10 @@ impl Engine {
         bundle_id: &str,
         working_digest_at_start: Option<tohseno_protocol::digest::Bytes32>,
     ) -> Result<Shot, EngineError> {
-        self.events
-            .emit(Event::status(format!("committing shot {}…", shot.number)));
+        self.events.emit(Event::status(format!(
+            "committing evolution {}…",
+            shot.number
+        )));
         let prepared = protocol_lifecycle::prepare_evolution(
             &self.ledger,
             shot,
@@ -355,14 +382,16 @@ impl Engine {
         )?;
 
         self.events.emit(Event::status(format!(
-            "materializing shot {}…",
+            "materializing evolution {}…",
             shot.number
         )));
         if let Err(failure) = build::materialize_artifact(&self.ledger, shot, app_name)? {
             return Err(EngineError::ArtifactUnbuildable(failure.output));
         }
-        self.events
-            .emit(Event::status(format!("verifying shot {}…", shot.number)));
+        self.events.emit(Event::status(format!(
+            "verifying evolution {}…",
+            shot.number
+        )));
         protocol_lifecycle::complete_evolution(&self.ledger, shot, builder, prepared)?;
         self.ledger.finalize_shot(shot)?;
         protocol_lifecycle::verify_completed_evolution(shot)?;
@@ -371,11 +400,11 @@ impl Engine {
             self.ledger.checkout_working_tree(shot)?;
         } else {
             self.events.emit(Event::status(
-                "the folder changed while sealing; your newer edits are kept as unsealed changes.",
+                "the folder changed while recording; your newer edits stay in place for the next evolution.",
             ));
         }
         self.events.emit(Event::result(format!(
-            "shot {} of {} is complete and verified on this Mac.",
+            "evolution {} of {} is complete and verified on this Mac.",
             shot.number, app_name
         )));
         self.events.emit(Event::status(format!(
@@ -396,7 +425,7 @@ impl Engine {
                     )
                     .await?;
                 self.events.emit(Event::result(format!(
-                    "shot {} of {} is on your phone.",
+                    "evolution {} of {} is on your phone.",
                     shot.number, app_name
                 )));
             }
@@ -409,9 +438,10 @@ impl Engine {
         Ok(shot.clone())
     }
 
-    /// Seals the working tree — however it got there — as the next Evolution.
-    /// Editing is not a tohseno operation; sealing is.
-    pub async fn seal(&self, app_name: &str, note: Option<&str>) -> Result<Shot, EngineError> {
+    /// Records the working tree — however it got there — as the next
+    /// Evolution of this one Shot. Editing is never a tohseno operation;
+    /// recording is.
+    pub async fn record(&self, app_name: &str, note: Option<&str>) -> Result<Shot, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
         let app = self.ledger.load_app(app_name)?;
@@ -422,6 +452,17 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(app_name.into()));
         }
+        self.record_locked(app_name, &app, &builder, note).await
+    }
+
+    /// The recording body, run while the app lock is already held.
+    async fn record_locked(
+        &self,
+        app_name: &str,
+        app: &AppRecord,
+        builder: &BuilderIdentity,
+        note: Option<&str>,
+    ) -> Result<Shot, EngineError> {
         let working = self.ledger.working_tree(app_name);
         let has_project = fs::read_dir(&working)
             .map(|entries| {
@@ -441,7 +482,7 @@ impl Engine {
             protocol_lifecycle::verify_completed_evolution(previous)?;
             if self.working_tree_matches(previous)? {
                 self.events.emit(Event::result(format!(
-                    "nothing new to seal — the folder matches shot {}.",
+                    "nothing new — the folder already matches evolution {}.",
                     previous.number
                 )));
                 return Ok(previous.clone());
@@ -454,8 +495,10 @@ impl Engine {
         let shot = self
             .ledger
             .reserve_shot(app_name, previous.as_ref().map(|shot| shot.number))?;
-        self.events
-            .emit(Event::status(format!("preparing shot {}…", shot.number)));
+        self.events.emit(Event::status(format!(
+            "preparing evolution {}…",
+            shot.number
+        )));
         let briefing_intent = if shot.number == 1 {
             fs::read_to_string(self.ledger.briefing_dir(app_name).join("intent.md")).ok()
         } else {
@@ -464,7 +507,7 @@ impl Engine {
         let prompt = note
             .map(str::to_owned)
             .or(briefing_intent)
-            .unwrap_or_else(|| "sealed from the working tree.".into());
+            .unwrap_or_else(|| "recorded from the working tree.".into());
         self.ledger
             .write_shot_file(&shot, "prompt.md", prompt.as_bytes())?;
         if shot.number == 1 {
@@ -486,10 +529,12 @@ impl Engine {
         self.genome
             .compose(&self.ledger, &shot, app_name, &app.bundle_id, &[], None)?;
         self.events.emit(Event::status(format!(
-            "sealing the folder as shot {}…",
+            "recording evolution {}…",
             shot.number
         )));
         self.ledger.snapshot_working_tree(&shot)?;
+        self.genome
+            .write_standing_orders(&shot.source_path(), app_name)?;
         // The engine-owned provenance placeholder never travels through a
         // snapshot; recreate it so the anatomy gate and prepare can run.
         let placeholder = shot.source_path().join("TOHSENO/embedded-provenance.json");
@@ -502,8 +547,10 @@ impl Engine {
         if let Err(error) = build::validate_complete_source(&shot.source_path()) {
             return Err(EngineError::WorkingTreeIncomplete(error.to_string()));
         }
-        self.events
-            .emit(Event::status(format!("building shot {}…", shot.number)));
+        self.events.emit(Event::status(format!(
+            "building evolution {}…",
+            shot.number
+        )));
         if build::compile(&self.ledger, &shot, app_name)?.is_err() {
             return Err(EngineError::WorkingTreeUnbuildable {
                 app: app_name.into(),
@@ -514,8 +561,8 @@ impl Engine {
         install::require_candidate_namespace(&bundle_id).map_err(EngineError::Install)?;
         self.complete_shot(
             &shot,
-            &app,
-            &builder,
+            app,
+            builder,
             genesis_input_sha256,
             None,
             app_name,
@@ -563,6 +610,10 @@ impl Engine {
             &request.app_name,
             &app.bundle_id,
             &request.intent,
+        )?;
+        self.genome.write_standing_orders(
+            &self.ledger.working_tree(&request.app_name),
+            &request.app_name,
         )?;
         Ok(ConductedCreation {
             folder: self.ledger.working_tree(&request.app_name),
@@ -640,7 +691,7 @@ impl Engine {
             }
             let artifact_directory = temporary_path("refresh");
             self.events.emit(Event::status(format!(
-                "refreshing shot {} of {}…",
+                "refreshing evolution {} of {}…",
                 shot.number, app.name
             )));
             DevicePipeline::new(self.events.clone())
@@ -654,7 +705,7 @@ impl Engine {
                 .await?;
             self.ledger.set_retired(&app.name, false)?;
             self.events.emit(Event::result(format!(
-                "shot {} of {} is refreshed on your phone.",
+                "evolution {} of {} is refreshed on your phone.",
                 shot.number, app.name
             )));
         }
@@ -840,7 +891,7 @@ impl DevicePipeline {
         )
         .await?;
         self.events.emit(Event::result(format!(
-            "shot {} of {} is on your phone.",
+            "evolution {} of {} is on your phone.",
             shot.number, app_name
         )));
         Ok(())
@@ -857,7 +908,7 @@ impl DevicePipeline {
         install::require_candidate_namespace(bundle_id).map_err(EngineError::Install)?;
         let device = self.wait_for_device().await?;
         self.events
-            .emit(Event::status(format!("signing shot {shot_number}…")));
+            .emit(Event::status(format!("signing evolution {shot_number}…")));
         let app = sign::build_signed(sign::SignRequest {
             source,
             artifact_directory,
@@ -867,8 +918,9 @@ impl DevicePipeline {
             device: &device,
         })
         .map_err(EngineError::Sign)?;
-        self.events
-            .emit(Event::status(format!("installing shot {shot_number}…")));
+        self.events.emit(Event::status(format!(
+            "installing evolution {shot_number}…"
+        )));
         install::install(&device, &app, bundle_id).map_err(EngineError::Install)?;
         install::launch(&device, bundle_id).map_err(EngineError::Install)?;
         Ok(())
@@ -949,7 +1001,6 @@ pub enum EngineError {
     NoCompleteShot(String),
     RepairExhausted { shot: u32, passes: u8 },
     ArtifactUnbuildable(String),
-    UnsealedChanges(String),
     FolderInProgress(String),
     NothingToSeal(String),
     WorkingTreeIncomplete(String),
@@ -981,22 +1032,16 @@ impl std::fmt::Display for EngineError {
                 f,
                 "engine bug: shot {shot} still fails after {passes} repair passes"
             ),
-            Self::UnsealedChanges(app) => {
-                write!(
-                    f,
-                    "{app} has unsealed changes — run `tohseno shot {app}` first"
-                )
-            }
             Self::FolderInProgress(app) => {
                 write!(
                     f,
-                    "the {app} folder already holds work — seal it with `tohseno shot {app}`"
+                    "the {app} folder already holds work — `tohseno evolve {app}` records it"
                 )
             }
             Self::NothingToSeal(app) => {
                 write!(
                     f,
-                    "no Xcode project in the {app} folder yet — build one, then `tohseno shot {app}`"
+                    "no Xcode project in the {app} folder yet — build one, then `tohseno evolve {app}`"
                 )
             }
             Self::WorkingTreeIncomplete(detail) => {
@@ -1005,7 +1050,7 @@ impl std::fmt::Display for EngineError {
             Self::WorkingTreeUnbuildable { app, shot } => {
                 write!(
                     f,
-                    "the folder does not build; see .tohseno/evolutions/{shot:04}/build.log, fix, then `tohseno shot {app}`"
+                    "the folder does not build; see .tohseno/evolutions/{shot:04}/build.log, fix, then `tohseno evolve {app}`"
                 )
             }
             Self::ArtifactUnbuildable(output) => {

@@ -12,5 +12,5 @@
 - Include the engine-produced `TOHSENO/embedded-provenance.json` as a bundled
   resource without editing it.
 - Keep the project discoverable by `xcodebuild -project <app-name>.xcodeproj -scheme <app-name>`.
-- Write `src/INTERPRETATION.md` (source-only; never a bundled resource) as
-  Listening requires: reading, decisions, deviations.
+- Keep the engine-written `AGENTS.md` at the project root, and maintain
+  `MEMORY.md` beside it as Memory requires (source-only; never bundled).

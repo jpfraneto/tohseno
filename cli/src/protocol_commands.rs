@@ -153,7 +153,7 @@ pub fn inspect_target(
         print_json(&view)?;
     } else {
         bus.emit(Event::result(format!(
-            "shot {} is locally verified and private.",
+            "evolution {} is locally verified and private.",
             view.sequence
         )));
         bus.emit(Event::status(format!(
@@ -928,8 +928,8 @@ fn report_unfinished_app(
             status: stage(has_project),
         },
         UnfinishedStage {
-            id: "world.interpretation",
-            status: stage(attempt.join("src/INTERPRETATION.md").is_file()),
+            id: "world.memory",
+            status: stage(attempt.join("src/MEMORY.md").is_file()),
         },
         UnfinishedStage {
             id: "artifact.materialized",
@@ -948,7 +948,7 @@ fn report_unfinished_app(
             status: stage(attempt.join("TOHSENO/conformance.json").is_file()),
         },
         UnfinishedStage {
-            id: "shot.finalized",
+            id: "evolution.finalized",
             status: stage(attempt.join(".complete").is_file()),
         },
     ];
