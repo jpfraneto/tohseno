@@ -969,7 +969,7 @@ fn report_unfinished_app(
             bus.emit(Event::status(format!("{marker} {}", stage.id)));
         }
         bus.emit(Event::status(format!(
-            "run `tohseno create {target}` to take a fresh attempt; this one archives automatically."
+            "next: `tohseno create {target}` — this attempt archives automatically."
         )));
     }
     Ok(true)

@@ -51,6 +51,8 @@ case "$channel" in
   *) fail "TOHSENO_CHANNEL must be stable or genesis." ;;
 esac
 
+printf 'installing TOHSENO %s - %s\n' "$version" "$repository"
+
 if [ "$(uname -s)" != "Darwin" ]; then
   fail "Run this installer on a Mac."
 fi

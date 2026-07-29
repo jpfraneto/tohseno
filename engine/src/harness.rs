@@ -1342,10 +1342,7 @@ impl std::fmt::Display for HarnessError {
             Self::PipeMissing => write!(f, "harness output pipe is unavailable"),
             Self::Exit(code) => write!(
                 f,
-                "the coding agent exited unsuccessfully ({code:?}). Inside TOHSENO's \
-                 isolated sandbox an agent has no provider sign-in yet; pass \
-                 --harness /absolute/path/to/your-agent to bring your own, or see \
-                 docs/adr/0002-harness-credential-broker.md"
+                "the coding agent failed ({code:?}); the sandbox has no agent sign-in yet — try `--harness /path/to/your-agent`"
             ),
             Self::Join(error) => write!(f, "{error}"),
         }

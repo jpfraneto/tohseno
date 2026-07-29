@@ -74,9 +74,7 @@ pub fn collect(prompt_file: Option<&Path>, events: &EventBus) -> io::Result<Stri
         return fs::read_to_string(path);
     }
 
-    events.emit(EngineEvent::status(
-        "what you write here stays on this Mac; publishing is a separate signed choice.",
-    ));
+    events.emit(EngineEvent::status("what you write stays on this Mac."));
     if io::stdin().is_terminal() && io::stdout().is_terminal() {
         MultilineBox::new(io::stdout()).read()
     } else {

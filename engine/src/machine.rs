@@ -79,7 +79,7 @@ impl Engine {
         self.check_slot_limit()?;
         self.emit_upsell_once(
             "welcome",
-            "first shot: this Mac needs Xcode and an Apple ID signed into Xcode. Your iPhone joins later — cable, one Developer Mode restart, and on a free Apple ID a weekly `tohseno refresh`.",
+            "first shot: Xcode + Apple ID now · iPhone later · free Apple IDs refresh weekly.",
         )?;
         self.events
             .emit(Event::status("preparing your TOHSENO identity…"));
@@ -351,8 +351,8 @@ impl Engine {
             }
             _ => {
                 self.events.emit(Event::handoff(format!(
-                    "Plug in your iPhone anytime and run `tohseno refresh {}` to put shot {} on it.",
-                    request.app_name, shot.number
+                    "Plug in your iPhone anytime, then run `tohseno refresh {}`.",
+                    request.app_name
                 )));
             }
         }
