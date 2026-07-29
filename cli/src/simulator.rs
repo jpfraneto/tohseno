@@ -20,7 +20,7 @@ pub async fn launch(
     let app = ledger.load_app(app_name)?;
     let shot = ledger.shot(app_name, shot_number)?;
     if !ledger
-        .list_shots(app_name)?
+        .list_evolutions(app_name)?
         .iter()
         .any(|candidate| candidate.number == shot_number)
     {

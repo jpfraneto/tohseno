@@ -24,7 +24,7 @@ use tohseno_engine::public_submission::{
 use tohseno_engine::verifier::{
     self, LineageVerificationReport, ShotVerificationReport, VerificationCheck, VerificationStatus,
 };
-use tohseno_engine::{Event, EventBus, Ledger, Shot};
+use tohseno_engine::{Event, EventBus, Evolution, Ledger};
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
@@ -740,7 +740,7 @@ fn now_unix() -> Result<u64, Box<dyn std::error::Error>> {
 
 fn verified_local_head_with_signature(
     app_name: &str,
-) -> Result<(Shot, ShotRecord, SignatureSidecar), Box<dyn std::error::Error>> {
+) -> Result<(Evolution, ShotRecord, SignatureSidecar), Box<dyn std::error::Error>> {
     let (shot, record) = verified_local_head(app_name)?;
     let signature: SignatureSidecar = tohseno_protocol::canonical::from_slice(&fs::read(
         shot.path.join("TOHSENO/signature.json"),
@@ -764,7 +764,9 @@ struct PublicActionResult {
     transaction: Option<SubmittedTransaction>,
 }
 
-fn verified_local_head(app_name: &str) -> Result<(Shot, ShotRecord), Box<dyn std::error::Error>> {
+fn verified_local_head(
+    app_name: &str,
+) -> Result<(Evolution, ShotRecord), Box<dyn std::error::Error>> {
     tohseno_engine::ledger::validate_app_name(app_name)?;
     let fascia_reference = protocol_lifecycle::reference_fascia_root()?;
     let local = resolve_verification(app_name, &fascia_reference)?;
@@ -773,7 +775,7 @@ fn verified_local_head(app_name: &str) -> Result<(Shot, ShotRecord), Box<dyn std
     }
     let ledger = Ledger::discover()?;
     let shot = ledger
-        .latest_shot(app_name)?
+        .latest_evolution(app_name)?
         .ok_or("app has no complete Shot")?;
     let record: ShotRecord =
         tohseno_protocol::canonical::from_slice(&fs::read(shot.path.join("TOHSENO/shot.json"))?)?;
@@ -788,7 +790,7 @@ fn record_for_target(target: &str) -> Result<ShotRecord, Box<dyn std::error::Err
     } else {
         let ledger = Ledger::discover()?;
         ledger
-            .latest_shot(target)?
+            .latest_evolution(target)?
             .ok_or("app has no complete Shot")?
     };
     let record: ShotRecord =
@@ -878,7 +880,7 @@ fn report_unfinished_app(
         return Ok(false);
     }
     let ledger = Ledger::discover()?;
-    if ledger.load_app(target).is_err() || !ledger.list_shots(target)?.is_empty() {
+    if ledger.load_app(target).is_err() || !ledger.list_evolutions(target)?.is_empty() {
         return Ok(false);
     }
     let app_dir = ledger.root().join(target).join(".tohseno");
@@ -982,15 +984,14 @@ fn resolve_verification(
     let candidate = PathBuf::from(target);
     if fs::symlink_metadata(&candidate).is_ok() {
         let shot = resolve_shot(target)?;
-        return Ok(LocalVerification::Shot(verifier::verify_shot_directory(
-            &shot.path,
-            fascia_reference,
-        )));
+        return Ok(LocalVerification::Evolution(
+            verifier::verify_shot_directory(&shot.path, fascia_reference),
+        ));
     }
 
     tohseno_engine::ledger::validate_app_name(target)?;
     let ledger = Ledger::discover()?;
-    let shots = ledger.list_shots(target)?;
+    let shots = ledger.list_evolutions(target)?;
     if shots.is_empty() {
         return Err("app has no complete Shot".into());
     }
@@ -1053,7 +1054,7 @@ fn render_public_checks(checks: &[public_network::PublicCheck], bus: &EventBus) 
     }
 }
 
-fn resolve_shot(target: &str) -> Result<Shot, Box<dyn std::error::Error>> {
+fn resolve_shot(target: &str) -> Result<Evolution, Box<dyn std::error::Error>> {
     let path = PathBuf::from(target);
     if let Ok(metadata) = fs::symlink_metadata(&path) {
         if metadata.file_type().is_symlink() {
@@ -1088,7 +1089,7 @@ fn resolve_shot(target: &str) -> Result<Shot, Box<dyn std::error::Error>> {
             .and_then(|name| name.to_str())
             .ok_or("shot path does not have ledger anatomy")?
             .to_owned();
-        return Ok(Shot {
+        return Ok(Evolution {
             app_name,
             number,
             path: shot_path,
@@ -1097,7 +1098,7 @@ fn resolve_shot(target: &str) -> Result<Shot, Box<dyn std::error::Error>> {
     tohseno_engine::ledger::validate_app_name(target)?;
     let ledger = Ledger::discover()?;
     ledger
-        .latest_shot(target)?
+        .latest_evolution(target)?
         .ok_or_else(|| "app has no complete Shot".into())
 }
 
@@ -1154,21 +1155,21 @@ struct RecordVerification {
 #[derive(Serialize)]
 #[serde(tag = "scope", content = "report", rename_all = "snake_case")]
 enum LocalVerification {
-    Shot(ShotVerificationReport),
+    Evolution(ShotVerificationReport),
     Lineage(LineageVerificationReport),
 }
 
 impl LocalVerification {
     fn conformant(&self) -> bool {
         match self {
-            Self::Shot(report) => report.conformant,
+            Self::Evolution(report) => report.conformant,
             Self::Lineage(report) => report.conformant,
         }
     }
 
     fn checks(&self) -> Vec<&VerificationCheck> {
         match self {
-            Self::Shot(report) => report.checks.iter().collect(),
+            Self::Evolution(report) => report.checks.iter().collect(),
             Self::Lineage(report) => report
                 .shots
                 .iter()

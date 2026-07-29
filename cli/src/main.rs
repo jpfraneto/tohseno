@@ -10,10 +10,9 @@ use renderer::Renderer;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use tohseno_engine::gates::intent::Intent;
+use tohseno_engine::machine::Evolved;
 use tohseno_engine::public_submission::EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION;
-use tohseno_engine::{
-    ConductedCreation, Config, Engine, Event, EventBus, HarnessOption, Ledger, ShotRequest,
-};
+use tohseno_engine::{ConductedCreation, Config, Engine, Event, EventBus, Ledger, ShotRequest};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -32,34 +31,21 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Create the first complete shot of an app.
-    Create {
-        app_name: String,
-        #[arg(long, value_name = "PATH")]
-        prompt_file: Option<PathBuf>,
-        /// Use a detected coding agent by id (hermes, codex, claude, grok, opencode)
-        /// or an absolute path to your own TASK.md-compatible agent executable.
-        #[arg(long, value_name = "AGENT")]
-        harness: Option<String>,
-    },
-    /// Record the folder's current state as the Shot's next Evolution.
+    /// Take the Shot: a visible folder, its briefing, and your own agent
+    /// working in it. Describe the app in the box — or drop a prompt file
+    /// and reference images straight into it.
+    Create { app_name: String },
+    /// Record the folder's current state as this Shot's next Evolution.
     ///
     /// However the folder got there — your own agent, Xcode, an editor —
     /// `evolve` snapshots it, runs every gate, signs the record, and appends
-    /// it to this one Shot's history. Run it inside the folder or pass the
-    /// name. With `--prompt-file` (or piped text) it first records any new
-    /// work, then drives a headless agent for the next Evolution.
+    /// it to the Shot's history. Run it inside the folder or pass the name.
+    /// Piped text hands your agent a new intent after recording.
     Evolve {
         app_name: Option<String>,
-        #[arg(long, value_name = "PATH")]
-        prompt_file: Option<PathBuf>,
         /// One line recorded as this Evolution's intention.
         #[arg(long, value_name = "TEXT")]
         note: Option<String>,
-        /// Use a detected coding agent by id (hermes, codex, claude, grok, opencode)
-        /// or an absolute path to your own TASK.md-compatible agent executable.
-        #[arg(long, value_name = "AGENT")]
-        harness: Option<String>,
     },
     /// Re-sign and install the latest shot of one app or every app.
     Refresh { app_name: Option<String> },
@@ -86,12 +72,9 @@ enum Command {
     },
     /// Show exact local protocol facts for one app or Shot path.
     Inspect { target: String },
-    /// Create the first honest signed Evolution for a legacy local app.
-    Adopt {
-        app_name: String,
-        #[arg(long, value_name = "AGENT")]
-        harness: Option<String>,
-    },
+    /// Turn the current folder into a Shot: it gains its ledger and its
+    /// first recorded Evolution, without changing the app itself.
+    Adopt,
     /// Inspect the durable BuilderID, fixed initial DeviceKey, and local backup.
     Identity {
         #[command(subcommand)]
@@ -290,62 +273,36 @@ async fn dispatch(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Command::List => list(bus)?,
-        Command::Create {
-            app_name,
-            prompt_file,
-            harness,
-        } => {
+        Command::Create { app_name } => {
             let engine = Engine::discover(bus.clone())?;
-            let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
-            if harness.is_none() && interactive {
-                // Conducted: the builder's own agent, in their own session,
-                // working in the visible folder. `tohseno shot` seals it.
-                let options = engine.harnesses();
-                let agent_id = intake::choose_harness(&options, None, bus)?;
-                engine.prime_toolchain();
-                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-                let creation = engine.create_folder(&ShotRequest {
-                    app_name: app_name.clone(),
-                    intent: Intent::parse(&prompt),
-                    harness: None,
-                })?;
-                let agent =
-                    agent_id.and_then(|id| options.into_iter().find(|option| option.id == id));
-                conduct_agent(&creation, agent.as_ref(), bus);
-            } else {
-                let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
-                engine.prime_toolchain();
-                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-                engine
-                    .create(ShotRequest {
-                        app_name,
-                        intent: Intent::parse(&prompt),
-                        harness,
-                    })
-                    .await?;
-            }
+            engine.prime_toolchain();
+            let prompt = intake::collect(bus)?;
+            let creation = engine.create(&ShotRequest {
+                app_name,
+                intent: Intent::parse(&prompt),
+            })?;
+            conduct_agent(&creation, bus);
         }
-        Command::Evolve {
-            app_name,
-            prompt_file,
-            note,
-            harness,
-        } => {
+        Command::Evolve { app_name, note } => {
             let (engine, name) = engine_for(app_name, bus)?;
-            let wants_agent = prompt_file.is_some() || !io::stdin().is_terminal();
-            if wants_agent {
-                let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
-                engine.prime_toolchain();
-                let prompt = intake::collect(prompt_file.as_deref(), bus)?;
-                engine
-                    .evolve(ShotRequest {
+            let prompt = if io::stdin().is_terminal() {
+                String::new()
+            } else {
+                intake::collect(bus)?
+            };
+            if prompt.trim().is_empty() && note.is_some() {
+                engine.record(&name, note.as_deref()).await?;
+            } else {
+                match engine
+                    .evolve(&ShotRequest {
                         app_name: name,
                         intent: Intent::parse(&prompt),
-                        harness,
                     })
-                    .await?;
-            } else {
-                engine.record(&name, note.as_deref()).await?;
+                    .await?
+                {
+                    Evolved::Conducted(creation) => conduct_agent(&creation, bus),
+                    Evolved::Recorded(_) | Evolved::NothingNew(_) => {}
+                }
             }
         }
         Command::Refresh { app_name } => {
@@ -366,11 +323,13 @@ async fn dispatch(
             }
             engine.doctor_once()?;
         }
-        Command::Adopt { app_name, harness } => {
-            let engine = Engine::discover(bus.clone())?;
-            let harness = intake::choose_harness(&engine.harnesses(), harness.as_deref(), bus)?;
-            engine.prime_toolchain();
-            engine.adopt(&app_name, harness.as_deref()).await?;
+        Command::Adopt => {
+            let folder = std::env::current_dir()?;
+            let (ledger, name) = Ledger::for_app_folder(&folder)?;
+            ledger.initialize()?;
+            let config = Config::load_or_create(ledger.machine_root())?;
+            let engine = Engine::at(ledger, bus.clone(), config);
+            engine.adopt(&name).await?;
         }
         Command::Identity { command } => match command {
             IdentityCommand::Show => identity_commands::show(bus, json)?,
@@ -464,41 +423,37 @@ fn engine_for(
 }
 
 /// Opens the builder's own agent in a new Terminal window on the folder.
-fn conduct_agent(creation: &ConductedCreation, agent: Option<&HarnessOption>, bus: &EventBus) {
+fn conduct_agent(creation: &ConductedCreation, bus: &EventBus) {
     let folder = creation.folder.display();
-    let Some(agent) = agent else {
+    let Some(agent_command) = &creation.agent_command else {
         bus.emit(Event::handoff(format!(
             "open a terminal in {folder} and run your coding agent — AGENTS.md guides it."
         )));
         return;
     };
-    let instruction = "Read AGENTS.md, then .tohseno/TASK.md, and build the complete app in this folder. When it builds and is whole, record it yourself by running: tohseno evolve".to_owned();
     let shell = format!(
         "cd {} && {} {}",
         shell_quote(&creation.folder.to_string_lossy()),
-        agent.command,
-        shell_quote(&instruction)
+        agent_command,
+        shell_quote(&creation.instruction)
     );
-    let script = format!(
-        "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
-        shell.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let opened = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(script)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
+    let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
+    let opened = interactive
+        && std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(format!(
+                "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
+                shell.replace('\\', "\\\\").replace('"', "\\\"")
+            ))
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
     if opened {
         bus.emit(Event::handoff(format!(
-            "{} is working in {folder} — it records each evolution itself.",
-            agent.label
+            "your agent is working in {folder} — it records each evolution itself."
         )));
     } else {
-        bus.emit(Event::handoff(format!(
-            "open a terminal in {folder} and run {} — AGENTS.md guides it.",
-            agent.label
-        )));
+        bus.emit(Event::handoff(format!("in {folder}, run: {shell}")));
     }
 }
 
@@ -513,7 +468,7 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
         bus.emit(Event::status("no apps yet."));
     } else {
         for app in apps {
-            let detail = if let Some(number) = app.latest_shot {
+            let detail = if let Some(number) = app.latest_evolution {
                 let shot = ledger.shot(&app.name, number)?;
                 let artifact = shot.artifact_path().join(format!("{}.app", app.name));
                 let expiry = tohseno_engine::gates::sign::days_until_expiry(&artifact)
