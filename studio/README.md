@@ -168,9 +168,11 @@ The launch identity is fixed:
 
 The Bankr receipt is stored privately under the selected Shot's
 `.tohseno/token-launches/` directory. After a successful deployment, Studio
-appends a public-availability Token Association action to that Shot's signed
-local lineage and writes its explicit relay artifact to the normal outbox.
-Neither relation changes Shot identity or ownership.
+appends an intentionally private Token Association action to that Shot's
+signed local lineage. It creates no relay artifact: ordinary lineage actions
+can commit private predecessors, and a public Token Association needs a
+future ancestry-free relation record. Neither relation changes Shot identity
+or ownership.
 
 Create a dedicated user key at `https://bankr.bot/api-keys`. It must begin with
 `bk_usr_`, have token-launch access enabled, and have read-only mode disabled.

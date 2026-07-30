@@ -426,10 +426,9 @@ impl Engine {
     /// Append an optional economic relationship without changing Shot,
     /// Expression, Version, or ownership identity.
     ///
-    /// Private is the default caller policy. A public action is written to a
-    /// local ignored outbox after its complete private-prefix lineage has been
-    /// accepted. It is not relayed and carries no claim that the token or an
-    /// optional chain anchor was independently observed.
+    /// Token Associations remain private until an ancestry-free public
+    /// relation projection is defined. Publishing an ordinary lineage action
+    /// would also publish a commitment to every private predecessor.
     pub fn record_token_association(
         &self,
         app_name: &str,
@@ -438,13 +437,15 @@ impl Engine {
     ) -> Result<TokenAssociationReceipt, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         association.validate().map_err(ShotLayoutError::from)?;
-        if !matches!(
-            availability,
-            AvailabilityStatus::IntentionallyPrivate | AvailabilityStatus::PubliclyAvailable
-        ) {
+        if availability == AvailabilityStatus::PubliclyAvailable {
             return Err(EngineError::ProtocolBodyIncomplete(
-                "a signed Token Association must be intentionally private or publicly available"
+                "public Token Association export is disabled: ordinary lineage actions may commit private predecessors; record it privately until a dedicated ancestry-free public relation exists"
                     .into(),
+            ));
+        }
+        if availability != AvailabilityStatus::IntentionallyPrivate {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "a signed Token Association must currently be intentionally private".into(),
             ));
         }
 
@@ -472,9 +473,7 @@ impl Engine {
             return Err(EngineError::BuilderMismatch(app_name.into()));
         }
 
-        // Retrying the same still-current relation is idempotent. This also
-        // recovers a public outbox file if the lineage append succeeded before
-        // a prior process stopped during outbox persistence.
+        // Retrying the same still-current private relation is idempotent.
         let effect_is_current = match association.operation {
             TokenAssociationOperation::Associate => {
                 state.token_association.as_ref() == Some(&association)
@@ -500,16 +499,11 @@ impl Engine {
                 })
             {
                 let action_commitment = existing.commitment().map_err(ShotLayoutError::from)?;
-                let outbox_path = if availability == AvailabilityStatus::PubliclyAvailable {
-                    Some(layout.write_public_action_outbox(existing)?)
-                } else {
-                    None
-                };
                 return Ok(TokenAssociationReceipt {
                     action: existing.clone(),
                     action_commitment,
                     lineage_head: state.head,
-                    outbox_path,
+                    outbox_path: None,
                 });
             }
         }
@@ -529,16 +523,11 @@ impl Engine {
         .map_err(ShotLayoutError::from)?;
         let signed = sign_lineage_action(&manager, &builder, action)?;
         let action_commitment = layout.append_lineage(&signed)?;
-        let outbox_path = if availability == AvailabilityStatus::PubliclyAvailable {
-            Some(layout.write_public_action_outbox(&signed)?)
-        } else {
-            None
-        };
         Ok(TokenAssociationReceipt {
             action: signed,
             action_commitment,
             lineage_head: action_commitment,
-            outbox_path,
+            outbox_path: None,
         })
     }
 

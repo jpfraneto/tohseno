@@ -44,6 +44,12 @@ generic `contentCommitment` contract surface was removed. Token Association is
 an optional signed protocol relationship and is not Shot identity or
 ownership.
 
+The retired mixed-ancestry public-action outbox is write-disabled. Marking one
+ordinary lineage action public does not make its `previous` commitment safe to
+disclose. Existing outbox files are preserved as legacy evidence; new Token
+Associations remain intentionally private until a closed, ancestry-free public
+relation schema exists.
+
 ## Immutable Apple Fascia
 
 `fascia/apple/PRIVACY.md` is part of the already committed Apple Fascia tree,

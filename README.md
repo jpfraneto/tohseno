@@ -197,8 +197,9 @@ tohseno --json verify my-app
 ```
 
 Strict local verification does not call an LLM.
-`tohseno verify --public` adds bounded read-only RPC checks; it
-currently fails honestly because the candidate registry is undeployed.
+`tohseno verify --public` is unavailable while no contract generation has a
+signed activation. Predicted or retired addresses are never queried as though
+they were authority.
 
 Recovery-root backups are encrypted locally and require explicit confirmation.
 Secret words are never emitted as JSON:
@@ -300,25 +301,21 @@ it deliberately does not carry expression source or owner keys. See
 [`node/README.md`](node/README.md) for running and synchronizing independent
 public-record nodes.
 
-The neutral v2 Token Association lifecycle is local-first and chain-specific.
-This example signs a relationship to a mock Base address and explicitly makes
-only that action node-ingestible:
+The neutral v2 Token Association lifecycle is local-first, private by default,
+and chain-specific. This example signs a relationship to a mock Base address:
 
 ```sh
 tohseno --json token associate anky 8453 \
   0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7 \
-  --symbol ANKY --public
-tohseno-node --root /absolute/path/to/node \
-  ingest /path/reported/in/outbox_path
+  --symbol ANKY
 ```
 
-`--public` writes exact canonical signed bytes beneath the Shot's ignored local
-outbox. It does not contact a node, prove the token contract exists, broadcast
-a transaction, or verify a chain anchor. Because the rest of a private Shot is
-not leaked, a node receiving only this public child reports the exact private
-predecessor as missing and authority as unresolved. The signature and available
-segment still verify. Omit `--public` to keep the action intentionally private;
-use `token remove` for an explicit historical removal.
+The relationship does not prove the token contract exists, broadcast a
+transaction, verify a chain anchor, replace Shot identity, or transfer
+ownership. The legacy `--public` flag now fails closed: an ordinary lineage
+action commits its predecessor and can therefore disclose a link to private
+ancestry. Public Token Associations require a future ancestry-free relation
+record. Use `token remove` for an explicit private historical removal.
 
 Legacy `v0.6` apps keep their existing ledger. Their first protocol record is
 an explicit N+1 adoption root; TOHSENO does not invent cryptographic history:
@@ -399,7 +396,7 @@ deployment coordinates.
 | Apple identity helper and reusable Fascia | Implemented; software-backed tests completed |
 | Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; unaudited |
 | Public lineage node | Implemented for signed action records and explicit static-peer synchronization; no artifact store or production node claimed |
-| Neutral Token Association | Implemented as signed v2 lineage with private-by-default or explicit node outbox handling; no token existence or chain anchor claimed |
+| Neutral Token Association | Implemented as private signed v2 lineage; mixed-ancestry public outbox retired, and no token existence or chain anchor claimed |
 | Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
 | Robinhood Chain P256VERIFY read-only probe | Observed successfully; exact request/result is in the lifecycle report |
 | Successor contracts | Unversioned draft only; no finalized addresses and not deployed |

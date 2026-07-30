@@ -914,7 +914,7 @@ fn record_bankr_shot_association(
                 symbol: Some("TOHSENO".into()),
                 anchor: None,
             },
-            AvailabilityStatus::PubliclyAvailable,
+            AvailabilityStatus::IntentionallyPrivate,
         )
         .map_err(|error| error.to_string())?;
     if receipt.action.action.shot_id.to_string() != outcome.shot.shot_id {
@@ -923,7 +923,7 @@ fn record_bankr_shot_association(
     Ok(ShotAssociationEvidence {
         action_commitment: receipt.action_commitment.to_string(),
         lineage_head: receipt.lineage_head.to_string(),
-        availability: "publicly_available",
+        availability: "intentionally_private",
         outbox_path: receipt.outbox_path.map(|path| path.display().to_string()),
     })
 }

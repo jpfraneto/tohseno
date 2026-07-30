@@ -315,11 +315,13 @@ fn record_token_relation(
     json: bool,
     bus: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let availability = if public {
-        AvailabilityStatus::PubliclyAvailable
-    } else {
-        AvailabilityStatus::IntentionallyPrivate
-    };
+    if public {
+        return Err(
+            "public Token Association export is disabled: ordinary lineage actions may commit private predecessors; omit --public to record the relation privately"
+                .into(),
+        );
+    }
+    let availability = AvailabilityStatus::IntentionallyPrivate;
     let receipt = engine.record_token_association(app_name, association.clone(), availability)?;
     let output = TokenAssociationOutput {
         schema: "tohseno.cli-token-association/1",

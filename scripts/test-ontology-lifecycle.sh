@@ -668,28 +668,49 @@ if ! jq -e \
   fail "embedded Apple metadata is not bound to accepted version 0002"
 fi
 
+lineage_file="$shot_root/.tohseno/lineage.jsonl"
+lineage_before_public=$(
+  shasum -a 256 "$lineage_file" | awk '{print $1}'
+)
+printf '%s\n' "→ reject mixed-ancestry public Token Association export"
+if "$candidate_bin" --json token associate "$app_name" \
+  8453 \
+  0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7 \
+  --symbol ANKY \
+  --public >>"$lifecycle_log" 2>&1; then
+  fail "mixed-ancestry public Token Association export unexpectedly succeeded"
+fi
+lineage_after_public=$(
+  shasum -a 256 "$lineage_file" | awk '{print $1}'
+)
+if [ "$lineage_after_public" != "$lineage_before_public" ]; then
+  fail "rejected public Token Association mutated canonical lineage"
+fi
+if [ -e "$shot_root/.tohseno/private/public-action-outbox" ]; then
+  fail "rejected public Token Association created a legacy outbox"
+fi
+
 token_output="$control_root/token-association.json"
 run_json \
-  "sign a public optional Token Association for a mock Base contract" \
+  "sign a private optional Token Association for a mock Base contract" \
   "$token_output" \
   "$candidate_bin" --json token associate "$app_name" \
   8453 \
   0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7 \
-  --symbol ANKY \
-  --public
+  --symbol ANKY
 if ! jq -e \
   '.schema == "tohseno.cli-token-association/1"
     and .operation == "associate"
     and .chain_id == 8453
     and .token_address == "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
     and .symbol == "ANKY"
-    and .availability == "publicly_available"
+    and .availability == "intentionally_private"
     and .shot_identity_changed == false
     and .ownership_changed == false
     and .chain_anchor_verified == false
     and .relayed == false
     and (.action_commitment | startswith("0x"))
-    and (.outbox_path | type == "string")' \
+    and .outbox_path == null' \
   "$token_output" >/dev/null; then
   fail "Token Association output conflated the token with identity, ownership, anchor, or relay"
 fi
@@ -698,51 +719,6 @@ snapshot_shot_id=$(jq -er '.shot_id' "$shot_root/.tohseno/shot.json")
 if [ "$token_shot_id" != "$snapshot_shot_id" ]; then
   fail "Token Association changed or detached from the stable ShotID"
 fi
-token_outbox=$(jq -er '.outbox_path' "$token_output")
-case "$token_outbox" in
-  "$shot_root"/.tohseno/private/public-action-outbox/*.json) ;;
-  *) fail "public Token Association was written outside the ignored Shot outbox" ;;
-esac
-if [ -L "$token_outbox" ] || [ ! -f "$token_outbox" ]; then
-  fail "public Token Association outbox entry is not a safe regular file"
-fi
-
-node_root="$control_root/node"
-node_ingest="$control_root/node-ingest.json"
-run_json \
-  "validate and preserve the public Token Association on a local node" \
-  "$node_ingest" \
-  "$node_bin" --root "$node_root" ingest "$token_outbox"
-if ! jq -e \
-  --arg shot_id "$token_shot_id" \
-  '.stored == true
-    and .shot_id == $shot_id
-    and .validation.signed_record == "verified"
-    and .validation.segment == "verified"
-    and .validation.neutral_authority == "unresolved"
-    and .validation.candidate_authority == "unresolved"
-    and .validation.authority_context_available == false
-    and (.validation.missing_parent | startswith("0x"))' \
-  "$node_ingest" >/dev/null; then
-  fail "node did not preserve the partial public action with honest unresolved authority"
-fi
-node_inspection="$control_root/node-inspection.json"
-run_json \
-  "inspect the node's rebuildable Shot view" \
-  "$node_inspection" \
-  "$node_bin" --root "$node_root" inspect "$token_shot_id"
-if ! jq -e \
-  --arg shot_id "$token_shot_id" \
-  '.shot.shot_id == $shot_id
-    and .shot.action_count == 1
-    and (.shot.missing_parents | length) == 1
-    and (.shot.authority_unresolved_heads | length) == 1
-    and (.actions | length) == 1' \
-  "$node_inspection" >/dev/null; then
-  fail "node inspection did not report its exact partial Shot holding"
-fi
-
-lineage_file="$shot_root/.tohseno/lineage.jsonl"
 if ! jq -s -e \
   --arg version1 "$version_1_id" \
   --arg version2 "$version_2_id" \
@@ -804,7 +780,7 @@ if ! jq -s -e \
           and .action.payload.chain_id == 8453
           and .action.payload.token
             == "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
-          and .action.availability == "publicly_available"
+          and .action.availability == "intentionally_private"
       )
   ' "$lineage_file" >/dev/null; then
   fail "canonical lineage does not prove the complete 0001 → feedback → 0002 continuity"
@@ -892,5 +868,5 @@ printf '%s\n' \
   "ontology lifecycle smoke passed:" \
   "  intention → Shot → accepted Genome → Apple expression → version 0001" \
   "  → exact-version private feedback → evolutionary intent → version 0002" \
-  "  → optional Base Token Association → honest partial-node validation" \
+  "  → private Base Token Association → mixed-ancestry public export rejected" \
   "  → reconstructed lineage → private export/import → imported verification"

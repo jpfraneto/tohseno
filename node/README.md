@@ -127,11 +127,12 @@ cargo run --manifest-path node/Cargo.toml -- \
   --root /absolute/path/to/node-a integrity --rebuild
 ```
 
-`tohseno token associate … --public` is one source of such a file. When the
-Shot's earlier actions remain private, the outbox action intentionally arrives
-as a partial segment: the node verifies and serves its exact signed bytes,
-reports the missing predecessor, and keeps both authority layers unresolved.
-It does not infer Shot identity from the token address or Base chain ID.
+The CLI no longer creates ordinary-lineage public outbox files. Such a file can
+commit a private predecessor even when its own availability is public.
+Existing files remain valid legacy evidence and a node may preserve them as an
+explicitly partial segment with unresolved authority, but they are not
+registry-head preimages or current publication artifacts. Current registry
+heads use the closed, ancestry-free public-checkpoint projection.
 
 The installed binary uses the same surface:
 

@@ -51,7 +51,6 @@ const PUBLIC_FILE_MODE: u32 = 0o644;
 const MAX_JSON_BYTES: usize = 4 * 1024 * 1024;
 const MAX_LINEAGE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES: usize = 64 * 1024 * 1024;
-const MAX_PUBLIC_ACTION_BYTES: usize = 256 * 1024;
 const MAX_ATTACHMENTS: usize = 16;
 const MAX_PORTABLE_BYTES: u64 = 256 * 1024 * 1024;
 const FEEDBACK_INDEX_SCHEMA_V1: &str = "tohseno.local-feedback-index/1";
@@ -1719,42 +1718,20 @@ impl ShotLayout {
             .expect("one action yields one commitment"))
     }
 
-    /// Persist one already-public signed action as exact canonical bytes for
-    /// explicit node ingestion.
+    /// Reject the retired mixed-ancestry public-action outbox.
     ///
-    /// The ignored private outbox prevents source publication from becoming
-    /// implicit network publication. The file itself is a public protocol
-    /// record: no private action can cross this boundary.
+    /// Existing files remain readable as legacy evidence, but writing a new
+    /// ordinary lineage action would disclose a commitment to its potentially
+    /// private predecessor chain. Public witness records use ancestry-free,
+    /// closed projections instead.
     pub fn write_public_action_outbox(
         &self,
-        action: &SignedLineageAction,
+        _action: &SignedLineageAction,
     ) -> Result<PathBuf, ShotLayoutError> {
-        action.verify()?;
-        if action.action.availability != AvailabilityStatus::PubliclyAvailable {
-            return Err(ShotLayoutError::Invalid(
-                "only a publicly_available signed action may enter the public outbox".into(),
-            ));
-        }
-        let commitment = action.commitment()?;
-        let bytes = tohseno_protocol::canonical::to_vec(action)
-            .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
-        if bytes.len() > MAX_PUBLIC_ACTION_BYTES {
-            return Err(ShotLayoutError::Limit(
-                "public action exceeds the 256 KiB node-ingestion limit".into(),
-            ));
-        }
-        self.initialize_directories()?;
-        let root = self
-            .metadata_root()
-            .join("private")
-            .join("public-action-outbox");
-        ensure_directory(&root, true)?;
-        let path = root.join(format!(
-            "{}.json",
-            commitment.to_string().trim_start_matches("0x")
-        ));
-        ensure_exact_file(&path, &bytes, true)?;
-        Ok(path)
+        Err(ShotLayoutError::Invalid(
+            "the mixed-ancestry public-action outbox is retired; use a defined ancestry-free public projection"
+                .into(),
+        ))
     }
 
     /// Atomically append a fully validated action batch.
@@ -4366,7 +4343,7 @@ mod tests {
     }
 
     #[test]
-    fn public_action_outbox_is_exact_idempotent_and_rejects_private_actions() {
+    fn mixed_ancestry_public_action_outbox_is_quarantined() {
         let temporary = tempfile::tempdir().unwrap();
         let root = temporary.path().join("shot");
         fs::create_dir(&root).unwrap();
@@ -4389,17 +4366,13 @@ mod tests {
             LineagePayload::TokenAssociation(relation.clone()),
             &key,
         );
-        let path = layout.write_public_action_outbox(&public).unwrap();
-        assert_eq!(layout.write_public_action_outbox(&public).unwrap(), path);
-        assert_eq!(
-            fs::read(&path).unwrap(),
-            tohseno_protocol::canonical::to_vec(&public).unwrap()
-        );
-        assert!(path.starts_with(
-            root.join(".tohseno")
-                .join("private")
-                .join("public-action-outbox")
-        ));
+        let error = layout.write_public_action_outbox(&public).unwrap_err();
+        assert!(error.to_string().contains("outbox is retired"));
+        assert!(!root
+            .join(".tohseno")
+            .join("private")
+            .join("public-action-outbox")
+            .exists());
 
         let private = signed_action(
             sequence + 1,

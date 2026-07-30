@@ -217,8 +217,8 @@ enum Command {
     /// Record optional chain-specific Token Associations in canonical Shot lineage.
     ///
     /// This neutral protocol action never changes Shot identity or ownership.
-    /// `--public` writes an explicit node-ingestible outbox record but does not
-    /// relay it or perform an on-chain transaction.
+    /// The legacy `--public` flag fails closed until an ancestry-free public
+    /// Token Association record is defined.
     Token {
         #[command(subcommand)]
         command: TokenCommand,
@@ -317,7 +317,7 @@ enum TokenCommand {
         /// Optional human-facing symbol; it is descriptive, not authoritative.
         #[arg(long, value_name = "SYMBOL")]
         symbol: Option<String>,
-        /// Mark the signed action public and write it to the local public-action outbox.
+        /// Retired compatibility flag. Public export currently fails closed.
         ///
         /// This does not contact a node, submit a transaction, or prove that
         /// the token contract exists.
@@ -329,7 +329,7 @@ enum TokenCommand {
         app_name: String,
         chain_id: u64,
         token_address: String,
-        /// Mark the signed removal public and write it to the local public-action outbox.
+        /// Retired compatibility flag. Public export currently fails closed.
         #[arg(long)]
         public: bool,
     },
