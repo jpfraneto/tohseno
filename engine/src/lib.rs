@@ -6,6 +6,7 @@
 pub mod apple_identity;
 pub mod builder_identity;
 pub mod config;
+pub mod contract_generation;
 pub mod enclave;
 pub mod events;
 pub mod gates;

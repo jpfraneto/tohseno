@@ -4,7 +4,12 @@
 //! argument. It does not consult the network, environment, current directory,
 //! Git, the Apple identity helper, or any mutable ledger state.
 
-use crate::builder_identity::initial_device_builder_id;
+use crate::builder_identity::initial_device_builder_id_for_v1_factory;
+#[cfg(test)]
+use crate::builder_identity::{
+    legacy_v07_initial_device_builder_id, LEGACY_V07_CANDIDATE_VERSION,
+    LEGACY_V07_FACTORY_IMPLEMENTATION,
+};
 use crate::gates::build;
 use crate::protocol_lifecycle::inspect_fascia;
 use serde::de::{MapAccess, SeqAccess, Visitor};
@@ -261,21 +266,23 @@ fn verify_shot_directory_inner(
         .insert("record.signature".into(), signature_valid.is_ok());
 
     let device_authority = match (&record, &signature) {
-        (Some(record), Some(signature)) => initial_device_builder_id(&signature.public_key)
-            .map_err(|error| error.to_string())
-            .and_then(|predicted| {
-                if predicted == record.builder_id {
-                    Ok(format!(
-                        "signing DeviceKey reproduces BuilderID {} from the pinned factory",
-                        record.builder_id
-                    ))
-                } else {
-                    Err(format!(
-                        "signing DeviceKey controls {predicted}, not claimed BuilderID {}",
-                        record.builder_id
-                    ))
-                }
-            }),
+        (Some(record), Some(signature)) => {
+            initial_device_builder_id_for_v1_factory(&record.factory, &signature.public_key)
+                .map_err(|error| error.to_string())
+                .and_then(|predicted| {
+                    if predicted == record.builder_id {
+                        Ok(format!(
+                            "signing DeviceKey reproduces BuilderID {} from the pinned factory",
+                            record.builder_id
+                        ))
+                    } else {
+                        Err(format!(
+                            "signing DeviceKey controls {predicted}, not claimed BuilderID {}",
+                            record.builder_id
+                        ))
+                    }
+                })
+        }
         _ => Err("valid record and signature sidecar were unavailable".into()),
     };
     checks.push(result_check(
@@ -2363,7 +2370,7 @@ CURRENT_PROJECT_VERSION = 1;
                 schema: SHOT_SCHEMA.into(),
                 shot_id: ShotId::from_bytes([0x11; 32]),
                 slug: "fixture".into(),
-                builder_id: initial_device_builder_id(&public_key).unwrap(),
+                builder_id: legacy_v07_initial_device_builder_id(&public_key).unwrap(),
                 sequence: 1,
                 previous: None,
                 fascia: APPLE_FASCIA_ID.into(),
@@ -2373,8 +2380,8 @@ CURRENT_PROJECT_VERSION = 1;
                 source_tree_sha256: source_tree.digest,
                 fascia_sha256: fascia_tree.digest,
                 factory: FactoryDescriptor {
-                    implementation: "test/factory".into(),
-                    version: "1.0.0-test".into(),
+                    implementation: LEGACY_V07_FACTORY_IMPLEMENTATION.into(),
+                    version: LEGACY_V07_CANDIDATE_VERSION.into(),
                     source_commit: "a".repeat(40),
                 },
                 created_at: CanonicalTimestamp::parse("2026-07-28T00:00:00Z").unwrap(),
@@ -2509,6 +2516,40 @@ CURRENT_PROJECT_VERSION = 1;
             status(&report, "artifact.info_plist"),
             VerificationStatus::NotChecked
         );
+    }
+
+    #[test]
+    fn v1_builder_authority_rejects_unknown_and_next_factory_provenance() {
+        for (implementation, version) in [
+            ("unknown/factory", LEGACY_V07_CANDIDATE_VERSION),
+            (LEGACY_V07_FACTORY_IMPLEMENTATION, "next"),
+        ] {
+            let fixture = Fixture::new();
+            let path = fixture.shot.join("TOHSENO/shot.json");
+            let mut record: ShotRecord = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            record.factory.implementation = implementation.into();
+            record.factory.version = version.into();
+            write_json(&path, &record);
+
+            let report = verify_shot_directory(&fixture.shot, &fixture.reference);
+            assert!(!report.conformant);
+            assert_eq!(
+                status(&report, "record.device_authority"),
+                VerificationStatus::Fail
+            );
+            let authority = report
+                .checks
+                .iter()
+                .find(|check| check.id == "record.device_authority")
+                .unwrap();
+            assert!(
+                authority
+                    .observed
+                    .contains("unsupported v1 BuilderID provenance"),
+                "{}",
+                authority.observed
+            );
+        }
     }
 
     #[test]

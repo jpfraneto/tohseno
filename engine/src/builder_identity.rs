@@ -1,6 +1,7 @@
 //! Local BuilderID lifecycle and public descriptor storage.
 
 use crate::apple_identity::{AppleDeviceIdentity, AppleIdentityBridge, AppleIdentityError};
+use crate::contract_generation::resolve_current_contract_generation;
 use crate::ledger::Ledger;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
@@ -12,15 +13,17 @@ use tohseno_protocol::identity::{
     initial_builder_account_salt, predict_builder_account, BuilderDeviceKey, BuilderId,
     RecoveryAuthority, ROBINHOOD_CHAIN_ID,
 };
+use tohseno_protocol::record::FactoryDescriptor;
 use tohseno_protocol::signature::P256PublicKey;
 use tohseno_protocol::signature::{DetachedP256Signature, SignatureAlgorithm, SignatureSidecar};
 
 const BUILDER_SCHEMA: &str = "tohseno.builder/1";
-const CANDIDATE_VERSION: &str = "0.7.0";
+pub(crate) const LEGACY_V07_CANDIDATE_VERSION: &str = "0.7.0";
+pub(crate) const LEGACY_V07_FACTORY_IMPLEMENTATION: &str = "jpfraneto/tohseno";
 const KEY_TAG_DOMAIN: &[u8] = b"TOHSENO-LOCAL-KEY-TAG-V1\0";
-const DEPLOYMENT_PLAN: &str =
+const LEGACY_V07_DEPLOYMENT_PLAN: &str =
     include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
-const BUILDER_ACCOUNT_CREATION_HEX: &str =
+const LEGACY_V07_BUILDER_ACCOUNT_CREATION_HEX: &str =
     include_str!("../../contracts/bytecode/BuilderAccount.creation.hex");
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -53,7 +56,7 @@ pub struct BuilderIdentity {
 impl BuilderIdentity {
     pub fn validate(&self) -> Result<(), BuilderIdentityError> {
         if self.schema != BUILDER_SCHEMA
-            || self.candidate_version != CANDIDATE_VERSION
+            || self.candidate_version != LEGACY_V07_CANDIDATE_VERSION
             || self.chain_id != ROBINHOOD_CHAIN_ID
         {
             return Err(BuilderIdentityError::InvalidDescriptor(
@@ -88,7 +91,7 @@ impl BuilderIdentity {
                 .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         }
 
-        let network = candidate_network()?;
+        let network = legacy_v07_network()?;
         if self.factory_address != network.factory_address {
             return Err(BuilderIdentityError::InvalidDescriptor(
                 "factory address differs from this candidate's immutable plan".into(),
@@ -98,7 +101,7 @@ impl BuilderIdentity {
             self.factory_address,
             self.account_salt,
             &self.device.public_key,
-            &builder_account_creation_bytecode()?,
+            &legacy_v07_builder_account_creation_bytecode()?,
         )
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         if predicted != self.builder_id {
@@ -149,8 +152,13 @@ impl BuilderIdentityManager {
     }
 
     pub fn ensure(&self) -> Result<BuilderIdentity, BuilderIdentityError> {
+        if !self.path().exists() {
+            let backend = RequestedIdentityBackend::from_environment()?;
+            return self.ensure_new_with_bridge_factory(backend, || self.bridge());
+        }
+
         let bridge = self.bridge()?;
-        match self.ensure_with_bridge(&bridge) {
+        match self.ensure_existing_with_bridge(&bridge) {
             Err(BuilderIdentityError::Apple(AppleIdentityError::HelperFailure {
                 ref code,
                 ..
@@ -165,7 +173,7 @@ impl BuilderIdentityManager {
                         ))
                     })?;
                 let bridge = AppleIdentityBridge::at(earned)?;
-                self.ensure_with_bridge(&bridge)
+                self.ensure_existing_with_bridge(&bridge)
             }
             outcome => outcome,
         }
@@ -176,39 +184,65 @@ impl BuilderIdentityManager {
         bridge: &AppleIdentityBridge,
     ) -> Result<BuilderIdentity, BuilderIdentityError> {
         if self.path().exists() {
-            let identity = self.load()?;
-            let observed = bridge.public(&identity.local_key_tag)?;
-            verify_helper_identity(&identity, &observed)?;
-            return Ok(identity);
+            return self.ensure_existing_with_bridge(bridge);
         }
+        let backend = RequestedIdentityBackend::from_environment()?;
+        require_new_identity_generation(backend)?;
+        self.create_legacy_v07_test_identity(bridge, backend)
+    }
 
+    fn ensure_existing_with_bridge(
+        &self,
+        bridge: &AppleIdentityBridge,
+    ) -> Result<BuilderIdentity, BuilderIdentityError> {
+        let identity = self.load()?;
+        let observed = bridge.public(&identity.local_key_tag)?;
+        verify_helper_identity(&identity, &observed)?;
+        Ok(identity)
+    }
+
+    fn ensure_new_with_bridge_factory<F>(
+        &self,
+        backend: RequestedIdentityBackend,
+        discover: F,
+    ) -> Result<BuilderIdentity, BuilderIdentityError>
+    where
+        F: FnOnce() -> Result<AppleIdentityBridge, AppleIdentityError>,
+    {
+        // This guard deliberately precedes bridge discovery, helper execution,
+        // identity-directory creation, and Keychain mutation.
+        require_new_identity_generation(backend)?;
+        let bridge = discover()?;
+        self.create_legacy_v07_test_identity(&bridge, backend)
+    }
+
+    fn create_legacy_v07_test_identity(
+        &self,
+        bridge: &AppleIdentityBridge,
+        backend: RequestedIdentityBackend,
+    ) -> Result<BuilderIdentity, BuilderIdentityError> {
+        if backend != RequestedIdentityBackend::SoftwareTest {
+            return Err(BuilderIdentityError::InvalidConfiguration(
+                "generation 0.8 BuilderID creation is not implemented; refusing to substitute a legacy identity"
+                    .into(),
+            ));
+        }
         fs::create_dir_all(self.root.join("devices"))?;
         let tag = local_key_tag(&self.root)?;
-        let software_test = match std::env::var("TOHSENO_IDENTITY_BACKEND") {
-            Ok(value) if value == "software-test" => true,
-            Ok(value) if value == "secure-enclave" => false,
-            Ok(_) => {
-                return Err(BuilderIdentityError::InvalidConfiguration(
-                    "TOHSENO_IDENTITY_BACKEND must be secure-enclave or software-test".into(),
-                ))
-            }
-            Err(std::env::VarError::NotPresent) => false,
-            Err(error) => {
-                return Err(BuilderIdentityError::InvalidConfiguration(
-                    error.to_string(),
-                ))
-            }
-        };
         let helper_identity = match bridge.public(&tag) {
             Ok(identity) => identity,
             Err(AppleIdentityError::HelperFailure { code, .. }) if code == "identity_not_found" => {
-                bridge.create(&tag, software_test)?
+                bridge.create(&tag, true)?
             }
             Err(error) => return Err(error.into()),
         };
-        if helper_identity.test_only && !software_test {
+        if !helper_identity.test_only
+            || helper_identity.backend != "software_test"
+            || helper_identity.security_level != "software_test"
+        {
             return Err(BuilderIdentityError::InvalidDescriptor(
-                "a software test key cannot become production authority".into(),
+                "the legacy 0.7 identity escape hatch requires an explicitly test-only software key"
+                    .into(),
             ));
         }
         helper_identity
@@ -219,17 +253,17 @@ impl BuilderIdentityManager {
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let account_salt = initial_builder_account_salt(&device.public_key)
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
-        let network = candidate_network()?;
+        let network = legacy_v07_network()?;
         let builder_id = predict_builder_account(
             network.factory_address,
             account_salt,
             &device.public_key,
-            &builder_account_creation_bytecode()?,
+            &legacy_v07_builder_account_creation_bytecode()?,
         )
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let identity = BuilderIdentity {
             schema: BUILDER_SCHEMA.into(),
-            candidate_version: CANDIDATE_VERSION.into(),
+            candidate_version: LEGACY_V07_CANDIDATE_VERSION.into(),
             chain_id: ROBINHOOD_CHAIN_ID,
             factory_address: network.factory_address,
             account_salt,
@@ -294,6 +328,7 @@ impl BuilderIdentityManager {
         identity: &BuilderIdentity,
         digest: Bytes32,
     ) -> Result<DetachedP256Signature, BuilderIdentityError> {
+        require_public_signing_identity(identity)?;
         let bridge = self.bridge()?;
         self.sign_digest_with_bridge(identity, digest, &bridge)
     }
@@ -315,10 +350,8 @@ impl BuilderIdentityManager {
         local_record_only: bool,
     ) -> Result<DetachedP256Signature, BuilderIdentityError> {
         identity.validate()?;
-        if identity.test_only && !local_record_only {
-            return Err(BuilderIdentityError::InvalidConfiguration(
-                "software-test DeviceKeys cannot authorize public actions".into(),
-            ));
+        if !local_record_only {
+            require_public_signing_identity(identity)?;
         }
         let response = bridge.sign(&identity.local_key_tag, digest)?;
         verify_helper_identity(identity, &response.identity)?;
@@ -340,35 +373,134 @@ impl BuilderIdentityManager {
     }
 }
 
-/// Reproduces the candidate BuilderID controlled by an initial DeviceKey.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RequestedIdentityBackend {
+    SecureEnclave,
+    SoftwareTest,
+}
+
+impl RequestedIdentityBackend {
+    fn from_environment() -> Result<Self, BuilderIdentityError> {
+        match std::env::var("TOHSENO_IDENTITY_BACKEND") {
+            Ok(value) if value == "software-test" => Ok(Self::SoftwareTest),
+            Ok(value) if value == "secure-enclave" => Ok(Self::SecureEnclave),
+            Ok(_) => Err(BuilderIdentityError::InvalidConfiguration(
+                "TOHSENO_IDENTITY_BACKEND must be secure-enclave or software-test".into(),
+            )),
+            Err(std::env::VarError::NotPresent) => Ok(Self::SecureEnclave),
+            Err(error) => Err(BuilderIdentityError::InvalidConfiguration(
+                error.to_string(),
+            )),
+        }
+    }
+}
+
+fn require_new_identity_generation(
+    backend: RequestedIdentityBackend,
+) -> Result<(), BuilderIdentityError> {
+    if backend == RequestedIdentityBackend::SoftwareTest {
+        // This deliberately creates only the frozen legacy-v0.7 descriptor.
+        // It exists to keep local lifecycle and fixture testing operational;
+        // it can never authorize a public action.
+        return Ok(());
+    }
+    let generation = resolve_current_contract_generation().map_err(|error| {
+        BuilderIdentityError::InvalidConfiguration(format!(
+            "could not resolve the current contract generation: {error}"
+        ))
+    })?;
+    if !generation.allows_new_builder_identity() {
+        return Err(BuilderIdentityError::InvalidConfiguration(format!(
+            "cannot create a secure BuilderID while contract generation {} is inactive: {}",
+            generation.definition.generation,
+            generation.inactive_reason()
+        )));
+    }
+    Ok(())
+}
+
+fn require_public_signing_identity(identity: &BuilderIdentity) -> Result<(), BuilderIdentityError> {
+    identity.validate()?;
+    if identity.test_only {
+        return Err(BuilderIdentityError::InvalidConfiguration(
+            "software-test DeviceKeys cannot authorize public actions".into(),
+        ));
+    }
+    let generation = resolve_current_contract_generation().map_err(|error| {
+        BuilderIdentityError::InvalidConfiguration(format!(
+            "could not resolve the current contract generation: {error}"
+        ))
+    })?;
+    if identity.candidate_version == LEGACY_V07_CANDIDATE_VERSION {
+        return Err(BuilderIdentityError::InvalidConfiguration(format!(
+            "legacy 0.7 BuilderIDs are private/offline compatibility identities and cannot authorize public actions; contract generation {} remains inactive",
+            generation.definition.generation
+        )));
+    }
+    if !generation.allows_public_signing() {
+        return Err(BuilderIdentityError::InvalidConfiguration(format!(
+            "contract generation {} cannot authorize public actions: {}",
+            generation.definition.generation,
+            generation.inactive_reason()
+        )));
+    }
+    Ok(())
+}
+
+/// Reproduces the frozen v0.7 BuilderID controlled by an initial DeviceKey.
 ///
 /// This is intentionally pure and state-independent so an offline verifier can
 /// distinguish a valid signature from an authorized signature. Device-key
-/// rotation is not accepted by this candidate until a complete authorization
-/// proof is carried with the Evolution.
-pub(crate) fn initial_device_builder_id(
+/// rotation is not accepted by v1 records without a complete authorization
+/// proof carried with the Evolution.
+pub(crate) fn legacy_v07_initial_device_builder_id(
     public_key: &P256PublicKey,
 ) -> Result<BuilderId, BuilderIdentityError> {
     let device = BuilderDeviceKey::from_public_key(public_key.clone())
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
-    let network = candidate_network()?;
+    let network = legacy_v07_network()?;
     predict_builder_account(
         network.factory_address,
         initial_builder_account_salt(&device.public_key)
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?,
         public_key,
-        &builder_account_creation_bytecode()?,
+        &legacy_v07_builder_account_creation_bytecode()?,
     )
     .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))
 }
 
+/// Dispatches the frozen v1 verification law from exact factory provenance.
+///
+/// There is intentionally no `next`, prefix, or best-effort branch: a record
+/// from an unknown implementation or generation fails closed.
+pub(crate) fn initial_device_builder_id_for_v1_factory(
+    factory: &FactoryDescriptor,
+    public_key: &P256PublicKey,
+) -> Result<BuilderId, BuilderIdentityError> {
+    factory
+        .validate()
+        .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
+    if factory.implementation != LEGACY_V07_FACTORY_IMPLEMENTATION
+        || factory.version != LEGACY_V07_CANDIDATE_VERSION
+    {
+        return Err(BuilderIdentityError::InvalidDescriptor(format!(
+            "unsupported v1 BuilderID provenance {}/{}; only exact {}/{} records use the frozen legacy prediction law",
+            factory.implementation,
+            factory.version,
+            LEGACY_V07_FACTORY_IMPLEMENTATION,
+            LEGACY_V07_CANDIDATE_VERSION
+        )));
+    }
+    legacy_v07_initial_device_builder_id(public_key)
+}
+
 #[derive(Clone, Copy, Debug)]
-struct CandidateNetwork {
+struct LegacyV07Network {
     factory_address: Address20,
 }
 
-fn candidate_network() -> Result<CandidateNetwork, BuilderIdentityError> {
-    let value: serde_json::Value = serde_json::from_str(DEPLOYMENT_PLAN)?;
+fn legacy_v07_network() -> Result<LegacyV07Network, BuilderIdentityError> {
+    let value: serde_json::Value = serde_json::from_str(LEGACY_V07_DEPLOYMENT_PLAN)?;
     if value.pointer("/schema").and_then(serde_json::Value::as_str)
         != Some("tohseno.deployment-plan/1")
         || value
@@ -389,11 +521,12 @@ fn candidate_network() -> Result<CandidateNetwork, BuilderIdentityError> {
             )
         })?;
     let factory_address = serde_json::from_str(&format!("\"{factory}\""))?;
-    Ok(CandidateNetwork { factory_address })
+    Ok(LegacyV07Network { factory_address })
 }
 
-pub(crate) fn builder_account_creation_bytecode() -> Result<Vec<u8>, BuilderIdentityError> {
-    let text = BUILDER_ACCOUNT_CREATION_HEX.trim();
+pub(crate) fn legacy_v07_builder_account_creation_bytecode() -> Result<Vec<u8>, BuilderIdentityError>
+{
+    let text = LEGACY_V07_BUILDER_ACCOUNT_CREATION_HEX.trim();
     let encoded = text.strip_prefix("0x").ok_or_else(|| {
         BuilderIdentityError::InvalidDescriptor(
             "BuilderAccount creation bytecode needs a 0x prefix".into(),
@@ -561,18 +694,78 @@ impl From<AppleIdentityError> for BuilderIdentityError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
+    use std::sync::Mutex;
+
+    static IDENTITY_ENVIRONMENT: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn candidate_plan_and_creation_bytecode_are_self_consistent() {
-        let network = candidate_network().unwrap();
+    fn frozen_legacy_plan_and_creation_bytecode_are_self_consistent() {
+        let network = legacy_v07_network().unwrap();
         assert_ne!(network.factory_address.as_bytes(), &[0; 20]);
-        assert!(builder_account_creation_bytecode().unwrap().len() > 1_000);
+        assert!(
+            legacy_v07_builder_account_creation_bytecode()
+                .unwrap()
+                .len()
+                > 1_000
+        );
     }
 
     #[test]
-    fn repeated_ensure_preserves_builder_id_and_never_stores_private_key() {
+    fn inactive_generation_blocks_secure_identity_before_bridge_or_filesystem_effects() {
+        let directory = tempfile::tempdir().unwrap();
+        let identity_root = directory.path().join("identity-must-not-exist");
+        let manager = BuilderIdentityManager::at(&identity_root);
+        let bridge_discovered = Cell::new(false);
+
+        let error = manager
+            .ensure_new_with_bridge_factory(RequestedIdentityBackend::SecureEnclave, || {
+                bridge_discovered.set(true);
+                Err(AppleIdentityError::HelperMissing)
+            })
+            .unwrap_err();
+
+        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
+        assert!(!bridge_discovered.get());
+        assert!(!identity_root.exists());
+    }
+
+    #[test]
+    fn default_ensure_fails_before_discovering_an_invalid_bridge_override() {
+        let _environment = IDENTITY_ENVIRONMENT.lock().unwrap();
+        let previous_backend = std::env::var_os("TOHSENO_IDENTITY_BACKEND");
+        let previous_helper = std::env::var_os("TOHSENO_APPLE_IDENTITY_HELPER");
+        std::env::remove_var("TOHSENO_IDENTITY_BACKEND");
+        std::env::set_var(
+            "TOHSENO_APPLE_IDENTITY_HELPER",
+            "relative-path-that-discovery-would-reject",
+        );
+
+        let directory = tempfile::tempdir().unwrap();
+        let identity_root = directory.path().join("identity-must-not-exist");
+        let error = BuilderIdentityManager::at(&identity_root)
+            .ensure()
+            .unwrap_err();
+
+        match previous_backend {
+            Some(value) => std::env::set_var("TOHSENO_IDENTITY_BACKEND", value),
+            None => std::env::remove_var("TOHSENO_IDENTITY_BACKEND"),
+        }
+        match previous_helper {
+            Some(value) => std::env::set_var("TOHSENO_APPLE_IDENTITY_HELPER", value),
+            None => std::env::remove_var("TOHSENO_APPLE_IDENTITY_HELPER"),
+        }
+
+        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
+        assert!(!error.to_string().contains("helper is missing"));
+        assert!(!identity_root.exists());
+    }
+
+    #[test]
+    fn explicit_software_test_creation_preserves_legacy_identity_and_stays_private_only() {
+        let _environment = IDENTITY_ENVIRONMENT.lock().unwrap();
         let directory = tempfile::tempdir().unwrap();
         let helper = directory.path().join("helper");
         let state = directory.path().join("helper-state");
@@ -601,6 +794,8 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
         std::env::remove_var("TOHSENO_IDENTITY_BACKEND");
 
         assert_eq!(first.builder_id, second.builder_id);
+        assert_eq!(first, manager.load().unwrap());
+        assert_eq!(first.candidate_version, LEGACY_V07_CANDIDATE_VERSION);
         let stored = fs::read_to_string(manager.path()).unwrap();
         assert!(!stored.contains("private"));
         assert!(!stored.contains("mnemonic"));
@@ -644,6 +839,17 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
         assert!(signing_error
             .to_string()
             .contains("stored BuilderID does not reproduce"));
+
+        let mut hardware_legacy = first;
+        hardware_legacy.test_only = false;
+        hardware_legacy.key_backend = "secure_enclave".into();
+        hardware_legacy.security_level = "secure_enclave".into();
+        hardware_legacy.validate().unwrap();
+        let legacy_error = manager
+            .sign_digest(&hardware_legacy, Bytes32::new([9; 32]))
+            .unwrap_err();
+        assert!(legacy_error.to_string().contains("legacy 0.7 BuilderIDs"));
+        assert!(legacy_error.to_string().contains("generation 0.8.0"));
     }
 
     #[test]

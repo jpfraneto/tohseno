@@ -4,7 +4,8 @@
 //! in `tohseno-protocol`.
 
 use crate::builder_identity::{
-    initial_device_builder_id, BuilderIdentity, BuilderIdentityError, BuilderIdentityManager,
+    initial_device_builder_id_for_v1_factory, BuilderIdentity, BuilderIdentityError,
+    BuilderIdentityManager, LEGACY_V07_CANDIDATE_VERSION, LEGACY_V07_FACTORY_IMPLEMENTATION,
 };
 use crate::gates::build;
 use crate::ledger::{AppRecord, Evolution, Ledger, LedgerError};
@@ -37,7 +38,7 @@ use tohseno_protocol::record::{
 use tohseno_protocol::signature::SignatureSidecar;
 use tohseno_protocol::tree_hash::hash_source_tree;
 
-const FACTORY_IMPLEMENTATION: &str = "jpfraneto/tohseno";
+#[cfg(test)]
 const CANDIDATE_VERSION: &str = "0.7.0";
 
 #[derive(Clone, Debug)]
@@ -101,11 +102,6 @@ pub fn prepare_evolution(
         .digest;
     let previous = previous_commitment(ledger, shot, origin.as_ref())?;
     let created_at = canonical_now()?;
-    let version = if env!("TOHSENO_SOURCE_DIRTY") == "1" {
-        format!("{CANDIDATE_VERSION}+working-tree")
-    } else {
-        CANDIDATE_VERSION.into()
-    };
     let record = ShotRecord {
         protocol: PROTOCOL_NAME.into(),
         schema: SHOT_SCHEMA.into(),
@@ -123,8 +119,8 @@ pub fn prepare_evolution(
         source_tree_sha256,
         fascia_sha256,
         factory: FactoryDescriptor {
-            implementation: FACTORY_IMPLEMENTATION.into(),
-            version,
+            implementation: LEGACY_V07_FACTORY_IMPLEMENTATION.into(),
+            version: LEGACY_V07_CANDIDATE_VERSION.into(),
             source_commit: env!("TOHSENO_SOURCE_COMMIT").into(),
         },
         created_at,
@@ -280,7 +276,8 @@ pub fn complete_evolution(
         },
         Some("TOHSENO/signature.json"),
     ));
-    let predicted = initial_device_builder_id(&signature.public_key)?;
+    let predicted =
+        initial_device_builder_id_for_v1_factory(&prepared.record.factory, &signature.public_key)?;
     if predicted != prepared.record.builder_id {
         return Err(ProtocolLifecycleError::InvalidState(format!(
             "record signer controls {predicted}, not claimed BuilderID {}",
