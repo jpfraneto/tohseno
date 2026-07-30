@@ -101,6 +101,17 @@ test("node participation is optional and cannot block local Studio startup", () 
   assert.match(html, /Studio does not require a node/);
 });
 
+test("contract definition is visibly inactive and Studio has no retired public surface", () => {
+  assert.match(html, /Contract definition/);
+  assert.match(html, /id="generation-status"[^>]*>Inactive</);
+  assert.match(script, /active_generation: activeGeneration/);
+  assert.match(script, /No public witness generation is active/);
+  assert.match(script, /no deployment or broadcast path/);
+  assert.doesNotMatch(html, /ShotRelations|Pairing target|Experimental publish/);
+  assert.doesNotMatch(html, /id="(?:handle|appcoin|registry|published)-status"/);
+  assert.doesNotMatch(script, /pairing|claimHandle|attestAppStore|ShotRelations/);
+});
+
 test("Bankr launch belongs to one selected Shot and is separately confirmed", () => {
   const selection = html.match(/<section id="selection"[\s\S]*?<\/section>/)?.[0] || "";
   const globalActions = html.slice(0, html.indexOf('<div class="library-scroll">'));
@@ -119,6 +130,9 @@ test("Bankr launch belongs to one selected Shot and is separately confirmed", ()
   assert.match(script, /ui\.bankrConfirmation\.value === bankrApproval\.confirmation_phrase/);
   assert.match(script, /token_association\?\.status === "associated"/);
   assert.match(script, /Do not click deploy again/);
+  assert.match(html, /private Token Association is not\s+          a Shot publication/);
+  assert.match(script, /private signed association recorded for Shot/);
+  assert.match(script, /no Shot registry transaction was sent/);
   assert.doesNotMatch(html, /id="bankr-api-key"|name="bankr_api_key"/);
   assert.doesNotMatch(script, /localStorage\.(?:setItem|getItem)\([^)]*BANKR_API_KEY/);
 });

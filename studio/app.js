@@ -78,21 +78,16 @@ const ui = {
   deviceStatus: document.querySelector("#device-status"),
   recoveryStatus: document.querySelector("#recovery-status"),
   identityDetail: document.querySelector("#identity-detail"),
-  networkStatus: document.querySelector("#network-status"),
-  networkName: document.querySelector("#network-name"),
-  deploymentStatus: document.querySelector("#deployment-status"),
-  p256Status: document.querySelector("#p256-status"),
-  networkDetail: document.querySelector("#network-detail"),
+  generationStatus: document.querySelector("#generation-status"),
+  contractGeneration: document.querySelector("#contract-generation"),
+  contractChain: document.querySelector("#contract-chain"),
+  contractP256: document.querySelector("#contract-p256"),
+  contractDefinitionDetail: document.querySelector("#contract-definition-detail"),
   nodeStatus: document.querySelector("#node-status"),
   nodeIdentity: document.querySelector("#node-identity"),
   nodeProtocol: document.querySelector("#node-protocol"),
   nodeReplicated: document.querySelector("#node-replicated"),
   nodeDetail: document.querySelector("#node-detail"),
-  pairingLimitation: document.querySelector("#pairing-limitation"),
-  pairingPayloadGroup: document.querySelector("#pairing-payload-group"),
-  pairingQr: document.querySelector("#pairing-qr"),
-  pairingPayload: document.querySelector("#pairing-payload"),
-  copyPairing: document.querySelector("#copy-pairing"),
   shotProtocol: document.querySelector("#shot-protocol"),
   shotState: document.querySelector("#shot-state"),
   shotId: document.querySelector("#shot-id"),
@@ -100,13 +95,9 @@ const ui = {
   signatureStatus: document.querySelector("#signature-status"),
   fasciaStatus: document.querySelector("#fascia-status"),
   conformanceStatus: document.querySelector("#conformance-status"),
-  publishedStatus: document.querySelector("#published-status"),
-  registryStatus: document.querySelector("#registry-status"),
-  handleStatus: document.querySelector("#handle-status"),
-  appcoinStatus: document.querySelector("#appcoin-status"),
+  shotAvailability: document.querySelector("#shot-availability"),
   shotProtocolDetail: document.querySelector("#shot-protocol-detail"),
   verifyShot: document.querySelector("#verify-shot"),
-  publishShot: document.querySelector("#publish-shot"),
   protocolJson: document.querySelector("#protocol-json"),
   shotContinuity: document.querySelector("#shot-continuity"),
   continuityStatus: document.querySelector("#continuity-status"),
@@ -240,7 +231,7 @@ const renderTokenLaunchState = () => {
   ui.launchToken.disabled = !binding;
   ui.launchTokenLabel.textContent = "Launch $TOHSENO for this Shot";
   ui.launchTokenDetail.textContent = binding
-    ? `Bind deployment to ShotID ${displayIdentifier(binding.shot_id)}`
+    ? `After deployment, record a private relation to ${displayIdentifier(binding.shot_id)}`
     : "A verified selected ShotID is required";
 };
 
@@ -333,9 +324,9 @@ const renderBankrDeployment = (outcome) => {
     : "$TOHSENO deployed";
   ui.bankrResultSummary.textContent = warnings.length > 0
     ? `${tokenAddress}. ${warnings.join(" ")}`
-    : `${tokenAddress} · signed association recorded for Shot ${displayIdentifier(
+    : `${tokenAddress} · private signed association recorded for Shot ${displayIdentifier(
       outcome.shot?.shot_id
-    )}.`;
+    )}; no Shot registry transaction was sent.`;
   ui.bankrResultJson.textContent = JSON.stringify(outcome, null, 2);
   if (/^0x[0-9a-fA-F]{64}$/.test(transactionHash)) {
     const explorer = outcome.parameters.chain === "base"
@@ -466,12 +457,17 @@ const loadNodeStatus = async () => {
 
 const renderProtocolOverview = () => {
   if (!protocolOverview) return;
-  const { identity, network, pairing, publish } = protocolOverview;
+  const {
+    identity,
+    contract_definition: definition,
+    active_generation: activeGeneration,
+    publication,
+  } = protocolOverview;
   const device = identity.device_keys[0];
 
-  ui.protocolReadiness.textContent = protocolOverview.candidate_version;
-  ui.identityStatus.textContent = identity.status === "ready" ? "Ready" : humanStatus(identity.status);
-  ui.identityStatus.dataset.status = identity.status === "ready" ? "pass" : "pending";
+  ui.protocolReadiness.textContent = `${definition.generation} · inactive`;
+  ui.identityStatus.textContent = humanStatus(identity.status);
+  ui.identityStatus.dataset.status = identity.status === "local_only" ? "pass" : "pending";
   ui.builderId.textContent = identity.builder_id || "Not created";
   ui.builderId.title = identity.builder_id || "";
   ui.deviceStatus.textContent = device
@@ -481,27 +477,19 @@ const renderProtocolOverview = () => {
   ui.recoveryStatus.textContent = humanStatus(identity.recovery_status);
   ui.identityDetail.textContent = identity.detail;
 
-  const deploymentRecorded = network.deployment_evidence;
-  ui.networkStatus.textContent = deploymentRecorded ? "Recorded" : "Candidate";
-  ui.networkStatus.dataset.status = deploymentRecorded ? "pass" : "pending";
-  ui.networkName.textContent = `${network.name} · ${network.chain_id}`;
-  ui.deploymentStatus.textContent = humanStatus(network.deployment_status);
-  ui.p256Status.textContent = humanStatus(network.p256_status);
-  ui.networkDetail.textContent = network.connectivity === "not_queried"
-    ? "Studio made no RPC call. Contract and P-256 status comes only from embedded local evidence."
-    : `Connectivity: ${humanStatus(network.connectivity)}.`;
-
-  ui.pairingLimitation.textContent = pairing.limitation;
-  ui.pairingPayloadGroup.hidden = !pairing.target_payload;
-  ui.pairingPayload.value = pairing.target_payload || "";
-  if (pairing.qr_available && pairing.qr_url) {
-    ui.pairingQr.src = pairing.qr_url;
-  } else {
-    ui.pairingQr.removeAttribute("src");
-  }
-
-  ui.publishShot.disabled = true;
-  ui.publishShot.title = publish.reason;
+  ui.generationStatus.textContent = activeGeneration ? "Active" : "Inactive";
+  ui.generationStatus.dataset.status = activeGeneration ? "pass" : "pending";
+  ui.contractGeneration.textContent =
+    `${definition.generation} · protocol ${definition.protocol_major}`;
+  ui.contractGeneration.title = definition.definition_digest;
+  ui.contractChain.textContent = `eip155:${definition.chain_id}`;
+  ui.contractP256.textContent =
+    `${definition.p256.standard} · ${definition.p256.gas} gas`;
+  ui.contractP256.title = definition.p256.address;
+  ui.contractDefinitionDetail.textContent = activeGeneration
+    ? definition.detail
+    : `No public witness generation is active. ${definition.detail}. `
+      + `Studio made no RPC call and has no deployment or broadcast path. ${publication.reason}`;
   renderProtocolInspector();
 };
 
@@ -734,15 +722,10 @@ const renderShotProtocol = () => {
   ui.conformanceStatus.textContent = shotProtocol.conformance.status === "pass"
     ? `Verified · ${shotProtocol.conformance.passed} checks`
     : humanStatus(shotProtocol.conformance.status);
-  ui.publishedStatus.textContent = shotProtocol.published_state === "not_published"
-    ? "No · Private"
-    : humanStatus(shotProtocol.published_state);
-  ui.registryStatus.textContent = shotProtocol.registry_head || "None";
-  ui.handleStatus.textContent = shotProtocol.handle.value || humanStatus(shotProtocol.handle.status);
-  ui.appcoinStatus.textContent = shotProtocol.appcoin.value || humanStatus(shotProtocol.appcoin.status);
+  ui.shotAvailability.textContent = humanStatus(shotProtocol.local_state);
   ui.shotProtocolDetail.textContent = shotProtocol.adoption_required
     ? shotProtocol.verification.detail
-    : `${shotProtocol.verification.detail} No public registry receipt or transaction is present.`;
+    : `${shotProtocol.verification.detail} No public witness generation is active.`;
   ui.verifyShot.disabled = false;
   ui.verifyShot.textContent = "Verify";
   renderTokenLaunchState();
@@ -883,21 +866,6 @@ ui.refreshApp.addEventListener("click", async () => {
 
 ui.verifyShot.addEventListener("click", () => {
   if (selectedApp && selectedShot) loadShotProtocol(selectedApp, selectedShot);
-});
-
-ui.copyPairing.addEventListener("click", async () => {
-  const value = ui.pairingPayload.value;
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    ui.pairingPayload.select();
-    document.execCommand("copy");
-  }
-  ui.copyPairing.textContent = "Copied";
-  setTimeout(() => {
-    ui.copyPairing.textContent = "Copy target context";
-  }, 1400);
 });
 
 const renderLibrary = () => {
@@ -1738,7 +1706,7 @@ ui.bankrDeploy.addEventListener("click", async () => {
     renderBankrDeployment(await response.json());
     await loadShotProtocol(selectedApp, selectedShot);
     ui.bankrStatus.textContent =
-      "Bankr returned a deployment receipt. Verify the transaction before announcing the address.";
+      "Bankr returned a deployment receipt and Studio recorded a private local Shot relation. Verify the token transaction before announcing the address.";
   } catch (error) {
     bankrApproval = null;
     ui.bankrResult.hidden = false;

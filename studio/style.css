@@ -526,51 +526,9 @@ textarea:focus-visible,
   line-height: 1.55;
 }
 
-.pairing-qr {
-  display: grid;
-  justify-items: center;
-  gap: 7px;
-  margin: 13px 0 0;
-}
-
-.pairing-qr img {
-  display: block;
-  width: min(100%, 220px);
-  aspect-ratio: 1;
-  border: 7px solid var(--bone);
-  border-radius: 6px;
-  background: var(--bone);
-  image-rendering: pixelated;
-}
-
-.pairing-qr figcaption {
-  color: var(--ash);
-  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
-  font-size: 7px;
-  line-height: 1.4;
-  text-align: center;
-}
-
-.payload-label {
-  display: block;
-  margin: 11px 0 6px;
-  color: var(--ash);
-  font-size: 8px;
-}
-
-textarea.protocol-payload {
-  min-height: 116px;
-  padding: 8px;
-  color: var(--silver);
-  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
-  font-size: 7px;
-  line-height: 1.45;
-  resize: vertical;
-}
-
 .protocol-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 7px;
   margin-top: 12px;
 }

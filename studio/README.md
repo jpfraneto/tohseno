@@ -85,10 +85,9 @@ response. A current server may add:
 
 The values are protocol records or derived views returned by engine APIs.
 Studio renders them as text and does not reinterpret them as canonical state.
-The optional `token_association` view is shown separately from the frozen
-GENESIS Appcoin receipt. It is explicitly a relationship, never Shot identity
-or ownership, and a declared chain anchor is not labeled verified without a
-chain-specific check.
+The optional `token_association` view is explicitly a relationship, never Shot
+identity or ownership. A declared chain anchor is not labeled verified without
+a chain-specific check.
 If the projection is absent, Studio labels the selected record as compatible
 v1 history and does not fabricate intention, genome, or exact Version facts.
 
@@ -125,6 +124,21 @@ Studio carries that exact `action_commitment` in the subsequent `/shots`
 evolution request. The engine—not browser state—then proves that the action
 exists and binds the current exact Expression and Version. Saving Feedback
 alone does not silently select it.
+
+## Contract generation status
+
+`GET /api/protocol` reports the committed, reproducible contract build
+definition for generation `0.8.0`, including its definition digest, exact
+runtime code hashes, source commit, target chain, and EIP-7951 requirement.
+That definition is intentionally `inactive`, and `active_generation` is
+`null`: no trusted release-authority root or signed activation exists.
+
+A build definition is not deployment evidence. Studio performs no chain RPC,
+does not deploy or broadcast contracts, exposes no predicted address as
+authority, and has no public Shot publication path. It also exposes no
+ShotRelations, handle, App Store attestation, Appcoin, or device-pairing
+surface. A future release must add separately authorized activation evidence
+before Studio may represent a public witness generation as active.
 
 ## Optional node status
 
@@ -169,10 +183,9 @@ The launch identity is fixed:
 The Bankr receipt is stored privately under the selected Shot's
 `.tohseno/token-launches/` directory. After a successful deployment, Studio
 appends an intentionally private Token Association action to that Shot's
-signed local lineage. It creates no relay artifact: ordinary lineage actions
-can commit private predecessors, and a public Token Association needs a
-future ancestry-free relation record. Neither relation changes Shot identity
-or ownership.
+signed local lineage. It creates no relay artifact, registry transaction, or
+public Shot claim. Neither the token deployment nor this private relationship
+changes Shot identity or ownership.
 
 Create a dedicated user key at `https://bankr.bot/api-keys`. It must begin with
 `bk_usr_`, have token-launch access enabled, and have read-only mode disabled.
@@ -210,6 +223,7 @@ timed out.
 After a confirmed deployment, Studio stores the Bankr response and exact
 approved configuration under the candidate machine root's
 `bankr-launches/` directory with private filesystem permissions. The receipt
-contains no API credential. Deployment does not automatically make the token
-a Shot or create a Token Association; that remains a separate
-owner-authorized protocol action.
+contains no API credential. Studio then attempts the separate owner-authorized
+private Token Association action and reports a warning if that local action
+cannot be recorded. The token is never made into the Shot, and no public
+witness write follows from the deployment.

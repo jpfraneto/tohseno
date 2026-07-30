@@ -6,8 +6,6 @@ use crate::shot_execution_commands;
 use crate::simulator::{self, SimulatorSession};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
-use qrcode::render::svg;
-use qrcode::{EcLevel, QrCode};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -17,6 +15,7 @@ use std::sync::Arc;
 use tohseno_engine::builder_identity::{
     BuilderDeploymentStatus, BuilderIdentity, BuilderIdentityManager,
 };
+use tohseno_engine::contract_generation::resolve_current_contract_generation;
 use tohseno_engine::gates::apple_signing::AppleSigningState;
 use tohseno_engine::gates::intent::Intent;
 use tohseno_engine::gates::toolchain::ToolchainState;
@@ -25,12 +24,10 @@ use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
 use tohseno_engine::{
     Engine, Event, EventBus, InitialExpressionPlan, Ledger, ShotLayout, ShotRequest,
 };
-use tohseno_protocol::builder::PAIRING_SCHEMA;
-use tohseno_protocol::canonical;
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
 use tohseno_protocol::digest::{Address20, Bytes32};
 use tohseno_protocol::fascia::FasciaManifest;
-use tohseno_protocol::identity::{device_key_id, BuilderId, ROBINHOOD_CHAIN_ID};
+use tohseno_protocol::identity::device_key_id;
 use tohseno_protocol::lineage::AcceptedGenome;
 use tohseno_protocol::ontology::{
     AvailabilityStatus, Expression, TokenAssociation, TokenAssociationOperation, VersionRecord,
@@ -49,16 +46,9 @@ const SCRIPT: &str = include_str!("../../studio/app.js");
 const BRAND_COLORS: &str = include_str!("../../brand/tokens/colors.css");
 const CORE_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-core-circle.svg");
 const MICRO_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-micro-circle.png");
-const DEPLOYMENT_PLAN: &str =
-    include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
 const MAX_BODY: usize = 160 * 1024 * 1024;
 const MAX_HEADERS: usize = 32 * 1024;
 const MAX_PROTOCOL_JSON: u64 = 4 * 1024 * 1024;
-const MAX_PAIRING_PAYLOAD: usize = 4 * 1024;
-const MAX_PAIRING_SVG: usize = 256 * 1024;
-const PAIRING_FORMAT: &str = "tohseno-pairing-target-json";
-const PAIRING_DESCRIPTION: &str = "Public BuilderID and Robinhood Chain pairing target context only; this is not a pairing request, authorization, signature, or secret.";
-const PAIRING_QR_PATH: &str = "/api/protocol/pairing-target.svg";
 
 #[derive(Clone)]
 struct State {
@@ -196,11 +186,10 @@ struct ExecutionStateResponse {
 
 #[derive(Debug, Serialize)]
 struct ProtocolOverview {
-    candidate_version: String,
+    contract_definition: ContractDefinitionFacts,
+    active_generation: Option<String>,
     identity: IdentityFacts,
-    pairing: PairingFacts,
-    network: NetworkFacts,
-    publish: PublishFacts,
+    publication: PublicationFacts,
 }
 
 #[derive(Debug, Serialize)]
@@ -224,60 +213,38 @@ struct DeviceKeyFacts {
 }
 
 #[derive(Debug, Serialize)]
-struct PairingFacts {
-    request_schema: &'static str,
-    qr_available: bool,
-    target_payload: Option<String>,
-    qr_url: Option<&'static str>,
-    limitation: &'static str,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PairingTargetPayload {
-    format: String,
-    version: u8,
-    encodes: String,
-    request_schema: String,
-    builder_id: BuilderId,
-    network: PairingTargetNetwork,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PairingTargetNetwork {
+struct ContractDefinitionFacts {
+    schema: String,
+    generation: String,
+    protocol_major: u64,
+    definition_digest: String,
     chain_id: u64,
-    builder_account: Address20,
-    builder_account_factory: Address20,
-}
-
-#[derive(Debug, Serialize)]
-struct NetworkFacts {
-    chain_id: u64,
-    name: String,
-    connectivity: &'static str,
-    p256verify: String,
-    p256_status: &'static str,
-    deployment_status: &'static str,
-    deployment_evidence: bool,
-    contracts: Vec<ContractFacts>,
-}
-
-#[derive(Debug, Serialize)]
-struct ContractFacts {
-    name: String,
-    address: Option<String>,
     status: &'static str,
-    transaction_hash: Option<String>,
+    source_commit: String,
+    p256: P256Facts,
+    contracts: Vec<ContractBuildFacts>,
+    detail: &'static str,
 }
 
 #[derive(Debug, Serialize)]
-struct PublishFacts {
-    experimental: bool,
+struct P256Facts {
+    standard: String,
+    address: String,
+    gas: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct ContractBuildFacts {
+    name: &'static str,
+    component_version: String,
+    runtime_code_hash: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PublicationFacts {
     enabled: bool,
-    required_guard: &'static str,
-    guard_present: bool,
-    reason: String,
+    transport: &'static str,
+    reason: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -297,17 +264,11 @@ struct ShotProtocolFacts {
     current: bool,
     adoption_required: bool,
     local_state: &'static str,
-    published_state: &'static str,
-    source_published: bool,
-    registry_head: Option<String>,
-    transaction_hash: Option<String>,
     evolution: Option<EvolutionFacts>,
     signature: EvidenceFacts,
     fascia: FasciaFacts,
     conformance: ConformanceFacts,
     verification: VerificationFacts,
-    handle: RelationFacts,
-    appcoin: RelationFacts,
     #[serde(skip_serializing_if = "Option::is_none")]
     ontology: Option<ShotOntologyFacts>,
 }
@@ -402,13 +363,6 @@ struct VerificationFacts {
     detail: String,
 }
 
-#[derive(Debug, Serialize)]
-struct RelationFacts {
-    status: &'static str,
-    value: Option<String>,
-    detail: &'static str,
-}
-
 pub async fn serve(port: u16, events: EventBus) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(("127.0.0.1", port)).await?;
     let address = listener.local_addr()?;
@@ -488,9 +442,6 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     }
     if request.method == "GET" && request.path == "/api/bankr/launch" {
         return serve_bankr_launch_status(&mut socket, &state).await;
-    }
-    if request.method == "GET" && request.path == PAIRING_QR_PATH {
-        return serve_pairing_qr(&mut socket).await;
     }
     if request.method == "GET" && request.path.starts_with("/api/protocol/shot/") {
         return serve_shot_protocol(&mut socket, &request.path).await;
@@ -1173,28 +1124,15 @@ async fn serve_execution_state(
 async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     let ledger = Ledger::discover()?;
     let identity = load_identity_facts(&ledger);
-    let (candidate_version, network) = deployment_facts();
-    let pairing = pairing_facts(identity.as_ref().ok());
-    let deployment_evidence = network.deployment_evidence;
-    let guard_present =
-        std::env::var("TOHSENO_ALLOW_EXPERIMENTAL_MAINNET").is_ok_and(|value| value == "1");
-    let publish = PublishFacts {
-        experimental: true,
+    let contract_definition = contract_definition_facts()?;
+    let publication = PublicationFacts {
         enabled: false,
-        required_guard: "TOHSENO_ALLOW_EXPERIMENTAL_MAINNET=1",
-        guard_present,
-        reason: if !deployment_evidence {
-            "Candidate contracts have no complete deployment receipt. Publishing is disabled."
-                .into()
-        } else if !guard_present {
-            "The explicit experimental-mainnet guard is absent. Publishing is disabled.".into()
-        } else {
-            "Studio has no broadcast or relayer path in this candidate. Publishing is disabled."
-                .into()
-        },
+        transport: "none",
+        reason: "No contract generation is active. Studio has no RPC, deployment, relayer, or public broadcast path.",
     };
     let body = serde_json::to_string(&ProtocolOverview {
-        candidate_version,
+        contract_definition,
+        active_generation: None,
         identity: match identity {
             Ok(identity) => identity_facts(&identity),
             Err(detail) if detail == "not_initialized" => IdentityFacts {
@@ -1202,9 +1140,9 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
                 builder_id: None,
                 account_address: None,
                 deployment_status: None,
-                recovery_status: "pending",
+                recovery_status: "not_configured",
                 device_keys: Vec::new(),
-                detail: "Your identity will be created by the first protocol Shot or `tohseno identity show`.".into(),
+                detail: "No local signing identity exists. Contract generation 0.8.0 is inactive, so Studio will not create or publish a BuilderID.".into(),
             },
             Err(detail) => IdentityFacts {
                 status: "invalid_local_state",
@@ -1216,9 +1154,7 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
                 detail,
             },
         },
-        pairing,
-        network,
-        publish,
+        publication,
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
@@ -1338,13 +1274,13 @@ fn identity_facts(identity: &BuilderIdentity) -> IdentityFacts {
         status: if identity.test_only {
             "test_only"
         } else {
-            "ready"
+            "local_only"
         },
         builder_id: Some(identity.builder_id.to_string()),
         account_address: Some(identity.account_address.to_string()),
         deployment_status: Some(match identity.deployment_status {
-            BuilderDeploymentStatus::Predicted => "predicted",
-            BuilderDeploymentStatus::Deployed => "deployed",
+            BuilderDeploymentStatus::Predicted => "legacy_predicted",
+            BuilderDeploymentStatus::Deployed => "legacy_deployed",
         }),
         recovery_status: if identity.recovery.is_some() {
             "local_backup_only_recovery_unavailable"
@@ -1363,246 +1299,49 @@ fn identity_facts(identity: &BuilderIdentity) -> IdentityFacts {
             test_only: identity.test_only,
         }],
         detail: if identity.test_only {
-            "This identity uses an explicit software test key and is not production authority."
-                .into()
+            "This frozen v0.7 identity uses an explicit software test key. It is local-only and is not public authority.".into()
         } else {
-            "Your local BuilderID descriptor and original DeviceKey validate. This candidate cannot authorize, revoke, or recover replacement keys.".into()
+            "This frozen v0.7 identity remains available for offline verification. No active contract generation recognizes it as public authority.".into()
         },
     }
 }
 
-fn pairing_facts(identity: Option<&BuilderIdentity>) -> PairingFacts {
-    let target_payload = identity
-        .and_then(|identity| pairing_target_json(identity).ok())
-        .filter(|payload| render_pairing_svg(payload).is_ok());
-    let qr_available = target_payload.is_some();
-    PairingFacts {
-        request_schema: PAIRING_SCHEMA,
-        qr_available,
-        target_payload,
-        qr_url: qr_available.then_some(PAIRING_QR_PATH),
-        limitation: "The QR encodes public Builder target context only, never a key, signature, authorization, or secret. It is not a pairing request. GENESIS cannot complete DeviceKey authorization or accept a replacement key.",
-    }
-}
-
-impl PairingTargetPayload {
-    fn from_identity(identity: &BuilderIdentity) -> Result<Self, String> {
-        identity
-            .validate()
-            .map_err(|error| format!("Builder identity: {error}"))?;
-        let payload = Self {
-            format: PAIRING_FORMAT.into(),
-            version: 1,
-            encodes: PAIRING_DESCRIPTION.into(),
-            request_schema: PAIRING_SCHEMA.into(),
-            builder_id: identity.builder_id,
-            network: PairingTargetNetwork {
-                chain_id: identity.chain_id,
-                builder_account: identity.account_address,
-                builder_account_factory: identity.factory_address,
-            },
-        };
-        payload.validate()?;
-        Ok(payload)
-    }
-
-    fn validate(&self) -> Result<(), String> {
-        if self.format != PAIRING_FORMAT
-            || self.version != 1
-            || self.encodes != PAIRING_DESCRIPTION
-            || self.request_schema != PAIRING_SCHEMA
-        {
-            return Err("Pairing target format metadata is invalid.".into());
-        }
-        self.builder_id
-            .validate()
-            .map_err(|error| format!("BuilderID: {error}"))?;
-        if self.network.chain_id != ROBINHOOD_CHAIN_ID
-            || self.network.builder_account != self.builder_id.account()
-            || self
-                .network
-                .builder_account_factory
-                .as_bytes()
-                .iter()
-                .all(|byte| *byte == 0)
-        {
-            return Err("Pairing target network does not bind to the BuilderID.".into());
-        }
-        Ok(())
-    }
-}
-
-fn pairing_target_json(identity: &BuilderIdentity) -> Result<String, String> {
-    let payload = PairingTargetPayload::from_identity(identity)?;
-    let encoded =
-        canonical::to_string(&payload).map_err(|error| format!("Pairing target JSON: {error}"))?;
-    if encoded.len() > MAX_PAIRING_PAYLOAD {
-        return Err("Pairing target exceeds the QR payload limit.".into());
-    }
-    Ok(encoded)
-}
-
-fn render_pairing_svg(payload: &str) -> Result<String, String> {
-    if payload.is_empty() || payload.len() > MAX_PAIRING_PAYLOAD {
-        return Err("Pairing target is empty or exceeds the QR payload limit.".into());
-    }
-    let code = QrCode::with_error_correction_level(payload.as_bytes(), EcLevel::Q)
-        .map_err(|error| format!("Pairing QR: {error}"))?;
-    let svg = code
-        .render::<svg::Color>()
-        .min_dimensions(320, 320)
-        .dark_color(svg::Color("#050505"))
-        .light_color(svg::Color("#f2ede4"))
-        .quiet_zone(true)
-        .build();
-    if svg.len() > MAX_PAIRING_SVG {
-        return Err("Rendered pairing QR exceeds the SVG output limit.".into());
-    }
-    Ok(svg)
-}
-
-async fn serve_pairing_qr(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
-    let ledger = Ledger::discover()?;
-    let identity = match load_identity_facts(&ledger) {
-        Ok(identity) => identity,
-        Err(_) => {
-            respond(
-                socket,
-                404,
-                "text/plain; charset=utf-8",
-                "pairing target unavailable",
-            )
-            .await?;
-            return Ok(());
-        }
-    };
-    let payload = pairing_target_json(&identity)?;
-    let svg = render_pairing_svg(&payload)?;
-    respond_pairing_svg(socket, svg.as_bytes()).await?;
-    Ok(())
-}
-
-fn deployment_facts() -> (String, NetworkFacts) {
-    let parsed = serde_json::from_str::<serde_json::Value>(DEPLOYMENT_PLAN).ok();
-    let candidate_version = parsed
-        .as_ref()
-        .and_then(|value| value.pointer("/candidate/version"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown")
-        .to_owned();
-    let chain_id_valid = parsed
-        .as_ref()
-        .and_then(|value| value.pointer("/chain/chain_id"))
-        .and_then(serde_json::Value::as_u64)
-        == Some(ROBINHOOD_CHAIN_ID);
-    let schema_valid = parsed
-        .as_ref()
-        .and_then(|value| value.get("schema"))
-        .and_then(serde_json::Value::as_str)
-        == Some("tohseno.deployment-plan/1");
-    let chain_name = parsed
-        .as_ref()
-        .and_then(|value| value.pointer("/chain/name"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("Robinhood Chain mainnet")
-        .to_owned();
-    let p256verify = parsed
-        .as_ref()
-        .and_then(|value| value.pointer("/chain/p256verify"))
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("0x0000000000000000000000000000000000000100")
-        .to_owned();
-
-    let mut contracts = Vec::new();
-    let mut deployed_count = 0_usize;
-    let mut evidence_count = 0_usize;
-    for name in ["BuilderAccountFactory", "ShotRegistry", "ShotRelations"] {
-        let contract = parsed
-            .as_ref()
-            .and_then(|value| value.pointer(&format!("/contracts/{name}")));
-        let address = contract
-            .and_then(|value| value.get("planned_address"))
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned);
-        let deployed = contract
-            .and_then(|value| value.get("deployed"))
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
-        let transaction_hash = contract
-            .and_then(|value| value.get("transaction_hash"))
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned);
-        let runtime_code_hash = contract
-            .and_then(|value| value.get("runtime_code_hash"))
-            .and_then(serde_json::Value::as_str);
-        let evidence = deployed
-            && transaction_hash
-                .as_deref()
-                .is_some_and(|value| valid_lower_hex(value, 32))
-            && runtime_code_hash.is_some_and(|value| valid_lower_hex(value, 32))
-            && address
-                .as_deref()
-                .is_some_and(|value| valid_lower_hex(value, 20));
-        deployed_count += usize::from(deployed);
-        evidence_count += usize::from(evidence);
-        contracts.push(ContractFacts {
-            name: name.to_owned(),
-            address,
-            status: if evidence {
-                "deployment_recorded"
-            } else if deployed {
-                "incomplete_evidence"
-            } else {
-                "planned"
-            },
-            transaction_hash,
-        });
-    }
-    let source_commit_valid = parsed
-        .as_ref()
-        .and_then(|value| value.get("source_commit"))
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(valid_git_commit);
-    let deployment_evidence =
-        schema_valid && chain_id_valid && evidence_count == contracts.len() && source_commit_valid;
-    let deployment_status = if !schema_valid || !chain_id_valid {
-        "invalid_embedded_evidence"
-    } else if deployment_evidence {
-        "deployment_recorded_not_queried"
-    } else if deployed_count == 0 && evidence_count == 0 {
-        "planned_undeployed"
-    } else {
-        "incomplete_evidence"
-    };
-    (
-        candidate_version,
-        NetworkFacts {
-            chain_id: ROBINHOOD_CHAIN_ID,
-            name: chain_name,
-            connectivity: "not_queried",
-            p256verify,
-            p256_status: "not_queried",
-            deployment_status,
-            deployment_evidence,
-            contracts,
+fn contract_definition_facts() -> Result<ContractDefinitionFacts, Box<dyn std::error::Error>> {
+    let resolved = resolve_current_contract_generation()?;
+    let inactive_reason = resolved.inactive_reason();
+    let definition_digest = resolved.definition_digest.to_string();
+    let definition = resolved.definition;
+    let contracts = [
+        ("BuilderAccount", definition.contracts.builder_account),
+        (
+            "BuilderAccountFactory",
+            definition.contracts.builder_account_factory,
+        ),
+        ("ShotRegistry", definition.contracts.shot_registry),
+    ]
+    .into_iter()
+    .map(|(name, contract)| ContractBuildFacts {
+        name,
+        component_version: contract.component_version,
+        runtime_code_hash: contract.runtime_code_keccak256.to_string(),
+    })
+    .collect();
+    Ok(ContractDefinitionFacts {
+        schema: definition.schema,
+        generation: definition.generation,
+        protocol_major: definition.protocol_major,
+        definition_digest,
+        chain_id: definition.chain.chain_id,
+        status: "inactive",
+        source_commit: definition.source.commit,
+        p256: P256Facts {
+            standard: definition.chain.p256_verifier.standard,
+            address: definition.chain.p256_verifier.address.to_string(),
+            gas: definition.chain.p256_verifier.gas,
         },
-    )
-}
-
-fn valid_lower_hex(value: &str, bytes: usize) -> bool {
-    value.len() == 2 + bytes * 2
-        && value.starts_with("0x")
-        && value[2..]
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        && value[2..].bytes().any(|byte| byte != b'0')
-}
-
-fn valid_git_commit(value: &str) -> bool {
-    value.len() == 40
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        contracts,
+        detail: inactive_reason,
+    })
 }
 
 async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
@@ -2012,25 +1751,11 @@ fn shot_protocol_facts(
         current,
         adoption_required,
         local_state: "private",
-        published_state: "not_published",
-        source_published: false,
-        registry_head: None,
-        transaction_hash: None,
         evolution,
         signature,
         fascia,
         conformance,
         verification,
-        handle: RelationFacts {
-            status: "pending",
-            value: None,
-            detail: "No handle receipt exists in local evidence.",
-        },
-        appcoin: RelationFacts {
-            status: "pending",
-            value: None,
-            detail: "No appcoin association receipt exists in local evidence.",
-        },
         ontology,
     }
 }
@@ -2583,21 +2308,6 @@ async fn respond_bytes(
     socket.write_all(body).await
 }
 
-async fn respond_pairing_svg(socket: &mut TcpStream, body: &[u8]) -> std::io::Result<()> {
-    if body.len() > MAX_PAIRING_SVG {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "pairing SVG exceeds output limit",
-        ));
-    }
-    let headers = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: image/svg+xml; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; style-src 'none'; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; sandbox\r\nCross-Origin-Resource-Policy: same-origin\r\nReferrer-Policy: no-referrer\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nConnection: close\r\n\r\n",
-        body.len()
-    );
-    socket.write_all(headers.as_bytes()).await?;
-    socket.write_all(body).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2615,21 +2325,6 @@ mod tests {
             path: "/shots".into(),
             headers: collected,
             body: Vec::new(),
-        }
-    }
-
-    fn pairing_payload() -> PairingTargetPayload {
-        PairingTargetPayload {
-            format: PAIRING_FORMAT.into(),
-            version: 1,
-            encodes: PAIRING_DESCRIPTION.into(),
-            request_schema: PAIRING_SCHEMA.into(),
-            builder_id: BuilderId::new(Address20::from_bytes([1; 20])),
-            network: PairingTargetNetwork {
-                chain_id: ROBINHOOD_CHAIN_ID,
-                builder_account: Address20::from_bytes([1; 20]),
-                builder_account_factory: Address20::from_bytes([2; 20]),
-            },
         }
     }
 
@@ -2700,64 +2395,19 @@ mod tests {
     }
 
     #[test]
-    fn embedded_candidate_never_enables_studio_publish() {
-        let (_, network) = deployment_facts();
-        assert_eq!(network.chain_id, ROBINHOOD_CHAIN_ID);
-        assert_eq!(network.connectivity, "not_queried");
-        assert!(!network.deployment_evidence);
-        assert_eq!(network.deployment_status, "planned_undeployed");
-        assert_eq!(network.contracts.len(), 3);
-    }
-
-    #[test]
-    fn pairing_target_is_strict_public_canonical_json() {
-        let payload = pairing_payload();
-        payload.validate().unwrap();
-        let encoded = canonical::to_string(&payload).unwrap();
-        assert!(encoded.len() <= MAX_PAIRING_PAYLOAD);
-        assert!(encoded.contains(PAIRING_DESCRIPTION));
-        assert!(!encoded.contains("local_key_tag"));
-        assert!(!encoded.contains("\"private_key\":"));
-        assert!(!encoded.contains("\"signature\":"));
-
-        let decoded = canonical::from_slice::<PairingTargetPayload>(encoded.as_bytes()).unwrap();
-        assert_eq!(decoded, payload);
-
-        let mut hostile = serde_json::to_value(&payload).unwrap();
-        hostile
-            .as_object_mut()
-            .unwrap()
-            .insert("secret".into(), serde_json::Value::String("no".into()));
-        assert!(canonical::from_slice::<PairingTargetPayload>(
-            &serde_json::to_vec(&hostile).unwrap()
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn pairing_svg_is_deterministic_bounded_and_does_not_interpolate_input() {
-        let encoded = canonical::to_string(&pairing_payload()).unwrap();
-        let first = render_pairing_svg(&encoded).unwrap();
-        let second = render_pairing_svg(&encoded).unwrap();
-        assert_eq!(first, second);
-        assert!(first.starts_with("<?xml version=\"1.0\""));
-        assert!(first.contains("<svg "));
-        assert!(first.len() <= MAX_PAIRING_SVG);
-        assert!(!first.contains(&encoded));
-
-        let hostile = r#"</path><script>alert("qr")</script>"#;
-        let hostile_svg = render_pairing_svg(hostile).unwrap();
-        assert!(!hostile_svg.contains("<script"));
-        assert!(!hostile_svg.contains(hostile));
-        assert!(render_pairing_svg(&"x".repeat(MAX_PAIRING_PAYLOAD + 1)).is_err());
-    }
-
-    #[test]
-    fn pairing_qr_is_unavailable_without_validated_builder_context() {
-        let facts = pairing_facts(None);
-        assert!(!facts.qr_available);
-        assert!(facts.qr_url.is_none());
-        assert!(facts.target_payload.is_none());
+    fn committed_contract_definition_is_inactive_and_has_no_relations_contract() {
+        let definition = contract_definition_facts().unwrap();
+        assert_eq!(definition.generation, "0.8.0");
+        assert_eq!(definition.protocol_major, 2);
+        assert_eq!(definition.chain_id, 4663);
+        assert_eq!(definition.status, "inactive");
+        assert_eq!(definition.p256.standard, "EIP-7951");
+        assert_eq!(definition.p256.gas, 6_900);
+        assert_eq!(definition.contracts.len(), 3);
+        assert!(definition
+            .contracts
+            .iter()
+            .all(|contract| contract.name != "ShotRelations"));
     }
 
     #[test]
@@ -2767,14 +2417,16 @@ mod tests {
             "This Mac",
             "Private",
             "Conformance",
-            "Pairing target QR",
-            "Experimental publish",
+            "Contract definition",
+            "Inactive",
             "Advanced inspector",
         ] {
             assert!(INDEX.contains(marker), "missing Studio marker: {marker}");
         }
         assert!(SCRIPT.contains("x-tohseno-studio"));
-        assert!(SCRIPT.contains("No public registry receipt or transaction is present."));
+        assert!(SCRIPT.contains("No public witness generation is active."));
+        assert!(!INDEX.contains("Experimental publish"));
+        assert!(!INDEX.contains("Pairing target"));
     }
 
     #[cfg(unix)]
