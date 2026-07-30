@@ -5,9 +5,12 @@
 //! application artifacts are not traversed or copied except that a declared
 //! app icon may be selected from an asset catalog.
 
+use crate::contract_generation::{
+    resolve_current_contract_generation, CURRENT_GENERATION_REPOSITORY_PATH,
+};
 use crate::ledger::{validate_app_name, AppRecord, Evolution, Ledger, LedgerError};
 use crate::{protocol_lifecycle, verifier};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -16,15 +19,13 @@ use tohseno_protocol::canonical;
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
 use tohseno_protocol::digest::{Address20, Bytes32, ShotId};
 use tohseno_protocol::fascia::{DistributionState, FasciaManifest};
-use tohseno_protocol::identity::{BuilderId, ROBINHOOD_CHAIN_ID};
+use tohseno_protocol::identity::BuilderId;
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
 
 const MAX_PROTOCOL_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ICON_BYTES: u64 = 32 * 1024 * 1024;
 const FALLBACK_ICON: &[u8] = include_bytes!("../../brand/logos/tohseno-app-icon-1024.png");
-const DEPLOYMENT_PLAN: &[u8] =
-    include_bytes!("../../contracts/deployments/robinhood-mainnet-genesis.json");
 
 /// The public state emitted by this local-only generator.
 ///
@@ -37,11 +38,28 @@ pub enum PagePublicState {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct RegistryCoordinates {
+pub struct ContractGenerationAudit {
+    pub definition_repository_path: String,
+    pub definition_sha256: Bytes32,
+    pub generation: String,
+    pub protocol_major: u64,
     pub chain_id: u64,
-    pub chain_name: String,
-    pub registry_address: Address20,
-    pub deployment_transaction: Bytes32,
+    pub source_commit: String,
+    pub compiler: String,
+    pub active_generation: Option<String>,
+    pub inactive_reason: String,
+    pub conditional_create2: ConditionalCreate2Coordinates,
+}
+
+/// These are mathematical EIP-1014 predictions from an immutable build
+/// definition. They are not deployment evidence, RPC observations, or
+/// authority coordinates.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ConditionalCreate2Coordinates {
+    pub condition: String,
+    pub deployer: Address20,
+    pub builder_account_factory: Address20,
+    pub shot_registry: Address20,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -54,7 +72,7 @@ pub struct PageBuildReport {
     pub locally_verified: bool,
     pub public_state: PagePublicState,
     pub source_published: bool,
-    pub registry: Option<RegistryCoordinates>,
+    pub contract_generation: ContractGenerationAudit,
 }
 
 #[derive(Debug)]
@@ -101,7 +119,7 @@ impl From<std::io::Error> for PageError {
 /// Every protocol object is parsed as a closed JSON object, validated, and
 /// cross-checked before any output is replaced. Output bytes depend only on
 /// the signed Shot, its public sidecars, its app icon, and the embedded
-/// deployment record.
+/// immutable contract-generation definition.
 pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageError> {
     validate_app_name(app_name)?;
     let app = load_app_without_symlinks(ledger, app_name)?;
@@ -123,7 +141,7 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
     }
     let verified = verify_sidecars(&app, &shot)?;
     let icon = select_icon(&shot.source_path())?;
-    let registry = deployed_registry_coordinates()?;
+    let contract_generation = contract_generation_audit()?;
     let world = fs::read_to_string(shot.source_path().join("WORLD.md")).ok();
     let preview = fs::read(shot.path.join("preview.png")).ok();
 
@@ -134,7 +152,7 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
     let page = render_html(
         &verified.record,
         &verified.fascia,
-        registry.as_ref(),
+        &contract_generation,
         world.as_deref(),
         preview.is_some(),
     );
@@ -172,7 +190,7 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
         locally_verified: true,
         public_state: PagePublicState::Private,
         source_published: false,
-        registry,
+        contract_generation,
     })
 }
 
@@ -409,7 +427,7 @@ fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
 fn render_html(
     record: &ShotRecord,
     fascia: &FasciaManifest,
-    registry: Option<&RegistryCoordinates>,
+    contract_generation: &ContractGenerationAudit,
     world: Option<&str>,
     has_preview: bool,
 ) -> String {
@@ -435,23 +453,45 @@ fn render_html(
     } else {
         String::new()
     };
-    let registry_markup = match registry {
-        Some(coordinates) => format!(
-            "<dl class=\"facts\"><div><dt>Network</dt><dd>{}</dd></div>\
-             <div><dt>Chain ID</dt><dd>{}</dd></div>\
-             <div><dt>Registry</dt><dd class=\"mono\">{}</dd></div>\
-             <div><dt>Deployment transaction</dt><dd class=\"mono\">{}</dd></div></dl>",
-            escape_html(&coordinates.chain_name),
-            coordinates.chain_id,
-            escape_html(&coordinates.registry_address.to_string()),
-            escape_html(&coordinates.deployment_transaction.to_string()),
+    let generation_markup = format!(
+        "<dl class=\"facts\">\
+         <div><dt>Definition</dt><dd>{} (protocol major {})</dd></div>\
+         <div><dt>Definition SHA-256</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Definition path</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Source commit</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Compiler</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Target chain</dt><dd class=\"mono\">eip155:{}</dd></div>\
+         <div><dt>Active generation</dt><dd>None</dd></div>\
+         <div><dt>CREATE2 deployer</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Conditional factory</dt><dd class=\"mono\">{}</dd></div>\
+         <div><dt>Conditional registry</dt><dd class=\"mono\">{}</dd></div>\
+         </dl>\
+         <p class=\"quiet\">Inactive: {}.</p>\
+         <p class=\"quiet\">{} These offline predictions are not RPC observations, \
+         deployment evidence, or public authority.</p>",
+        escape_html(&contract_generation.generation),
+        contract_generation.protocol_major,
+        escape_html(&contract_generation.definition_sha256.to_string()),
+        escape_html(&contract_generation.definition_repository_path),
+        escape_html(&contract_generation.source_commit),
+        escape_html(&contract_generation.compiler),
+        contract_generation.chain_id,
+        escape_html(&contract_generation.conditional_create2.deployer.to_string()),
+        escape_html(
+            &contract_generation
+                .conditional_create2
+                .builder_account_factory
+                .to_string()
         ),
-        None => concat!(
-            "<p class=\"quiet\">The candidate registry is undeployed. ",
-            "No registry coordinates are represented as live.</p>"
-        )
-        .into(),
-    };
+        escape_html(
+            &contract_generation
+                .conditional_create2
+                .shot_registry
+                .to_string()
+        ),
+        escape_html(&contract_generation.inactive_reason),
+        escape_html(&contract_generation.conditional_create2.condition),
+    );
 
     format!(
         "<!doctype html>\n\
@@ -483,10 +523,10 @@ a{{color:var(--blue);text-underline-offset:3px}}footer{{color:var(--muted);font-
 <section><h2>Identity</h2><dl class=\"facts\"><div><dt>ShotID</dt><dd class=\"mono\">{shot_id}</dd></div><div><dt>BuilderID</dt><dd class=\"mono\">{builder_id}</dd></div><div><dt>Bundle</dt><dd class=\"mono\">{bundle_id}</dd></div><div><dt>Signed at</dt><dd>{created_at}</dd></div></dl></section>\n\
 <section><h2>Verification</h2><p>This Evolution’s closed record and low-s P-256 signature verified locally. Its Fascia declaration and conformance receipt are valid and bound to the same Shot.</p><p><a href=\"shot.json\">Shot record</a> · <a href=\"fascia.json\">Fascia</a> · <a href=\"assets/signature.json\">Signature</a> · <a href=\"assets/conformance.json\">Conformance</a></p></section>\n\
 <section><h2>Public state</h2><dl class=\"facts\"><div><dt>Protocol state</dt><dd>Private</dd></div><div><dt>App metadata</dt><dd>{distribution}</dd></div><div><dt>Source</dt><dd>Not published</dd></div></dl><p class=\"quiet\">A local static page is not a publication receipt. No prompt, input image, full source tree, build log, or app artifact is included; the story and preview above, when present, are the only excerpts and come from the world’s own WORLD.md and recorded first screen.</p></section>\n\
-<section><h2>Registry candidate</h2>{registry_markup}</section>\n\
+<section><h2>Contract generation audit</h2>{generation_markup}</section>\n\
 {preview_markup}\
 {world_markup}\
-<footer>Generated from public Evolution facts and the world’s own story. TOHSENO protocol candidate 0.7.0.</footer>\n\
+<footer>Generated from public Evolution facts and the world’s own story. The embedded contract generation is an inactive offline build definition.</footer>\n\
 </main>\n\
 </body>\n\
 </html>\n",
@@ -725,159 +765,39 @@ fn sync_directory(path: &Path) -> Result<(), PageError> {
     Ok(())
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DeploymentPlan {
-    candidate: CandidateDescriptor,
-    chain: ChainDescriptor,
-    contracts: ContractDescriptors,
-    create2: Create2Descriptor,
-    protocol: String,
-    schema: String,
-    source_commit: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CandidateDescriptor {
-    codename: String,
-    status: String,
-    version: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ChainDescriptor {
-    chain_id: u64,
-    name: String,
-    p256verify: Address20,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ContractDescriptors {
-    #[serde(rename = "BuilderAccountFactory")]
-    builder_account_factory: ContractDeployment,
-    #[serde(rename = "ShotRegistry")]
-    shot_registry: ContractDeployment,
-    #[serde(rename = "ShotRelations")]
-    shot_relations: ContractDeployment,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ContractDeployment {
-    constructor_arguments: Vec<String>,
-    deployed: bool,
-    deployment_order: u32,
-    init_code_hash: Bytes32,
-    planned_address: Address20,
-    runtime_code_hash: Option<Bytes32>,
-    salt: Bytes32,
-    transaction_hash: Option<Bytes32>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Create2Descriptor {
-    deployer: Address20,
-    deployer_code_must_be_verified_before_broadcast: bool,
-}
-
-fn deployed_registry_coordinates() -> Result<Option<RegistryCoordinates>, PageError> {
-    let plan: DeploymentPlan = canonical::from_slice(DEPLOYMENT_PLAN)
-        .map_err(|error| PageError::Protocol(format!("deployment record: {error}")))?;
-    validate_deployment_plan(&plan)?;
-    if !plan.contracts.shot_registry.deployed {
-        return Ok(None);
-    }
-    let transaction = plan
-        .contracts
-        .shot_registry
-        .transaction_hash
-        .filter(|digest| *digest != Bytes32::ZERO)
-        .ok_or_else(|| {
-            PageError::InvalidState(
-                "deployed registry has no nonzero deployment transaction".into(),
-            )
-        })?;
-    let runtime = plan
-        .contracts
-        .shot_registry
-        .runtime_code_hash
-        .filter(|digest| *digest != Bytes32::ZERO)
-        .ok_or_else(|| {
-            PageError::InvalidState("deployed registry has no nonzero runtime code hash".into())
-        })?;
-    let _ = runtime;
-    Ok(Some(RegistryCoordinates {
-        chain_id: plan.chain.chain_id,
-        chain_name: plan.chain.name,
-        registry_address: plan.contracts.shot_registry.planned_address,
-        deployment_transaction: transaction,
-    }))
-}
-
-fn validate_deployment_plan(plan: &DeploymentPlan) -> Result<(), PageError> {
-    if plan.protocol != "tohseno"
-        || plan.schema != "tohseno.deployment-plan/1"
-        || plan.chain.chain_id != ROBINHOOD_CHAIN_ID
-        || plan.candidate.codename != "GENESIS"
-        || plan.candidate.version != "0.7.0"
-        || plan.candidate.status.is_empty()
-        || plan.chain.name.is_empty()
-        || plan.chain.p256verify == Address20::from_bytes([0; 20])
-        || plan.create2.deployer == Address20::from_bytes([0; 20])
-        || !plan.create2.deployer_code_must_be_verified_before_broadcast
-    {
-        return Err(PageError::InvalidState(
-            "embedded deployment record has invalid candidate or network identity".into(),
-        ));
-    }
-    if plan.source_commit.as_deref().is_some_and(str::is_empty) {
-        return Err(PageError::InvalidState(
-            "deployment source commit is empty".into(),
-        ));
-    }
-    for (expected_order, contract) in [
-        (1, &plan.contracts.builder_account_factory),
-        (2, &plan.contracts.shot_registry),
-        (3, &plan.contracts.shot_relations),
-    ] {
-        if contract.deployment_order != expected_order
-            || contract.init_code_hash == Bytes32::ZERO
-            || contract.planned_address == Address20::from_bytes([0; 20])
-            || contract.salt == Bytes32::ZERO
-        {
-            return Err(PageError::InvalidState(
-                "embedded deployment record has invalid contract coordinates".into(),
-            ));
-        }
-        if contract.deployed
-            != (contract.runtime_code_hash.is_some() && contract.transaction_hash.is_some())
-        {
-            return Err(PageError::InvalidState(
-                "deployment marker and deployment evidence disagree".into(),
-            ));
-        }
-    }
-    if !plan
-        .contracts
-        .builder_account_factory
-        .constructor_arguments
-        .is_empty()
-        || !plan
-            .contracts
-            .shot_registry
-            .constructor_arguments
-            .is_empty()
-        || plan.contracts.shot_relations.constructor_arguments.len() != 1
-    {
-        return Err(PageError::InvalidState(
-            "embedded deployment constructor arguments are inconsistent".into(),
-        ));
-    }
-    Ok(())
+fn contract_generation_audit() -> Result<ContractGenerationAudit, PageError> {
+    let resolved = resolve_current_contract_generation()
+        .map_err(|error| PageError::Protocol(error.to_string()))?;
+    let inactive_reason = resolved.inactive_reason().to_owned();
+    let definition = resolved.definition;
+    Ok(ContractGenerationAudit {
+        definition_repository_path: CURRENT_GENERATION_REPOSITORY_PATH.into(),
+        definition_sha256: resolved.definition_digest,
+        generation: definition.generation,
+        protocol_major: definition.protocol_major,
+        chain_id: definition.chain.chain_id,
+        source_commit: definition.source.commit,
+        compiler: format!(
+            "solc {} / {} / optimizer {}",
+            definition.build.solc_version,
+            definition.build.evm_version,
+            definition.build.optimizer_runs
+        ),
+        active_generation: None,
+        inactive_reason,
+        conditional_create2: ConditionalCreate2Coordinates {
+            condition: format!(
+                "Conditional only if the exact declared init code and salts are used through the declared CREATE2 deployer on eip155:{}.",
+                definition.chain.chain_id
+            ),
+            deployer: definition.create2.deployer,
+            builder_account_factory: definition
+                .create2
+                .builder_account_factory
+                .predicted_address,
+            shot_registry: definition.create2.shot_registry.predicted_address,
+        },
+    })
 }
 
 #[cfg(test)]
@@ -1042,7 +962,8 @@ mod tests {
     fn page_projection_is_byte_identical_and_private_by_default() {
         let (_temporary, ledger, record) = complete_fixture();
         let output = ledger.root().join("public").join(&record.slug);
-        let html = render_html(&record, &fascia(&record), None, None, false);
+        let generation = contract_generation_audit().unwrap();
+        let html = render_html(&record, &fascia(&record), &generation, None, false);
         let files = [
             ("index.html", html.as_bytes().to_vec()),
             (
@@ -1073,8 +994,24 @@ mod tests {
         let html = fs::read_to_string(output.join("index.html")).unwrap();
         assert!(html.contains("Private"));
         assert!(html.contains("Not published"));
+        assert!(html.contains("Contract generation audit"));
+        assert!(html.contains("0.8.0 (protocol major 2)"));
+        assert!(html.contains("<dt>Active generation</dt><dd>None</dd>"));
+        assert!(html.contains("Conditional factory"));
+        assert!(html.contains("not RPC observations"));
+        assert!(!html.contains("ShotRelations"));
+        assert!(!html.contains("Deployment transaction"));
+        assert!(!html.contains("protocol candidate 0.7.0"));
         assert!(!html.contains("0xe37fa0761c914814e7cdd0842dbda011b76ab387"));
         assert!(!html.contains("<script"));
+
+        let audit = serde_json::to_value(&generation).unwrap();
+        assert_eq!(audit["generation"], "0.8.0");
+        assert_eq!(audit["active_generation"], serde_json::Value::Null);
+        assert_eq!(
+            audit["definition_repository_path"],
+            "contracts/generations/0.8.0/generation.json"
+        );
     }
 
     #[test]
