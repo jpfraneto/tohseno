@@ -82,6 +82,17 @@ contract P256VerifierTest is ProtocolTestBase {
         }
     }
 
+    function testMissingPrecompileFailsClosed() public {
+        bytes32 digest = keccak256("missing-precompile");
+        bytes memory signature = p256Signature(KEY1_X, KEY1_Y);
+        vm.etch(P256_PRECOMPILE, hex"");
+
+        (bool valid, bytes32 signerKeyId) = harness.verify(digest, signature);
+        assertFalse(valid);
+        assertEq(signerKeyId, P256Verifier.keyId(KEY1_X, KEY1_Y));
+        assertEqBytes4(account.isValidSignature(digest, signature), account.ERC1271_INVALID_VALUE());
+    }
+
     function testConstructorRejectsOffCurveInitialKey() public {
         vm.expectRevert(BuilderAccount.InvalidDeviceKey.selector);
         new BuilderAccount(1, 1);

@@ -358,6 +358,7 @@ swift test --package-path fascia/apple
 forge fmt --root contracts --check
 forge build --root contracts
 forge test --root contracts -vvv
+scripts/tests/test-probe-p256.sh
 scripts/build-contract-abi.sh --check
 ```
 

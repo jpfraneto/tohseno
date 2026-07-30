@@ -1,0 +1,35 @@
+{
+  "schema": "tohseno.eip7951-probe-vectors/1",
+  "source": {
+    "url": "https://eips.ethereum.org/assets/eip-7951/test-vectors.json",
+    "sha256": "6ed75dffbc0dd70defc7aceb7299df75dfb2a18184fbac229482c0a4b6601d6d",
+    "ethereum_eips_commit": "d386b29b5a31bd5cfd8d21bbf4e8a0c87734085e"
+  },
+  "gas": {
+    "normative_eip7951": 6900,
+    "legacy_rip7212": 3450,
+    "meter_overhead": 157,
+    "meter_total": 7057,
+    "note": "The upstream vector asset still labels vectors 3450 gas. Final EIP-7951 prose is normative and requires 6900."
+  },
+  "vectors": [
+    {
+      "id": "wycheproof-p1363-1",
+      "case": "positive",
+      "input": "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca6050232ba3a8be6b94d5ec80a6d9d1190a436effe50d85a1eee859b8cc6af9bd5c2e184cd60b855d442f5b3c7b11eb6c4e0ae7525fe710fab9aa7c77a67f79e6fadd762927b10512bae3eddcfe467828128bad2903269919f7086069c8c4df6c732838c7787964eaac00e5921fb1498a60f4606766b3d9685001558d1a974e7341513e",
+      "expected_output": "0x0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    {
+      "id": "wycheproof-p1363-3",
+      "case": "negative",
+      "input": "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca605023d45c5740946b2a147f59262ee6f5bc90bd01ed280528b62b3aed5fc93f06f739b329f479a2bbd0a5c384ee1493b1f5186a87139cac5df4087c134b49156847db2927b10512bae3eddcfe467828128bad2903269919f7086069c8c4df6c732838c7787964eaac00e5921fb1498a60f4606766b3d9685001558d1a974e7341513e",
+      "expected_output": "0x"
+    },
+    {
+      "id": "wycheproof-p1363-136",
+      "case": "infinity",
+      "input": "0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca6050237fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8555555550000000055555555555555553ef7a8e48d07df81a693439654210c70b533d4695dd5b8c5e07757e55e6e516f7e2c88fa0239e23f60e8ec07dd70f2871b134ee58cc583278456863f33c3a85d881f7d4a39850143e29d4eaf009afe47",
+      "expected_output": "0x"
+    }
+  ]
+}

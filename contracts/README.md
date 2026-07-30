@@ -142,6 +142,28 @@ The frozen v0.7 files `bytecode/BuilderAccount.creation.hex` and
 `deployments/robinhood-mainnet-genesis.json` remain byte-for-byte verification
 inputs and are never regenerated.
 
+## EIP-7951 deployment gate
+
+`P256Verifier` cannot distinguish a missing `0x100` precompile from a
+legitimate invalid signature because both can return empty bytes. The
+deployment gate is therefore part of the security boundary.
+
+`../scripts/probe-p256.sh` requires an explicit actual target RPC. It:
+
+- parses every JSON-RPC response with duplicate-member rejection;
+- requires chain `4663`;
+- obtains one fresh latest block, pins every call to its canonical block hash,
+  and verifies the same block is still canonical after the final call;
+- requires official positive, negative, and point-at-infinity outputs;
+- proves the meter account is empty before injecting only a read-only
+  state-override helper there;
+- requires exact 7,057-gas meter output for all three vectors, decomposed as
+  6,900 EIP-7951 gas plus 157 fixed meter overhead.
+
+The committed vector asset records an upstream inconsistency explicitly: its
+JSON still says 3,450 gas, while final EIP-7951 specifies 6,900. The final EIP
+is normative. Probe output is evidence, not reusable authorization.
+
 ## Deployment status
 
 There is no deployment command on `main`.
@@ -161,6 +183,7 @@ No contract in this repository has been deployed by this work.
 forge fmt --check
 forge build --sizes
 forge test
+../scripts/tests/test-probe-p256.sh
 ../scripts/build-contract-abi.sh --check
 ```
 

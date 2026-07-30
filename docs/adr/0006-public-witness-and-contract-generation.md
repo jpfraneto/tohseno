@@ -160,6 +160,33 @@ target RPC immediately before any broadcast. It MUST require:
 - measured verifier gas is exactly 6,900, not legacy RIP-7212's 3,450.
 
 A mock, cached observation, warning, or positive-only probe is insufficient.
+The committed fixture pins official vectors 1, 3, and 136. The upstream vector
+asset still labels every case as 3,450 gas, but final
+[EIP-7951](https://eips.ethereum.org/EIPS/eip-7951) is normative: it specifies
+6,900 gas and equal gas consumption for valid and invalid inputs.
+
+The probe obtains a fresh `latest` block, binds every code, semantic, and gas
+call to that exact EIP-1898 `{blockHash, requireCanonical: true}` reference,
+then resolves the original block number again and requires the same hash before
+emitting evidence. It does not silently try another tag. This is deliberate:
+the verifier implementation and gas schedule are fork-wide properties, while
+the official target RPC could not serve EIP-1898 state metadata for its
+`safe`-tag block at decision time.
+
+Gas is measured without deployment or a transaction. The probe first proves a
+dedicated meter address is empty, then uses `eth_call` state override to install
+a 26-byte helper only at that address. The helper calls the unmodified `0x100`
+precompile and reports 7,057 gas: 6,900 for EIP-7951 plus an independently
+fixed 157-gas meter overhead. All three vectors must report that same total.
+Overriding `0x100`, relying on `eth_estimateGas`, or accepting a provider that
+does not support the exact state-override call is forbidden.
+
+Every RPC response is parsed with duplicate-member rejection before semantic
+validation. Generated probe evidence records what was observed but is never
+reusable deployment authorization. A future deployment command MUST invoke the
+probe synchronously against its exact explicit RPC immediately before
+broadcast. Until such a command exists, the retired deployment tombstones are
+the hard stop.
 
 ### Generation and successor resolution
 

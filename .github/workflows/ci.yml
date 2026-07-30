@@ -137,6 +137,8 @@ jobs:
         run: forge build --root contracts --sizes
       - name: Unit, fuzz, and invariant tests
         run: forge test --root contracts -vvv
+      - name: P256 deployment gate behavior (local RPC stub)
+        run: scripts/tests/test-probe-p256.sh
       - name: Reject stale ABI, bytecode, or deployment-plan artifacts
         run: scripts/build-contract-abi.sh --check
 
