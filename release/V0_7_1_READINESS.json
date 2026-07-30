@@ -2,7 +2,7 @@
   "schema": "tohseno.release-readiness/1",
   "version": "0.7.1",
   "channel": "stable",
-  "ready": false,
+  "ready": true,
   "authorization": {
     "authorized": true,
     "authorized_by": "jpfraneto",
@@ -24,8 +24,18 @@
     "upgrade_alias": true,
     "automatic_update_notice": true,
     "data_preserving_uninstall": true,
-    "local_validation": "pending after product-version update",
-    "main_ci_run": null
+    "candidate_source_commit": "e45551954482be291bfc3819fcb52621eb7f17c1",
+    "rust_workspace_tests": 257,
+    "clippy_warnings_denied": true,
+    "studio_tests": 9,
+    "website_tests": 14,
+    "swift_identity_tests": 7,
+    "swift_fascia_tests": 9,
+    "contract_tests": 54,
+    "protocol_vectors_unchanged": true,
+    "clean_release_package": true,
+    "installer_regressions": true,
+    "main_ci_run": "https://github.com/jpfraneto/tohseno/actions/runs/30579963248"
   },
   "publication": {
     "tag": "v0.7.1",
