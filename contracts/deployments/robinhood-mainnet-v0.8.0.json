@@ -1,0 +1,53 @@
+{
+  "candidate": {
+    "codename": "WITNESS_V2",
+    "status": "planned, undeployed, non-canonical and unaudited",
+    "version": "0.8.0"
+  },
+  "chain": {
+    "chain_id": 4663,
+    "name": "Robinhood Chain mainnet",
+    "p256verify": "0x0000000000000000000000000000000000000100"
+  },
+  "contracts": {
+    "BuilderAccountFactory": {
+      "constructor_arguments": [],
+      "deployed": false,
+      "deployment_order": 1,
+      "init_code_hash": "0xc54e36542c975b6bde3868afded9d3d342e01defdfd0b2c8bc3e25c417526b28",
+      "planned_address": "0x3702fc87256f24bf1be629658a487ec3495a7ee3",
+      "runtime_code_hash": null,
+      "salt": "0xec102487f5b0b80b998be854769aa3ea47e37bdbc5318c942d6cb3db1c0af112",
+      "transaction_hash": null
+    },
+    "ShotRegistry": {
+      "constructor_arguments": [],
+      "deployed": false,
+      "deployment_order": 2,
+      "init_code_hash": "0x8d76b602133b97f4d0adb171cb0a8339f77be15e76b64d3cb2c4077434ffb482",
+      "planned_address": "0xefb1ca4a0e0fbd8bfffa0c8b50a30a982413d9ea",
+      "runtime_code_hash": null,
+      "salt": "0x0416a76b1fb365747cd75d676caba077ae9bfb3d1f76f7e89b728fedd704d272",
+      "transaction_hash": null
+    },
+    "ShotRelations": {
+      "constructor_arguments": [
+        "0xefb1ca4a0e0fbd8bfffa0c8b50a30a982413d9ea"
+      ],
+      "deployed": false,
+      "deployment_order": 3,
+      "init_code_hash": "0x651614ffdd44e7f364201c65e82d904d1c5d9cf7b56c9d534400cb8825402c74",
+      "planned_address": "0x01c8b7113360faa67f3781c0f02e43364462acb6",
+      "runtime_code_hash": null,
+      "salt": "0xf2ff0cfb3cb2206afb7e104ee65ebb8ed31181fed3518e91dff8d3077fa0f681",
+      "transaction_hash": null
+    }
+  },
+  "create2": {
+    "deployer": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "deployer_code_must_be_verified_before_broadcast": true
+  },
+  "protocol": "tohseno",
+  "schema": "tohseno.deployment-plan/1",
+  "source_commit": null
+}
