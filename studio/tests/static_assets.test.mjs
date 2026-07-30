@@ -101,14 +101,23 @@ test("node participation is optional and cannot block local Studio startup", () 
   assert.match(html, /Studio does not require a node/);
 });
 
-test("Bankr launch is simulated, fixed to TOHSENO, and separately confirmed", () => {
-  assert.match(html, /Launch \$TOHSENO/);
+test("Bankr launch belongs to one selected Shot and is separately confirmed", () => {
+  const selection = html.match(/<section id="selection"[\s\S]*?<\/section>/)?.[0] || "";
+  const globalActions = html.slice(0, html.indexOf('<div class="library-scroll">'));
+  assert.match(selection, /id="launch-token"/);
+  assert.match(selection, /Launch \$TOHSENO for this Shot/);
+  assert.doesNotMatch(globalActions, /id="launch-token"/);
+  assert.match(html, /id="bankr-shot-id"/);
   assert.match(html, /jpfraneto\.eth/);
   assert.match(html, /Bankr’s wallet—not\s+          jpfraneto\.eth—will be the on-chain deployer/);
   assert.match(script, /fetch\("\/api\/bankr\/launch\/simulate"/);
   assert.match(script, /fetch\("\/api\/bankr\/launch\/deploy"/);
+  assert.match(script, /app_name: ui\.bankrDialog\.dataset\.appName/);
+  assert.match(script, /version_ordinal: Number\(ui\.bankrDialog\.dataset\.versionOrdinal\)/);
   assert.match(script, /approval_id: approval\.approval_id/);
+  assert.match(script, /shot: approval\.shot/);
   assert.match(script, /ui\.bankrConfirmation\.value === bankrApproval\.confirmation_phrase/);
+  assert.match(script, /token_association\?\.status === "associated"/);
   assert.match(script, /Do not click deploy again/);
   assert.doesNotMatch(html, /id="bankr-api-key"|name="bankr_api_key"/);
   assert.doesNotMatch(script, /localStorage\.(?:setItem|getItem)\([^)]*BANKR_API_KEY/);

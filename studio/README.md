@@ -144,12 +144,19 @@ Run the static contract checks with:
 node --test studio/tests/static_assets.test.mjs
 ```
 
-## Programmatic Bankr launch
+## Shot-bound programmatic Bankr launch
 
-Studio contains a deliberately narrow `$TOHSENO` launch surface. It calls
-Bankr's `POST /token-launches/deploy` endpoint from the local Rust server; the
-API key is never embedded in HTML, returned by an API route, written to a
-receipt, or sent to browser JavaScript.
+Studio exposes `$TOHSENO` launch only inside a selected, verified Shot. It is
+not a global Studio or onboarding action. The local Rust server independently
+resolves the selected app and version to its authoritative `ShotID`; the
+simulation approval, exact confirmation phrase, private Bankr receipt, and
+signed Token Association all bind to that identity. A Shot that already has a
+current token association cannot launch an unbound replacement through this
+surface.
+
+The server calls Bankr's `POST /token-launches/deploy` endpoint; the API key is
+never embedded in HTML, returned by an API route, written to a receipt, or sent
+to browser JavaScript.
 
 The launch identity is fixed:
 
@@ -158,6 +165,12 @@ The launch identity is fixed:
 - currently pinned ENS resolution:
   `0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15`;
 - signer: the Bankr wallet that owns the user API key.
+
+The Bankr receipt is stored privately under the selected Shot's
+`.tohseno/token-launches/` directory. After a successful deployment, Studio
+appends a public-availability Token Association action to that Shot's signed
+local lineage and writes its explicit relay artifact to the normal outbox.
+Neither relation changes Shot identity or ownership.
 
 Create a dedicated user key at `https://bankr.bot/api-keys`. It must begin with
 `bk_usr_`, have token-launch access enabled, and have read-only mode disabled.

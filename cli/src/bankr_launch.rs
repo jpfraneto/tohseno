@@ -42,6 +42,13 @@ pub enum LaunchChain {
 }
 
 impl LaunchChain {
+    pub fn chain_id(self) -> u64 {
+        match self {
+            Self::Robinhood => 4663,
+            Self::Base => 8453,
+        }
+    }
+
     fn as_str(self) -> &'static str {
         match self {
             Self::Robinhood => "robinhood",
@@ -73,6 +80,14 @@ pub enum CreatorFeeMode {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct ShotLaunchBinding {
+    pub app_name: String,
+    pub shot_id: String,
+    pub version_ordinal: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct LaunchParameters {
     pub description: String,
     #[serde(default)]
@@ -91,6 +106,7 @@ pub struct LaunchParameters {
 pub struct DeployApprovalRequest {
     pub approval_id: String,
     pub confirmation: String,
+    pub shot: ShotLaunchBinding,
 }
 
 #[derive(Debug, Serialize)]
@@ -118,8 +134,17 @@ pub struct SimulationApproval {
     pub fee_recipient_ens: &'static str,
     pub fee_recipient_address: &'static str,
     pub signer: &'static str,
+    pub shot: ShotLaunchBinding,
     pub parameters: LaunchParameters,
     pub bankr_simulation: Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ShotAssociationEvidence {
+    pub action_commitment: String,
+    pub lineage_head: String,
+    pub availability: &'static str,
+    pub outbox_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -130,10 +155,12 @@ pub struct DeploymentOutcome {
     pub fee_recipient_ens: &'static str,
     pub fee_recipient_address: &'static str,
     pub signer: &'static str,
+    pub shot: ShotLaunchBinding,
     pub parameters: LaunchParameters,
     pub simulated_token_address: String,
     pub bankr_deployment: Value,
     pub receipt_path: Option<String>,
+    pub shot_association: Option<ShotAssociationEvidence>,
     pub warnings: Vec<String>,
 }
 
@@ -142,6 +169,7 @@ struct PendingApproval {
     expires_at: Instant,
     configuration_digest: String,
     confirmation_phrase: String,
+    shot: ShotLaunchBinding,
     parameters: LaunchParameters,
     simulated_token_address: String,
 }
@@ -209,6 +237,7 @@ struct LaunchCommitment<'a> {
     token_symbol: &'static str,
     fee_recipient_ens: &'static str,
     fee_recipient_address: &'static str,
+    shot: &'a ShotLaunchBinding,
     parameters: &'a LaunchParameters,
 }
 
@@ -221,6 +250,7 @@ struct StoredReceipt<'a> {
     signer: &'static str,
     fee_recipient_ens: &'static str,
     fee_recipient_address: &'static str,
+    shot: &'a ShotLaunchBinding,
     configuration_digest: &'a str,
     simulated_token_address: &'a str,
     parameters: &'a LaunchParameters,
@@ -282,6 +312,7 @@ impl BankrLaunchService {
 
     pub async fn simulate(
         &self,
+        shot: ShotLaunchBinding,
         mut parameters: LaunchParameters,
     ) -> Result<SimulationApproval, BankrLaunchError> {
         normalize_and_validate(&mut parameters)?;
@@ -293,14 +324,16 @@ impl BankrLaunchService {
             "predicted token address",
         )?
         .to_owned();
-        let configuration_digest = configuration_digest(&parameters)?;
-        let confirmation_phrase = confirmation_phrase(parameters.chain, &simulated_token_address);
+        let configuration_digest = configuration_digest(&shot, &parameters)?;
+        let confirmation_phrase =
+            confirmation_phrase(parameters.chain, &simulated_token_address, &shot.shot_id);
         let approval_id = ShotId::random().to_string();
         *self.pending.lock().await = Some(PendingApproval {
             approval_id: approval_id.clone(),
             expires_at: Instant::now() + APPROVAL_LIFETIME,
             configuration_digest: configuration_digest.clone(),
             confirmation_phrase: confirmation_phrase.clone(),
+            shot: shot.clone(),
             parameters: parameters.clone(),
             simulated_token_address,
         });
@@ -314,6 +347,7 @@ impl BankrLaunchService {
             fee_recipient_ens: FEE_RECIPIENT_ENS,
             fee_recipient_address: FEE_RECIPIENT_ADDRESS,
             signer: "Bankr wallet that owns BANKR_API_KEY",
+            shot,
             parameters,
             bankr_simulation,
         })
@@ -350,7 +384,14 @@ impl BankrLaunchService {
                     "the exact Bankr deployment confirmation phrase was not supplied",
                 ));
             }
-            if configuration_digest(&approval.parameters)? != approval.configuration_digest {
+            if approval.shot != request.shot {
+                return Err(BankrLaunchError::definite(
+                    "the selected Shot does not match the Bankr simulation approval",
+                ));
+            }
+            if configuration_digest(&approval.shot, &approval.parameters)?
+                != approval.configuration_digest
+            {
                 return Err(BankrLaunchError::definite(
                     "the approved Bankr configuration changed; simulate again",
                 ));
@@ -380,10 +421,12 @@ impl BankrLaunchService {
             fee_recipient_ens: FEE_RECIPIENT_ENS,
             fee_recipient_address: FEE_RECIPIENT_ADDRESS,
             signer: "Bankr wallet that owns BANKR_API_KEY",
+            shot: approval.shot,
             parameters: approval.parameters,
             simulated_token_address: approval.simulated_token_address,
             bankr_deployment,
             receipt_path,
+            shot_association: None,
             warnings,
         })
     }
@@ -527,13 +570,17 @@ fn bankr_payload(parameters: &LaunchParameters, simulate_only: bool) -> BankrDep
     }
 }
 
-fn configuration_digest(parameters: &LaunchParameters) -> Result<String, BankrLaunchError> {
+fn configuration_digest(
+    shot: &ShotLaunchBinding,
+    parameters: &LaunchParameters,
+) -> Result<String, BankrLaunchError> {
     canonical::sha256_commitment(&LaunchCommitment {
         schema: "tohseno.bankr-launch-commitment/1",
         token_name: TOKEN_NAME,
         token_symbol: TOKEN_SYMBOL,
         fee_recipient_ens: FEE_RECIPIENT_ENS,
         fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+        shot,
         parameters,
     })
     .map(|digest| digest.to_string())
@@ -544,9 +591,10 @@ fn configuration_digest(parameters: &LaunchParameters) -> Result<String, BankrLa
     })
 }
 
-fn confirmation_phrase(chain: LaunchChain, token_address: &str) -> String {
+fn confirmation_phrase(chain: LaunchChain, token_address: &str, shot_id: &str) -> String {
     format!(
-        "DEPLOY $TOHSENO ON {} TO JPFRANETO.ETH AT {}",
+        "DEPLOY $TOHSENO FOR SHOT {} ON {} TO JPFRANETO.ETH AT {}",
+        shot_id,
         chain.display(),
         token_address
     )
@@ -701,7 +749,10 @@ fn persist_receipt(
     warnings: &[String],
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let ledger = Ledger::discover()?;
-    let directory = ledger.machine_root().join("bankr-launches");
+    let directory = ledger
+        .working_tree(&approval.shot.app_name)
+        .join(".tohseno")
+        .join("token-launches");
     fs::create_dir_all(&directory)?;
     #[cfg(unix)]
     {
@@ -726,6 +777,7 @@ fn persist_receipt(
         signer: "Bankr wallet that owns BANKR_API_KEY",
         fee_recipient_ens: FEE_RECIPIENT_ENS,
         fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+        shot: &approval.shot,
         configuration_digest: &approval.configuration_digest,
         simulated_token_address: &approval.simulated_token_address,
         parameters: &approval.parameters,
@@ -749,6 +801,15 @@ fn persist_receipt(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shot() -> ShotLaunchBinding {
+        ShotLaunchBinding {
+            app_name: "anky".to_owned(),
+            shot_id: "0x1111111111111111111111111111111111111111111111111111111111111111"
+                .to_owned(),
+            version_ordinal: 1,
+        }
+    }
 
     fn parameters() -> LaunchParameters {
         LaunchParameters {
@@ -777,13 +838,20 @@ mod tests {
     }
 
     #[test]
-    fn configuration_commitment_is_stable_and_exact() {
-        let first = configuration_digest(&parameters()).unwrap();
-        let second = configuration_digest(&parameters()).unwrap();
+    fn configuration_commitment_is_stable_and_shot_bound() {
+        let first = configuration_digest(&shot(), &parameters()).unwrap();
+        let second = configuration_digest(&shot(), &parameters()).unwrap();
         assert_eq!(first, second);
         let mut changed = parameters();
         changed.creator_fee_mode = CreatorFeeMode::Mixed;
-        assert_ne!(first, configuration_digest(&changed).unwrap());
+        assert_ne!(first, configuration_digest(&shot(), &changed).unwrap());
+        let mut another_shot = shot();
+        another_shot.shot_id =
+            "0x2222222222222222222222222222222222222222222222222222222222222222".to_owned();
+        assert_ne!(
+            first,
+            configuration_digest(&another_shot, &parameters()).unwrap()
+        );
     }
 
     #[test]
@@ -819,9 +887,10 @@ mod tests {
         assert_eq!(
             confirmation_phrase(
                 LaunchChain::Base,
-                "0x1111111111111111111111111111111111111111"
+                "0x1111111111111111111111111111111111111111",
+                &shot().shot_id,
             ),
-            "DEPLOY $TOHSENO ON BASE TO JPFRANETO.ETH AT 0x1111111111111111111111111111111111111111"
+            "DEPLOY $TOHSENO FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON BASE TO JPFRANETO.ETH AT 0x1111111111111111111111111111111111111111"
         );
     }
 }

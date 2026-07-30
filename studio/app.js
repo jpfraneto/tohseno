@@ -129,11 +129,16 @@ const ui = {
   saveFeedback: document.querySelector("#save-feedback"),
   feedbackStatus: document.querySelector("#feedback-status"),
   launchToken: document.querySelector("#launch-token"),
+  launchTokenLabel: document.querySelector("#launch-token-label"),
+  launchTokenDetail: document.querySelector("#launch-token-detail"),
   bankrDialog: document.querySelector("#bankr-dialog"),
   bankrClose: document.querySelector("#bankr-close"),
   bankrForm: document.querySelector("#bankr-launch-form"),
   bankrStatus: document.querySelector("#bankr-status"),
   bankrConfiguration: document.querySelector("#bankr-configuration"),
+  bankrShotName: document.querySelector("#bankr-shot-name"),
+  bankrShotId: document.querySelector("#bankr-shot-id"),
+  bankrShotVersion: document.querySelector("#bankr-shot-version"),
   bankrChain: document.querySelector("#bankr-chain"),
   bankrVesting: document.querySelector("#bankr-vesting"),
   bankrFeeMode: document.querySelector("#bankr-fee-mode"),
@@ -202,6 +207,42 @@ const bankrParameters = () => ({
   creator_vesting: ui.bankrVesting.value,
   creator_fee_mode: ui.bankrFeeMode.value,
 });
+
+const selectedLaunchBinding = () => {
+  const ontology = shotProtocol?.ontology;
+  const shotId = ontology?.shot_id;
+  const versionOrdinal = Number(ontologyRecord(ontology?.version).ordinal);
+  if (
+    !selectedApp
+    || !shotId
+    || !/^0x[0-9a-f]{64}$/i.test(shotId)
+    || !Number.isSafeInteger(versionOrdinal)
+    || versionOrdinal < 1
+    || versionOrdinal !== selectedShot
+  ) return null;
+  return {
+    app_name: selectedApp.name,
+    shot_id: shotId,
+    version_ordinal: versionOrdinal,
+  };
+};
+
+const renderTokenLaunchState = () => {
+  const association = shotProtocol?.ontology?.token_association;
+  if (association?.status === "associated") {
+    ui.launchToken.disabled = true;
+    ui.launchTokenLabel.textContent = "$TOHSENO is associated";
+    ui.launchTokenDetail.textContent =
+      `${association.symbol || "TOHSENO"} · ${displayIdentifier(association.token_address)}`;
+    return;
+  }
+  const binding = selectedLaunchBinding();
+  ui.launchToken.disabled = !binding;
+  ui.launchTokenLabel.textContent = "Launch $TOHSENO for this Shot";
+  ui.launchTokenDetail.textContent = binding
+    ? `Bind deployment to ShotID ${displayIdentifier(binding.shot_id)}`
+    : "A verified selected ShotID is required";
+};
 
 const resetBankrResult = () => {
   ui.bankrResult.hidden = true;
@@ -292,7 +333,9 @@ const renderBankrDeployment = (outcome) => {
     : "$TOHSENO deployed";
   ui.bankrResultSummary.textContent = warnings.length > 0
     ? `${tokenAddress}. ${warnings.join(" ")}`
-    : `${tokenAddress} · Bankr receipt saved at ${outcome.receipt_path || "browser response only"}.`;
+    : `${tokenAddress} · signed association recorded for Shot ${displayIdentifier(
+      outcome.shot?.shot_id
+    )}.`;
   ui.bankrResultJson.textContent = JSON.stringify(outcome, null, 2);
   if (/^0x[0-9a-fA-F]{64}$/.test(transactionHash)) {
     const explorer = outcome.parameters.chain === "base"
@@ -663,6 +706,7 @@ const renderShotContinuity = () => {
 const renderShotProtocol = () => {
   if (!shotProtocol) {
     ui.shotProtocol.hidden = true;
+    renderTokenLaunchState();
     renderShotContinuity();
     renderProtocolInspector();
     return;
@@ -701,6 +745,7 @@ const renderShotProtocol = () => {
     : `${shotProtocol.verification.detail} No public registry receipt or transaction is present.`;
   ui.verifyShot.disabled = false;
   ui.verifyShot.textContent = "Verify";
+  renderTokenLaunchState();
   renderShotContinuity();
   renderProtocolInspector();
 };
@@ -714,6 +759,7 @@ const loadShotProtocol = async (app, shot) => {
   ui.feedbackText.value = "";
   ui.feedbackStatus.textContent = "";
   shotProtocol = null;
+  renderTokenLaunchState();
   renderShotContinuity();
   try {
     const response = await fetch(`/api/protocol/shot/${app.name}/${shot}`, { cache: "no-store" });
@@ -731,6 +777,7 @@ const loadShotProtocol = async (app, shot) => {
     ui.shotProtocolDetail.textContent = `Protocol facts unavailable: ${error.message}`;
     ui.verifyShot.disabled = false;
     ui.verifyShot.textContent = "Try verification again";
+    renderTokenLaunchState();
     renderShotContinuity();
     renderProtocolInspector();
   }
@@ -892,6 +939,7 @@ const renderSlots = () => {
 const renderSelection = () => {
   if (!selectedApp) {
     ui.selection.hidden = true;
+    renderTokenLaunchState();
     return;
   }
 
@@ -921,11 +969,13 @@ const renderSelection = () => {
   }
   ui.previousShot.disabled = index <= 0;
   ui.nextShot.disabled = index < 0 || index >= selectedApp.shots.length - 1;
+  renderTokenLaunchState();
 };
 
 const selectApp = async (app, shot) => {
   selectedApp = app;
   selectedShot = shot;
+  shotProtocol = null;
   renderLibrary();
   renderSelection();
   loadShotProtocol(app, shot);
@@ -1600,6 +1650,16 @@ configureSplitter(ui.librarySplitter, "--library-width", 240, 520, "tohseno-libr
 configureSplitter(ui.composerSplitter, "--composer-width", 320, 640, "tohseno-composer-width");
 
 ui.launchToken.addEventListener("click", () => {
+  const binding = selectedLaunchBinding();
+  if (!binding || shotProtocol?.ontology?.token_association?.status === "associated") return;
+  clearBankrApproval();
+  resetBankrResult();
+  ui.bankrShotName.textContent = binding.app_name;
+  ui.bankrShotId.textContent = binding.shot_id;
+  ui.bankrShotVersion.textContent = String(binding.version_ordinal).padStart(4, "0");
+  ui.bankrDialog.dataset.appName = binding.app_name;
+  ui.bankrDialog.dataset.shotId = binding.shot_id;
+  ui.bankrDialog.dataset.versionOrdinal = String(binding.version_ordinal);
   if (!ui.bankrDialog.open) ui.bankrDialog.showModal();
 });
 
@@ -1636,7 +1696,11 @@ ui.bankrForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/bankr/launch/simulate", {
       method: "POST",
       headers: studioJsonHeaders,
-      body: JSON.stringify(bankrParameters()),
+      body: JSON.stringify({
+        app_name: ui.bankrDialog.dataset.appName,
+        version_ordinal: Number(ui.bankrDialog.dataset.versionOrdinal),
+        parameters: bankrParameters(),
+      }),
     });
     if (!response.ok) throw new Error(await response.text());
     renderBankrSimulation(await response.json());
@@ -1666,11 +1730,13 @@ ui.bankrDeploy.addEventListener("click", async () => {
       body: JSON.stringify({
         approval_id: approval.approval_id,
         confirmation: ui.bankrConfirmation.value,
+        shot: approval.shot,
       }),
     });
     if (!response.ok) throw new Error(await response.text());
     bankrApproval = null;
     renderBankrDeployment(await response.json());
+    await loadShotProtocol(selectedApp, selectedShot);
     ui.bankrStatus.textContent =
       "Bankr returned a deployment receipt. Verify the transaction before announcing the address.";
   } catch (error) {

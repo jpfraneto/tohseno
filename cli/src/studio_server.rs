@@ -1,4 +1,7 @@
-use crate::bankr_launch::{BankrLaunchService, DeployApprovalRequest, LaunchParameters};
+use crate::bankr_launch::{
+    BankrLaunchService, DeployApprovalRequest, LaunchParameters, ShotAssociationEvidence,
+    ShotLaunchBinding,
+};
 use crate::shot_execution_commands;
 use crate::simulator::{self, SimulatorSession};
 use base64::engine::general_purpose::STANDARD;
@@ -29,7 +32,10 @@ use tohseno_protocol::digest::{Address20, Bytes32};
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::identity::{device_key_id, BuilderId, ROBINHOOD_CHAIN_ID};
 use tohseno_protocol::lineage::AcceptedGenome;
-use tohseno_protocol::ontology::{Expression, VersionRecord};
+use tohseno_protocol::ontology::{
+    AvailabilityStatus, Expression, TokenAssociation, TokenAssociationOperation, VersionRecord,
+    TOKEN_ASSOCIATION_SCHEMA,
+};
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -62,6 +68,14 @@ struct State {
     bankr: BankrLaunchService,
     authority: String,
     origin: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BankrSimulationRequest {
+    app_name: String,
+    version_ordinal: u32,
+    parameters: LaunchParameters,
 }
 
 #[derive(Debug, Deserialize)]
@@ -705,8 +719,8 @@ async fn simulate_bankr_launch(
     body: &[u8],
     state: &State,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let parameters = match serde_json::from_slice::<LaunchParameters>(body) {
-        Ok(parameters) => parameters,
+    let request = match serde_json::from_slice::<BankrSimulationRequest>(body) {
+        Ok(request) => request,
         Err(error) => {
             respond(
                 socket,
@@ -718,7 +732,20 @@ async fn simulate_bankr_launch(
             return Ok(());
         }
     };
-    match state.bankr.simulate(parameters).await {
+    let shot = match bankr_shot_binding(&request.app_name, request.version_ordinal) {
+        Ok(shot) => shot,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("Bankr launch is not available for this Shot: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    match state.bankr.simulate(shot, request.parameters).await {
         Ok(approval) => {
             let body = serde_json::to_string(&approval)?;
             respond(socket, 200, "application/json; charset=utf-8", &body).await?;
@@ -754,8 +781,51 @@ async fn deploy_bankr_launch(
             return Ok(());
         }
     };
+    let approved_version = match u32::try_from(approval.shot.version_ordinal) {
+        Ok(version) => version,
+        Err(_) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                "Bankr deployment was not submitted: the approved version ordinal is invalid",
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let authoritative = match bankr_shot_binding(&approval.shot.app_name, approved_version) {
+        Ok(shot) if shot == approval.shot => shot,
+        Ok(_) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                "Bankr deployment was not submitted: the approved Shot binding changed",
+            )
+            .await?;
+            return Ok(());
+        }
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("Bankr deployment was not submitted: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    debug_assert_eq!(authoritative, approval.shot);
     match state.bankr.deploy(approval).await {
-        Ok(outcome) => {
+        Ok(mut outcome) => {
+            match record_bankr_shot_association(&outcome, state) {
+                Ok(evidence) => outcome.shot_association = Some(evidence),
+                Err(error) => outcome.warnings.push(format!(
+                    "The token deployed, but its signed Shot association was not recorded: {error}"
+                )),
+            }
             let body = serde_json::to_string(&outcome)?;
             respond(socket, 201, "application/json; charset=utf-8", &body).await?;
         }
@@ -779,6 +849,83 @@ async fn deploy_bankr_launch(
         }
     }
     Ok(())
+}
+
+fn bankr_shot_binding(app_name: &str, version_ordinal: u32) -> Result<ShotLaunchBinding, String> {
+    tohseno_engine::ledger::validate_app_name(app_name).map_err(|error| error.to_string())?;
+    if version_ordinal == 0 {
+        return Err("version ordinal must be positive".into());
+    }
+    let ledger = Ledger::discover().map_err(|error| error.to_string())?;
+    let app = ledger
+        .load_app(app_name)
+        .map_err(|error| error.to_string())?;
+    if !ledger
+        .list_evolutions(app_name)
+        .map_err(|error| error.to_string())?
+        .iter()
+        .any(|evolution| evolution.number == version_ordinal)
+    {
+        return Err("the selected evolution does not exist".into());
+    }
+    let ontology = shot_ontology_facts(&ledger, &app.name, version_ordinal)
+        .map_err(|error| error.to_string())?
+        .ok_or("the selected Shot has no verified v2 identity")?;
+    if ontology.token_association.status == "associated" {
+        return Err(
+            "this Shot already has a token association; Studio will not deploy an unbound replacement"
+                .into(),
+        );
+    }
+    Ok(ShotLaunchBinding {
+        app_name: app.name,
+        shot_id: ontology.shot_id,
+        version_ordinal: u64::from(version_ordinal),
+    })
+}
+
+fn record_bankr_shot_association(
+    outcome: &crate::bankr_launch::DeploymentOutcome,
+    state: &State,
+) -> Result<ShotAssociationEvidence, String> {
+    let version_ordinal = u32::try_from(outcome.shot.version_ordinal)
+        .map_err(|_| "the deployed token has an invalid Shot version ordinal")?;
+    let current = bankr_shot_binding(&outcome.shot.app_name, version_ordinal)?;
+    if current != outcome.shot {
+        return Err("the authoritative Shot binding changed during deployment".into());
+    }
+    let token_address = outcome
+        .bankr_deployment
+        .get("tokenAddress")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Bankr did not return a deployable token address")?;
+    let token =
+        serde_json::from_value::<Address20>(serde_json::Value::String(token_address.to_owned()))
+            .map_err(|error| error.to_string())?;
+    let engine = Engine::discover(state.events.clone()).map_err(|error| error.to_string())?;
+    let receipt = engine
+        .record_token_association(
+            &outcome.shot.app_name,
+            TokenAssociation {
+                schema: TOKEN_ASSOCIATION_SCHEMA.into(),
+                operation: TokenAssociationOperation::Associate,
+                chain_id: outcome.parameters.chain.chain_id(),
+                token,
+                symbol: Some("TOHSENO".into()),
+                anchor: None,
+            },
+            AvailabilityStatus::PubliclyAvailable,
+        )
+        .map_err(|error| error.to_string())?;
+    if receipt.action.action.shot_id.to_string() != outcome.shot.shot_id {
+        return Err("the signed association resolved to a different ShotID".into());
+    }
+    Ok(ShotAssociationEvidence {
+        action_commitment: receipt.action_commitment.to_string(),
+        lineage_head: receipt.lineage_head.to_string(),
+        availability: "publicly_available",
+        outbox_path: receipt.outbox_path.map(|path| path.display().to_string()),
+    })
 }
 
 async fn serve_initial_plan(

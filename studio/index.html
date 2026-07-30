@@ -167,11 +167,6 @@
           <span><strong>New Shot</strong><small>Create a native iPhone app</small></span>
         </button>
 
-        <button id="launch-token" class="token-launch-action" type="button">
-          <span class="token-mark" aria-hidden="true">$</span>
-          <span><strong>Launch $TOHSENO</strong><small>Simulate with Bankr first</small></span>
-        </button>
-
         <div class="library-scroll">
           <div class="section-heading">
             <span>Your apps</span>
@@ -292,6 +287,14 @@
               <span id="shot-position">Evolution 1 of 1</span>
               <button id="next-shot" type="button" aria-label="Run next evolution">›</button>
             </div>
+
+            <button id="launch-token" class="token-launch-action" type="button" disabled>
+              <span class="token-mark" aria-hidden="true">$</span>
+              <span>
+                <strong id="launch-token-label">Launch $TOHSENO for this Shot</strong>
+                <small id="launch-token-detail">Loading the selected ShotID…</small>
+              </span>
+            </button>
 
             <details id="shot-continuity" class="shot-continuity" hidden>
               <summary>
@@ -534,6 +537,9 @@
 
         <section class="bankr-fixed-facts" aria-label="Fixed launch identity">
           <dl>
+            <div><dt>Shot</dt><dd id="bankr-shot-name">No Shot selected</dd></div>
+            <div><dt>ShotID</dt><dd id="bankr-shot-id">Unavailable</dd></div>
+            <div><dt>Version viewed</dt><dd id="bankr-shot-version">Unavailable</dd></div>
             <div><dt>Token</dt><dd>TOHSENO · TOHSENO</dd></div>
             <div><dt>Recipient</dt><dd>jpfraneto.eth</dd></div>
             <div><dt>Pinned address</dt><dd>0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15</dd></div>

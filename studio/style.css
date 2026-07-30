@@ -190,7 +190,8 @@ textarea:focus-visible,
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 0 16px 8px;
+  width: 100%;
+  margin: 0 0 8px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--iron));
   border-radius: 10px;
@@ -198,8 +199,15 @@ textarea:focus-visible,
   background: color-mix(in srgb, var(--amber) 6%, var(--carbon));
 }
 
-.token-launch-action:hover {
+.token-launch-action:hover:not(:disabled) {
   border-color: var(--amber);
+}
+
+.token-launch-action:disabled {
+  border-color: var(--iron);
+  background: var(--carbon);
+  cursor: default;
+  opacity: 0.58;
 }
 
 .token-mark {
