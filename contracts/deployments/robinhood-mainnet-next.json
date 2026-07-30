@@ -1,0 +1,53 @@
+{
+  "candidate": {
+    "codename": "DRAFT",
+    "status": "planned, undeployed, non-canonical and unaudited",
+    "version": "next"
+  },
+  "chain": {
+    "chain_id": 4663,
+    "name": "Robinhood Chain mainnet",
+    "p256verify": "0x0000000000000000000000000000000000000100"
+  },
+  "contracts": {
+    "BuilderAccountFactory": {
+      "constructor_arguments": [],
+      "deployed": false,
+      "deployment_order": 1,
+      "init_code_hash": "0xc54e36542c975b6bde3868afded9d3d342e01defdfd0b2c8bc3e25c417526b28",
+      "planned_address": "0xaac9c9ad7cfa97ddc2482a44f097a7e85b805931",
+      "runtime_code_hash": null,
+      "salt": "0x5fd2db5a85724a3ec24a912bfbf24fc577d26b53aafaf22e45dd425901249ef4",
+      "transaction_hash": null
+    },
+    "ShotRegistry": {
+      "constructor_arguments": [],
+      "deployed": false,
+      "deployment_order": 2,
+      "init_code_hash": "0x8d76b602133b97f4d0adb171cb0a8339f77be15e76b64d3cb2c4077434ffb482",
+      "planned_address": "0x8300de2908087f9ba51e8993380857b0c295927f",
+      "runtime_code_hash": null,
+      "salt": "0x9c40694097bc8150c4d1b158a4947ebce701ac78a428182953119033cb17f8c4",
+      "transaction_hash": null
+    },
+    "ShotRelations": {
+      "constructor_arguments": [
+        "0x8300de2908087f9ba51e8993380857b0c295927f"
+      ],
+      "deployed": false,
+      "deployment_order": 3,
+      "init_code_hash": "0x0812f8413bb47f56e682ee363f6a261893d5b26d9ed2551190de390b3e8f28f2",
+      "planned_address": "0x6cdd38d617b64c10baad0c96bfa76ccf119668a7",
+      "runtime_code_hash": null,
+      "salt": "0x149707a34a8557144a43912ed240bdbd934aef7df6d6ac74c1c908ece386a9c4",
+      "transaction_hash": null
+    }
+  },
+  "create2": {
+    "deployer": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "deployer_code_must_be_verified_before_broadcast": true
+  },
+  "protocol": "tohseno",
+  "schema": "tohseno.deployment-plan/1",
+  "source_commit": null
+}

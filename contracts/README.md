@@ -1,6 +1,13 @@
-# TOHSENO Genesis Candidate contracts
+# TOHSENO contracts
 
 Status: `0.7.0`, GENESIS protocol candidate, undeployed and unaudited.
+
+> [!WARNING]
+> The v0.7 contract generation is frozen only for verification and will never
+> be deployed by the TOHSENO project. Predicted v0.7 BuilderAccount addresses
+> are not durable public BuilderIDs or future deployment coordinates. The
+> security-reviewed successor is still under development and has no finalized
+> address. See `release/V0_7_CONTRACT_GENERATION_NOTICE.md`.
 
 These contracts are a neutral public witness. They are non-upgradeable, have no
 administrator, hold no tokens, and grant no privilege to a TOHSENO client,
@@ -102,11 +109,17 @@ Run:
 ../scripts/build-contract-abi.sh --check
 ```
 
-The generator writes canonical ABI JSON under `abi/` and the exact
-metadata-free BuilderAccount creation bytecode under
-`bytecode/BuilderAccount.creation.hex`. Independent factories can combine that
-creation code with `abi.encode(initialX, initialY)` to predict account
-addresses offline.
+The generator writes canonical ABI JSON under `abi/` plus explicitly
+non-versioned development artifacts at
+`bytecode/BuilderAccount.next.creation.hex` and
+`deployments/robinhood-mainnet-next.json`. The frozen v0.7 files
+`bytecode/BuilderAccount.creation.hex` and
+`deployments/robinhood-mainnet-genesis.json` are verification inputs and the
+generator never rewrites them.
+
+A final contract generation receives a versioned bytecode and deployment-plan
+path exactly once, after all bytecode-affecting remediation is complete. Until
+then, no `next` artifact is a durable identity input or deployment authority.
 
 ## Candidate deployment procedure
 
