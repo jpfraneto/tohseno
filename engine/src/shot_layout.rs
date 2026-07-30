@@ -5,6 +5,7 @@
 //! private attachment storage. It deliberately does not define fallback
 //! protocol records.
 
+use crate::app_metadata_policy::validate_current_app_metadata_v2;
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
@@ -1444,7 +1445,8 @@ impl ShotLayout {
         metadata: &AppMetadataV2,
         version: &VersionRecord,
     ) -> Result<(), ShotLayoutError> {
-        metadata.validate()?;
+        validate_current_app_metadata_v2(metadata)
+            .map_err(|error| ShotLayoutError::Invalid(error.to_string()))?;
         version.validate(metadata.shot_id)?;
         if version.expression_id != metadata.expression_id
             || version.version_id != metadata.version_id
@@ -1509,7 +1511,8 @@ impl ShotLayout {
         &self,
         metadata: &AppMetadataV2,
     ) -> Result<(), ShotLayoutError> {
-        metadata.validate()?;
+        validate_current_app_metadata_v2(metadata)
+            .map_err(|error| ShotLayoutError::Invalid(error.to_string()))?;
         let lineage = self.read_lineage()?;
         let state = reduce_lineage(&lineage)?;
         if state.shot_id != metadata.shot_id {
@@ -2490,6 +2493,8 @@ fn read_embedded_metadata_v2(path: &Path) -> Result<AppMetadataV2, ShotLayoutErr
             ))
         }
     };
+    validate_current_app_metadata_v2(&metadata)
+        .map_err(|error| ShotLayoutError::Invalid(error.to_string()))?;
     Ok(metadata)
 }
 
@@ -3909,7 +3914,9 @@ mod tests {
     use super::*;
     use p256::ecdsa::signature::hazmat::PrehashSigner;
     use p256::ecdsa::{Signature, SigningKey};
-    use tohseno_protocol::app_metadata::{AppMetadataDistribution, AppMetadataV2};
+    use tohseno_protocol::app_metadata::{
+        AppMetadataDistribution, AppMetadataRegistryReference, AppMetadataV2,
+    };
     use tohseno_protocol::digest::Address20;
     use tohseno_protocol::fascia::{AppleSurface, DistributionState};
     use tohseno_protocol::identity::BuilderId;
@@ -4903,6 +4910,23 @@ mod tests {
             registry: None,
             legacy_v1_evolution_commitment: None,
         };
+        let mut untrusted_registry_claim = metadata.clone();
+        untrusted_registry_claim.registry = Some(AppMetadataRegistryReference {
+            chain_id: 4_663,
+            contract: Address20::from_bytes([0x66; 20]),
+            transaction: Some(Bytes32::new([0x77; 32])),
+        });
+        untrusted_registry_claim.validate().unwrap();
+        assert!(layout
+            .verify_apple_materialization_binding(&untrusted_registry_claim, &version)
+            .unwrap_err()
+            .to_string()
+            .contains("no contract generation is active"));
+        assert!(layout
+            .verify_accepted_apple_metadata(&untrusted_registry_claim)
+            .unwrap_err()
+            .to_string()
+            .contains("no contract generation is active"));
         layout
             .verify_apple_materialization_binding(&metadata, &version)
             .unwrap();

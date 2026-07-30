@@ -94,6 +94,17 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
         &app_metadata,
         "app-metadata-v2 vector",
     );
+    let mut compatibility_registry = app_metadata.clone();
+    compatibility_registry["registry"] = serde_json::json!({
+        "chain_id": 4663,
+        "contract": "0x6666666666666666666666666666666666666666",
+        "transaction": "0x7777777777777777777777777777777777777777777777777777777777777777"
+    });
+    assert_valid(
+        &app_metadata_validator,
+        &compatibility_registry,
+        "frozen app-metadata-v2 registry compatibility shape",
+    );
 
     let builder_action_schema = schema_named(&schemas, "builder-account-action-v2.schema.json");
     let builder_action_validator = compile(

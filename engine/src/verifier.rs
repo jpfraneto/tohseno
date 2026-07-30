@@ -4,6 +4,7 @@
 //! argument. It does not consult the network, environment, current directory,
 //! Git, the Apple identity helper, or any mutable ledger state.
 
+use crate::app_metadata_policy::validate_current_app_metadata_v2;
 use crate::builder_identity::initial_device_builder_id_for_v1_factory;
 #[cfg(test)]
 use crate::builder_identity::{
@@ -961,6 +962,10 @@ fn compare_provenance(
     fascia: &FasciaManifest,
     commitment: Bytes32,
 ) -> Result<String, String> {
+    if let EmbeddedAppMetadata::V2(metadata) = provenance {
+        validate_current_app_metadata_v2(metadata)
+            .map_err(|error| format!("embedded v2 provenance violates current policy: {error}"))?;
+    }
     let expected = AppMetadata::for_record(record, commitment, fascia)
         .map_err(|error| format!("could not derive signed app metadata: {error}"))?;
     match provenance {
@@ -2623,6 +2628,37 @@ CURRENT_PROJECT_VERSION = 1;
         assert_eq!(
             status(&report, "artifact.provenance"),
             VerificationStatus::Pass
+        );
+
+        let mut untrusted_registry_claim = v2.clone();
+        untrusted_registry_claim.registry = Some(
+            tohseno_protocol::app_metadata::AppMetadataRegistryReference {
+                chain_id: 4_663,
+                contract: tohseno_protocol::digest::Address20::from_bytes([0x66; 20]),
+                transaction: Some(Bytes32::new([0x77; 32])),
+            },
+        );
+        untrusted_registry_claim.validate().unwrap();
+        write_json(
+            &fixture.shot.join("src/TOHSENO/embedded-provenance.json"),
+            &untrusted_registry_claim,
+        );
+        fs::copy(
+            fixture.shot.join("src/TOHSENO/embedded-provenance.json"),
+            fixture
+                .shot
+                .join("artifact/fixture.app/embedded-provenance.json"),
+        )
+        .unwrap();
+        let report = verify_shot_directory(&fixture.shot, &fixture.reference);
+        assert!(!report.conformant);
+        assert_eq!(
+            status(&report, "provenance.binding"),
+            VerificationStatus::Fail
+        );
+        assert_eq!(
+            status(&report, "artifact.provenance"),
+            VerificationStatus::Fail
         );
 
         let mut forged = v2;

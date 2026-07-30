@@ -1,7 +1,9 @@
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};
 use serde_json::Value;
-use tohseno_protocol::app_metadata::{AppMetadata, AppMetadataV2, EmbeddedAppMetadata};
+use tohseno_protocol::app_metadata::{
+    AppMetadata, AppMetadataRegistryReference, AppMetadataV2, EmbeddedAppMetadata,
+};
 use tohseno_protocol::canonical;
 use tohseno_protocol::digest::{sha256, Address20, Bytes32, ExpressionId, ShotId, VersionId};
 use tohseno_protocol::identity::BuilderId;
@@ -1403,6 +1405,22 @@ fn app_metadata_v1_bytes_stay_frozen_while_v2_binds_neutral_identity() {
     let dispatched_v2 = EmbeddedAppMetadata::decode_transport_json(fixture.as_bytes()).unwrap();
     assert!(matches!(dispatched_v2, EmbeddedAppMetadata::V2(_)));
     assert_eq!(dispatched_v2.schema(), "tohseno.app-metadata/2");
+
+    // /2 shipped in v0.7.1 with this compatibility shape. Generic protocol
+    // decoding remains stable; current engine generation and verification
+    // policy independently refuses to trust this as publication evidence.
+    let mut compatibility_registry = v2.clone();
+    compatibility_registry.registry = Some(AppMetadataRegistryReference {
+        chain_id: 4_663,
+        contract: Address20::from_bytes([0x66; 20]),
+        transaction: Some(Bytes32::new([0x77; 32])),
+    });
+    compatibility_registry.validate().unwrap();
+    let compatibility_bytes = canonical::to_vec(&compatibility_registry).unwrap();
+    assert!(matches!(
+        EmbeddedAppMetadata::decode_transport_json(&compatibility_bytes).unwrap(),
+        EmbeddedAppMetadata::V2(_)
+    ));
 
     let mut mismatched_bundle_version = v2.clone();
     mismatched_bundle_version.bundle_version = 2;

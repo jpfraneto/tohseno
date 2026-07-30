@@ -3,6 +3,7 @@
 //! This module owns orchestration and evidence paths. Exact byte laws remain
 //! in `tohseno-protocol`.
 
+use crate::app_metadata_policy::validate_current_app_metadata_v2;
 use crate::builder_identity::{
     initial_device_builder_id_for_v1_factory, BuilderIdentity, BuilderIdentityError,
     BuilderIdentityManager, LEGACY_V07_CANDIDATE_VERSION, LEGACY_V07_FACTORY_IMPLEMENTATION,
@@ -167,8 +168,41 @@ pub fn bind_v2_app_metadata(
     lineage_head: Bytes32,
     build_digest: Option<Bytes32>,
 ) -> Result<AppMetadataV2, ProtocolLifecycleError> {
-    let metadata = AppMetadataV2::from_v1(
+    let metadata = project_v2_app_metadata(
         &prepared.provenance,
+        expression_id,
+        version_id,
+        version_ordinal,
+        genome_revision,
+        genome_digest,
+        lineage_sequence,
+        lineage_head,
+        build_digest,
+    )?;
+    write_json(
+        ledger,
+        shot,
+        "src/TOHSENO/embedded-provenance.json",
+        &metadata,
+    )?;
+    prepared.provenance_v2 = Some(metadata.clone());
+    Ok(metadata)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn project_v2_app_metadata(
+    provenance: &AppMetadata,
+    expression_id: tohseno_protocol::digest::ExpressionId,
+    version_id: tohseno_protocol::digest::VersionId,
+    version_ordinal: u64,
+    genome_revision: u64,
+    genome_digest: Bytes32,
+    lineage_sequence: u64,
+    lineage_head: Bytes32,
+    build_digest: Option<Bytes32>,
+) -> Result<AppMetadataV2, ProtocolLifecycleError> {
+    let mut metadata = AppMetadataV2::from_v1(
+        provenance,
         expression_id,
         version_id,
         version_ordinal,
@@ -179,13 +213,11 @@ pub fn bind_v2_app_metadata(
         build_digest,
     )
     .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
-    write_json(
-        ledger,
-        shot,
-        "src/TOHSENO/embedded-provenance.json",
-        &metadata,
-    )?;
-    prepared.provenance_v2 = Some(metadata.clone());
+    // A frozen v1 registry reference is compatibility data, not evidence for
+    // the inactive successor generation.
+    metadata.registry = None;
+    validate_current_app_metadata_v2(&metadata)
+        .map_err(|error| ProtocolLifecycleError::InvalidState(error.to_string()))?;
     Ok(metadata)
 }
 
@@ -413,6 +445,8 @@ pub fn verify_completed_evolution(shot: &Evolution) -> Result<(), ProtocolLifecy
         ))
     })?;
     if let EmbeddedAppMetadata::V2(metadata) = metadata {
+        validate_current_app_metadata_v2(&metadata)
+            .map_err(|error| ProtocolLifecycleError::InvalidState(error.to_string()))?;
         let layout = completed_evolution_shot_layout(shot)?;
         layout
             .verify_accepted_apple_metadata(&metadata)
@@ -1361,7 +1395,8 @@ impl From<BuilderIdentityError> for ProtocolLifecycleError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tohseno_protocol::digest::{Address20, ShotId};
+    use tohseno_protocol::app_metadata::AppMetadataRegistryReference;
+    use tohseno_protocol::digest::{Address20, ExpressionId, ShotId, VersionId};
     use tohseno_protocol::identity::BuilderId;
 
     #[test]
@@ -1401,6 +1436,45 @@ mod tests {
         let sealed = capture_input_commitment(&shot).unwrap();
         fs::write(shot.prompt_path(), b"Make something else.\n").unwrap();
         assert_ne!(capture_input_commitment(&shot).unwrap(), sealed);
+    }
+
+    #[test]
+    fn v2_generator_does_not_project_frozen_v1_registry_evidence() {
+        let mut v1: AppMetadata = tohseno_protocol::canonical::from_slice(include_bytes!(
+            "../../protocol/test-vectors/app-metadata-v1.json"
+        ))
+        .unwrap();
+        v1.registry = Some(AppMetadataRegistryReference {
+            chain_id: 4_663,
+            contract: Address20::from_bytes([0x66; 20]),
+            transaction: Some(Bytes32::new([0x77; 32])),
+        });
+        v1.validate().unwrap();
+        let expression_id = ExpressionId::from_bytes([0x44; 32]);
+        let genome_digest = Bytes32::new([0x55; 32]);
+        let version_id = VersionId::derive(
+            v1.shot_id,
+            expression_id,
+            1,
+            genome_digest,
+            v1.source_tree_sha256,
+        );
+
+        let v2 = project_v2_app_metadata(
+            &v1,
+            expression_id,
+            version_id,
+            1,
+            1,
+            genome_digest,
+            8,
+            Bytes32::new([0x88; 32]),
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(v2.registry, None);
+        validate_current_app_metadata_v2(&v2).unwrap();
     }
 
     #[test]

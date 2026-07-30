@@ -3,6 +3,7 @@
 //! This crate owns state and orchestration. It deliberately contains no terminal
 //! rendering or HTTP code; frontends subscribe to [`events::Event`] values.
 
+mod app_metadata_policy;
 pub mod apple_identity;
 pub mod builder_identity;
 pub mod config;
