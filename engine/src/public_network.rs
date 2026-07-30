@@ -2459,22 +2459,12 @@ mod tests {
     }
 
     #[test]
-    fn runtime_and_probe_constants_remain_tied_to_checked_in_evidence() {
+    fn retired_deployment_path_and_probe_evidence_remain_explicit() {
         let deployment_script = include_str!("../../scripts/deploy-candidate.sh");
-        for value in [
-            EXPECTED_DEPLOYER_HASH,
-            EXPECTED_FACTORY_RUNTIME_HASH,
-            EXPECTED_REGISTRY_RUNTIME_HASH,
-            EXPECTED_RELATIONS_RUNTIME_HASH,
-            &format!("factory_runtime_size={EXPECTED_FACTORY_RUNTIME_SIZE}"),
-            &format!("registry_runtime_size={EXPECTED_REGISTRY_RUNTIME_SIZE}"),
-            &format!("relations_runtime_size={EXPECTED_RELATIONS_RUNTIME_SIZE}"),
-        ] {
-            assert!(
-                deployment_script.contains(value),
-                "deployment script lost pinned value {value}"
-            );
-        }
+        assert!(deployment_script.contains("v0.7 contract generation is retired"));
+        assert!(deployment_script.contains("exit 1"));
+        assert!(!deployment_script.contains("forge script"));
+
         let probe: Value =
             serde_json::from_str(include_str!("../../genesis/lifecycle/P256_PROBE.json")).unwrap();
         assert_eq!(probe["input"], P256_KNOWN_INPUT);

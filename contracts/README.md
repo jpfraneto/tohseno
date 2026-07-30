@@ -135,52 +135,19 @@ A final contract generation receives a versioned bytecode and deployment-plan
 path exactly once, after all bytecode-affecting remediation is complete. Until
 then, no `next` artifact is a durable identity input or deployment authority.
 
-## Candidate deployment procedure
+## Deployment status
 
-`scripts/deploy-candidate.sh` is the only supported deployment path for these
-candidate contracts. It sends `salt || initcode` to the pinned Arachnid
-deterministic deployment proxy at
-`0x4e59b44847b379578588920ca78fbf26c0b4956c`. It refuses any other chain,
-proxy code, proxy code hash, salt, initcode hash, predicted address, or runtime
-code hash.
+There is no deployable contract generation on `main`.
 
-Provision a Foundry encrypted-keystore account ahead of time. Never pass a raw
-private key, mnemonic, keystore password, or password file through an
-environment variable or shell argument. The script unlocks only the explicit
-account name at Foundry's password prompt and requires its derived address to
-match a separately supplied address:
+The v0.7 generation is immutable historical verification material and will
+never be deployed by the TOHSENO project. Its old deployment script and
+mainnet lifecycle entry point fail closed. The v0.7.1 tag preserves their
+auditable historical source.
 
-```sh
-export ROBINHOOD_RPC_URL='https://authenticated-robinhood-rpc.example'
-export TOHSENO_DEPLOYER_ACCOUNT='genesis-deployer'
-export TOHSENO_EXPECTED_DEPLOYER_ADDRESS='<explicit 20-byte address>'
-export TOHSENO_ALLOW_EXPERIMENTAL_MAINNET=1
-
-../scripts/deploy-candidate.sh --dry-run
-```
-
-Supply the exact expected signer; the script rejects zero. Dry-run mode
-performs the P-256 probe, complete Foundry tests, artifact drift checks, live
-chain checks, account/address comparison, and a stateful fork simulation. It
-prints the signer, nonce, balance, gas estimate, and all planned addresses
-without signing or broadcasting anything.
-
-After independent review of that output, a real run additionally requires a
-clean committed source tree and this second exact guard:
-
-```sh
-export TOHSENO_DEPLOY_CONFIRMATION='DEPLOY_GENESIS_1_0_0_RC1_TO_ROBINHOOD_MAINNET_4663'
-../scripts/deploy-candidate.sh
-```
-
-Transactions are submitted sequentially with the named encrypted account and
-confirmed before continuing. Every receipt, transaction envelope, deployed
-code size, and runtime code hash is checked. A failure after any broadcast
-leaves the immutable undeployed plan untouched and writes no evidence, so an
-operator can inspect chain state and safely rerun. Only after all contracts
-verify does the script atomically create the separate
-`deployments/robinhood-mainnet-genesis.actual.json`; it never overwrites an
-existing evidence file.
+The successor remains an explicitly unversioned `next` draft until the
+security work, actual-target EIP-7951 gate, generation coordinates, and
+release manifest are finalized together. Draft addresses are not durable
+BuilderIDs and are not deployment authority.
 
 ## Verification
 

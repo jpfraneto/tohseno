@@ -438,24 +438,16 @@ cargo run --locked -p tohseno -- --json identity show
 The helper uses Secure Enclave/Keychain by default and does not silently fall
 back. Its software backend is explicitly test-only.
 
-## Deterministic Genesis material
+## Immutable v0.7 Genesis material
 
-From a clean checkout:
+The released v0.7 Genesis archive is reproduced only from the immutable
+`v0.7.1` tag. Main deliberately refuses to rebuild or archive it: doing so
+would mix changing successor sources with a frozen v0.7 deployment plan.
 
-```sh
-scripts/build-genesis-bundle.sh
-scripts/build-genesis-bundle.sh --check
-(cd dist/genesis && shasum -a 256 -c FILES.sha256)
-```
-
-`dist/genesis` contains the normative documents, all schemas and vectors, the
-complete reusable Apple Fascia, contract sources, ABIs, BuilderAccount creation
-bytecode, and the explicitly undeployed deployment plan. Its creation time is
-the source commit time unless `SOURCE_DATE_EPOCH` is supplied. `--check`
-rebuilds independently and compares every output byte.
-
-`TOHSENO_ALLOW_DIRTY_BUNDLE=1` exists for local candidate inspection only. A
-release bundle must come from committed inputs.
+Use the signed v0.7.1 release artifact for legacy inspection and private
+verification. Its predicted contract and BuilderAccount addresses are
+undeployed historical inputs, not durable public identities or future
+deployment coordinates.
 
 ## Status at this source revision
 

@@ -1264,15 +1264,12 @@ mod tests {
     }
 
     #[test]
-    fn lifecycle_forwards_separate_builder_account_deployment_authorization() {
+    fn retired_v07_mainnet_lifecycle_fails_closed() {
         let lifecycle = include_str!("../../scripts/lifecycle-mainnet.sh");
-        assert!(lifecycle.contains("--confirm-builder-account-deployment"));
-        assert!(lifecycle.contains("TOHSENO_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION"));
-        assert!(!lifecycle.contains(EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION));
-
-        let readme = include_str!("../../README.md");
-        assert!(readme.contains("--confirm-builder-account-deployment"));
-        assert!(readme.contains(EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION));
+        assert!(lifecycle.contains("v0.7 Robinhood mainnet lifecycle is retired"));
+        assert!(lifecycle.contains("exit 1"));
+        assert!(!lifecycle.contains("cargo run"));
+        assert!(!lifecycle.contains("deploy-candidate.sh"));
     }
 
     #[test]

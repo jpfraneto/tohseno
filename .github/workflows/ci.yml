@@ -325,59 +325,26 @@ jobs:
           )
           abort "release publish shell is invalid: #{stderr}" unless status.success?
           RUBY
-      - name: Build and independently recheck the Genesis bundle
+      - name: Verify the retired v0.7 generation boundary
         run: |
-          scripts/build-genesis-bundle.sh
-          scripts/build-genesis-bundle.sh --check
-          (
-            cd dist/genesis
-            python3 ../../scripts/release-package-integrity.py \
-              verify-manifest \
-              --root . \
-              --manifest-name FILES.sha256
-            shasum -a 256 -c FILES.sha256
-            jq -e \
-              '.canonical_release == false
-               and .candidate_version == "0.7.0"
-               and .deployment.candidate.status
-                   == "planned, undeployed, non-canonical and unaudited"' \
-              GENESIS.json
-          )
-          scripts/build-genesis-archive.sh \
-            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz"
-          scripts/build-genesis-archive.sh \
-            "$RUNNER_TEMP/tohseno-genesis-materials-second.tar.gz"
-          cmp \
-            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz" \
-            "$RUNNER_TEMP/tohseno-genesis-materials-second.tar.gz"
-          tar -tzf \
-            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz" >/dev/null
-      - name: Assemble and smoke-test the stable release package
-        run: |
-          scripts/release.sh
-          candidate_target="$(rustc -vV | awk '/^host:/ {print $2}')"
-          package="dist/release-candidate/$candidate_target"
-          (
-            cd "$package"
-            python3 ../../../scripts/release-package-integrity.py \
-              verify-manifest \
-              --root .
-            shasum -a 256 -c CHECKSUMS.sha256
-            jq -e \
-              '.schema == "tohseno.release/1"
-               and .version == "0.7.1"
-               and .channel == "stable"
-               and .prerelease == false
-               and .dirty == false' \
-              RELEASE.json
-          )
-          "$package/bin/tohseno" --version | grep -Fqx 'tohseno 0.7.1'
-          "$package/bin/tohseno-apple-identity" --version |
-            grep -Fqx 'tohseno-apple-identity 0.7.1'
-          "$package/bin/tohseno" --json protocol info |
-            jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
-          scripts/test-installer.sh \
-            "$package" \
-            "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz"
+          test "$(
+            shasum -a 256 contracts/bytecode/BuilderAccount.creation.hex |
+              awk '{print $1}'
+          )" = d2b8bbf71b3c7383beda6a759125e18de0d2efa76ae225febf453a835a8c1ed4
+          test "$(
+            shasum -a 256 \
+              contracts/deployments/robinhood-mainnet-genesis.json |
+              awk '{print $1}'
+          )" = b3cb0305072668d3c846f2b4277562f8b18d88432315e1f8dbc348e35a27c314
+          grep -Fq \
+            "will never be deployed by the TOHSENO project" \
+            release/V0_7_CONTRACT_GENERATION_NOTICE.md
+          if scripts/build-genesis-bundle.sh >/dev/null 2>&1 ||
+             scripts/build-genesis-archive.sh ignored.tar.gz >/dev/null 2>&1 ||
+             scripts/deploy-candidate.sh --dry-run >/dev/null 2>&1 ||
+             scripts/release.sh >/dev/null 2>&1; then
+            echo "a retired v0.7 command did not fail closed" >&2
+            exit 1
+          fi
       - name: Reject tracked generated drift
         run: git diff --exit-code --
