@@ -1,9 +1,10 @@
 # TOHSENO node
 
 `tohseno-node` validates, preserves, indexes, and explicitly synchronizes a
-bounded subset of public TOHSENO lineage evidence. It is a library and a small
-HTTP/CLI process. It depends directly on `../protocol`; it does not define
-another lineage action.
+bounded subset of signed ordinary-lineage records as neutral or legacy
+evidence. It is a library and a small HTTP/CLI process. It depends directly on
+`../protocol`; it does not define another lineage action or a publication
+authority.
 
 No release-authorized contract generation is active. That fact is
 load-bearing: a node may verify ordinary signed lineage neutrally, but it
@@ -30,11 +31,12 @@ reported exactly as signed. Storing an availability statement never causes
 this node to claim it has the referenced bytes. Each missing holding names its
 declaring action and that action's candidate-authority status.
 
-A public action whose predecessor is unavailable is retained as an unanchored
-segment. Its schema, digest, signature, and internally available adjacency may
-verify, but both neutral and candidate authority remain `unresolved`, and the
-exact missing parent is exposed. When predecessors arrive, the derived index
-is deterministically rebuilt:
+An ordinary-lineage action declared publicly available whose predecessor is
+unavailable is retained as an unanchored evidence segment. Its schema, digest,
+signature, and internally available adjacency may verify, but both neutral and
+candidate authority remain `unresolved`, and the exact missing parent is
+exposed. When predecessors arrive, the derived index is deterministically
+rebuilt:
 
 - a fully reducible prefix becomes neutrally `verified` while candidate
   authority remains `unresolved` because no generation is active;
@@ -58,8 +60,9 @@ the causal context it possesses.
 
 There is no universal mutable head, quorum, leader, chain selection, shared
 database, background gossip, or node-conferred ownership. Two nodes may retain
-different public prefixes, different valid branches, and different artifact
-subsets. The API therefore says `observed_heads`, never “the network head.”
+different eligible evidence prefixes, different valid branches, and different
+artifact subsets. The API therefore says `observed_heads`, never “the network
+head.”
 
 A node does not judge whether an intention is metaphysically coherent. It does
 not turn a local or private record public, infer artifact availability,
@@ -101,9 +104,12 @@ directories, reads, and action entries reject symlinks. All indexes are
 in-memory derived caches rebuilt from the append-only action files at startup
 or through `integrity --rebuild`.
 
-The current node deliberately stores public action records only. Referenced
-artifacts remain explicit missing holdings in Shot views, even when an action
-says those bytes were public, replicated, verified, or anchored elsewhere.
+For compatibility replication, the current node stores only ordinary-lineage
+records whose handling declaration permits public preservation. Ingesting one
+is bounded neutral/legacy-evidence preservation, not current publication or
+public-authority recognition. Referenced artifacts remain explicit missing
+holdings in Shot views, even when a record says those bytes were public,
+replicated, verified, or anchored elsewhere.
 
 ## CLI
 
@@ -169,13 +175,16 @@ is a derived transport view and is never signed back into lineage.
 | `GET` | `/v1/peers` | Exact configured static peer origins |
 | `GET` | `/v1/shots` | Locally indexed Shot summaries and observed heads |
 | `GET` | `/v1/shots/{shot_id}` | Local action references, authority context, missing parents, and missing artifacts |
-| `GET` | `/v1/actions/{digest}` | Canonical signed public action bytes |
-| `POST` | `/v1/actions` | Validate and append one signed public action |
+| `GET` | `/v1/actions/{digest}` | Canonical signed ordinary-lineage evidence bytes |
+| `POST` | `/v1/actions` | Locally validate and append one bounded ordinary-lineage evidence record; never publish it or establish current authority |
 | `GET` | `/v1/integrity` | Fresh disk validation without mutation |
 | `GET` | `/v1/sync` | Last in-memory explicit-sync result |
 | `POST` | `/v1/sync` | Pull once from configured peers only |
 
-`POST /v1/actions` accepts the closed signed lineage JSON directly. There is no
+`POST /v1/actions` accepts the closed signed lineage JSON directly, revalidates
+it locally, and preserves eligible bytes as neutral or legacy evidence. A
+successful response is not a publication receipt and never promotes candidate
+authority while `/v1/node` reports `active_generation: null`. There is no
 caller-selected peer URL on `POST /v1/sync`, which avoids turning the node into
 an SSRF proxy.
 
@@ -202,8 +211,8 @@ authority. An honest causal gap is retained with unresolved authority; a lie,
 invalid signature, known-invalid adjacency, or known unauthorized transition
 fails closed. A failure may leave earlier valid or explicitly unresolved
 actions appended; it never rolls them back or upgrades an invalid action. One
-surviving node can continue serving every public action or segment it actually
-possesses with its current validation context.
+surviving node can continue serving every eligible evidence record or segment
+it actually possesses with its current validation context.
 
 `integrity` distinguishes storage integrity from lineage authority. An intact
 append-only store can be healthy while explicitly containing unresolved or

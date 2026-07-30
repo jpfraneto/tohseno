@@ -573,7 +573,7 @@ fn file_ingestion_is_bounded_canonical_and_rejects_symlinks() {
 }
 
 #[test]
-fn ingest_cli_loads_one_public_action_and_prints_its_validation_context() {
+fn ingest_cli_preserves_one_eligible_evidence_record_without_promoting_authority() {
     let node_root = tempfile::tempdir().unwrap();
     let inputs = tempfile::tempdir().unwrap();
     let action = root_action(
@@ -609,14 +609,14 @@ fn ingest_cli_loads_one_public_action_and_prints_its_validation_context() {
             .and_then(serde_json::Value::as_str),
         Some("unresolved")
     );
-    assert_eq!(
-        NodeStore::open(node_root.path())
-            .unwrap()
-            .health()
-            .unwrap()
-            .stored_actions,
-        1
-    );
+    let reopened = NodeStore::open(node_root.path()).unwrap();
+    assert_eq!(reopened.info().unwrap().active_generation, None);
+    assert_eq!(reopened.health().unwrap().stored_actions, 1);
+    let shot_id = action.action.shot_id;
+    let view = reopened.shot(shot_id).unwrap();
+    assert_eq!(view.shot.validation.candidate_authority_verified, 0);
+    assert_eq!(view.shot.validation.candidate_authority_unresolved, 1);
+    assert!(view.shot.authority_verified_heads.is_empty());
 }
 
 #[test]

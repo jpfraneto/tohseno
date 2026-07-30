@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "A partial, protocol-driven public lineage node for TOHSENO"
+description = "A partial, protocol-driven record node for TOHSENO"
 publish = false
 
 [lib]

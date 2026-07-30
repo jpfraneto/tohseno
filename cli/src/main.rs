@@ -30,7 +30,7 @@ const DEFAULT_STUDIO_PORT: u16 = 8888;
     disable_help_subcommand = true
 )]
 struct Cli {
-    /// Emit structured JSON for supported inspection and public-action commands.
+    /// Emit structured JSON for supported commands.
     #[arg(long, global = true)]
     json: bool,
     #[command(subcommand)]
@@ -1050,6 +1050,7 @@ mod tests {
         assert!(!help.contains("\n  publish "));
         assert!(!help.contains("\n  handle "));
         assert!(!help.contains("\n  appcoin "));
+        assert!(!help.contains("public-action commands"));
     }
 
     #[test]

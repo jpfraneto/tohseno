@@ -10,7 +10,7 @@ use tokio::net::TcpListener;
 #[command(
     name = "tohseno-node",
     version,
-    about = "Validate, preserve, inspect, and explicitly synchronize public TOHSENO lineage"
+    about = "Preserve and revalidate bounded neutral or legacy TOHSENO lineage evidence"
 )]
 struct Cli {
     /// Persistent node storage. Defaults to ~/.tohseno-node.
@@ -32,14 +32,14 @@ enum Command {
     },
     /// Show node identity, holdings, peers, and current sync state.
     Status,
-    /// Pull valid public actions from the configured static peers.
+    /// Pull bounded neutral or legacy evidence records from configured static peers.
     Sync,
-    /// Validate and append one canonical signed public action file.
+    /// Validate and append one bounded signed lineage evidence record.
     Ingest {
         #[arg(value_name = "SIGNED_ACTION_JSON")]
         action: PathBuf,
     },
-    /// Inspect all locally held actions and observed heads for one Shot.
+    /// Inspect all locally held evidence records and observed heads for one Shot.
     Inspect { shot_id: String },
     /// Revalidate append-only storage and derived indexes.
     Integrity {
@@ -148,12 +148,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn help_exposes_bounded_file_ingestion() {
+    fn help_exposes_bounded_evidence_ingestion_without_claiming_public_authority() {
         use clap::CommandFactory;
 
         let help = Cli::command().render_long_help().to_string();
         assert!(help.contains("ingest"));
-        assert!(help.contains("canonical signed public action file"));
+        assert!(help.contains("bounded signed lineage evidence record"));
+        assert!(help.contains("bounded neutral or legacy TOHSENO lineage evidence"));
+        assert!(!help.contains("public action"));
+        assert!(!help.contains("public authority"));
+        assert!(!help.contains("publish"));
     }
 
     #[test]

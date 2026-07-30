@@ -352,15 +352,9 @@ fn record_token_relation(
             "Token Association {} recorded for Shot {} without changing identity or ownership.",
             output.operation, output.shot_id
         )));
-        if let Some(path) = &output.outbox_path {
-            bus.emit(Event::handoff(format!(
-                "The canonical public action is ready at {path}. Review it, then ingest it explicitly with `tohseno-node ingest {path}`."
-            )));
-        } else {
-            bus.emit(Event::status(
-                "The signed relation remains intentionally private and was not relayed or anchored.",
-            ));
-        }
+        bus.emit(Event::status(
+            "The signed relation remains intentionally private and was not relayed or anchored.",
+        ));
     }
     Ok(())
 }
