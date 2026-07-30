@@ -39,7 +39,13 @@
   },
   "publication": {
     "tag": "v0.7.0",
-    "release_url": null,
-    "tohseno_com_installer_verified": false
+    "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.7.0",
+    "release_immutable": true,
+    "release_published_at": "2026-07-30T19:24:10Z",
+    "release_workflow_run": "https://github.com/jpfraneto/tohseno/actions/runs/30573734262",
+    "production_url": "https://tohseno.com",
+    "production_deployment_id": "5f949005-616b-46e1-adbd-7b5d86e55de6",
+    "tohseno_com_installer_verified": true,
+    "verified_at": "2026-07-30T19:29:33Z"
   }
 }
