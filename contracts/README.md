@@ -6,8 +6,9 @@ deployment-authorized.
 > [!WARNING]
 > The frozen v0.7 contract generation will never be deployed by the TOHSENO
 > project. Its predicted addresses are historical verification inputs, not
-> durable BuilderIDs or future coordinates. The current `next` artifacts are
-> also non-authoritative until a successor generation is finalized.
+> durable BuilderIDs or future coordinates. The unversioned `next`
+> deployment-plan compatibility artifact is also non-authoritative; only the
+> versioned 0.8.0 build definition is frozen, and it remains inactive.
 
 These contracts are neutral public witnesses. They are non-upgradeable, have
 no administrator, hold no tokens, and grant no privilege to a TOHSENO client,
@@ -24,7 +25,7 @@ node, relayer, company, website, or deployer.
   unconditional active-device floor and an exact active-admin count.
 - `BuilderAccountFactory` deploys those accounts with CREATE2. It never owns or
   controls them, and a front-run deployment returns the same account.
-- `ShotRegistry` records only a Shot ID, controller, public lineage head,
+- `ShotRegistry` records only a Shot ID, controller, public-checkpoint head,
   checkpoint count, and action nonce. Registration uses a permissionless
   commit followed by a controller-signed reveal.
 
@@ -41,13 +42,13 @@ graph merely because it exists. End-user installation and continuity
 identities remain local and unlinkable by default and never serve as registry
 controllers.
 
-The registry `head` may identify only a canonical, intentionally public Shot
-lineage action that has passed publication policy. It must never be built from
-app-runtime continuity records, end-user identity or behavior, private
-feedback, private references, raw private intentions, or hashes of those
-values. Hashing a small or guessable private domain is disclosure, not
-privacy. The removed generic `contentCommitment` is not part of the successor
-ABI.
+The registry `head` may identify only the canonical digest of
+`tohseno.public-checkpoint/1`, a closed ancestry-free projection. It must never
+be an ordinary lineage-action digest or be built from app-runtime continuity
+records, end-user identity or behavior, private feedback, private references,
+raw private intentions, or hashes of those values. Hashing a small or
+guessable private domain is disclosure, not privacy. The removed generic
+`contentCommitment` is not part of the successor ABI.
 
 ## EIP-712 domains
 
@@ -91,7 +92,7 @@ their exact field order.
   recorded again only after the original 24-hour boundary.
 - The commitment binds controller, independent random Shot ID, salt, registry,
   chain ID, and reveal deadline. The signed reveal additionally binds the
-  initial public head and controller registration nonce.
+  initial public-checkpoint head and controller registration nonce.
 - Reveal requires a deployed ERC-1271 controller. The registry accepts any
   correctly behaving ERC-1271 contract. Successor clients MUST recognize a
   BuilderID only when it matches an approved BuilderAccount generation. This
@@ -187,14 +188,28 @@ authority trust root exists.
 
 No contract in this repository has been deployed by this work.
 
+See
+[`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](../docs/MIGRATION_0_8_CONTRACT_GENERATION.md)
+for the exact ABI break, consumer changes, legacy verification rule, and
+future activation boundary.
+
 ## Verification
 
 ```sh
 forge fmt --check
 forge build --sizes
 forge test
+forge snapshot --root . --check ../.gas-snapshot \
+  --fuzz-seed 0x746f6873656e6f --fuzz-runs 256
 ../scripts/tests/test-probe-p256.sh
 ../scripts/build-contract-abi.sh --check
 ```
+
+The committed snapshot measures every contract unit, fuzz, and invariant test
+under a fixed seed. The time- and block-scoped
+[`contracts/audits/robinhood-p256-2026-07-30.json`](audits/robinhood-p256-2026-07-30.json)
+observation separately measured the actual Robinhood RPC at exactly 6,900 gas.
+It is not reusable deployment authorization. The rejected Solidity fallback
+was approximately 232,000 gas per verification—about 34 times the native path.
 
 Passing tests are not a smart-contract audit.

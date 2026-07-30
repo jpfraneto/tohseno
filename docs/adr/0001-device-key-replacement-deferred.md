@@ -25,17 +25,18 @@ can be stale, replayed, orphaned, or mistaken for completed replacement.
 The GENESIS CLI exposes no DeviceKey authorize, revoke, rotate, or recover
 command. It does not create detached replacement-action files. Local signing,
 descriptor validation, and offline verification accept only the original
-DeviceKey that reproduces the stable BuilderID. A cryptographically valid
-signature by any other key fails `record.device_authority`.
+DeviceKey that reproduces the frozen v0.7 predicted BuilderID. A
+cryptographically valid signature by any other key fails
+`record.device_authority`.
 
 `identity backup` and `identity import-backup` are described only as encrypted
 local recovery-authority backups. They do not activate recovery, replace a
 key, or prove an account transition.
 
-## Required work before replacement can be enabled
+## Historical requirements for the frozen v0.7 client
 
-Replacement or recovery remains blocked until one candidate version defines
-and tests all of the following together:
+Replacement or recovery remains blocked in the frozen v0.7 client because it
+does not define and test all of the following together:
 
 1. a canonical, bounded authorization/revocation proof carried with or
    unambiguously referenced by each affected Evolution;
@@ -48,3 +49,14 @@ and tests all of the following together:
 
 Adding an action encoder, accepting a caller nonce, importing backup words, or
 writing a signed file is not sufficient evidence to lift this decision.
+
+## Successor resolution
+
+ADR 0006 closes this ADR for contract generation 0.8 through permissioned
+device administration, exact active-device/admin invariants, delayed
+ERC-1271-capable recovery, an active-admin veto, epoch-based revocation, and
+action-specific nonces and deadlines. No contract generation is active, so
+this closure does not enable a current public CLI mutation or reinterpret a
+frozen v0.7 artifact. A future owner interface and offline authority-proof
+format remain separate implementation work, not a continuation of this
+contract-design deferral.

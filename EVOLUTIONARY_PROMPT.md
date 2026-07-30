@@ -1,4 +1,12 @@
-# MASTER PROMPT — TOHSENO GENESIS CANDIDATE
+# HISTORICAL MASTER PROMPT — TOHSENO GENESIS CANDIDATE
+
+> **Superseded implementation input.** This prompt is preserved as historical
+> evidence of the v0.7 build and is not current protocol, contract, or
+> deployment authority. It asks for surfaces later rejected by security review,
+> including `ShotRelations`, public handles, App Store self-claims, and a v0.7
+> mainnet lifecycle. Those instructions must not be executed. Current law lives
+> in `protocol/SPECIFICATION.md` and accepted ADR 0006; no contract generation
+> is active.
 
 You are Codex operating directly inside the existing `jpfraneto/tohseno` monorepo on JP’s Mac.
 

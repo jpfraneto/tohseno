@@ -254,4 +254,4 @@ mv "$evolution_stage" "$evolution_evidence"
 evolution_stage=""
 
 printf '%s\n' \
-  "Evolution 1 is locally complete; run the guarded mainnet lifecycle to publish it."
+  "Evolution 1 is locally complete and private; no contract generation is active."

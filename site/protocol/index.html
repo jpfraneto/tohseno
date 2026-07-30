@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#050505">
   <meta name="description" content="TOHSENO gives coherent human intentions persistent computational identity and lets them become and evolve as verifiable expressions.">
-  <title>TOHSENO Protocol — GENESIS Candidate</title>
+  <title>TOHSENO Protocol — Persistent Intention</title>
   <style>
     :root {
       color-scheme: dark;
@@ -258,7 +258,7 @@
   <header class="shell">
     <nav aria-label="Protocol navigation">
       <a class="brand" href="#top"><span class="ring" aria-hidden="true"></span>TOHSENO</a>
-      <span class="nav-state">protocol candidate · 0.7.0</span>
+      <span class="nav-state">pre-1.0 protocol · contracts inactive</span>
     </nav>
   </header>
 
@@ -270,12 +270,12 @@
           <h1>Intention can<br>keep continuity.</h1>
           <p class="hero-copy">TOHSENO is a protocol for giving coherent human intentions persistent computational identity and allowing them to become, remain, and evolve as verifiable expressions.</p>
         </div>
-        <aside class="candidate" aria-label="Candidate status">
-          <strong>GENESIS</strong>
+        <aside class="candidate" aria-label="Protocol status">
+          <strong>PRE-1.0</strong>
           <dl>
-            <dt>Version</dt><dd>0.7.0</dd>
-            <dt>Network</dt><dd>eip155:4663</dd>
-            <dt>Status</dt><dd>candidate</dd>
+            <dt>Lineage</dt><dd>v2</dd>
+            <dt>Contract definition</dt><dd>0.8.0</dd>
+            <dt>Active generation</dt><dd>none</dd>
             <dt>Canonical</dt><dd>no</dd>
           </dl>
         </aside>
@@ -350,12 +350,12 @@
               </ul>
             </article>
             <article class="public">
-              <h3>Explicit signed action</h3>
+              <h3>Explicit public checkpoint</h3>
               <ul>
-                <li>signed public lineage actions and availability claims</li>
-                <li>Shot controller and selected lineage checkpoints</li>
-                <li>builder-selected content-addressed artifacts</li>
-                <li>optional handle, token, or App Store association</li>
+                <li>an ancestry-free public checkpoint chain</li>
+                <li>Shot ID, public checkpoint head, controller, and count</li>
+                <li>no ordinary private-lineage digest or runtime data</li>
+                <li>optional token relations remain private until separately projected</li>
               </ul>
             </article>
           </div>
@@ -366,7 +366,7 @@
         <p class="section-label">04 · Nodes</p>
         <div>
           <h2>Nodes preserve records, not truth by decree.</h2>
-          <p class="lead">The candidate node validates and content-addresses signed public actions, rebuilds derived Shot state, reports missing parents and artifacts, and explicitly synchronizes with peers. It stores action records, not referenced artifact bytes. A valid partial segment remains authority-unresolved until its causal context arrives. Nodes may hold different subsets and branches; the protocol invents no distributed consensus.</p>
+          <p class="lead">The candidate node validates and content-addresses signed records, rebuilds the state it can justify, reports missing parents and artifacts, and explicitly synchronizes with peers. It stores records, not referenced artifact bytes. A valid partial segment remains authority-unresolved until its causal context arrives. Nodes may hold different subsets and branches; the protocol invents no distributed consensus. Contract checkpoints remain inactive until a signed generation activation exists.</p>
           <pre><code>Canonical bytes  →  this action has one digest
 Signature        →  the presented actor key signed it
 Segment          →  available causal links are valid
@@ -398,12 +398,13 @@ CONFORMANT</code></pre>
         <p class="section-label">Candidate boundary</p>
         <div>
           <h2>A stable local product with a noncanonical protocol.</h2>
-          <p class="lead">TOHSENO 0.7 ships the local factory and its exact protocol materials. GENESIS remains a pre-1.0 protocol candidate: schemas, nodes, and deployment plans are experimental, and the contracts are undeployed and unaudited. Portable imports are verified record projections and are not source materializations or ownership transfers.</p>
+          <p class="lead">TOHSENO 0.7.1 ships the local factory and frozen offline verification materials. Its v0.7 contract generation is retired and will never be deployed. A successor 0.8.0 contract build definition is committed for audit, but no signed activation or release-authority trust root exists. Portable imports are verified record projections and are not source materializations or ownership transfers.</p>
           <ul>
             <li>No v1.0.0 tag or canonical deployment claim</li>
-            <li>The stable v0.7 installer does not canonize the protocol</li>
-            <li>This candidate protocol-page source is staging material</li>
-            <li>No permanent Arweave Genesis publication</li>
+            <li>No active or deployed contract generation</li>
+            <li>Predicted CREATE2 addresses are not deployment evidence</li>
+            <li>The stable v0.7.1 installer does not canonize the protocol</li>
+            <li>This protocol-page source is staging material</li>
             <li>No unrestricted public gas relayer</li>
             <li>No token requirement and no invented token coordinates</li>
             <li>No metaphysical truth claim, global consensus, or universal creative generator</li>
@@ -415,7 +416,7 @@ CONFORMANT</code></pre>
 
   <footer class="shell">
     <span><strong>First in history. Equal under the protocol.</strong></span>
-    <span>JP / Anky, Inc. · GENESIS candidate</span>
+    <span>JP / Anky, Inc. · pre-1.0 protocol</span>
   </footer>
 </body>
 </html>

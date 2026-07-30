@@ -2,7 +2,7 @@
 
 ## Persistent identity for coherent human intention
 
-**GENESIS candidate · `0.7.0` · not the canonical release**
+**Stable local factory `0.7.1` · pre-1.0 protocol · no active contract generation**
 
 > TOHSENO is a protocol for giving coherent human intentions persistent
 > computational identity and allowing them to become, remain, and evolve as
@@ -69,8 +69,9 @@ exist and commits to making it real.
 
 TOHSENO preserves the original material exactly. Operational planning may
 interpret it, but must not silently replace it with cleaned product language.
-Private intention bytes remain private by default. A public record may commit
-their digest and describe their availability without publishing them.
+Private intention bytes remain private by default. Public contract checkpoints
+must not contain the intention or a digest derived from it: hashing private,
+low-entropy human material does not make it safe to publish.
 
 The protocol does not prove that an intention is philosophically true,
 valuable, or good. It preserves a verifiable relationship between a declared
@@ -272,43 +273,54 @@ must not upgrade one state into another by implication.
 Ownership is authority to approve continuity-changing actions. It does not
 claim authorship of every generated line.
 
-The candidate's existing identity system remains authoritative:
+P-256 DeviceKeys sign protocol commitments. Private keys remain in
+Keychain/Secure Enclave and never enter a Shot; Apple ID governs Apple signing
+and distribution, not TOHSENO ownership.
 
-- a P-256 DeviceKey signs protocol commitments;
-- the pinned counterfactual BuilderAccount on Robinhood Chain determines a
-  durable chain-scoped Builder ID;
-- private keys remain in Keychain/Secure Enclave and never enter a Shot;
-- Apple ID governs Apple signing and distribution, not TOHSENO ownership.
+The frozen v0.7 BuilderID law remains available only to verify existing
+private artifacts. A visibly test-only software key may reproduce that legacy
+identity and sign local private records, but it cannot authorize public
+actions. New secure BuilderID creation fails closed while contract generation
+0.8.0 is inactive.
 
-The on-chain BuilderAccount supports device administration and optional
-recovery. The current CLI and offline verifier deliberately accept only the
-initial DeviceKey that reproduces the Builder ID. Replacement, transfer, and
-recovery cannot be claimed as fully offline-verifiable until a canonical
-authority proof chain and evidence-backed nonce source are implemented.
+The successor `BuilderAccount` design supports permissioned device
+administration and delayed, vetoable recovery. A public controller becomes a
+recognized TOHSENO BuilderID only when client policy validates it against an
+activated contract generation; the neutral registry does not pin one account
+runtime forever. No activation or release-authority trust root exists today.
+An off-chain authority-proof format and owner recovery interface remain future
+work rather than implied capabilities.
 
-A visibly test-only software key may sign local private records where hardware
-storage is unavailable. It cannot authorize public actions.
+Builder identity is deliberately linkable after explicit public registration.
+Installation and end-user continuity identities remain local and unlinkable;
+they never become Builder controllers.
 
 ## 13. Nodes
 
-A TOHSENO node preserves, validates, serves, and optionally replicates public
-protocol records. The current candidate node stores action records, not
-referenced artifact bytes. A node has its own identity and storage and can:
+A TOHSENO node preserves, validates, serves, and optionally replicates bounded
+protocol records. The current node stores legacy action records, not referenced
+artifact bytes. A node has its own identity and storage and can:
 
 - validate schemas, commitments, signatures, and available lineage segments;
 - store content-addressed signed actions;
 - rebuild derived Shot indexes;
-- serve the public records it possesses;
+- serve the eligible ordinary-lineage evidence it possesses;
 - report missing or private artifacts honestly;
-- synchronize valid public records with configured peers;
+- synchronize eligible evidence records with configured peers;
 - inspect storage integrity and supported schema versions;
-- index optional chain anchors.
+- report its inactive contract-generation status.
 
 Validity is layered. A schema-valid, signature-valid segment whose predecessor
-is unavailable can be retained as an unresolved public segment; it is not
-promoted to authority-verified state until the complete available branch
-reduces under the candidate authority policy. A later parent can resolve or
-reject it.
+is unavailable can be retained as an unanchored evidence segment; it is not
+promoted to active public authority merely because its bytes and local segment
+verify. Because no contract generation is active, all candidate authority
+remains unresolved, including complete legacy branches. Frozen v0.7 CREATE2
+predictions are offline compatibility evidence only.
+
+The ancestry-free public-checkpoint format is defined, but the current node
+does not yet inventory checkpoint receipts or infer registry state from
+ordinary lineage records. That boundary stays explicit until an activated
+generation and receipt-verification path exist.
 
 Nodes do not need a shared mutable database or distributed consensus. They
 agree on deterministic byte, signature, segment, and authority results when the
@@ -316,7 +328,7 @@ required context is available. They need not agree that an intention is
 subjectively coherent, possess every artifact, choose one global current head
 amid unresolved authorized branches, or materialize code.
 
-One surviving node can still preserve and serve the public lineage it holds.
+One surviving node can still preserve and serve the records it holds.
 A malicious node can withhold or lie about availability, but cannot forge an
 authorized action or alter content without failing verification.
 
@@ -327,6 +339,7 @@ Local creation, use, evolution, and verification do not require a node.
 Private by default:
 
 - raw intentions and references;
+- ordinary coherent-intention lineage and its ancestry;
 - unpublished source and artifacts;
 - private feedback and attachments;
 - application data and usage;
@@ -334,15 +347,20 @@ Private by default:
 - recovery material and private keys;
 - local continuity relationships.
 
-Suitable for optional public commitment or replication:
+Suitable for a separately defined public projection:
 
-- Shot and expression identifiers;
-- signed public lineage actions;
-- content digests and declared availability;
-- accepted public genome projections;
-- public verification receipts;
-- owner-authorized artifacts;
-- public chain anchors and token relationships.
+- random Shot ID and public controller;
+- the closed ancestry-free public-checkpoint chain;
+- registry action and receipt evidence after generation activation;
+- explicitly owner-authorized artifacts under a record type that declares
+  exactly what it discloses.
+
+An ordinary lineage digest is not a privacy boundary: its predecessor can
+commit to private ancestry. New ordinary-lineage public outbox writes are
+therefore disabled. Existing already-public legacy records may be retained as
+legacy evidence, but cannot establish active-generation authority. Token
+Associations remain private lineage until a separate closed public relation
+projection is specified.
 
 Portable export and public page generation are projections, not recursive
 copies of a working directory. A generated repository excludes private working
@@ -384,8 +402,8 @@ The successor contracts are optional public witnesses:
 
 - `BuilderAccountFactory` predicts and deploys controller accounts;
 - `BuilderAccount` validates authorized actions;
-- `ShotRegistry` records only controller, intentionally public lineage head,
-  witness-local checkpoint count, and action nonce after a permissionless
+- `ShotRegistry` records only controller, an ancestry-free public checkpoint
+  head, witness-local checkpoint count, and action nonce after a permissionless
   commit and controller-signed reveal.
 
 They do not store repositories, intentions, genomes, feedback, transcripts, or
@@ -406,8 +424,16 @@ exists. End-user installation and continuity identities stay local and never
 become Builder controllers.
 
 The contracts are non-upgradeable, administrator-free, unaudited, and
-undeployed. The frozen v0.7 generation will never be deployed, and unversioned
-successor draft addresses are not production contracts.
+undeployed. The frozen v0.7 generation will never be deployed. The committed
+0.8.0 generation is an immutable build definition for audit, not an activation
+or deployment claim; no release-authority trust root or signed production
+activation exists.
+
+Likewise, a registry address or transaction string embedded in legacy Apple
+metadata is not a publication receipt. Current generation and verification
+policy rejects that claim while no generation is active. Future embedded
+publication evidence requires a new closed receipt schema and versioned Apple
+Fascia rather than reinterpreting released metadata.
 
 ## 17. Token association
 
@@ -534,8 +560,8 @@ TOHSENO `0.7.1` is the stable local product release. Its installer, CLI,
 Studio, Apple identity helper, and deterministic protocol materials are
 released together as one checksummed artifact set.
 
-The GENESIS protocol carried by that product remains explicitly pre-1.0 and
+The protocol carried by that product remains explicitly pre-1.0 and
 noncanonical. Its contracts are undeployed and unaudited, the public protocol
-page is staging material, and there is no mainnet or permanent Arweave
-publication claim. Product stability does not canonize the protocol or turn
-candidate infrastructure into production fact.
+page is staging material, and there is no mainnet publication claim. Product
+stability does not canonize the protocol, activate a contract generation, or
+turn predicted addresses into production fact.

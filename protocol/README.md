@@ -1,10 +1,12 @@
 # TOHSENO protocol candidate
 
-`tohseno-protocol` is the pure Rust implementation of the TOHSENO
-`0.7.0` GENESIS protocol candidate. It contains wire types, exact byte
-laws, commitments, cryptographic verification, lineage verification,
-BuilderAccount actions, installation continuity, and conformance report types.
-It has no CLI, RPC, Apple-signing, server, harness, or global-filesystem policy.
+`tohseno-protocol` is the pure Rust implementation of frozen TOHSENO `0.7.0`
+offline-verification law plus the additive coherent-intention `/2`,
+ShotRegistry v2, public-checkpoint, and inactive contract-generation formats.
+It contains wire types, exact byte laws, commitments, cryptographic
+verification, lineage verification, BuilderAccount actions, installation
+continuity, and conformance report types. It has no CLI, RPC, Apple-signing,
+server, harness, or global-filesystem policy.
 
 This candidate is not the final canonical protocol.
 
@@ -50,8 +52,11 @@ version string never silently changes a v0.7 action's meaning.
 
 The signed v2 envelope is TOHSENO Builder-client evidence: its verifier proves
 the detached low-s P-256 signature and exact digest, not live device
-authorization. ShotRegistry resolves current authority through ERC-1271.
-Other neutral ERC-1271 controllers may define another signature encoding.
+authorization. In a client-trusted activated generation, a ShotRegistry
+receipt-block ERC-1271 result is one required authorization observation. The
+inactive build definition, detached envelope, and checkpoint bytes establish
+no current public authority. Other neutral ERC-1271 controllers may define
+another signature encoding.
 
 `ContractGeneration` describes reproducible build inputs and conditional
 CREATE2 coordinates. Its RFC 8785/SHA-256 digest is not an activation:
@@ -69,7 +74,8 @@ source of truth and is never used directly as a registry head. A
 `PublicCheckpoint` is a separate, deliberately narrow identity-continuity
 projection: it carries no local lineage, intention, genome, version, artifact,
 feedback, token, runtime, controller, or free-text field. Its exact registry
-action and live ERC-1271 result provide authority.
+action, receipt evidence, and live ERC-1271 result are required for authority
+only under a client-trusted activated generation.
 
 Print the normative reusable Fascia-tree commitment with:
 
@@ -95,11 +101,13 @@ continues from a trusted derived state. Nodes may retain multiple valid heads;
 neither function chooses an ingestion-order winner or implements consensus.
 
 Pure reduction trusts the controller/key binding declared in the first
-commitment and proves consistent use thereafter. A production engine or node
-candidate policy must additionally reproduce the BuilderID using the pinned
-BuilderAccount factory, salt, creation bytecode, and declared initial key. This
-keeps deployment policy outside neutral record semantics without mistaking a
-self-declaration for factory authorization.
+commitment and proves consistent use thereafter. Frozen v0.7 offline
+verification may reproduce its exact historical BuilderID prediction. Current
+public authority additionally requires a trusted, activated contract generation
+and client verification of the controller against that generation; no such
+activation exists. This keeps deployment policy outside neutral record
+semantics without mistaking either a self-declaration or predicted address for
+public factory authorization.
 
 `adapt_v1_lineage` verifies and projects exact signed `/1` records without
 rewriting or re-signing them. Missing historical intention bytes and genome

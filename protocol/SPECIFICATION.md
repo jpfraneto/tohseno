@@ -1,27 +1,35 @@
 # TOHSENO protocol candidate specification
 
-Status: `0.7.0`, codename `GENESIS`,
-`protocol_candidate_not_canonical`.
+Status: composite pre-1.0 candidate, not canonical. It contains exact frozen
+`0.7.0` (`GENESIS`) compatibility law plus additive coherent-intention `/2`,
+public-checkpoint, and contract-generation `0.8.0` law. Contract generation
+0.8.0 is an inactive build definition, not a deployment or activation.
 
 The key words MUST, MUST NOT, REQUIRED, SHOULD, and MAY are normative.
 
 ## Scope
 
-This specification defines a Shot, its immutable Evolutions, the Builder
-identity that controls it, the replaceable devices authorized by that Builder,
-app-local Installation identities, commitments, signatures, public actions,
-and continuity proofs. It does not define a terminal UI, relayer, RPC client,
-server account, Apple code-signing policy, coding harness, or global
-filesystem layout.
+The document has two explicitly versioned layers. Frozen v0.7 sections define
+byte-identical offline verification for released private artifacts and are
+never successor deployment authority. Additive `/2`, ShotRegistry v2,
+public-checkpoint, generation-definition, and activation sections define the
+successor protocol. Decoders MUST dispatch by exact schema and generation;
+they MUST NOT reinterpret a v0.7 object as successor state.
 
-The wire law below defines future DeviceKey and recovery actions, but the
-bundled GENESIS implementation does not claim those state transitions are
+Together these layers define a Shot, immutable expression states, the Builder
+identity that controls them, device authority, app-local Installation
+identities, commitments, signatures, public checkpoints, and continuity
+proofs. They do not define a terminal UI, relayer, RPC client, server account,
+Apple code-signing policy, coding harness, or global filesystem layout.
+
+The frozen v0.7 wire law below defines DeviceKey and recovery encodings, but
+the bundled v0.7 implementation does not claim those state transitions are
 complete. Its local signer and offline verifier accept only the initial
-DeviceKey committed through CREATE2 BuilderID prediction. It exposes no
-authorize, revoke, rotate, or recover command; encrypted recovery material is
-a local backup only. A replacement key requires a canonical authorization
-proof chain and evidence-backed nonce source before it can sign a conforming
-Evolution.
+DeviceKey committed through the exact historical CREATE2 BuilderID prediction.
+It exposes no authorize, revoke, rotate, or recover command; encrypted recovery
+material is a local backup only. The successor contract recovery design is
+specified separately, but no successor public authority is active and no
+off-chain authority-proof interface is implied.
 
 Every wire object is UTF-8 JSON. Schemas are closed: unknown members, duplicate
 members, trailing JSON values, wrong-width hexadecimal values, and uppercase
@@ -327,9 +335,9 @@ only in the inclusive interval:
 
 The commitment preimage binds its type hash, controller, independent random
 ShotID, salt, registry address, current chain ID, and deadline. The signed
-reveal additionally binds the initial public lineage head and exact controller
-registration nonce. Successful reveal deletes the commitment and creates
-public checkpoint 1. Every append requires the exact previous head and
+reveal additionally binds the initial public-checkpoint head and exact
+controller registration nonce. Successful reveal deletes the commitment and
+creates public checkpoint 1. Every append requires the exact previous head and
 increments `checkpointSequence` by one. Transfer preserves head and checkpoint
 count and consumes the shared Shot nonce.
 
@@ -344,10 +352,12 @@ Store build history. A Shot first published at local version N still registers
 as checkpoint 1.
 
 The successor has no `publicState`, generic `contentCommitment`, handle, App
-Store attestation, or Appcoin contract state. A registry head may identify only
-an intentionally public canonical Shot lineage action. It MUST NOT be derived
-from app-runtime continuity records, installation or end-user data, private
-feedback or references, raw private intentions, or hashes of those values.
+Store attestation, or Appcoin contract state. A registry head MUST be the
+digest of the closed, ancestry-free `tohseno.public-checkpoint/1` projection;
+an ordinary coherent-intention lineage action digest is never a registry head.
+The checkpoint MUST NOT be derived from app-runtime continuity records,
+installation or end-user data, private feedback or references, raw private
+intentions, or hashes of those values.
 
 `ShotRegistrationCommitmentV2` and `RegistryActionV2` are the exact Rust
 generation types. The frozen v0.7 `PublicAction` remains a separate decoding
@@ -561,8 +571,11 @@ an `organ`-scoped intent cannot complete with an unchanged graph.
 
 Ownership actions are signed by the current controller and install the next
 BuilderID and controller key. Pure reduction trusts the initial declared
-BuilderID/key binding. Candidate policy must independently reproduce that
-BuilderID from the pinned factory before accepting a new production root.
+BuilderID/key binding. Frozen v0.7 offline verification independently
+reproduces its exact historical BuilderID prediction. Successor public
+authority instead requires client validation against a trusted activated
+contract generation. A predicted address or build definition alone is never
+public authority, and no generation is active today.
 
 TokenAssociation is optional and chain-specific. Its address never supplies
 Shot, expression, version, or ownership identity. The frozen v0.7 relations

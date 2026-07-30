@@ -15,7 +15,7 @@ Protected assets:
 - expression source, artifacts, and immutable version records;
 - private feedback, attachments, plans, and agent material;
 - Builder and installation private keys;
-- integrity and causal order of public lineage;
+- integrity and causal order of signed lineage and public-checkpoint evidence;
 - honest artifact availability and verification evidence.
 
 Principal boundaries:
@@ -54,7 +54,8 @@ Controls:
 - low-s P-256 signatures;
 - closed action-specific schemas;
 - authority and reducer rules per action type;
-- current BuilderID derivation check for the initial DeviceKey;
+- exact frozen v0.7 BuilderID derivation only for legacy offline verification;
+- activated-generation controller evidence for future public authority;
 - deterministic fixture and tampering tests.
 
 Remaining limitation: offline proof of BuilderAccount device rotation,
@@ -103,9 +104,9 @@ Controls:
 - Secure Enclave/Keychain custody where available;
 - private keys never enter generated repositories or JSON records;
 - BuilderAccount device epochs, permissions, revocation, and recovery nonces;
-- visibly test-only software keys cannot authorize or relay GENESIS contract
-  mutations; local protocol tests may emit off-chain public records, which do
-  not imply deployed BuilderAccount or on-chain authority;
+- visibly test-only software keys cannot authorize a public action; their
+  legacy v0.7 identity escape hatch is local-only;
+- no secure BuilderID is created for the inactive 0.8.0 generation;
 - no CLI rotation claim until the complete proof chain is verifiable.
 
 Recovery can restore authority; it cannot retract already valid historical
@@ -122,8 +123,9 @@ Controls:
 - content-address verification on ingest and read;
 - schema, signature, payload, segment, and availability validation before
   storage;
-- unresolved authority and missing parents are explicit, and only a complete
-  reducible branch is promoted into authority-verified state;
+- unresolved authority and missing parents are explicit; no branch is promoted
+  into active-generation authority while the node reports
+  `active_generation: null`;
 - public/replicable availability required for peer ingest;
 - explicit partial histories and missing-artifact lists;
 - bounded request, action, response, and file sizes;
@@ -181,9 +183,15 @@ contract, runtime, or deployment.
 Controls:
 
 - EIP-712 domain and live chain ID binding;
-- pinned code hashes, CREATE2 addresses, P256 precompile checks, and
-  block-pinned reads;
-- contract plan and actual deployment evidence are distinct;
+- immutable generation definitions bind code hashes and conditional CREATE2
+  arithmetic without claiming deployment;
+- a future activation must bind target-chain runtime, canonical block,
+  transaction evidence, and a fresh complete EIP-7951 probe;
+- build definition, signed activation, and client-trusted release policy are
+  distinct;
+- the current engine rejects a non-null `tohseno.app-metadata/2` registry
+  claim while no generation is active; its shipped bare coordinates remain
+  compatibility data, not a receipt;
 - receipt, runtime, transaction-envelope, and post-state verification;
 - no invented or undocumented production address.
 
@@ -199,8 +207,8 @@ Controls:
 - chain ID `8453` identifies Base explicitly;
 - association never alters Shot ID, expression ID, genome, or owner;
 - current relation and historical actions/events are distinguishable;
-- duplicate/replacement behavior is frozen in contract and interoperability
-  tests.
+- duplicate/replacement behavior is frozen in lineage reducers and
+  interoperability tests.
 
 The relation does not attest token economics, issuer intent, code safety, or
 market value.
@@ -226,11 +234,14 @@ Controls:
 - Shot-level intention, genome working surfaces, feedback, and private agent
   material are excluded from expression source snapshots;
 - node ingest refuses local/private actions;
-- contracts accept only commitments and public coordinates.
+- the registry accepts only the digest of the closed, ancestry-free public
+  checkpoint projection plus public coordinates; it never accepts an ordinary
+  lineage digest as a head.
 
-Digests can still reveal equality and may enable guessing of low-entropy
-private input. Public commitment of sensitive low-entropy material therefore
-requires an explicit owner decision; a digest is not encryption.
+Digests can reveal equality and enable guessing of low-entropy private input.
+No contract path may construct a checkpoint from an intention, feedback,
+installation identity, runtime continuity data, end-user data, or hashes of
+those values. Owner confirmation does not turn a guessable hash into privacy.
 
 ### Malicious references and paths
 
@@ -320,11 +331,11 @@ Controls:
 - Do not commit `.tohseno/private` or private feedback attachments.
 - Verify a portable Shot before inspecting artifacts or materializing source.
 - Treat absence and partial replication as normal, not as validation failure.
-- Do not publish a genome, intention digest, or feedback record without
-  understanding correlation risk.
-- Do not deploy candidate contracts from this repository without the guarded
-  deployment workflow, exact human confirmations, independent review, and
-  explicit production authorization.
+- Never construct a public checkpoint or on-chain record from a genome,
+  intention, feedback, private material, or a digest derived from those values.
+- This source tree has no deployment command. Do not deploy these contracts.
+  Any future workflow requires separate review, exact human authorization, and
+  the actual-target EIP-7951 hard gate immediately before broadcast.
 - Preserve failed materialization evidence privately; never advance canonical
   version state on failure.
 
@@ -332,7 +343,8 @@ Controls:
 
 - canonical offline BuilderAccount device/transfer/recovery proof reduction;
 - independent security audit of contracts and node transport;
-- authenticated/encrypted peer transport beyond public-record replication;
+- authenticated/encrypted peer transport beyond bounded eligible-lineage
+  evidence replication;
 - sandboxed materialization for untrusted templates and references;
 - key-compromise reporting and revocation UX;
-- privacy analysis for public low-entropy commitments.
+- privacy analysis for any future closed public projections.

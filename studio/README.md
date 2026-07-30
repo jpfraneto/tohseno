@@ -133,9 +133,11 @@ runtime code hashes, source commit, target chain, and EIP-7951 requirement.
 That definition is intentionally `inactive`, and `active_generation` is
 `null`: no trusted release-authority root or signed activation exists.
 
-A build definition is not deployment evidence. Studio performs no chain RPC,
-does not deploy or broadcast contracts, exposes no predicted address as
-authority, and has no public Shot publication path. It also exposes no
+A build definition is not deployment evidence. Studio performs no TOHSENO
+witness-chain RPC, does not deploy or broadcast TOHSENO witness contracts,
+exposes no predicted address as authority, and has no public Shot publication
+path. Its separately confirmed Bankr token-launch workflow does not activate a
+TOHSENO contract generation or publish a Shot. Studio also exposes no
 ShotRelations, handle, App Store attestation, Appcoin, or device-pairing
 surface. A future release must add separately authorized activation evidence
 before Studio may represent a public witness generation as active.

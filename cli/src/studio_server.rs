@@ -1231,7 +1231,7 @@ fn studio_node_facts() -> StudioNodeFacts {
             )),
             replicated_shots: Some(info.indexed_shots),
             detail: format!(
-                "Integrity verified for {} stored public actions. This local view does not claim global completeness.",
+                "Integrity verified for {} eligible ordinary-lineage evidence records. No current publication or authority is implied.",
                 info.stored_actions
             ),
         },

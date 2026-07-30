@@ -108,7 +108,17 @@ jobs:
       - name: Candidate CLI smoke
         run: |
           cargo run --quiet --locked -p tohseno -- --json protocol info |
-            jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
+            jq -e \
+              '.schema == "tohseno.protocol-info/2"
+               and .protocol == "tohseno"
+               and .product_version == "0.7.1"
+               and .release_status == "stable"
+               and .contract_generation.generation == "0.8.0"
+               and .contract_generation.status == "definition_only_inactive"
+               and .active_generation == null
+               and .public_authority_available == false
+               and (has("deployment") | not)
+               and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
             grep -Fqx 'tohseno 0.7.1'
 
@@ -164,8 +174,30 @@ jobs:
         run: forge build --root contracts --sizes
       - name: Unit, fuzz, and invariant tests
         run: forge test --root contracts -vvv
+      - name: Contract gas snapshot
+        run: |
+          forge snapshot \
+            --root contracts \
+            --check .gas-snapshot \
+            --fuzz-seed 0x746f6873656e6f \
+            --fuzz-runs 256
       - name: P256 deployment gate behavior (local RPC stub)
         run: scripts/tests/test-probe-p256.sh
+      - name: Validate the non-authorizing Robinhood P256 audit observation
+        run: |
+          jq -e \
+            '.schema == "tohseno.p256-probe/2"
+             and .chain_id == 4663
+             and .valid == true
+             and .block.require_canonical == true
+             and .block.rechecked_after_probe == true
+             and .gas.measured_precompile == 6900
+             and .gas.measured_total == 7057
+             and .vectors.positive.output
+               == "0x0000000000000000000000000000000000000000000000000000000000000001"
+             and .vectors.negative.output == "0x"
+             and .vectors.infinity.output == "0x"' \
+            contracts/audits/robinhood-p256-2026-07-30.json
       - name: Reject stale ABI, bytecode, or deployment-plan artifacts
         run: scripts/build-contract-abi.sh --check
 
@@ -195,7 +227,11 @@ jobs:
           node --check studio/app.js
           node --test studio/tests/static_assets.test.mjs
           jq -e \
-            '.protocol == "tohseno" and .canonical == false' \
+            '.schema == "tohseno.protocol-page/2"
+             and .protocol == "tohseno"
+             and .canonical == false
+             and .active_contract_generation == null
+             and .contracts_deployed == false' \
             site/protocol/protocol.json
           jq -e \
             '.schema == "tohseno.genesis-candidate-report/1"

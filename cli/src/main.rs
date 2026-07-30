@@ -305,7 +305,7 @@ enum NetworkCommand {
 
 #[derive(Debug, Subcommand)]
 enum RegistryCommand {
-    /// Show the local head and any evidence-backed public witness.
+    /// Show the local head and why no public witness is checked while inactive.
     Show { app_name: String },
 }
 

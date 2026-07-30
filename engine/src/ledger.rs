@@ -285,12 +285,6 @@ impl Ledger {
         self.lock_named(app_name, app_name)
     }
 
-    /// Serializes public actions that share BuilderAccount and registry nonces
-    /// across otherwise independent apps.
-    pub fn lock_public_actions(&self) -> Result<AppLock, LedgerError> {
-        self.lock_named(".public-builder-account", "public BuilderAccount")
-    }
-
     fn lock_named(&self, name: &str, busy_label: &str) -> Result<AppLock, LedgerError> {
         self.initialize()?;
         let locks = self.machine_root.join("locks");
@@ -1892,15 +1886,6 @@ mod tests {
 
         drop(first);
         assert!(second_ledger.lock_app("press").is_ok());
-
-        let public = first_ledger.lock_public_actions().unwrap();
-        assert!(matches!(
-            second_ledger.lock_public_actions(),
-            Err(LedgerError::AppBusy(name)) if name == "public BuilderAccount"
-        ));
-        assert!(second_ledger.lock_app("public-builder-account").is_ok());
-        drop(public);
-        assert!(second_ledger.lock_public_actions().is_ok());
     }
 
     #[test]

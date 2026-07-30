@@ -51,8 +51,10 @@ through a compatibility adapter as an accepted version record for the initial
 Apple expression. Existing signatures are neither rewritten nor wrapped in
 claims of historical facts that were not recorded.
 
-The existing Builder identity remains the authority system. Ownership actions
-change continuity authority; they do not claim authorship of generated source.
+Frozen v0.7 BuilderID remains a local/offline compatibility identity.
+Successor public authority requires controller evidence under a client-trusted
+activated contract generation. Ownership actions change continuity authority;
+they do not claim authorship of generated source.
 
 The existing Apple Fascia remains the concrete Apple capability substrate.
 Neutral organ declarations can describe what a capability provides, owns,
@@ -60,13 +62,13 @@ requires, emits, consumes, satisfies, and tests, but do not replace the
 normative Fascia sources or broaden current materialization beyond native Apple
 software.
 
-The existing public contracts remain optional witnesses:
-
-- the registry can bind an authorized controller to a public accepted head;
-- lineage checkpoints can be content commitments;
-- relations can point to handles, app-store records, or tokens;
-- no private intention, feedback, repository, transcript, or subjective genome
-  interpretation belongs on-chain.
+Optional public contracts remain witnesses rather than the Shot. ADR 0006
+supersedes the original v0.7 surface: the successor registry binds an
+authorized controller only to the digest of a closed, ancestry-free public
+checkpoint. It has no relation contract, handle, App Store self-claim,
+`publicState`, or generic content commitment. No private intention, feedback,
+repository, transcript, ordinary-lineage digest, or subjective genome
+interpretation belongs on-chain.
 
 A token association is a signed relationship. It is never a Shot identifier,
 ownership key, expression identifier, or requirement for a Shot. The existing
@@ -76,16 +78,16 @@ Base (`eip155:8453`) without identifying the token contract with Anky, TOHSENO,
 any `$TOHSENO` association, or either Shot's controller. No token address is
 implied by that example.
 
-Nodes validate and preserve public lineage actions and report referenced
-artifact availability. The candidate node stores action records only; a future
-node may additionally preserve artifact bytes without changing lineage law.
-Nodes may possess partial histories and different artifact subsets. They agree
-on deterministic byte, signature, and available-segment validity.
-Authority is a separate result: a segment with an unavailable parent remains
-explicitly unresolved until enough causal context is present to reduce it
-under the candidate authority policy. Nodes do not decide whether an intention
-is metaphysically coherent, run a global mutable database, or require
-distributed consensus over one universal head.
+Nodes validate and preserve bounded records and report referenced artifact
+availability. The current node retains legacy action records only; a future
+node may additionally preserve public-checkpoint receipts or artifact bytes
+without changing lineage law. Nodes may possess partial histories and
+different artifact subsets. They agree on deterministic byte, signature, and
+available-segment validity. Authority is a separate result: while no contract
+generation is active, all candidate public authority remains unresolved even
+for a complete neutral branch. Nodes do not decide whether an intention is
+metaphysically coherent, run a global mutable database, or require distributed
+consensus over one universal head.
 
 ## Canonical object meanings
 

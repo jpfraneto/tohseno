@@ -94,10 +94,10 @@ Registration has two steps.
    and eligible, and validates the controller's EIP-712 signature.
 
 The commitment binds controller, Shot ID, salt, registry, chain ID, and reveal
-deadline. The signed reveal additionally binds the initial public head and
-registration nonce. An observer can relay a victim's exact reveal only to the
-victim's controller. A different controller needs its own commitment to mature
-and its own signature.
+deadline. The signed reveal additionally binds the initial public-checkpoint
+head and registration nonce. An observer can relay a victim's exact reveal
+only to the victim's controller. A different controller needs its own
+commitment to mature and its own signature.
 
 The effective reveal window is inclusive:
 
@@ -120,9 +120,9 @@ public witness. It is not local lineage length, ontology `Version.ordinal`,
 Apple `CFBundleVersion`, or App Store build history. An adopted expression at
 local version N still begins at registry checkpoint 1.
 
-The initial head may represent the current accepted public lineage when a Shot
-first opts into publication. The registry does not manufacture claims about
-unwitnessed earlier checkpoints.
+The initial checkpoint begins the Shot's public identity-continuity witness
+when it first opts into publication. It does not represent private expression
+state or manufacture claims about unwitnessed earlier lineage.
 
 ### Registry heads use a public-only projection
 
@@ -173,7 +173,9 @@ separate from successor public activation.
 
 P-256 verification is precompile-only and fails closed. No 232k-gas
 pure-Solidity fallback is retained for a target where the measured native
-operation costs 6,900 gas.
+operation costs 6,900 gas. The reviewed observation is preserved as
+`contracts/audits/robinhood-p256-2026-07-30.json`; it is time- and block-scoped
+and cannot authorize a later deployment.
 
 An absent precompile and a legitimate invalid EIP-7951 signature can both
 return empty bytes. The contract cannot distinguish them at runtime. The

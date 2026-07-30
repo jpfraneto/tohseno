@@ -104,9 +104,14 @@ test("node participation is optional and cannot block local Studio startup", () 
 test("contract definition is visibly inactive and Studio has no retired public surface", () => {
   assert.match(html, /Contract definition/);
   assert.match(html, /id="generation-status"[^>]*>Inactive</);
+  assert.match(html, /Legacy local BuilderID prediction/);
+  assert.match(html, /eligible legacy\s+evidence/);
   assert.match(script, /active_generation: activeGeneration/);
   assert.match(script, /No public witness generation is active/);
+  assert.match(script, /eligible legacy evidence records/);
+  assert.match(script, /active_generation is null/);
   assert.match(script, /no deployment or broadcast path/);
+  assert.doesNotMatch(script, /public Shot records|public records it possesses/);
   assert.doesNotMatch(html, /ShotRelations|Pairing target|Experimental publish/);
   assert.doesNotMatch(html, /id="(?:handle|appcoin|registry|published)-status"/);
   assert.doesNotMatch(script, /pairing|claimHandle|attestAppStore|ShotRelations/);

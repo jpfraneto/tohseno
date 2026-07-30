@@ -415,7 +415,7 @@ const renderNodeStatus = () => {
     ui.nodeProtocol.textContent = "Local only";
     ui.nodeReplicated.textContent = "Not queried";
     ui.nodeDetail.textContent =
-      "Studio remains fully local. Configure a node only when this Mac should validate or replicate public Shot records.";
+      "Studio remains fully local. Configure a node only when this Mac should preserve eligible legacy evidence records.";
     renderProtocolInspector();
     return;
   }
@@ -428,10 +428,10 @@ const renderNodeStatus = () => {
   ui.nodeProtocol.textContent = node.protocol_version || "Unknown";
   const replicated = node.replicated_shots ?? node.replicated;
   ui.nodeReplicated.textContent = typeof replicated === "number"
-    ? `${replicated} public Shot${replicated === 1 ? "" : "s"}`
+    ? `${replicated} Shot${replicated === 1 ? "" : "s"} in local evidence`
     : humanStatus(replicated || "unknown");
   ui.nodeDetail.textContent = node.detail || (reachable
-    ? "This node is available to validate and serve the public records it possesses."
+    ? "This node can validate and serve eligible evidence it possesses; active_generation is null."
     : "The configured node is unavailable. Studio and private Shot work remain usable.");
   renderProtocolInspector();
 };

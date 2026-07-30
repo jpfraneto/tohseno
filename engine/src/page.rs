@@ -520,13 +520,13 @@ a{{color:var(--blue);text-underline-offset:3px}}footer{{color:var(--muted);font-
 <body>\n\
 <main>\n\
 <header><img class=\"icon\" src=\"icon.png\" width=\"112\" height=\"112\" alt=\"{app} app icon\"><div><div class=\"eyebrow\">TOHSENO Shot</div><h1>{app}</h1><div class=\"badges\"><span class=\"badge verified\">Locally verified</span><span class=\"badge\">Private</span><span class=\"badge\">Evolution {sequence}</span></div></div></header>\n\
-<section><h2>Identity</h2><dl class=\"facts\"><div><dt>ShotID</dt><dd class=\"mono\">{shot_id}</dd></div><div><dt>BuilderID</dt><dd class=\"mono\">{builder_id}</dd></div><div><dt>Bundle</dt><dd class=\"mono\">{bundle_id}</dd></div><div><dt>Signed at</dt><dd>{created_at}</dd></div></dl></section>\n\
+<section><h2>Identity</h2><dl class=\"facts\"><div><dt>ShotID</dt><dd class=\"mono\">{shot_id}</dd></div><div><dt>Legacy local BuilderID prediction</dt><dd class=\"mono\">{builder_id}</dd></div><div><dt>Bundle</dt><dd class=\"mono\">{bundle_id}</dd></div><div><dt>Signed at</dt><dd>{created_at}</dd></div></dl></section>\n\
 <section><h2>Verification</h2><p>This Evolution’s closed record and low-s P-256 signature verified locally. Its Fascia declaration and conformance receipt are valid and bound to the same Shot.</p><p><a href=\"shot.json\">Shot record</a> · <a href=\"fascia.json\">Fascia</a> · <a href=\"assets/signature.json\">Signature</a> · <a href=\"assets/conformance.json\">Conformance</a></p></section>\n\
 <section><h2>Public state</h2><dl class=\"facts\"><div><dt>Protocol state</dt><dd>Private</dd></div><div><dt>App metadata</dt><dd>{distribution}</dd></div><div><dt>Source</dt><dd>Not published</dd></div></dl><p class=\"quiet\">A local static page is not a publication receipt. No prompt, input image, full source tree, build log, or app artifact is included; the story and preview above, when present, are the only excerpts and come from the world’s own WORLD.md and recorded first screen.</p></section>\n\
 <section><h2>Contract generation audit</h2>{generation_markup}</section>\n\
 {preview_markup}\
 {world_markup}\
-<footer>Generated from public Evolution facts and the world’s own story. The embedded contract generation is an inactive offline build definition.</footer>\n\
+<footer>Generated from selected locally verified legacy record fields and the world’s own story. The embedded contract generation is an inactive offline build definition.</footer>\n\
 </main>\n\
 </body>\n\
 </html>\n",

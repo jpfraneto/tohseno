@@ -18,8 +18,17 @@ does not discover a repository or mutate a Shot.
 
 A creation adapter should use this order:
 
-1. Acquire or create the local Builder DeviceKey without exporting it.
-2. Predict or read BuilderAccount and form the BuilderID.
+1. Resolve contract-generation authority before creating identity material.
+   If no client-trusted activation exists, fail secure BuilderID creation
+   before invoking a key helper or writing identity state. Current generation
+   0.8.0 is inactive. An explicit software-test backend may create only a
+   visibly test-only, local/private frozen-v0.7 identity; it can never
+   authorize a public action.
+2. For an existing private v0.7 artifact, load and verify its exact frozen
+   descriptor and initial DeviceKey. For a future activated generation,
+   acquire its local Builder DeviceKey without exporting it and derive the
+   BuilderID only under that generation's verified identity law. Never
+   substitute a v0.7 predicted address for inactive successor authority.
 3. Generate a random 32-byte ShotID for a new Shot.
 4. Hash exact raw prompt and reference-image inputs with
    `genesis_input_sha256_from_bytes`.
@@ -113,7 +122,14 @@ Do not substitute the generated-app source-tree algorithm.
 
 ## Builder and public actions
 
-Before signing:
+### Frozen v0.7 public actions
+
+The rules in this subsection apply only when decoding or verifying exact
+frozen v0.7 action bytes. The v0.7 contracts were never deployed, so current
+implementations MUST NOT construct, sign, submit, or relay these retired
+actions. They are not successor `ShotRegistry` generation 0.8 rules.
+
+For historical verification:
 
 - validate the domain name, version, chain, and nonzero verifying contract;
 - compute a proposed key ID as raw `Keccak-256(x32 || y32)`;
@@ -121,9 +137,9 @@ Before signing:
   sequence-1 root or a verified legacy-adoption N+1 root;
 - require `CREATE_SHOT.public_state == PUBLISHED`;
 - require replacement and recovery addresses to be nonzero;
-- bind nonce and deadline from the target contract;
-- show the account, action, permissions, chain, contract, and deadline to the
-  authorizing human.
+- validate the signed nonce and deadline only against independently supplied
+  historical state evidence; without that evidence, report on-chain acceptance
+  as unavailable.
 
 Do not expose replacement or recovery commands merely because the action
 encoder exists. The implementation must first obtain an evidence-backed nonce,
@@ -133,9 +149,11 @@ none of those three pieces and therefore accepts only its CREATE2 initial
 DeviceKey. Its encrypted mnemonic vault is a local backup, not a completed
 recovery path.
 
-The compact P-256 signature sent to BuilderAccount is
+The frozen v0.7 compact P-256 signature encoding was
 `0x01||x||y||r||s`. Recovery uses the contract’s separate low-s secp256k1
 encoding. A relayer is a messenger and never becomes owner or signer.
+
+### ShotRegistry generation 0.8
 
 For ShotRegistry generation 0.8, use `RegistryActionV2`; never mutate or
 reinterpret the frozen `PublicAction` type. Generate the registration salt
@@ -151,13 +169,13 @@ live ERC-1271 state before submission and again from the receipt block when
 claiming acceptance.
 
 Do not map `ShotRecord.sequence`, Version ordinal, or `CFBundleVersion` to
-`checkpointSequence`. Do not feed a coherent-intention lineage action digest
-directly into `head` unless every byte in the entire committed ancestry is
-approved for public disclosure. A selected public action may still link to a
-private predecessor. The supported head preimage is the closed
-`PublicCheckpoint`: start it independently at witness checkpoint 1, bind it to
-the exact generation/chain/registry domain, and continue only through its own
-prior public digest. Transfer preserves that head.
+`checkpointSequence`. Never feed a coherent-intention lineage action digest
+directly into `head`: even an action marked public may link to a private
+predecessor, and current clients do not maintain two competing head laws. The
+only supported head preimage is the closed `PublicCheckpoint`: start it
+independently at witness checkpoint 1, bind it to the exact
+generation/chain/registry domain, and continue only through its own prior
+public digest. Transfer preserves that head.
 
 Create `issued_at` for the public checkpoint itself; do not copy a timestamp or
 commitment from private lineage. Keep any local checkpoint-to-private-state
@@ -234,19 +252,22 @@ preserve `authority_context_available = false`; a valid signature alone does
 not establish current ownership. Retain competing causally valid heads instead
 of selecting whichever arrived last.
 
-Before admitting a new commitment as a production candidate, reproduce its
-BuilderID from the configured factory, salt, pinned BuilderAccount creation
-bytecode, and declared key. The neutral reducer intentionally cannot infer
-that deployment evidence. Derive the salt with
-`identity::initial_builder_account_salt`; do not duplicate or reinterpret its
-domain-separated law. After an Ownership action, require the new signer for
-every subsequent transition; the old signer fails even if its signature is
-cryptographically valid.
+For a frozen v0.7 artifact, reproduce its historical BuilderID from the exact
+v0.7 factory, salt, creation bytecode, and declared key; derive the salt with
+`identity::initial_builder_account_salt` rather than duplicating its
+domain-separated law. Do not apply that compatibility rule to successor public
+authority. A new public commitment additionally requires a client-trusted
+activated generation and controller evidence matching that generation. The
+neutral reducer intentionally cannot infer deployment or activation evidence,
+and no generation is active today. After an Ownership action, require the new
+signer for every subsequent transition; the old signer fails even if its
+signature is cryptographically valid.
 
 Persist raw intention bytes separately when they are private. The canonical
 Intention record commits their exact digest, length, media type, and honest
 availability; inline text is optional and must hash byte-for-byte. Never
-publish a private artifact because its descriptor appears in public lineage.
+publish a private artifact merely because its descriptor exists in signed
+lineage or legacy node evidence.
 
 For Apple expressions, use the existing Fascia as the concrete capability
 source and project its declarations into Organ records. Do not replace Fascia

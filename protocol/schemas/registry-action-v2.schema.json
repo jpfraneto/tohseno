@@ -166,7 +166,7 @@
           "$ref": "common.schema.json#/$defs/positiveSafeUint"
         }
       },
-      "$comment": "new_controller must differ from current_controller; live registry state resolves current authority."
+      "$comment": "new_controller must differ from current_controller; under a client-trusted activated generation, live receipt-block registry state is required to resolve authority."
     },
     "action": {
       "oneOf": [

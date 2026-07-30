@@ -2727,7 +2727,7 @@ impl std::fmt::Display for EngineError {
             }
             Self::BuilderMismatch(app) => write!(
                 f,
-                "{app} belongs to a different BuilderID than the active local identity"
+                "{app} belongs to a different frozen v0.7 BuilderID than the stored local legacy identity"
             ),
             Self::AlreadyProtocol(app) => {
                 write!(f, "{app} already has a signed TOHSENO identity")

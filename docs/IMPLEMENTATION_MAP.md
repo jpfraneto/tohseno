@@ -6,6 +6,12 @@ changes that follow. Existing code is authoritative where this document and
 older prose differ. The stable `v0.7.1` patch release supersedes the
 historical release-status statements in this snapshot.
 
+> This is deliberately a pre-change map, not current protocol law. Statements
+> below about publishing intention digests, `ShotRelations`, the absence of a
+> peer node, or v0.7 predicted addresses are superseded by ADR 0006,
+> `docs/PRIVACY.md`, and the current specification. They remain here only to
+> explain the migration baseline.
+
 ## Repository lineage
 
 The current `main` contains nineteen commits from 2026-07-29, beginning with

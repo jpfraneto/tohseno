@@ -295,12 +295,12 @@ pub fn complete_evolution(
         .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
     if signature.public_key != builder.device.public_key {
         return Err(ProtocolLifecycleError::InvalidState(
-            "record signer is not the active local DeviceKey".into(),
+            "record signer is not the stored initial v0.7 DeviceKey".into(),
         ));
     }
     checks.push(pass(
         "record.signature",
-        "valid low-s P-256 signature by the active local DeviceKey",
+        "valid low-s P-256 signature by the stored initial v0.7 DeviceKey",
         if builder.test_only {
             "signature verified and DeviceKey matched (TEST ONLY local authority; never publishable)"
         } else {
@@ -312,14 +312,14 @@ pub fn complete_evolution(
         initial_device_builder_id_for_v1_factory(&prepared.record.factory, &signature.public_key)?;
     if predicted != prepared.record.builder_id {
         return Err(ProtocolLifecycleError::InvalidState(format!(
-            "record signer controls {predicted}, not claimed BuilderID {}",
+            "record signer reproduces frozen v0.7 prediction {predicted}, not claimed BuilderID {}",
             prepared.record.builder_id
         )));
     }
     checks.push(pass(
         "record.device_authority",
-        "signing DeviceKey deterministically controls the claimed BuilderID",
-        "initial DeviceKey, pinned factory, salt, and CREATE2 address matched",
+        "signing DeviceKey reproduces the claimed frozen v0.7 BuilderID prediction",
+        "initial DeviceKey, frozen factory, salt, and CREATE2 prediction matched for local/offline authority only",
         Some("TOHSENO/signature.json"),
     ));
     let report = report_for(&prepared.record, checks);

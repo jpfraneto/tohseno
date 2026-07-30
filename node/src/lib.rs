@@ -1,14 +1,15 @@
 //! A protocol-driven TOHSENO lineage node.
 //!
-//! Nodes keep an append-only, content-addressed subset of public signed
-//! lineage. They deterministically validate what they possess, rebuild all
-//! indexes from canonical actions, and synchronize only when explicitly
-//! asked. They do not elect a universal head or gain ownership by storing an
-//! action. A public middle segment may be preserved with unresolved authority;
-//! a complete neutral reduction may verify, but candidate authority remains
-//! unresolved while no release-authorized contract generation is active.
-//! Retired v0.7 CREATE2 inputs remain available for offline reproduction only
-//! and never authorize public lineage.
+//! Nodes keep an append-only, content-addressed subset of eligible ordinary
+//! lineage as neutral or legacy evidence. They deterministically validate what
+//! they possess, rebuild all indexes from canonical actions, and synchronize
+//! only when explicitly asked. They do not elect a universal head or gain
+//! ownership by storing an action. An unanchored evidence segment may be
+//! preserved with unresolved authority; a complete neutral reduction may
+//! verify, but active-generation public authority remains unresolved while no
+//! release-authorized contract generation is active. Retired v0.7 CREATE2
+//! inputs remain available for offline reproduction only and never establish
+//! active public authority.
 
 #![forbid(unsafe_code)]
 

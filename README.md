@@ -130,9 +130,11 @@ The canonical v2 model is additive around the frozen v1 Apple records:
 - Feedback bound to an exact expression Version;
 - authorized Evolutionary Intents and verified Evolution transitions;
 - signed append-only lineage actions with honest artifact availability;
-- ownership under the existing BuilderID and P-256 DeviceKey system;
+- ownership under versioned BuilderID and P-256 DeviceKey policy, with frozen
+  v0.7 identity limited to legacy offline verification;
 - optional Token Associations that never replace identity;
-- verifiable public replication through independent partial nodes.
+- neutral replication of bounded lineage evidence through independent partial
+  nodes.
 
 `tohseno.shot/1` remains byte-for-byte valid. It is the compatibility record
 for one accepted state of the first Apple expression, not a second competing
@@ -146,11 +148,13 @@ contract the Shot, transfer Shot ownership, merge Anky with TOHSENO, or
 conflate `$ANKY` with any `$TOHSENO` association. This repository asserts no
 `$ANKY` token address.
 
-The candidate node stores signed public lineage actions, derives indexes, and
-reports unresolved parents and missing artifacts. It does not store referenced
-artifact bytes or manufacture one global network head. A public segment can be
-signature-valid while authority remains unresolved until its predecessor is
-available.
+The candidate node preserves legacy signed lineage records, derives indexes,
+and reports unresolved parents and missing artifacts. It does not store
+referenced artifact bytes or manufacture one global network head. Because no
+contract generation is active, even a complete neutrally valid branch remains
+explicitly unresolved as public Builder authority. The ancestry-free public
+checkpoint format is defined, but this node revision does not yet inventory
+checkpoint receipts.
 
 Portable export/import is a verified record projection, not a source clone,
 ownership transfer, or trusted materialization. Public export does not relabel
@@ -158,12 +162,13 @@ private intention or feedback as public. The candidate bundle inventory commits
 every included payload file, while source and retained build artifacts remain
 explicit omissions.
 
-Local creation and verification do not require a TOHSENO server. Publishing is
-a separate signed action. The candidate Robinhood Chain contracts are
-non-upgradeable, unaudited, and currently only a deterministic deployment plan;
-the three values in
-[`contracts/deployments/robinhood-mainnet-genesis.json`](contracts/deployments/robinhood-mainnet-genesis.json)
-are planned CREATE2 addresses, not deployed contracts.
+Local creation and verification do not require a TOHSENO server. Publication
+is a separate, currently inactive boundary. The successor Robinhood Chain
+contracts are non-upgradeable, unaudited, and undeployed. The versioned
+[`0.8.0` contract generation](contracts/generations/0.8.0/generation.json)
+commits exact source, compiler, ABI, bytecode, runtime hashes, and conditional
+CREATE2 arithmetic for audit. It is not deployment or activation evidence.
+No signed activation or release-authority trust root is committed.
 
 The normative entry points are:
 
@@ -172,8 +177,14 @@ The normative entry points are:
   pre-change system and compatibility decisions;
 - [`docs/adr/0004-coherent-intention-lineage.md`](docs/adr/0004-coherent-intention-lineage.md)
   for the ontology decision;
+- [`docs/adr/0006-public-witness-and-contract-generation.md`](docs/adr/0006-public-witness-and-contract-generation.md)
+  for the narrowed witness and generation/activation boundary;
+- [`docs/adr/0007-app-metadata-publication-policy.md`](docs/adr/0007-app-metadata-publication-policy.md)
+  for the frozen metadata compatibility and current fail-closed policy;
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for security and privacy
   boundaries;
+- [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](docs/MIGRATION_0_8_CONTRACT_GENERATION.md)
+  for the ABI break and deterministic legacy boundary;
 - [`protocol/SPECIFICATION.md`](protocol/SPECIFICATION.md) for protocol law;
 - [`protocol/IMPLEMENTERS.md`](protocol/IMPLEMENTERS.md) for independent
   implementations;
@@ -210,16 +221,17 @@ tohseno identity import-backup --confirm
 ```
 
 `identity backup` and `identity import-backup` store encrypted local
-recovery-authority material bound to the current BuilderID. They do not
-activate recovery, recover or rotate an account, authorize a replacement
+recovery-authority material bound to the stored legacy v0.7 BuilderID. They do
+not activate recovery, recover or rotate an account, authorize a replacement
 device, or submit an on-chain action.
 
-The GENESIS CLI intentionally exposes no DeviceKey authorize, revoke, rotate,
-or recover command. Its signer and offline verifier accept only the original
-DeviceKey that reproduces the CREATE2 BuilderID. A valid signature by another
-key fails closed because the candidate has no canonical authorization proof
-chain or evidence-backed nonce source yet. See
-[ADR 0001](docs/adr/0001-device-key-replacement-deferred.md).
+The legacy v0.7 CLI exposes no DeviceKey authorize, revoke, rotate, or recover
+command. Its offline verifier accepts only the original DeviceKey that
+reproduces the frozen v0.7 BuilderID. The successor `BuilderAccount` now has
+permissioned device administration plus delayed, vetoable recovery, closing
+the contract-design question in
+[ADR 0001](docs/adr/0001-device-key-replacement-deferred.md); an off-chain
+proof format and owner UX remain future work and are not fabricated here.
 
 The candidate's complete local Shot lifecycle is explicit and automation-safe:
 
@@ -299,7 +311,7 @@ tohseno verify /absolute/path/received-field-notebook
 The current portable bundle carries verified lineage and explicit omissions;
 it deliberately does not carry expression source or owner keys. See
 [`node/README.md`](node/README.md) for running and synchronizing independent
-public-record nodes.
+neutral/legacy-evidence nodes.
 
 The neutral v2 Token Association lifecycle is local-first, private by default,
 and chain-specific. This example signs a relationship to a mock Base address:
@@ -334,8 +346,9 @@ The frozen v0.7 `publish`, `handle`, and `appcoin` mutations are no longer
 exposed by the CLI, and their deployment and lifecycle scripts fail closed.
 Their source and decoding law remain available at the immutable `v0.7.1` tag
 for offline verification only. No successor public-witness command will be
-enabled until its contract generation is finalized and the actual target RPC
-passes the complete EIP-7951 deployment gate.
+enabled until an independently trusted release policy authorizes a signed
+activation and the actual target RPC passes the complete EIP-7951 deployment
+gate.
 
 ## Build and verify from source
 
@@ -355,6 +368,8 @@ swift test --package-path fascia/apple
 forge fmt --root contracts --check
 forge build --root contracts
 forge test --root contracts -vvv
+forge snapshot --root contracts --check .gas-snapshot \
+  --fuzz-seed 0x746f6873656e6f --fuzz-runs 256
 scripts/tests/test-probe-p256.sh
 scripts/build-contract-abi.sh --check
 ```
@@ -395,11 +410,11 @@ deployment coordinates.
 | Protocol schemas, vectors, canonicalization, identities, and lineage law | Implemented; covered by local automated tests |
 | Apple identity helper and reusable Fascia | Implemented; software-backed tests completed |
 | Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; unaudited |
-| Public lineage node | Implemented for signed action records and explicit static-peer synchronization; no artifact store or production node claimed |
+| Bounded lineage-evidence node | Implements legacy-action preservation and explicit static-peer synchronization; active-generation authority stays unresolved, and checkpoint receipt inventory is deferred |
 | Neutral Token Association | Implemented as private signed v2 lineage; mixed-ancestry public outbox retired, and no token existence or chain anchor claimed |
 | Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
-| Robinhood Chain P256VERIFY read-only probe | Observed successfully; exact request/result is in the lifecycle report |
-| Successor contracts | Unversioned draft only; no finalized addresses and not deployed |
+| Robinhood Chain P256VERIFY read-only probe | Complete positive/negative/infinity and 6,900-gas observation preserved in [`contracts/audits/`](contracts/audits/); time/block scoped and not deployment authorization |
+| Successor contracts | Immutable `0.8.0` build definition committed for audit; no signed activation, trusted release policy, deployment, or production address |
 | Frozen v0.7 publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at the immutable v0.7.1 tag |
 | BuilderAccount, Shot #1, and public checkpoints | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |

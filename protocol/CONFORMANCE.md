@@ -136,7 +136,7 @@ required.
 | `lineage_v2.action_signature` | The unchanged strict P-256 sidecar signs SHA-256 of RFC 8785 action bytes exactly once. |
 | `lineage_v2.causality` | ShotID is stable; sequence and previous commitments are contiguous; timestamps do not move backward. |
 | `lineage_v2.authority` | Commitment actor/key agree; each later actor and signing key equal current derived authority; ownership changes take effect only after an authorized action. |
-| `lineage_v2.factory_binding` | Candidate policy independently reproduces the initial BuilderID from the pinned factory, salt, creation bytecode, and declared key. Pure reduction alone does not satisfy this check. |
+| `lineage_v2.controller_binding` | Pure reduction alone does not establish public controller authority. Frozen v0.7 offline verification may reproduce the exact historical prediction; successor public authority requires a client-trusted activated generation and matching controller evidence. With no active generation this check cannot pass for public authority. |
 | `lineage_v2.intention` | Exact original material descriptors match the commitment; inline UTF-8, when present, matches digest and length; the source is never replaced. |
 | `lineage_v2.genome` | Proposal base matches current accepted genome and every mutation has a distinct explicit acceptance. |
 | `lineage_v2.organ_graph` | The full same-Expression Organ declarations, sorted by `organ_id` and RFC 8785 encoded, reproduce the graph digest in both VerificationResult and Version at their respective actions. |
@@ -149,4 +149,4 @@ required.
 | `lineage_v2.availability` | Missing, unknown, private, local, public, replicated, verified, and anchored states are reported without implication or upgrade. |
 | `lineage_v2.partial_segment` | An unanchored middle segment reports that authority context is unavailable even when signatures and adjacency verify. |
 | `lineage_v2.v1_adapter` | Every original `/1` record and sidecar remains byte-identical; unavailable historical ontology fields remain unknown. |
-| `provenance_v2.embedded` | New-world `/2` metadata at the existing excluded provenance path binds Shot, expression, VersionID, genome, lineage head, source, optional build digest, and protocol version. |
+| `provenance_v2.embedded` | New-world `/2` metadata at the existing excluded provenance path binds Shot, expression, VersionID, genome, lineage head, source, optional build digest, and protocol version. Its shipped optional registry coordinates are compatibility data only; current generation and verification policy requires them absent while no contract generation is active. |

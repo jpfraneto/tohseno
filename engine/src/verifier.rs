@@ -273,12 +273,12 @@ fn verify_shot_directory_inner(
                 .and_then(|predicted| {
                     if predicted == record.builder_id {
                         Ok(format!(
-                            "signing DeviceKey reproduces BuilderID {} from the pinned factory",
+                            "signing DeviceKey reproduces frozen v0.7 BuilderID prediction {} from the frozen factory",
                             record.builder_id
                         ))
                     } else {
                         Err(format!(
-                            "signing DeviceKey controls {predicted}, not claimed BuilderID {}",
+                            "signing DeviceKey reproduces frozen v0.7 prediction {predicted}, not claimed BuilderID {}",
                             record.builder_id
                         ))
                     }
@@ -288,7 +288,7 @@ fn verify_shot_directory_inner(
     };
     checks.push(result_check(
         "record.device_authority",
-        "record signer is the initial DeviceKey that deterministically controls the claimed BuilderID",
+        "record signer is the initial DeviceKey that reproduces the claimed frozen v0.7 BuilderID prediction",
         &device_authority,
         Some("TOHSENO/signature.json"),
     ));
@@ -2579,7 +2579,7 @@ CURRENT_PROJECT_VERSION = 1;
     }
 
     #[test]
-    fn v2_embedded_metadata_preserves_and_verifies_the_v1_public_witness() {
+    fn v2_metadata_preserves_legacy_commitment_but_rejects_registry_claim() {
         let fixture = Fixture::new();
         let record: ShotRecord =
             serde_json::from_slice(&fs::read(fixture.shot.join("TOHSENO/shot.json")).unwrap())

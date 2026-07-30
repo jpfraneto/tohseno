@@ -1,11 +1,18 @@
-# TOHSENO Constitution — GENESIS Candidate
+# Historical TOHSENO Constitution — GENESIS Candidate
+
+> **Superseded implementation input.** This document is retained to explain the
+> frozen v0.7 lineage and must not be used as current protocol or deployment
+> authority. `protocol/SPECIFICATION.md` and accepted ADR 0006 govern the
+> successor. In particular, `ShotRelations`, handles, App Store self-claims,
+> generic `contentCommitment`, `publicState`, and every v0.7 deployment path are
+> retired. No contract generation is active.
 
 **Version:** `0.7.0`
 **Codename:** `GENESIS`
-**Status:** protocol candidate; not the canonical release
+**Status:** historical and superseded; not the canonical release
 
-This file is the constitutional center of the TOHSENO repository. Normative
-byte encodings, validation rules, and conformance requirements live in
+This file was the constitutional center of the v0.7 implementation. Normative
+current byte encodings, validation rules, and conformance requirements live in
 `protocol/`; the Apple connective structure lives in `fascia/apple/`; deployed
 contract coordinates, when they exist, live in signed candidate deployment
 records. Prose never overrides those executable artifacts.
