@@ -297,6 +297,58 @@ The frozen v0.7 model remains `DeviceAction`; the successor model is
 are `schemas/builder-account-action-v2.schema.json` and
 `test-vectors/builder-account-v2.json`.
 
+## ShotRegistry contract generation 0.8
+
+The v0.7 registry and relations actions above remain frozen decoding inputs
+and will never be deployed by the TOHSENO project. The successor public
+witness has EIP-712 domain:
+
+```text
+name = "TOHSENO ShotRegistry"
+version = "2"
+```
+
+Its opaque commitment and signed action encodings are exactly:
+
+```text
+ShotRegistrationCommitment(address controller,bytes32 shotId,bytes32 salt,address registry,uint256 chainId,uint64 deadline)
+RegisterShot(bytes32 shotId,address controller,bytes32 head,bytes32 salt,uint64 nonce,uint64 deadline)
+AppendCheckpoint(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)
+TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)
+```
+
+`commitShot` is permissionless and unsigned. It MUST make no controller call.
+A duplicate live commitment MUST preserve its first timestamp. Reveal is valid
+only in the inclusive interval:
+
+```text
+[committedAt + 60 seconds, min(committedAt + 24 hours, deadline)]
+```
+
+The commitment preimage binds its type hash, controller, independent random
+ShotID, salt, registry address, current chain ID, and deadline. The signed
+reveal additionally binds the initial public lineage head and exact controller
+registration nonce. Successful reveal deletes the commitment and creates
+public checkpoint 1. Every append requires the exact previous head and
+increments `checkpointSequence` by one. Transfer preserves head and checkpoint
+count and consumes the shared Shot nonce.
+
+The registry accepts a deployed exact-magic ERC-1271 controller without
+pinning one BuilderAccount code hash. Candidate policy recognizes a BuilderID
+only against an approved contract generation. An exact 23-byte EIP-7702
+delegation designator beginning `0xef0100` is never an eligible controller.
+
+`checkpointSequence` is witness-local. It MUST NOT be derived from or compared
+to ontology Version ordinal, `ShotRecord.sequence`, `CFBundleVersion`, or App
+Store build history. A Shot first published at local version N still registers
+as checkpoint 1.
+
+The successor has no `publicState`, generic `contentCommitment`, handle, App
+Store attestation, or Appcoin contract state. A registry head may identify only
+an intentionally public canonical Shot lineage action. It MUST NOT be derived
+from app-runtime continuity records, installation or end-user data, private
+feedback or references, raw private intentions, or hashes of those values.
+
 ## Neutral coherent-intention lineage v2
 
 The stable ShotID identifies the committed coherent intention, not its Apple
@@ -390,12 +442,11 @@ BuilderID/key binding. Candidate policy must independently reproduce that
 BuilderID from the pinned factory before accepting a new production root.
 
 TokenAssociation is optional and chain-specific. Its address never supplies
-Shot, expression, version, or ownership identity. The v1 relations contract
-has one current Appcoin slot: any fresh authorized association replaces the
-current value, including an identical or conflicting one; event history
-preserves earlier values; removal must exactly match the current pair; stale
-nonces replay-fail. `8453` is Base mainnet and is valid. An optional anchor may
-live on a different witness chain than the token.
+Shot, expression, version, or ownership identity. The frozen v0.7 relations
+model had one Appcoin slot and remains decodable for private verification, but
+that contract will not be deployed. Successor Token Associations are signed
+lineage relationships; `8453` is Base mainnet and is valid. An optional anchor
+may live on a different witness chain than the token.
 
 Availability states are `absent`, `unknown`, `intentionally_private`,
 `locally_available`, `publicly_available`, `replicated`,

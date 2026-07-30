@@ -24,22 +24,10 @@
       "constructor_arguments": [],
       "deployed": false,
       "deployment_order": 2,
-      "init_code_hash": "0x8d76b602133b97f4d0adb171cb0a8339f77be15e76b64d3cb2c4077434ffb482",
-      "planned_address": "0x8300de2908087f9ba51e8993380857b0c295927f",
+      "init_code_hash": "0x865bf1508195e35de9e0b0620f0bbc9026485a6022e755369ce6fad1c825cf6b",
+      "planned_address": "0x3fe6508ba2660bc575080024f402c192a2e035a0",
       "runtime_code_hash": null,
       "salt": "0x9c40694097bc8150c4d1b158a4947ebce701ac78a428182953119033cb17f8c4",
-      "transaction_hash": null
-    },
-    "ShotRelations": {
-      "constructor_arguments": [
-        "0x8300de2908087f9ba51e8993380857b0c295927f"
-      ],
-      "deployed": false,
-      "deployment_order": 3,
-      "init_code_hash": "0x0812f8413bb47f56e682ee363f6a261893d5b26d9ed2551190de390b3e8f28f2",
-      "planned_address": "0x6cdd38d617b64c10baad0c96bfa76ccf119668a7",
-      "runtime_code_hash": null,
-      "salt": "0x149707a34a8557144a43912ed240bdbd934aef7df6d6ac74c1c908ece386a9c4",
       "transaction_hash": null
     }
   },

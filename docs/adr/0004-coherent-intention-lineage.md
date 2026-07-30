@@ -4,6 +4,8 @@
 - Date: 2026-07-29
 - Supersedes: the parts of ADR 0003 that identify a Shot with one app folder
 - Preserves: ADR 0003's visible-folder workflow and immutable completed worlds
+- Superseded in part by: ADR 0006 for undeployed v0.7 contract-ABI
+  compatibility, public identity boundaries, and the narrowed witness
 
 ## Context
 

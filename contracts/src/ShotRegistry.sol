@@ -4,52 +4,55 @@ pragma solidity 0.8.30;
 import {EIP712Domain} from "./EIP712Domain.sol";
 import {IERC1271} from "./IERC1271.sol";
 
-/// @notice Neutral public witness for TOHSENO Shot ownership and lineage heads.
-/// @dev Any address may relay a valid signed action. `msg.sender` is never authority.
+/// @notice Neutral public witness for TOHSENO Shot controllers and lineage checkpoints.
+/// @dev Commits are permissionless. Reveals and later actions are signature-authenticated,
+///      relayer-agnostic, and never authorize `msg.sender`.
 contract ShotRegistry is EIP712Domain {
     bytes4 private constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
-    uint8 public constant PUBLIC_STATE_PUBLISHED = 1;
-    uint8 public constant PUBLIC_STATE_APP_STORE = 2;
+    bytes3 private constant EIP7702_DELEGATION_PREFIX = 0xef0100;
 
-    bytes32 public constant CREATE_SHOT_TYPEHASH = keccak256(
-        "CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)"
+    uint64 public constant MIN_COMMIT_AGE = 60;
+    uint64 public constant MAX_COMMIT_AGE = 24 hours;
+
+    bytes32 public constant REGISTRATION_COMMITMENT_TYPEHASH = keccak256(
+        "ShotRegistrationCommitment(address controller,bytes32 shotId,bytes32 salt,address registry,uint256 chainId,uint64 deadline)"
     );
-    bytes32 public constant APPEND_EVOLUTION_TYPEHASH = keccak256(
-        "AppendEvolution(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 sequence,bytes32 contentCommitment,uint64 nonce,uint64 deadline)"
+    bytes32 public constant REGISTER_SHOT_TYPEHASH = keccak256(
+        "RegisterShot(bytes32 shotId,address controller,bytes32 head,bytes32 salt,uint64 nonce,uint64 deadline)"
+    );
+    bytes32 public constant APPEND_CHECKPOINT_TYPEHASH = keccak256(
+        "AppendCheckpoint(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)"
     );
     bytes32 public constant TRANSFER_SHOT_TYPEHASH = keccak256(
-        "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 sequence,uint64 nonce,uint64 deadline)"
-    );
-    bytes32 public constant SET_PUBLIC_STATE_TYPEHASH = keccak256(
-        "SetPublicState(bytes32 shotId,bytes32 currentHead,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)"
+        "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)"
     );
 
     struct Shot {
         address controller;
         bytes32 head;
-        bytes32 contentCommitment;
-        uint64 sequence;
+        uint64 checkpointSequence;
         uint64 nonce;
-        uint8 publicState;
     }
 
-    struct CreateShotAction {
+    struct RegistrationCommitment {
+        uint64 committedAt;
+        bool exists;
+    }
+
+    struct RegisterShotAction {
         bytes32 shotId;
         address controller;
         bytes32 head;
-        uint64 sequence;
-        uint8 publicState;
-        bytes32 contentCommitment;
+        bytes32 salt;
         uint64 nonce;
         uint64 deadline;
     }
 
-    struct AppendEvolutionAction {
+    struct AppendCheckpointAction {
         bytes32 shotId;
         bytes32 previousHead;
         bytes32 newHead;
-        uint64 sequence;
-        bytes32 contentCommitment;
+        uint64 checkpointSequence;
         uint64 nonce;
         uint64 deadline;
     }
@@ -59,53 +62,47 @@ contract ShotRegistry is EIP712Domain {
         address currentController;
         address newController;
         bytes32 currentHead;
-        uint64 sequence;
-        uint64 nonce;
-        uint64 deadline;
-    }
-
-    struct SetPublicStateAction {
-        bytes32 shotId;
-        bytes32 currentHead;
-        uint64 sequence;
-        uint8 publicState;
-        bytes32 contentCommitment;
+        uint64 checkpointSequence;
         uint64 nonce;
         uint64 deadline;
     }
 
     mapping(bytes32 shotId => Shot) private _shots;
-    mapping(address controller => uint64 nonce) public createNonces;
+    mapping(bytes32 commitment => RegistrationCommitment) private _commitments;
+    mapping(address controller => uint64 nonce) public registrationNonces;
 
     error InvalidShotId();
     error InvalidHead();
     error InvalidController(address controller);
-    error InvalidPublicState(uint8 publicState);
-    error InvalidPublicStateTransition(uint8 currentState, uint8 requestedState);
+    error DelegatedEOAController(address controller);
+    error InvalidCommitment();
+    error CommitmentNotFound(bytes32 commitment);
+    error CommitmentTooYoung(uint256 availableAt);
+    error CommitmentExpired(uint256 expiredAt);
     error ShotAlreadyExists(bytes32 shotId);
     error ShotNotFound(bytes32 shotId);
-    error InvalidSequence(uint64 expected, uint64 observed);
+    error InvalidCheckpointSequence(uint64 expected, uint64 observed);
     error StaleHead(bytes32 expected, bytes32 observed);
     error InvalidNonce(uint64 expected, uint64 observed);
     error Expired(uint64 deadline);
+    error TimestampOverflow();
     error Unauthorized();
 
-    event ShotCreated(
+    event ShotCommitmentRecorded(bytes32 indexed commitment, uint64 committedAt, address indexed relayer);
+    event ShotRegistered(
         bytes32 indexed shotId,
         address indexed controller,
         bytes32 indexed head,
-        uint64 sequence,
-        uint8 publicState,
-        bytes32 contentCommitment,
+        bytes32 commitment,
+        uint64 checkpointSequence,
         uint64 actionNonce,
         address relayer
     );
-    event EvolutionAppended(
+    event CheckpointAppended(
         bytes32 indexed shotId,
         bytes32 indexed previousHead,
         bytes32 indexed newHead,
-        uint64 sequence,
-        bytes32 contentCommitment,
+        uint64 checkpointSequence,
         uint64 actionNonce,
         address relayer
     );
@@ -114,21 +111,12 @@ contract ShotRegistry is EIP712Domain {
         address indexed previousController,
         address indexed newController,
         bytes32 currentHead,
-        uint64 sequence,
-        uint64 actionNonce,
-        address relayer
-    );
-    event PublicStateSet(
-        bytes32 indexed shotId,
-        uint8 previousState,
-        uint8 newState,
-        bytes32 indexed head,
-        bytes32 contentCommitment,
+        uint64 checkpointSequence,
         uint64 actionNonce,
         address relayer
     );
 
-    constructor() EIP712Domain("TOHSENO ShotRegistry", "1") {}
+    constructor() EIP712Domain("TOHSENO ShotRegistry", "2") {}
 
     function getShot(bytes32 shotId) external view returns (Shot memory) {
         Shot memory shot = _shots[shotId];
@@ -144,25 +132,42 @@ contract ShotRegistry is EIP712Domain {
         return _shots[shotId].head;
     }
 
-    function sequenceOf(bytes32 shotId) external view returns (uint64) {
-        return _shots[shotId].sequence;
+    function checkpointSequenceOf(bytes32 shotId) external view returns (uint64) {
+        return _shots[shotId].checkpointSequence;
     }
 
     function nonceOf(bytes32 shotId) external view returns (uint64) {
         return _shots[shotId].nonce;
     }
 
-    function hashCreateShot(CreateShotAction calldata action) public view returns (bytes32) {
+    function getCommitment(bytes32 commitment) external view returns (RegistrationCommitment memory) {
+        return _commitments[commitment];
+    }
+
+    /// @notice Returns the exact permissionless commitment required by `registerShot`.
+    /// @dev The registry and chain coordinates prevent a copied commitment from being
+    ///      consumed in another registry generation or on another chain.
+    function registrationCommitment(address controller, bytes32 shotId, bytes32 salt, uint64 deadline)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encode(
+                REGISTRATION_COMMITMENT_TYPEHASH, controller, shotId, salt, address(this), block.chainid, deadline
+            )
+        );
+    }
+
+    function hashRegisterShot(RegisterShotAction calldata action) public view returns (bytes32) {
         return _hashTypedData(
             keccak256(
                 abi.encode(
-                    CREATE_SHOT_TYPEHASH,
+                    REGISTER_SHOT_TYPEHASH,
                     action.shotId,
                     action.controller,
                     action.head,
-                    action.sequence,
-                    action.publicState,
-                    action.contentCommitment,
+                    action.salt,
                     action.nonce,
                     action.deadline
                 )
@@ -170,16 +175,15 @@ contract ShotRegistry is EIP712Domain {
         );
     }
 
-    function hashAppendEvolution(AppendEvolutionAction calldata action) public view returns (bytes32) {
+    function hashAppendCheckpoint(AppendCheckpointAction calldata action) public view returns (bytes32) {
         return _hashTypedData(
             keccak256(
                 abi.encode(
-                    APPEND_EVOLUTION_TYPEHASH,
+                    APPEND_CHECKPOINT_TYPEHASH,
                     action.shotId,
                     action.previousHead,
                     action.newHead,
-                    action.sequence,
-                    action.contentCommitment,
+                    action.checkpointSequence,
                     action.nonce,
                     action.deadline
                 )
@@ -196,7 +200,7 @@ contract ShotRegistry is EIP712Domain {
                     action.currentController,
                     action.newController,
                     action.currentHead,
-                    action.sequence,
+                    action.checkpointSequence,
                     action.nonce,
                     action.deadline
                 )
@@ -204,63 +208,55 @@ contract ShotRegistry is EIP712Domain {
         );
     }
 
-    function hashSetPublicState(SetPublicStateAction calldata action) public view returns (bytes32) {
-        return _hashTypedData(
-            keccak256(
-                abi.encode(
-                    SET_PUBLIC_STATE_TYPEHASH,
-                    action.shotId,
-                    action.currentHead,
-                    action.sequence,
-                    action.publicState,
-                    action.contentCommitment,
-                    action.nonce,
-                    action.deadline
-                )
-            )
-        );
+    /// @notice Records a permissionless Shot registration commitment.
+    /// @return recorded False when the same live commitment already exists. Its original
+    ///         timestamp is deliberately preserved so an observer cannot reset maturity.
+    function commitShot(bytes32 commitment) external returns (bool recorded) {
+        if (commitment == bytes32(0)) revert InvalidCommitment();
+
+        RegistrationCommitment storage existing = _commitments[commitment];
+        if (existing.exists && block.timestamp <= uint256(existing.committedAt) + MAX_COMMIT_AGE) {
+            return false;
+        }
+
+        uint64 committedAt = _timestamp64();
+        _commitments[commitment] = RegistrationCommitment({committedAt: committedAt, exists: true});
+        emit ShotCommitmentRecorded(commitment, committedAt, msg.sender);
+        return true;
     }
 
-    function createShot(CreateShotAction calldata action, bytes calldata signature) external {
+    /// @notice Reveals a matured commitment and registers checkpoint one for a Shot.
+    function registerShot(RegisterShotAction calldata action, bytes calldata signature) external {
         _checkDeadline(action.deadline);
         if (action.shotId == bytes32(0)) revert InvalidShotId();
         if (action.head == bytes32(0)) revert InvalidHead();
         _checkController(action.controller);
-        if (action.publicState != PUBLIC_STATE_PUBLISHED) {
-            revert InvalidPublicState(action.publicState);
-        }
         if (_shots[action.shotId].controller != address(0)) {
             revert ShotAlreadyExists(action.shotId);
         }
-        // Native roots start at 1; adopted legacy roots preserve their exact N + 1 sequence.
-        if (action.sequence == 0) revert InvalidSequence(1, action.sequence);
 
-        uint64 expectedNonce = createNonces[action.controller];
+        uint64 expectedNonce = registrationNonces[action.controller];
         if (action.nonce != expectedNonce) revert InvalidNonce(expectedNonce, action.nonce);
-        _requireValidSignature(action.controller, hashCreateShot(action), signature);
 
-        createNonces[action.controller] = expectedNonce + 1;
-        _shots[action.shotId] = Shot({
-            controller: action.controller,
-            head: action.head,
-            contentCommitment: action.contentCommitment,
-            sequence: action.sequence,
-            nonce: 1,
-            publicState: action.publicState
-        });
-        emit ShotCreated(
-            action.shotId,
-            action.controller,
-            action.head,
-            action.sequence,
-            action.publicState,
-            action.contentCommitment,
-            action.nonce,
-            msg.sender
-        );
+        bytes32 commitment = registrationCommitment(action.controller, action.shotId, action.salt, action.deadline);
+        RegistrationCommitment memory committed = _commitments[commitment];
+        if (!committed.exists) revert CommitmentNotFound(commitment);
+
+        uint256 availableAt = uint256(committed.committedAt) + MIN_COMMIT_AGE;
+        if (block.timestamp < availableAt) revert CommitmentTooYoung(availableAt);
+        uint256 expiredAt = uint256(committed.committedAt) + MAX_COMMIT_AGE;
+        if (block.timestamp > expiredAt) revert CommitmentExpired(expiredAt);
+
+        _requireValidSignature(action.controller, hashRegisterShot(action), signature);
+
+        delete _commitments[commitment];
+        registrationNonces[action.controller] = expectedNonce + 1;
+        _shots[action.shotId] =
+            Shot({controller: action.controller, head: action.head, checkpointSequence: 1, nonce: 1});
+        emit ShotRegistered(action.shotId, action.controller, action.head, commitment, 1, action.nonce, msg.sender);
     }
 
-    function appendEvolution(AppendEvolutionAction calldata action, bytes calldata signature) external {
+    function appendCheckpoint(AppendCheckpointAction calldata action, bytes calldata signature) external {
         _checkDeadline(action.deadline);
         Shot storage shot = _existingShot(action.shotId);
         if (action.previousHead != shot.head) {
@@ -269,81 +265,45 @@ contract ShotRegistry is EIP712Domain {
         if (action.newHead == bytes32(0) || action.newHead == action.previousHead) {
             revert InvalidHead();
         }
-        uint64 expectedSequence = shot.sequence + 1;
-        if (action.sequence != expectedSequence) {
-            revert InvalidSequence(expectedSequence, action.sequence);
+        uint64 expectedSequence = shot.checkpointSequence + 1;
+        if (action.checkpointSequence != expectedSequence) {
+            revert InvalidCheckpointSequence(expectedSequence, action.checkpointSequence);
         }
         if (action.nonce != shot.nonce) revert InvalidNonce(shot.nonce, action.nonce);
-        _requireValidSignature(shot.controller, hashAppendEvolution(action), signature);
+        _requireValidSignature(shot.controller, hashAppendCheckpoint(action), signature);
 
         shot.head = action.newHead;
-        shot.contentCommitment = action.contentCommitment;
-        shot.sequence = action.sequence;
+        shot.checkpointSequence = action.checkpointSequence;
         shot.nonce += 1;
-        emit EvolutionAppended(
-            action.shotId,
-            action.previousHead,
-            action.newHead,
-            action.sequence,
-            action.contentCommitment,
-            action.nonce,
-            msg.sender
+        emit CheckpointAppended(
+            action.shotId, action.previousHead, action.newHead, action.checkpointSequence, action.nonce, msg.sender
         );
     }
 
     function transferShot(TransferShotAction calldata action, bytes calldata signature) external {
         _checkDeadline(action.deadline);
         Shot storage shot = _existingShot(action.shotId);
-        if (action.currentController != shot.controller) {
+        address currentController = shot.controller;
+        if (action.currentController != currentController) {
             revert InvalidController(action.currentController);
         }
         _checkController(action.newController);
-        if (action.newController == shot.controller) revert InvalidController(action.newController);
+        if (action.newController == currentController) revert InvalidController(action.newController);
         if (action.currentHead != shot.head) revert StaleHead(shot.head, action.currentHead);
-        if (action.sequence != shot.sequence) {
-            revert InvalidSequence(shot.sequence, action.sequence);
+        if (action.checkpointSequence != shot.checkpointSequence) {
+            revert InvalidCheckpointSequence(shot.checkpointSequence, action.checkpointSequence);
         }
         if (action.nonce != shot.nonce) revert InvalidNonce(shot.nonce, action.nonce);
-        _requireValidSignature(shot.controller, hashTransferShot(action), signature);
+        _requireValidSignature(currentController, hashTransferShot(action), signature);
 
-        address previousController = shot.controller;
         shot.controller = action.newController;
         shot.nonce += 1;
         emit ShotTransferred(
             action.shotId,
-            previousController,
+            currentController,
             action.newController,
             action.currentHead,
-            action.sequence,
-            action.nonce,
-            msg.sender
-        );
-    }
-
-    function setPublicState(SetPublicStateAction calldata action, bytes calldata signature) external {
-        _checkDeadline(action.deadline);
-        _checkPublicState(action.publicState);
-        Shot storage shot = _existingShot(action.shotId);
-        if (action.publicState < shot.publicState) {
-            revert InvalidPublicStateTransition(shot.publicState, action.publicState);
-        }
-        if (action.currentHead != shot.head) revert StaleHead(shot.head, action.currentHead);
-        if (action.sequence != shot.sequence) {
-            revert InvalidSequence(shot.sequence, action.sequence);
-        }
-        if (action.nonce != shot.nonce) revert InvalidNonce(shot.nonce, action.nonce);
-        _requireValidSignature(shot.controller, hashSetPublicState(action), signature);
-
-        uint8 previousState = shot.publicState;
-        shot.publicState = action.publicState;
-        shot.contentCommitment = action.contentCommitment;
-        shot.nonce += 1;
-        emit PublicStateSet(
-            action.shotId,
-            previousState,
-            action.publicState,
-            action.currentHead,
-            action.contentCommitment,
+            action.checkpointSequence,
             action.nonce,
             msg.sender
         );
@@ -358,16 +318,24 @@ contract ShotRegistry is EIP712Domain {
         if (controller == address(0) || controller.code.length == 0) {
             revert InvalidController(controller);
         }
-    }
 
-    function _checkPublicState(uint8 publicState) private pure {
-        if (publicState != PUBLIC_STATE_PUBLISHED && publicState != PUBLIC_STATE_APP_STORE) {
-            revert InvalidPublicState(publicState);
+        bytes32 firstWord;
+        assembly ("memory-safe") {
+            extcodecopy(controller, 0, 0, 3)
+            firstWord := mload(0)
+        }
+        if (controller.code.length == 23 && bytes3(firstWord) == EIP7702_DELEGATION_PREFIX) {
+            revert DelegatedEOAController(controller);
         }
     }
 
     function _checkDeadline(uint64 deadline) private view {
         if (block.timestamp > deadline) revert Expired(deadline);
+    }
+
+    function _timestamp64() private view returns (uint64) {
+        if (block.timestamp > type(uint64).max) revert TimestampOverflow();
+        return uint64(block.timestamp);
     }
 
     function _requireValidSignature(address controller, bytes32 digest, bytes calldata signature) private view {

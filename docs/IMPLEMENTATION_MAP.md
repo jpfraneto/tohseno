@@ -110,15 +110,16 @@ narrow:
 - `BuilderAccountFactory` predicts and deploys controller accounts.
 - `BuilderAccount` validates authorized P-256 protocol actions and device
   administration.
-- `ShotRegistry` witnesses controller, accepted head, optional content
-  commitment, sequence, nonce, and public state.
-- `ShotRelations` stores optional handle, token, and App Store relationships.
+- successor `ShotRegistry` uses permissionless commit plus signed reveal and
+  witnesses only controller, intentionally public lineage head,
+  checkpoint-local sequence, and nonce.
 
 Contracts do not store prompts, repositories, genomes, feedback, or private
-material. Token association is already separate from Shot identity. Its v1 ABI
-calls the relation an Appcoin; it can point at arbitrary nonzero chains,
-including Base `8453`. One current relation is stored and event history records
-prior values. These ABI and bytecode laws remain compatible.
+material or app-runtime/end-user commitments. The undeployed v0.7
+`ShotRelations` ABI remains available only in the immutable `v0.7.1` tag and
+release archive as a frozen private-verification input; it will never be
+deployed by TOHSENO. Current Token Association is signed lineage, separate
+from Shot identity, and can identify explicit chains including Base `8453`.
 
 ### Network and Studio
 
@@ -162,9 +163,10 @@ The evolution follows these rules:
 11. A portable Shot bundle is a verified protocol projection with explicit
     omissions and availability, not an ownership transfer and not merely a
     source archive.
-12. The existing contracts remain witnesses and relationship registries. A
-    token association never becomes the Shot, its owner, its repository, or its
-    expression.
+12. The successor contracts remain narrow public witnesses; optional
+    relationships live in signed lineage instead of a generic relationship
+    registry. A token association never becomes the Shot, its owner, its
+    repository, or its expression.
 13. Existing v0.6 adoption, `latest_shot` deserialization, and candidate folder
     records receive deterministic adapters. Missing historical facts are marked
     unknown rather than fabricated.

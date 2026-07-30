@@ -16,74 +16,95 @@ contract RegistryHandler {
     bytes public signature;
 
     bytes32 public modelHead;
-    bytes32 public modelContent;
-    uint64 public modelSequence;
+    uint64 public modelCheckpointSequence;
     uint64 public modelNonce;
-    uint8 public modelState;
     uint64 public successfulAppends;
+    uint64 public registrationAttempts;
+    uint64 public successfulRegistrations;
+    bool public invalidRegistrationSucceeded;
+    bool public validRegistrationFailed;
 
     constructor(
         ShotRegistry registry_,
         bytes32 shotId_,
         address controller_,
         bytes32 initialHead,
-        bytes32 initialContent,
-        uint64 initialSequence,
         bytes memory signature_
     ) {
         registry = registry_;
         shotId = shotId_;
         controller = controller_;
         modelHead = initialHead;
-        modelContent = initialContent;
-        modelSequence = initialSequence;
+        modelCheckpointSequence = 1;
         modelNonce = 1;
-        modelState = registry_.PUBLIC_STATE_PUBLISHED();
         signature = signature_;
     }
 
-    function append(bytes32 proposedHead, bytes32 contentCommitment) external {
+    function append(bytes32 proposedHead) external {
         bytes32 nextHead = proposedHead;
         if (nextHead == bytes32(0) || nextHead == modelHead) {
-            nextHead = keccak256(abi.encodePacked(modelHead, contentCommitment, modelSequence));
+            nextHead = keccak256(abi.encodePacked(modelHead, modelCheckpointSequence));
         }
-        ShotRegistry.AppendEvolutionAction memory action = ShotRegistry.AppendEvolutionAction({
+        ShotRegistry.AppendCheckpointAction memory action = ShotRegistry.AppendCheckpointAction({
             shotId: shotId,
             previousHead: modelHead,
             newHead: nextHead,
-            sequence: modelSequence + 1,
-            contentCommitment: contentCommitment,
+            checkpointSequence: modelCheckpointSequence + 1,
             nonce: modelNonce,
             deadline: type(uint64).max
         });
-        _expectDigest(registry.hashAppendEvolution(action));
-        registry.appendEvolution(action, signature);
+        _expectDigest(registry.hashAppendCheckpoint(action));
+        registry.appendCheckpoint(action, signature);
 
         modelHead = nextHead;
-        modelContent = contentCommitment;
-        modelSequence += 1;
+        modelCheckpointSequence += 1;
         modelNonce += 1;
         successfulAppends += 1;
     }
 
-    function setState(bool graduate, bytes32 contentCommitment) external {
-        uint8 nextState = modelState;
-        if (graduate) nextState = registry.PUBLIC_STATE_APP_STORE();
-        ShotRegistry.SetPublicStateAction memory action = ShotRegistry.SetPublicStateAction({
-            shotId: shotId,
-            currentHead: modelHead,
-            sequence: modelSequence,
-            publicState: nextState,
-            contentCommitment: contentCommitment,
-            nonce: modelNonce,
+    /// @dev Stateful registration model: 0=no commit, 1=too young,
+    ///      2=mature and live, 3=expired.
+    function attemptRegistration(bytes32 seed, uint8 rawMode, uint32 rawAge) external {
+        uint8 mode = rawMode % 4;
+        uint64 attempt = registrationAttempts;
+        registrationAttempts = attempt + 1;
+        bytes32 candidateShotId = keccak256(abi.encodePacked("registration-probe", seed, attempt));
+        ShotRegistry.RegisterShotAction memory action = ShotRegistry.RegisterShotAction({
+            shotId: candidateShotId,
+            controller: controller,
+            head: keccak256(abi.encodePacked("registration-head", candidateShotId)),
+            salt: keccak256(abi.encodePacked("registration-salt", candidateShotId)),
+            nonce: registry.registrationNonces(controller),
             deadline: type(uint64).max
         });
-        _expectDigest(registry.hashSetPublicState(action));
-        registry.setPublicState(action, signature);
 
-        modelContent = contentCommitment;
-        modelState = nextState;
-        modelNonce += 1;
+        bool shouldSucceed;
+        if (mode != 0) {
+            registry.commitShot(
+                registry.registrationCommitment(action.controller, action.shotId, action.salt, action.deadline)
+            );
+            uint256 age;
+            if (mode == 1) {
+                age = uint256(rawAge) % registry.MIN_COMMIT_AGE();
+            } else if (mode == 2) {
+                age = registry.MIN_COMMIT_AGE()
+                    + uint256(rawAge) % (registry.MAX_COMMIT_AGE() - registry.MIN_COMMIT_AGE() + 1);
+                shouldSucceed = true;
+            } else {
+                age = registry.MAX_COMMIT_AGE() + 1 + uint256(rawAge) % 1 hours;
+            }
+            vm.warp(block.timestamp + age);
+        }
+
+        _expectDigest(registry.hashRegisterShot(action));
+        (bool success,) =
+            address(registry).call(abi.encodeWithSelector(ShotRegistry.registerShot.selector, action, signature));
+        if (success) {
+            successfulRegistrations += 1;
+            if (!shouldSucceed) invalidRegistrationSucceeded = true;
+        } else if (shouldSucceed) {
+            validRegistrationFailed = true;
+        }
     }
 
     function _expectDigest(bytes32 digest) private {
@@ -93,10 +114,9 @@ contract RegistryHandler {
 }
 
 contract RegistryInvariantTest is ProtocolTestBase {
-    uint64 private constant INITIAL_SEQUENCE = 8;
     bytes32 private constant SHOT_ID = keccak256("invariant-shot");
     bytes32 private constant INITIAL_HEAD = keccak256("invariant-head");
-    bytes32 private constant INITIAL_CONTENT = keccak256("invariant-content");
+    bytes32 private constant SALT = keccak256("invariant-salt");
 
     BuilderAccount private account;
     ShotRegistry private registry;
@@ -106,61 +126,69 @@ contract RegistryInvariantTest is ProtocolTestBase {
         installP256Mock();
         account = newAccount(KEY1_X, KEY1_Y);
         registry = new ShotRegistry();
-        ShotRegistry.CreateShotAction memory action = ShotRegistry.CreateShotAction({
+        ShotRegistry.RegisterShotAction memory action = ShotRegistry.RegisterShotAction({
             shotId: SHOT_ID,
             controller: address(account),
             head: INITIAL_HEAD,
-            sequence: INITIAL_SEQUENCE,
-            publicState: registry.PUBLIC_STATE_PUBLISHED(),
-            contentCommitment: INITIAL_CONTENT,
+            salt: SALT,
             nonce: 0,
             deadline: type(uint64).max
         });
-        setP256Expected(registry.hashCreateShot(action));
-        registry.createShot(action, p256Signature(KEY1_X, KEY1_Y));
-
-        handler = new RegistryHandler(
-            registry,
-            SHOT_ID,
-            address(account),
-            INITIAL_HEAD,
-            INITIAL_CONTENT,
-            INITIAL_SEQUENCE,
-            p256Signature(KEY1_X, KEY1_Y)
+        registry.commitShot(
+            registry.registrationCommitment(action.controller, action.shotId, action.salt, action.deadline)
         );
+        vm.warp(block.timestamp + registry.MIN_COMMIT_AGE());
+        setP256Expected(registry.hashRegisterShot(action));
+        registry.registerShot(action, p256Signature(KEY1_X, KEY1_Y));
+
+        handler = new RegistryHandler(registry, SHOT_ID, address(account), INITIAL_HEAD, p256Signature(KEY1_X, KEY1_Y));
     }
 
-    function testFuzzRegistryMatchesTheTransitionModel(bytes32 seed, uint8 rawSteps) public {
+    function testFuzzRegistryMatchesAppendOnlyCheckpointModel(bytes32 seed, uint8 rawSteps) public {
         uint256 steps = uint256(rawSteps) % 24 + 1;
         for (uint256 i = 0; i < steps; i++) {
-            bytes32 decision = keccak256(abi.encodePacked(seed, i));
-            bytes32 content = keccak256(abi.encodePacked("content", decision));
-            if (uint256(decision) & 1 == 0) {
-                handler.append(keccak256(abi.encodePacked("head", decision)), content);
-            } else {
-                handler.setState(uint256(decision) & 2 != 0, content);
-            }
+            handler.append(keccak256(abi.encodePacked(seed, i)));
             _assertModel();
         }
     }
 
-    function testInitialPublicStateIsPublishedAndNeverLocal() public view {
+    function invariantCheckpointSequenceIsExactlyOnePlusSuccessfulAppends() public view {
         _assertModel();
-        assertEq(registry.getShot(SHOT_ID).publicState, registry.PUBLIC_STATE_PUBLISHED());
+    }
+
+    function invariantRegistrationRequiresAMatureLiveCommitment() public view {
+        assertFalse(handler.invalidRegistrationSucceeded());
+        assertFalse(handler.validRegistrationFailed());
+    }
+
+    function targetContracts() public view returns (address[] memory targets) {
+        targets = new address[](1);
+        targets[0] = address(handler);
+    }
+
+    function testFuzzShotCannotRegisterWithoutItsMaturedCommitment(bytes32 shotId, bytes32 salt) public {
+        vm.assume(shotId != bytes32(0));
+        vm.assume(shotId != SHOT_ID);
+        ShotRegistry.RegisterShotAction memory action = ShotRegistry.RegisterShotAction({
+            shotId: shotId,
+            controller: address(account),
+            head: keccak256(abi.encodePacked(shotId, salt)),
+            salt: salt,
+            nonce: registry.registrationNonces(address(account)),
+            deadline: type(uint64).max
+        });
+        vm.assume(action.head != bytes32(0));
+        setP256Expected(registry.hashRegisterShot(action));
+        vm.expectPartialRevert(ShotRegistry.CommitmentNotFound.selector);
+        registry.registerShot(action, p256Signature(KEY1_X, KEY1_Y));
     }
 
     function _assertModel() private view {
         ShotRegistry.Shot memory shot = registry.getShot(SHOT_ID);
         assertEq(shot.controller, address(account));
         assertEq(shot.head, handler.modelHead());
-        assertEq(shot.contentCommitment, handler.modelContent());
-        assertEq(shot.sequence, handler.modelSequence());
+        assertEq(shot.checkpointSequence, handler.modelCheckpointSequence());
         assertEq(shot.nonce, handler.modelNonce());
-        assertEq(shot.publicState, handler.modelState());
-        assertEq(shot.sequence, uint64(handler.successfulAppends() + INITIAL_SEQUENCE));
-        assertTrue(
-            shot.publicState == registry.PUBLIC_STATE_PUBLISHED()
-                || shot.publicState == registry.PUBLIC_STATE_APP_STORE()
-        );
+        assertEq(shot.checkpointSequence, uint64(handler.successfulAppends() + 1));
     }
 }

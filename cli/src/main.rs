@@ -9,14 +9,13 @@ mod shot_execution_commands;
 mod simulator;
 mod studio_server;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use renderer::Renderer;
 use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 use tohseno_engine::gates::intent::Intent;
 use tohseno_engine::machine::Evolved;
-use tohseno_engine::public_submission::EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION;
 use tohseno_engine::{ConductedCreation, Config, Engine, Event, EventBus, Ledger, ShotRequest};
 
 const MAX_PROMPT_FILE_BYTES: u64 = 4 * 1024 * 1024;
@@ -205,12 +204,6 @@ enum Command {
         #[command(subcommand)]
         command: PageCommand,
     },
-    /// Publish a locally verified Shot through the experimental registry.
-    Publish {
-        app_name: String,
-        #[command(flatten)]
-        public: PublicMutationArgs,
-    },
     /// Inspect configured chain and candidate deployment evidence.
     Network {
         #[command(subcommand)]
@@ -220,11 +213,6 @@ enum Command {
     Registry {
         #[command(subcommand)]
         command: RegistryCommand,
-    },
-    /// Manage optional human-readable Shot handles.
-    Handle {
-        #[command(subcommand)]
-        command: HandleCommand,
     },
     /// Record optional chain-specific Token Associations in canonical Shot lineage.
     ///
@@ -239,14 +227,6 @@ enum Command {
     Shot {
         #[command(subcommand)]
         command: ShotExecutionCommand,
-    },
-    /// Manage optional appcoin relations.
-    ///
-    /// This is the frozen GENESIS ShotRelations compatibility surface on
-    /// Robinhood Chain, not the neutral v2 Token Association lifecycle.
-    Appcoin {
-        #[command(subcommand)]
-        command: AppcoinCommand,
     },
 }
 
@@ -328,17 +308,6 @@ enum RegistryCommand {
 }
 
 #[derive(Debug, Subcommand)]
-enum HandleCommand {
-    /// Claim a handle through the normal signed relation path.
-    Claim {
-        handle: String,
-        app_name: String,
-        #[command(flatten)]
-        public: PublicMutationArgs,
-    },
-}
-
-#[derive(Debug, Subcommand)]
 enum TokenCommand {
     /// Associate a token contract without making it the Shot or its owner.
     Associate {
@@ -398,62 +367,6 @@ enum ShotExecutionCommand {
         #[arg(long)]
         execution: String,
     },
-}
-
-#[derive(Debug, Subcommand)]
-enum AppcoinCommand {
-    /// Associate an optional token with an already-published Shot.
-    Associate {
-        app_name: String,
-        chain_id: u64,
-        token_address: String,
-        #[command(flatten)]
-        public: PublicMutationArgs,
-    },
-}
-
-#[derive(Clone, Debug, Args)]
-struct PublicMutationArgs {
-    /// Explicit read/relay RPC endpoint. Embedded credentials are rejected.
-    #[arg(long, value_name = "URL")]
-    rpc_url: String,
-    /// Unix deadline signed into the exact public action.
-    #[arg(long)]
-    deadline: u64,
-    /// Relay after preparing and persisting the signed action.
-    #[arg(long)]
-    submit: bool,
-    /// Exact experimental-mainnet confirmation sentence.
-    #[arg(long, requires = "submit", value_name = "SENTENCE")]
-    confirm_experimental_mainnet: Option<String>,
-    /// Required only when --submit would irreversibly deploy the missing BuilderAccount.
-    ///
-    /// The exact sentence is:
-    /// "I UNDERSTAND THIS WILL IRREVERSIBLY DEPLOY MY BUILDERACCOUNT TO ROBINHOOD CHAIN MAINNET 4663"
-    #[arg(long, requires = "submit", value_name = "SENTENCE")]
-    confirm_builder_account_deployment: Option<String>,
-    /// Named Foundry keystore account; raw secrets are never accepted.
-    #[arg(
-        long,
-        requires = "submit",
-        conflicts_with = "hardware_wallet",
-        value_name = "NAME"
-    )]
-    foundry_account: Option<String>,
-    /// Attached hardware wallet used only to pay relay gas.
-    #[arg(
-        long,
-        requires = "submit",
-        conflicts_with = "foundry_account",
-        value_enum
-    )]
-    hardware_wallet: Option<HardwareWallet>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum HardwareWallet {
-    Ledger,
-    Trezor,
 }
 
 #[tokio::main]
@@ -787,24 +700,12 @@ async fn dispatch(
         Command::Page { command } => match command {
             PageCommand::Build { app_name } => protocol_commands::build_page(&app_name, json, bus)?,
         },
-        Command::Publish { app_name, public } => {
-            protocol_commands::publish(&app_name, &public, json, bus)?;
-        }
         Command::Network { command } => match command {
             NetworkCommand::Status => protocol_commands::network_status(json, bus)?,
         },
         Command::Registry { command } => match command {
             RegistryCommand::Show { app_name } => {
                 protocol_commands::registry_show(&app_name, json, bus)?;
-            }
-        },
-        Command::Handle { command } => match command {
-            HandleCommand::Claim {
-                handle,
-                app_name,
-                public,
-            } => {
-                protocol_commands::claim_handle(&handle, &app_name, &public, json, bus)?;
             }
         },
         Command::Token { command } => match command {
@@ -844,21 +745,6 @@ async fn dispatch(
                     bus,
                 )?;
             }
-        },
-        Command::Appcoin { command } => match command {
-            AppcoinCommand::Associate {
-                app_name,
-                chain_id,
-                token_address,
-                public,
-            } => protocol_commands::associate_appcoin(
-                &app_name,
-                chain_id,
-                &token_address,
-                &public,
-                json,
-                bus,
-            )?,
         },
     }
     Ok(())
@@ -1120,147 +1006,50 @@ mod tests {
     }
 
     #[test]
-    fn public_mutations_require_explicit_rpc_and_deadline() {
-        assert!(Cli::try_parse_from(["tohseno", "publish", "field-notebook"]).is_err());
-        let parsed = Cli::try_parse_from([
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-        ])
-        .unwrap();
-        assert!(matches!(
-            parsed.command,
-            Command::Publish {
-                public: PublicMutationArgs {
-                    deadline: 2_000_000_000,
-                    submit: false,
-                    ..
-                },
-                ..
-            }
-        ));
-        assert!(Cli::try_parse_from([
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-            "--content-commitment",
-            "0x00",
-        ])
-        .is_err());
-    }
+    fn retired_v07_public_mutations_are_not_exposed() {
+        for retired in [
+            vec![
+                "tohseno",
+                "publish",
+                "field-notebook",
+                "--rpc-url",
+                "https://rpc.mainnet.chain.robinhood.com",
+                "--deadline",
+                "2000000000",
+            ],
+            vec![
+                "tohseno",
+                "handle",
+                "claim",
+                "field-notebook",
+                "my-shot",
+                "--rpc-url",
+                "https://rpc.mainnet.chain.robinhood.com",
+                "--deadline",
+                "2000000000",
+            ],
+            vec![
+                "tohseno",
+                "appcoin",
+                "associate",
+                "field-notebook",
+                "8453",
+                "0x1111111111111111111111111111111111111111",
+                "--rpc-url",
+                "https://rpc.mainnet.chain.robinhood.com",
+                "--deadline",
+                "2000000000",
+            ],
+        ] {
+            assert!(Cli::try_parse_from(retired).is_err());
+        }
 
-    #[test]
-    fn submit_surface_has_no_raw_secret_option() {
-        let base = [
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-            "--submit",
-            "--confirm-experimental-mainnet",
-            tohseno_engine::public_submission::EXACT_MAINNET_CONFIRMATION,
-        ];
-        let mut named = base.to_vec();
-        named.extend(["--foundry-account", "relay-mainnet"]);
-        assert!(Cli::try_parse_from(named).is_ok());
-        let mut hardware = base.to_vec();
-        hardware.extend(["--hardware-wallet", "ledger"]);
-        assert!(Cli::try_parse_from(hardware).is_ok());
-        let mut raw = base.to_vec();
-        raw.extend(["--private-key", "0xdeadbeef"]);
-        assert!(Cli::try_parse_from(raw).is_err());
-    }
-
-    #[test]
-    fn builder_account_deployment_confirmation_is_explicit_in_help() {
-        let help = Cli::try_parse_from(["tohseno", "publish", "--help"])
+        let help = Cli::try_parse_from(["tohseno", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(help.contains("--confirm-builder-account-deployment <SENTENCE>"));
-        assert!(help.contains("irreversibly deploy the missing BuilderAccount"));
-        assert!(help.contains("IRREVERSIBLY DEPLOY MY BUILDERACCOUNT"));
-        assert!(help.contains("ROBINHOOD CHAIN MAINNET 4663"));
-    }
-
-    #[test]
-    fn builder_account_deployment_confirmation_remains_runtime_conditional() {
-        assert!(Cli::try_parse_from([
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-            "--confirm-builder-account-deployment",
-            EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION,
-        ])
-        .is_err());
-
-        let parsed = Cli::try_parse_from([
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-            "--submit",
-            "--confirm-experimental-mainnet",
-            tohseno_engine::public_submission::EXACT_MAINNET_CONFIRMATION,
-            "--foundry-account",
-            "relay-mainnet",
-        ])
-        .unwrap();
-        assert!(matches!(
-            parsed.command,
-            Command::Publish {
-                public: PublicMutationArgs {
-                    confirm_builder_account_deployment: None,
-                    ..
-                },
-                ..
-            }
-        ));
-
-        let parsed = Cli::try_parse_from([
-            "tohseno",
-            "publish",
-            "field-notebook",
-            "--rpc-url",
-            "https://rpc.mainnet.chain.robinhood.com",
-            "--deadline",
-            "2000000000",
-            "--submit",
-            "--confirm-experimental-mainnet",
-            tohseno_engine::public_submission::EXACT_MAINNET_CONFIRMATION,
-            "--confirm-builder-account-deployment",
-            EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION,
-            "--foundry-account",
-            "relay-mainnet",
-        ])
-        .unwrap();
-        assert!(matches!(
-            parsed.command,
-            Command::Publish {
-                public: PublicMutationArgs {
-                    confirm_builder_account_deployment: Some(value),
-                    ..
-                },
-                ..
-            } if value == EXACT_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION
-        ));
+        assert!(!help.contains("\n  publish "));
+        assert!(!help.contains("\n  handle "));
+        assert!(!help.contains("\n  appcoin "));
     }
 
     #[test]

@@ -333,71 +333,12 @@ A deterministic private static page can be prepared without publishing it:
 tohseno page build my-app
 ```
 
-The older `publish`, `handle`, and `appcoin` commands below are the frozen
-GENESIS contract-compatibility lifecycle; they are distinct from neutral v2
-Token Associations. These public mutation commands require an explicit RPC URL and a future Unix
-deadline. They first verify chain 4663, every pinned candidate runtime, the
-P-256 precompile, the relations binding, the exact BuilderAccount code and
-DeviceKey permission, and all relevant controller/head/sequence/nonce state at
-one concrete block. No public action is signed if any read is missing or
-mismatched:
-
-```sh
-deadline="$(( $(date +%s) + 900 ))"
-
-tohseno publish my-app \
-  --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
-tohseno handle claim field-notebook my-app \
-  --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
-tohseno appcoin associate my-app 4663 0x1111111111111111111111111111111111111111 \
-  --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
-```
-
-Preparation is the default. It writes a closed `SignedPublicAction`, exact
-`0x01 || x || y || r || s` compact signature, target, calldata, expected
-post-state, and block-pinned read evidence beneath
-`TOHSENO/public-actions/` as a private create-new file. If the predicted
-BuilderAccount is absent, preparation instead writes the exact factory request
-without claiming it was signed or deployed. The current candidate publishes no
-caller-selected content commitment (the optional field is deterministically
-zero), and `appcoin associate` refuses to overwrite an existing relation.
-
-Relaying is separately opt-in. It accepts only a named Foundry keystore or an
-attached Ledger/Trezor—never a raw private key, mnemonic, password, or unlocked
-RPC account:
-
-```sh
-tohseno publish my-app \
-  --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline" \
-  --submit \
-  --confirm-experimental-mainnet \
-  "I UNDERSTAND THIS WILL BROADCAST TO ROBINHOOD CHAIN MAINNET 4663" \
-  --confirm-builder-account-deployment \
-  "I UNDERSTAND THIS WILL IRREVERSIBLY DEPLOY MY BUILDERACCOUNT TO ROBINHOOD CHAIN MAINNET 4663" \
-  --foundry-account genesis-relayer
-```
-
-`--hardware-wallet ledger` or `--hardware-wallet trezor` is the alternative.
-Immediately before each relay the CLI repeats the exact live reads and refuses
-changed state. The second confirmation is checked at both the CLI flow and the
-engine submission boundary only when `--submit` finds that the predicted
-BuilderAccount is missing; it separately authorizes that irreversible
-deployment through the pinned factory. Preparation and relays through an
-already-deployed BuilderAccount do not require it.
-`scripts/lifecycle-mainnet.sh` forwards the flag only when the operator supplies
-the same exact sentence in
-`TOHSENO_BUILDER_ACCOUNT_DEPLOYMENT_CONFIRMATION`; leaving it unset still
-permits an already-deployed account and fails closed if deployment is needed.
-After deployment, the CLI waits for a successful receipt, verifies the pinned
-account runtime and permission, then prepares the Shot action. Every action
-receipt is duplicate-key-strict and must contain the expected target, sender,
-nonzero transaction/block hashes, block number, and success status. The CLI
-then retrieves that transaction by hash and requires the same sender, target,
-block hash/number, chain 4663, zero value, and byte-exact prepared calldata
-before performing a fresh exact public-state verification. Any verification
-failure after a structurally identified broadcast retains the known
-transaction hash and block in the error. The checked-in deployment plan remains
-an honestly undeployed baseline; actual deployment evidence is separate.
+The frozen v0.7 `publish`, `handle`, and `appcoin` mutations are no longer
+exposed by the CLI, and their deployment and lifecycle scripts fail closed.
+Their source and decoding law remain available at the immutable `v0.7.1` tag
+for offline verification only. No successor public-witness command will be
+enabled until its contract generation is finalized and the actual target RPC
+passes the complete EIP-7951 deployment gate.
 
 ## Build and verify from source
 
@@ -455,14 +396,14 @@ deployment coordinates.
 |---|---|
 | Protocol schemas, vectors, canonicalization, identities, and lineage law | Implemented; covered by local automated tests |
 | Apple identity helper and reusable Fascia | Implemented; software-backed tests completed |
-| Solidity factory, account, registry, and relations | Implemented and locally tested; unaudited |
+| Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; unaudited |
 | Public lineage node | Implemented for signed action records and explicit static-peer synchronization; no artifact store or production node claimed |
 | Neutral Token Association | Implemented as signed v2 lineage with private-by-default or explicit node outbox handling; no token existence or chain anchor claimed |
 | Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
 | Robinhood Chain P256VERIFY read-only probe | Observed successfully; exact request/result is in the lifecycle report |
-| Candidate contracts | Planned deterministic addresses; not deployed |
-| Guarded prepare/sign/relay/receipt verification for publish, handle, and appcoin | Implemented; no mainnet lifecycle transaction performed in this source task |
-| BuilderAccount, Shot #1, Evolutions 1–2, handle, and appcoin relation | Not completed on mainnet |
+| Successor contracts | Unversioned draft only; no finalized addresses and not deployed |
+| Frozen v0.7 publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at the immutable v0.7.1 tag |
+| BuilderAccount, Shot #1, and public checkpoints | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |
 | Stable v0.7.1 patch and installer-from-release test | Recorded in `release/V0_7_1_READINESS.json`; v0.7.0 remains immutable |
 | Canonical release or Arweave publication | Deliberately not completed |

@@ -6,20 +6,7 @@
   },
   {
     "inputs": [],
-    "name": "APPEND_EVOLUTION_TYPEHASH",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "CREATE_SHOT_TYPEHASH",
+    "name": "APPEND_CHECKPOINT_TYPEHASH",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -45,12 +32,12 @@
   },
   {
     "inputs": [],
-    "name": "PUBLIC_STATE_APP_STORE",
+    "name": "MAX_COMMIT_AGE",
     "outputs": [
       {
-        "internalType": "uint8",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint8"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -58,12 +45,12 @@
   },
   {
     "inputs": [],
-    "name": "PUBLIC_STATE_PUBLISHED",
+    "name": "MIN_COMMIT_AGE",
     "outputs": [
       {
-        "internalType": "uint8",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint8"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -71,7 +58,20 @@
   },
   {
     "inputs": [],
-    "name": "SET_PUBLIC_STATE_TYPEHASH",
+    "name": "REGISTER_SHOT_TYPEHASH",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "REGISTRATION_COMMITMENT_TYPEHASH",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -116,13 +116,8 @@
           },
           {
             "internalType": "uint64",
-            "name": "sequence",
+            "name": "checkpointSequence",
             "type": "uint64"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "contentCommitment",
-            "type": "bytes32"
           },
           {
             "internalType": "uint64",
@@ -135,7 +130,7 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct ShotRegistry.AppendEvolutionAction",
+        "internalType": "struct ShotRegistry.AppendCheckpointAction",
         "name": "action",
         "type": "tuple"
       },
@@ -145,8 +140,46 @@
         "type": "bytes"
       }
     ],
-    "name": "appendEvolution",
+    "name": "appendCheckpoint",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "shotId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "checkpointSequenceOf",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
+      }
+    ],
+    "name": "commitShot",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "recorded",
+        "type": "bool"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -170,19 +203,13 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "controller",
-        "type": "address"
-      }
-    ],
-    "name": "createNonces",
+    "inputs": [],
+    "name": "domainSeparator",
     "outputs": [
       {
-        "internalType": "uint64",
-        "name": "nonce",
-        "type": "uint64"
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -191,71 +218,29 @@
   {
     "inputs": [
       {
-        "components": [
-          {
-            "internalType": "bytes32",
-            "name": "shotId",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "address",
-            "name": "controller",
-            "type": "address"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "head",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint64",
-            "name": "sequence",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint8",
-            "name": "publicState",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "contentCommitment",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint64",
-            "name": "nonce",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "deadline",
-            "type": "uint64"
-          }
-        ],
-        "internalType": "struct ShotRegistry.CreateShotAction",
-        "name": "action",
-        "type": "tuple"
-      },
-      {
-        "internalType": "bytes",
-        "name": "signature",
-        "type": "bytes"
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
       }
     ],
-    "name": "createShot",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "domainSeparator",
+    "name": "getCommitment",
     "outputs": [
       {
-        "internalType": "bytes32",
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "committedAt",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "exists",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct ShotRegistry.RegistrationCommitment",
         "name": "",
-        "type": "bytes32"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -284,24 +269,14 @@
             "type": "bytes32"
           },
           {
-            "internalType": "bytes32",
-            "name": "contentCommitment",
-            "type": "bytes32"
-          },
-          {
             "internalType": "uint64",
-            "name": "sequence",
+            "name": "checkpointSequence",
             "type": "uint64"
           },
           {
             "internalType": "uint64",
             "name": "nonce",
             "type": "uint64"
-          },
-          {
-            "internalType": "uint8",
-            "name": "publicState",
-            "type": "uint8"
           }
         ],
         "internalType": "struct ShotRegistry.Shot",
@@ -333,13 +308,8 @@
           },
           {
             "internalType": "uint64",
-            "name": "sequence",
+            "name": "checkpointSequence",
             "type": "uint64"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "contentCommitment",
-            "type": "bytes32"
           },
           {
             "internalType": "uint64",
@@ -352,12 +322,12 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct ShotRegistry.AppendEvolutionAction",
+        "internalType": "struct ShotRegistry.AppendCheckpointAction",
         "name": "action",
         "type": "tuple"
       }
     ],
-    "name": "hashAppendEvolution",
+    "name": "hashAppendCheckpoint",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -388,18 +358,8 @@
             "type": "bytes32"
           },
           {
-            "internalType": "uint64",
-            "name": "sequence",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint8",
-            "name": "publicState",
-            "type": "uint8"
-          },
-          {
             "internalType": "bytes32",
-            "name": "contentCommitment",
+            "name": "salt",
             "type": "bytes32"
           },
           {
@@ -413,68 +373,12 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct ShotRegistry.CreateShotAction",
+        "internalType": "struct ShotRegistry.RegisterShotAction",
         "name": "action",
         "type": "tuple"
       }
     ],
-    "name": "hashCreateShot",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "bytes32",
-            "name": "shotId",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "currentHead",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint64",
-            "name": "sequence",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint8",
-            "name": "publicState",
-            "type": "uint8"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "contentCommitment",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "uint64",
-            "name": "nonce",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "deadline",
-            "type": "uint64"
-          }
-        ],
-        "internalType": "struct ShotRegistry.SetPublicStateAction",
-        "name": "action",
-        "type": "tuple"
-      }
-    ],
-    "name": "hashSetPublicState",
+    "name": "hashRegisterShot",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -511,7 +415,7 @@
           },
           {
             "internalType": "uint64",
-            "name": "sequence",
+            "name": "checkpointSequence",
             "type": "uint64"
           },
           {
@@ -582,25 +486,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "shotId",
-        "type": "bytes32"
-      }
-    ],
-    "name": "sequenceOf",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "components": [
           {
             "internalType": "bytes32",
@@ -608,23 +493,18 @@
             "type": "bytes32"
           },
           {
+            "internalType": "address",
+            "name": "controller",
+            "type": "address"
+          },
+          {
             "internalType": "bytes32",
-            "name": "currentHead",
+            "name": "head",
             "type": "bytes32"
           },
           {
-            "internalType": "uint64",
-            "name": "sequence",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint8",
-            "name": "publicState",
-            "type": "uint8"
-          },
-          {
             "internalType": "bytes32",
-            "name": "contentCommitment",
+            "name": "salt",
             "type": "bytes32"
           },
           {
@@ -638,7 +518,7 @@
             "type": "uint64"
           }
         ],
-        "internalType": "struct ShotRegistry.SetPublicStateAction",
+        "internalType": "struct ShotRegistry.RegisterShotAction",
         "name": "action",
         "type": "tuple"
       },
@@ -648,9 +528,62 @@
         "type": "bytes"
       }
     ],
-    "name": "setPublicState",
+    "name": "registerShot",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "controller",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "shotId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "salt",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "deadline",
+        "type": "uint64"
+      }
+    ],
+    "name": "registrationCommitment",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "controller",
+        "type": "address"
+      }
+    ],
+    "name": "registrationNonces",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "nonce",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -679,7 +612,7 @@
           },
           {
             "internalType": "uint64",
-            "name": "sequence",
+            "name": "checkpointSequence",
             "type": "uint64"
           },
           {
@@ -732,14 +665,8 @@
       {
         "indexed": false,
         "internalType": "uint64",
-        "name": "sequence",
+        "name": "checkpointSequence",
         "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "contentCommitment",
-        "type": "bytes32"
       },
       {
         "indexed": false,
@@ -754,7 +681,7 @@
         "type": "address"
       }
     ],
-    "name": "EvolutionAppended",
+    "name": "CheckpointAppended",
     "type": "event"
   },
   {
@@ -763,47 +690,23 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "shotId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "previousState",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "newState",
-        "type": "uint8"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "head",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "contentCommitment",
+        "name": "commitment",
         "type": "bytes32"
       },
       {
         "indexed": false,
         "internalType": "uint64",
-        "name": "actionNonce",
+        "name": "committedAt",
         "type": "uint64"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "address",
         "name": "relayer",
         "type": "address"
       }
     ],
-    "name": "PublicStateSet",
+    "name": "ShotCommitmentRecorded",
     "type": "event"
   },
   {
@@ -829,21 +732,15 @@
       },
       {
         "indexed": false,
-        "internalType": "uint64",
-        "name": "sequence",
-        "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "publicState",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
         "internalType": "bytes32",
-        "name": "contentCommitment",
+        "name": "commitment",
         "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "checkpointSequence",
+        "type": "uint64"
       },
       {
         "indexed": false,
@@ -858,7 +755,7 @@
         "type": "address"
       }
     ],
-    "name": "ShotCreated",
+    "name": "ShotRegistered",
     "type": "event"
   },
   {
@@ -891,7 +788,7 @@
       {
         "indexed": false,
         "internalType": "uint64",
-        "name": "sequence",
+        "name": "checkpointSequence",
         "type": "uint64"
       },
       {
@@ -913,12 +810,77 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "expiredAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "CommitmentExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
+      }
+    ],
+    "name": "CommitmentNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "availableAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "CommitmentTooYoung",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "controller",
+        "type": "address"
+      }
+    ],
+    "name": "DelegatedEOAController",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint64",
         "name": "deadline",
         "type": "uint64"
       }
     ],
     "name": "Expired",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "expected",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "observed",
+        "type": "uint64"
+      }
+    ],
+    "name": "InvalidCheckpointSequence",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidCommitment",
     "type": "error"
   },
   {
@@ -951,49 +913,6 @@
       }
     ],
     "name": "InvalidNonce",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "publicState",
-        "type": "uint8"
-      }
-    ],
-    "name": "InvalidPublicState",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "currentState",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint8",
-        "name": "requestedState",
-        "type": "uint8"
-      }
-    ],
-    "name": "InvalidPublicStateTransition",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint64",
-        "name": "expected",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint64",
-        "name": "observed",
-        "type": "uint64"
-      }
-    ],
-    "name": "InvalidSequence",
     "type": "error"
   },
   {
@@ -1037,6 +956,11 @@
       }
     ],
     "name": "StaleHead",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimestampOverflow",
     "type": "error"
   },
   {

@@ -380,28 +380,40 @@ dependencies, compilation, artifact checks, and deterministic conformance.
 
 A private Shot exists before and independently of a chain.
 
-The candidate contracts are optional public witnesses:
+The successor contracts are optional public witnesses:
 
 - `BuilderAccountFactory` predicts and deploys controller accounts;
 - `BuilderAccount` validates authorized actions;
-- `ShotRegistry` records controller, accepted head, sequence, nonce, public
-  state, and an optional public checkpoint commitment;
-- `ShotRelations` records optional handles, token coordinates, and App Store
-  attestations.
+- `ShotRegistry` records only controller, intentionally public lineage head,
+  witness-local checkpoint count, and action nonce after a permissionless
+  commit and controller-signed reveal.
 
 They do not store repositories, intentions, genomes, feedback, transcripts, or
-private references. A chain anchor can prove that a commitment existed and was
-authorized; it cannot contain the total creative object or make subjective
-intention objectively true.
+private references. They must not receive app-runtime continuity or end-user
+data, including hashes of small or guessable private values. A chain anchor can
+prove that a public commitment existed and was authorized; it cannot contain
+the total creative object or make subjective intention objectively true.
 
-The contracts are non-upgradeable, administrator-free, unaudited, planned, and
-undeployed in this candidate. Planned addresses are not production contracts.
+The undeployed `ShotRelations` surface was cut. Permanent plaintext handles
+create naming and squatting policy. App Store self-claims are not externally
+verified and may look authoritative when they are not. Token Association
+already exists as a signed lineage relationship and does not require a
+dedicated contract.
+
+Builder identity becomes public and linkable only through explicit
+publication. A private/local Shot does not enter this graph merely because it
+exists. End-user installation and continuity identities stay local and never
+become Builder controllers.
+
+The contracts are non-upgradeable, administrator-free, unaudited, and
+undeployed. The frozen v0.7 generation will never be deployed, and unversioned
+successor draft addresses are not production contracts.
 
 ## 17. Token association
 
-A Shot may have zero or more historical token associations. One current
-association can identify a chain and token contract, with prior relationships
-preserved in lineage or contract event history.
+A Shot may have zero or more historical token associations. Each association
+identifies its own chain and token contract, with prior relationships preserved
+in signed lineage.
 
 A token is not:
 
@@ -411,9 +423,10 @@ A token is not:
 - application ownership;
 - a requirement for creation, use, verification, or evolution.
 
-The existing v1 contract ABI names this relationship an Appcoin and accepts any
-nonzero target chain ID, including Base `8453`. Protocol-facing language calls
-it a Token Association while retaining ABI compatibility.
+The frozen v0.7 ABI named this relationship an Appcoin. It remains a legacy
+decoding input but will not be deployed. Current protocol language and lineage
+use Token Association directly and accept explicit supported chain
+coordinates, including Base `8453`.
 
 Anky can therefore be its own Shot, have one or more software expressions, and
 associate `$ANKY` on Base. That relationship does not make the token contract

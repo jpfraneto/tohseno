@@ -24,6 +24,11 @@ done
 script_directory="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 repository_root="$(CDPATH= cd -- "$script_directory/.." && pwd)"
 contracts_directory="$repository_root/contracts"
+if [ -e "$contracts_directory/src/ShotRelations.sol" ]; then
+  printf '%s\n' \
+    "build-contract-abi.sh: removed contracts/src/ShotRelations.sol must not exist" >&2
+  exit 1
+fi
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/tohseno-contract-artifacts.XXXXXX")"
 
 cleanup() {
@@ -44,9 +49,25 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
   cd "$contracts_directory"
   forge build >/dev/null
 
-  for contract in BuilderAccount BuilderAccountFactory ShotRegistry ShotRelations; do
+  for contract in BuilderAccount BuilderAccountFactory ShotRegistry; do
     forge inspect "$contract" abi --json | jq -S . >"$temporary_directory/abi/$contract.json"
   done
+  if jq -e '
+    [.. | objects | .name? // empty]
+    | any(
+        . == "contentCommitment"
+        or . == "publicState"
+        or . == "sequenceOf"
+        or . == "createNonces"
+        or . == "handleText"
+        or . == "appcoinOf"
+        or . == "appStoreAttestationOf"
+      )
+  ' "$temporary_directory/abi/ShotRegistry.json" >/dev/null; then
+    printf '%s\n' \
+      "build-contract-abi.sh: narrowed ShotRegistry ABI contains a removed surface" >&2
+    exit 1
+  fi
 
   builder_account_creation="$(forge inspect BuilderAccount bytecode)"
   factory_creation="$(forge inspect BuilderAccountFactory bytecode)"
@@ -62,10 +83,6 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
   registry_salt="$(
     cast keccak "TOHSENO NEXT CONTRACT GENERATION ShotRegistry"
   )"
-  relations_salt="$(
-    cast keccak "TOHSENO NEXT CONTRACT GENERATION ShotRelations"
-  )"
-
   factory_init_code_hash="$(cast keccak "$factory_creation")"
   registry_init_code_hash="$(cast keccak "$registry_creation")"
   factory_address="$(
@@ -83,18 +100,6 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
   )"
   registry_address="$(printf '%s' "$registry_address" | tr 'A-F' 'a-f')"
 
-  relations_creation="$(forge inspect ShotRelations bytecode)"
-  encoded_registry="$(cast abi-encode "constructor(address)" "$registry_address")"
-  relations_init_code="${relations_creation}${encoded_registry#0x}"
-  relations_init_code_hash="$(cast keccak "$relations_init_code")"
-  relations_address="$(
-    cast create2 \
-      --deployer "$deterministic_deployer" \
-      --salt "$relations_salt" \
-      --init-code-hash "$relations_init_code_hash"
-  )"
-  relations_address="$(printf '%s' "$relations_address" | tr 'A-F' 'a-f')"
-
   jq -S -n \
     --arg deterministic_deployer "$deterministic_deployer" \
     --arg factory_salt "$factory_salt" \
@@ -103,9 +108,6 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
     --arg registry_salt "$registry_salt" \
     --arg registry_init_code_hash "$registry_init_code_hash" \
     --arg registry_address "$registry_address" \
-    --arg relations_salt "$relations_salt" \
-    --arg relations_init_code_hash "$relations_init_code_hash" \
-    --arg relations_address "$relations_address" \
     '{
       schema: "tohseno.deployment-plan/1",
       protocol: "tohseno",
@@ -144,16 +146,6 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
           deployed: false,
           transaction_hash: null,
           runtime_code_hash: null
-        },
-        ShotRelations: {
-          deployment_order: 3,
-          constructor_arguments: [$registry_address],
-          salt: $relations_salt,
-          init_code_hash: $relations_init_code_hash,
-          planned_address: $relations_address,
-          deployed: false,
-          transaction_hash: null,
-          runtime_code_hash: null
         }
       }
     }' >"$temporary_directory/deployments/robinhood-mainnet-next.json"
@@ -163,13 +155,17 @@ artifacts="
 abi/BuilderAccount.json
 abi/BuilderAccountFactory.json
 abi/ShotRegistry.json
-abi/ShotRelations.json
 bytecode/BuilderAccount.next.creation.hex
 deployments/robinhood-mainnet-next.json
 "
 
 if [ "$mode" = "check" ]; then
   stale=0
+  if [ -e "$contracts_directory/abi/ShotRelations.json" ]; then
+    printf '%s\n' \
+      "stale removed contract artifact: contracts/abi/ShotRelations.json" >&2
+    stale=1
+  fi
   for artifact in $artifacts; do
     if [ ! -f "$contracts_directory/$artifact" ] \
       || ! cmp -s "$temporary_directory/$artifact" "$contracts_directory/$artifact"; then
@@ -188,6 +184,9 @@ mkdir -p \
   "$contracts_directory/abi" \
   "$contracts_directory/bytecode" \
   "$contracts_directory/deployments"
+if [ -e "$contracts_directory/abi/ShotRelations.json" ]; then
+  rm -- "$contracts_directory/abi/ShotRelations.json"
+fi
 for artifact in $artifacts; do
   cp "$temporary_directory/$artifact" "$contracts_directory/$artifact"
 done
