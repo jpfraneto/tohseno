@@ -40,6 +40,23 @@ obvious lifetime. Press Control-C there to stop it. Later launches use:
 tohseno studio
 ```
 
+The installed CLI checks the stable release channel at most once per day. When
+a newer release exists, interactive commands show one short instruction:
+
+```text
+TOHSENO 0.7.1 is available. Run `tohseno update`.
+```
+
+Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).
+Remove only the installed program and its exact shell PATH line with:
+
+```sh
+tohseno uninstall
+```
+
+Uninstall never deletes visible Shot folders, identities, feedback, v0.6 data,
+or other machine state.
+
 Automation or package inspection can install without launching Studio:
 
 ```sh

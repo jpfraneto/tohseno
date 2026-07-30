@@ -1,5 +1,6 @@
 mod bankr_launch;
 mod identity_commands;
+mod installation_commands;
 mod intake;
 mod protocol_commands;
 mod renderer;
@@ -39,6 +40,11 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Install the latest stable TOHSENO release.
+    #[command(alias = "upgrade")]
+    Update,
+    /// Remove TOHSENO program files while preserving every Shot and identity.
+    Uninstall,
     /// Prepare a visible Shot folder, intention package, and native harness
     /// command. The harness starts only after Enter in the opened terminal.
     Create {
@@ -468,6 +474,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let bus = EventBus::default();
     let renderer = Renderer::new(io::stdout(), io::stdout().is_terminal());
     let render_task = tokio::spawn(renderer.follow(bus.subscribe()));
+    if !cli.json
+        && io::stdout().is_terminal()
+        && !matches!(&cli.command, Command::Update | Command::Uninstall)
+    {
+        installation_commands::maybe_emit_update_notice(&bus).await;
+    }
     let outcome = dispatch(cli.command, &bus, cli.json).await;
     drop(bus);
     render_task.await??;
@@ -480,6 +492,8 @@ async fn dispatch(
     json: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match command {
+        Command::Update => installation_commands::update(bus).await?,
+        Command::Uninstall => installation_commands::uninstall(bus)?,
         Command::List => list(bus)?,
         Command::Create {
             app_name,
@@ -1016,6 +1030,30 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn update_is_canonical_upgrade_is_an_alias_and_uninstall_is_explicit() {
+        assert!(matches!(
+            Cli::try_parse_from(["tohseno", "update"]).unwrap().command,
+            Command::Update
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["tohseno", "upgrade"]).unwrap().command,
+            Command::Update
+        ));
+        assert!(matches!(
+            Cli::try_parse_from(["tohseno", "uninstall"])
+                .unwrap()
+                .command,
+            Command::Uninstall
+        ));
+        let help = Cli::try_parse_from(["tohseno", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(help.contains("update"));
+        assert!(help.contains("uninstall"));
+        assert!(!help.contains("upgrade"));
+    }
 
     #[test]
     fn studio_uses_a_predictable_unprivileged_port_by_default() {
