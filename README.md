@@ -13,7 +13,7 @@ A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-The current product release is **TOHSENO 0.7.0**. It ships the local GENESIS
+The current product release is **TOHSENO 0.7.1**. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol, deployed
 contracts, or public infrastructure.
 
@@ -23,7 +23,7 @@ contracts, or public infrastructure.
 curl -fsSL https://tohseno.com/oneshot.sh | bash
 ```
 
-On a new Mac, that command verifies the complete immutable 0.7.0 release,
+On a new Mac, that command verifies the complete immutable 0.7.1 release,
 installs it transactionally, starts the loopback-only Studio server, opens
 Studio in the default browser, and presents the resumable first-Shot guide.
 The guide checks the actual Mac for Xcode, Apple Development signing, and an
@@ -98,7 +98,8 @@ The operation never deletes or rewrites the 0.6.0 source.
 
 Publication requires machine-readable stable-release authorization, GitHub
 [release immutability](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
-and an active tag ruleset that prevents updates or deletion of `v0.7.0`.
+and an active tag ruleset that prevents updates or deletion of the exact
+release tag.
 Immediately before publication, the workflow also reads the exact live GitHub
 tag ref, safely peels a bounded annotated-tag chain, and requires its commit to
 match the workflow event commit. It attaches every asset to a draft, repeats
@@ -109,7 +110,7 @@ after a lost publish response accepts only the exact immutable release after
 the same asset and tag verification. The checkout remains credential-free, and
 write permission remains scoped to the publish job.
 
-TOHSENO 0.7.0 requires macOS 13 or later and Xcode. A physical install
+TOHSENO 0.7.1 requires macOS 13 or later and Xcode. A physical install
 requires an iPhone connected through Apple’s device tooling and a usable Apple
 signing identity. A free Apple ID is the default development path; paid Apple
 Developer membership is only needed for longer-lived signing or App Store
@@ -471,7 +472,7 @@ release bundle must come from committed inputs.
 | Guarded prepare/sign/relay/receipt verification for publish, handle, and appcoin | Implemented; no mainnet lifecycle transaction performed in this source task |
 | BuilderAccount, Shot #1, Evolutions 1–2, handle, and appcoin relation | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |
-| Stable v0.7.0 release and installer-from-release test | Recorded in `release/V0_7_0_READINESS.json` |
+| Stable v0.7.1 patch and installer-from-release test | Recorded in `release/V0_7_1_READINESS.json`; v0.7.0 remains immutable |
 | Canonical release or Arweave publication | Deliberately not completed |
 
 TOHSENO is Apache-2.0 software. It uses established cryptography to create a

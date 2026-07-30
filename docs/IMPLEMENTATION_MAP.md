@@ -3,7 +3,7 @@
 This map describes the repository at `2ba008f` before the coherent-intention
 protocol work began on 2026-07-29. It is the compatibility baseline for the
 changes that follow. Existing code is authoritative where this document and
-older prose differ. The stable `v0.7.0` release promotion supersedes the
+older prose differ. The stable `v0.7.1` patch release supersedes the
 historical release-status statements in this snapshot.
 
 ## Repository lineage
@@ -16,8 +16,9 @@ self-ledger folders, made one Shot contain many immutable Evolutions, simplified
 the CLI around builder-owned agents, updated Studio, and provisioned the
 hardware-backed Apple identity helper.
 
-The candidate is `0.7.0`. It has not been tagged or released. The live
-installer remains `v0.6.0`; the candidate protocol page is not deployed; and
+At this historical snapshot, the candidate was `0.7.0`, had not been tagged or
+released, and the live installer remained `v0.6.0`. The candidate protocol page
+was not deployed, and
 the planned BuilderAccountFactory, ShotRegistry, and ShotRelations addresses
 have no code. The checked-in Genesis candidate report predates the late-day
 folder and CLI changes and is historical evidence, not a report for current

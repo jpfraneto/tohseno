@@ -517,7 +517,7 @@ TOHSENO does not:
 
 ## Release and protocol status
 
-TOHSENO `0.7.0` is the stable local product release. Its installer, CLI,
+TOHSENO `0.7.1` is the stable local product release. Its installer, CLI,
 Studio, Apple identity helper, and deterministic protocol materials are
 released together as one checksummed artifact set.
 

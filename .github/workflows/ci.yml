@@ -74,7 +74,7 @@ jobs:
           cargo run --quiet --locked -p tohseno -- --json protocol info |
             jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -F '0.7.0'
+            grep -Fqx 'tohseno 0.7.1'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -179,13 +179,13 @@ jobs:
             genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.7.0"
+             and .version == "0.7.1"
              and .channel == "stable"
              and (.ready | type) == "boolean"
              and (.authorization.authorized | type) == "boolean"
              and (.protection.immutable_release_policy_verified | type) == "boolean"
              and (.protection.release_tag_protection_verified | type) == "boolean"' \
-            release/V0_7_0_READINESS.json
+            release/V0_7_1_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -256,7 +256,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.7.0"',
+            '"$RELEASE_TAG" != "v0.7.1"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -272,7 +272,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.7.0 source commit:",
+            "TOHSENO v0.7.1 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",
@@ -356,15 +356,15 @@ jobs:
             shasum -a 256 -c CHECKSUMS.sha256
             jq -e \
               '.schema == "tohseno.release/1"
-               and .version == "0.7.0"
+               and .version == "0.7.1"
                and .channel == "stable"
                and .prerelease == false
                and .dirty == false' \
               RELEASE.json
           )
-          "$package/bin/tohseno" --version | grep -F '0.7.0'
+          "$package/bin/tohseno" --version | grep -Fqx 'tohseno 0.7.1'
           "$package/bin/tohseno-apple-identity" --version |
-            grep -F '0.7.0'
+            grep -Fqx 'tohseno-apple-identity 0.7.1'
           "$package/bin/tohseno" --json protocol info |
             jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
           scripts/test-installer.sh \
