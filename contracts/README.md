@@ -133,10 +133,18 @@ Run:
 ../scripts/build-contract-abi.sh --check
 ```
 
-The generator writes current ABI JSON plus explicitly unversioned development
-artifacts at `bytecode/BuilderAccount.next.creation.hex` and
-`deployments/robinhood-mainnet-next.json`. The draft plan contains exactly
-`BuilderAccountFactory` and `ShotRegistry`.
+The generator writes current ABI JSON plus the immutable build definition,
+versioned ABIs, and portable BuilderAccount creation bytecode beneath
+`generations/0.8.0/`. It recomputes the exact source inventory, compiler output,
+artifact hashes, raw creation/runtime code hashes, and conditional EIP-1014
+coordinates. The source tree is frozen to commit
+`862ca6cd3d396271b56b336fee0513ddcf6ecc64`; any source drift requires a new
+generation rather than silently rewriting 0.8.0.
+
+The files at `bytecode/BuilderAccount.next.creation.hex` and
+`deployments/robinhood-mainnet-next.json` remain explicitly unversioned
+development projections. Neither a generation definition nor a predicted
+CREATE2 address is deployment or activation evidence.
 
 The frozen v0.7 files `bytecode/BuilderAccount.creation.hex` and
 `deployments/robinhood-mainnet-genesis.json` remain byte-for-byte verification
@@ -173,7 +181,9 @@ release builder fail closed. Their immutable historical implementations remain
 auditable at tag `v0.7.1`. A successor deployment path will exist only after
 the actual target RPC passes the complete EIP-7951 positive, negative,
 infinity-edge, and 6,900-gas hard gate and the final generation coordinates
-are committed in a release manifest.
+are committed in a separately authorized release activation. The immutable
+0.8.0 build definition is committed, but no activation record or release
+authority trust root exists.
 
 No contract in this repository has been deployed by this work.
 

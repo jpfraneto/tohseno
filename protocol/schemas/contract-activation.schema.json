@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/contract-activation.schema.json",
+  "title": "TOHSENO contract-generation activation payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "protocol",
+    "protocol_major",
+    "generation",
+    "activation_sequence",
+    "previous_activation",
+    "generation_definition_sha256",
+    "authority_policy_sha256",
+    "chain_id",
+    "builder_account_runtime_keccak256",
+    "factory",
+    "registry",
+    "activation_block",
+    "p256_probe_sha256",
+    "issued_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.contract-activation/1"
+    },
+    "protocol": {
+      "const": "tohseno"
+    },
+    "protocol_major": {
+      "const": 2
+    },
+    "generation": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "activation_sequence": {
+      "$ref": "common.schema.json#/$defs/positiveSafeUint"
+    },
+    "previous_activation": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      ]
+    },
+    "generation_definition_sha256": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "authority_policy_sha256": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "chain_id": {
+      "$ref": "common.schema.json#/$defs/positiveSafeUint"
+    },
+    "builder_account_runtime_keccak256": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "factory": {
+      "$ref": "#/$defs/activatedContract"
+    },
+    "registry": {
+      "$ref": "#/$defs/activatedContract"
+    },
+    "activation_block": {
+      "$ref": "#/$defs/chainBlock"
+    },
+    "p256_probe_sha256": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "issued_at": {
+      "$ref": "ontology.schema.json#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "activation_sequence": {
+            "const": 1
+          }
+        },
+        "required": [
+          "activation_sequence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "previous_activation": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "activation_sequence": {
+            "minimum": 2
+          },
+          "previous_activation": {
+            "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "deploymentObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transaction_hash",
+        "block_number",
+        "block_hash"
+      ],
+      "properties": {
+        "transaction_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "block_number": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "block_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      }
+    },
+    "activatedContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "runtime_code_keccak256",
+        "deployment"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "runtime_code_keccak256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "deployment": {
+          "$ref": "#/$defs/deploymentObservation"
+        }
+      }
+    },
+    "chainBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "block_number",
+        "block_hash"
+      ],
+      "properties": {
+        "block_number": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "block_hash": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      }
+    }
+  },
+  "$comment": "The signing digest is SHA-256('TOHSENO-CONTRACT-ACTIVATION-V1\\0' || RFC8785(payload)). Semantic validation additionally binds the immutable generation definition, exact runtime hashes and predicted addresses, deployment observations, activation-block ordering, and fresh target-RPC P256 probe digest."
+}

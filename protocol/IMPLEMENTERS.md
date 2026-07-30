@@ -164,9 +164,37 @@ commitment from private lineage. Keep any local checkpoint-to-private-state
 motivation map below the explicitly private metadata boundary and never place
 it in an export or node outbox.
 
+Do not export an ordinary `SignedLineageAction` merely because its availability
+is `publicly_available`. Its `previous` digest may commit private ancestry. The
+legacy mixed-ancestry outbox is read-only evidence; current implementations
+must fail closed until the record type being published defines a closed,
+ancestry-free projection. `tohseno.public-checkpoint/1` is the only such
+projection currently defined, and it does not carry Token Associations.
+
 The offline CREATE2 predictor requires the exact creation bytecode shipped for
 the deployment. Runtime bytecode or compiler source is not a substitute. The
 constructor suffix is only `x` and `y`; recovery configuration occurs later.
+
+Load contract build facts only through the closed
+`tohseno.contract-generation/1` definition. Verify its schema, semantic
+invariants, RFC 8785/SHA-256 digest, source-tree law, on-disk artifact hashes,
+raw creation/runtime code hashes, and EIP-1014 address arithmetic. Keep
+component versions independent: a future BuilderAccount repair must not
+silently relabel an unchanged registry.
+
+Do not interpret a generation definition or predicted address as activation.
+Identity creation and public mutation must remain disabled until a separate
+trusted release policy resolves a signed activation record against observed
+target-chain code, activation block, and fresh EIP-7951 deploy-gate evidence.
+No such activation or trust root is committed for generation 0.8.0.
+
+For a supplied activation, verify the exact generation definition first, then
+the domain-separated activation digest, predecessor/sequence, observed
+deployment and activation-block ordering, policy digest, strictly ordered
+unique approvals, membership, low-s P-256 signatures, and threshold. Report
+the result as "approved under supplied policy" until an independently pinned
+release-policy digest establishes trust. Never infer that policy from a
+BuilderID, Shot owner, installation key, relayer, or deployment sender.
 
 ## Dependency audit
 

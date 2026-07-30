@@ -75,6 +75,31 @@ nonzero new recovery address.
 | `registry_v2.public_checkpoint` | Head equals SHA-256 of exact `tohseno.public-checkpoint/1` RFC 8785 bytes; witness coordinates match the action domain and the public-only predecessor chain is complete or explicitly partial. |
 | `registry_v2.authority_boundary` | Checkpoint-body verification is not reported as controller authority or on-chain acceptance without the paired action, live ERC-1271 decision, and receipt evidence. |
 
+## Contract-generation definition checks
+
+| Check ID | Required observation |
+|---|---|
+| `contract_generation.schema` | Exact closed `tohseno.contract-generation/1`, protocol major 2, and canonical component versions are used. |
+| `contract_generation.digest` | SHA-256 of exact RFC 8785 definition bytes matches the frozen vector. |
+| `contract_generation.source` | Every declared source file matches its byte length and SHA-256; the strictly ordered domain-separated source-tree digest recomputes exactly. |
+| `contract_generation.build` | solc, EVM target, optimizer, metadata, IR, and Foundry facts match the committed profile. |
+| `contract_generation.artifacts` | Every versioned ABI and BuilderAccount creation-bytecode artifact matches its byte length and SHA-256; raw creation and runtime code hashes match the build. |
+| `contract_generation.create2` | Each predicted coordinate recomputes under EIP-1014 from the declared deployer, salt, and init-code hash and is reported only as conditional arithmetic. |
+| `contract_generation.p256` | The requirement is final EIP-7951 at `0x100` with 6,900 gas, never legacy RIP-7212 semantics. |
+| `contract_generation.inactive` | The build definition contains no deployment/transaction/block/authority/signature/trust-root evidence and is never accepted as activation. |
+
+## Contract-activation checks
+
+| Check ID | Required observation |
+|---|---|
+| `contract_activation.definition` | Activation generation, protocol major, chain, predicted factory/registry addresses, approved BuilderAccount runtime, and all observed runtime hashes match the exact immutable definition digest. |
+| `contract_activation.evidence` | Deployment transaction/block evidence is nonzero; the canonical activation block is at or after both deployments; the actual-target P256 probe digest is present. |
+| `contract_activation.causality` | Sequence starts at one/null and each successor increments once, names the prior activation signing digest, advances block height, and does not move time backward. |
+| `contract_activation.digest` | SHA-256 of `TOHSENO-CONTRACT-ACTIVATION-V1\0` plus exact RFC 8785 payload bytes is the approval digest. |
+| `contract_activation.policy` | Policy purpose is contract activation; dedicated release key IDs reproduce from curve-valid P-256 keys; authorities are unique and ordered; threshold is in range. |
+| `contract_activation.approvals` | Approvals are unique and ordered, belong to the bound policy, carry the exact digest, are low-s, verify under their policy keys, and meet threshold. |
+| `contract_activation.trust` | A valid threshold is reported only under the supplied policy until a separate client trust root pins its digest. No Builder/Shot/installation/deployer identity is treated as release authority implicitly. |
+
 The bundled candidate does not currently verify a DeviceKey replacement,
 revocation, or recovery transition. An action schema, valid detached signature,
 caller-supplied nonce, or encrypted local backup is not authorization evidence

@@ -12,6 +12,8 @@ pub mod builder;
 pub mod canonical;
 pub mod conformance;
 pub mod continuity;
+pub mod contract_activation;
+pub mod contract_generation;
 pub mod digest;
 pub mod evolution;
 pub mod fascia;

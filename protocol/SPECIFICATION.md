@@ -402,6 +402,76 @@ internal adjacency, not controller authority or on-chain acceptance. The
 schema and frozen bytes are `schemas/public-checkpoint.schema.json` and
 `test-vectors/public-checkpoint.json`.
 
+An ordinary `SignedLineageAction` MUST NOT enter a current publication outbox,
+even when its own availability is `publicly_available`: `previous` can still
+commit private ancestry. Existing outbox records MAY be retained as legacy
+partial evidence but MUST NOT become registry heads. Token Associations remain
+private until a distinct closed, ancestry-free public relation record exists.
+
+## Immutable contract-generation definitions
+
+`tohseno.contract-generation/1` identifies one reproducible build, not one
+deployment. It closes over the protocol major, generation and component
+versions, target chain and EIP-7951 requirement, exact source inventory,
+compiler profile, ABI artifacts, portable BuilderAccount creation bytecode,
+creation/runtime code hashes, and conditional CREATE2 coordinates.
+
+The definition MUST NOT contain deployment status, transaction or block
+evidence, activation authority, signatures, or a trust root. A predicted
+CREATE2 address is arithmetic, not proof that the deployer exists on the target
+chain or that code was deployed there. The definition digest is:
+
+```text
+SHA-256(RFC8785(contract_generation))
+```
+
+The source inventory is strictly ordered by relative path. Its tree preimage
+is `TOHSENO-CONTRACT-SOURCE-TREE-V1\0` followed by one UTF-8 line per file:
+
+```text
+<0x-sha256> <decimal-byte-length> <relative-path>\n
+```
+
+The committed 0.8.0 definition and its versioned ABI/bytecode artifacts live
+at `contracts/generations/0.8.0/`. The closed schema and frozen canonical
+fixture are `schemas/contract-generation-v1.schema.json` and
+`test-vectors/contract-generation-v1.json`.
+
+Activation is a separate future release decision. Until a signed activation
+record binds a trusted release policy, this definition's digest, observed
+target-chain addresses and runtime code hashes, canonical activation block,
+and deploy-gate evidence, generation 0.8.0 is inactive. A build definition
+alone MUST NOT authorize identity creation, Shot publication, or RPC trust.
+
+The closed activation payload is `tohseno.contract-activation/1`. It binds an
+ordered activation sequence and predecessor, the generation and authority
+policy digests, chain, approved BuilderAccount runtime hash, exact observed
+factory/registry address and runtime hashes, deployment transactions and
+blocks, canonical activation block, fresh target-RPC P256 probe digest, and
+issuance time. Its signing digest is:
+
+```text
+SHA-256(
+  "TOHSENO-CONTRACT-ACTIVATION-V1\0" ||
+  RFC8785(contract_activation)
+)
+```
+
+`tohseno.release-authority-policy/1` contains a threshold and a strictly
+ordered set of curve-valid offline P-256 keys. Release key IDs use
+`SHA-256("TOHSENO-RELEASE-AUTHORITY-KEY-V1\0" || x || y)`, deliberately not
+the Builder DeviceKey law. `tohseno.signed-contract-activation/1` requires
+strictly ordered unique low-s approvals from keys in the bound policy and at
+least its threshold.
+
+Threshold verification proves approval under the supplied policy; it does not
+make that policy trusted. A client MUST separately pin its accepted policy
+digest. No activation instance or policy trust root is committed for 0.8.0.
+The corresponding closed schemas are
+`schemas/contract-activation.schema.json`,
+`schemas/release-authority-policy.schema.json`, and
+`schemas/signed-contract-activation.schema.json`.
+
 ## Neutral coherent-intention lineage v2
 
 The stable ShotID identifies the committed coherent intention, not its Apple

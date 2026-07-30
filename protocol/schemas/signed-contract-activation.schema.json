@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/signed-contract-activation.schema.json",
+  "title": "Threshold-approved TOHSENO contract activation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "activation",
+    "approvals"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.signed-contract-activation/1"
+    },
+    "activation": {
+      "$ref": "contract-activation.schema.json"
+    },
+    "approvals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/approval"
+      },
+      "$comment": "The protocol validator requires strictly ordered unique key IDs, membership in the bound policy, and enough valid signatures to satisfy its threshold."
+    }
+  },
+  "$defs": {
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key_id",
+        "authorization"
+      ],
+      "properties": {
+        "key_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "authorization": {
+          "$ref": "common.schema.json#/$defs/detachedP256Signature"
+        }
+      }
+    }
+  },
+  "$comment": "Threshold verification under a supplied policy does not make that policy trusted. A client needs an independently pinned release-policy digest; this schema installs no trust root."
+}

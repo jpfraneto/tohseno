@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/contract-generation-v1.schema.json",
+  "title": "TOHSENO immutable contract-generation build definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "protocol",
+    "protocol_major",
+    "generation",
+    "chain",
+    "source",
+    "build",
+    "contracts",
+    "create2"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.contract-generation/1"
+    },
+    "protocol": {
+      "const": "tohseno"
+    },
+    "protocol_major": {
+      "const": 2
+    },
+    "generation": {
+      "$ref": "#/$defs/version"
+    },
+    "chain": {
+      "$ref": "#/$defs/chain"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "build": {
+      "$ref": "#/$defs/build"
+    },
+    "contracts": {
+      "$ref": "#/$defs/contracts"
+    },
+    "create2": {
+      "$ref": "#/$defs/create2"
+    }
+  },
+  "$defs": {
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "byte_length"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativePath"
+        },
+        "sha256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "byte_length": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "sourceArtifact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "properties": {
+            "path": {
+              "pattern": "^(?:foundry\\.toml|src/[A-Za-z0-9._-]+)$"
+            }
+          }
+        }
+      ]
+    },
+    "abiArtifact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "properties": {
+            "path": {
+              "pattern": "^abi/[A-Za-z0-9._-]+\\.json$"
+            }
+          }
+        }
+      ]
+    },
+    "creationBytecodeArtifact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/artifact"
+        },
+        {
+          "properties": {
+            "path": {
+              "pattern": "^bytecode/[A-Za-z0-9._-]+\\.creation\\.hex$"
+            }
+          }
+        }
+      ]
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_id",
+        "p256_verifier"
+      ],
+      "properties": {
+        "chain_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "p256_verifier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "standard",
+            "address",
+            "gas"
+          ],
+          "properties": {
+            "standard": {
+              "const": "EIP-7951"
+            },
+            "address": {
+              "const": "0x0000000000000000000000000000000000000100"
+            },
+            "gas": {
+              "const": 6900
+            }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "tree_law",
+        "tree_sha256",
+        "files"
+      ],
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "tree_law": {
+          "const": "tohseno.contract-source-tree/1"
+        },
+        "tree_sha256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sourceArtifact"
+          },
+          "$comment": "The Rust validator additionally requires strict lexicographic ordering by path and recomputes tree_sha256."
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "solc_version",
+        "evm_version",
+        "optimizer",
+        "optimizer_runs",
+        "via_ir",
+        "bytecode_hash",
+        "cbor_metadata",
+        "forge_version",
+        "forge_commit"
+      ],
+      "properties": {
+        "profile": {
+          "const": "default"
+        },
+        "solc_version": {
+          "$ref": "#/$defs/version"
+        },
+        "evm_version": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+$"
+        },
+        "optimizer": {
+          "const": true
+        },
+        "optimizer_runs": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "via_ir": {
+          "type": "boolean"
+        },
+        "bytecode_hash": {
+          "const": "none"
+        },
+        "cbor_metadata": {
+          "const": false
+        },
+        "forge_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9.+-]+$"
+        },
+        "forge_commit": {
+          "$ref": "#/$defs/gitCommit"
+        }
+      }
+    },
+    "contractBuildBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_version",
+        "abi",
+        "creation_bytecode",
+        "creation_code_keccak256",
+        "runtime_code_keccak256"
+      ],
+      "properties": {
+        "component_version": {
+          "$ref": "#/$defs/version"
+        },
+        "abi": {
+          "$ref": "#/$defs/abiArtifact"
+        },
+        "creation_bytecode": {},
+        "creation_code_keccak256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "runtime_code_keccak256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      }
+    },
+    "builderAccountBuild": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/contractBuildBase"
+        },
+        {
+          "properties": {
+            "creation_bytecode": {
+              "$ref": "#/$defs/creationBytecodeArtifact"
+            }
+          }
+        }
+      ]
+    },
+    "witnessContractBuild": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/contractBuildBase"
+        },
+        {
+          "properties": {
+            "creation_bytecode": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "contracts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "builder_account",
+        "builder_account_factory",
+        "shot_registry"
+      ],
+      "properties": {
+        "builder_account": {
+          "$ref": "#/$defs/builderAccountBuild"
+        },
+        "builder_account_factory": {
+          "$ref": "#/$defs/witnessContractBuild"
+        },
+        "shot_registry": {
+          "$ref": "#/$defs/witnessContractBuild"
+        }
+      }
+    },
+    "create2Coordinate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "salt",
+        "init_code_keccak256",
+        "predicted_address"
+      ],
+      "properties": {
+        "salt": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "init_code_keccak256": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "predicted_address": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        }
+      },
+      "$comment": "predicted_address is a conditional EIP-1014 result, not evidence that code was deployed."
+    },
+    "create2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deployer",
+        "builder_account_factory",
+        "shot_registry"
+      ],
+      "properties": {
+        "deployer": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "builder_account_factory": {
+          "$ref": "#/$defs/create2Coordinate"
+        },
+        "shot_registry": {
+          "$ref": "#/$defs/create2Coordinate"
+        }
+      }
+    }
+  },
+  "$comment": "This is an immutable build definition only. It deliberately has no deployed status, transaction hash, activation block, signing authority, trust root, or release activation claim. The generation digest is SHA-256(RFC8785(definition))."
+}

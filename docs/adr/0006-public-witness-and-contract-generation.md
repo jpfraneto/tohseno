@@ -55,16 +55,16 @@ The successor registry stores only:
 
 - independent random Shot ID;
 - controller;
-- intentionally public lineage head;
+- intentionally public checkpoint head;
 - public checkpoint count;
 - action nonce.
 
-The public head may identify only a canonical Shot lineage action that has
-passed explicit publication policy. No path may construct it from app-runtime
-continuity records, installation identity, end-user identity or behavior,
-private feedback, private references, raw private intentions, or hashes of
-those values. A hash over a small or guessable private domain is disclosure,
-not privacy.
+The public head may identify only the canonical ancestry-free public
+checkpoint defined below. No path may construct it from app-runtime continuity
+records, installation identity, end-user identity or behavior, private
+feedback, private references, raw private intentions, ordinary lineage action
+digests, or hashes of those values. A hash over a small or guessable private
+domain is disclosure, not privacy.
 
 The generic `contentCommitment` and `publicState` fields are removed. Removing
 `publicState` dissolves the sealed-commitment mutation defect rather than
@@ -143,6 +143,13 @@ the paired registry action, live ERC-1271 decision, and receipt. A private
 checkpoint-to-local-state motivation map may exist locally but is never a
 public protocol record.
 
+The earlier mixed-ancestry public-action outbox is write-disabled. Its own
+availability flag could not remove the private commitment carried in
+`previous`. Existing files remain legacy evidence that a node may preserve as
+an unresolved partial segment, but clients must not create new files or use
+them as registry heads. Token Associations remain private until a separate
+closed, ancestry-free public relation record is defined.
+
 ### Recovery closes ADR 0001
 
 BuilderAccount now:
@@ -214,13 +221,33 @@ migration. The v0.7 generation will never be deployed. Its exact private
 verification inputs remain frozen, while current operational clients must not
 publish through them.
 
-A finalized release manifest identifies a generation by:
+The closed `tohseno.contract-generation/1` record commits immutable build facts:
+the exact source inventory and source-state commit, compiler profile, ABIs,
+portable BuilderAccount creation bytecode, creation/runtime code hashes, and
+conditional CREATE2 arithmetic. Its digest is SHA-256 over RFC 8785 bytes. It
+has no deployment state, transaction, block, authority,
+signature, or trust root. Predicted addresses are not activation evidence.
+
+A future finalized release activation identifies an active generation by:
 
 - protocol major;
 - chain ID;
 - contract address;
 - runtime code hash;
 - activation block.
+
+It also binds the immutable generation-definition digest and actual target-RPC
+deploy-gate evidence under an explicit release-authority policy. No production
+activation instance or authority trust root is committed now, so generation
+0.8.0 remains inactive.
+
+The protocol defines closed activation, release-authority policy, and signed
+threshold envelope types now so successor resolution is executable rather than
+prose. Activation signatures are domain-separated P-256 signatures from
+dedicated offline release keys. Valid signatures prove a threshold only under
+the supplied policy; clients still need an independently pinned policy digest.
+Builder DeviceKeys, Shot owners, installation identities, relayers, and
+deployment senders never become release authorities implicitly.
 
 No unversioned `next` plan is authority. If the immutable registry is later
 wrong, TOHSENO deploys a new generation and resolves the signed successor by

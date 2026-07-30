@@ -171,6 +171,20 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
         );
     }
 
+    let generation_schema = schema_named(&schemas, "contract-generation-v1.schema.json");
+    let generation_validator = compile(
+        &generation_schema.contents,
+        &registry,
+        "contract generation v1 schema",
+    );
+    let generation_vectors = load_json(&manifest.join("test-vectors/contract-generation-v1.json"));
+    let generation = &generation_vectors["definition"];
+    assert_valid(
+        &generation_validator,
+        generation,
+        "contract generation v1 definition",
+    );
+
     let mut unknown_field = signed_actions[0].clone();
     unknown_field
         .as_object_mut()
@@ -270,6 +284,25 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
     assert!(
         !public_checkpoint_validator.is_valid(&mismatched_root),
         "checkpoint one was allowed to claim a predecessor"
+    );
+
+    let mut activation_claim = generation.clone();
+    activation_claim
+        .as_object_mut()
+        .expect("contract generation must be an object")
+        .insert("activation_block".into(), Value::Number(1.into()));
+    assert!(
+        !generation_validator.is_valid(&activation_claim),
+        "an activation claim passed the immutable build-definition schema"
+    );
+
+    let mut legacy_p256_gas = generation.clone();
+    *legacy_p256_gas
+        .pointer_mut("/chain/p256_verifier/gas")
+        .expect("contract generation must declare P256 gas") = Value::Number(3_450.into());
+    assert!(
+        !generation_validator.is_valid(&legacy_p256_gas),
+        "legacy RIP-7212 gas passed an EIP-7951 generation definition"
     );
 }
 

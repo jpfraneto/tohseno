@@ -22,6 +22,9 @@ This candidate is not the final canonical protocol.
 - [`test-vectors/public-checkpoint.json`](test-vectors/public-checkpoint.json)
   freezes the privacy-safe, ancestry-free record whose digest may become a
   successor registry head.
+- [`test-vectors/contract-generation-v1.json`](test-vectors/contract-generation-v1.json)
+  freezes the immutable 0.8.0 source/compiler/ABI/bytecode definition without
+  claiming deployment or activation.
 
 Run the crate gates with:
 
@@ -37,6 +40,7 @@ Regenerate vectors to standard output with:
 cargo run -q -p tohseno-protocol --example generate_vectors
 cargo run -q -p tohseno-protocol --example generate_registry_v2_vectors
 cargo run -q -p tohseno-protocol --example generate_public_checkpoint_vectors
+cargo run -q -p tohseno-protocol --example generate_contract_generation_vectors
 ```
 
 `PublicAction` and `SignedPublicAction` remain exact frozen v0.7 decoding
@@ -48,6 +52,17 @@ The signed v2 envelope is TOHSENO Builder-client evidence: its verifier proves
 the detached low-s P-256 signature and exact digest, not live device
 authorization. ShotRegistry resolves current authority through ERC-1271.
 Other neutral ERC-1271 controllers may define another signature encoding.
+
+`ContractGeneration` describes reproducible build inputs and conditional
+CREATE2 coordinates. Its RFC 8785/SHA-256 digest is not an activation:
+addresses remain predictions until separately signed release evidence binds
+observed code and an activation block. This repository contains no production
+activation record or release-authority trust root.
+
+The closed `ContractActivation`, `ReleaseAuthorityPolicy`, and
+`SignedContractActivation` types define that future evidence boundary and
+threshold P-256 verification without installing a policy. Their presence does
+not make generation 0.8.0 active.
 
 The ordinary coherent-intention lineage remains the complete local/private
 source of truth and is never used directly as a registry head. A

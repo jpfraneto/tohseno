@@ -90,9 +90,18 @@ jobs:
           cmp \
             "$RUNNER_TEMP/public-checkpoint.json" \
             protocol/test-vectors/public-checkpoint.json
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_contract_generation_vectors \
+            >"$RUNNER_TEMP/contract-generation-v1.json"
+          cmp \
+            "$RUNNER_TEMP/contract-generation-v1.json" \
+            protocol/test-vectors/contract-generation-v1.json
       - name: Check schema inventory and Draft 2020-12 declarations
         run: |
-          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 36
+          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 40
           find protocol/schemas -type f -name '*.json' -print0 |
             xargs -0 -n1 jq -e \
               '."$schema" == "https://json-schema.org/draft/2020-12/schema"'
