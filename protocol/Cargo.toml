@@ -35,3 +35,7 @@ path = "examples/fascia_commitment.rs"
 [[example]]
 name = "generate_registry_v2_vectors"
 path = "examples/generate_registry_v2_vectors.rs"
+
+[[example]]
+name = "generate_public_checkpoint_vectors"
+path = "examples/generate_public_checkpoint_vectors.rs"

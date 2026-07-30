@@ -425,7 +425,7 @@ fn every_committed_schema_is_draft_2020_12_and_closes_object_shapes() {
         assert!(value["$id"].is_string(), "{}", path.display());
         assert_closed_objects(&value, &path);
     }
-    assert_eq!(count, 35);
+    assert_eq!(count, 36);
 }
 
 fn assert_closed_objects(value: &Value, path: &Path) {

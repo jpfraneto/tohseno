@@ -72,6 +72,8 @@ nonzero new recovery address.
 | `registry_v2.checkpoint` | Registration starts at checkpoint 1; append advances exactly one; transfer preserves the checkpoint and head. |
 | `registry_v2.sequence_separation` | Checkpoint count is never compared to local lineage sequence, Version ordinal, `CFBundleVersion`, or App Store build history. |
 | `registry_v2.privacy` | Head provenance contains no runtime/installation/end-user data, private feedback or references, private intention, or hash-derived link to private ancestry. |
+| `registry_v2.public_checkpoint` | Head equals SHA-256 of exact `tohseno.public-checkpoint/1` RFC 8785 bytes; witness coordinates match the action domain and the public-only predecessor chain is complete or explicitly partial. |
+| `registry_v2.authority_boundary` | Checkpoint-body verification is not reported as controller authority or on-chain acceptance without the paired action, live ERC-1271 decision, and receipt evidence. |
 
 The bundled candidate does not currently verify a DeviceKey replacement,
 revocation, or recovery transition. An action schema, valid detached signature,

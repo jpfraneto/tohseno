@@ -154,8 +154,15 @@ Do not map `ShotRecord.sequence`, Version ordinal, or `CFBundleVersion` to
 `checkpointSequence`. Do not feed a coherent-intention lineage action digest
 directly into `head` unless every byte in the entire committed ancestry is
 approved for public disclosure. A selected public action may still link to a
-private predecessor. Use a separately defined public-only checkpoint
-projection when that ancestry is mixed.
+private predecessor. The supported head preimage is the closed
+`PublicCheckpoint`: start it independently at witness checkpoint 1, bind it to
+the exact generation/chain/registry domain, and continue only through its own
+prior public digest. Transfer preserves that head.
+
+Create `issued_at` for the public checkpoint itself; do not copy a timestamp or
+commitment from private lineage. Keep any local checkpoint-to-private-state
+motivation map below the explicitly private metadata boundary and never place
+it in an export or node outbox.
 
 The offline CREATE2 predictor requires the exact creation bytecode shipped for
 the deployment. Runtime bytecode or compiler source is not a substitute. The

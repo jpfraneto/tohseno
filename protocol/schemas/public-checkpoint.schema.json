@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/public-checkpoint.schema.json",
+  "title": "TOHSENO privacy-safe public witness checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "protocol_version",
+    "schema",
+    "scope",
+    "witness",
+    "shot_id",
+    "checkpoint_sequence",
+    "previous_checkpoint",
+    "issued_at"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "tohseno"
+    },
+    "protocol_version": {
+      "const": "2"
+    },
+    "schema": {
+      "const": "tohseno.public-checkpoint/1"
+    },
+    "scope": {
+      "const": "shot_identity_continuity"
+    },
+    "witness": {
+      "$ref": "#/$defs/witness"
+    },
+    "shot_id": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "checkpoint_sequence": {
+      "$ref": "common.schema.json#/$defs/positiveSafeUint"
+    },
+    "previous_checkpoint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      ]
+    },
+    "issued_at": {
+      "$ref": "ontology.schema.json#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "checkpoint_sequence": {
+            "const": 1
+          }
+        },
+        "required": [
+          "checkpoint_sequence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "previous_checkpoint": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "checkpoint_sequence": {
+            "minimum": 2
+          },
+          "previous_checkpoint": {
+            "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "witness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_generation",
+        "chain_id",
+        "registry"
+      ],
+      "properties": {
+        "contract_generation": {
+          "const": "0.8.0"
+        },
+        "chain_id": {
+          "const": 4663
+        },
+        "registry": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        }
+      }
+    }
+  },
+  "$comment": "The commitment is SHA-256 of RFC 8785 bytes and is valid only for the exact witness coordinates. This projection deliberately excludes arbitrary digests, coherent-intention lineage links, expression/version identifiers, controllers, content, and free text. Registry action authorization and receipt evidence are separate."
+}

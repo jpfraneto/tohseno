@@ -369,8 +369,38 @@ The current coherent-intention lineage is one causal chain and may include
 private ancestors. Implementations MUST NOT use a
 `SignedLineageAction` commitment as a registry head merely because the selected
 action is public: its `previous` field may still commit to private material.
-A public checkpoint projection must be independently privacy-safe all the way
-through its ancestry before it can become a registry head.
+
+The first privacy-safe projection is `tohseno.public-checkpoint/1`. It contains
+only the fixed protocol/schema/scope, generation/chain/registry witness
+coordinates, random ShotID, witness-local checkpoint sequence, prior public
+checkpoint, and a newly declared canonical publication time. Its commitment
+is:
+
+```text
+SHA-256(RFC8785(public_checkpoint))
+```
+
+That commitment alone becomes `ShotRegistry.head`. Checkpoint 1 has a null
+predecessor. Every continuation names the exact prior public checkpoint,
+increments by one, keeps the same witness and ShotID, and never moves time
+backward. Its witness coordinates MUST equal the paired `RegistryActionV2`
+domain. Registration binds checkpoint 1 as `head`; append binds the prior
+checkpoint as `previousHead`, this digest as `newHead`, and the same sequence.
+Transfer creates no checkpoint and preserves the head.
+
+The projection MUST NOT contain a local lineage head/sequence, payload digest,
+intention, genome, source/build/artifact digest, ExpressionID, VersionID,
+feedback, token relation, availability claim, omission count, controller,
+content, or free text. Authorization comes only from the paired registry
+action, live ERC-1271 decision, and receipt evidence; the checkpoint does not
+invent another signature or ownership system. A private local mapping from a
+checkpoint to the state that motivated it MAY exist, but MUST NOT be exported
+or replicated.
+
+An unanchored public-checkpoint segment can prove its own canonical bytes and
+internal adjacency, not controller authority or on-chain acceptance. The
+schema and frozen bytes are `schemas/public-checkpoint.schema.json` and
+`test-vectors/public-checkpoint.json`.
 
 ## Neutral coherent-intention lineage v2
 

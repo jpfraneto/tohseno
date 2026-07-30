@@ -151,6 +151,26 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
         "ShotRegistry v2 registration commitment",
     );
 
+    let public_checkpoint_schema = schema_named(&schemas, "public-checkpoint.schema.json");
+    let public_checkpoint_validator = compile(
+        &public_checkpoint_schema.contents,
+        &registry,
+        "public checkpoint schema",
+    );
+    let public_checkpoint_vectors =
+        load_json(&manifest.join("test-vectors/public-checkpoint.json"));
+    let public_checkpoints = public_checkpoint_vectors
+        .get("checkpoints")
+        .and_then(Value::as_array)
+        .expect("public-checkpoint.json must contain a checkpoints array");
+    for (index, vector) in public_checkpoints.iter().enumerate() {
+        assert_valid(
+            &public_checkpoint_validator,
+            &vector["value"],
+            &format!("public checkpoint {index}"),
+        );
+    }
+
     let mut unknown_field = signed_actions[0].clone();
     unknown_field
         .as_object_mut()
@@ -225,6 +245,31 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
     assert!(
         !registration_commitment_validator.is_valid(&malformed_commitment),
         "a wrong-chain registration commitment passed"
+    );
+
+    let mut leaking_checkpoint = public_checkpoints[0]["value"].clone();
+    leaking_checkpoint
+        .as_object_mut()
+        .expect("public checkpoint must be an object")
+        .insert(
+            "lineage_head".into(),
+            Value::String(
+                "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            ),
+        );
+    assert!(
+        !public_checkpoint_validator.is_valid(&leaking_checkpoint),
+        "a private-lineage field passed the public checkpoint schema"
+    );
+
+    let mut mismatched_root = public_checkpoints[0]["value"].clone();
+    *mismatched_root
+        .pointer_mut("/previous_checkpoint")
+        .expect("public checkpoint must contain previous_checkpoint") =
+        Value::String("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into());
+    assert!(
+        !public_checkpoint_validator.is_valid(&mismatched_root),
+        "checkpoint one was allowed to claim a predecessor"
     );
 }
 

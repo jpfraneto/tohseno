@@ -19,6 +19,9 @@ This candidate is not the final canonical protocol.
 - [`test-vectors/registry-v2.json`](test-vectors/registry-v2.json) freezes the
   successor ShotRegistry commitment, type hashes, domain, action digests,
   detached P-256 evidence, and compact contract signatures.
+- [`test-vectors/public-checkpoint.json`](test-vectors/public-checkpoint.json)
+  freezes the privacy-safe, ancestry-free record whose digest may become a
+  successor registry head.
 
 Run the crate gates with:
 
@@ -33,6 +36,7 @@ Regenerate vectors to standard output with:
 ```sh
 cargo run -q -p tohseno-protocol --example generate_vectors
 cargo run -q -p tohseno-protocol --example generate_registry_v2_vectors
+cargo run -q -p tohseno-protocol --example generate_public_checkpoint_vectors
 ```
 
 `PublicAction` and `SignedPublicAction` remain exact frozen v0.7 decoding
@@ -44,6 +48,13 @@ The signed v2 envelope is TOHSENO Builder-client evidence: its verifier proves
 the detached low-s P-256 signature and exact digest, not live device
 authorization. ShotRegistry resolves current authority through ERC-1271.
 Other neutral ERC-1271 controllers may define another signature encoding.
+
+The ordinary coherent-intention lineage remains the complete local/private
+source of truth and is never used directly as a registry head. A
+`PublicCheckpoint` is a separate, deliberately narrow identity-continuity
+projection: it carries no local lineage, intention, genome, version, artifact,
+feedback, token, runtime, controller, or free-text field. Its exact registry
+action and live ERC-1271 result provide authority.
 
 Print the normative reusable Fascia-tree commitment with:
 

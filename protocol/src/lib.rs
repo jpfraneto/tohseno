@@ -20,6 +20,7 @@ pub mod genesis;
 pub mod identity;
 pub mod lineage;
 pub mod ontology;
+pub mod public_checkpoint;
 pub mod record;
 pub mod signature;
 pub mod tree_hash;

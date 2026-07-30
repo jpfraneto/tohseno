@@ -23,9 +23,17 @@ The successor registry can expose only:
 
 - independent random Shot ID;
 - Builder controller;
-- intentionally public canonical lineage head;
+- a digest of the narrow `tohseno.public-checkpoint/1` identity-continuity
+  projection;
 - witness-local checkpoint count;
 - action nonce and registration timing.
+
+The public checkpoint starts a separate chain at witness sequence 1. It binds
+only its witness generation/chain/registry, ShotID, prior public checkpoint,
+fixed scope, and newly declared publication time. It does not contain or
+reference the local coherent-intention lineage, expression/version state,
+genome, source/build artifacts, feedback, token relations, runtime data,
+content, controllers, or free text.
 
 Builder identity is deliberately linkable after explicit publication. End-user
 installation identity stays local and unlinkable by default; it is never a

@@ -81,9 +81,18 @@ jobs:
           cmp \
             "$RUNNER_TEMP/registry-v2.json" \
             protocol/test-vectors/registry-v2.json
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_public_checkpoint_vectors \
+            >"$RUNNER_TEMP/public-checkpoint.json"
+          cmp \
+            "$RUNNER_TEMP/public-checkpoint.json" \
+            protocol/test-vectors/public-checkpoint.json
       - name: Check schema inventory and Draft 2020-12 declarations
         run: |
-          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 35
+          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 36
           find protocol/schemas -type f -name '*.json' -print0 |
             xargs -0 -n1 jq -e \
               '."$schema" == "https://json-schema.org/draft/2020-12/schema"'

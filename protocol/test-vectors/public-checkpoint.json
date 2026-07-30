@@ -1,0 +1,45 @@
+{
+  "checkpoints": [
+    {
+      "rfc8785": "{\"checkpoint_sequence\":1,\"issued_at\":\"2026-07-30T12:00:00Z\",\"previous_checkpoint\":null,\"protocol\":\"tohseno\",\"protocol_version\":\"2\",\"schema\":\"tohseno.public-checkpoint/1\",\"scope\":\"shot_identity_continuity\",\"shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"witness\":{\"chain_id\":4663,\"contract_generation\":\"0.8.0\",\"registry\":\"0x6666666666666666666666666666666666666666\"}}",
+      "sha256": "0xf76642697edf7b53da01b1b8614d33a11b32a731c8f56b4ea7b80613bbcd98c0",
+      "value": {
+        "checkpoint_sequence": 1,
+        "issued_at": "2026-07-30T12:00:00Z",
+        "previous_checkpoint": null,
+        "protocol": "tohseno",
+        "protocol_version": "2",
+        "schema": "tohseno.public-checkpoint/1",
+        "scope": "shot_identity_continuity",
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "witness": {
+          "chain_id": 4663,
+          "contract_generation": "0.8.0",
+          "registry": "0x6666666666666666666666666666666666666666"
+        }
+      }
+    },
+    {
+      "rfc8785": "{\"checkpoint_sequence\":2,\"issued_at\":\"2026-07-30T13:00:00Z\",\"previous_checkpoint\":\"0xf76642697edf7b53da01b1b8614d33a11b32a731c8f56b4ea7b80613bbcd98c0\",\"protocol\":\"tohseno\",\"protocol_version\":\"2\",\"schema\":\"tohseno.public-checkpoint/1\",\"scope\":\"shot_identity_continuity\",\"shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"witness\":{\"chain_id\":4663,\"contract_generation\":\"0.8.0\",\"registry\":\"0x6666666666666666666666666666666666666666\"}}",
+      "sha256": "0x9c9f521c526cc60b5aeeb9dd0b6fa1dc7069361b0d8883360d079b6e0d1872f3",
+      "value": {
+        "checkpoint_sequence": 2,
+        "issued_at": "2026-07-30T13:00:00Z",
+        "previous_checkpoint": "0xf76642697edf7b53da01b1b8614d33a11b32a731c8f56b4ea7b80613bbcd98c0",
+        "protocol": "tohseno",
+        "protocol_version": "2",
+        "schema": "tohseno.public-checkpoint/1",
+        "scope": "shot_identity_continuity",
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "witness": {
+          "chain_id": 4663,
+          "contract_generation": "0.8.0",
+          "registry": "0x6666666666666666666666666666666666666666"
+        }
+      }
+    }
+  ],
+  "digest_law": "sha256(rfc8785(checkpoint))",
+  "privacy_law": "only witness coordinates, ShotID, witness-local sequence, prior public checkpoint, fixed scope, and a newly declared canonical publication time enter the digest",
+  "schema": "tohseno.public-checkpoint-test-vectors/1"
+}

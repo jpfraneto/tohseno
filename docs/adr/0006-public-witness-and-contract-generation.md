@@ -124,6 +124,25 @@ The initial head may represent the current accepted public lineage when a Shot
 first opts into publication. The registry does not manufacture claims about
 unwitnessed earlier checkpoints.
 
+### Registry heads use a public-only projection
+
+The canonical coherent-intention lineage may cross intentionally private
+actions. Even a later public action commits to its private predecessor through
+`previous`, so its action digest is not a safe registry head.
+
+Contract generation 0.8 clients use the separate closed
+`tohseno.public-checkpoint/1` projection. It commits only witness coordinates,
+random ShotID, witness-local sequence, the prior public checkpoint, fixed
+identity-continuity scope, and a newly declared public timestamp. It contains
+no local lineage or expression-state digest. The RFC 8785/SHA-256 commitment is
+the registry head and its witness coordinates must equal the EIP-712 action
+domain.
+
+The checkpoint has no second signature or controller field. Authority remains
+the paired registry action, live ERC-1271 decision, and receipt. A private
+checkpoint-to-local-state motivation map may exist locally but is never a
+public protocol record.
+
 ### Recovery closes ADR 0001
 
 BuilderAccount now:
