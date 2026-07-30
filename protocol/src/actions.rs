@@ -15,6 +15,8 @@ pub const SHOT_REGISTRY_DOMAIN: &str = "TOHSENO ShotRegistry";
 pub const SHOT_RELATIONS_DOMAIN: &str = "TOHSENO ShotRelations";
 pub const EIP712_VERSION: &str = "1";
 pub const PUBLIC_ACTION_SCHEMA: &str = "tohseno.public-action/1";
+pub const SHOT_REGISTRY_V2_EIP712_VERSION: &str = "2";
+pub const REGISTRY_ACTION_V2_SCHEMA: &str = "tohseno.registry-action/2";
 
 pub const CREATE_SHOT_TYPE: &str = "CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)";
 pub const APPEND_EVOLUTION_TYPE: &str = "AppendEvolution(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 sequence,bytes32 contentCommitment,uint64 nonce,uint64 deadline)";
@@ -39,6 +41,10 @@ pub const ASSOCIATE_APPCOIN_TYPE: &str =
 pub const REMOVE_APPCOIN_TYPE: &str =
     "RemoveAppcoin(bytes32 shotId,uint256 chainId,address token,uint64 nonce,uint64 deadline)";
 pub const ATTEST_APP_STORE_TYPE: &str = "AttestAppStore(bytes32 shotId,bytes32 bundleIdHash,uint64 storeId,bytes32 evolutionHead,uint64 nonce,uint64 deadline)";
+pub const SHOT_REGISTRATION_COMMITMENT_V2_TYPE: &str = "ShotRegistrationCommitment(address controller,bytes32 shotId,bytes32 salt,address registry,uint256 chainId,uint64 deadline)";
+pub const REGISTER_SHOT_V2_TYPE: &str = "RegisterShot(bytes32 shotId,address controller,bytes32 head,bytes32 salt,uint64 nonce,uint64 deadline)";
+pub const APPEND_CHECKPOINT_V2_TYPE: &str = "AppendCheckpoint(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)";
+pub const TRANSFER_SHOT_V2_TYPE: &str = "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)";
 
 pub const PERMISSION_PROTOCOL: u32 = 1;
 pub const PERMISSION_DEVICE_ADMIN: u32 = 2;
@@ -55,13 +61,21 @@ pub struct Eip712Domain {
 
 impl Eip712Domain {
     pub fn validate_for(&self, expected_name: &'static str) -> Result<()> {
+        self.validate_for_version(expected_name, EIP712_VERSION)
+    }
+
+    pub fn validate_for_version(
+        &self,
+        expected_name: &'static str,
+        expected_version: &'static str,
+    ) -> Result<()> {
         if self.name != expected_name {
             return Err(invalid("domain.name", format!("must be {expected_name}")));
         }
-        if self.version != EIP712_VERSION {
+        if self.version != expected_version {
             return Err(invalid(
                 "domain.version",
-                format!("must be {EIP712_VERSION}"),
+                format!("must be {expected_version}"),
             ));
         }
         if self.chain_id != ROBINHOOD_CHAIN_ID {
@@ -92,6 +106,318 @@ impl Eip712Domain {
             u64_word(self.chain_id),
             address_word(self.verifying_contract),
         ])
+    }
+}
+
+/// Exact permissionless commitment preimage for ShotRegistry generation 0.8.
+///
+/// This object is not signed. The controller signature authorizes the later
+/// `REGISTER_SHOT` reveal, whose salt and deadline reproduce this commitment.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShotRegistrationCommitmentV2 {
+    pub controller: Address20,
+    pub shot_id: ShotId,
+    pub salt: Bytes32,
+    pub registry: Address20,
+    pub chain_id: u64,
+    pub deadline: u64,
+}
+
+impl ShotRegistrationCommitmentV2 {
+    pub fn validate(&self) -> Result<()> {
+        nonzero_address("commitment.controller", self.controller)?;
+        nonzero_bytes32("commitment.shot_id", self.shot_id.bytes())?;
+        nonzero_address("commitment.registry", self.registry)?;
+        if self.chain_id != ROBINHOOD_CHAIN_ID {
+            return Err(invalid(
+                "commitment.chain_id",
+                format!("must be {ROBINHOOD_CHAIN_ID}"),
+            ));
+        }
+        if self.deadline == 0 || self.deadline > MAX_SAFE_JSON_INTEGER {
+            return Err(invalid(
+                "commitment.deadline",
+                "must be a positive JavaScript-safe integer",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn commitment(&self) -> Result<Bytes32> {
+        self.validate()?;
+        Ok(hash_words(&[
+            type_hash(SHOT_REGISTRATION_COMMITMENT_V2_TYPE),
+            address_word(self.controller),
+            self.shot_id.bytes(),
+            self.salt,
+            address_word(self.registry),
+            u64_word(self.chain_id),
+            u64_word(self.deadline),
+        ]))
+    }
+}
+
+/// Exact signed actions accepted by ShotRegistry contract generation 0.8.
+///
+/// `PublicAction` remains the frozen v0.7 decoding model. Keeping the
+/// generations as distinct Rust types prevents an action from silently
+/// changing meaning based only on a domain version string.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+pub enum RegistryActionV2 {
+    RegisterShot {
+        shot_id: ShotId,
+        controller: Address20,
+        head: Bytes32,
+        salt: Bytes32,
+        nonce: u64,
+        deadline: u64,
+    },
+    AppendCheckpoint {
+        shot_id: ShotId,
+        previous_head: Bytes32,
+        new_head: Bytes32,
+        checkpoint_sequence: u64,
+        nonce: u64,
+        deadline: u64,
+    },
+    TransferShot {
+        shot_id: ShotId,
+        current_controller: Address20,
+        new_controller: Address20,
+        current_head: Bytes32,
+        checkpoint_sequence: u64,
+        nonce: u64,
+        deadline: u64,
+    },
+}
+
+impl RegistryActionV2 {
+    pub fn type_string(&self) -> &'static str {
+        match self {
+            Self::RegisterShot { .. } => REGISTER_SHOT_V2_TYPE,
+            Self::AppendCheckpoint { .. } => APPEND_CHECKPOINT_V2_TYPE,
+            Self::TransferShot { .. } => TRANSFER_SHOT_V2_TYPE,
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        let (nonce, deadline) = match self {
+            Self::RegisterShot {
+                shot_id,
+                controller,
+                head,
+                salt: _,
+                nonce,
+                deadline,
+            } => {
+                nonzero_bytes32("action.shot_id", shot_id.bytes())?;
+                nonzero_address("action.controller", *controller)?;
+                nonzero_bytes32("action.head", *head)?;
+                (*nonce, *deadline)
+            }
+            Self::AppendCheckpoint {
+                shot_id,
+                previous_head,
+                new_head,
+                checkpoint_sequence,
+                nonce,
+                deadline,
+            } => {
+                nonzero_bytes32("action.shot_id", shot_id.bytes())?;
+                nonzero_bytes32("action.previous_head", *previous_head)?;
+                nonzero_bytes32("action.new_head", *new_head)?;
+                if new_head == previous_head {
+                    return Err(invalid("action.new_head", "must differ from previous_head"));
+                }
+                if *checkpoint_sequence < 2 {
+                    return Err(invalid(
+                        "action.checkpoint_sequence",
+                        "an append must be at least checkpoint 2",
+                    ));
+                }
+                (*nonce, *deadline)
+            }
+            Self::TransferShot {
+                shot_id,
+                current_controller,
+                new_controller,
+                current_head,
+                checkpoint_sequence,
+                nonce,
+                deadline,
+            } => {
+                nonzero_bytes32("action.shot_id", shot_id.bytes())?;
+                nonzero_address("action.current_controller", *current_controller)?;
+                nonzero_address("action.new_controller", *new_controller)?;
+                if current_controller == new_controller {
+                    return Err(invalid(
+                        "action.new_controller",
+                        "must differ from current_controller",
+                    ));
+                }
+                nonzero_bytes32("action.current_head", *current_head)?;
+                if *checkpoint_sequence == 0 {
+                    return Err(invalid(
+                        "action.checkpoint_sequence",
+                        "must be at least checkpoint 1",
+                    ));
+                }
+                (*nonce, *deadline)
+            }
+        };
+        if nonce > MAX_SAFE_JSON_INTEGER || deadline == 0 || deadline > MAX_SAFE_JSON_INTEGER {
+            return Err(invalid(
+                "action",
+                "nonce and deadline must be JavaScript-safe, and deadline must be positive",
+            ));
+        }
+        let checkpoint_sequence = match self {
+            Self::AppendCheckpoint {
+                checkpoint_sequence,
+                ..
+            }
+            | Self::TransferShot {
+                checkpoint_sequence,
+                ..
+            } => Some(*checkpoint_sequence),
+            Self::RegisterShot { .. } => None,
+        };
+        if checkpoint_sequence.is_some_and(|value| value > MAX_SAFE_JSON_INTEGER) {
+            return Err(invalid(
+                "action.checkpoint_sequence",
+                "must be a JavaScript-safe integer",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn struct_hash(&self) -> Result<Bytes32> {
+        self.validate()?;
+        let words = match self {
+            Self::RegisterShot {
+                shot_id,
+                controller,
+                head,
+                salt,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(REGISTER_SHOT_V2_TYPE),
+                shot_id.bytes(),
+                address_word(*controller),
+                *head,
+                *salt,
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::AppendCheckpoint {
+                shot_id,
+                previous_head,
+                new_head,
+                checkpoint_sequence,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(APPEND_CHECKPOINT_V2_TYPE),
+                shot_id.bytes(),
+                *previous_head,
+                *new_head,
+                u64_word(*checkpoint_sequence),
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::TransferShot {
+                shot_id,
+                current_controller,
+                new_controller,
+                current_head,
+                checkpoint_sequence,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(TRANSFER_SHOT_V2_TYPE),
+                shot_id.bytes(),
+                address_word(*current_controller),
+                address_word(*new_controller),
+                *current_head,
+                u64_word(*checkpoint_sequence),
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+        };
+        Ok(hash_words(&words))
+    }
+
+    pub fn digest(&self, domain: &Eip712Domain) -> Result<Bytes32> {
+        domain.validate_for_version(SHOT_REGISTRY_DOMAIN, SHOT_REGISTRY_V2_EIP712_VERSION)?;
+        Ok(eip712_digest(domain.separator(), self.struct_hash()?))
+    }
+
+    pub fn registration_commitment(
+        &self,
+        domain: &Eip712Domain,
+    ) -> Result<ShotRegistrationCommitmentV2> {
+        domain.validate_for_version(SHOT_REGISTRY_DOMAIN, SHOT_REGISTRY_V2_EIP712_VERSION)?;
+        match self {
+            Self::RegisterShot {
+                shot_id,
+                controller,
+                salt,
+                deadline,
+                ..
+            } => {
+                let commitment = ShotRegistrationCommitmentV2 {
+                    controller: *controller,
+                    shot_id: *shot_id,
+                    salt: *salt,
+                    registry: domain.verifying_contract,
+                    chain_id: domain.chain_id,
+                    deadline: *deadline,
+                };
+                commitment.validate()?;
+                Ok(commitment)
+            }
+            _ => Err(invalid(
+                "action.type",
+                "only REGISTER_SHOT has a registration commitment",
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SignedRegistryActionV2 {
+    pub schema: String,
+    pub domain: Eip712Domain,
+    pub action: RegistryActionV2,
+    pub signer: P256PublicKey,
+    pub authorization: DetachedP256Signature,
+}
+
+impl SignedRegistryActionV2 {
+    /// Verifies the TOHSENO Builder client's detached P-256 evidence.
+    ///
+    /// This does not prove that the key is currently authorized by the
+    /// controller. Registry acceptance resolves that state live through
+    /// ERC-1271. Neutral non-Builder ERC-1271 controllers may use another
+    /// controller-defined signature encoding and are outside this envelope.
+    pub fn verify(&self) -> Result<()> {
+        if self.schema != REGISTRY_ACTION_V2_SCHEMA {
+            return Err(invalid(
+                "registry_action.schema",
+                format!("must be {REGISTRY_ACTION_V2_SCHEMA}"),
+            ));
+        }
+        self.signer.validate()?;
+        self.authorization.validate()?;
+        let digest = self.action.digest(&self.domain)?;
+        if digest != self.authorization.digest {
+            return Err(crate::ProtocolError::DigestMismatch);
+        }
+        verify_digest(&self.signer, digest, &self.authorization.signature)
     }
 }
 

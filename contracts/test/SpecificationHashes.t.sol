@@ -109,6 +109,62 @@ contract SpecificationHashesTest is ProtocolTestBase {
         assertEq(registry.hashTransferShot(transfer), _typedDigest(registry.domainSeparator(), transferStructHash));
     }
 
+    function testRegistryHashFunctionsMatchTheFrozenRustVector() public {
+        ShotRegistry implementation = new ShotRegistry();
+        address fixedAddress = 0x6666666666666666666666666666666666666666;
+        vm.etch(fixedAddress, address(implementation).code);
+        vm.chainId(4663);
+        ShotRegistry registry = ShotRegistry(fixedAddress);
+
+        assertEq(registry.domainSeparator(), 0xcbba99d15aba965167fcc7de31df30971c2c0f4b8588d01a7298d733d43e07b9);
+        assertEq(
+            registry.registrationCommitment(
+                0x8888888888888888888888888888888888888888,
+                0x1111111111111111111111111111111111111111111111111111111111111111,
+                0x3333333333333333333333333333333333333333333333333333333333333333,
+                2_000_000_000
+            ),
+            0x0b61f15215bfbad18171c122c99c35d7c7ddbd0290f5094fc9d1e84a97d63671
+        );
+
+        ShotRegistry.RegisterShotAction memory register = ShotRegistry.RegisterShotAction({
+            shotId: 0x1111111111111111111111111111111111111111111111111111111111111111,
+            controller: 0x8888888888888888888888888888888888888888,
+            head: 0x2222222222222222222222222222222222222222222222222222222222222222,
+            salt: 0x3333333333333333333333333333333333333333333333333333333333333333,
+            nonce: 0,
+            deadline: 2_000_000_000
+        });
+        assertEq(
+            registry.hashRegisterShot(register), 0xb0bf0e838c81aeec737a617390a85a53aa8ce492bf1a4f5ac643531a0a48c9e8
+        );
+
+        ShotRegistry.AppendCheckpointAction memory append = ShotRegistry.AppendCheckpointAction({
+            shotId: register.shotId,
+            previousHead: register.head,
+            newHead: 0x4444444444444444444444444444444444444444444444444444444444444444,
+            checkpointSequence: 2,
+            nonce: 1,
+            deadline: 2_000_000_100
+        });
+        assertEq(
+            registry.hashAppendCheckpoint(append), 0x9e9d0c155f8eceb6b55551c17bd18229b93aa0311669e2c2749cd1d8d6c31844
+        );
+
+        ShotRegistry.TransferShotAction memory transfer = ShotRegistry.TransferShotAction({
+            shotId: register.shotId,
+            currentController: register.controller,
+            newController: 0x9999999999999999999999999999999999999999,
+            currentHead: append.newHead,
+            checkpointSequence: 2,
+            nonce: 2,
+            deadline: 2_000_000_200
+        });
+        assertEq(
+            registry.hashTransferShot(transfer), 0x2951a79094567c0f447fdca8c094dcba1106f2994b0dc936316b6922d88c0e0f
+        );
+    }
+
     function testRecoveryHashFunctionsUseTheDocumentedFieldOrder() public {
         BuilderAccount account = newAccount(KEY1_X, KEY1_Y);
         address nextRecovery = address(0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB);

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/registry-action-v2.schema.json",
+  "title": "Signed TOHSENO ShotRegistry contract-generation 0.8 action",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "domain",
+    "action",
+    "signer",
+    "authorization"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tohseno.registry-action/2"
+    },
+    "domain": {
+      "$ref": "#/$defs/domain"
+    },
+    "action": {
+      "$ref": "#/$defs/action"
+    },
+    "signer": {
+      "$ref": "common.schema.json#/$defs/p256PublicKey"
+    },
+    "authorization": {
+      "$ref": "common.schema.json#/$defs/detachedP256Signature"
+    }
+  },
+  "$defs": {
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "chain_id",
+        "verifying_contract"
+      ],
+      "properties": {
+        "name": {
+          "const": "TOHSENO ShotRegistry"
+        },
+        "version": {
+          "const": "2"
+        },
+        "chain_id": {
+          "const": 4663
+        },
+        "verifying_contract": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        }
+      }
+    },
+    "registerShot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "controller",
+        "head",
+        "salt",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "REGISTER_SHOT"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "salt": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "appendCheckpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "previous_head",
+        "new_head",
+        "checkpoint_sequence",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "APPEND_CHECKPOINT"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "previous_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "new_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "checkpoint_sequence": {
+          "minimum": 2,
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "new_head must differ from previous_head; live registry state supplies the exact expected checkpoint and nonce."
+    },
+    "transferShot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "shot_id",
+        "current_controller",
+        "new_controller",
+        "current_head",
+        "checkpoint_sequence",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "TRANSFER_SHOT"
+        },
+        "shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "current_controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_controller": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "current_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "checkpoint_sequence": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "new_controller must differ from current_controller; live registry state resolves current authority."
+    },
+    "action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/registerShot"
+        },
+        {
+          "$ref": "#/$defs/appendCheckpoint"
+        },
+        {
+          "$ref": "#/$defs/transferShot"
+        }
+      ]
+    }
+  },
+  "$comment": "This is the TOHSENO Builder-client P-256 envelope, not a universal envelope for every neutral ERC-1271 controller accepted by ShotRegistry. authorization.digest is the exact EIP-712 digest and authorization is a low-s P-256 prehash signature. Verification proves only that detached signature; contract acceptance additionally depends on live BuilderAccount ERC-1271 state."
+}

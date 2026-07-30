@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/shot-registration-commitment-v2.schema.json",
+  "title": "TOHSENO ShotRegistry generation 0.8 permissionless commitment preimage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "controller",
+    "shot_id",
+    "salt",
+    "registry",
+    "chain_id",
+    "deadline"
+  ],
+  "properties": {
+    "controller": {
+      "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+    },
+    "shot_id": {
+      "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+    },
+    "salt": {
+      "$ref": "common.schema.json#/$defs/bytes32"
+    },
+    "registry": {
+      "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+    },
+    "chain_id": {
+      "const": 4663
+    },
+    "deadline": {
+      "$ref": "common.schema.json#/$defs/positiveSafeUint"
+    }
+  },
+  "$comment": "This preimage is not signed. Keccak-256(abi.encode(typeHash, controller, shotId, salt, registry, chainId, deadline)) is submitted permissionlessly; the later REGISTER_SHOT reveal is controller-signed. Solidity accepts any bytes32 salt. TOHSENO publication clients require a freshly generated, privately persisted CSPRNG salt."
+}

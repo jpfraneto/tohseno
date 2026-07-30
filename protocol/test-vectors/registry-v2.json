@@ -1,0 +1,189 @@
+{
+  "actions": {
+    "append_checkpoint": {
+      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a84b07c0b63ad5f69c8b80c5307ff2df7281a8a15c151ccd392799e713ccac53513cd396d94b22b933d50f7d3dd52f8855029156c37ee8904af983ef3ab40f35e",
+      "digest": "0x9e9d0c155f8eceb6b55551c17bd18229b93aa0311669e2c2749cd1d8d6c31844",
+      "signature": {
+        "r": "0x84b07c0b63ad5f69c8b80c5307ff2df7281a8a15c151ccd392799e713ccac535",
+        "s": "0x13cd396d94b22b933d50f7d3dd52f8855029156c37ee8904af983ef3ab40f35e"
+      },
+      "signed": {
+        "action": {
+          "checkpoint_sequence": 2,
+          "deadline": 2000000100,
+          "new_head": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "nonce": 1,
+          "previous_head": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "type": "APPEND_CHECKPOINT"
+        },
+        "authorization": {
+          "algorithm": "p256",
+          "digest": "0x9e9d0c155f8eceb6b55551c17bd18229b93aa0311669e2c2749cd1d8d6c31844",
+          "low_s": true,
+          "signature": {
+            "r": "0x84b07c0b63ad5f69c8b80c5307ff2df7281a8a15c151ccd392799e713ccac535",
+            "s": "0x13cd396d94b22b933d50f7d3dd52f8855029156c37ee8904af983ef3ab40f35e"
+          }
+        },
+        "domain": {
+          "chain_id": 4663,
+          "name": "TOHSENO ShotRegistry",
+          "verifying_contract": "0x6666666666666666666666666666666666666666",
+          "version": "2"
+        },
+        "schema": "tohseno.registry-action/2",
+        "signer": {
+          "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+          "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+        }
+      },
+      "struct_hash": "0x8282d2f0ed75a5bed6c5d170678d73a603a9d7a15b90b111c20474ba17400fd9",
+      "type_string": "AppendCheckpoint(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)",
+      "value": {
+        "checkpoint_sequence": 2,
+        "deadline": 2000000100,
+        "new_head": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "nonce": 1,
+        "previous_head": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "APPEND_CHECKPOINT"
+      }
+    },
+    "register_shot": {
+      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a5f4e6cbb9ecc65807f08390521dcd4b07004a93e6b2d45bb885eb62ade89370c77d4541857d5738f4ec65d3da0d1ee6ea37fa65c644865e22216e28bd8284475",
+      "digest": "0xb0bf0e838c81aeec737a617390a85a53aa8ce492bf1a4f5ac643531a0a48c9e8",
+      "signature": {
+        "r": "0x5f4e6cbb9ecc65807f08390521dcd4b07004a93e6b2d45bb885eb62ade89370c",
+        "s": "0x77d4541857d5738f4ec65d3da0d1ee6ea37fa65c644865e22216e28bd8284475"
+      },
+      "signed": {
+        "action": {
+          "controller": "0x8888888888888888888888888888888888888888",
+          "deadline": 2000000000,
+          "head": "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "nonce": 0,
+          "salt": "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "type": "REGISTER_SHOT"
+        },
+        "authorization": {
+          "algorithm": "p256",
+          "digest": "0xb0bf0e838c81aeec737a617390a85a53aa8ce492bf1a4f5ac643531a0a48c9e8",
+          "low_s": true,
+          "signature": {
+            "r": "0x5f4e6cbb9ecc65807f08390521dcd4b07004a93e6b2d45bb885eb62ade89370c",
+            "s": "0x77d4541857d5738f4ec65d3da0d1ee6ea37fa65c644865e22216e28bd8284475"
+          }
+        },
+        "domain": {
+          "chain_id": 4663,
+          "name": "TOHSENO ShotRegistry",
+          "verifying_contract": "0x6666666666666666666666666666666666666666",
+          "version": "2"
+        },
+        "schema": "tohseno.registry-action/2",
+        "signer": {
+          "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+          "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+        }
+      },
+      "struct_hash": "0x53b834c3412c57aa0b1cd295e87694d08bc12a54da15f54fb19f8b86a05919ad",
+      "type_string": "RegisterShot(bytes32 shotId,address controller,bytes32 head,bytes32 salt,uint64 nonce,uint64 deadline)",
+      "value": {
+        "controller": "0x8888888888888888888888888888888888888888",
+        "deadline": 2000000000,
+        "head": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "nonce": 0,
+        "salt": "0x3333333333333333333333333333333333333333333333333333333333333333",
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "REGISTER_SHOT"
+      }
+    },
+    "transfer_shot": {
+      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144ac4608ca000157af8672ebe5e73dbfdd370e7e788c898a38c48e5129783982b9304d13de56f1fe5dee9e8aec15a9fb0957521c702e7f8c08bf1d6a23e12dfba71",
+      "digest": "0x2951a79094567c0f447fdca8c094dcba1106f2994b0dc936316b6922d88c0e0f",
+      "signature": {
+        "r": "0xc4608ca000157af8672ebe5e73dbfdd370e7e788c898a38c48e5129783982b93",
+        "s": "0x04d13de56f1fe5dee9e8aec15a9fb0957521c702e7f8c08bf1d6a23e12dfba71"
+      },
+      "signed": {
+        "action": {
+          "checkpoint_sequence": 2,
+          "current_controller": "0x8888888888888888888888888888888888888888",
+          "current_head": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "deadline": 2000000200,
+          "new_controller": "0x9999999999999999999999999999999999999999",
+          "nonce": 2,
+          "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "type": "TRANSFER_SHOT"
+        },
+        "authorization": {
+          "algorithm": "p256",
+          "digest": "0x2951a79094567c0f447fdca8c094dcba1106f2994b0dc936316b6922d88c0e0f",
+          "low_s": true,
+          "signature": {
+            "r": "0xc4608ca000157af8672ebe5e73dbfdd370e7e788c898a38c48e5129783982b93",
+            "s": "0x04d13de56f1fe5dee9e8aec15a9fb0957521c702e7f8c08bf1d6a23e12dfba71"
+          }
+        },
+        "domain": {
+          "chain_id": 4663,
+          "name": "TOHSENO ShotRegistry",
+          "verifying_contract": "0x6666666666666666666666666666666666666666",
+          "version": "2"
+        },
+        "schema": "tohseno.registry-action/2",
+        "signer": {
+          "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+          "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+        }
+      },
+      "struct_hash": "0x05497404195a6e51ec1654bc1c357308f23527e86075685d87384574a7315f37",
+      "type_string": "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)",
+      "value": {
+        "checkpoint_sequence": 2,
+        "current_controller": "0x8888888888888888888888888888888888888888",
+        "current_head": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "deadline": 2000000200,
+        "new_controller": "0x9999999999999999999999999999999999999999",
+        "nonce": 2,
+        "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "type": "TRANSFER_SHOT"
+      }
+    }
+  },
+  "commit_window": {
+    "inclusive": true,
+    "maximum_age_seconds": 86400,
+    "minimum_age_seconds": 60
+  },
+  "contract_generation": "0.8.0",
+  "domain": {
+    "separator": "0xcbba99d15aba965167fcc7de31df30971c2c0f4b8588d01a7298d733d43e07b9",
+    "value": {
+      "chain_id": 4663,
+      "name": "TOHSENO ShotRegistry",
+      "verifying_contract": "0x6666666666666666666666666666666666666666",
+      "version": "2"
+    }
+  },
+  "registration_commitment": {
+    "hash": "0x0b61f15215bfbad18171c122c99c35d7c7ddbd0290f5094fc9d1e84a97d63671",
+    "value": {
+      "chain_id": 4663,
+      "controller": "0x8888888888888888888888888888888888888888",
+      "deadline": 2000000000,
+      "registry": "0x6666666666666666666666666666666666666666",
+      "salt": "0x3333333333333333333333333333333333333333333333333333333333333333",
+      "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  },
+  "schema": "tohseno.registry-v2-test-vectors/1",
+  "type_hashes": {
+    "AppendCheckpoint(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)": "0x4ada9482c2ee717b1b8faa0707d2096906a4cc7d3e9ab28cf94f2b8d220e22f5",
+    "RegisterShot(bytes32 shotId,address controller,bytes32 head,bytes32 salt,uint64 nonce,uint64 deadline)": "0xc356ba3244a346558a5821261a4eccfb38382e0f90a60dc903003a671d5e828c",
+    "ShotRegistrationCommitment(address controller,bytes32 shotId,bytes32 salt,address registry,uint256 chainId,uint64 deadline)": "0x916bdb07dc63f8f944e630d491d633db4e254b88c225dda462fbae8afc34e6e4",
+    "TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 checkpointSequence,uint64 nonce,uint64 deadline)": "0x1b48fe9103fb5a4d3c6d61b8a9c98fada30123086d138b1c3c4407fa467c6d22"
+  }
+}

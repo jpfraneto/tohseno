@@ -349,6 +349,29 @@ an intentionally public canonical Shot lineage action. It MUST NOT be derived
 from app-runtime continuity records, installation or end-user data, private
 feedback or references, raw private intentions, or hashes of those values.
 
+`ShotRegistrationCommitmentV2` and `RegistryActionV2` are the exact Rust
+generation types. The frozen v0.7 `PublicAction` remains a separate decoding
+type; implementations MUST dispatch by explicit schema/generation and MUST NOT
+reinterpret it by changing only the EIP-712 domain version. The closed schemas
+and deterministic interoperability fixture are
+`schemas/shot-registration-commitment-v2.schema.json`,
+`schemas/registry-action-v2.schema.json`, and
+`test-vectors/registry-v2.json`.
+
+The contract accepts any `bytes32` salt. A TOHSENO publication client MUST use
+a fresh CSPRNG salt, persist it privately before commitment submission, and
+never regenerate or infer it from Shot metadata. `SignedRegistryActionV2`
+proves detached P-256 evidence only; current device authority remains the live
+ERC-1271 decision. Neutral non-Builder controllers may use controller-defined
+signature bytes outside that client envelope.
+
+The current coherent-intention lineage is one causal chain and may include
+private ancestors. Implementations MUST NOT use a
+`SignedLineageAction` commitment as a registry head merely because the selected
+action is public: its `previous` field may still commit to private material.
+A public checkpoint projection must be independently privacy-safe all the way
+through its ancestry before it can become a registry head.
+
 ## Neutral coherent-intention lineage v2
 
 The stable ShotID identifies the committed coherent intention, not its Apple

@@ -117,6 +117,40 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
         );
     }
 
+    let registry_action_schema = schema_named(&schemas, "registry-action-v2.schema.json");
+    let registry_action_validator = compile(
+        &registry_action_schema.contents,
+        &registry,
+        "ShotRegistry action v2 schema",
+    );
+    let registration_commitment_schema =
+        schema_named(&schemas, "shot-registration-commitment-v2.schema.json");
+    let registration_commitment_validator = compile(
+        &registration_commitment_schema.contents,
+        &registry,
+        "ShotRegistry registration commitment v2 schema",
+    );
+    let registry_vectors = load_json(&manifest.join("test-vectors/registry-v2.json"));
+    let registry_actions = registry_vectors
+        .get("actions")
+        .and_then(Value::as_object)
+        .expect("registry-v2.json must contain an actions object");
+    for (name, vector) in registry_actions {
+        let signed = vector
+            .get("signed")
+            .unwrap_or_else(|| panic!("{name} must contain a signed action"));
+        assert_valid(
+            &registry_action_validator,
+            signed,
+            &format!("ShotRegistry v2 action {name}"),
+        );
+    }
+    assert_valid(
+        &registration_commitment_validator,
+        &registry_vectors["registration_commitment"]["value"],
+        "ShotRegistry v2 registration commitment",
+    );
+
     let mut unknown_field = signed_actions[0].clone();
     unknown_field
         .as_object_mut()
@@ -164,6 +198,33 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
     assert!(
         !builder_action_validator.is_valid(&malformed_recovery),
         "malformed BuilderAccount v2 recovery action passed"
+    );
+
+    let mut downgraded_registry = registry_actions["register_shot"]["signed"].clone();
+    *downgraded_registry
+        .pointer_mut("/domain/version")
+        .expect("registry action must contain a domain version") = Value::String("1".into());
+    assert!(
+        !registry_action_validator.is_valid(&downgraded_registry),
+        "a downgraded ShotRegistry action passed"
+    );
+
+    let mut malformed_checkpoint = registry_actions["append_checkpoint"]["signed"].clone();
+    *malformed_checkpoint
+        .pointer_mut("/action/checkpoint_sequence")
+        .expect("append action must contain checkpoint_sequence") = Value::Number(1.into());
+    assert!(
+        !registry_action_validator.is_valid(&malformed_checkpoint),
+        "checkpoint one was accepted as an append"
+    );
+
+    let mut malformed_commitment = registry_vectors["registration_commitment"]["value"].clone();
+    *malformed_commitment
+        .pointer_mut("/chain_id")
+        .expect("registration commitment must contain chain_id") = Value::Number(1.into());
+    assert!(
+        !registration_commitment_validator.is_valid(&malformed_commitment),
+        "a wrong-chain registration commitment passed"
     );
 }
 

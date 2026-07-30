@@ -137,6 +137,26 @@ The compact P-256 signature sent to BuilderAccount is
 `0x01||x||y||r||s`. Recovery uses the contract’s separate low-s secp256k1
 encoding. A relayer is a messenger and never becomes owner or signer.
 
+For ShotRegistry generation 0.8, use `RegistryActionV2`; never mutate or
+reinterpret the frozen `PublicAction` type. Generate the registration salt
+from a CSPRNG and durably persist it in private state before submitting the
+permissionless commitment. A lost salt means the matured commitment cannot be
+revealed; a repeated commitment must not be treated as a new maturity time.
+Bind reveal planning to the exact registry, chain, controller, ShotID,
+salt, deadline, and observed registration nonce.
+
+The v2 detached envelope verifies a P-256 signature but does not prove that
+the key is currently active in BuilderAccount. Resolve authorization from
+live ERC-1271 state before submission and again from the receipt block when
+claiming acceptance.
+
+Do not map `ShotRecord.sequence`, Version ordinal, or `CFBundleVersion` to
+`checkpointSequence`. Do not feed a coherent-intention lineage action digest
+directly into `head` unless every byte in the entire committed ancestry is
+approved for public disclosure. A selected public action may still link to a
+private predecessor. Use a separately defined public-only checkpoint
+projection when that ancestry is mixed.
+
 The offline CREATE2 predictor requires the exact creation bytecode shipped for
 the deployment. Runtime bytecode or compiler source is not a substitute. The
 constructor suffix is only `x` and `y`; recovery configuration occurs later.

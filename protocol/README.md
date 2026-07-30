@@ -15,7 +15,10 @@ This candidate is not the final canonical protocol.
 - [CONFORMANCE.md](CONFORMANCE.md) defines deterministic offline checks.
 - [`schemas/`](schemas) contains closed Draft 2020-12 JSON Schemas.
 - [`test-vectors/protocol-v1.json`](test-vectors/protocol-v1.json) contains
-  frozen cross-language vectors.
+  frozen v0.7 cross-language vectors.
+- [`test-vectors/registry-v2.json`](test-vectors/registry-v2.json) freezes the
+  successor ShotRegistry commitment, type hashes, domain, action digests,
+  detached P-256 evidence, and compact contract signatures.
 
 Run the crate gates with:
 
@@ -29,7 +32,18 @@ Regenerate vectors to standard output with:
 
 ```sh
 cargo run -q -p tohseno-protocol --example generate_vectors
+cargo run -q -p tohseno-protocol --example generate_registry_v2_vectors
 ```
+
+`PublicAction` and `SignedPublicAction` remain exact frozen v0.7 decoding
+types. New code must use the distinct `RegistryActionV2`,
+`ShotRegistrationCommitmentV2`, and `SignedRegistryActionV2` types; a domain
+version string never silently changes a v0.7 action's meaning.
+
+The signed v2 envelope is TOHSENO Builder-client evidence: its verifier proves
+the detached low-s P-256 signature and exact digest, not live device
+authorization. ShotRegistry resolves current authority through ERC-1271.
+Other neutral ERC-1271 controllers may define another signature encoding.
 
 Print the normative reusable Fascia-tree commitment with:
 

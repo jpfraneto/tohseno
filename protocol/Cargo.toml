@@ -31,3 +31,7 @@ path = "examples/generate_vectors.rs"
 [[example]]
 name = "fascia_commitment"
 path = "examples/fascia_commitment.rs"
+
+[[example]]
+name = "generate_registry_v2_vectors"
+path = "examples/generate_registry_v2_vectors.rs"

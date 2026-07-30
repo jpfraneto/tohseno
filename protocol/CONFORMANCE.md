@@ -41,9 +41,10 @@ operational checks above the pure protocol. A lifecycle report may include
 them, but it MUST distinguish `implemented`, `automatically_verified`,
 `manually_observed`, `deployed`, `published`, and `pending`.
 
-## Public-state checks
+## Frozen v0.7 public-state checks
 
-When verifying signed public actions, additionally record:
+When verifying a historical frozen v0.7 signed public action, additionally
+record:
 
 | Check ID | Required observation |
 |---|---|
@@ -57,6 +58,20 @@ When verifying signed public actions, additionally record:
 
 Recovery verification uses the separate secp256k1 authority and MUST require a
 nonzero new recovery address.
+
+## ShotRegistry generation 0.8 checks
+
+| Check ID | Required observation |
+|---|---|
+| `registry_v2.generation` | The action dispatches as exact `tohseno.registry-action/2`; no frozen v0.7 or unknown action is reinterpreted. |
+| `registry_v2.domain` | Name is `TOHSENO ShotRegistry`, version is `2`, chain is 4663, and verifying contract is the intended generation. |
+| `registry_v2.commitment` | Registration preimage binds controller, random ShotID, privately persisted client salt, registry, chain, and deadline; its on-chain commitment has matured without timestamp reset. |
+| `registry_v2.action_digest` | Exact type string, ABI word order, struct hash, and `0x1901` digest reproduce the frozen v2 vector law. |
+| `registry_v2.detached_signature` | Builder-client evidence is a valid low-s P-256 prehash signature and compact encoding; this alone is not live ERC-1271 authorization. |
+| `registry_v2.live_authority` | Controller eligibility and signature acceptance are observed against the intended registry state and receipt block. |
+| `registry_v2.checkpoint` | Registration starts at checkpoint 1; append advances exactly one; transfer preserves the checkpoint and head. |
+| `registry_v2.sequence_separation` | Checkpoint count is never compared to local lineage sequence, Version ordinal, `CFBundleVersion`, or App Store build history. |
+| `registry_v2.privacy` | Head provenance contains no runtime/installation/end-user data, private feedback or references, private intention, or hash-derived link to private ancestry. |
 
 The bundled candidate does not currently verify a DeviceKey replacement,
 revocation, or recovery transition. An action schema, valid detached signature,
