@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/builder-account-action-v2.schema.json",
+  "title": "TOHSENO BuilderAccount contract-generation 0.8 EIP-712 action",
+  "oneOf": [
+    {
+      "$ref": "actions.schema.json#/$defs/authorizeDevice"
+    },
+    {
+      "$ref": "actions.schema.json#/$defs/revokeDevice"
+    },
+    {
+      "$ref": "actions.schema.json#/$defs/setRecovery"
+    },
+    {
+      "$ref": "#/$defs/changeRecovery"
+    },
+    {
+      "$ref": "#/$defs/initiateRecovery"
+    },
+    {
+      "$ref": "#/$defs/cancelRecovery"
+    }
+  ],
+  "$defs": {
+    "changeRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "current_recovery",
+        "new_recovery",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "CHANGE_RECOVERY"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "current_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    },
+    "initiateRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "current_recovery",
+        "new_recovery",
+        "new_key_id",
+        "new_x",
+        "new_y",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "INITIATE_RECOVERY"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "current_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_recovery": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "new_key_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "new_x": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "new_y": {
+          "$ref": "common.schema.json#/$defs/bytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      },
+      "$comment": "The recovery authority signs this action. new_key_id must equal Keccak-256(new_x32 || new_y32), and the replacement point must be valid P-256."
+    },
+    "cancelRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "account",
+        "recovery_id",
+        "nonce",
+        "deadline"
+      ],
+      "properties": {
+        "type": {
+          "const": "CANCEL_RECOVERY"
+        },
+        "account": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "recovery_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "nonce": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        }
+      }
+    }
+  }
+}

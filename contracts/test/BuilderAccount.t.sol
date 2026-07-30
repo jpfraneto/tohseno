@@ -4,6 +4,55 @@ pragma solidity 0.8.30;
 import {ProtocolTestBase} from "./ProtocolTestBase.sol";
 import {BuilderAccount} from "../src/BuilderAccount.sol";
 import {BuilderAccountFactory} from "../src/BuilderAccountFactory.sol";
+import {IERC1271} from "../src/IERC1271.sol";
+
+contract ERC1271RecoveryAuthority is IERC1271 {
+    bytes4 private constant MAGIC = 0x1626ba7e;
+    bytes4 private constant INVALID = 0xffffffff;
+
+    bytes32 private _digest;
+    bytes32 private _signatureHash;
+    uint8 private _mode;
+
+    function authorize(bytes32 digest, bytes calldata signature) external {
+        _digest = digest;
+        _signatureHash = keccak256(signature);
+    }
+
+    function setMode(uint8 mode) external {
+        _mode = mode;
+    }
+
+    function isValidSignature(bytes32 digest, bytes calldata signature) external view returns (bytes4) {
+        uint8 mode = _mode;
+        if (mode == 1) return INVALID;
+        if (mode == 2) {
+            assembly ("memory-safe") {
+                revert(0, 0)
+            }
+        }
+        if (mode == 3) {
+            assembly ("memory-safe") {
+                return(0, 0)
+            }
+        }
+        if (mode == 4) {
+            assembly ("memory-safe") {
+                mstore(0, MAGIC)
+                return(1, 31)
+            }
+        }
+        if (mode == 5) {
+            assembly ("memory-safe") {
+                mstore(0, MAGIC)
+                mstore(32, 0)
+                return(0, 64)
+            }
+        }
+        if (digest == _digest && keccak256(signature) == _signatureHash) return MAGIC;
+        return INVALID;
+    }
+}
 
 contract BuilderAccountTest is ProtocolTestBase {
     uint256 private constant RECOVERY_PRIVATE_KEY = 0xa11ce;
@@ -151,15 +200,22 @@ contract BuilderAccountTest is ProtocolTestBase {
         assertEq(account.recoveryAuthority(), recovery);
     }
 
-    function testRecoveryInvalidatesPriorEpochAndRotatesAuthority() public {
+    function testDelayedRecoveryInvalidatesPriorEpochAndRotatesAuthority() public {
         _setRecovery(account, recovery);
         _authorize(account, KEY2_X, KEY2_Y, account.ALL_PERMISSIONS(), KEY1_X, KEY1_Y);
         address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
         uint64 deadline = _deadline();
-        bytes32 digest = account.hashRecovery(KEY3_X, KEY3_Y, nextRecovery, 0, deadline);
+        bytes32 digest = account.hashInitiateRecovery(KEY3_X, KEY3_Y, nextRecovery, 0, deadline);
         bytes memory signature = recoverySignature(RECOVERY_PRIVATE_KEY, digest);
 
-        account.recover(KEY3_X, KEY3_Y, nextRecovery, deadline, signature);
+        bytes32 recoveryId = account.initiateRecovery(KEY3_X, KEY3_Y, nextRecovery, deadline, signature);
+        assertEq(recoveryId, digest);
+        vm.expectPartialRevert(BuilderAccount.RecoveryDelayActive.selector);
+        account.finalizeRecovery(recoveryId);
+
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        vm.prank(address(0xbeef));
+        account.finalizeRecovery(recoveryId);
 
         assertEq(account.deviceEpoch(), uint64(2));
         assertEq(account.activeDeviceCount(), uint64(1));
@@ -169,24 +225,196 @@ contract BuilderAccountTest is ProtocolTestBase {
         assertFalse(account.isAuthorizedKey(account.deviceKeyId(KEY2_X, KEY2_Y)));
         assertTrue(account.isAuthorizedKey(account.deviceKeyId(KEY3_X, KEY3_Y)));
 
-        vm.expectRevert(BuilderAccount.InvalidRecoverySignature.selector);
-        account.recover(KEY1_X, KEY1_Y, recovery, deadline, signature);
+        vm.expectRevert(BuilderAccount.RecoveryNotPending.selector);
+        account.finalizeRecovery(recoveryId);
     }
 
     function testWrongRecoveryAuthorityIsRejected() public {
         _setRecovery(account, recovery);
         uint64 deadline = _deadline();
-        bytes32 digest = account.hashRecovery(KEY2_X, KEY2_Y, recovery, 0, deadline);
+        bytes32 digest = account.hashInitiateRecovery(KEY2_X, KEY2_Y, recovery, 0, deadline);
         bytes memory wrongSignature = recoverySignature(NEXT_RECOVERY_PRIVATE_KEY, digest);
 
         vm.expectRevert(BuilderAccount.InvalidRecoverySignature.selector);
-        account.recover(KEY2_X, KEY2_Y, recovery, deadline, wrongSignature);
+        account.initiateRecovery(KEY2_X, KEY2_Y, recovery, deadline, wrongSignature);
     }
 
     function testRecoveryCannotRemoveRecoveryAuthority() public {
         _setRecovery(account, recovery);
         vm.expectRevert(BuilderAccount.InvalidRecoveryAuthority.selector);
-        account.recover(KEY2_X, KEY2_Y, address(0), _deadline(), new bytes(65));
+        account.initiateRecovery(KEY2_X, KEY2_Y, address(0), _deadline(), new bytes(65));
+    }
+
+    function testERC1271OnlyRecoveryAuthorityCanCompleteDelayedRecovery() public {
+        ERC1271RecoveryAuthority contractRecovery = new ERC1271RecoveryAuthority();
+        _setRecovery(account, address(contractRecovery));
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        uint64 deadline = _deadline();
+        bytes memory signature = hex"cafe";
+        bytes32 digest = account.hashInitiateRecovery(KEY2_X, KEY2_Y, nextRecovery, 0, deadline);
+        contractRecovery.authorize(digest, signature);
+
+        bytes32 recoveryId = account.initiateRecovery(KEY2_X, KEY2_Y, nextRecovery, deadline, signature);
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        account.finalizeRecovery(recoveryId);
+
+        assertEq(account.recoveryAuthority(), nextRecovery);
+        assertTrue(account.isAuthorizedKey(account.deviceKeyId(KEY2_X, KEY2_Y)));
+    }
+
+    function testERC1271RecoveryRequiresExactSuccessfulMagicReturn() public {
+        ERC1271RecoveryAuthority contractRecovery = new ERC1271RecoveryAuthority();
+        _setRecovery(account, address(contractRecovery));
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        uint64 deadline = _deadline();
+        bytes memory signature = hex"cafe";
+        bytes32 digest = account.hashInitiateRecovery(KEY2_X, KEY2_Y, nextRecovery, 0, deadline);
+        contractRecovery.authorize(digest, signature);
+
+        for (uint8 mode = 1; mode <= 5; ++mode) {
+            contractRecovery.setMode(mode);
+            vm.expectRevert(BuilderAccount.InvalidRecoverySignature.selector);
+            account.initiateRecovery(KEY2_X, KEY2_Y, nextRecovery, deadline, signature);
+            assertEq(account.recoveryNonce(), uint64(0));
+        }
+    }
+
+    function testActiveAdminCanCancelPendingRecovery() public {
+        _setRecovery(account, recovery);
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY2_X, KEY2_Y, nextRecovery, deadline);
+        bytes32 cancelDigest = account.hashCancelRecovery(recoveryId, account.deviceNonce(), deadline);
+        setP256Expected(cancelDigest);
+
+        account.cancelRecovery(recoveryId, deadline, p256Signature(KEY1_X, KEY1_Y));
+
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        vm.expectRevert(BuilderAccount.RecoveryNotPending.selector);
+        account.finalizeRecovery(recoveryId);
+    }
+
+    function testPendingRecoveryCannotBeSilentlyReplaced() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY2_X, KEY2_Y, vm.addr(NEXT_RECOVERY_PRIVATE_KEY), deadline);
+        bytes32 digest = account.hashInitiateRecovery(KEY3_X, KEY3_Y, recovery, 1, deadline);
+
+        vm.expectRevert(abi.encodeWithSelector(BuilderAccount.RecoveryAlreadyPending.selector, recoveryId));
+        account.initiateRecovery(KEY3_X, KEY3_Y, recovery, deadline, recoverySignature(RECOVERY_PRIVATE_KEY, digest));
+    }
+
+    function testProtocolOnlyDeviceCannotCancelRecovery() public {
+        _setRecovery(account, recovery);
+        _authorize(account, KEY2_X, KEY2_Y, account.PERMISSION_PROTOCOL(), KEY1_X, KEY1_Y);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY3_X, KEY3_Y, vm.addr(NEXT_RECOVERY_PRIVATE_KEY), deadline);
+        bytes32 cancelDigest = account.hashCancelRecovery(recoveryId, account.deviceNonce(), deadline);
+        setP256Expected(cancelDigest);
+
+        vm.expectRevert(BuilderAccount.InvalidDeviceSignature.selector);
+        account.cancelRecovery(recoveryId, deadline, p256Signature(KEY2_X, KEY2_Y));
+    }
+
+    function testAdminCanCancelAfterMaturityUntilFinalizationLands() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY2_X, KEY2_Y, vm.addr(NEXT_RECOVERY_PRIVATE_KEY), deadline);
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        uint64 cancelDeadline = _deadline();
+        bytes32 cancelDigest = account.hashCancelRecovery(recoveryId, account.deviceNonce(), cancelDeadline);
+        setP256Expected(cancelDigest);
+
+        account.cancelRecovery(recoveryId, cancelDeadline, p256Signature(KEY1_X, KEY1_Y));
+
+        vm.expectRevert(BuilderAccount.RecoveryNotPending.selector);
+        account.finalizeRecovery(recoveryId);
+    }
+
+    function testWrongRecoveryIdDoesNotCancelOrFinalize() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY2_X, KEY2_Y, vm.addr(NEXT_RECOVERY_PRIVATE_KEY), deadline);
+        bytes32 wrongId = keccak256("wrong recovery");
+
+        vm.expectRevert(abi.encodeWithSelector(BuilderAccount.RecoveryIdMismatch.selector, recoveryId, wrongId));
+        account.cancelRecovery(wrongId, deadline, p256Signature(KEY1_X, KEY1_Y));
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        vm.expectRevert(abi.encodeWithSelector(BuilderAccount.RecoveryIdMismatch.selector, recoveryId, wrongId));
+        account.finalizeRecovery(wrongId);
+    }
+
+    function testExpiredAndInvalidRecoveryInitiationsFailBeforeMutation() public {
+        _setRecovery(account, recovery);
+        vm.warp(100);
+        vm.expectPartialRevert(BuilderAccount.Expired.selector);
+        account.initiateRecovery(KEY2_X, KEY2_Y, recovery, 99, new bytes(65));
+        vm.expectRevert(BuilderAccount.InvalidDeviceKey.selector);
+        account.initiateRecovery(1, 1, recovery, _deadline(), new bytes(65));
+        assertEq(account.recoveryNonce(), uint64(0));
+    }
+
+    function testDeviceAdminCanCorrectRecoveryAndInvalidatesPendingRecovery() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        bytes32 recoveryId = _initiateEoaRecovery(KEY2_X, KEY2_Y, vm.addr(NEXT_RECOVERY_PRIVATE_KEY), deadline);
+        address corrected = vm.addr(0xc0ffee);
+        bytes32 changeDigest = account.hashChangeRecovery(corrected, account.deviceNonce(), deadline);
+        setP256Expected(changeDigest);
+
+        account.changeRecovery(corrected, deadline, p256Signature(KEY1_X, KEY1_Y));
+
+        assertEq(account.recoveryAuthority(), corrected);
+        assertEq(account.recoveryNonce(), uint64(2));
+        vm.expectRevert(BuilderAccount.RecoveryNotPending.selector);
+        account.finalizeRecovery(recoveryId);
+    }
+
+    function testChangedRecoveryRejectsOldAuthorityPresignature() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        bytes32 oldDigest = account.hashInitiateRecovery(KEY2_X, KEY2_Y, nextRecovery, 0, deadline);
+        bytes memory oldSignature = recoverySignature(RECOVERY_PRIVATE_KEY, oldDigest);
+        address corrected = vm.addr(0xc0ffee);
+        bytes32 changeDigest = account.hashChangeRecovery(corrected, account.deviceNonce(), deadline);
+        setP256Expected(changeDigest);
+        account.changeRecovery(corrected, deadline, p256Signature(KEY1_X, KEY1_Y));
+
+        vm.expectRevert(BuilderAccount.InvalidRecoverySignature.selector);
+        account.initiateRecovery(KEY2_X, KEY2_Y, nextRecovery, deadline, oldSignature);
+    }
+
+    function testRecoveryActionsAreChainScoped() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        bytes32 digest = account.hashInitiateRecovery(KEY2_X, KEY2_Y, nextRecovery, 0, deadline);
+        bytes memory signature = recoverySignature(RECOVERY_PRIVATE_KEY, digest);
+
+        vm.chainId(block.chainid + 1);
+        vm.expectRevert(BuilderAccount.InvalidRecoverySignature.selector);
+        account.initiateRecovery(KEY2_X, KEY2_Y, nextRecovery, deadline, signature);
+    }
+
+    function testDeviceAdminRecoveryActionsAreChainScoped() public {
+        _setRecovery(account, recovery);
+        uint64 deadline = _deadline();
+        address nextRecovery = vm.addr(NEXT_RECOVERY_PRIVATE_KEY);
+        bytes32 digest = account.hashChangeRecovery(nextRecovery, account.deviceNonce(), deadline);
+        setP256Expected(digest);
+
+        vm.chainId(block.chainid + 1);
+        vm.expectRevert(BuilderAccount.InvalidDeviceSignature.selector);
+        account.changeRecovery(nextRecovery, deadline, p256Signature(KEY1_X, KEY1_Y));
+    }
+
+    function testSelfCannotBeConfiguredAsRecoveryAuthority() public {
+        uint64 deadline = _deadline();
+        bytes32 digest = account.hashSetRecovery(address(account), 0, deadline);
+        setP256Expected(digest);
+        vm.expectRevert(BuilderAccount.InvalidRecoveryAuthority.selector);
+        account.setRecovery(address(account), deadline, p256Signature(KEY1_X, KEY1_Y));
     }
 
     function testWrongAccountDomainIsRejected() public {
@@ -234,6 +462,16 @@ contract BuilderAccountTest is ProtocolTestBase {
         bytes32 digest = target.hashAuthorizeDevice(newX, newY, permissions, nonce, deadline);
         setP256Expected(digest);
         target.authorizeDevice(newX, newY, permissions, deadline, p256Signature(signerX, signerY));
+    }
+
+    function _initiateEoaRecovery(uint256 newX, uint256 newY, address newRecovery, uint64 deadline)
+        private
+        returns (bytes32)
+    {
+        uint64 nonce = account.recoveryNonce();
+        bytes32 digest = account.hashInitiateRecovery(newX, newY, newRecovery, nonce, deadline);
+        bytes memory signature = recoverySignature(RECOVERY_PRIVATE_KEY, digest);
+        return account.initiateRecovery(newX, newY, newRecovery, deadline, signature);
     }
 
     function _deadline() private view returns (uint64) {

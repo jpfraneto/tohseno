@@ -19,7 +19,11 @@ contract SpecificationHashesTest is ProtocolTestBase {
         );
         assertEq(account.REVOKE_DEVICE_TYPEHASH(), 0xc3323bbac7e11d8f4946087779bc3f90a673ec602cab93c377d33aa1f5648f8e);
         assertEq(account.SET_RECOVERY_TYPEHASH(), 0xb6ec3e464c0650bda67f76c0b0d7d72afcd16d403c610d18cd7793118c1a6ed4);
-        assertEq(account.RECOVER_ACCOUNT_TYPEHASH(), 0x539858b6492297e81f07fffbe9f57c1363d0529cf5783087d05848f72fedb820);
+        assertEq(
+            account.INITIATE_RECOVERY_TYPEHASH(), 0x51e31a9ec813ed442f9a9de0ee7277f8c8e42ec3e189a8058bf7acb5da81aae7
+        );
+        assertEq(account.CANCEL_RECOVERY_TYPEHASH(), 0x60cd184d185c26b90deb8d0cbc00bb5573decf2eb83a18b2216a0f7d986d90ef);
+        assertEq(account.CHANGE_RECOVERY_TYPEHASH(), 0x58eec495246ff7a500a54571691c10a40c638b112cc942c62b5aea7cca96d8d1);
         assertEq(registry.CREATE_SHOT_TYPEHASH(), 0xe627bc9302992c61fc4043b351fb7d7551f9ed0e0753a1e76a0e68e7a9a60b99);
         assertEq(
             registry.APPEND_EVOLUTION_TYPEHASH(), 0x3a0d9d9dfaedfea172f8ba24e22ce2e86abf77a208168a5246f7a7be2d72de67
@@ -53,9 +57,56 @@ contract SpecificationHashesTest is ProtocolTestBase {
         assertEq(relations.domainSeparator(), _domain("TOHSENO ShotRelations", address(relations)));
     }
 
+    function testRecoveryHashFunctionsUseTheDocumentedFieldOrder() public {
+        BuilderAccount account = newAccount(KEY1_X, KEY1_Y);
+        address nextRecovery = address(0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB);
+        uint64 deadline = 2_000_000_000;
+        bytes32 replacementKeyId = account.deviceKeyId(KEY2_X, KEY2_Y);
+
+        bytes32 initiateStructHash = keccak256(
+            abi.encode(
+                account.INITIATE_RECOVERY_TYPEHASH(),
+                address(account),
+                address(0),
+                nextRecovery,
+                replacementKeyId,
+                KEY2_X,
+                KEY2_Y,
+                uint64(3),
+                deadline
+            )
+        );
+        assertEq(
+            account.hashInitiateRecovery(KEY2_X, KEY2_Y, nextRecovery, 3, deadline),
+            _typedDigest(account.domainSeparator(), initiateStructHash)
+        );
+
+        bytes32 changeStructHash = keccak256(
+            abi.encode(
+                account.CHANGE_RECOVERY_TYPEHASH(), address(account), address(0), nextRecovery, uint64(7), deadline
+            )
+        );
+        assertEq(
+            account.hashChangeRecovery(nextRecovery, 7, deadline),
+            _typedDigest(account.domainSeparator(), changeStructHash)
+        );
+
+        bytes32 recoveryId = keccak256("recovery");
+        bytes32 cancelStructHash =
+            keccak256(abi.encode(account.CANCEL_RECOVERY_TYPEHASH(), address(account), recoveryId, uint64(8), deadline));
+        assertEq(
+            account.hashCancelRecovery(recoveryId, 8, deadline),
+            _typedDigest(account.domainSeparator(), cancelStructHash)
+        );
+    }
+
     function _domain(string memory name, address verifyingContract) private view returns (bytes32) {
         return keccak256(
             abi.encode(DOMAIN_TYPEHASH, keccak256(bytes(name)), keccak256(bytes("1")), block.chainid, verifyingContract)
         );
+    }
+
+    function _typedDigest(bytes32 domainSeparator, bytes32 structHash) private pure returns (bytes32) {
+        return keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
     }
 }

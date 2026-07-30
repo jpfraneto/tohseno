@@ -13,6 +13,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     uint32 public constant PERMISSION_PROTOCOL = 1 << 0;
     uint32 public constant PERMISSION_DEVICE_ADMIN = 1 << 1;
     uint32 public constant ALL_PERMISSIONS = PERMISSION_PROTOCOL | PERMISSION_DEVICE_ADMIN;
+    uint64 public constant RECOVERY_DELAY = 3 days;
 
     bytes32 public constant AUTHORIZE_DEVICE_TYPEHASH = keccak256(
         "AuthorizeDevice(address account,bytes32 keyId,uint256 x,uint256 y,uint32 permissions,uint64 nonce,uint64 deadline)"
@@ -21,14 +22,29 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         keccak256("RevokeDevice(address account,bytes32 keyId,uint64 nonce,uint64 deadline)");
     bytes32 public constant SET_RECOVERY_TYPEHASH =
         keccak256("SetRecovery(address account,address recovery,uint64 nonce,uint64 deadline)");
-    bytes32 public constant RECOVER_ACCOUNT_TYPEHASH = keccak256(
-        "RecoverAccount(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)"
+    bytes32 public constant INITIATE_RECOVERY_TYPEHASH = keccak256(
+        "InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)"
+    );
+    bytes32 public constant CANCEL_RECOVERY_TYPEHASH =
+        keccak256("CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)");
+    bytes32 public constant CHANGE_RECOVERY_TYPEHASH = keccak256(
+        "ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)"
     );
 
     uint256 private constant SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     mapping(bytes32 keyId => uint64 epoch) private _keyEpoch;
     mapping(bytes32 keyId => uint32 permissions) private _keyPermissions;
+
+    struct PendingRecovery {
+        bytes32 id;
+        address currentRecovery;
+        address newRecovery;
+        bytes32 newKeyId;
+        uint256 newX;
+        uint256 newY;
+        uint64 executeAfter;
+    }
 
     uint64 public deviceEpoch;
     uint64 public deviceNonce;
@@ -37,6 +53,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     uint64 public activeAdminCount;
     address public recoveryAuthority;
     bool public recoveryConfigured;
+    PendingRecovery public pendingRecovery;
 
     error Expired(uint64 deadline);
     error InvalidDeviceKey();
@@ -50,10 +67,24 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     error InvalidRecoveryAuthority();
     error RecoveryDisabled();
     error InvalidRecoverySignature();
+    error RecoveryAlreadyPending(bytes32 recoveryId);
+    error RecoveryNotPending();
+    error RecoveryIdMismatch(bytes32 expected, bytes32 provided);
+    error RecoveryDelayActive(uint64 executeAfter);
+    error RecoveryTimestampOverflow();
 
     event DeviceAuthorized(bytes32 indexed keyId, uint256 x, uint256 y, uint32 permissions, uint64 indexed epoch);
     event DeviceRevoked(bytes32 indexed keyId, uint64 indexed epoch);
     event RecoveryConfigured(address indexed recoveryAuthority);
+    event RecoveryChanged(address indexed previousRecovery, address indexed newRecovery);
+    event RecoveryInitiated(
+        bytes32 indexed recoveryId,
+        address indexed currentRecovery,
+        address indexed newRecovery,
+        bytes32 replacementKeyId,
+        uint64 executeAfter
+    );
+    event RecoveryCancelled(bytes32 indexed recoveryId);
     event AccountRecovered(
         address indexed previousRecovery, address indexed newRecovery, bytes32 indexed replacementKeyId, uint64 newEpoch
     );
@@ -123,7 +154,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         return _hashTypedData(keccak256(abi.encode(SET_RECOVERY_TYPEHASH, address(this), recovery, nonce, deadline)));
     }
 
-    function hashRecovery(uint256 newX, uint256 newY, address newRecovery, uint64 nonce, uint64 deadline)
+    function hashInitiateRecovery(uint256 newX, uint256 newY, address newRecovery, uint64 nonce, uint64 deadline)
         public
         view
         returns (bytes32)
@@ -131,7 +162,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         return _hashTypedData(
             keccak256(
                 abi.encode(
-                    RECOVER_ACCOUNT_TYPEHASH,
+                    INITIATE_RECOVERY_TYPEHASH,
                     address(this),
                     recoveryAuthority,
                     newRecovery,
@@ -141,6 +172,19 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
                     nonce,
                     deadline
                 )
+            )
+        );
+    }
+
+    function hashCancelRecovery(bytes32 recoveryId, uint64 nonce, uint64 deadline) public view returns (bytes32) {
+        return
+            _hashTypedData(keccak256(abi.encode(CANCEL_RECOVERY_TYPEHASH, address(this), recoveryId, nonce, deadline)));
+    }
+
+    function hashChangeRecovery(address newRecovery, uint64 nonce, uint64 deadline) public view returns (bytes32) {
+        return _hashTypedData(
+            keccak256(
+                abi.encode(CHANGE_RECOVERY_TYPEHASH, address(this), recoveryAuthority, newRecovery, nonce, deadline)
             )
         );
     }
@@ -200,7 +244,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     function setRecovery(address recovery, uint64 deadline, bytes calldata authorizingSignature) external {
         _checkDeadline(deadline);
         if (recoveryConfigured) revert RecoveryAlreadyConfigured();
-        if (recovery == address(0)) revert InvalidRecoveryAuthority();
+        _checkRecoveryAuthority(recovery);
 
         uint64 nonce = deviceNonce;
         bytes32 digest = hashSetRecovery(recovery, nonce, deadline);
@@ -214,32 +258,101 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         emit RecoveryConfigured(recovery);
     }
 
-    /// @notice Replaces the complete device set with one new key and rotates recovery.
-    function recover(uint256 newX, uint256 newY, address newRecovery, uint64 deadline, bytes calldata recoverySignature)
-        external
-    {
+    /// @notice Corrects or rotates recovery while an active admin device remains available.
+    function changeRecovery(address newRecovery, uint64 deadline, bytes calldata authorizingSignature) external {
         _checkDeadline(deadline);
         address currentRecovery = recoveryAuthority;
         if (currentRecovery == address(0)) revert RecoveryDisabled();
-        if (newRecovery == address(0)) revert InvalidRecoveryAuthority();
+        _checkRecoveryAuthority(newRecovery);
+
+        uint64 nonce = deviceNonce;
+        bytes32 digest = hashChangeRecovery(newRecovery, nonce, deadline);
+        if (!_validAuthorizedDeviceSignature(digest, authorizingSignature, PERMISSION_DEVICE_ADMIN)) {
+            revert InvalidDeviceSignature();
+        }
+
+        deviceNonce = nonce + 1;
+        recoveryNonce += 1;
+        bytes32 pendingId = pendingRecovery.id;
+        delete pendingRecovery;
+        recoveryAuthority = newRecovery;
+        if (pendingId != bytes32(0)) emit RecoveryCancelled(pendingId);
+        emit RecoveryChanged(currentRecovery, newRecovery);
+    }
+
+    /// @notice Starts a delayed, recovery-authority-approved replacement of the complete device set.
+    function initiateRecovery(
+        uint256 newX,
+        uint256 newY,
+        address newRecovery,
+        uint64 deadline,
+        bytes calldata recoverySignature
+    ) external returns (bytes32 recoveryId) {
+        _checkDeadline(deadline);
+        address currentRecovery = recoveryAuthority;
+        if (currentRecovery == address(0)) revert RecoveryDisabled();
+        _checkRecoveryAuthority(newRecovery);
         if (!P256Verifier.validPublicKey(newX, newY)) revert InvalidDeviceKey();
+        if (pendingRecovery.id != bytes32(0)) revert RecoveryAlreadyPending(pendingRecovery.id);
 
         uint64 nonce = recoveryNonce;
-        bytes32 digest = hashRecovery(newX, newY, newRecovery, nonce, deadline);
-        if (_recoverSigner(digest, recoverySignature) != currentRecovery) {
+        bytes32 digest = hashInitiateRecovery(newX, newY, newRecovery, nonce, deadline);
+        if (!_validRecoverySignature(currentRecovery, digest, recoverySignature)) {
             revert InvalidRecoverySignature();
         }
 
         recoveryNonce = nonce + 1;
+        bytes32 replacementKeyId = P256Verifier.keyId(newX, newY);
+        uint64 executeAfter = _recoveryExecuteAfter();
+        recoveryId = digest;
+        pendingRecovery = PendingRecovery({
+            id: recoveryId,
+            currentRecovery: currentRecovery,
+            newRecovery: newRecovery,
+            newKeyId: replacementKeyId,
+            newX: newX,
+            newY: newY,
+            executeAfter: executeAfter
+        });
+        emit RecoveryInitiated(recoveryId, currentRecovery, newRecovery, replacementKeyId, executeAfter);
+    }
+
+    /// @notice Lets any currently active DEVICE_ADMIN key veto a pending recovery.
+    function cancelRecovery(bytes32 recoveryId, uint64 deadline, bytes calldata authorizingSignature) external {
+        _checkDeadline(deadline);
+        PendingRecovery storage pending = pendingRecovery;
+        if (pending.id == bytes32(0)) revert RecoveryNotPending();
+        if (pending.id != recoveryId) revert RecoveryIdMismatch(pending.id, recoveryId);
+
+        uint64 nonce = deviceNonce;
+        bytes32 digest = hashCancelRecovery(recoveryId, nonce, deadline);
+        if (!_validAuthorizedDeviceSignature(digest, authorizingSignature, PERMISSION_DEVICE_ADMIN)) {
+            revert InvalidDeviceSignature();
+        }
+
+        deviceNonce = nonce + 1;
+        delete pendingRecovery;
+        emit RecoveryCancelled(recoveryId);
+    }
+
+    /// @notice Permissionlessly completes an authorized recovery after the mandatory notice window.
+    function finalizeRecovery(bytes32 recoveryId) external {
+        PendingRecovery memory pending = pendingRecovery;
+        if (pending.id == bytes32(0)) revert RecoveryNotPending();
+        if (pending.id != recoveryId) revert RecoveryIdMismatch(pending.id, recoveryId);
+        if (block.timestamp < pending.executeAfter) revert RecoveryDelayActive(pending.executeAfter);
+
+        delete pendingRecovery;
         deviceEpoch += 1;
+        deviceNonce += 1;
         activeDeviceCount = 1;
         activeAdminCount = 1;
-        recoveryAuthority = newRecovery;
-        bytes32 replacementKeyId = P256Verifier.keyId(newX, newY);
+        recoveryAuthority = pending.newRecovery;
+        bytes32 replacementKeyId = pending.newKeyId;
         _keyEpoch[replacementKeyId] = deviceEpoch;
         _keyPermissions[replacementKeyId] = ALL_PERMISSIONS;
-        emit AccountRecovered(currentRecovery, newRecovery, replacementKeyId, deviceEpoch);
-        emit DeviceAuthorized(replacementKeyId, newX, newY, ALL_PERMISSIONS, deviceEpoch);
+        emit AccountRecovered(pending.currentRecovery, pending.newRecovery, replacementKeyId, deviceEpoch);
+        emit DeviceAuthorized(replacementKeyId, pending.newX, pending.newY, ALL_PERMISSIONS, deviceEpoch);
     }
 
     function _validAuthorizedDeviceSignature(bytes32 digest, bytes calldata signature, uint32 requiredPermission)
@@ -249,6 +362,25 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     {
         (bool valid, bytes32 signerKeyId) = P256Verifier.verify(digest, signature);
         return valid && hasPermission(signerKeyId, requiredPermission);
+    }
+
+    function _validRecoverySignature(address authority, bytes32 digest, bytes calldata signature)
+        private
+        view
+        returns (bool)
+    {
+        if (_recoverSigner(digest, signature) == authority) return true;
+        if (authority.code.length == 0) return false;
+
+        (bool success, bytes memory output) =
+            authority.staticcall(abi.encodeCall(IERC1271.isValidSignature, (digest, signature)));
+        if (!success || output.length != 32) return false;
+
+        bytes4 result;
+        assembly ("memory-safe") {
+            result := mload(add(output, 32))
+        }
+        return result == ERC1271_MAGIC_VALUE;
     }
 
     function _recoverSigner(bytes32 digest, bytes calldata signature) private pure returns (address) {
@@ -263,6 +395,16 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         }
         if (uint256(s) > SECP256K1_HALF_ORDER || (v != 27 && v != 28)) return address(0);
         return ecrecover(digest, v, r, s);
+    }
+
+    function _checkRecoveryAuthority(address recovery) private view {
+        if (recovery == address(0) || recovery == address(this)) revert InvalidRecoveryAuthority();
+    }
+
+    function _recoveryExecuteAfter() private view returns (uint64) {
+        uint256 executeAfter = block.timestamp + RECOVERY_DELAY;
+        if (executeAfter > type(uint64).max) revert RecoveryTimestampOverflow();
+        return uint64(executeAfter);
     }
 
     function _checkDeadline(uint64 deadline) private view {

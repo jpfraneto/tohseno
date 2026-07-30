@@ -26,6 +26,10 @@ pub const REVOKE_DEVICE_TYPE: &str =
 pub const SET_RECOVERY_TYPE: &str =
     "SetRecovery(address account,address recovery,uint64 nonce,uint64 deadline)";
 pub const RECOVER_ACCOUNT_TYPE: &str = "RecoverAccount(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)";
+pub const CHANGE_RECOVERY_TYPE: &str = "ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)";
+pub const INITIATE_RECOVERY_TYPE: &str = "InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)";
+pub const CANCEL_RECOVERY_TYPE: &str =
+    "CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)";
 pub const CLAIM_HANDLE_TYPE: &str =
     "ClaimHandle(bytes32 shotId,bytes32 handleHash,uint64 nonce,uint64 deadline)";
 pub const RELEASE_HANDLE_TYPE: &str =
@@ -772,6 +776,294 @@ impl DeviceAction {
     }
 }
 
+/// Contract-generation 0.8 BuilderAccount actions.
+///
+/// `DeviceAction` remains the frozen v0.7 wire model. This type deliberately
+/// omits the immediate `RECOVER_ACCOUNT` action and gives delayed recovery its
+/// own three exact signed payloads.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+pub enum BuilderAccountActionV2 {
+    AuthorizeDevice {
+        account: Address20,
+        key_id: Bytes32,
+        x: Bytes32,
+        y: Bytes32,
+        permissions: u32,
+        nonce: u64,
+        deadline: u64,
+    },
+    RevokeDevice {
+        account: Address20,
+        key_id: Bytes32,
+        nonce: u64,
+        deadline: u64,
+    },
+    SetRecovery {
+        account: Address20,
+        recovery: Address20,
+        nonce: u64,
+        deadline: u64,
+    },
+    ChangeRecovery {
+        account: Address20,
+        current_recovery: Address20,
+        new_recovery: Address20,
+        nonce: u64,
+        deadline: u64,
+    },
+    InitiateRecovery {
+        account: Address20,
+        current_recovery: Address20,
+        new_recovery: Address20,
+        new_key_id: Bytes32,
+        new_x: Bytes32,
+        new_y: Bytes32,
+        nonce: u64,
+        deadline: u64,
+    },
+    CancelRecovery {
+        account: Address20,
+        recovery_id: Bytes32,
+        nonce: u64,
+        deadline: u64,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BuilderAccountActionAuthority {
+    DeviceAdmin,
+    RecoveryAuthority,
+}
+
+impl BuilderAccountActionV2 {
+    pub fn type_string(&self) -> &'static str {
+        match self {
+            Self::AuthorizeDevice { .. } => AUTHORIZE_DEVICE_TYPE,
+            Self::RevokeDevice { .. } => REVOKE_DEVICE_TYPE,
+            Self::SetRecovery { .. } => SET_RECOVERY_TYPE,
+            Self::ChangeRecovery { .. } => CHANGE_RECOVERY_TYPE,
+            Self::InitiateRecovery { .. } => INITIATE_RECOVERY_TYPE,
+            Self::CancelRecovery { .. } => CANCEL_RECOVERY_TYPE,
+        }
+    }
+
+    pub fn authority(&self) -> BuilderAccountActionAuthority {
+        match self {
+            Self::InitiateRecovery { .. } => BuilderAccountActionAuthority::RecoveryAuthority,
+            Self::AuthorizeDevice { .. }
+            | Self::RevokeDevice { .. }
+            | Self::SetRecovery { .. }
+            | Self::ChangeRecovery { .. }
+            | Self::CancelRecovery { .. } => BuilderAccountActionAuthority::DeviceAdmin,
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        let (account, nonce, deadline) = match self {
+            Self::AuthorizeDevice {
+                account,
+                key_id,
+                x,
+                y,
+                permissions,
+                nonce,
+                deadline,
+            } => {
+                let key = P256PublicKey { x: *x, y: *y };
+                key.validate()?;
+                if *key_id != device_key_id(&key) {
+                    return Err(invalid(
+                        "action.key_id",
+                        "does not match the proposed public key",
+                    ));
+                }
+                if *permissions == 0 || *permissions & !PERMISSION_ALL != 0 {
+                    return Err(invalid(
+                        "action.permissions",
+                        "must contain only PROTOCOL=1 and DEVICE_ADMIN=2",
+                    ));
+                }
+                (*account, *nonce, *deadline)
+            }
+            Self::RevokeDevice {
+                account,
+                key_id,
+                nonce,
+                deadline,
+            } => {
+                nonzero_bytes32("action.key_id", *key_id)?;
+                (*account, *nonce, *deadline)
+            }
+            Self::SetRecovery {
+                account,
+                recovery,
+                nonce,
+                deadline,
+            } => {
+                nonzero_address("action.recovery", *recovery)?;
+                (*account, *nonce, *deadline)
+            }
+            Self::ChangeRecovery {
+                account,
+                current_recovery,
+                new_recovery,
+                nonce,
+                deadline,
+            } => {
+                nonzero_address("action.current_recovery", *current_recovery)?;
+                nonzero_address("action.new_recovery", *new_recovery)?;
+                (*account, *nonce, *deadline)
+            }
+            Self::InitiateRecovery {
+                account,
+                current_recovery,
+                new_recovery,
+                new_key_id,
+                new_x,
+                new_y,
+                nonce,
+                deadline,
+            } => {
+                nonzero_address("action.current_recovery", *current_recovery)?;
+                nonzero_address("action.new_recovery", *new_recovery)?;
+                let key = P256PublicKey {
+                    x: *new_x,
+                    y: *new_y,
+                };
+                key.validate()?;
+                if *new_key_id != device_key_id(&key) {
+                    return Err(invalid(
+                        "action.new_key_id",
+                        "does not match the replacement public key",
+                    ));
+                }
+                (*account, *nonce, *deadline)
+            }
+            Self::CancelRecovery {
+                account,
+                recovery_id,
+                nonce,
+                deadline,
+            } => {
+                nonzero_bytes32("action.recovery_id", *recovery_id)?;
+                (*account, *nonce, *deadline)
+            }
+        };
+        nonzero_address("action.account", account)?;
+        if deadline == 0 {
+            return Err(invalid("action.deadline", "must not be zero"));
+        }
+        if nonce > MAX_SAFE_JSON_INTEGER || deadline > MAX_SAFE_JSON_INTEGER {
+            return Err(invalid(
+                "action",
+                "nonce and deadline must be JavaScript-safe integers",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn struct_hash(&self) -> Result<Bytes32> {
+        self.validate()?;
+        let words = match self {
+            Self::AuthorizeDevice {
+                account,
+                key_id,
+                x,
+                y,
+                permissions,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(AUTHORIZE_DEVICE_TYPE),
+                address_word(*account),
+                *key_id,
+                *x,
+                *y,
+                u32_word(*permissions),
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::RevokeDevice {
+                account,
+                key_id,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(REVOKE_DEVICE_TYPE),
+                address_word(*account),
+                *key_id,
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::SetRecovery {
+                account,
+                recovery,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(SET_RECOVERY_TYPE),
+                address_word(*account),
+                address_word(*recovery),
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::ChangeRecovery {
+                account,
+                current_recovery,
+                new_recovery,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(CHANGE_RECOVERY_TYPE),
+                address_word(*account),
+                address_word(*current_recovery),
+                address_word(*new_recovery),
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::InitiateRecovery {
+                account,
+                current_recovery,
+                new_recovery,
+                new_key_id,
+                new_x,
+                new_y,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(INITIATE_RECOVERY_TYPE),
+                address_word(*account),
+                address_word(*current_recovery),
+                address_word(*new_recovery),
+                *new_key_id,
+                *new_x,
+                *new_y,
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+            Self::CancelRecovery {
+                account,
+                recovery_id,
+                nonce,
+                deadline,
+            } => vec![
+                type_hash(CANCEL_RECOVERY_TYPE),
+                address_word(*account),
+                *recovery_id,
+                u64_word(*nonce),
+                u64_word(*deadline),
+            ],
+        };
+        Ok(hash_words(&words))
+    }
+
+    pub fn digest(&self, domain: &Eip712Domain) -> Result<Bytes32> {
+        domain.validate_for(BUILDER_ACCOUNT_DOMAIN)?;
+        Ok(eip712_digest(domain.separator(), self.struct_hash()?))
+    }
+}
+
 pub fn type_hash(type_string: &str) -> Bytes32 {
     keccak256(type_string.as_bytes())
 }
@@ -861,6 +1153,71 @@ mod tests {
             keccak256(CREATE_SHOT_TYPE.as_bytes())
         );
         assert!(AUTHORIZE_DEVICE_TYPE.contains("uint32 permissions"));
+        assert_eq!(
+            type_hash(CHANGE_RECOVERY_TYPE),
+            Bytes32::from_hex(
+                "change recovery type hash",
+                "0x58eec495246ff7a500a54571691c10a40c638b112cc942c62b5aea7cca96d8d1"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            type_hash(INITIATE_RECOVERY_TYPE),
+            Bytes32::from_hex(
+                "initiate recovery type hash",
+                "0x51e31a9ec813ed442f9a9de0ee7277f8c8e42ec3e189a8058bf7acb5da81aae7"
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            type_hash(CANCEL_RECOVERY_TYPE),
+            Bytes32::from_hex(
+                "cancel recovery type hash",
+                "0x60cd184d185c26b90deb8d0cbc00bb5573decf2eb83a18b2216a0f7d986d90ef"
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn delayed_recovery_payloads_are_chain_scoped_and_authority_typed() {
+        let action = BuilderAccountActionV2::InitiateRecovery {
+            account: Address20::from_bytes([1; 20]),
+            current_recovery: Address20::from_bytes([2; 20]),
+            new_recovery: Address20::from_bytes([3; 20]),
+            new_key_id: Bytes32::new([4; 32]),
+            new_x: Bytes32::new([5; 32]),
+            new_y: Bytes32::new([6; 32]),
+            nonce: 0,
+            deadline: 1,
+        };
+        assert_eq!(
+            action.authority(),
+            BuilderAccountActionAuthority::RecoveryAuthority
+        );
+        assert!(action.validate().is_err());
+
+        let cancel = BuilderAccountActionV2::CancelRecovery {
+            account: Address20::from_bytes([1; 20]),
+            recovery_id: Bytes32::new([2; 32]),
+            nonce: 0,
+            deadline: 1,
+        };
+        let domain = Eip712Domain {
+            name: BUILDER_ACCOUNT_DOMAIN.into(),
+            version: EIP712_VERSION.into(),
+            chain_id: ROBINHOOD_CHAIN_ID,
+            verifying_contract: Address20::from_bytes([3; 20]),
+        };
+        let mut other_chain = domain.clone();
+        other_chain.chain_id += 1;
+        assert_eq!(
+            cancel.authority(),
+            BuilderAccountActionAuthority::DeviceAdmin
+        );
+        assert!(cancel.digest(&domain).is_ok());
+        assert_ne!(domain.separator(), other_chain.separator());
+        assert!(cancel.digest(&other_chain).is_err());
     }
 
     #[test]

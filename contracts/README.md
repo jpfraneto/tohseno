@@ -22,9 +22,11 @@ server, relayer, company, website, or deployer.
   `digest || r || s || x || y`, and accepts only an exact 32-byte integer `1`.
 - `BuilderAccount` is an ERC-1271 BuilderID controlled by replaceable P-256
   device keys. Device permissions are `PROTOCOL = 1` and
-  `DEVICE_ADMIN = 2`. Recovery setup is a one-time device-signed action after
-  account prediction; later recovery rotates the recovery authority and
-  invalidates every prior device epoch.
+  `DEVICE_ADMIN = 2`. Initial recovery setup and later correction are
+  device-admin actions. Recovery replacement is initiated by either an EOA or
+  ERC-1271 recovery authority, waits three days, can be cancelled by any active
+  device admin, and then may be finalized by anyone. Finalization rotates the
+  recovery authority and invalidates every prior device epoch.
 - `BuilderAccountFactory` uses CREATE2 and has no ownership relationship with
   the accounts it creates. Prediction depends only on factory, salt, and the
   initial P-256 coordinates. Optional recovery setup never changes BuilderID.
@@ -71,7 +73,9 @@ not cross chains or deployments.
 | `0xcdb0126f85b19b28642fc350e8d771c41afd39854da572f865a3612c3242ee95` | `AuthorizeDevice(address account,bytes32 keyId,uint256 x,uint256 y,uint32 permissions,uint64 nonce,uint64 deadline)` |
 | `0xc3323bbac7e11d8f4946087779bc3f90a673ec602cab93c377d33aa1f5648f8e` | `RevokeDevice(address account,bytes32 keyId,uint64 nonce,uint64 deadline)` |
 | `0xb6ec3e464c0650bda67f76c0b0d7d72afcd16d403c610d18cd7793118c1a6ed4` | `SetRecovery(address account,address recovery,uint64 nonce,uint64 deadline)` |
-| `0x539858b6492297e81f07fffbe9f57c1363d0529cf5783087d05848f72fedb820` | `RecoverAccount(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)` |
+| `0x58eec495246ff7a500a54571691c10a40c638b112cc942c62b5aea7cca96d8d1` | `ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)` |
+| `0x51e31a9ec813ed442f9a9de0ee7277f8c8e42ec3e189a8058bf7acb5da81aae7` | `InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)` |
+| `0x60cd184d185c26b90deb8d0cbc00bb5573decf2eb83a18b2216a0f7d986d90ef` | `CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)` |
 | `0xe627bc9302992c61fc4043b351fb7d7551f9ed0e0753a1e76a0e68e7a9a60b99` | `CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)` |
 | `0x3a0d9d9dfaedfea172f8ba24e22ce2e86abf77a208168a5246f7a7be2d72de67` | `AppendEvolution(bytes32 shotId,bytes32 previousHead,bytes32 newHead,uint64 sequence,bytes32 contentCommitment,uint64 nonce,uint64 deadline)` |
 | `0x0de266e673064af8f761f1bf3366a2565f963d431128044ec828ab11fcff4e62` | `TransferShot(bytes32 shotId,address currentController,address newController,bytes32 currentHead,uint64 sequence,uint64 nonce,uint64 deadline)` |
@@ -88,6 +92,12 @@ not cross chains or deployments.
   active `DEVICE_ADMIN` key only while a nonzero recovery authority exists.
   `activeDeviceCount` and `activeAdminCount` are exact current-epoch counts,
   not historical counters.
+- Recovery initiation consumes `recoveryNonce` and stores the full typed-data
+  digest as its ID. Finalization is permissionless only after exactly three
+  days; until it lands, an active device admin may cancel. `changeRecovery`
+  clears a pending attempt and advances both the device and recovery nonce
+  domains. Device-signed actions share `deviceNonce`; every signed action has
+  an explicit deadline.
 - `CREATE_SHOT` requires a nonzero starting sequence, a deployed ERC-1271
   controller, a nonzero ShotID and head, controller creation nonce, and state
   `PUBLISHED`. Native roots begin at `1`; adopted legacy roots may begin at

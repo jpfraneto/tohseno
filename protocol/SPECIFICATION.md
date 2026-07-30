@@ -215,7 +215,7 @@ P-256 coordinates already occupy one 32-byte ABI word each. Recovery authority
 MUST NOT affect the salt, init code, or predicted address. Implementations use
 `identity::initial_builder_account_salt` after validating the initial key.
 
-## EIP-712 public and device actions
+## Frozen v0.7 EIP-712 public and device actions
 
 Every domain uses:
 
@@ -266,6 +266,36 @@ device-authorization envelope.
 
 All type hashes, domain separators, struct hashes, and representative digests
 are frozen in `test-vectors/protocol-v1.json`.
+
+### BuilderAccount contract generation 0.8
+
+The v0.7 `RecoverAccount` payload remains frozen for verification but is not
+accepted by the successor BuilderAccount. Contract generation 0.8 replaces
+immediate recovery with these exact actions:
+
+```text
+ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)
+InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)
+CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)
+```
+
+`ChangeRecovery` and `CancelRecovery` are authorized by a current P-256
+`DEVICE_ADMIN` key and consume `deviceNonce`. `InitiateRecovery` is authorized
+by the current recovery authority, which may be an EOA or an ERC-1271
+contract, and consumes `recoveryNonce`. The recovery ID is the complete
+EIP-712 `InitiateRecovery` digest.
+
+A successful initiation starts a three-day delay. Any active device admin may
+cancel before finalization, including after the delay has elapsed if no
+finalizer has yet landed. Finalization itself is unsigned and permissionless;
+it succeeds only for the exact pending digest after the delay, replaces the
+device epoch with one all-permissions key, and rotates recovery. Changing the
+recovery authority clears any pending attempt and advances the recovery nonce.
+
+The frozen v0.7 model remains `DeviceAction`; the successor model is
+`BuilderAccountActionV2`. Its schema and deterministic cross-language vectors
+are `schemas/builder-account-action-v2.schema.json` and
+`test-vectors/builder-account-v2.json`.
 
 ## Neutral coherent-intention lineage v2
 

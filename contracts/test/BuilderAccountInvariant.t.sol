@@ -40,7 +40,7 @@ contract BuilderAccountInvariantTest is ProtocolTestBase {
         } else if (action == 2) {
             _configureRecoveryIfPossible();
         } else {
-            _recoverIfPossible(x, y);
+            _recoverIfPossible(x, y, (value & 0x40) != 0);
         }
     }
 
@@ -85,12 +85,24 @@ contract BuilderAccountInvariantTest is ProtocolTestBase {
         account.setRecovery(recovery, deadline, p256Signature(signerX, signerY));
     }
 
-    function _recoverIfPossible(uint256 x, uint256 y) private {
+    function _recoverIfPossible(uint256 x, uint256 y, bool cancelWhenPossible) private {
         if (account.recoveryAuthority() == address(0)) return;
 
         uint64 deadline = _deadline();
-        bytes32 digest = account.hashRecovery(x, y, recovery, account.recoveryNonce(), deadline);
-        account.recover(x, y, recovery, deadline, recoverySignature(RECOVERY_PRIVATE_KEY, digest));
+        bytes32 digest = account.hashInitiateRecovery(x, y, recovery, account.recoveryNonce(), deadline);
+        bytes32 recoveryId =
+            account.initiateRecovery(x, y, recovery, deadline, recoverySignature(RECOVERY_PRIVATE_KEY, digest));
+        (bool found, uint256 signerX, uint256 signerY) = _adminSigner();
+        if (cancelWhenPossible && found) {
+            uint64 cancelDeadline = _deadline();
+            bytes32 cancelDigest = account.hashCancelRecovery(recoveryId, account.deviceNonce(), cancelDeadline);
+            setP256Expected(cancelDigest);
+            account.cancelRecovery(recoveryId, cancelDeadline, p256Signature(signerX, signerY));
+            return;
+        }
+
+        vm.warp(block.timestamp + account.RECOVERY_DELAY());
+        account.finalizeRecovery(recoveryId);
     }
 
     function _assertCounts() private view {

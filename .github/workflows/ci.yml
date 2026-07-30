@@ -63,9 +63,18 @@ jobs:
           cmp \
             "$RUNNER_TEMP/lineage-v2.json" \
             protocol/test-vectors/lineage-v2.json
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_builder_account_v2_vectors \
+            >"$RUNNER_TEMP/builder-account-v2.json"
+          cmp \
+            "$RUNNER_TEMP/builder-account-v2.json" \
+            protocol/test-vectors/builder-account-v2.json
       - name: Check schema inventory and Draft 2020-12 declarations
         run: |
-          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 32
+          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 33
           find protocol/schemas -type f -name '*.json' -print0 |
             xargs -0 -n1 jq -e \
               '."$schema" == "https://json-schema.org/draft/2020-12/schema"'

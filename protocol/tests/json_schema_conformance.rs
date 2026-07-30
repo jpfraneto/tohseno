@@ -95,6 +95,28 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
         "app-metadata-v2 vector",
     );
 
+    let builder_action_schema = schema_named(&schemas, "builder-account-action-v2.schema.json");
+    let builder_action_validator = compile(
+        &builder_action_schema.contents,
+        &registry,
+        "BuilderAccount action v2 schema",
+    );
+    let builder_vectors = load_json(&manifest.join("test-vectors/builder-account-v2.json"));
+    let builder_actions = builder_vectors
+        .get("actions")
+        .and_then(Value::as_object)
+        .expect("builder-account-v2.json must contain an actions object");
+    for (name, vector) in builder_actions {
+        let action = vector
+            .get("value")
+            .unwrap_or_else(|| panic!("{name} must contain a value"));
+        assert_valid(
+            &builder_action_validator,
+            action,
+            &format!("BuilderAccount v2 action {name}"),
+        );
+    }
+
     let mut unknown_field = signed_actions[0].clone();
     unknown_field
         .as_object_mut()
@@ -133,6 +155,15 @@ fn committed_schemas_and_v2_vectors_are_executable_contracts() {
     assert!(
         !app_metadata_validator.is_valid(&unknown_app_field),
         "app metadata with an unknown field passed"
+    );
+
+    let mut malformed_recovery = builder_actions["initiate_recovery"]["value"].clone();
+    *malformed_recovery
+        .pointer_mut("/new_key_id")
+        .expect("initiate recovery must contain new_key_id") = Value::String("not-a-key-id".into());
+    assert!(
+        !builder_action_validator.is_valid(&malformed_recovery),
+        "malformed BuilderAccount v2 recovery action passed"
     );
 }
 

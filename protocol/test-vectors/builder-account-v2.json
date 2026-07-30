@@ -1,0 +1,65 @@
+{
+  "actions": {
+    "cancel_recovery": {
+      "authority": "DEVICE_ADMIN",
+      "digest": "0x5f9b578f61a0482f17034b27c67c3c13edd397ec7d37c93f5382427977b31a55",
+      "struct_hash": "0x031af33608d836cd9aaec401e37d0d1237d2a197f69f5af0625fabd321738744",
+      "type_string": "CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)",
+      "value": {
+        "account": "0x8888888888888888888888888888888888888888",
+        "deadline": 2000000100,
+        "nonce": 8,
+        "recovery_id": "0x7a40c8887c3578adc72dfe046215c8bb593f7f933f4ccdc5ea4f91ed4664f6d9",
+        "type": "CANCEL_RECOVERY"
+      }
+    },
+    "change_recovery": {
+      "authority": "DEVICE_ADMIN",
+      "digest": "0x9d2208963d9c22637adc83412ce0d277c98629276ad59251e1e30ab64137a302",
+      "struct_hash": "0x2bbb11b4ce4e7589cd5d062db69a179e9b59ba51f7d78ae9d3e60617103c1803",
+      "type_string": "ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)",
+      "value": {
+        "account": "0x8888888888888888888888888888888888888888",
+        "current_recovery": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "deadline": 2000000000,
+        "new_recovery": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "nonce": 7,
+        "type": "CHANGE_RECOVERY"
+      }
+    },
+    "initiate_recovery": {
+      "authority": "RECOVERY_AUTHORITY",
+      "digest": "0x7a40c8887c3578adc72dfe046215c8bb593f7f933f4ccdc5ea4f91ed4664f6d9",
+      "struct_hash": "0x6d4d654a388bb2553d5900e4567688fe722b27539246127388e19b7cfb4708d6",
+      "type_string": "InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)",
+      "value": {
+        "account": "0x8888888888888888888888888888888888888888",
+        "current_recovery": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "deadline": 2000000000,
+        "new_key_id": "0xa000ddb94882f9f9cd0a859ed3a9f047ad43d7e2e4e7e491f1fe2e657a2651b6",
+        "new_recovery": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "new_x": "0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+        "new_y": "0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+        "nonce": 3,
+        "type": "INITIATE_RECOVERY"
+      }
+    }
+  },
+  "contract_generation": "0.8.0",
+  "domain": {
+    "separator": "0xeea66a1222c9cdea17e97be49b5315572da1145a32b921dfb39e611fb8053243",
+    "value": {
+      "chain_id": 4663,
+      "name": "TOHSENO BuilderAccount",
+      "verifying_contract": "0x8888888888888888888888888888888888888888",
+      "version": "1"
+    }
+  },
+  "recovery_delay_seconds": 259200,
+  "schema": "tohseno.builder-account-v2-test-vectors/1",
+  "type_hashes": {
+    "CancelRecovery(address account,bytes32 recoveryId,uint64 nonce,uint64 deadline)": "0x60cd184d185c26b90deb8d0cbc00bb5573decf2eb83a18b2216a0f7d986d90ef",
+    "ChangeRecovery(address account,address currentRecovery,address newRecovery,uint64 nonce,uint64 deadline)": "0x58eec495246ff7a500a54571691c10a40c638b112cc942c62b5aea7cca96d8d1",
+    "InitiateRecovery(address account,address currentRecovery,address newRecovery,bytes32 newKeyId,uint256 newX,uint256 newY,uint64 nonce,uint64 deadline)": "0x51e31a9ec813ed442f9a9de0ee7277f8c8e42ec3e189a8058bf7acb5da81aae7"
+  }
+}
