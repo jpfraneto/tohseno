@@ -1,6 +1,7 @@
 /target/
 /dist/
 /apple-identity/.build/
+/fascia/apple/.build/
 /contracts/cache/
 /contracts/out/
 /contracts/broadcast/
