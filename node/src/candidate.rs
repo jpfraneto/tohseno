@@ -17,14 +17,19 @@ use tohseno_protocol::identity::{
 use tohseno_protocol::lineage::{LineagePayload, SignedLineageAction};
 use tohseno_protocol::signature::P256PublicKey;
 
-const DEPLOYMENT_PLAN_JSON: &str =
+const CURRENT_DEPLOYMENT_PLAN_JSON: &str =
+    include_str!("../../contracts/deployments/robinhood-mainnet-v0.8.0.json");
+const LEGACY_DEPLOYMENT_PLAN_JSON: &str =
     include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
-const BUILDER_ACCOUNT_CREATION_HEX: &str =
+const CURRENT_BUILDER_ACCOUNT_CREATION_HEX: &str =
+    include_str!("../../contracts/bytecode/BuilderAccount.v0.8.0.creation.hex");
+const LEGACY_BUILDER_ACCOUNT_CREATION_HEX: &str =
     include_str!("../../contracts/bytecode/BuilderAccount.creation.hex");
 const CONFIGURATION_SCHEMA: &str = "tohseno.node-contract-configuration/1";
-const EXPECTED_CANDIDATE_VERSION: &str = "0.7.0";
+const EXPECTED_CANDIDATE_VERSION: &str = "0.8.0";
+const LEGACY_CANDIDATE_VERSION: &str = "0.7.0";
 const EXPECTED_CANDIDATE_STATUS: &str = "planned, undeployed, non-canonical and unaudited";
-const AUTHORITY_POLICY: &str = "initial authority only: neutral lineage reduction plus GENESIS BuilderAccount CREATE2 prediction from the pinned factory, protocol-derived initial-key salt, and pinned creation bytecode; ownership actions and their descendants remain candidate-authority unresolved because GENESIS defines no ownership-transfer authorization proof";
+const AUTHORITY_POLICY: &str = "initial authority only: neutral lineage reduction plus exact-match BuilderAccount CREATE2 prediction across the frozen v0.7 and current v0.8 generations; ownership actions and their descendants remain authority-unresolved because no complete ownership-transfer authorization proof is available";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum BranchAuthority {
@@ -35,15 +40,40 @@ pub(crate) enum BranchAuthority {
 #[derive(Clone)]
 pub(crate) struct CandidatePolicy {
     configuration: CandidateContractConfiguration,
+    current_generation: AuthorityGeneration,
+    verification_generations: Vec<AuthorityGeneration>,
+}
+
+#[derive(Clone)]
+struct AuthorityGeneration {
+    version: String,
+    factory_address: Address20,
     builder_account_creation_bytecode: Vec<u8>,
 }
 
 impl CandidatePolicy {
     pub fn embedded() -> Result<Self> {
-        let plan: DeploymentPlan = serde_json::from_str(DEPLOYMENT_PLAN_JSON)?;
-        validate_plan(&plan)?;
-        let builder_account_creation_bytecode =
-            decode_creation_bytecode(BUILDER_ACCOUNT_CREATION_HEX)?;
+        let plan: DeploymentPlan = serde_json::from_str(CURRENT_DEPLOYMENT_PLAN_JSON)?;
+        validate_plan(&plan, EXPECTED_CANDIDATE_VERSION, "WITNESS_V2")?;
+        let current_generation = AuthorityGeneration {
+            version: plan.candidate.version.clone(),
+            factory_address: plan.contracts.builder_account_factory.planned_address,
+            builder_account_creation_bytecode: decode_creation_bytecode(
+                CURRENT_BUILDER_ACCOUNT_CREATION_HEX,
+            )?,
+        };
+        let legacy_plan: DeploymentPlan = serde_json::from_str(LEGACY_DEPLOYMENT_PLAN_JSON)?;
+        validate_plan(&legacy_plan, LEGACY_CANDIDATE_VERSION, "GENESIS")?;
+        let legacy_generation = AuthorityGeneration {
+            version: legacy_plan.candidate.version,
+            factory_address: legacy_plan
+                .contracts
+                .builder_account_factory
+                .planned_address,
+            builder_account_creation_bytecode: decode_creation_bytecode(
+                LEGACY_BUILDER_ACCOUNT_CREATION_HEX,
+            )?,
+        };
         let configuration = CandidateContractConfiguration {
             schema: CONFIGURATION_SCHEMA.into(),
             candidate_version: plan.candidate.version,
@@ -58,12 +88,15 @@ impl CandidatePolicy {
             builder_account_factory: planned(&plan.contracts.builder_account_factory),
             shot_registry: planned(&plan.contracts.shot_registry),
             shot_relations: planned(&plan.contracts.shot_relations),
-            builder_account_creation_bytecode_sha256: sha256(&builder_account_creation_bytecode),
+            builder_account_creation_bytecode_sha256: sha256(
+                &current_generation.builder_account_creation_bytecode,
+            ),
             initial_authority_policy: AUTHORITY_POLICY.into(),
         };
         Ok(Self {
             configuration,
-            builder_account_creation_bytecode,
+            current_generation: current_generation.clone(),
+            verification_generations: vec![legacy_generation, current_generation],
         })
     }
 
@@ -72,12 +105,20 @@ impl CandidatePolicy {
     }
 
     pub fn predict_builder_id(&self, initial_key: &P256PublicKey) -> Result<BuilderId> {
+        self.predict_builder_id_for(&self.current_generation, initial_key)
+    }
+
+    fn predict_builder_id_for(
+        &self,
+        generation: &AuthorityGeneration,
+        initial_key: &P256PublicKey,
+    ) -> Result<BuilderId> {
         let salt = initial_builder_account_salt(initial_key)?;
         Ok(predict_builder_account(
-            self.configuration.builder_account_factory.planned_address,
+            generation.factory_address,
             salt,
             initial_key,
-            &self.builder_account_creation_bytecode,
+            &generation.builder_account_creation_bytecode,
         )?)
     }
 
@@ -103,11 +144,24 @@ impl CandidatePolicy {
                 "complete lineage does not begin with a commitment".into(),
             ));
         };
-        let predicted = self.predict_builder_id(&commitment.initial_controller_key)?;
-        if predicted != commitment.initial_controller || predicted != action.action.actor {
+        let mut matched = None;
+        for generation in &self.verification_generations {
+            let predicted =
+                self.predict_builder_id_for(generation, &commitment.initial_controller_key)?;
+            if predicted == commitment.initial_controller && predicted == action.action.actor {
+                if matched.is_some() {
+                    return Err(NodeError::Causal(
+                        "commitment controller ambiguously matches multiple BuilderAccount generations"
+                            .into(),
+                    ));
+                }
+                matched = Some(generation.version.as_str());
+            }
+        }
+        if matched.is_none() {
             return Err(NodeError::Causal(format!(
-                "commitment controller {} does not reproduce the pinned candidate BuilderAccount {}",
-                commitment.initial_controller, predicted
+                "commitment controller {} does not reproduce a pinned candidate BuilderAccount under any supported contract generation",
+                commitment.initial_controller
             )));
         }
         Ok(())
@@ -181,11 +235,15 @@ struct ContractDeclaration {
     transaction_hash: Option<Bytes32>,
 }
 
-fn validate_plan(plan: &DeploymentPlan) -> Result<()> {
+fn validate_plan(
+    plan: &DeploymentPlan,
+    expected_version: &str,
+    expected_codename: &str,
+) -> Result<()> {
     if plan.schema != "tohseno.deployment-plan/1"
         || plan.protocol != "tohseno"
-        || plan.candidate.version != EXPECTED_CANDIDATE_VERSION
-        || plan.candidate.codename != "GENESIS"
+        || plan.candidate.version != expected_version
+        || plan.candidate.codename != expected_codename
         || plan.candidate.status != EXPECTED_CANDIDATE_STATUS
         || plan.chain.chain_id != ROBINHOOD_CHAIN_ID
         || plan.chain.name != "Robinhood Chain mainnet"

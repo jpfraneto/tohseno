@@ -24,7 +24,7 @@ const MAX_PROTOCOL_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ICON_BYTES: u64 = 32 * 1024 * 1024;
 const FALLBACK_ICON: &[u8] = include_bytes!("../../brand/logos/tohseno-app-icon-1024.png");
 const DEPLOYMENT_PLAN: &[u8] =
-    include_bytes!("../../contracts/deployments/robinhood-mainnet-genesis.json");
+    include_bytes!("../../contracts/deployments/robinhood-mainnet-v0.8.0.json");
 
 /// The public state emitted by this local-only generator.
 ///
@@ -822,8 +822,8 @@ fn validate_deployment_plan(plan: &DeploymentPlan) -> Result<(), PageError> {
     if plan.protocol != "tohseno"
         || plan.schema != "tohseno.deployment-plan/1"
         || plan.chain.chain_id != ROBINHOOD_CHAIN_ID
-        || plan.candidate.codename != "GENESIS"
-        || plan.candidate.version != "0.7.0"
+        || plan.candidate.codename != "WITNESS_V2"
+        || plan.candidate.version != "0.8.0"
         || plan.candidate.status.is_empty()
         || plan.chain.name.is_empty()
         || plan.chain.p256verify == Address20::from_bytes([0; 20])

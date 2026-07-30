@@ -50,7 +50,7 @@ const BRAND_COLORS: &str = include_str!("../../brand/tokens/colors.css");
 const CORE_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-core-circle.svg");
 const MICRO_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-micro-circle.png");
 const DEPLOYMENT_PLAN: &str =
-    include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
+    include_str!("../../contracts/deployments/robinhood-mainnet-v0.8.0.json");
 const MAX_BODY: usize = 160 * 1024 * 1024;
 const MAX_HEADERS: usize = 32 * 1024;
 const MAX_PROTOCOL_JSON: u64 = 4 * 1024 * 1024;
@@ -207,6 +207,8 @@ struct ProtocolOverview {
 struct IdentityFacts {
     status: &'static str,
     builder_id: Option<String>,
+    contract_generation: Option<String>,
+    public_action_eligible: bool,
     account_address: Option<String>,
     deployment_status: Option<&'static str>,
     recovery_status: &'static str,
@@ -1200,6 +1202,8 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
             Err(detail) if detail == "not_initialized" => IdentityFacts {
                 status: "not_initialized",
                 builder_id: None,
+                contract_generation: None,
+                public_action_eligible: false,
                 account_address: None,
                 deployment_status: None,
                 recovery_status: "pending",
@@ -1209,6 +1213,8 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
             Err(detail) => IdentityFacts {
                 status: "invalid_local_state",
                 builder_id: None,
+                contract_generation: None,
+                public_action_eligible: false,
                 account_address: None,
                 deployment_status: None,
                 recovery_status: "unknown",
@@ -1341,6 +1347,8 @@ fn identity_facts(identity: &BuilderIdentity) -> IdentityFacts {
             "ready"
         },
         builder_id: Some(identity.builder_id.to_string()),
+        contract_generation: Some(identity.candidate_version.clone()),
+        public_action_eligible: identity.is_current_generation().unwrap_or(false),
         account_address: Some(identity.account_address.to_string()),
         deployment_status: Some(match identity.deployment_status {
             BuilderDeploymentStatus::Predicted => "predicted",

@@ -50,6 +50,15 @@ pub fn bind_public_authority(
     identity
         .validate()
         .map_err(|error| PublicActionError::Authority(error.to_string()))?;
+    if !identity
+        .generation()
+        .map_err(|error| PublicActionError::Authority(error.to_string()))?
+        .is_current()
+    {
+        return Err(PublicActionError::Authority(
+            "legacy BuilderID remains locally verifiable but cannot authorize v0.8 public actions without an explicit successor migration".into(),
+        ));
+    }
     record
         .validate()
         .map_err(|error| PublicActionError::Record(error.to_string()))?;

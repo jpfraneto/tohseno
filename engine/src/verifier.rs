@@ -4,7 +4,9 @@
 //! argument. It does not consult the network, environment, current directory,
 //! Git, the Apple identity helper, or any mutable ledger state.
 
+#[cfg(test)]
 use crate::builder_identity::initial_device_builder_id;
+use crate::builder_identity::resolve_initial_device_builder_id;
 use crate::gates::build;
 use crate::protocol_lifecycle::inspect_fascia;
 use serde::de::{MapAccess, SeqAccess, Visitor};
@@ -261,21 +263,17 @@ fn verify_shot_directory_inner(
         .insert("record.signature".into(), signature_valid.is_ok());
 
     let device_authority = match (&record, &signature) {
-        (Some(record), Some(signature)) => initial_device_builder_id(&signature.public_key)
-            .map_err(|error| error.to_string())
-            .and_then(|predicted| {
-                if predicted == record.builder_id {
-                    Ok(format!(
-                        "signing DeviceKey reproduces BuilderID {} from the pinned factory",
-                        record.builder_id
-                    ))
-                } else {
-                    Err(format!(
-                        "signing DeviceKey controls {predicted}, not claimed BuilderID {}",
-                        record.builder_id
-                    ))
-                }
-            }),
+        (Some(record), Some(signature)) => {
+            resolve_initial_device_builder_id(record.builder_id, &signature.public_key)
+                .map_err(|error| error.to_string())
+                .map(|generation| {
+                    format!(
+                        "signing DeviceKey reproduces BuilderID {} under contract generation {}",
+                        record.builder_id,
+                        generation.version()
+                    )
+                })
+        }
         _ => Err("valid record and signature sidecar were unavailable".into()),
     };
     checks.push(result_check(

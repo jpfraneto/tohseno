@@ -30,7 +30,7 @@ use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
 
 const VECTORS: &str = include_str!("../../protocol/test-vectors/protocol-v1.json");
-const DEPLOYMENT: &str = include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
+const DEPLOYMENT: &str = include_str!("../../contracts/deployments/robinhood-mainnet-v0.8.0.json");
 
 pub fn protocol_command(
     command: ProtocolCommand,

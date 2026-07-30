@@ -53,17 +53,17 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
   registry_creation="$(forge inspect ShotRegistry bytecode)"
 
   printf '%s\n' "$builder_account_creation" \
-    >"$temporary_directory/bytecode/BuilderAccount.creation.hex"
+    >"$temporary_directory/bytecode/BuilderAccount.v0.8.0.creation.hex"
 
   deterministic_deployer="0x4e59b44847b379578588920ca78fbf26c0b4956c"
   factory_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 BuilderAccountFactory"
+    cast keccak "TOHSENO CONTRACT GENERATION 0.8.0 BuilderAccountFactory"
   )"
   registry_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 ShotRegistry"
+    cast keccak "TOHSENO CONTRACT GENERATION 0.8.0 ShotRegistry"
   )"
   relations_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 ShotRelations"
+    cast keccak "TOHSENO CONTRACT GENERATION 0.8.0 ShotRelations"
   )"
 
   factory_init_code_hash="$(cast keccak "$factory_creation")"
@@ -110,8 +110,8 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
       schema: "tohseno.deployment-plan/1",
       protocol: "tohseno",
       candidate: {
-        version: "0.7.0",
-        codename: "GENESIS",
+        version: "0.8.0",
+        codename: "WITNESS_V2",
         status: "planned, undeployed, non-canonical and unaudited"
       },
       chain: {
@@ -156,7 +156,7 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
           runtime_code_hash: null
         }
       }
-    }' >"$temporary_directory/deployments/robinhood-mainnet-genesis.json"
+    }' >"$temporary_directory/deployments/robinhood-mainnet-v0.8.0.json"
 )
 
 artifacts="
@@ -164,8 +164,8 @@ abi/BuilderAccount.json
 abi/BuilderAccountFactory.json
 abi/ShotRegistry.json
 abi/ShotRelations.json
-bytecode/BuilderAccount.creation.hex
-deployments/robinhood-mainnet-genesis.json
+bytecode/BuilderAccount.v0.8.0.creation.hex
+deployments/robinhood-mainnet-v0.8.0.json
 "
 
 if [ "$mode" = "check" ]; then
@@ -191,4 +191,4 @@ mkdir -p \
 for artifact in $artifacts; do
   cp "$temporary_directory/$artifact" "$contracts_directory/$artifact"
 done
-printf '%s\n' "wrote deterministic contract ABIs, BuilderAccount creation bytecode, and deployment plan."
+printf '%s\n' "wrote current contract ABIs, v0.8.0 BuilderAccount creation bytecode, and deployment plan."

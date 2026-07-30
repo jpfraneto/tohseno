@@ -16,12 +16,55 @@ use tohseno_protocol::signature::P256PublicKey;
 use tohseno_protocol::signature::{DetachedP256Signature, SignatureAlgorithm, SignatureSidecar};
 
 const BUILDER_SCHEMA: &str = "tohseno.builder/1";
-const CANDIDATE_VERSION: &str = "0.7.0";
+pub const CURRENT_BUILDER_ACCOUNT_GENERATION: &str = "0.8.0";
+const LEGACY_BUILDER_ACCOUNT_GENERATION: &str = "0.7.0";
 const KEY_TAG_DOMAIN: &[u8] = b"TOHSENO-LOCAL-KEY-TAG-V1\0";
-const DEPLOYMENT_PLAN: &str =
+const CURRENT_DEPLOYMENT_PLAN: &str =
+    include_str!("../../contracts/deployments/robinhood-mainnet-v0.8.0.json");
+const LEGACY_DEPLOYMENT_PLAN: &str =
     include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
-const BUILDER_ACCOUNT_CREATION_HEX: &str =
+const CURRENT_BUILDER_ACCOUNT_CREATION_HEX: &str =
+    include_str!("../../contracts/bytecode/BuilderAccount.v0.8.0.creation.hex");
+const LEGACY_BUILDER_ACCOUNT_CREATION_HEX: &str =
     include_str!("../../contracts/bytecode/BuilderAccount.creation.hex");
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BuilderAccountGeneration {
+    V0_7_0,
+    V0_8_0,
+}
+
+impl BuilderAccountGeneration {
+    pub(crate) fn version(self) -> &'static str {
+        match self {
+            Self::V0_7_0 => LEGACY_BUILDER_ACCOUNT_GENERATION,
+            Self::V0_8_0 => CURRENT_BUILDER_ACCOUNT_GENERATION,
+        }
+    }
+
+    pub(crate) fn is_current(self) -> bool {
+        self == Self::V0_8_0
+    }
+
+    fn deployment_plan(self) -> &'static str {
+        match self {
+            Self::V0_7_0 => LEGACY_DEPLOYMENT_PLAN,
+            Self::V0_8_0 => CURRENT_DEPLOYMENT_PLAN,
+        }
+    }
+
+    fn creation_hex(self) -> &'static str {
+        match self {
+            Self::V0_7_0 => LEGACY_BUILDER_ACCOUNT_CREATION_HEX,
+            Self::V0_8_0 => CURRENT_BUILDER_ACCOUNT_CREATION_HEX,
+        }
+    }
+}
+
+const SUPPORTED_BUILDER_ACCOUNT_GENERATIONS: [BuilderAccountGeneration; 2] = [
+    BuilderAccountGeneration::V0_7_0,
+    BuilderAccountGeneration::V0_8_0,
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -51,15 +94,21 @@ pub struct BuilderIdentity {
 }
 
 impl BuilderIdentity {
+    pub(crate) fn generation(&self) -> Result<BuilderAccountGeneration, BuilderIdentityError> {
+        generation_for_version(&self.candidate_version)
+    }
+
+    pub fn is_current_generation(&self) -> Result<bool, BuilderIdentityError> {
+        Ok(self.generation()?.is_current())
+    }
+
     pub fn validate(&self) -> Result<(), BuilderIdentityError> {
-        if self.schema != BUILDER_SCHEMA
-            || self.candidate_version != CANDIDATE_VERSION
-            || self.chain_id != ROBINHOOD_CHAIN_ID
-        {
+        if self.schema != BUILDER_SCHEMA || self.chain_id != ROBINHOOD_CHAIN_ID {
             return Err(BuilderIdentityError::InvalidDescriptor(
                 "schema, candidate version, or chain ID is wrong".into(),
             ));
         }
+        let generation = self.generation()?;
         if self.builder_id.account() != self.account_address {
             return Err(BuilderIdentityError::InvalidDescriptor(
                 "BuilderID and account address disagree".into(),
@@ -88,17 +137,17 @@ impl BuilderIdentity {
                 .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         }
 
-        let network = candidate_network()?;
+        let network = candidate_network(generation)?;
         if self.factory_address != network.factory_address {
             return Err(BuilderIdentityError::InvalidDescriptor(
-                "factory address differs from this candidate's immutable plan".into(),
+                "factory address differs from the declared contract generation".into(),
             ));
         }
         let predicted = predict_builder_account(
             self.factory_address,
             self.account_salt,
             &self.device.public_key,
-            &builder_account_creation_bytecode()?,
+            &builder_account_creation_bytecode_for(generation)?,
         )
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         if predicted != self.builder_id {
@@ -219,17 +268,18 @@ impl BuilderIdentityManager {
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let account_salt = initial_builder_account_salt(&device.public_key)
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
-        let network = candidate_network()?;
+        let generation = BuilderAccountGeneration::V0_8_0;
+        let network = candidate_network(generation)?;
         let builder_id = predict_builder_account(
             network.factory_address,
             account_salt,
             &device.public_key,
-            &builder_account_creation_bytecode()?,
+            &builder_account_creation_bytecode_for(generation)?,
         )
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let identity = BuilderIdentity {
             schema: BUILDER_SCHEMA.into(),
-            candidate_version: CANDIDATE_VERSION.into(),
+            candidate_version: generation.version().into(),
             chain_id: ROBINHOOD_CHAIN_ID,
             factory_address: network.factory_address,
             account_salt,
@@ -346,18 +396,49 @@ impl BuilderIdentityManager {
 /// distinguish a valid signature from an authorized signature. Device-key
 /// rotation is not accepted by this candidate until a complete authorization
 /// proof is carried with the Evolution.
+#[cfg(test)]
 pub(crate) fn initial_device_builder_id(
+    public_key: &P256PublicKey,
+) -> Result<BuilderId, BuilderIdentityError> {
+    initial_device_builder_id_for(BuilderAccountGeneration::V0_8_0, public_key)
+}
+
+pub(crate) fn resolve_initial_device_builder_id(
+    claimed: BuilderId,
+    public_key: &P256PublicKey,
+) -> Result<BuilderAccountGeneration, BuilderIdentityError> {
+    let mut matched = None;
+    for generation in SUPPORTED_BUILDER_ACCOUNT_GENERATIONS {
+        if initial_device_builder_id_for(generation, public_key)? == claimed {
+            if matched.is_some() {
+                return Err(BuilderIdentityError::InvalidDescriptor(
+                    "BuilderID ambiguously matches more than one supported contract generation"
+                        .into(),
+                ));
+            }
+            matched = Some(generation);
+        }
+    }
+    matched.ok_or_else(|| {
+        BuilderIdentityError::InvalidDescriptor(
+            "BuilderID does not reproduce under any supported contract generation".into(),
+        )
+    })
+}
+
+fn initial_device_builder_id_for(
+    generation: BuilderAccountGeneration,
     public_key: &P256PublicKey,
 ) -> Result<BuilderId, BuilderIdentityError> {
     let device = BuilderDeviceKey::from_public_key(public_key.clone())
         .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
-    let network = candidate_network()?;
+    let network = candidate_network(generation)?;
     predict_builder_account(
         network.factory_address,
         initial_builder_account_salt(&device.public_key)
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?,
         public_key,
-        &builder_account_creation_bytecode()?,
+        &builder_account_creation_bytecode_for(generation)?,
     )
     .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))
 }
@@ -367,17 +448,33 @@ struct CandidateNetwork {
     factory_address: Address20,
 }
 
-fn candidate_network() -> Result<CandidateNetwork, BuilderIdentityError> {
-    let value: serde_json::Value = serde_json::from_str(DEPLOYMENT_PLAN)?;
+fn generation_for_version(version: &str) -> Result<BuilderAccountGeneration, BuilderIdentityError> {
+    match version {
+        LEGACY_BUILDER_ACCOUNT_GENERATION => Ok(BuilderAccountGeneration::V0_7_0),
+        CURRENT_BUILDER_ACCOUNT_GENERATION => Ok(BuilderAccountGeneration::V0_8_0),
+        _ => Err(BuilderIdentityError::InvalidDescriptor(format!(
+            "unsupported BuilderAccount contract generation {version}"
+        ))),
+    }
+}
+
+fn candidate_network(
+    generation: BuilderAccountGeneration,
+) -> Result<CandidateNetwork, BuilderIdentityError> {
+    let value: serde_json::Value = serde_json::from_str(generation.deployment_plan())?;
     if value.pointer("/schema").and_then(serde_json::Value::as_str)
         != Some("tohseno.deployment-plan/1")
         || value
             .pointer("/chain/chain_id")
             .and_then(serde_json::Value::as_u64)
             != Some(ROBINHOOD_CHAIN_ID)
+        || value
+            .pointer("/candidate/version")
+            .and_then(serde_json::Value::as_str)
+            != Some(generation.version())
     {
         return Err(BuilderIdentityError::InvalidDescriptor(
-            "embedded deployment plan has the wrong schema or chain".into(),
+            "embedded deployment plan has the wrong schema, generation, or chain".into(),
         ));
     }
     let factory = value
@@ -393,7 +490,13 @@ fn candidate_network() -> Result<CandidateNetwork, BuilderIdentityError> {
 }
 
 pub(crate) fn builder_account_creation_bytecode() -> Result<Vec<u8>, BuilderIdentityError> {
-    let text = BUILDER_ACCOUNT_CREATION_HEX.trim();
+    builder_account_creation_bytecode_for(BuilderAccountGeneration::V0_8_0)
+}
+
+fn builder_account_creation_bytecode_for(
+    generation: BuilderAccountGeneration,
+) -> Result<Vec<u8>, BuilderIdentityError> {
+    let text = generation.creation_hex().trim();
     let encoded = text.strip_prefix("0x").ok_or_else(|| {
         BuilderIdentityError::InvalidDescriptor(
             "BuilderAccount creation bytecode needs a 0x prefix".into(),
@@ -565,10 +668,103 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
-    fn candidate_plan_and_creation_bytecode_are_self_consistent() {
-        let network = candidate_network().unwrap();
-        assert_ne!(network.factory_address.as_bytes(), &[0; 20]);
-        assert!(builder_account_creation_bytecode().unwrap().len() > 1_000);
+    fn supported_generation_inputs_are_self_consistent_and_distinct() {
+        for generation in SUPPORTED_BUILDER_ACCOUNT_GENERATIONS {
+            let network = candidate_network(generation).unwrap();
+            assert_ne!(network.factory_address.as_bytes(), &[0; 20]);
+            assert!(
+                builder_account_creation_bytecode_for(generation)
+                    .unwrap()
+                    .len()
+                    > 1_000
+            );
+        }
+        assert_ne!(
+            candidate_network(BuilderAccountGeneration::V0_7_0)
+                .unwrap()
+                .factory_address,
+            candidate_network(BuilderAccountGeneration::V0_8_0)
+                .unwrap()
+                .factory_address
+        );
+    }
+
+    #[test]
+    fn claimed_builder_id_resolves_one_exact_generation() {
+        let public_key = P256PublicKey {
+            x: Bytes32::from_hex(
+                "x",
+                "0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+            )
+            .unwrap(),
+            y: Bytes32::from_hex(
+                "y",
+                "0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+            )
+            .unwrap(),
+        };
+        let legacy =
+            initial_device_builder_id_for(BuilderAccountGeneration::V0_7_0, &public_key).unwrap();
+        let current =
+            initial_device_builder_id_for(BuilderAccountGeneration::V0_8_0, &public_key).unwrap();
+        assert_ne!(legacy, current);
+        assert_eq!(
+            resolve_initial_device_builder_id(legacy, &public_key).unwrap(),
+            BuilderAccountGeneration::V0_7_0
+        );
+        assert_eq!(
+            resolve_initial_device_builder_id(current, &public_key).unwrap(),
+            BuilderAccountGeneration::V0_8_0
+        );
+        assert!(resolve_initial_device_builder_id(
+            BuilderId::new(Address20::from_bytes([0x55; 20])),
+            &public_key
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn frozen_v0_7_descriptor_loads_without_rewrite() {
+        let public_key = P256PublicKey {
+            x: Bytes32::from_hex(
+                "x",
+                "0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+            )
+            .unwrap(),
+            y: Bytes32::from_hex(
+                "y",
+                "0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+            )
+            .unwrap(),
+        };
+        let device = BuilderDeviceKey::from_public_key(public_key.clone()).unwrap();
+        let account_salt = initial_builder_account_salt(&public_key).unwrap();
+        let generation = BuilderAccountGeneration::V0_7_0;
+        let network = candidate_network(generation).unwrap();
+        let builder_id = initial_device_builder_id_for(generation, &public_key).unwrap();
+        let identity = BuilderIdentity {
+            schema: BUILDER_SCHEMA.into(),
+            candidate_version: generation.version().into(),
+            chain_id: ROBINHOOD_CHAIN_ID,
+            factory_address: network.factory_address,
+            account_salt,
+            account_address: builder_id.account(),
+            builder_id,
+            device,
+            local_key_tag: "org.tohseno.builder.device.legacy".into(),
+            key_backend: "software_test".into(),
+            security_level: "software_test".into(),
+            test_only: true,
+            deployment_status: BuilderDeploymentStatus::Predicted,
+            recovery: None,
+            created_at_unix: 1,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let manager = BuilderIdentityManager::at(directory.path());
+        manager.save(&identity).unwrap();
+        let before = fs::read(manager.path()).unwrap();
+        assert_eq!(manager.load().unwrap(), identity);
+        assert_eq!(fs::read(manager.path()).unwrap(), before);
     }
 
     #[test]
@@ -601,6 +797,7 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
         std::env::remove_var("TOHSENO_IDENTITY_BACKEND");
 
         assert_eq!(first.builder_id, second.builder_id);
+        assert_eq!(first.candidate_version, CURRENT_BUILDER_ACCOUNT_GENERATION);
         let stored = fs::read_to_string(manager.path()).unwrap();
         assert!(!stored.contains("private"));
         assert!(!stored.contains("mnemonic"));

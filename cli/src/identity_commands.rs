@@ -258,6 +258,8 @@ fn print_json(value: &impl Serialize) -> Result<(), Box<dyn std::error::Error>> 
 #[derive(Serialize)]
 struct IdentityView {
     builder_id: String,
+    contract_generation: String,
+    public_action_eligible: bool,
     chain_id: u64,
     account_address: String,
     factory_address: String,
@@ -274,6 +276,8 @@ impl From<&BuilderIdentity> for IdentityView {
     fn from(identity: &BuilderIdentity) -> Self {
         Self {
             builder_id: identity.builder_id.to_string(),
+            contract_generation: identity.candidate_version.clone(),
+            public_action_eligible: identity.is_current_generation().unwrap_or(false),
             chain_id: identity.chain_id,
             account_address: identity.account_address.to_string(),
             factory_address: identity.factory_address.to_string(),

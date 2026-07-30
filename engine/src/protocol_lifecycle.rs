@@ -4,7 +4,8 @@
 //! in `tohseno-protocol`.
 
 use crate::builder_identity::{
-    initial_device_builder_id, BuilderIdentity, BuilderIdentityError, BuilderIdentityManager,
+    resolve_initial_device_builder_id, BuilderIdentity, BuilderIdentityError,
+    BuilderIdentityManager,
 };
 use crate::gates::build;
 use crate::ledger::{AppRecord, Evolution, Ledger, LedgerError};
@@ -280,17 +281,15 @@ pub fn complete_evolution(
         },
         Some("TOHSENO/signature.json"),
     ));
-    let predicted = initial_device_builder_id(&signature.public_key)?;
-    if predicted != prepared.record.builder_id {
-        return Err(ProtocolLifecycleError::InvalidState(format!(
-            "record signer controls {predicted}, not claimed BuilderID {}",
-            prepared.record.builder_id
-        )));
-    }
+    let generation =
+        resolve_initial_device_builder_id(prepared.record.builder_id, &signature.public_key)?;
     checks.push(pass(
         "record.device_authority",
         "signing DeviceKey deterministically controls the claimed BuilderID",
-        "initial DeviceKey, pinned factory, salt, and CREATE2 address matched",
+        &format!(
+            "initial DeviceKey, pinned generation {}, salt, and CREATE2 address matched",
+            generation.version()
+        ),
         Some("TOHSENO/signature.json"),
     ));
     let report = report_for(&prepared.record, checks);
