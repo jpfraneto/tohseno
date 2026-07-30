@@ -240,6 +240,13 @@ jobs:
              }
             abort "every release checkout must disable persisted credentials"
           end
+          expected_checkout_ref = "$" + \
+            "{{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}"
+          if checkout_steps.any? {
+               |step| step.dig("with", "ref") != expected_checkout_ref
+             }
+            abort "every release checkout must use the exact selected tag"
+          end
 
           publish_steps = jobs.fetch("publish").fetch("steps")
           release_step = publish_steps.find do |step|
@@ -249,14 +256,18 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$GITHUB_EVENT_NAME" != "push"',
+            '"$RELEASE_TAG" != "v0.7.0"',
+            'case "$GITHUB_EVENT_NAME" in',
+            "workflow_dispatch)",
+            '"$GITHUB_REF" != "refs/heads/main"',
             '"$GITHUB_REF_TYPE" != "tag"',
-            'git/ref/tags/${GITHUB_REF_NAME}',
+            'git/ref/tags/${RELEASE_TAG}',
             '.ref == $ref',
             'max_tag_depth=8',
             'git/tags/$object_sha',
             '.sha == $sha',
-            '"$object_sha" != "$GITHUB_SHA"',
+            '"$object_sha" != "$release_source_commit"',
+            "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
             "TOHSENO v0.7.0 source commit:",
