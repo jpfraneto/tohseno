@@ -258,6 +258,8 @@ jobs:
           required_fragments = [
             '"$RELEASE_TAG" != "v0.7.0"',
             'case "$GITHUB_EVENT_NAME" in',
+            'max_attempts=15',
+            'release for tag %s did not become visible',
             "workflow_dispatch)",
             '"$GITHUB_REF" != "refs/heads/main"',
             '"$GITHUB_REF_TYPE" != "tag"',

@@ -308,26 +308,56 @@ jobs:
           }
 
           load_matching_release() {
-            gh api \
-              --method GET \
-              --paginate \
-              --slurp \
-              -H 'Accept: application/vnd.github+json' \
-              -H 'X-GitHub-Api-Version: 2026-03-10' \
-              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" |
-              jq -er --arg tag "$RELEASE_TAG" '
-                [
-                  .[][]
-                  | select(.tag_name == $tag)
-                ] as $matches
-                | if ($matches | length) == 1 then
-                    $matches[0]
-                  else
-                    error(
-                      "expected exactly one release for the event tag"
-                    )
-                  end
-              '
+            attempt=1
+            max_attempts=15
+            while [ "$attempt" -le "$max_attempts" ]; do
+              release_pages="$(
+                gh api \
+                  --method GET \
+                  --paginate \
+                  --slurp \
+                  -H 'Accept: application/vnd.github+json' \
+                  -H 'X-GitHub-Api-Version: 2026-03-10' \
+                  "repos/${GITHUB_REPOSITORY}/releases?per_page=100"
+              )"
+              release_count="$(
+                printf '%s\n' "$release_pages" |
+                  jq -er --arg tag "$RELEASE_TAG" '
+                    [
+                      .[][]
+                      | select(.tag_name == $tag)
+                    ]
+                    | length
+                  '
+              )"
+              case "$release_count" in
+                1)
+                  printf '%s\n' "$release_pages" |
+                    jq -er --arg tag "$RELEASE_TAG" '
+                      [
+                        .[][]
+                        | select(.tag_name == $tag)
+                      ][0]
+                    '
+                  return 0
+                  ;;
+                0)
+                  if [ "$attempt" -lt "$max_attempts" ]; then
+                    sleep 2
+                  fi
+                  ;;
+                *)
+                  printf \
+                    'expected exactly one release for tag %s; found %s\n' \
+                    "$RELEASE_TAG" "$release_count" >&2
+                  return 1
+                  ;;
+              esac
+              attempt="$((attempt + 1))"
+            done
+            printf 'release for tag %s did not become visible\n' \
+              "$RELEASE_TAG" >&2
+            return 1
           }
 
           verify_live_tag
