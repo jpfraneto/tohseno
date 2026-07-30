@@ -129,7 +129,7 @@ enum Command {
     /// Verify one local Shot or app deterministically without an LLM.
     Verify {
         target: String,
-        /// Also verify the configured public registry through read-only RPC.
+        /// Require an activated public witness; fails closed before RPC while none exists.
         #[arg(long)]
         public: bool,
     },
@@ -204,12 +204,12 @@ enum Command {
         #[command(subcommand)]
         command: PageCommand,
     },
-    /// Inspect configured chain and candidate deployment evidence.
+    /// Inspect the committed contract definition and activation state offline.
     Network {
         #[command(subcommand)]
         command: NetworkCommand,
     },
-    /// Inspect public-registry state for a Shot.
+    /// Inspect a verified local Shot head and public-witness availability.
     Registry {
         #[command(subcommand)]
         command: RegistryCommand,
@@ -261,7 +261,7 @@ enum IdentityCommand {
 
 #[derive(Debug, Subcommand)]
 enum ProtocolCommand {
-    /// Show protocol identifiers, versions, and candidate network coordinates.
+    /// Show protocol identifiers, the stable product, and conditional contract coordinates.
     Info,
     /// Print the frozen cross-language protocol vectors.
     Vectors,
@@ -297,7 +297,7 @@ enum PageCommand {
 
 #[derive(Debug, Subcommand)]
 enum NetworkCommand {
-    /// Show candidate chain, precompile, and deployment evidence.
+    /// Show the contract definition and activation state without contacting an RPC.
     Status,
 }
 

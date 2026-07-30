@@ -16,7 +16,6 @@ pub mod ledger;
 pub mod machine;
 pub mod page;
 pub mod protocol_lifecycle;
-pub mod public_network;
 pub mod recovery;
 pub mod shot_execution;
 pub mod shot_layout;
