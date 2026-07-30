@@ -1280,7 +1280,7 @@ fn identity_facts(identity: &BuilderIdentity) -> IdentityFacts {
         account_address: Some(identity.account_address.to_string()),
         deployment_status: Some(match identity.deployment_status {
             BuilderDeploymentStatus::Predicted => "legacy_predicted",
-            BuilderDeploymentStatus::Deployed => "legacy_deployed",
+            BuilderDeploymentStatus::Deployed => "invalid_legacy_deployment_claim",
         }),
         recovery_status: if identity.recovery.is_some() {
             "local_backup_only_recovery_unavailable"

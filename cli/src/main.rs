@@ -189,7 +189,7 @@ enum Command {
     /// Turn the current folder into a Shot: it gains its ledger and its
     /// first recorded Evolution, without changing the app itself.
     Adopt,
-    /// Inspect the durable BuilderID, fixed initial DeviceKey, and local backup.
+    /// Inspect a frozen v0.7 local identity and DeviceKey; never public authority.
     Identity {
         #[command(subcommand)]
         command: IdentityCommand,
@@ -232,20 +232,22 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum IdentityCommand {
-    /// Show the current BuilderID and public recovery status.
+    /// Show the local legacy BuilderID prediction and local recovery-backup status.
     Show,
-    /// Reveal or create a local recovery-authority backup; this does not activate recovery.
+    /// Reveal or create a local backup for the frozen v0.7 identity.
+    ///
+    /// This does not activate account recovery or create public authority.
     Backup {
         #[arg(long)]
         confirm: bool,
         #[arg(long, value_name = "ABSOLUTE_PATH")]
         passphrase_file: Option<PathBuf>,
     },
-    /// Import recovery words as an encrypted local backup for the current BuilderID.
+    /// Import recovery words as a local backup for the stored legacy BuilderID.
     ///
-    /// This does not recover or rotate an account.
+    /// This does not recover or rotate an account or create public authority.
     ImportBackup {
-        /// Confirm this local-only backup import for the current BuilderID.
+        /// Confirm this local-only backup import for the stored legacy BuilderID.
         #[arg(long)]
         confirm: bool,
         /// Read the 24 secret backup words from a private local file.
@@ -255,7 +257,7 @@ enum IdentityCommand {
         #[arg(long, value_name = "ABSOLUTE_PATH")]
         passphrase_file: Option<PathBuf>,
     },
-    /// Show the original local DeviceKey accepted by this candidate.
+    /// Show the local-only DeviceKey used for frozen v0.7 offline verification.
     Devices,
 }
 
@@ -977,8 +979,28 @@ mod tests {
         let help = Cli::try_parse_from(["tohseno", "identity", "import-backup", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(help.contains("encrypted local backup for the current BuilderID"));
-        assert!(help.contains("does not recover or rotate an account"));
+        assert!(help.contains("local backup for the stored legacy BuilderID"));
+        assert!(help.contains("does not recover or rotate an account or create public authority"));
+        assert!(!help.contains("current BuilderID"));
+        assert!(!help.contains("public recovery status"));
+    }
+
+    #[test]
+    fn identity_help_marks_the_frozen_generation_local_and_non_authoritative() {
+        let root_help = Cli::try_parse_from(["tohseno", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(root_help.contains("frozen v0.7 local identity"));
+        assert!(root_help.contains("never public authority"));
+        assert!(!root_help.contains("durable BuilderID"));
+
+        let identity_help = Cli::try_parse_from(["tohseno", "identity", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(identity_help.contains("local legacy BuilderID prediction"));
+        assert!(identity_help.contains("local-only DeviceKey"));
+        assert!(!identity_help.contains("current BuilderID"));
+        assert!(!identity_help.contains("public recovery status"));
     }
 
     #[test]

@@ -2,10 +2,15 @@ use serde::Serialize;
 use std::fs;
 use std::io::{IsTerminal, Read};
 use std::path::Path;
-use tohseno_engine::builder_identity::{BuilderIdentity, BuilderIdentityManager};
+use tohseno_engine::builder_identity::{
+    BuilderDeploymentStatus, BuilderIdentity, BuilderIdentityManager,
+};
 use tohseno_engine::recovery::RecoveryVault;
 use tohseno_engine::{Event, EventBus, Ledger};
 use zeroize::Zeroizing;
+
+const LEGACY_IDENTITY_GENERATION: &str = "legacy_v0.7";
+const LOCAL_ONLY_SCOPE: &str = "local_only";
 
 pub fn show(bus: &EventBus, json: bool) -> Result<(), Box<dyn std::error::Error>> {
     let ledger = initialized_ledger()?;
@@ -14,20 +19,17 @@ pub fn show(bus: &EventBus, json: bool) -> Result<(), Box<dyn std::error::Error>
         print_json(&IdentityView::from(&identity))?;
     } else {
         bus.emit(Event::result(format!(
-            "your TOHSENO identity is {}.",
+            "local legacy BuilderID prediction {} is available for offline verification.",
             identity.builder_id
         )));
         bus.emit(Event::status(format!(
-            "This Mac · {} · recovery {} · account {}.",
+            "This Mac · {} · legacy offline prediction · local-only · {} · recovery {}.",
             identity.security_level,
+            identity_authority_label(identity.test_only),
             if identity.recovery.is_some() {
-                "backup stored locally; account recovery unavailable"
+                "backup stored locally"
             } else {
                 "not configured"
-            },
-            match identity.deployment_status {
-                tohseno_engine::builder_identity::BuilderDeploymentStatus::Predicted => "predicted",
-                tohseno_engine::builder_identity::BuilderDeploymentStatus::Deployed => "deployed",
             }
         )));
     }
@@ -42,24 +44,26 @@ pub fn devices(bus: &EventBus, json: bool) -> Result<(), Box<dyn std::error::Err
         key_id: identity.device.key_id.to_string(),
         public_key: identity.device.public_key.clone(),
         planned_permissions: ["PROTOCOL", "DEVICE_ADMIN"],
-        candidate_authority: "initial_device_only",
+        candidate_authority: identity_authority_status(identity.test_only),
         replacement_status: "unsupported_without_authorization_proof",
         local: true,
         backend: identity.key_backend.clone(),
         test_only: identity.test_only,
-        deployment_status: format!("{:?}", identity.deployment_status).to_lowercase(),
+        identity_generation: LEGACY_IDENTITY_GENERATION,
+        scope: LOCAL_ONLY_SCOPE,
+        deployment_status: legacy_deployment_status(identity.deployment_status),
     };
     if json {
         print_json(&vec![view])?;
     } else {
         bus.emit(Event::result(
-            "This Mac holds the only DeviceKey this candidate can verify.",
+            "This Mac holds the original DeviceKey for frozen v0.7 offline verification.",
         ));
         bus.emit(Event::status(format!(
-            "{} · {}{} · replacement and revocation unavailable",
+            "{} · {} · local-only · {} · replacement and revocation unavailable",
             view.key_id,
             view.backend,
-            if view.test_only { " · TEST ONLY" } else { "" }
+            identity_authority_label(view.test_only)
         )));
     }
     Ok(())
@@ -105,7 +109,7 @@ pub fn backup(
     println!("{}", unlocked.expose_mnemonic());
     println!();
     bus.emit(Event::result(
-        "recovery is encrypted locally; public account configuration remains pending.",
+        "recovery is encrypted locally for the frozen v0.7 identity; no account recovery action was created.",
     ));
     Ok(())
 }
@@ -124,7 +128,7 @@ pub fn import_backup(
     }
     if !confirmed {
         return Err(
-            "re-run `identity import-backup --confirm` from a private screen after verifying the current BuilderID; this only imports an encrypted local backup".into(),
+            "re-run `identity import-backup --confirm` from a private screen after verifying the stored local legacy BuilderID; this only imports an encrypted local backup".into(),
         );
     }
     let ledger = initialized_ledger()?;
@@ -147,7 +151,7 @@ pub fn import_backup(
     identity.recovery = Some(authority);
     manager.save(&identity)?;
     bus.emit(Event::result(format!(
-        "imported an encrypted local backup for the current BuilderID {}; this did not recover or rotate the account, authorize a replacement device, or submit an on-chain action.",
+        "imported an encrypted local backup for the stored local legacy BuilderID {}; this remained local-only and did not recover or rotate an account, authorize a replacement device, or submit an on-chain action.",
         identity.builder_id
     )));
     Ok(())
@@ -255,13 +259,39 @@ fn print_json(value: &impl Serialize) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+fn legacy_deployment_status(status: BuilderDeploymentStatus) -> &'static str {
+    match status {
+        BuilderDeploymentStatus::Predicted => "legacy_offline_prediction",
+        BuilderDeploymentStatus::Deployed => "invalid_legacy_deployment_claim",
+    }
+}
+
+fn identity_authority_status(test_only: bool) -> &'static str {
+    if test_only {
+        "test_only_non_authoritative"
+    } else {
+        "legacy_local_only_non_authoritative"
+    }
+}
+
+fn identity_authority_label(test_only: bool) -> &'static str {
+    if test_only {
+        "test-only non-authoritative"
+    } else {
+        "legacy local-only non-authoritative"
+    }
+}
+
 #[derive(Serialize)]
 struct IdentityView {
     builder_id: String,
     chain_id: u64,
     account_address: String,
     factory_address: String,
-    deployment_status: String,
+    identity_generation: &'static str,
+    scope: &'static str,
+    authority_status: &'static str,
+    deployment_status: &'static str,
     device_key_id: String,
     public_key: tohseno_protocol::signature::P256PublicKey,
     security_level: String,
@@ -277,15 +307,18 @@ impl From<&BuilderIdentity> for IdentityView {
             chain_id: identity.chain_id,
             account_address: identity.account_address.to_string(),
             factory_address: identity.factory_address.to_string(),
-            deployment_status: format!("{:?}", identity.deployment_status).to_lowercase(),
+            identity_generation: LEGACY_IDENTITY_GENERATION,
+            scope: LOCAL_ONLY_SCOPE,
+            authority_status: identity_authority_status(identity.test_only),
+            deployment_status: legacy_deployment_status(identity.deployment_status),
             device_key_id: identity.device.key_id.to_string(),
             public_key: identity.device.public_key.clone(),
             security_level: identity.security_level.clone(),
             test_only: identity.test_only,
             recovery_status: if identity.recovery.is_some() {
-                "secured_locally_pending_onchain"
+                "local_backup_only"
             } else {
-                "pending"
+                "not_configured"
             },
             recovery_address: identity
                 .recovery
@@ -306,7 +339,9 @@ struct DeviceView {
     local: bool,
     backend: String,
     test_only: bool,
-    deployment_status: String,
+    identity_generation: &'static str,
+    scope: &'static str,
+    deployment_status: &'static str,
 }
 
 #[cfg(test)]
@@ -330,5 +365,35 @@ mod tests {
 
         fs::set_permissions(&secret, fs::Permissions::from_mode(0o640)).unwrap();
         assert!(read_secret_file(&secret, 64).is_err());
+    }
+
+    #[test]
+    fn legacy_identity_labels_never_claim_public_or_deployed_authority() {
+        assert_eq!(
+            legacy_deployment_status(BuilderDeploymentStatus::Predicted),
+            "legacy_offline_prediction"
+        );
+        assert_eq!(
+            legacy_deployment_status(BuilderDeploymentStatus::Deployed),
+            "invalid_legacy_deployment_claim"
+        );
+        assert_eq!(
+            identity_authority_status(true),
+            "test_only_non_authoritative"
+        );
+        assert_eq!(
+            identity_authority_status(false),
+            "legacy_local_only_non_authoritative"
+        );
+        assert_eq!(LOCAL_ONLY_SCOPE, "local_only");
+
+        for label in [
+            legacy_deployment_status(BuilderDeploymentStatus::Predicted),
+            identity_authority_status(true),
+            identity_authority_status(false),
+        ] {
+            assert!(!label.eq_ignore_ascii_case("deployed"));
+            assert!(!label.contains("public"));
+        }
     }
 }

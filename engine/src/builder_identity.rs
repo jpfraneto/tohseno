@@ -1,4 +1,4 @@
-//! Local BuilderID lifecycle and public descriptor storage.
+//! Frozen v0.7 BuilderID prediction and local descriptor storage.
 
 use crate::apple_identity::{AppleDeviceIdentity, AppleIdentityBridge, AppleIdentityError};
 use crate::contract_generation::resolve_current_contract_generation;
@@ -61,6 +61,12 @@ impl BuilderIdentity {
         {
             return Err(BuilderIdentityError::InvalidDescriptor(
                 "schema, candidate version, or chain ID is wrong".into(),
+            ));
+        }
+        if self.deployment_status != BuilderDeploymentStatus::Predicted {
+            return Err(BuilderIdentityError::InvalidDescriptor(
+                "frozen v0.7 BuilderIDs are legacy offline predictions; that contract generation was never deployed"
+                    .into(),
             ));
         }
         if self.builder_id.account() != self.account_address {
@@ -796,6 +802,7 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
         assert_eq!(first.builder_id, second.builder_id);
         assert_eq!(first, manager.load().unwrap());
         assert_eq!(first.candidate_version, LEGACY_V07_CANDIDATE_VERSION);
+        assert_eq!(first.deployment_status, BuilderDeploymentStatus::Predicted);
         let stored = fs::read_to_string(manager.path()).unwrap();
         assert!(!stored.contains("private"));
         assert!(!stored.contains("mnemonic"));
@@ -839,6 +846,14 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
         assert!(signing_error
             .to_string()
             .contains("stored BuilderID does not reproduce"));
+
+        let mut false_deployed = first.clone();
+        false_deployed.deployment_status = BuilderDeploymentStatus::Deployed;
+        let deployed_error = false_deployed.validate().unwrap_err();
+        assert!(deployed_error
+            .to_string()
+            .contains("legacy offline predictions"));
+        assert!(manager.save(&false_deployed).is_err());
 
         let mut hardware_legacy = first;
         hardware_legacy.test_only = false;
