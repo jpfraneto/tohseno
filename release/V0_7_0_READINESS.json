@@ -2,31 +2,40 @@
   "schema": "tohseno.release-readiness/1",
   "version": "0.7.0",
   "channel": "stable",
-  "ready": false,
+  "ready": true,
   "authorization": {
-    "authorized": false,
-    "authorized_by": null,
-    "authorized_at": null
+    "authorized": true,
+    "authorized_by": "jpfraneto",
+    "authorized_at": "2026-07-30T18:16:21Z"
   },
   "protection": {
-    "immutable_release_policy_verified": false,
-    "release_tag_protection_verified": false,
-    "verified_at": null
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 20068284,
+    "verified_at": "2026-07-30T18:16:21Z"
   },
   "evidence": {
-    "source_commit": null,
-    "clean_tree": false,
-    "rust_workspace_tests": null,
-    "clippy_warnings_denied": false,
-    "studio_tests": null,
-    "swift_identity_tests": null,
-    "swift_fascia_tests": null,
-    "contract_tests": null,
-    "installer_regressions": false,
-    "fresh_home_install": false,
-    "v0_6_state_preservation": false,
+    "source_commit": "d31fdd855efd2ef6e3b513752e75c121f8f84941",
+    "clean_tree": true,
+    "rust_workspace_tests": 251,
+    "clippy_warnings_denied": true,
+    "studio_tests": 9,
+    "website_tests": 14,
+    "swift_identity_tests": 7,
+    "swift_fascia_tests": 9,
+    "contract_tests": 54,
+    "installer_regressions": true,
+    "fresh_home_install": true,
+    "v0_6_state_preservation": true,
+    "fixture_shot_execution": true,
     "real_shot": false,
-    "targets": []
+    "authentic_harness_human_session": false,
+    "real_shot_disposition": "post-release dogfood; no paid or interactive harness session was falsely automated",
+    "local_package_target": "aarch64-apple-darwin",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ]
   },
   "publication": {
     "tag": "v0.7.0",
