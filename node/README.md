@@ -1,9 +1,15 @@
 # TOHSENO node
 
 `tohseno-node` validates, preserves, indexes, and explicitly synchronizes a
-bounded subset of public TOHSENO lineage. It is a library and a small HTTP/CLI
-process. It depends directly on `../protocol`; it does not define another
-lineage action.
+bounded subset of public TOHSENO lineage evidence. It is a library and a small
+HTTP/CLI process. It depends directly on `../protocol`; it does not define
+another lineage action.
+
+No release-authorized contract generation is active. That fact is
+load-bearing: a node may verify ordinary signed lineage neutrally, but it
+cannot promote any record to public candidate authority. Predicted v0.7
+addresses are retired offline verification inputs, not deployments,
+activations, or authority.
 
 ## What nodes agree on
 
@@ -17,10 +23,6 @@ For every action they possess, conforming nodes reproduce:
   every locally available contiguous segment;
 - neutral controller authority and state laws only along a complete causal
   branch from the Shot commitment;
-- GENESIS candidate authority only when the commitment's BuilderID reproduces
-  from the protocol salt law, pinned planned BuilderAccountFactory, exact
-  BuilderAccount creation bytecode, and declared initial key, and only before
-  the branch crosses an ownership action;
 - the publisher's immutable public/private handling declaration.
 
 Private actions are rejected by replication. Artifact-availability actions are
@@ -34,18 +36,23 @@ verify, but both neutral and candidate authority remain `unresolved`, and the
 exact missing parent is exposed. When predecessors arrive, the derived index
 is deterministically rebuilt:
 
-- a fully reducible, factory-bound prefix before an ownership action becomes
-  candidate-authority `verified`;
-- an ownership action and every descendant may remain neutrally `verified`
-  while candidate authority is `unresolved`; GENESIS does not yet define the
-  ownership-transfer authorization proof needed to promote that branch;
+- a fully reducible prefix becomes neutrally `verified` while candidate
+  authority remains `unresolved` because no generation is active;
 - a cryptographically valid action by an unauthorized signer becomes
   authority `rejected`;
 - a newly exposed adjacency violation becomes segment `rejected`.
 
+The frozen v0.7 CREATE2 helper can reproduce the BuilderID carried by a private
+legacy artifact. It is never called by node classification and can never
+produce candidate-authority `verified`. A neutrally valid self-declared
+controller is preserved as `unresolved`, not rejected merely because no active
+generation can recognize it.
+
 Append-only bytes are never rewritten during promotion or rejection. A
 retained rejected observation remains retrievable by digest, but it is not an
-accepted Shot transition and explicit sync does not intentionally relay it.
+accepted Shot transition. Peer authority labels are never used as relay
+filters: a receiver fetches advertised bytes and derives its own result from
+the causal context it possesses.
 
 ## What nodes do not agree on
 
@@ -58,12 +65,18 @@ A node does not judge whether an intention is metaphysically coherent. It does
 not turn a local or private record public, infer artifact availability,
 transfer ownership, or make an on-chain anchor contain off-chain bytes.
 
-The current contract configuration is equally explicit: GENESIS
-`0.7.0` targets Robinhood Chain `4663`, and the embedded
-BuilderAccountFactory, ShotRegistry, and ShotRelations coordinates are planned,
-undeployed, non-canonical, and unaudited. `/v1/node` reports those facts,
-including null transaction evidence, rather than treating planned addresses as
-deployments.
+`/v1/node` reports `active_generation: null`. Its generation policy says
+candidate authority is unavailable until a release-authorized activation is
+independently verified. Its legacy policy says v0.7 prediction is offline-only
+and ordinary signed lineage is neutral legacy evidence. The descriptor does
+not advertise the retired ShotRelations surface or any predicted address as a
+current contract configuration.
+
+The protocol now defines an ancestry-free public checkpoint suitable for the
+narrow registry head. This node revision does not yet inventory checkpoint
+records or receipts. That work is intentionally deferred rather than
+misrepresenting ordinary lineage actions—which may commit private ancestry—as
+registry-head preimages.
 
 ## Storage
 
@@ -180,7 +193,12 @@ an SSRF proxy.
 
 Synchronization retrieves advertised actions in deterministic sequence/digest
 order and verifies returned bytes against every advertised reference before
-storing. An honest causal gap is retained with unresolved authority; a lie,
+storing. Peer-derived authority labels and generation-policy text are not
+trusted and need not equal local policy; every fetched record is classified
+again under local rules. A retired v0.7 peer descriptor carrying the old
+contract-configuration object remains readable for evidence synchronization,
+but none of those coordinates are compared, re-advertised, or used for
+authority. An honest causal gap is retained with unresolved authority; a lie,
 invalid signature, known-invalid adjacency, or known unauthorized transition
 fails closed. A failure may leave earlier valid or explicitly unresolved
 actions appended; it never rolls them back or upgrades an invalid action. One

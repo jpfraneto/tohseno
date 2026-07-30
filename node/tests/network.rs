@@ -306,40 +306,30 @@ async fn http_surface_is_bounded_and_rejects_private_replication() {
         .json()
         .await
         .unwrap();
-    assert_eq!(
-        info.pointer("/contract_configuration/candidate_status")
-            .and_then(serde_json::Value::as_str),
-        Some("planned, undeployed, non-canonical and unaudited")
-    );
-    assert_eq!(
-        info.pointer("/contract_configuration/builder_account_factory/deployed")
-            .and_then(serde_json::Value::as_bool),
-        Some(false)
-    );
-    assert_eq!(
-        info.pointer("/contract_configuration/chain_id")
-            .and_then(serde_json::Value::as_u64),
-        Some(4663)
-    );
-    assert_eq!(
-        info.pointer("/contract_configuration/deployer_code_must_be_verified_before_broadcast")
-            .and_then(serde_json::Value::as_bool),
-        Some(true)
-    );
     assert!(info
-        .pointer("/contract_configuration/builder_account_factory/transaction_hash")
+        .pointer("/active_generation")
         .is_some_and(serde_json::Value::is_null));
-    let authority_policy = info
-        .pointer("/contract_configuration/initial_authority_policy")
+    assert!(info.pointer("/contract_configuration").is_none());
+    let generation_policy = info
+        .pointer("/generation_policy")
         .and_then(serde_json::Value::as_str)
         .unwrap();
-    assert!(authority_policy.contains("initial authority only"));
-    assert!(authority_policy.contains("ownership-transfer authorization proof"));
+    assert!(generation_policy.contains("inactive"));
+    assert!(generation_policy.contains("candidate authority remains unresolved"));
+    let legacy_policy = info
+        .pointer("/legacy_policy")
+        .and_then(serde_json::Value::as_str)
+        .unwrap();
+    assert!(legacy_policy.contains("v0.7 CREATE2 prediction"));
+    assert!(legacy_policy.contains("offline-verification helper only"));
+    assert!(!serde_json::to_string(&info)
+        .unwrap()
+        .contains("ShotRelations"));
     assert!(info
         .pointer("/agreement")
         .and_then(serde_json::Value::as_str)
         .unwrap()
-        .contains("before ownership transfer"));
+        .contains("neutral reducer validity"));
 
     let private = root_action(
         &TestKey::new(11),
@@ -372,7 +362,7 @@ async fn http_surface_is_bounded_and_rejects_private_replication() {
 }
 
 #[tokio::test]
-async fn http_reports_transfer_branches_as_neutrally_valid_but_candidate_unresolved() {
+async fn http_reports_all_neutral_branches_as_candidate_unresolved_while_inactive() {
     let temporary = tempfile::tempdir().unwrap();
     let node = Node::new(NodeStore::open(temporary.path()).unwrap(), Vec::new()).unwrap();
     let (address, task) = spawn_node(node).await;
@@ -408,7 +398,7 @@ async fn http_reports_transfer_branches_as_neutrally_valid_but_candidate_unresol
         root_response
             .pointer("/validation/candidate_authority")
             .and_then(serde_json::Value::as_str),
-        Some("verified")
+        Some("unresolved")
     );
 
     for action in [&transfer, &descendant] {
@@ -445,7 +435,7 @@ async fn http_reports_transfer_branches_as_neutrally_valid_but_candidate_unresol
             .and_then(serde_json::Value::as_str)
             .unwrap();
         assert!(detail.contains("neutrally valid"));
-        assert!(detail.contains("ownership-transfer authorization proof"));
+        assert!(detail.contains("no active release-authorized contract generation"));
     }
 
     let shot: serde_json::Value = client
@@ -459,12 +449,12 @@ async fn http_reports_transfer_branches_as_neutrally_valid_but_candidate_unresol
     assert_eq!(
         shot.pointer("/shot/validation/candidate_authority_verified")
             .and_then(serde_json::Value::as_u64),
-        Some(1)
+        Some(0)
     );
     assert_eq!(
         shot.pointer("/shot/validation/candidate_authority_unresolved")
             .and_then(serde_json::Value::as_u64),
-        Some(2)
+        Some(3)
     );
     task.abort();
 }
@@ -603,6 +593,135 @@ async fn lying_peer_cannot_substitute_action_bytes_for_an_advertised_digest() {
 }
 
 #[tokio::test]
+async fn sync_accepts_a_retired_descriptor_but_revalidates_every_record_locally() {
+    let info_root = tempfile::tempdir().unwrap();
+    let mut info =
+        serde_json::to_value(NodeStore::open(info_root.path()).unwrap().info().unwrap()).unwrap();
+    let descriptor = info.as_object_mut().unwrap();
+    descriptor.remove("active_generation");
+    descriptor.remove("generation_policy");
+    descriptor.remove("legacy_policy");
+    descriptor.insert(
+        "contract_configuration".into(),
+        serde_json::json!({
+            "candidate_version": "0.7.0",
+            "retired_peer_only": true,
+            "ShotRelations": "ignored legacy surface"
+        }),
+    );
+
+    let key = TestKey::new(24);
+    let root = root_action(
+        &key,
+        ShotId::from_bytes([0x68; 32]),
+        AvailabilityStatus::PubliclyAvailable,
+    );
+    let digest = root.commitment().unwrap();
+    let reference = ActionReference {
+        digest,
+        shot_id: root.action.shot_id,
+        sequence: 1,
+        previous: None,
+        // A peer's derived classification is inventory metadata, not an
+        // authorization oracle. The receiving node must ignore this lie.
+        validation: fully_rejected(),
+    };
+    let summary = ShotSummary {
+        shot_id: root.action.shot_id,
+        action_count: 1,
+        roots: vec![digest],
+        observed_heads: vec![digest],
+        authority_verified_heads: Vec::new(),
+        authority_unresolved_heads: Vec::new(),
+        authority_rejected_heads: vec![digest],
+        validation: ValidationCounts {
+            signed_records_verified: 1,
+            segments_rejected: 1,
+            neutral_authority_rejected: 1,
+            candidate_authority_rejected: 1,
+            ..ValidationCounts::default()
+        },
+        missing_parents: Vec::new(),
+        missing_artifacts: Vec::new(),
+    };
+    let view = ShotView {
+        shot: summary.clone(),
+        actions: vec![reference],
+    };
+    let action_bytes = bytes(&root);
+    let peer = Router::new()
+        .route(
+            "/v1/node",
+            get({
+                let info = info.clone();
+                move || {
+                    let info = info.clone();
+                    async move { Json(info) }
+                }
+            }),
+        )
+        .route(
+            "/v1/shots",
+            get({
+                let summary = summary.clone();
+                move || {
+                    let summary = summary.clone();
+                    async move { Json(vec![summary]) }
+                }
+            }),
+        )
+        .route(
+            "/v1/shots/{shot_id}",
+            get({
+                let view = view.clone();
+                move |Path(_): Path<String>| {
+                    let view = view.clone();
+                    async move { Json(view) }
+                }
+            }),
+        )
+        .route(
+            "/v1/actions/{digest}",
+            get(move |Path(_): Path<String>| {
+                let action_bytes = action_bytes.clone();
+                async move { Response::new(Body::from(action_bytes)) }
+            }),
+        );
+    let (address, task) = spawn_router(peer).await;
+    let destination_root = tempfile::tempdir().unwrap();
+    let destination = Node::new(
+        NodeStore::open(destination_root.path()).unwrap(),
+        vec![Peer::parse(&format!("http://{address}")).unwrap()],
+    )
+    .unwrap();
+
+    let report = destination.sync().await.unwrap();
+    assert_eq!(report.state, SyncState::Succeeded);
+    assert_eq!(report.peers[0].fetched, 1);
+    assert_eq!(report.peers[0].rejected, 0);
+    let locally_classified = &destination
+        .store()
+        .shot(root.action.shot_id)
+        .unwrap()
+        .actions[0];
+    assert_eq!(
+        locally_classified.validation.neutral_authority,
+        AuthorityStatus::Verified
+    );
+    assert_eq!(
+        locally_classified.validation.candidate_authority,
+        AuthorityStatus::Unresolved
+    );
+    assert!(locally_classified
+        .validation
+        .detail
+        .as_deref()
+        .unwrap()
+        .contains("no active release-authorized contract generation"));
+    task.abort();
+}
+
+#[tokio::test]
 async fn sync_preserves_an_unanchored_public_segment_without_inventing_authority() {
     let source_root = tempfile::tempdir().unwrap();
     let source_store = NodeStore::open(source_root.path()).unwrap();
@@ -680,5 +799,17 @@ fn fully_verified() -> ActionValidation {
         authority_context_available: true,
         missing_parent: None,
         detail: None,
+    }
+}
+
+fn fully_rejected() -> ActionValidation {
+    ActionValidation {
+        signed_record: SignedRecordStatus::Verified,
+        segment: SegmentStatus::Rejected,
+        neutral_authority: AuthorityStatus::Rejected,
+        candidate_authority: AuthorityStatus::Rejected,
+        authority_context_available: true,
+        missing_parent: None,
+        detail: Some("peer-local rejection that the receiver must not trust".into()),
     }
 }

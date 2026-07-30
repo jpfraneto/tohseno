@@ -241,8 +241,8 @@ fn public_action_after_an_unavailable_private_parent_is_preserved_without_author
         .find(|action| action.digest == child_digest)
         .unwrap();
     assert_eq!(child.validation.missing_parent, Some(private_digest));
-    assert_eq!(view.shot.validation.candidate_authority_verified, 1);
-    assert_eq!(view.shot.validation.candidate_authority_unresolved, 1);
+    assert_eq!(view.shot.validation.candidate_authority_verified, 0);
+    assert_eq!(view.shot.validation.candidate_authority_unresolved, 2);
     assert_eq!(view.shot.missing_parents, vec![private_digest]);
 
     let integrity = store.integrity().unwrap();
@@ -298,8 +298,14 @@ fn late_public_parent_promotes_an_unanchored_segment_deterministically() {
     );
     assert_eq!(
         promoted.validation.candidate_authority,
-        AuthorityStatus::Verified
+        AuthorityStatus::Unresolved
     );
+    assert!(promoted
+        .validation
+        .detail
+        .as_deref()
+        .unwrap()
+        .contains("no active release-authorized contract generation"));
     assert!(promoted.validation.authority_context_available);
     assert_eq!(promoted.validation.missing_parent, None);
 
@@ -309,9 +315,10 @@ fn late_public_parent_promotes_an_unanchored_segment_deterministically() {
 }
 
 #[test]
-fn ownership_and_descendants_stay_candidate_unresolved_without_a_transfer_proof() {
+fn complete_neutral_lineage_stays_candidate_unresolved_without_an_active_generation() {
     let temporary = tempfile::tempdir().unwrap();
     let store = NodeStore::open(temporary.path()).unwrap();
+    assert_eq!(store.info().unwrap().active_generation, None);
     let original_owner = TestKey::new(19);
     let next_owner = TestKey::new(20);
     let shot_id = ShotId::from_bytes([0x4d; 32]);
@@ -332,8 +339,14 @@ fn ownership_and_descendants_stay_candidate_unresolved_without_a_transfer_proof(
     let root_outcome = store.ingest(&bytes(&root)).unwrap();
     assert_eq!(
         root_outcome.validation.candidate_authority,
-        AuthorityStatus::Verified
+        AuthorityStatus::Unresolved
     );
+    assert!(root_outcome
+        .validation
+        .detail
+        .as_deref()
+        .unwrap()
+        .contains("retired v0.7 CREATE2 predictions"));
 
     for outcome in [
         store.ingest(&bytes(&transfer)).unwrap(),
@@ -351,21 +364,18 @@ fn ownership_and_descendants_stay_candidate_unresolved_without_a_transfer_proof(
         assert_eq!(outcome.validation.missing_parent, None);
         let detail = outcome.validation.detail.unwrap();
         assert!(detail.contains("neutrally valid"));
-        assert!(detail.contains("ownership-transfer authorization proof"));
+        assert!(detail.contains("no active release-authorized contract generation"));
     }
 
     let shot = store.shot(shot_id).unwrap().shot;
     assert_eq!(shot.validation.neutral_authority_verified, 3);
-    assert_eq!(shot.validation.candidate_authority_verified, 1);
-    assert_eq!(shot.validation.candidate_authority_unresolved, 2);
+    assert_eq!(shot.validation.candidate_authority_verified, 0);
+    assert_eq!(shot.validation.candidate_authority_unresolved, 3);
     assert_eq!(
         shot.authority_unresolved_heads,
         vec![descendant.commitment().unwrap()]
     );
-    assert_eq!(
-        shot.authority_verified_heads,
-        vec![root.commitment().unwrap()]
-    );
+    assert!(shot.authority_verified_heads.is_empty());
 
     let before = store.shot(shot_id).unwrap();
     store.rebuild().unwrap();
@@ -483,7 +493,7 @@ fn unauthorized_unanchored_segment_is_retained_but_never_gains_authority() {
 }
 
 #[test]
-fn candidate_policy_rejects_a_neutrally_reducible_self_declared_builder() {
+fn inactive_generation_preserves_a_neutral_self_declared_builder_as_unresolved() {
     let temporary = tempfile::tempdir().unwrap();
     let store = NodeStore::open(temporary.path()).unwrap();
     let key = TestKey::new(14);
@@ -509,12 +519,22 @@ fn candidate_policy_rejects_a_neutrally_reducible_self_declared_builder() {
     );
 
     assert!(reduce_lineage(std::slice::from_ref(&action)).is_ok());
-    let error = store.ingest(&bytes(&action)).unwrap_err();
-    assert!(matches!(error, NodeError::Causal(_)));
-    assert!(error
-        .to_string()
-        .contains("pinned candidate BuilderAccount"));
-    assert_eq!(store.health().unwrap().stored_actions, 0);
+    let outcome = store.ingest(&bytes(&action)).unwrap();
+    assert_eq!(
+        outcome.validation.neutral_authority,
+        AuthorityStatus::Verified
+    );
+    assert_eq!(
+        outcome.validation.candidate_authority,
+        AuthorityStatus::Unresolved
+    );
+    assert!(outcome
+        .validation
+        .detail
+        .as_deref()
+        .unwrap()
+        .contains("no active release-authorized contract generation"));
+    assert_eq!(store.health().unwrap().stored_actions, 1);
 }
 
 #[test]
@@ -587,7 +607,7 @@ fn ingest_cli_loads_one_public_action_and_prints_its_validation_context() {
         value
             .pointer("/validation/candidate_authority")
             .and_then(serde_json::Value::as_str),
-        Some("verified")
+        Some("unresolved")
     );
     assert_eq!(
         NodeStore::open(node_root.path())

@@ -1,6 +1,6 @@
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 use p256::ecdsa::{Signature, SigningKey};
-use tohseno_node::predict_candidate_builder_id;
+use tohseno_node::predict_retired_v07_builder_id;
 use tohseno_protocol::canonical;
 use tohseno_protocol::digest::{sha256, Bytes32, ShotId};
 use tohseno_protocol::identity::BuilderId;
@@ -28,7 +28,10 @@ impl TestKey {
         };
         Self {
             signing,
-            builder: predict_candidate_builder_id(&public).unwrap(),
+            // The fixture deliberately reproduces the frozen private v0.7
+            // identity input. Node policy must still leave its public
+            // candidate authority unresolved because v0.7 is retired.
+            builder: predict_retired_v07_builder_id(&public).unwrap(),
             public,
         }
     }

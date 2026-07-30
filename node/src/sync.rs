@@ -1,7 +1,4 @@
-use crate::model::{
-    AuthorityStatus, CandidateContractConfiguration, PeerDescription, PeerSyncResult,
-    SegmentStatus, ShotSummary, ShotView, SyncReport, SyncState,
-};
+use crate::model::{PeerDescription, PeerSyncResult, ShotSummary, ShotView, SyncReport, SyncState};
 use crate::protocol_adapter::parse_public;
 use crate::{NodeError, NodeStore, Result, LINEAGE_PROTOCOL, LINEAGE_PROTOCOL_VERSION};
 use reqwest::{Client, Url};
@@ -152,6 +149,21 @@ impl Node {
             .get_limited(peer.endpoint("v1/node")?, MAX_PEER_NODE_BYTES)
             .await?;
         let info: RemoteNodeInfo = serde_json::from_slice(&info_bytes)?;
+        let current_generation_descriptor = info
+            .generation_policy
+            .as_ref()
+            .is_some_and(|policy| !policy.is_empty())
+            && info
+                .legacy_policy
+                .as_ref()
+                .is_some_and(|policy| !policy.is_empty());
+        let retired_v07_descriptor = info.active_generation.is_none()
+            && info.generation_policy.is_none()
+            && info.legacy_policy.is_none()
+            && info
+                .retired_contract_configuration
+                .as_ref()
+                .is_some_and(serde_json::Value::is_object);
         if info.schema != crate::NODE_PROTOCOL
             || info.node_id == tohseno_protocol::digest::Bytes32::ZERO
             || info.created_at_unix == 0
@@ -162,7 +174,11 @@ impl Node {
                 .contains(&tohseno_protocol::lineage::LINEAGE_SCHEMA_VERSION)
             || info.stored_actions > crate::MAX_ACTIONS_PER_NODE
             || info.indexed_shots > MAX_REMOTE_SHOTS
-            || info.contract_configuration != self.store.info()?.contract_configuration
+            || info
+                .active_generation
+                .as_ref()
+                .is_some_and(String::is_empty)
+            || !(current_generation_descriptor || retired_v07_descriptor)
             || info.agreement.is_empty()
             || info.non_agreement.is_empty()
         {
@@ -203,12 +219,6 @@ impl Node {
                     return Err(NodeError::PeerResponse(
                         "peer action reference changed ShotID".into(),
                     ));
-                }
-                if reference.validation.segment == SegmentStatus::Rejected
-                    || reference.validation.candidate_authority == AuthorityStatus::Rejected
-                {
-                    result.rejected += 1;
-                    continue;
                 }
                 if self.store.contains(reference.digest)? {
                     result.already_present += 1;
@@ -300,7 +310,16 @@ struct RemoteNodeInfo {
     supported_schema_versions: Vec<u32>,
     stored_actions: usize,
     indexed_shots: usize,
-    contract_configuration: CandidateContractConfiguration,
+    #[serde(default)]
+    active_generation: Option<String>,
+    #[serde(default)]
+    generation_policy: Option<String>,
+    #[serde(default)]
+    legacy_policy: Option<String>,
+    /// Compatibility-only input from retired v0.7 nodes. It is bounded by the
+    /// descriptor limit, never compared, and never used for local authority.
+    #[serde(default, rename = "contract_configuration")]
+    retired_contract_configuration: Option<serde_json::Value>,
     agreement: String,
     non_agreement: String,
 }

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tohseno_protocol::digest::{Address20, Bytes32, ShotId};
+use tohseno_protocol::digest::{Bytes32, ShotId};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,39 +28,15 @@ pub struct NodeInfo {
     pub supported_schema_versions: Vec<u32>,
     pub stored_actions: usize,
     pub indexed_shots: usize,
-    pub contract_configuration: CandidateContractConfiguration,
+    /// A release-authorized contract generation, or `null` while no such
+    /// activation exists. Predicted CREATE2 coordinates are never activation.
+    pub active_generation: Option<String>,
+    /// How this node treats current-generation public authority.
+    pub generation_policy: &'static str,
+    /// How this node preserves retired ordinary-lineage evidence.
+    pub legacy_policy: &'static str,
     pub agreement: &'static str,
     pub non_agreement: &'static str,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CandidateContractConfiguration {
-    pub schema: String,
-    pub candidate_version: String,
-    pub candidate_status: String,
-    pub chain_name: String,
-    pub chain_id: u64,
-    pub p256verify: Address20,
-    pub create2_deployer: Address20,
-    pub deployer_code_must_be_verified_before_broadcast: bool,
-    pub builder_account_factory: PlannedContract,
-    pub shot_registry: PlannedContract,
-    pub shot_relations: PlannedContract,
-    pub builder_account_creation_bytecode_sha256: Bytes32,
-    pub initial_authority_policy: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PlannedContract {
-    pub deployment_order: u8,
-    pub planned_address: Address20,
-    pub salt: Bytes32,
-    pub init_code_hash: Bytes32,
-    pub deployed: bool,
-    pub runtime_code_hash: Option<Bytes32>,
-    pub transaction_hash: Option<Bytes32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -100,9 +76,9 @@ pub struct ActionValidation {
     /// Neutral reducer authority, which trusts the commitment's declared
     /// controller/key binding when a complete prefix is available.
     pub neutral_authority: AuthorityStatus,
-    /// Candidate policy authority. GENESIS verifies the initial pinned
-    /// BuilderAccount factory/salt/creation-bytecode prediction, but does not
-    /// yet define an ownership-transfer authorization proof.
+    /// Authority under the active release-authorized contract generation.
+    /// This remains unresolved while `NodeInfo.active_generation` is null;
+    /// retired CREATE2 predictions cannot promote it.
     pub candidate_authority: AuthorityStatus,
     pub authority_context_available: bool,
     pub missing_parent: Option<Bytes32>,

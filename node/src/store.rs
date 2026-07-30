@@ -1,4 +1,3 @@
-use crate::candidate::{BranchAuthority, CandidatePolicy};
 use crate::fs::{create_new_atomic, ensure_real_directory, read_regular_limited};
 use crate::model::{
     ActionReference, ActionValidation, AuthorityStatus, Health, IngestOutcome, IntegrityIssue,
@@ -25,6 +24,8 @@ pub const MAX_ACTIONS_PER_SHOT: usize = 10_000;
 const MAX_IDENTITY_BYTES: usize = 4096;
 const IDENTITY_SCHEMA: &str = "tohseno.node-identity/1";
 const MAX_INTEGRITY_PARENT_FINDINGS: usize = 1024;
+const GENERATION_POLICY: &str = "inactive: public candidate authority remains unresolved until a release-authorized contract generation is activated and independently verified";
+const LEGACY_POLICY: &str = "v0.7 CREATE2 prediction is a retired offline-verification helper only; generic signed lineage remains neutral legacy evidence and can never establish active public candidate authority";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ActionMeta {
@@ -52,7 +53,6 @@ pub struct NodeStore {
     root: PathBuf,
     actions_root: PathBuf,
     identity: NodeIdentity,
-    candidate_policy: CandidatePolicy,
     index: RwLock<Index>,
     mutation: Mutex<()>,
 }
@@ -62,12 +62,10 @@ impl NodeStore {
         let root = ensure_real_directory(root.as_ref())?;
         let actions_root = ensure_real_directory(&root.join("actions"))?;
         let identity = load_or_create_identity(&root)?;
-        let candidate_policy = CandidatePolicy::embedded()?;
         let mut store = Self {
             root,
             actions_root,
             identity,
-            candidate_policy,
             index: RwLock::new(Index::default()),
             mutation: Mutex::new(()),
         };
@@ -236,10 +234,12 @@ impl NodeStore {
             supported_schema_versions: vec![LINEAGE_SCHEMA_VERSION],
             stored_actions: index.actions.len(),
             indexed_shots: index.shots.len(),
-            contract_configuration: self.candidate_policy.configuration().clone(),
-            agreement: "deterministic signed-record and available-segment validity; candidate authority only for complete reducible factory-bound branches before ownership transfer",
+            active_generation: None,
+            generation_policy: GENERATION_POLICY,
+            legacy_policy: LEGACY_POLICY,
+            agreement: "deterministic signed-record, available-segment, and neutral reducer validity for locally possessed ordinary lineage",
             non_agreement:
-                "no universal head, ownership-transfer candidate proof, artifact completeness, subjective coherence, or global consensus",
+                "no active contract generation, public candidate authority, public-checkpoint inventory, universal head, artifact completeness, subjective coherence, or global consensus",
         })
     }
 
@@ -426,24 +426,7 @@ impl NodeStore {
         }
 
         match reduce_lineage(&branch) {
-            Ok(_) => match self.candidate_policy.assess_branch(&branch) {
-                Ok(BranchAuthority::Verified) => verified_validation(),
-                Ok(BranchAuthority::OwnershipTransferUnresolved { sequence }) => {
-                    candidate_transfer_unresolved_validation(
-                        segment.authority_context_available,
-                        sequence,
-                    )
-                }
-                Err(error) => ActionValidation {
-                    signed_record: SignedRecordStatus::Verified,
-                    segment: SegmentStatus::Verified,
-                    neutral_authority: AuthorityStatus::Verified,
-                    candidate_authority: AuthorityStatus::Rejected,
-                    authority_context_available: segment.authority_context_available,
-                    missing_parent: None,
-                    detail: Some(error.to_string()),
-                },
-            },
+            Ok(_) => inactive_generation_validation(segment.authority_context_available),
             Err(error) => ActionValidation {
                 signed_record: SignedRecordStatus::Verified,
                 segment: SegmentStatus::Verified,
@@ -471,15 +454,18 @@ impl NodeStore {
     }
 }
 
-fn verified_validation() -> ActionValidation {
+fn inactive_generation_validation(authority_context_available: bool) -> ActionValidation {
     ActionValidation {
         signed_record: SignedRecordStatus::Verified,
         segment: SegmentStatus::Verified,
         neutral_authority: AuthorityStatus::Verified,
-        candidate_authority: AuthorityStatus::Verified,
-        authority_context_available: true,
+        candidate_authority: AuthorityStatus::Unresolved,
+        authority_context_available,
         missing_parent: None,
-        detail: None,
+        detail: Some(
+            "complete lineage is neutrally valid, but candidate authority is unresolved because this node has no active release-authorized contract generation; retired v0.7 CREATE2 predictions are offline evidence only"
+                .into(),
+        ),
     }
 }
 
@@ -492,23 +478,6 @@ fn unresolved_validation(missing_parent: Option<Bytes32>, detail: &str) -> Actio
         authority_context_available: false,
         missing_parent,
         detail: Some(detail.into()),
-    }
-}
-
-fn candidate_transfer_unresolved_validation(
-    authority_context_available: bool,
-    transfer_sequence: u64,
-) -> ActionValidation {
-    ActionValidation {
-        signed_record: SignedRecordStatus::Verified,
-        segment: SegmentStatus::Verified,
-        neutral_authority: AuthorityStatus::Verified,
-        candidate_authority: AuthorityStatus::Unresolved,
-        authority_context_available,
-        missing_parent: None,
-        detail: Some(format!(
-            "complete lineage is neutrally valid, but candidate authority is unresolved from ownership action sequence {transfer_sequence}: GENESIS defines no ownership-transfer authorization proof"
-        )),
     }
 }
 
