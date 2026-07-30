@@ -147,6 +147,19 @@
   },
   {
     "inputs": [],
+    "name": "activeAdminCount",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "activeDeviceCount",
     "outputs": [
       {
@@ -760,7 +773,12 @@
   },
   {
     "inputs": [],
-    "name": "LastDeviceWithoutRecovery",
+    "name": "LastAdminWithoutRecovery",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LastDevice",
     "type": "error"
   },
   {

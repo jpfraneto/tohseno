@@ -62,6 +62,13 @@ contract BuilderAccountTest is ProtocolTestBase {
         assertTrue(account.isAuthorizedKey(keyId));
         assertEq(uint256(account.keyPermissions(keyId)), uint256(account.PERMISSION_PROTOCOL()));
         assertEq(account.activeDeviceCount(), uint64(2));
+        assertEq(account.activeAdminCount(), uint64(1));
+    }
+
+    function testAuthorizingAdminIncrementsBothCounts() public {
+        _authorize(account, KEY2_X, KEY2_Y, account.ALL_PERMISSIONS(), KEY1_X, KEY1_Y);
+        assertEq(account.activeDeviceCount(), uint64(2));
+        assertEq(account.activeAdminCount(), uint64(2));
     }
 
     function testProtocolOnlyDeviceCannotManageDevices() public {
@@ -105,18 +112,42 @@ contract BuilderAccountTest is ProtocolTestBase {
 
     function testCannotRevokeLastDeviceWithoutRecovery() public {
         bytes32 keyId = account.deviceKeyId(KEY1_X, KEY1_Y);
-        vm.expectRevert(BuilderAccount.LastDeviceWithoutRecovery.selector);
+        vm.expectRevert(BuilderAccount.LastDevice.selector);
         account.revokeDevice(keyId, _deadline(), p256Signature(KEY1_X, KEY1_Y));
     }
 
-    function testCanRevokeLastDeviceWhenRecoveryIsAvailable() public {
+    function testCannotRevokeLastDeviceEvenWhenRecoveryIsAvailable() public {
         _setRecovery(account, recovery);
         bytes32 keyId = account.deviceKeyId(KEY1_X, KEY1_Y);
+        vm.expectRevert(BuilderAccount.LastDevice.selector);
+        account.revokeDevice(keyId, _deadline(), p256Signature(KEY1_X, KEY1_Y));
+        assertEq(account.activeDeviceCount(), uint64(1));
+        assertEq(account.activeAdminCount(), uint64(1));
+    }
+
+    function testCannotRevokeLastAdminWhileProtocolOnlyDeviceRemainsWithoutRecovery() public {
+        _authorize(account, KEY2_X, KEY2_Y, account.PERMISSION_PROTOCOL(), KEY1_X, KEY1_Y);
+        bytes32 adminKeyId = account.deviceKeyId(KEY1_X, KEY1_Y);
+
+        vm.expectRevert(BuilderAccount.LastAdminWithoutRecovery.selector);
+        account.revokeDevice(adminKeyId, _deadline(), p256Signature(KEY1_X, KEY1_Y));
+
+        assertEq(account.activeDeviceCount(), uint64(2));
+        assertEq(account.activeAdminCount(), uint64(1));
+    }
+
+    function testRecoveryAuthorityAllowsLastAdminRevocationButPreservesOneDevice() public {
+        _setRecovery(account, recovery);
+        _authorize(account, KEY2_X, KEY2_Y, account.PERMISSION_PROTOCOL(), KEY1_X, KEY1_Y);
+        bytes32 adminKeyId = account.deviceKeyId(KEY1_X, KEY1_Y);
         uint64 deadline = _deadline();
-        bytes32 digest = account.hashRevokeDevice(keyId, account.deviceNonce(), deadline);
+        bytes32 digest = account.hashRevokeDevice(adminKeyId, account.deviceNonce(), deadline);
         setP256Expected(digest);
-        account.revokeDevice(keyId, deadline, p256Signature(KEY1_X, KEY1_Y));
-        assertEq(account.activeDeviceCount(), uint64(0));
+
+        account.revokeDevice(adminKeyId, deadline, p256Signature(KEY1_X, KEY1_Y));
+
+        assertEq(account.activeDeviceCount(), uint64(1));
+        assertEq(account.activeAdminCount(), uint64(0));
         assertEq(account.recoveryAuthority(), recovery);
     }
 
@@ -132,6 +163,7 @@ contract BuilderAccountTest is ProtocolTestBase {
 
         assertEq(account.deviceEpoch(), uint64(2));
         assertEq(account.activeDeviceCount(), uint64(1));
+        assertEq(account.activeAdminCount(), uint64(1));
         assertEq(account.recoveryAuthority(), nextRecovery);
         assertFalse(account.isAuthorizedKey(account.deviceKeyId(KEY1_X, KEY1_Y)));
         assertFalse(account.isAuthorizedKey(account.deviceKeyId(KEY2_X, KEY2_Y)));

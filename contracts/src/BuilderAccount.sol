@@ -34,6 +34,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     uint64 public deviceNonce;
     uint64 public recoveryNonce;
     uint64 public activeDeviceCount;
+    uint64 public activeAdminCount;
     address public recoveryAuthority;
     bool public recoveryConfigured;
 
@@ -43,7 +44,8 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     error DeviceNotAuthorized(bytes32 keyId);
     error InvalidPermissions(uint32 permissions);
     error InvalidDeviceSignature();
-    error LastDeviceWithoutRecovery();
+    error LastDevice();
+    error LastAdminWithoutRecovery();
     error RecoveryAlreadyConfigured();
     error InvalidRecoveryAuthority();
     error RecoveryDisabled();
@@ -60,6 +62,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         if (!P256Verifier.validPublicKey(initialX, initialY)) revert InvalidDeviceKey();
         deviceEpoch = 1;
         activeDeviceCount = 1;
+        activeAdminCount = 1;
         bytes32 initialKeyId = P256Verifier.keyId(initialX, initialY);
         _keyEpoch[initialKeyId] = deviceEpoch;
         _keyPermissions[initialKeyId] = ALL_PERMISSIONS;
@@ -163,6 +166,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
 
         deviceNonce = nonce + 1;
         activeDeviceCount += 1;
+        if ((permissions & PERMISSION_DEVICE_ADMIN) != 0) activeAdminCount += 1;
         _keyEpoch[newKeyId] = deviceEpoch;
         _keyPermissions[newKeyId] = permissions;
         emit DeviceAuthorized(newKeyId, x, y, permissions, deviceEpoch);
@@ -171,8 +175,11 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
     function revokeDevice(bytes32 keyId, uint64 deadline, bytes calldata authorizingSignature) external {
         _checkDeadline(deadline);
         if (!isAuthorizedKey(keyId)) revert DeviceNotAuthorized(keyId);
-        if (activeDeviceCount == 1 && recoveryAuthority == address(0)) {
-            revert LastDeviceWithoutRecovery();
+        if (activeDeviceCount == 1) revert LastDevice();
+        uint32 permissions = _keyPermissions[keyId];
+        bool revokesAdmin = (permissions & PERMISSION_DEVICE_ADMIN) != 0;
+        if (revokesAdmin && activeAdminCount == 1 && recoveryAuthority == address(0)) {
+            revert LastAdminWithoutRecovery();
         }
 
         uint64 nonce = deviceNonce;
@@ -183,6 +190,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
 
         deviceNonce = nonce + 1;
         activeDeviceCount -= 1;
+        if (revokesAdmin) activeAdminCount -= 1;
         _keyEpoch[keyId] = 0;
         _keyPermissions[keyId] = 0;
         emit DeviceRevoked(keyId, deviceEpoch);
@@ -225,6 +233,7 @@ contract BuilderAccount is EIP712Domain, IERC1271 {
         recoveryNonce = nonce + 1;
         deviceEpoch += 1;
         activeDeviceCount = 1;
+        activeAdminCount = 1;
         recoveryAuthority = newRecovery;
         bytes32 replacementKeyId = P256Verifier.keyId(newX, newY);
         _keyEpoch[replacementKeyId] = deviceEpoch;

@@ -14,8 +14,8 @@
       "constructor_arguments": [],
       "deployed": false,
       "deployment_order": 1,
-      "init_code_hash": "0xc54e36542c975b6bde3868afded9d3d342e01defdfd0b2c8bc3e25c417526b28",
-      "planned_address": "0xaac9c9ad7cfa97ddc2482a44f097a7e85b805931",
+      "init_code_hash": "0x9faaa8b1acf2f050f4ae50059c80383cec7fab8730b87c1fa9e2da99f8afb421",
+      "planned_address": "0x87d18f96cc2388ce257caec9845553dd92fe60d8",
       "runtime_code_hash": null,
       "salt": "0x5fd2db5a85724a3ec24a912bfbf24fc577d26b53aafaf22e45dd425901249ef4",
       "transaction_hash": null

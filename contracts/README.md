@@ -84,6 +84,10 @@ not cross chains or deployments.
 
 ## State laws
 
+- A BuilderAccount always retains at least one active device. It may retain no
+  active `DEVICE_ADMIN` key only while a nonzero recovery authority exists.
+  `activeDeviceCount` and `activeAdminCount` are exact current-epoch counts,
+  not historical counters.
 - `CREATE_SHOT` requires a nonzero starting sequence, a deployed ERC-1271
   controller, a nonzero ShotID and head, controller creation nonce, and state
   `PUBLISHED`. Native roots begin at `1`; adopted legacy roots may begin at
