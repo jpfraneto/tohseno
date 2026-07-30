@@ -1,4 +1,5 @@
 use crate::ledger::{Evolution, Ledger, LedgerError};
+use crate::shot_layout::StoredReference;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -254,6 +255,7 @@ this Evolution's history. The builder should never have to remember it.
         app_name: &str,
         bundle_id: &str,
         intent: &crate::gates::intent::Intent,
+        references: &[StoredReference],
     ) -> Result<PathBuf, GenomeError> {
         let briefing = ledger.briefing_dir(app_name);
         fs::create_dir_all(briefing.join("genome"))?;
@@ -287,25 +289,25 @@ this Evolution's history. The builder should never have to remember it.
                 contents.as_bytes(),
             )?;
         }
-        let mut image_names = Vec::new();
-        for (index, image) in intent.images.iter().enumerate() {
-            if index >= crate::gates::intent::MAX_IMAGES {
-                break;
-            }
-            let name = image
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("image")
-                .to_owned();
-            fs::copy(image, briefing.join("references").join(&name))?;
-            image_names.push(name);
-        }
-        let image_references = if image_names.is_empty() {
+        let image_references = if references.is_empty() {
             "- No reference images were supplied.".to_owned()
         } else {
-            image_names
+            references
                 .iter()
-                .map(|name| format!("- `.tohseno/references/{name}`"))
+                .map(|reference| {
+                    let name = reference
+                        .availability
+                        .artifact
+                        .name
+                        .as_deref()
+                        .unwrap_or("unnamed reference");
+                    let stored = reference
+                        .path
+                        .file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("invalid-reference-path");
+                    format!("- `{name}` — `.tohseno/references/{stored}`")
+                })
                 .collect::<Vec<_>>()
                 .join("\n")
         };

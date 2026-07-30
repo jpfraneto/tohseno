@@ -759,4 +759,39 @@ try await InstallationIdentity.shared.prepare()
             Err(BuildError::FasciaInventory(_))
         ));
     }
+
+    #[test]
+    fn reusable_apple_expression_fixture_passes_complete_source_gate() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("INTENTION.md"), b"preserve me\n").unwrap();
+        let script =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/apple-expression/materialize.sh");
+        let output = Command::new(&script)
+            .args([
+                directory.path().as_os_str(),
+                std::ffi::OsStr::new("LifecycleShot"),
+                std::ffi::OsStr::new("com.tohseno.genesis.fixture.LifecycleShot"),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        validate_complete_source(directory.path()).unwrap();
+        assert_eq!(
+            fs::read(directory.path().join("INTENTION.md")).unwrap(),
+            b"preserve me\n"
+        );
+        let project = fs::read_to_string(
+            directory
+                .path()
+                .join("LifecycleShot.xcodeproj/project.pbxproj"),
+        )
+        .unwrap();
+        assert!(!project.contains("__APP_NAME__"));
+        assert!(!project.contains("__BUNDLE_ID__"));
+    }
 }

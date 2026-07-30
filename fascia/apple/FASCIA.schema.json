@@ -115,7 +115,7 @@
       ],
       "properties": {
         "version": {
-          "const": "1.0.0-rc.1"
+          "const": "0.7.0"
         },
         "codename": {
           "const": "GENESIS"
@@ -416,7 +416,7 @@
           }
         },
         "bundle_version_rule": {
-          "const": "CFBundleVersion_equals_sequence"
+          "const": "CFBundleVersion_equals_expression_version_ordinal"
         },
         "apple_surfaces_from_project": {
           "const": true

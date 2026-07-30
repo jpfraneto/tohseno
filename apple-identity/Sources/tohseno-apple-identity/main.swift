@@ -83,7 +83,7 @@ do {
         exit(EXIT_SUCCESS)
     }
     if arguments == ["--version"] {
-        print("tohseno-apple-identity 1.0.0-rc.1")
+        print("tohseno-apple-identity 0.7.0")
         exit(EXIT_SUCCESS)
     }
 

@@ -1,12 +1,22 @@
 {
   "schema": "tohseno.protocol-page/1",
   "protocol": "tohseno",
-  "candidate_version": "1.0.0-rc.1",
+  "candidate_version": "0.7.0",
   "codename": "GENESIS",
   "status": "protocol candidate, not canonical release",
+  "claim": "TOHSENO gives coherent human intentions persistent computational identity and lets them become and evolve as verifiable expressions.",
+  "lineage_schema": "tohseno.lineage-action/2",
+  "legacy_apple_record_schema": "tohseno.shot/1",
+  "first_factory": "native Apple software",
   "chain_id": 4663,
+  "base_token_association_chain_id": 8453,
+  "token_association_required": false,
+  "token_association_is_identity": false,
   "canonical": false,
-  "stable_installer_untouched": true,
+  "contracts_deployed": false,
+  "candidate_tag_published": false,
+  "protocol_page_deployed": false,
+  "stable_release": "v0.7.0",
+  "stable_installer_untouched": false,
   "final_arweave_publication": "pending"
 }
-

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/parent-relation.schema.json",
+  "title": "TOHSENO parent or descendant relation v2",
+  "$ref": "ontology.schema.json#/$defs/parentRelation"
+}

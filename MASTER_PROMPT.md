@@ -1,6 +1,6 @@
 # TOHSENO Constitution — GENESIS Candidate
 
-**Version:** `1.0.0-rc.1`
+**Version:** `0.7.0`
 **Codename:** `GENESIS`
 **Status:** protocol candidate; not the canonical release
 
@@ -210,7 +210,7 @@ and `HarnessLine`.
 
 ## Candidate release discipline
 
-This repository may build and exercise `1.0.0-rc.1` against Robinhood Chain
+This repository may build and exercise `0.7.0` against Robinhood Chain
 mainnet. Candidate addresses are experimental and must be accompanied by exact
 source, bytecode, transaction, probe, and lifecycle evidence.
 

@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - "v1.0.0-rc.1"
+      - "v0.7.0"
 
 permissions:
   contents: read
@@ -12,27 +12,27 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
 
-  authorize-prerelease:
-    name: Require recorded prerelease authorization
+  authorize-release:
+    name: Require recorded stable-release authorization
     runs-on: macos-14
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Verify prerelease readiness and explicit authorization
+      - name: Verify stable-release readiness and explicit authorization
         run: |
           jq -e \
-            '.schema == "tohseno.genesis-candidate-report/1"
-             and .candidate.version == "1.0.0-rc.1"
-             and .candidate.canonical_release == false
-             and .candidate.ready_for_prerelease == true
-             and .release.prerelease_authorized == true
-             and .release.immutable_release_policy_verified == true
-             and .release.release_tag_protection_verified == true' \
-            genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
+            '.schema == "tohseno.release-readiness/1"
+             and .version == "0.7.0"
+             and .channel == "stable"
+             and .ready == true
+             and .authorization.authorized == true
+             and .protection.immutable_release_policy_verified == true
+             and .protection.release_tag_protection_verified == true' \
+            release/V0_7_0_READINESS.json
 
   build:
-    needs: [verify, authorize-prerelease]
+    needs: [verify, authorize-release]
     runs-on: macos-14
     strategy:
       matrix:
@@ -54,7 +54,7 @@ jobs:
       - name: Assemble the verified clean-snapshot package
         env:
           TOHSENO_RELEASE_TARGET: ${{ matrix.target }}
-        run: scripts/release-candidate.sh
+        run: scripts/release.sh
       - name: Verify and name release artifacts
         run: |
           package="dist/release-candidate/${{ matrix.target }}"
@@ -72,15 +72,14 @@ jobs:
               --arg source_state "$expected_source_state" \
               --arg target '${{ matrix.target }}' \
               '.schema == "tohseno.release/1"
-               and .version == "1.0.0-rc.1"
+               and .version == "0.7.0"
                and .codename == "GENESIS"
                and .target == $target
                and .source_commit == $commit
                and .source_state_sha256 == $source_state
                and .dirty == false
-               and .channel == "genesis"
-               and .prerelease == true
-               and .stable_untouched == true' \
+               and .channel == "stable"
+               and .prerelease == false' \
               RELEASE.json
           )
           verify_macho() {
@@ -123,7 +122,7 @@ jobs:
             "$package/CHECKSUMS.sha256" \
             "artifacts/tohseno-checksums-${{ matrix.target }}.sha256"
           COPYFILE_DISABLE=1 tar -czf \
-            "artifacts/tohseno-release-candidate-${{ matrix.target }}.tar.gz" \
+            "artifacts/tohseno-release-${{ matrix.target }}.tar.gz" \
             -C dist/release-candidate \
             "${{ matrix.target }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -140,7 +139,7 @@ jobs:
           path: |
             artifacts/tohseno-release-${{ matrix.target }}.json
             artifacts/tohseno-checksums-${{ matrix.target }}.sha256
-            artifacts/tohseno-release-candidate-${{ matrix.target }}.tar.gz
+            artifacts/tohseno-release-${{ matrix.target }}.tar.gz
 
   publish:
     needs: build
@@ -301,7 +300,7 @@ jobs:
           }
 
           verify_live_tag
-          release_marker="TOHSENO GENESIS source commit: $GITHUB_SHA"
+          release_marker="TOHSENO v0.7.0 source commit: $GITHUB_SHA"
           releases_json="$(
             gh api \
               --method GET \
@@ -326,7 +325,6 @@ jobs:
               gh release create \
                 "$GITHUB_REF_NAME" \
                 --draft \
-                --prerelease \
                 --verify-tag \
                 --generate-notes \
                 --notes "$release_marker"
@@ -345,7 +343,7 @@ jobs:
               --arg tag "$GITHUB_REF_NAME" \
               --arg marker "$release_marker" '
                 .tag_name == $tag
-                and .prerelease == true
+                and .prerelease == false
                 and (.draft | type) == "boolean"
                 and ((.body | type) == "string")
                 and (.body | contains($marker))
@@ -472,7 +470,6 @@ jobs:
           gh release edit \
             "$GITHUB_REF_NAME" \
             --draft=false \
-            --prerelease \
             --verify-tag
           published_release_json="$(load_matching_release)"
           printf '%s\n' "$published_release_json" |
@@ -482,7 +479,7 @@ jobs:
               --argjson expected_count "${#local_assets[@]}" '
                 .tag_name == $tag
                 and .draft == false
-                and .prerelease == true
+                and .prerelease == false
                 and .immutable == true
                 and ((.body | type) == "string")
                 and (.body | contains($marker))

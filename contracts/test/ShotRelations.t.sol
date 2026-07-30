@@ -12,6 +12,7 @@ contract ShotRelationsTest is ProtocolTestBase {
     bytes32 private constant HEAD_1 = keccak256("head-1");
     bytes32 private constant HEAD_2 = keccak256("head-2");
     address private constant TOKEN = address(0x70c);
+    address private constant BASE_TOKEN_2 = address(0x70d);
 
     BuilderAccount private account1;
     BuilderAccount private account2;
@@ -100,6 +101,84 @@ contract ShotRelationsTest is ProtocolTestBase {
         relation = relations.appcoinOf(SHOT_1);
         assertEq(relation.chainId, 0);
         assertEq(relation.token, address(0));
+    }
+
+    function testBaseAssociationFreshNonceReplacementAndExactRemovalSemantics() public {
+        ShotRelations.AssociateAppcoinAction memory initial = ShotRelations.AssociateAppcoinAction({
+            shotId: SHOT_1,
+            chainId: 8453,
+            token: TOKEN,
+            nonce: 0,
+            deadline: _deadline()
+        });
+        setP256Expected(relations.hashAssociateAppcoin(initial));
+        relations.associateAppcoin(initial, p256Signature(KEY1_X, KEY1_Y));
+        assertEq(relations.appcoinOf(SHOT_1).chainId, 8453);
+        assertEq(relations.appcoinOf(SHOT_1).token, TOKEN);
+
+        // The deployed-candidate ABI intentionally uses one current slot. An
+        // identical association with a fresh nonce is a valid replacement.
+        initial.nonce = 1;
+        setP256Expected(relations.hashAssociateAppcoin(initial));
+        relations.associateAppcoin(initial, p256Signature(KEY1_X, KEY1_Y));
+
+        // A conflicting fresh authorized value also replaces the current slot;
+        // event history, rather than storage, preserves earlier associations.
+        ShotRelations.AssociateAppcoinAction memory replacement = ShotRelations.AssociateAppcoinAction({
+            shotId: SHOT_1,
+            chainId: 8453,
+            token: BASE_TOKEN_2,
+            nonce: 2,
+            deadline: _deadline()
+        });
+        setP256Expected(relations.hashAssociateAppcoin(replacement));
+        relations.associateAppcoin(replacement, p256Signature(KEY1_X, KEY1_Y));
+        assertEq(relations.appcoinOf(SHOT_1).chainId, 8453);
+        assertEq(relations.appcoinOf(SHOT_1).token, BASE_TOKEN_2);
+
+        ShotRelations.RemoveAppcoinAction memory mismatch = ShotRelations.RemoveAppcoinAction({
+            shotId: SHOT_1,
+            chainId: 8453,
+            token: TOKEN,
+            nonce: 3,
+            deadline: _deadline()
+        });
+        vm.expectRevert(ShotRelations.AppcoinMismatch.selector);
+        relations.removeAppcoin(mismatch, p256Signature(KEY1_X, KEY1_Y));
+
+        ShotRelations.RemoveAppcoinAction memory exact = ShotRelations.RemoveAppcoinAction({
+            shotId: SHOT_1,
+            chainId: 8453,
+            token: BASE_TOKEN_2,
+            nonce: 3,
+            deadline: _deadline()
+        });
+        setP256Expected(relations.hashRemoveAppcoin(exact));
+        relations.removeAppcoin(exact, p256Signature(KEY1_X, KEY1_Y));
+        assertEq(relations.appcoinOf(SHOT_1).chainId, 0);
+        assertEq(relations.appcoinOf(SHOT_1).token, address(0));
+
+        vm.expectPartialRevert(ShotRelations.InvalidNonce.selector);
+        relations.removeAppcoin(exact, p256Signature(KEY1_X, KEY1_Y));
+    }
+
+    function testRejectsZeroChainOrTokenWithoutConsumingNonce() public {
+        ShotRelations.AssociateAppcoinAction memory action = ShotRelations.AssociateAppcoinAction({
+            shotId: SHOT_1,
+            chainId: 0,
+            token: TOKEN,
+            nonce: 0,
+            deadline: _deadline()
+        });
+        vm.expectRevert(ShotRelations.InvalidAppcoin.selector);
+        relations.associateAppcoin(action, p256Signature(KEY1_X, KEY1_Y));
+        assertEq(relations.nonces(SHOT_1), 0);
+
+        action.chainId = 8453;
+        action.token = address(0);
+        vm.expectRevert(ShotRelations.InvalidAppcoin.selector);
+        relations.associateAppcoin(action, p256Signature(KEY1_X, KEY1_Y));
+        assertEq(relations.nonces(SHOT_1), 0);
     }
 
     function testRejectsRemovingMissingAppcoin() public {

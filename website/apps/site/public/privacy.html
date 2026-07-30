@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
+    <meta name="theme-color" content="#11100e">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{BRAND}}">
+    <meta property="og:title" content="Privacy — {{BRAND}}">
+    <meta property="og:description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
+    <meta property="og:url" content="{{CANONICAL_ORIGIN}}/privacy">
+    <meta property="og:image" content="{{OG_IMAGE_URL}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="{{OG_IMAGE_URL}}">
+    <link rel="canonical" href="{{CANONICAL_ORIGIN}}/privacy">
+    <link rel="icon" href="/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="/favicon.png">
+    <title>Privacy — {{BRAND}}</title>
+    <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
+      <nav class="utility-nav" aria-label="Privacy navigation">
+        <a href="/">Home</a>
+        <a href="/docs">Docs</a>
+        <a href="{{REPOSITORY_URL}}" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="document-main" id="main-content">
+      <article class="document">
+        <header class="document-header">
+          <p class="eyebrow">TOHSENO / PRIVACY</p>
+          <h1>Privacy notice</h1>
+          <p class="document-intro">No TOHSENO account, analytics, or generated-app content backend. The factory runs locally; each app declares its own data behavior.</p>
+        </header>
+
+        <section>
+          <h2>This website</h2>
+          <p>tohseno.com serves static pages. It has no accounts, no forms, no cookies, no analytics, and no third-party browser resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
+        </section>
+
+        <section>
+          <h2>The local factory</h2>
+          <p>The installed 0.7 factory sends no TOHSENO telemetry. The public installer verifies the immutable CLI, Apple identity helper, and protocol materials before installing them locally. Each Shot carries its own local history and signed protocol records.</p>
+          <p>TOHSENO Studio runs on the Mac and binds to <code>127.0.0.1</code>. It opens through an owner-only temporary launcher and requires a private local browser session for every Shot read or mutation. Intentions, reference images, Shots, builds, and execution records are not uploaded to tohseno.com. Temporary browser uploads are removed after the local request finishes or fails safely.</p>
+          <p>Each Shot keeps its exact intention package, reference copies, feedback, and harness execution records inside gitignored <code>.tohseno</code> directories so the owner can move the complete Shot between their machines. Private input is not committed to the Shot’s Git history or written to centralized TOHSENO logs. After every coding-harness exit, the verifier independently compares the repository state and reports an accepted Evolution only when it passes the local gates. Anyone given the whole unfiltered Shot directory may also receive private material, so owners should inspect it before sharing an archive.</p>
+          <p>TOHSENO itself does not send creation input to a TOHSENO service. A coding agent selected by the owner can read that input to build the app; its provider is a separate trust boundary with its own account, privacy, and retention terms.</p>
+        </section>
+
+        <section>
+          <h2>Apps built on these rails</h2>
+          <p>Apps start from a neutral kernel with local, account-free defaults and no backend, analytics, writing, or identity assumption. Their manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations; an accepted app may therefore declare an owner-controlled or third-party service. TOHSENO itself operates no centralized content backend for generated apps and has no path for their users' content. Every app builds and runs without TOHSENO credentials.</p>
+        </section>
+
+        <section>
+          <h2>Contact</h2>
+          <p>This site is operated by Anky, Inc. Questions: <a href="mailto:support@anky.app">support@anky.app</a>.</p>
+        </section>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <span>{{FOOTER_OPERATOR}}</span>
+      <span><a href="/">Give every idea a shot.</a> {{FOOTER_DOCTRINE}}</span>
+    </footer>
+  </body>
+</html>

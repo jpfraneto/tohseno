@@ -1,6 +1,6 @@
 # TOHSENO protocol candidate specification
 
-Status: `1.0.0-rc.1`, codename `GENESIS`,
+Status: `0.7.0`, codename `GENESIS`,
 `protocol_candidate_not_canonical`.
 
 The key words MUST, MUST NOT, REQUIRED, SHOULD, and MAY are normative.
@@ -204,13 +204,16 @@ BuilderAccount uses CREATE2. Given factory address `F`, salt `S`, exact
 BuilderAccount creation bytecode `C`, and the initial P-256 public key:
 
 ```text
+device_key_id = Keccak-256(x32 || y32)
+S = SHA-256("TOHSENO-BUILDER-SALT-V1\0" || device_key_id)
 init_code = C || abi_word(x) || abi_word(y)
 address = low20(Keccak-256(0xff || F20 || S32 || Keccak-256(init_code)))
 BuilderID = "eip155:4663:" || lowercase_hex(address)
 ```
 
 P-256 coordinates already occupy one 32-byte ABI word each. Recovery authority
-MUST NOT affect the salt, init code, or predicted address.
+MUST NOT affect the salt, init code, or predicted address. Implementations use
+`identity::initial_builder_account_salt` after validating the initial key.
 
 ## EIP-712 public and device actions
 
@@ -263,6 +266,119 @@ device-authorization envelope.
 
 All type hashes, domain separators, struct hashes, and representative digests
 are frozen in `test-vectors/protocol-v1.json`.
+
+## Neutral coherent-intention lineage v2
+
+The stable ShotID identifies the committed coherent intention, not its Apple
+bundle, source tree, repository, controller, token, or current expression.
+ExpressionID is a random stable 32-byte identity independent of expression
+names and platforms. VersionID is:
+
+```text
+SHA-256(
+  "TOHSENO-VERSION-ID-V2\0" ||
+  ShotID32 || ExpressionID32 || u64be(ordinal) ||
+  genome_digest32 || source_digest32
+)
+```
+
+`tohseno.lineage-action/2` is a closed object containing exact protocol and
+schema versions, a positive JSON-safe sequence, previous action commitment,
+ShotID, Builder actor, canonical UTC timestamp, publisher handling
+declaration, internally tagged closed payload, and payload digest. The payload
+digest is `SHA-256(RFC8785(payload))`. The action commitment and signing digest
+are `SHA-256(RFC8785(action))`. The unchanged `tohseno.signature/1` P-256
+sidecar signs that digest once and still requires a curve-valid key and low-s
+signature.
+
+Sequence 1/null must be the commitment. It binds the original intention record
+commitment, initial controller, initial P-256 controller key, origin, and time.
+The original Intention action may appear later but must match the committed
+digest and may appear only once. The reducer rejects gaps, replayed links,
+backward timestamps, a changed ShotID, an actor or signer that is not current
+authority, and every action-specific invalid transition.
+
+A Genome becomes current only through a proposal followed by an explicit
+acceptance referencing the proposal action. Revision 1 has no base. Later
+proposals name the exact current revision and digest and include a nonempty
+mutation summary. Ordinary Version records bind the current accepted genome;
+they cannot mutate it implicitly.
+
+Each Version binds Shot, expression, expression-local ordinal, accepted genome
+revision and digest, source digest, materialization provenance, exact
+capability-graph digest, successful verification action, known incompleteness,
+time, actor, and optional build identity/digest. The referenced
+VerificationResult MUST carry the same genome, source, candidate VersionID,
+known incompleteness, and capability-graph digest. A failed VerificationResult
+remains honest history but cannot produce an accepted Version. Feedback must
+reference an existing exact ExpressionID and VersionID, and an optional build
+identity must match that Version. Private Feedback must be carried by an
+`intentionally_private` action; public Feedback must be carried by a
+`publicly_available` action. The two declarations cannot disagree.
+
+An EvolutionaryIntent references selected Feedback by the commitment of the
+signed Feedback lineage action, never by the payload-only Feedback digest or a
+local filename. Every selected action must exist in the same reducible Shot
+lineage and bind the intent's exact `from_version_id` and ExpressionID.
+
+An Evolution that changes the genome must name an acceptance of the exact
+proposal selected by its EvolutionaryIntent, and that acceptance revision and
+digest must match the target Version. A genome-scoped intent cannot be
+finalized as an unchanged-genome Evolution.
+
+Organ declarations are immutable per `(ExpressionID, organ_id)`. Capability
+changes use new declaration identities; declarations are not mutable
+source-folder labels. The canonical graph is the RFC 8785 encoding of the full
+Organ objects sorted by ascending UTF-8 `organ_id`. Every member MUST have the
+same ExpressionID, Organ IDs MUST be unique, and every dependency MUST name a
+member of that graph:
+
+```text
+capability_graph_digest = SHA-256(
+  RFC8785(sort_by_organ_id([full Organ declarations]))
+)
+```
+
+A VerificationResult and the Version it authorizes MUST both name the digest
+of the exact current graph. The reducer recomputes the graph at both actions,
+so an Organ inserted after verification cannot inherit that result. Every
+declared Organ acceptance test MUST have a VerificationGate named:
+
+```text
+organ.<organ_id>.acceptance.<one-based ordinal>.<sha256(test UTF-8)>
+```
+
+The gate binds the exact declaration and contributes to the VerificationResult
+conjunction; it does not by itself prove that an external test runner is
+trustworthy. Evidence and verifier policy remain explicit. An Evolution whose
+Version graph digest changes MUST carry an `organ`-scoped desired change, and
+an `organ`-scoped intent cannot complete with an unchanged graph.
+
+Ownership actions are signed by the current controller and install the next
+BuilderID and controller key. Pure reduction trusts the initial declared
+BuilderID/key binding. Candidate policy must independently reproduce that
+BuilderID from the pinned factory before accepting a new production root.
+
+TokenAssociation is optional and chain-specific. Its address never supplies
+Shot, expression, version, or ownership identity. The v1 relations contract
+has one current Appcoin slot: any fresh authorized association replaces the
+current value, including an identical or conflicting one; event history
+preserves earlier values; removal must exactly match the current pair; stale
+nonces replay-fail. `8453` is Base mainnet and is valid. An optional anchor may
+live on a different witness chain than the token.
+
+Availability states are `absent`, `unknown`, `intentionally_private`,
+`locally_available`, `publicly_available`, `replicated`,
+`cryptographically_verified`, and `on_chain_anchored`. They are not a ladder:
+private is not a weaker public state, and an anchor does not imply byte
+availability. Signed actions declare only private or public handling.
+Artifact-availability actions record later observations without rewriting the
+referenced record.
+
+`adapt_v1_lineage` first runs the frozen `/1` verifier and then derives neutral
+ExpressionID and VersionIDs under separate legacy domains. It preserves each
+original `ShotRecord` and `SignatureSidecar` verbatim. It does not manufacture
+historical genome, feedback, availability, ownership, or signatures.
 
 ## Pairing and continuity
 

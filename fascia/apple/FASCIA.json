@@ -3,7 +3,7 @@
   "schema": "tohseno.apple-fascia-definition/1",
   "fascia": "tohseno.apple/1",
   "candidate": {
-    "version": "1.0.0-rc.1",
+    "version": "0.7.0",
     "codename": "GENESIS",
     "status": "protocol_candidate_not_canonical"
   },
@@ -91,9 +91,14 @@
       "name": "TohsenoMetadata",
       "source": "TohsenoFascia/TohsenoMetadata.swift",
       "requirements": [
+        "strict_schema_dispatch",
+        "v1_history_compatibility",
         "shot_id",
-        "sequence",
-        "evolution_commitment",
+        "expression_id_for_v2",
+        "version_id_for_v2",
+        "genome_revision_and_digest_for_v2",
+        "lineage_head_for_v2",
+        "source_and_build_identity_for_v2",
         "builder_id",
         "factory",
         "distribution",
@@ -162,13 +167,18 @@
   "provenance": {
     "required_fields": [
       "protocol",
+      "protocol_version",
       "schema",
       "fascia",
       "shot_id",
       "builder_id",
-      "sequence",
-      "previous",
-      "evolution_commitment",
+      "expression_id",
+      "version_id",
+      "version_ordinal",
+      "genome_revision",
+      "genome_digest",
+      "lineage_sequence",
+      "lineage_head",
       "source_tree_sha256",
       "fascia_sha256",
       "factory",
@@ -180,7 +190,8 @@
     ],
     "optional_fields": [
       "registry",
-      "origin"
+      "build_digest",
+      "legacy_v1_evolution_commitment"
     ],
     "forbidden_fields": [
       "builder_device_private_key",
@@ -197,7 +208,7 @@
       "published",
       "app_store"
     ],
-    "bundle_version_rule": "CFBundleVersion_equals_sequence",
+    "bundle_version_rule": "CFBundleVersion_equals_expression_version_ordinal",
     "apple_surfaces_from_project": true,
     "app_store_attestation_explicit": true
   },

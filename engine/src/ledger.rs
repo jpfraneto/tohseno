@@ -1,3 +1,4 @@
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -5,12 +6,15 @@ use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tohseno_protocol::digest::ShotId;
+use tohseno_protocol::digest::{ExpressionId, ShotId};
 use tohseno_protocol::identity::BuilderId;
+use tohseno_protocol::lineage::AdaptedV1Lineage;
+use tohseno_protocol::record::ShotRecord;
+use tohseno_protocol::signature::SignatureSidecar;
 
 const APP_RECORD_LIMIT: u64 = 1024 * 1024;
 const COMPLETE_MARKER: &[u8] = b"complete\n";
-const DEFAULT_CANDIDATE_DATA_DIRECTORY: &str = ".tohseno-genesis";
+const DEFAULT_MACHINE_DATA_DIRECTORY: &str = ".tohseno";
 const DEFAULT_FAMILY_DIRECTORY: &str = "Desktop/Tohseno";
 /// The in-folder ledger every Shot carries (ADR 0003).
 const APP_LEDGER_DIRECTORY: &str = ".tohseno";
@@ -71,7 +75,14 @@ impl From<toml::ser::Error> for LedgerError {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AppRecord {
+    /// The current human-facing folder name. This may change without
+    /// changing Shot identity, bundle identity, or the Xcode target name.
     pub name: String,
+    /// The Xcode scheme/product name chosen when the first expression was
+    /// created. Older app.toml files omit it, in which case `name` is the
+    /// compatible target name until the folder is renamed.
+    #[serde(default)]
+    pub target_name: Option<String>,
     pub bundle_id: String,
     pub created_at_unix: u64,
     /// Accepts the pre-rename key so no existing ledger's head is zeroed.
@@ -83,10 +94,20 @@ pub struct AppRecord {
     /// Absent only for ledgers created before the Genesis protocol candidate.
     #[serde(default)]
     pub builder_id: Option<BuilderId>,
+    /// Stable identity of the native Apple expression represented by this
+    /// working folder. Absent only until an older ledger is migrated.
+    #[serde(default)]
+    pub expression_id: Option<ExpressionId>,
     #[serde(default)]
     pub retired: bool,
     #[serde(default)]
     pub parents: BTreeMap<String, u32>,
+}
+
+impl AppRecord {
+    pub fn target_name(&self) -> &str {
+        self.target_name.as_deref().unwrap_or(&self.name)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -176,10 +197,7 @@ impl Ledger {
             }
             None => home.join(DEFAULT_FAMILY_DIRECTORY),
         };
-        // This binary is the isolated Genesis candidate. The already-shipped
-        // v0.6 binary retains its own `~/.tohseno` default; candidate code
-        // must never discover or mutate that stable ledger implicitly.
-        Ok(Self::at_homes(family, default_candidate_data_root(home)))
+        Ok(Self::at_homes(family, default_machine_data_root(home)))
     }
 
     /// Resolves the ledger for a specific app folder, wherever it stands —
@@ -214,7 +232,7 @@ impl Ledger {
                         "HOME is not set",
                     ))
                 })?;
-                default_candidate_data_root(Path::new(&home))
+                default_machine_data_root(Path::new(&home))
             }
         };
         Ok((Self::at_homes(parent, machine_root), name))
@@ -313,11 +331,13 @@ impl Ledger {
         fs::create_dir(self.evolutions_dir(name))?;
         let record = AppRecord {
             name: name.into(),
+            target_name: Some(name.into()),
             bundle_id: bundle_id.into(),
             created_at_unix: now_unix(),
             latest_evolution: None,
             shot_id: None,
             builder_id: None,
+            expression_id: None,
             retired: false,
             parents: BTreeMap::new(),
         };
@@ -341,11 +361,13 @@ impl Ledger {
         fs::create_dir(self.evolutions_dir(name))?;
         let record = AppRecord {
             name: name.into(),
+            target_name: Some(name.into()),
             bundle_id: bundle_id.into(),
             created_at_unix: now_unix(),
             latest_evolution: None,
             shot_id: None,
             builder_id: None,
+            expression_id: None,
             retired: false,
             parents: BTreeMap::new(),
         };
@@ -393,8 +415,18 @@ impl Ledger {
             toml::from_str::<AppRecord>(std::str::from_utf8(&encoded).map_err(|error| {
                 LedgerError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
             })?)?;
-        validate_app_record(&record, name)?;
+        validate_app_record_at(&record, name)?;
+        let renamed = record.name != name;
+        if renamed {
+            if record.target_name.is_none() {
+                record.target_name = Some(record.name.clone());
+            }
+            record.name = name.into();
+        }
         self.recover_interrupted_finalization(&mut record)?;
+        if renamed {
+            self.write_record(&record)?;
+        }
         Ok(record)
     }
 
@@ -553,6 +585,7 @@ impl Ledger {
             (None, None) => {
                 record.shot_id = Some(shot_id);
                 record.builder_id = Some(builder_id);
+                record.expression_id = Some(ExpressionId::random());
                 self.write_record(&record)?;
                 Ok(record)
             }
@@ -563,6 +596,34 @@ impl Ledger {
             }
             _ => Err(LedgerError::Corrupt(format!(
                 "{app_name} has conflicting or partial protocol identity"
+            ))),
+        }
+    }
+
+    /// Fill the expression identity for a pre-v2 ledger exactly once.
+    ///
+    /// Native Shots use a random ExpressionID at creation. A frozen v1
+    /// lineage uses the protocol's deterministic compatibility derivation.
+    pub fn bind_expression_identity(
+        &self,
+        app_name: &str,
+        expression_id: ExpressionId,
+    ) -> Result<AppRecord, LedgerError> {
+        if expression_id.is_zero() {
+            return Err(LedgerError::Corrupt(
+                "expression identity must not be zero".into(),
+            ));
+        }
+        let mut record = self.load_app(app_name)?;
+        match record.expression_id {
+            None => {
+                record.expression_id = Some(expression_id);
+                self.write_record(&record)?;
+                Ok(record)
+            }
+            Some(existing) if existing == expression_id => Ok(record),
+            Some(_) => Err(LedgerError::Corrupt(format!(
+                "{app_name} already has a different ExpressionID"
             ))),
         }
     }
@@ -627,6 +688,191 @@ impl Ledger {
         }
         shots.sort_by_key(|shot| shot.number);
         Ok(shots)
+    }
+
+    /// Verify and project the frozen signed v1 Evolution chain without
+    /// rewriting, re-signing, or inventing historical genome facts.
+    ///
+    /// This is the compatibility boundary for current Shot repositories.
+    /// The returned protocol adapter marks intention/genome availability
+    /// honestly and derives stable neutral Expression/Version IDs.
+    pub fn adapt_v1_lineage(&self, app_name: &str) -> Result<AdaptedV1Lineage, LedgerError> {
+        let evolutions = self.list_evolutions(app_name)?;
+        if evolutions.is_empty() {
+            return Err(LedgerError::Corrupt(format!(
+                "{app_name} has no completed v1 Evolution to migrate"
+            )));
+        }
+        let mut records = Vec::with_capacity(evolutions.len());
+        let mut signatures = Vec::with_capacity(evolutions.len());
+        for evolution in evolutions {
+            records.push(read_bounded_json::<ShotRecord>(
+                &evolution.path.join("TOHSENO/shot.json"),
+            )?);
+            signatures.push(read_bounded_json::<SignatureSidecar>(
+                &evolution.path.join("TOHSENO/signature.json"),
+            )?);
+        }
+        let entries = records
+            .iter()
+            .zip(&signatures)
+            .collect::<Vec<(&ShotRecord, &SignatureSidecar)>>();
+        tohseno_protocol::adapt_v1_lineage(&entries)
+            .map_err(|error| LedgerError::Corrupt(format!("v1 lineage is invalid: {error}")))
+    }
+
+    /// Idempotently bind a current ledger to the identities proven by its
+    /// frozen v1 chain. Signed v1 records remain untouched.
+    pub fn migrate_v1_identity(&self, app_name: &str) -> Result<AdaptedV1Lineage, LedgerError> {
+        let adapted = self.adapt_v1_lineage(app_name)?;
+        let mut app = self.load_app(app_name)?;
+        if app.shot_id.is_some_and(|value| value != adapted.shot_id)
+            || app
+                .builder_id
+                .is_some_and(|value| value != adapted.controller)
+            || app
+                .expression_id
+                .is_some_and(|value| value != adapted.expression_id)
+        {
+            return Err(LedgerError::Corrupt(format!(
+                "{app_name} identity conflicts with its verified v1 lineage"
+            )));
+        }
+        let changed =
+            app.shot_id.is_none() || app.builder_id.is_none() || app.expression_id.is_none();
+        app.shot_id = Some(adapted.shot_id);
+        app.builder_id = Some(adapted.controller);
+        app.expression_id = Some(adapted.expression_id);
+        if changed {
+            self.write_record(&app)?;
+        }
+        Ok(adapted)
+    }
+
+    /// Copy one or every v0.6 app from the hidden stable ledger into the
+    /// folder-shaped 0.7 family without modifying or deleting the old bytes.
+    ///
+    /// The destination is assembled and validated under a private sibling
+    /// directory, then renamed into place. Existing destination folders,
+    /// symlinks, special files, and malformed legacy records fail closed.
+    pub fn migrate_legacy_v0_6_apps(
+        &self,
+        selected: Option<&str>,
+    ) -> Result<Vec<String>, LedgerError> {
+        let legacy_apps = self.machine_root.join("apps");
+        let metadata = match fs::symlink_metadata(&legacy_apps) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(LedgerError::Corrupt(
+                "legacy v0.6 apps path is not a real directory".into(),
+            ));
+        }
+
+        self.initialize()?;
+        let names = if let Some(name) = selected {
+            validate_app_name(name)?;
+            vec![name.to_owned()]
+        } else {
+            let mut names = Vec::new();
+            for entry in fs::read_dir(&legacy_apps)? {
+                let entry = entry?;
+                let name = entry.file_name();
+                let Some(name) = name.to_str() else {
+                    return Err(LedgerError::Corrupt(
+                        "legacy v0.6 app name is not UTF-8".into(),
+                    ));
+                };
+                validate_app_name(name)?;
+                let metadata = entry.metadata()?;
+                if !metadata.is_dir() || entry.file_type()?.is_symlink() {
+                    return Err(LedgerError::Corrupt(format!(
+                        "legacy v0.6 app {name} is not a real directory"
+                    )));
+                }
+                names.push(name.to_owned());
+            }
+            names.sort();
+            names
+        };
+
+        let mut migrated = Vec::with_capacity(names.len());
+        for name in names {
+            let source_app = legacy_apps.join(&name);
+            require_real_directory(&source_app)?;
+            let destination = self.working_tree(&name);
+            if fs::symlink_metadata(&destination).is_ok() {
+                return Err(LedgerError::AppExists(name));
+            }
+
+            let record_path = source_app.join("app.toml");
+            let record_metadata = fs::symlink_metadata(&record_path)?;
+            if record_metadata.file_type().is_symlink()
+                || !record_metadata.is_file()
+                || record_metadata.len() > APP_RECORD_LIMIT
+            {
+                return Err(LedgerError::Corrupt(format!(
+                    "legacy v0.6 app {name} has an unsafe app.toml"
+                )));
+            }
+            let encoded =
+                read_unchanged_regular_file(&record_path, APP_RECORD_LIMIT, &record_metadata)?;
+            let record =
+                toml::from_str::<AppRecord>(std::str::from_utf8(&encoded).map_err(|error| {
+                    LedgerError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+                })?)?;
+            if record.name != name {
+                return Err(LedgerError::Corrupt(format!(
+                    "legacy v0.6 app directory {name} contains record for {}",
+                    record.name
+                )));
+            }
+            let latest = record.latest_evolution.ok_or_else(|| {
+                LedgerError::Corrupt(format!(
+                    "legacy v0.6 app {name} has no completed Shot to migrate"
+                ))
+            })?;
+            let latest_source = source_app
+                .join("shots")
+                .join(format!("{latest:04}"))
+                .join("src");
+            require_real_directory(&latest_source)?;
+
+            let staging_parent = reserve_legacy_migration_stage(&self.root)?;
+            let staged_app = staging_parent.join(&name);
+            let result = (|| -> Result<(), LedgerError> {
+                fs::create_dir(&staged_app)?;
+                copy_legacy_tree(&latest_source, &staged_app, true)?;
+                let staged_ledger = staged_app.join(APP_LEDGER_DIRECTORY);
+                fs::create_dir(&staged_ledger)?;
+                fs::copy(&record_path, staged_ledger.join("app.toml"))?;
+                copy_legacy_tree(
+                    &source_app.join("shots"),
+                    &staged_ledger.join("evolutions"),
+                    false,
+                )?;
+
+                let validator = Ledger::at_homes(staging_parent.clone(), self.machine_root.clone());
+                let validated = validator.load_app(&name)?;
+                if validated.latest_evolution != Some(latest) {
+                    return Err(LedgerError::Corrupt(format!(
+                        "legacy v0.6 app {name} changed during migration"
+                    )));
+                }
+                fs::rename(&staged_app, &destination)?;
+                Ok(())
+            })();
+            let cleanup_result = fs::remove_dir_all(&staging_parent);
+            if let Err(error) = result {
+                let _ = cleanup_result;
+                return Err(error);
+            }
+            cleanup_result?;
+            migrated.push(name);
+        }
+        Ok(migrated)
     }
 
     fn assert_writable(&self, shot: &Evolution) -> Result<(), LedgerError> {
@@ -870,6 +1116,7 @@ fn prune_extraneous_entries(
             .collect::<Vec<_>>()
             .join("/");
         if tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
+            || crate::shot_layout::is_shot_level_path(&relative)
             || relative.chars().any(char::is_control)
         {
             continue;
@@ -912,6 +1159,7 @@ fn copy_working_entries(
         // rather than sealed.
         if tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
             || tohseno_protocol::tree_hash::exclusion_reason(&relative).is_some()
+            || crate::shot_layout::is_shot_level_path(&relative)
             || relative.chars().any(char::is_control)
             || entry.file_name().to_str().is_none()
         {
@@ -976,8 +1224,72 @@ fn next_sequence(record: &AppRecord) -> Result<u32, LedgerError> {
         .ok_or_else(|| LedgerError::Corrupt(format!("{} exhausted the shot sequence", record.name)))
 }
 
-fn default_candidate_data_root(home: &Path) -> PathBuf {
-    home.join(DEFAULT_CANDIDATE_DATA_DIRECTORY)
+fn reserve_legacy_migration_stage(root: &Path) -> Result<PathBuf, LedgerError> {
+    for ordinal in 1_u32..=1_000 {
+        let path = root.join(format!(
+            ".tohseno-v0.6-migration-{}-{}-{ordinal:04}",
+            std::process::id(),
+            now_unix()
+        ));
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err(LedgerError::Corrupt(
+        "could not reserve a private legacy migration directory".into(),
+    ))
+}
+
+fn copy_legacy_tree(
+    source: &Path,
+    destination: &Path,
+    reject_embedded_ledger: bool,
+) -> Result<(), LedgerError> {
+    require_real_directory(source)?;
+    match fs::symlink_metadata(destination) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(unsafe_path_error());
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(destination)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_name = entry.file_name();
+        if reject_embedded_ledger && file_name == APP_LEDGER_DIRECTORY {
+            return Err(LedgerError::Corrupt(
+                "legacy source contains an unexpected embedded .tohseno ledger".into(),
+            ));
+        }
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if metadata.file_type().is_symlink() {
+            return Err(LedgerError::Corrupt(format!(
+                "legacy v0.6 tree contains symlink {}",
+                entry.path().display()
+            )));
+        }
+        let target = destination.join(&file_name);
+        if metadata.is_dir() {
+            copy_legacy_tree(&entry.path(), &target, false)?;
+        } else if metadata.is_file() {
+            fs::copy(entry.path(), target)?;
+        } else {
+            return Err(LedgerError::Corrupt(format!(
+                "legacy v0.6 tree contains special file {}",
+                entry.path().display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn default_machine_data_root(home: &Path) -> PathBuf {
+    home.join(DEFAULT_MACHINE_DATA_DIRECTORY)
 }
 
 fn require_real_shot_directory(path: &Path, number: u32) -> Result<(), LedgerError> {
@@ -1100,6 +1412,18 @@ fn read_unchanged_regular_file(
     Ok(bytes)
 }
 
+fn read_bounded_json<T: DeserializeOwned>(path: &Path) -> Result<T, LedgerError> {
+    const PROTOCOL_JSON_LIMIT: u64 = 4 * 1024 * 1024;
+    let metadata = fs::symlink_metadata(path)?;
+    let bytes = read_unchanged_regular_file(path, PROTOCOL_JSON_LIMIT, &metadata)?;
+    serde_json::from_slice(&bytes).map_err(|error| {
+        LedgerError::Corrupt(format!(
+            "{} is not canonical protocol JSON: {error}",
+            path.display()
+        ))
+    })
+}
+
 #[cfg(unix)]
 fn same_file_version(left: &Metadata, right: &Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -1185,13 +1509,26 @@ fn unsafe_path_error() -> LedgerError {
 }
 
 fn validate_app_record(record: &AppRecord, expected_name: &str) -> Result<(), LedgerError> {
-    validate_app_name(expected_name)?;
-    validate_app_name(&record.name)?;
+    validate_app_record_at(record, expected_name)?;
     if record.name != expected_name {
         return Err(LedgerError::Corrupt(format!(
             "app.toml names {} inside the {expected_name} directory",
             record.name
         )));
+    }
+    Ok(())
+}
+
+fn validate_app_record_at(record: &AppRecord, expected_name: &str) -> Result<(), LedgerError> {
+    validate_app_name(expected_name)?;
+    validate_app_name(&record.name)?;
+    if let Some(target_name) = &record.target_name {
+        validate_app_name(target_name)?;
+    }
+    if record.expression_id.is_some_and(ExpressionId::is_zero) {
+        return Err(LedgerError::Corrupt(
+            "app.toml contains a zero ExpressionID".into(),
+        ));
     }
     if record.bundle_id.is_empty()
         || record.bundle_id.len() > 255
@@ -1341,6 +1678,48 @@ mod tests {
     }
 
     #[test]
+    fn legacy_v0_6_migration_copies_into_a_visible_folder_without_deleting_history() {
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let legacy = machine.join("apps/field-notebook");
+        fs::create_dir_all(legacy.join("shots/0001/src")).unwrap();
+        fs::create_dir_all(legacy.join("shots/0001/images")).unwrap();
+        fs::create_dir_all(legacy.join("shots/0001/artifact")).unwrap();
+        fs::write(
+            legacy.join("app.toml"),
+            "name = \"field-notebook\"\n\
+             bundle_id = \"com.tohseno.test.field-notebook\"\n\
+             created_at_unix = 1\n\
+             latest_shot = 1\n\
+             retired = false\n",
+        )
+        .unwrap();
+        fs::write(
+            legacy.join("shots/0001/src/App.swift"),
+            b"struct FieldNotebook {}\n",
+        )
+        .unwrap();
+        fs::write(legacy.join("shots/0001/.complete"), COMPLETE_MARKER).unwrap();
+
+        let ledger = Ledger::at_homes(&family, &machine);
+        let migrated = ledger.migrate_legacy_v0_6_apps(None).unwrap();
+        assert_eq!(migrated, ["field-notebook"]);
+        assert_eq!(
+            fs::read(family.join("field-notebook/App.swift")).unwrap(),
+            b"struct FieldNotebook {}\n"
+        );
+        assert!(family
+            .join("field-notebook/.tohseno/evolutions/0001/.complete")
+            .is_file());
+        assert!(legacy.join("shots/0001/src/App.swift").is_file());
+        assert!(matches!(
+            ledger.migrate_legacy_v0_6_apps(Some("field-notebook")),
+            Err(LedgerError::AppExists(_))
+        ));
+    }
+
+    #[test]
     fn snapshot_and_checkout_keep_the_working_tree_and_seal_in_agreement() {
         let temporary = tempfile::tempdir().unwrap();
         let ledger = Ledger::at(temporary.path());
@@ -1355,6 +1734,16 @@ mod tests {
         fs::write(working.join(".DS_Store"), b"finder\n").unwrap();
         fs::create_dir(working.join(".git")).unwrap();
         fs::write(working.join(".git/HEAD"), b"ref\n").unwrap();
+        // Shot-level working surfaces remain beside the expression but never
+        // enter its immutable v1 source world.
+        fs::write(working.join("INTENTION.md"), b"exact private intention\n").unwrap();
+        fs::write(working.join("GENOME.md"), b"# Accepted genome\n").unwrap();
+        fs::create_dir_all(working.join("feedback/versions/0001")).unwrap();
+        fs::write(
+            working.join("feedback/versions/0001/note.txt"),
+            b"private feedback\n",
+        )
+        .unwrap();
 
         let shot = ledger.reserve_evolution("press", None).unwrap();
         ledger.snapshot_working_tree(&shot).unwrap();
@@ -1362,8 +1751,11 @@ mod tests {
         assert!(!shot.source_path().join(".DS_Store").exists());
         assert!(!shot.source_path().join(".git").exists());
         assert!(!shot.source_path().join(".tohseno").exists());
+        assert!(!shot.source_path().join("INTENTION.md").exists());
+        assert!(!shot.source_path().join("GENOME.md").exists());
+        assert!(!shot.source_path().join("feedback").exists());
         assert_eq!(
-            tohseno_protocol::tree_hash::hash_working_tree(&working)
+            crate::shot_layout::hash_expression_working_tree(&working)
                 .unwrap()
                 .digest,
             tohseno_protocol::tree_hash::hash_source_tree(&shot.source_path())
@@ -1391,10 +1783,66 @@ mod tests {
         assert!(!working.join("scratch.swift").exists());
         assert!(working.join(".git/HEAD").is_file());
         assert!(working.join(".tohseno/app.toml").is_file());
+        assert_eq!(
+            fs::read(working.join("INTENTION.md")).unwrap(),
+            b"exact private intention\n"
+        );
+        assert!(working.join("feedback/versions/0001/note.txt").is_file());
         assert!(working
             .join("press.xcodeproj/xcuserdata/state.plist")
             .is_file());
         assert!(working.join("Certs/key.pem").is_file());
+    }
+
+    #[test]
+    fn folder_rename_and_move_preserve_shot_and_expression_target_identity() {
+        let temporary = tempfile::tempdir().unwrap();
+        let first_home = temporary.path().join("first");
+        let second_home = temporary.path().join("second");
+        let machine = temporary.path().join("machine");
+        fs::create_dir_all(&first_home).unwrap();
+        fs::create_dir_all(&second_home).unwrap();
+        let ledger = Ledger::at_homes(&first_home, &machine);
+        ledger.initialize().unwrap();
+        ledger
+            .create_app("quiet-place", "com.tohseno.test.quiet-place")
+            .unwrap();
+        let shot_id = tohseno_protocol::digest::ShotId::from_bytes([0x44; 32]);
+        let builder_id = tohseno_protocol::identity::BuilderId::new(
+            tohseno_protocol::digest::Address20::from_bytes([0x55; 20]),
+        );
+        let bound = ledger
+            .bind_protocol_identity("quiet-place", shot_id, builder_id)
+            .unwrap();
+        let expression_id = bound.expression_id.unwrap();
+        let first = ledger.reserve_evolution("quiet-place", None).unwrap();
+        ledger
+            .write_evolution_file(&first, "prompt.md", b"original")
+            .unwrap();
+        ledger.finalize_evolution(&first).unwrap();
+
+        let moved = second_home.join("calm-home");
+        fs::rename(first_home.join("quiet-place"), &moved).unwrap();
+        let moved_ledger = Ledger::at_homes(&second_home, &machine);
+        let record = moved_ledger.load_app("calm-home").unwrap();
+        assert_eq!(record.name, "calm-home");
+        assert_eq!(record.target_name(), "quiet-place");
+        assert_eq!(record.shot_id, Some(shot_id));
+        assert_eq!(record.builder_id, Some(builder_id));
+        assert_eq!(record.expression_id, Some(expression_id));
+        assert_eq!(record.latest_evolution, Some(1));
+        assert_eq!(
+            moved_ledger
+                .latest_evolution("calm-home")
+                .unwrap()
+                .unwrap()
+                .number,
+            1
+        );
+
+        let persisted = fs::read_to_string(moved.join(".tohseno/app.toml")).unwrap();
+        assert!(persisted.contains("name = \"calm-home\""));
+        assert!(persisted.contains("target_name = \"quiet-place\""));
     }
 
     #[test]
@@ -1416,15 +1864,15 @@ mod tests {
     }
 
     #[test]
-    fn candidate_default_cannot_alias_the_stable_data_root() {
+    fn stable_machine_state_and_visible_family_roots_are_distinct() {
         let home = Path::new("/Users/example");
         assert_eq!(
-            default_candidate_data_root(home),
-            Path::new("/Users/example/.tohseno-genesis")
+            default_machine_data_root(home),
+            Path::new("/Users/example/.tohseno")
         );
         assert_ne!(
-            default_candidate_data_root(home),
-            Path::new("/Users/example/.tohseno")
+            default_machine_data_root(home),
+            home.join(DEFAULT_FAMILY_DIRECTORY)
         );
     }
 

@@ -1,6 +1,6 @@
 # ADR 0001: DeviceKey replacement and account recovery are deferred
 
-Status: accepted for `1.0.0-rc.1` (`GENESIS`)
+Status: accepted for `0.7.0` (`GENESIS`)
 
 ## Context
 

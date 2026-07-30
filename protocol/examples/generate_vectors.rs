@@ -59,7 +59,7 @@ fn main() {
         fascia_sha256: Bytes32::new([0x55; 32]),
         factory: FactoryDescriptor {
             implementation: "tohseno/genesis-factory".into(),
-            version: "1.0.0-rc.1".into(),
+            version: "0.7.0".into(),
             source_commit: "0123456789abcdef0123456789abcdef01234567".into(),
         },
         created_at: CanonicalTimestamp::parse("2026-07-28T12:34:56Z").unwrap(),
@@ -99,7 +99,7 @@ fn main() {
         fascia_sha256: Bytes32::new([0x55; 32]),
         factory: FactoryDescriptor {
             implementation: "tohseno/genesis-factory".into(),
-            version: "1.0.0-rc.1".into(),
+            version: "0.7.0".into(),
             source_commit: "0123456789abcdef0123456789abcdef01234567".into(),
         },
         created_at: CanonicalTimestamp::parse("2026-07-28T13:00:00Z").unwrap(),
@@ -354,7 +354,7 @@ fn main() {
     let compact = encode_compact(&public_key, &create_signature).unwrap();
     let vector = json!({
         "schema": "tohseno.test-vectors/1",
-        "candidate": "1.0.0-rc.1",
+        "candidate": "0.7.0",
         "fixed_p256_key": {
             "public_key": public_key,
             "device_key_id": device_key_id(&public_key),

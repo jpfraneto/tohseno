@@ -1,0 +1,34 @@
+[package]
+name = "tohseno-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "A partial, protocol-driven public lineage node for TOHSENO"
+publish = false
+
+[lib]
+name = "tohseno_node"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tohseno-node"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.8.6", features = ["http1", "json", "tokio"] }
+bytes = "1.10.1"
+clap.workspace = true
+libc = "0.2.177"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "2.0.17"
+tokio.workspace = true
+tohseno-protocol = { path = "../protocol" }
+
+[dev-dependencies]
+p256 = { version = "0.13.2", features = ["ecdsa"] }
+tempfile.workspace = true

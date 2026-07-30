@@ -100,7 +100,7 @@ assert schema["properties"]["schema"]["const"] == manifest["schema"]
 assert set(schema["required"]) == set(schema["properties"])
 assert schema["additionalProperties"] is False
 assert manifest["candidate"] == {
-    "version": "1.0.0-rc.1",
+    "version": "0.7.0",
     "codename": "GENESIS",
     "status": "protocol_candidate_not_canonical",
 }

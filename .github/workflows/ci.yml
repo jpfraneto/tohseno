@@ -1,4 +1,4 @@
-name: genesis-candidate-ci
+name: stable-0.7-ci
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: genesis-candidate-ci-${{ github.workflow }}-${{ github.ref }}
+  group: stable-0.7-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -45,18 +45,36 @@ jobs:
             --example generate_vectors \
             >"$RUNNER_TEMP/protocol-v1.json"
           cmp "$RUNNER_TEMP/protocol-v1.json" protocol/test-vectors/protocol-v1.json
-      - name: Verify schemas are closed Draft 2020-12 JSON
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_v2_vectors \
+            >"$RUNNER_TEMP/app-metadata-v2.json"
+          cmp \
+            "$RUNNER_TEMP/app-metadata-v2.json" \
+            protocol/test-vectors/app-metadata-v2.json
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-protocol \
+            --example generate_lineage_v2_vectors \
+            >"$RUNNER_TEMP/lineage-v2.json"
+          cmp \
+            "$RUNNER_TEMP/lineage-v2.json" \
+            protocol/test-vectors/lineage-v2.json
+      - name: Check schema inventory and Draft 2020-12 declarations
         run: |
-          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 12
+          test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 32
           find protocol/schemas -type f -name '*.json' -print0 |
             xargs -0 -n1 jq -e \
               '."$schema" == "https://json-schema.org/draft/2020-12/schema"'
       - name: Candidate CLI smoke
         run: |
           cargo run --quiet --locked -p tohseno -- --json protocol info |
-            jq -e '.protocol == "tohseno" and .candidate_version == "1.0.0-rc.1"'
+            jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -F '1.0.0-rc.1'
+            grep -F '0.7.0'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -90,6 +108,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_USER_SCRIPT_SANDBOXING=YES \
             build
+      - name: Materialize and build the reusable Apple expression
+        run: engine/fixtures/apple-expression/test-materialize.sh
 
   contracts:
     name: Solidity, fuzz, invariants, and generated artifacts
@@ -111,8 +131,8 @@ jobs:
       - name: Reject stale ABI, bytecode, or deployment-plan artifacts
         run: scripts/build-contract-abi.sh --check
 
-  candidate-artifacts:
-    name: Static surfaces and deterministic candidate artifacts
+  release-artifacts:
+    name: Static surfaces and deterministic release artifacts
     needs: [rust, apple, contracts]
     runs-on: macos-15
     timeout-minutes: 40
@@ -132,12 +152,13 @@ jobs:
           test -s site/protocol/index.html
           test -s site/protocol/protocol.json
           node --check studio/app.js
+          node --test studio/tests/static_assets.test.mjs
           jq -e \
             '.protocol == "tohseno" and .canonical == false' \
             site/protocol/protocol.json
           jq -e \
             '.schema == "tohseno.genesis-candidate-report/1"
-             and .candidate.version == "1.0.0-rc.1"
+             and .candidate.version == "0.7.0"
              and .candidate.canonical_release == false
              and (.candidate.ready_for_prerelease | type == "boolean")
              and (.candidate.ready_for_cleanup | type == "boolean")
@@ -153,12 +174,30 @@ jobs:
                )
              )' \
             genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
+          jq -e \
+            '.schema == "tohseno.release-readiness/1"
+             and .version == "0.7.0"
+             and .channel == "stable"
+             and (.ready | type) == "boolean"
+             and (.authorization.authorized | type) == "boolean"
+             and (.protection.immutable_release_policy_verified | type) == "boolean"
+             and (.protection.release_tag_protection_verified | type) == "boolean"' \
+            release/V0_7_0_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
             echo "site/protocol must remain self-contained" >&2
             exit 1
           fi
+      - name: Public website and installer checks
+        run: |
+          cmp oneshot/oneshot.sh website/apps/site/public/oneshot.sh
+          cmp oneshot/oneshot.sh website/apps/site/public/install.sh
+          test -s website/apps/site/public/oneshot.sh
+          (
+            cd website
+            bun test
+          )
       - name: Installer and release-script syntax
         run: |
           find oneshot scripts fascia/apple/tests \
@@ -217,7 +256,7 @@ jobs:
             '"$object_sha" != "$GITHUB_SHA"',
             "verify_live_tag",
             "--draft",
-            "TOHSENO GENESIS source commit:",
+            "TOHSENO v0.7.0 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",
@@ -274,7 +313,7 @@ jobs:
             shasum -a 256 -c FILES.sha256
             jq -e \
               '.canonical_release == false
-               and .candidate_version == "1.0.0-rc.1"
+               and .candidate_version == "0.7.0"
                and .deployment.candidate.status
                    == "planned, undeployed, non-canonical and unaudited"' \
               GENESIS.json
@@ -288,9 +327,9 @@ jobs:
             "$RUNNER_TEMP/tohseno-genesis-materials-second.tar.gz"
           tar -tzf \
             "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz" >/dev/null
-      - name: Assemble and smoke-test the release-candidate package
+      - name: Assemble and smoke-test the stable release package
         run: |
-          scripts/release-candidate.sh
+          scripts/release.sh
           candidate_target="$(rustc -vV | awk '/^host:/ {print $2}')"
           package="dist/release-candidate/$candidate_target"
           (
@@ -300,15 +339,19 @@ jobs:
               --root .
             shasum -a 256 -c CHECKSUMS.sha256
             jq -e \
-              '.schema == "tohseno.release/1" and .dirty == false' \
+              '.schema == "tohseno.release/1"
+               and .version == "0.7.0"
+               and .channel == "stable"
+               and .prerelease == false
+               and .dirty == false' \
               RELEASE.json
           )
-          "$package/bin/tohseno" --version | grep -F '1.0.0-rc.1'
+          "$package/bin/tohseno" --version | grep -F '0.7.0'
           "$package/bin/tohseno-apple-identity" --version |
-            grep -F '1.0.0-rc.1'
+            grep -F '0.7.0'
           "$package/bin/tohseno" --json protocol info |
-            jq -e '.protocol == "tohseno" and .candidate_version == "1.0.0-rc.1"'
-          scripts/test-genesis-installer.sh \
+            jq -e '.protocol == "tohseno" and .candidate_version == "0.7.0"'
+          scripts/test-installer.sh \
             "$package" \
             "$RUNNER_TEMP/tohseno-genesis-materials-first.tar.gz"
       - name: Reject tracked generated drift

@@ -265,7 +265,7 @@ fn verify_sidecars(app: &AppRecord, shot: &Evolution) -> Result<VerifiedPageInpu
             "conformance has no passing record.signature check".into(),
         ));
     }
-    if record.slug != app.name
+    if record.slug != app.target_name()
         || record.bundle_id != app.bundle_id
         || record.sequence != shot.number
         || record.bundle_version != shot.number
@@ -486,7 +486,7 @@ a{{color:var(--blue);text-underline-offset:3px}}footer{{color:var(--muted);font-
 <section><h2>Registry candidate</h2>{registry_markup}</section>\n\
 {preview_markup}\
 {world_markup}\
-<footer>Generated from public Evolution facts and the world’s own story. TOHSENO protocol candidate 1.0.0-rc.1.</footer>\n\
+<footer>Generated from public Evolution facts and the world’s own story. TOHSENO protocol candidate 0.7.0.</footer>\n\
 </main>\n\
 </body>\n\
 </html>\n",
@@ -823,7 +823,7 @@ fn validate_deployment_plan(plan: &DeploymentPlan) -> Result<(), PageError> {
         || plan.schema != "tohseno.deployment-plan/1"
         || plan.chain.chain_id != ROBINHOOD_CHAIN_ID
         || plan.candidate.codename != "GENESIS"
-        || plan.candidate.version != "1.0.0-rc.1"
+        || plan.candidate.version != "0.7.0"
         || plan.candidate.status.is_empty()
         || plan.chain.name.is_empty()
         || plan.chain.p256verify == Address20::from_bytes([0; 20])

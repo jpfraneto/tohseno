@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/shot-commitment.schema.json",
+  "title": "TOHSENO Shot commitment v2",
+  "$ref": "ontology.schema.json#/$defs/shotCommitment"
+}

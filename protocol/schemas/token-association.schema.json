@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/token-association.schema.json",
+  "title": "TOHSENO optional token association v2",
+  "$ref": "ontology.schema.json#/$defs/tokenAssociation"
+}

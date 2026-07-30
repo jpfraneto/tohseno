@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/evolutionary-intent.schema.json",
+  "title": "TOHSENO evolutionary intent v2",
+  "$ref": "ontology.schema.json#/$defs/evolutionaryIntent"
+}

@@ -164,3 +164,54 @@ Schemas and vectors are versioned protocol material. A semantic change requires
 a new schema/candidate version and regenerated cross-language vectors. The
 generator prints vectors to stdout and never overwrites the frozen file.
 Review its diff, then run the conformance gates.
+
+## Integrating neutral lineage
+
+Parse `LineageAction` and every payload into the closed Rust type before
+canonicalization. Do not accept a lower `protocol_version` or `schema_version`
+through optional-field probing. Verify `payload_digest`, the action commitment,
+and the unchanged P-256 sidecar before storage.
+
+For a full prefix, call `reduce_lineage`. To ingest a continuation, retain the
+trusted `ShotState` and call `apply_lineage_actions`. A node that has only a
+middle segment may call `verify_lineage_segment` without an anchor, but must
+preserve `authority_context_available = false`; a valid signature alone does
+not establish current ownership. Retain competing causally valid heads instead
+of selecting whichever arrived last.
+
+Before admitting a new commitment as a production candidate, reproduce its
+BuilderID from the configured factory, salt, pinned BuilderAccount creation
+bytecode, and declared key. The neutral reducer intentionally cannot infer
+that deployment evidence. Derive the salt with
+`identity::initial_builder_account_salt`; do not duplicate or reinterpret its
+domain-separated law. After an Ownership action, require the new signer for
+every subsequent transition; the old signer fails even if its signature is
+cryptographically valid.
+
+Persist raw intention bytes separately when they are private. The canonical
+Intention record commits their exact digest, length, media type, and honest
+availability; inline text is optional and must hash byte-for-byte. Never
+publish a private artifact because its descriptor appears in public lineage.
+
+For Apple expressions, use the existing Fascia as the concrete capability
+source and project its declarations into Organ records. Do not replace Fascia
+or broaden the factory. The initial factory plan is one native iPhone
+Expression with the four bounded default Organs for installation identity,
+local memory, native navigation, and exact-version feedback. Reject the plan
+when any accepted Genome required capability is absent, an Organ does not
+support `iphone`, a dependency is not an earlier declared Organ, or a Genome
+platform commitment requires a different surface.
+
+Organ IDs are immutable. Canonicalize the full graph by sorting the complete
+Organ declarations by `organ_id`, RFC 8785 encoding the array, and hashing it
+with SHA-256. Do not hash map iteration order or a list of IDs. Put the exact
+digest in both VerificationResult and Version, and recompute it during
+reduction. Emit one deterministic VerificationGate for every declared Organ
+acceptance test; the gate name includes the full SHA-256 of the test text.
+Changing the text therefore requires a new gate result. Record graph
+transitions as `organ`-scoped EvolutionaryIntent changes.
+
+New generated apps use `tohseno.app-metadata/2` at the existing excluded
+`TOHSENO/embedded-provenance.json` path. Dispatch strict decoders by schema.
+Do not add another embedded identity file and do not change the frozen v1
+source-tree exclusions.

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/signed-lineage-action.schema.json",
+  "title": "TOHSENO signed append-only lineage action v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "signature"
+  ],
+  "properties": {
+    "action": {
+      "$ref": "lineage-action.schema.json"
+    },
+    "signature": {
+      "$ref": "signature.schema.json"
+    }
+  },
+  "$comment": "The unchanged tohseno.signature/1 sidecar signs SHA-256(RFC8785(action)); private keys are never present."
+}

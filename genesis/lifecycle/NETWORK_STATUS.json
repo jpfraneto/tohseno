@@ -1,6 +1,6 @@
 {
   "schema": "tohseno.network-status-evidence/1",
-  "checked_at": "2026-07-29T03:50:09Z",
+  "checked_at": "2026-07-30T18:05:25Z",
   "rpc": "https://rpc.mainnet.chain.robinhood.com",
   "request_policy": "read-only eth_chainId, eth_getCode, and eth_call",
   "result": {
@@ -34,21 +34,21 @@
         "status": "fail",
         "expected": "9846 bytes, keccak256 0x1f44f9fa643277e05f5a9d1f6a05b4cee9264c261a423021c5e0c7f5da3b312a",
         "observed": "no code at the planned address; candidate is undeployed",
-        "evidence": "rpc:eth_getCode:0xb802f0ef1595734f2529f602f2473d829d6aafaf"
+        "evidence": "rpc:eth_getCode:0x9a48926c82fe766fe599116dfc7111ba6f7171dd"
       },
       {
         "id": "network.code.shot_registry",
         "status": "fail",
         "expected": "8203 bytes, keccak256 0xac64e4933d88d40c18af598f7ebf7bc8f7b829e1a61acb8e380d4ac670f31478",
         "observed": "no code at the planned address; candidate is undeployed",
-        "evidence": "rpc:eth_getCode:0x5daf4fa6c285afb4b19978ad56a3892e7676cc68"
+        "evidence": "rpc:eth_getCode:0x02d2a9ed5ba8843b82b4e5976c686dce4af3ba5e"
       },
       {
         "id": "network.code.shot_relations",
         "status": "fail",
         "expected": "9199 bytes, keccak256 0x909ba083f6b186b08f80d5ea465878f7a0c909f1c65b11d2ed8ca11a40669de5",
         "observed": "no code at the planned address; candidate is undeployed",
-        "evidence": "rpc:eth_getCode:0xb7dc8acfbfc5d93146e4e88d12e5223a5e6a3b83"
+        "evidence": "rpc:eth_getCode:0x75abff418c4cad3c4bd56f467cc2737237dd6ea5"
       },
       {
         "id": "network.p256verify",
@@ -60,7 +60,7 @@
       {
         "id": "network.relations.registry",
         "status": "not_checked",
-        "expected": "0x5daf4fa6c285afb4b19978ad56a3892e7676cc68",
+        "expected": "0x02d2a9ed5ba8843b82b4e5976c686dce4af3ba5e",
         "observed": "registry or relations runtime code was not verified",
         "evidence": "rpc:eth_call:ShotRelations.registry()"
       }

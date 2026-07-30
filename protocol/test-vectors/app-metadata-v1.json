@@ -7,14 +7,14 @@
   "sequence": 1,
   "previous": null,
   "origin": null,
-  "evolution_commitment": "0x2a288795d803c6318c8742fb0167e8e80d574ec00ff8e80cc3654ce5bb690041",
+  "evolution_commitment": "0x4be2ec1058e59fd23b37219669358ceae9aca313d333223709c448294fe85f9c",
   "source_tree_sha256": "0x0404040404040404040404040404040404040404040404040404040404040404",
   "fascia_sha256": "0x0505050505050505050505050505050505050505050505050505050505050505",
   "bundle_id": "example.app",
   "bundle_version": 1,
   "factory": {
     "implementation": "example/factory",
-    "version": "1.0.0-rc.1",
+    "version": "0.7.0",
     "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "distribution": {

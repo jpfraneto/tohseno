@@ -43,7 +43,7 @@ Compress the previously imagined `0.7.0 → 1.0.0` progression into **one cohere
 The resulting code should be marked:
 
 ```text
-1.0.0-rc.1
+0.7.0
 codename: GENESIS
 status: protocol candidate, not canonical release
 ```
@@ -778,7 +778,7 @@ Define a normative schema equivalent to:
   "fascia_sha256": "0x...",
   "factory": {
     "implementation": "jpfraneto/tohseno",
-    "version": "1.0.0-rc.1",
+    "version": "0.7.0",
     "source_commit": "<git-commit>"
   },
   "created_at": "<RFC3339>"
@@ -1851,7 +1851,7 @@ The installer must:
 Update release automation to support a GitHub prerelease:
 
 ```text
-v1.0.0-rc.1
+v0.7.0
 ```
 
 Do not create that tag until all automated checks pass.
@@ -2295,13 +2295,13 @@ Advanced users and implementers can inspect every byte.
 
 After all automated checks and the local lifecycle pass:
 
-1. update the workspace version to `1.0.0-rc.1`;
+1. update the workspace version to `0.7.0`;
 2. update README and candidate documentation;
 3. generate schemas, vectors, ABIs, deployment files, and Genesis Bundle;
 4. ensure `git diff` contains no generated drift or secrets;
 5. commit coherent work with clear messages;
 6. push the current branch to `origin`;
-7. create `v1.0.0-rc.1` only if the complete candidate checks pass;
+7. create `v0.7.0` only if the complete candidate checks pass;
 8. mark the GitHub release as a prerelease;
 9. test the candidate installer from the released artifact;
 10. repeat the complete lifecycle using that artifact rather than the local build;

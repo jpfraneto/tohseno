@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/artifact-availability.schema.json",
+  "title": "TOHSENO honest artifact availability v2",
+  "$ref": "ontology.schema.json#/$defs/artifactAvailability"
+}

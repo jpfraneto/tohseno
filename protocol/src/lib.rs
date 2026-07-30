@@ -18,6 +18,8 @@ pub mod fascia;
 pub mod fascia_tree;
 pub mod genesis;
 pub mod identity;
+pub mod lineage;
+pub mod ontology;
 pub mod record;
 pub mod signature;
 pub mod tree_hash;
@@ -26,3 +28,13 @@ mod error;
 mod text;
 
 pub use error::{ProtocolError, Result};
+pub use lineage::{
+    adapt_v1_lineage, apply_lineage_actions, reduce_lineage, verify_lineage_segment, LineageAction,
+    LineagePayload, SignedLineageAction,
+};
+pub use ontology::{
+    canonical_capability_graph_bytes, capability_graph_digest, organ_acceptance_gate_name,
+    ArtifactAvailability, Evolution, EvolutionaryIntent, Expression, Feedback, Genome,
+    GenomeAcceptance, GenomeProposal, IntentionRecord, Organ, Ownership, ParentRelation,
+    ShotCommitment, TokenAssociation, VerificationResult, VersionRecord,
+};

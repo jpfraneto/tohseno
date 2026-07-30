@@ -57,13 +57,13 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
 
   deterministic_deployer="0x4e59b44847b379578588920ca78fbf26c0b4956c"
   factory_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 1.0.0-rc.1 BuilderAccountFactory"
+    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 BuilderAccountFactory"
   )"
   registry_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 1.0.0-rc.1 ShotRegistry"
+    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 ShotRegistry"
   )"
   relations_salt="$(
-    cast keccak "TOHSENO GENESIS CANDIDATE 1.0.0-rc.1 ShotRelations"
+    cast keccak "TOHSENO GENESIS CANDIDATE 0.7.0 ShotRelations"
   )"
 
   factory_init_code_hash="$(cast keccak "$factory_creation")"
@@ -110,7 +110,7 @@ mkdir -p "$temporary_directory/abi" "$temporary_directory/bytecode" "$temporary_
       schema: "tohseno.deployment-plan/1",
       protocol: "tohseno",
       candidate: {
-        version: "1.0.0-rc.1",
+        version: "0.7.0",
         codename: "GENESIS",
         status: "planned, undeployed, non-canonical and unaudited"
       },

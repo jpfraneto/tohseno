@@ -1,6 +1,6 @@
 # TOHSENO GENESIS candidate evidence
 
-This report records only evidence that exists. **GENESIS 1.0.0-rc.1 is a
+This report records only evidence that exists. **GENESIS 0.7.0 is a
 protocol candidate, not the canonical shipped protocol.** It is not ready for a
 prerelease: the physical-device Genesis lifecycle, real Shot, contract
 deployment, and public witness remain incomplete. It is also not ready for
@@ -201,7 +201,7 @@ installation, launch, restart, and refresh were not attempted or claimed.
 - No tag, prerelease, release URL, announcement, or Arweave publication exists.
   Machine-readable prerelease readiness and authorization are both `false`, so
   the release workflow also refuses publication. Verification of immutable
-  GitHub releases and a no-update/no-delete rule for `v1.0.0-rc.1` are also
+  GitHub releases and a no-update/no-delete rule for `v0.7.0` are also
   recorded as `false` and required before authorization. Cleanup readiness is
   separately `false`; it cannot become true until a published prerelease has
   been installed and exercised. Stable remains untouched.
@@ -238,8 +238,8 @@ scripts/build-genesis-archive.sh dist/tohseno-genesis-materials.tar.gz
 scripts/build-genesis-archive.sh dist/tohseno-genesis-materials-second.tar.gz
 cmp dist/tohseno-genesis-materials.tar.gz \
   dist/tohseno-genesis-materials-second.tar.gz
-TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE=1 scripts/release-candidate.sh
-scripts/test-genesis-installer.sh \
+TOHSENO_ALLOW_DIRTY_RELEASE=1 scripts/release.sh
+scripts/test-installer.sh \
   dist/release-candidate/aarch64-apple-darwin \
   dist/tohseno-genesis-materials.tar.gz
 cargo run --quiet --locked -p tohseno -- --json network status
@@ -268,7 +268,7 @@ smoke, and diff checks passed. Audit-only inspection commands are omitted.
 8. Associate an appcoin only after an exact address is supplied and the public
    Shot exists.
 9. Enable and verify GitHub release immutability plus a no-update/no-delete tag
-   rule for `v1.0.0-rc.1`. After every other pre-release gate passes, set those
+   rule for `v0.7.0`. After every other pre-release gate passes, set those
    recorded protections, prerelease readiness, and authorization to `true`,
    then create the prerelease. Install and exercise that published candidate;
    only after post-release acceptance may cleanup readiness become `true`.

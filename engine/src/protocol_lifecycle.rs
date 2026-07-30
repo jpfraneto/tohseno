@@ -8,6 +8,7 @@ use crate::builder_identity::{
 };
 use crate::gates::build;
 use crate::ledger::{AppRecord, Evolution, Ledger, LedgerError};
+use crate::shot_layout::ShotLayout;
 use crate::verifier;
 use bip39::{Language, Mnemonic};
 use serde::Serialize;
@@ -17,7 +18,7 @@ use std::path::Path;
 use std::process::Command;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
-use tohseno_protocol::app_metadata::AppMetadata;
+use tohseno_protocol::app_metadata::{AppMetadata, AppMetadataV2, EmbeddedAppMetadata};
 use tohseno_protocol::conformance::{
     CheckStatus, ConformanceCheck, ConformanceReport, CONFORMANCE_SCHEMA,
 };
@@ -37,7 +38,7 @@ use tohseno_protocol::signature::SignatureSidecar;
 use tohseno_protocol::tree_hash::hash_source_tree;
 
 const FACTORY_IMPLEMENTATION: &str = "jpfraneto/tohseno";
-const CANDIDATE_VERSION: &str = "1.0.0-rc.1";
+const CANDIDATE_VERSION: &str = "0.7.0";
 
 #[derive(Clone, Debug)]
 pub struct PreparedEvolution {
@@ -45,6 +46,7 @@ pub struct PreparedEvolution {
     pub fascia: FasciaManifest,
     pub commitment: Bytes32,
     provenance: AppMetadata,
+    provenance_v2: Option<AppMetadataV2>,
 }
 
 #[derive(Clone, Debug)]
@@ -53,6 +55,7 @@ pub struct CompletedEvolution {
     pub signature: SignatureSidecar,
     pub conformance: ConformanceReport,
     pub commitment: Bytes32,
+    pub app_metadata_v2: Option<AppMetadataV2>,
 }
 
 pub fn prepare_evolution(
@@ -107,7 +110,9 @@ pub fn prepare_evolution(
         protocol: PROTOCOL_NAME.into(),
         schema: SHOT_SCHEMA.into(),
         shot_id,
-        slug: app.name.clone(),
+        // v1's `slug` is also the Xcode product name. Keep it stable when
+        // the enclosing Shot folder's mutable display name changes.
+        slug: app.target_name().into(),
         builder_id,
         sequence: shot.number,
         previous,
@@ -145,7 +150,47 @@ pub fn prepare_evolution(
         fascia,
         commitment,
         provenance,
+        provenance_v2: None,
     })
+}
+
+/// Replace the frozen v1 transport metadata with the v2 expression/version
+/// identity that the accepted materialization will use. The v1 record remains
+/// signed compatibility evidence; the one bundled resource is schema-disjoint.
+#[allow(clippy::too_many_arguments)]
+pub fn bind_v2_app_metadata(
+    ledger: &Ledger,
+    shot: &Evolution,
+    prepared: &mut PreparedEvolution,
+    expression_id: tohseno_protocol::digest::ExpressionId,
+    version_id: tohseno_protocol::digest::VersionId,
+    version_ordinal: u64,
+    genome_revision: u64,
+    genome_digest: Bytes32,
+    lineage_sequence: u64,
+    lineage_head: Bytes32,
+    build_digest: Option<Bytes32>,
+) -> Result<AppMetadataV2, ProtocolLifecycleError> {
+    let metadata = AppMetadataV2::from_v1(
+        &prepared.provenance,
+        expression_id,
+        version_id,
+        version_ordinal,
+        genome_revision,
+        genome_digest,
+        lineage_sequence,
+        lineage_head,
+        build_digest,
+    )
+    .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
+    write_json(
+        ledger,
+        shot,
+        "src/TOHSENO/embedded-provenance.json",
+        &metadata,
+    )?;
+    prepared.provenance_v2 = Some(metadata.clone());
+    Ok(metadata)
 }
 
 pub fn complete_evolution(
@@ -164,7 +209,7 @@ pub fn complete_evolution(
     if app.shot_id != Some(prepared.record.shot_id)
         || app.builder_id != Some(prepared.record.builder_id)
         || app.bundle_id != prepared.record.bundle_id
-        || app.name != prepared.record.slug
+        || app.target_name() != prepared.record.slug
     {
         return Err(ProtocolLifecycleError::InvalidState(
             "app identity state changed while the generated project was building".into(),
@@ -190,12 +235,21 @@ pub fn complete_evolution(
         &prepared.fascia,
         "source Fascia",
     )?;
-    verify_exact_json_file(
-        shot,
-        "src/TOHSENO/embedded-provenance.json",
-        &prepared.provenance,
-        "embedded provenance",
-    )?;
+    if let Some(provenance) = &prepared.provenance_v2 {
+        verify_exact_json_file(
+            shot,
+            "src/TOHSENO/embedded-provenance.json",
+            provenance,
+            "embedded v2 provenance",
+        )?;
+    } else {
+        verify_exact_json_file(
+            shot,
+            "src/TOHSENO/embedded-provenance.json",
+            &prepared.provenance,
+            "embedded v1 provenance",
+        )?;
+    }
 
     let mut checks = local_checks(shot, &prepared)?;
     if checks.iter().any(|check| check.status != CheckStatus::Pass) {
@@ -262,6 +316,7 @@ pub fn complete_evolution(
         signature,
         conformance: report,
         commitment: prepared.commitment,
+        app_metadata_v2: prepared.provenance_v2,
     })
 }
 
@@ -341,17 +396,74 @@ fn previous_commitment(
 /// silently rewrite the append-only parent.
 pub fn verify_completed_evolution(shot: &Evolution) -> Result<(), ProtocolLifecycleError> {
     let report = verifier::verify_shot_directory(&shot.path, &reference_fascia_root()?);
-    if report.conformant {
-        Ok(())
-    } else {
+    if !report.conformant {
         let failures = report
             .checks
             .iter()
             .filter(|check| check.status == verifier::VerificationStatus::Fail)
             .map(|check| check.id.clone())
             .collect::<Vec<_>>();
-        Err(ProtocolLifecycleError::ConformanceFailed(failures))
+        return Err(ProtocolLifecycleError::ConformanceFailed(failures));
     }
+
+    let metadata = verifier::load_embedded_app_metadata(
+        &shot.source_path(),
+        "TOHSENO/embedded-provenance.json",
+    )
+    .map_err(|error| {
+        ProtocolLifecycleError::InvalidState(format!(
+            "completed Evolution embedded identity changed after conformance verification: {error}"
+        ))
+    })?;
+    if let EmbeddedAppMetadata::V2(metadata) = metadata {
+        let layout = completed_evolution_shot_layout(shot)?;
+        layout
+            .verify_accepted_apple_metadata(&metadata)
+            .map_err(|error| {
+                ProtocolLifecycleError::InvalidState(format!(
+                    "completed Evolution v2 identity is not authenticated by canonical lineage: {error}"
+                ))
+            })?;
+    }
+    Ok(())
+}
+
+fn completed_evolution_shot_layout(shot: &Evolution) -> Result<ShotLayout, ProtocolLifecycleError> {
+    let expected_sequence = format!("{:04}", shot.number);
+    if shot.number == 0
+        || shot.path.file_name().and_then(|value| value.to_str())
+            != Some(expected_sequence.as_str())
+    {
+        return Err(ProtocolLifecycleError::InvalidState(
+            "completed Evolution path does not identify its canonical sequence".into(),
+        ));
+    }
+    let evolutions = shot.path.parent().ok_or_else(|| {
+        ProtocolLifecycleError::InvalidState(
+            "completed Evolution path has no evolutions directory".into(),
+        )
+    })?;
+    if evolutions.file_name().and_then(|value| value.to_str()) != Some("evolutions") {
+        return Err(ProtocolLifecycleError::InvalidState(
+            "completed Evolution is outside a Shot's .tohseno/evolutions ledger".into(),
+        ));
+    }
+    let metadata = evolutions.parent().ok_or_else(|| {
+        ProtocolLifecycleError::InvalidState(
+            "completed Evolution path has no .tohseno directory".into(),
+        )
+    })?;
+    if metadata.file_name().and_then(|value| value.to_str()) != Some(".tohseno") {
+        return Err(ProtocolLifecycleError::InvalidState(
+            "completed Evolution is outside a Shot's .tohseno/evolutions ledger".into(),
+        ));
+    }
+    let root = metadata.parent().ok_or_else(|| {
+        ProtocolLifecycleError::InvalidState(
+            "completed Evolution path has no containing Shot body".into(),
+        )
+    })?;
+    Ok(ShotLayout::at(root))
 }
 
 pub(crate) fn inspect_fascia(
@@ -647,7 +759,9 @@ fn local_checks(
         )
     });
 
-    let artifact = shot.artifact_path().join(format!("{}.app", shot.app_name));
+    let artifact = shot
+        .artifact_path()
+        .join(format!("{}.app", prepared.record.slug));
     checks.push(result_check(
         "artifact.runtime_dependencies",
         "no embedded frameworks, plug-ins, extensions, dynamic libraries, or executable service bundles",
@@ -1415,6 +1529,9 @@ mod tests {
         let commitment = record.commitment().unwrap();
         let metadata = AppMetadata::for_record(&record, commitment, &fascia).unwrap();
         let fixture = include_bytes!("../../protocol/test-vectors/app-metadata-v1.json");
-        assert_eq!(json_bytes(&metadata).unwrap(), fixture);
+        assert_eq!(
+            String::from_utf8(json_bytes(&metadata).unwrap()).unwrap(),
+            String::from_utf8(fixture.to_vec()).unwrap()
+        );
     }
 }

@@ -2,7 +2,7 @@
   "schema": "tohseno.genesis-candidate-report/1",
   "candidate": {
     "protocol": "tohseno",
-    "version": "1.0.0-rc.1",
+    "version": "0.7.0",
     "codename": "GENESIS",
     "canonical_release": false,
     "status": "protocol candidate, not canonical release",
@@ -94,7 +94,7 @@
         "scripts/build-genesis-bundle.sh",
         "scripts/build-normalized-tar.py",
         "scripts/release-package-integrity.py",
-        "scripts/release-candidate.sh",
+        "scripts/release.sh",
         "oneshot/oneshot.sh",
         ".github/workflows/ci.yml",
         ".github/workflows/release.yml"
@@ -232,7 +232,7 @@
   "installed_artifacts": {
     "status": "not_completed",
     "checksums": null,
-    "reason": "No published v1.0.0-rc.1 artifact was installed through TOHSENO_CHANNEL=genesis. Only disposable local installer fixtures were exercised."
+    "reason": "No published v0.7.0 artifact was installed through TOHSENO_CHANNEL=genesis. Only disposable local installer fixtures were exercised."
   },
   "identity": {
     "status": "not_completed",
@@ -367,10 +367,10 @@
       "scripts/build-genesis-archive.sh dist/tohseno-genesis-materials.tar.gz",
       "scripts/build-genesis-archive.sh dist/tohseno-genesis-materials-second.tar.gz",
       "cmp dist/tohseno-genesis-materials.tar.gz dist/tohseno-genesis-materials-second.tar.gz",
-      "scripts/release-candidate.sh (expected dirty-gate rejection)",
-      "TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE=1 scripts/release-candidate.sh",
-      "isolated clean Git fixture: scripts/release-candidate.sh and exact provenance/architecture/minimum-OS verification",
-      "scripts/test-genesis-installer.sh dist/release-candidate/aarch64-apple-darwin dist/tohseno-genesis-materials.tar.gz",
+      "scripts/release.sh (expected dirty-gate rejection)",
+      "TOHSENO_ALLOW_DIRTY_RELEASE=1 scripts/release.sh",
+      "isolated clean Git fixture: scripts/release.sh and exact provenance/architecture/minimum-OS verification",
+      "scripts/test-installer.sh dist/release-candidate/aarch64-apple-darwin dist/tohseno-genesis-materials.tar.gz",
       "cargo run --quiet --locked -p tohseno -- --json network status",
       "scripts/probe-p256.sh --output genesis/lifecycle/P256_PROBE.json",
       "xcrun devicectl list devices --quiet --timeout 10 --json-output <private-temporary-file> (sanitized read-only inspection; raw file discarded)",
@@ -388,6 +388,6 @@
     "Obtain explicit deployment configuration and operator authorization, deploy and verify the unaudited candidate contracts, and create the BuilderAccount.",
     "Publish the signed lineage, verify registry state through independent RPC reads, and claim the tohseno handle through the normal action path.",
     "Associate an appcoin only if an exact token address is supplied after the public Shot exists.",
-    "Enable and verify GitHub release immutability plus a no-update/no-delete tag rule for v1.0.0-rc.1. After every other pre-release candidate gate passes, record both protections, candidate.ready_for_prerelease, and explicit prerelease authorization, then create v1.0.0-rc.1. Install and exercise that published prerelease before recording candidate.ready_for_cleanup; leave v1.0.0, the stable installer, announcements, and final Arweave publication untouched."
+    "Enable and verify GitHub release immutability plus a no-update/no-delete tag rule for v0.7.0. After every other pre-release candidate gate passes, record both protections, candidate.ready_for_prerelease, and explicit prerelease authorization, then create v0.7.0. Install and exercise that published prerelease before recording candidate.ready_for_cleanup; leave v1.0.0, the stable installer, announcements, and final Arweave publication untouched."
   ]
 }

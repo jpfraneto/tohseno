@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#050505">
-  <meta name="description" content="TOHSENO is the open protocol for creating and evolving Apple apps from a shared, machine-verifiable structure.">
+  <meta name="description" content="TOHSENO gives coherent human intentions persistent computational identity and lets them become and evolve as verifiable expressions.">
   <title>TOHSENO Protocol — GENESIS Candidate</title>
   <style>
     :root {
@@ -198,6 +198,7 @@
     }
     .identity-list strong { display: block; margin-bottom: 7px; font-size: 19px; }
     .identity-list p { margin: 0; color: var(--silver); }
+    .identity-list + .lead { margin-top: 34px; }
 
     .boundary {
       display: grid;
@@ -257,7 +258,7 @@
   <header class="shell">
     <nav aria-label="Protocol navigation">
       <a class="brand" href="#top"><span class="ring" aria-hidden="true"></span>TOHSENO</a>
-      <span class="nav-state">protocol candidate · 1.0.0-rc.1</span>
+      <span class="nav-state">protocol candidate · 0.7.0</span>
     </nav>
   </header>
 
@@ -265,14 +266,14 @@
     <div class="shell">
       <div class="hero">
         <div>
-          <p class="eyebrow">The open protocol for personal Apple software</p>
-          <h1>One rulebook.<br>No canonical doorway.</h1>
-          <p class="hero-copy">A Shot is one Apple app, its permanent identity, and its signed history. Any compatible factory can understand it and continue it.</p>
+          <p class="eyebrow">Persistent identity for coherent human intention</p>
+          <h1>Intention can<br>keep continuity.</h1>
+          <p class="hero-copy">TOHSENO is a protocol for giving coherent human intentions persistent computational identity and allowing them to become, remain, and evolve as verifiable expressions.</p>
         </div>
         <aside class="candidate" aria-label="Candidate status">
           <strong>GENESIS</strong>
           <dl>
-            <dt>Version</dt><dd>1.0.0-rc.1</dd>
+            <dt>Version</dt><dd>0.7.0</dd>
             <dt>Network</dt><dd>eip155:4663</dd>
             <dt>Status</dt><dd>candidate</dd>
             <dt>Canonical</dt><dd>no</dd>
@@ -281,75 +282,80 @@
       </div>
 
       <div class="lifecycle" aria-label="Protocol lifecycle">
-        <b>intention</b><span>→</span><b>app</b><span>→</span><b>Fascia</b><span>→</span><b>signed Shot</b><span>→</span><b>verify</b><span>→</span><b>public witness</b><span>→</span><b>Evolution</b>
+        <b>intention</b><span>→</span><b>commitment</b><span>→</span><b>Shot</b><span>→</span><b>genome</b><span>→</span><b>expression</b><span>→</span><b>version</b><span>→</span><b>feedback</b><span>→</span><b>evolution</b>
       </div>
 
       <section>
         <p class="section-label">01 · The Shot</p>
         <div>
-          <h2>A complete world, not a diff.</h2>
-          <p class="lead">One random ShotID survives every Evolution. Each integer Evolution is a complete source world, the app's CFBundleVersion, and one signed link in an immutable lineage.</p>
+          <h2>The identity is not its current form.</h2>
+          <p class="lead">A Shot begins when a person signs a commitment to bring a coherent intention into reality. Its random ShotID survives changes to its name, folder, repository, app, platform, deployment, description, and optional token associations.</p>
           <div class="principles">
             <article class="principle">
-              <small>Permanent</small>
-              <h3>Stable identity</h3>
-              <p>The slug, bundle ID, website, token, factory, and server may change. The 32-byte ShotID does not.</p>
+              <small>Origin</small>
+              <h3>Intention preserved</h3>
+              <p>The original human material remains part of origin. Operational refinement never silently replaces it.</p>
             </article>
             <article class="principle">
-              <small>Exact</small>
-              <h3>Known anatomy</h3>
-              <p>The finite Apple Fascia declares identity, storage, privacy, continuity, provenance, and capabilities.</p>
+              <small>Continuity</small>
+              <h3>Genome explicit</h3>
+              <p>The accepted genome says what must remain true. A change to it is proposed and authorized, never hidden in an implementation edit.</p>
             </article>
             <article class="principle">
-              <small>Owned</small>
-              <h3>Signed history</h3>
-              <p>Canonical records use deterministic bytes, SHA-256 commitments, and low-s P-256 signatures.</p>
+              <small>Experience</small>
+              <h3>Versions exact</h3>
+              <p>Every accepted expression state has an immutable Version ID. Feedback binds to the exact state that produced the experience.</p>
             </article>
             <article class="principle">
               <small>Portable</small>
-              <h3>Factory freedom</h3>
-              <p>The next complete Evolution may be created by any implementation that passes the same protocol law.</p>
+              <h3>Lineage verifiable</h3>
+              <p>Signed deterministic actions let another implementation inspect, replicate, and verify what it actually possesses. Materialization additionally requires trusted source, authority, and acceptance.</p>
             </article>
           </div>
         </div>
       </section>
 
       <section>
-        <p class="section-label">02 · Identity</p>
+        <p class="section-label">02 · Canonical objects</p>
         <div>
-          <h2>The builder is durable. Keys and devices are replaceable.</h2>
-          <p class="lead">TOHSENO keeps ownership, signing authority, recovery, and app-user identity deliberately separate.</p>
+          <h2>A small protocol vocabulary.</h2>
+          <p class="lead">The protocol keeps creative identity, material expression, authority, and economics separate enough to verify each relationship honestly.</p>
           <ol class="identity-list">
-            <li><div><strong>BuilderID</strong><p>A stable smart-account address that controls Shots. It is not a username, Apple ID, company account, or permanent key.</p></div></li>
-            <li><div><strong>Builder DeviceKey</strong><p>A hardware-backed P-256 key authorized for exact protocol actions. A lost key can be revoked without moving the Shot.</p></div></li>
-            <li><div><strong>Recovery Root</strong><p>An optional, separately secured Ethereum recovery authority. It never enters a generated application.</p></div></li>
-            <li><div><strong>InstallationKey</strong><p>An app-specific P-256 identity created by one app installation. It creates no universal cross-app user profile.</p></div></li>
+            <li><div><strong>Coherent Intention</strong><p>The human declaration that something should exist.</p></div></li>
+            <li><div><strong>Shot</strong><p>The persistent identity created when that intention is committed into reality.</p></div></li>
+            <li><div><strong>Genome</strong><p>The current operational interpretation of what must remain true.</p></div></li>
+            <li><div><strong>Expression</strong><p>One concrete manifestation of the Shot; the first factory produces native Apple software.</p></div></li>
+            <li><div><strong>Version and Feedback</strong><p>One immutable expression state, and experience attached only to that exact state.</p></div></li>
+            <li><div><strong>Evolution and Lineage</strong><p>An authorized transition, and the verifiable history connecting origin, versions, and change.</p></div></li>
+            <li><div><strong>Ownership</strong><p>The authority to approve continuity; it is not authorship of every generated line.</p></div></li>
+            <li><div><strong>Token Association</strong><p>An explicit chain-specific economic relationship that never replaces Shot identity or ownership.</p></div></li>
           </ol>
+          <p class="lead">Anky can be its own independently owned Shot and associate `$ANKY` on Base (`eip155:8453`) without making the token contract the Shot, changing its controller, merging Anky with TOHSENO, or conflating `$ANKY` with any `$TOHSENO` association. No token address is asserted here.</p>
         </div>
       </section>
 
       <section>
         <p class="section-label">03 · Privacy</p>
         <div>
-          <h2>Private first. Public by signature.</h2>
-          <p class="lead">A registry witnesses a Shot that already exists. It never receives the person's prompts, reference images, app data, usage, recovery material, or private continuity graph.</p>
+          <h2>Partial knowledge is honest.</h2>
+          <p class="lead">Lineage may identify an artifact without publishing it. Records distinguish absent, unknown, intentionally private, locally available, publicly committed, replicated, cryptographically verified, and on-chain anchored material.</p>
           <div class="boundary">
             <article class="private">
               <h3>Private by default</h3>
               <ul>
-                <li>intention and reference images</li>
-                <li>unpublished source and local app data</li>
-                <li>installation identities and continuity links</li>
-                <li>device inventory and recovery material</li>
+                <li>raw intention unless deliberately published</li>
+                <li>feedback, references, source, and local app data</li>
+                <li>agent plans, transcripts, and working memory</li>
+                <li>private keys, device inventory, and recovery material</li>
               </ul>
             </article>
             <article class="public">
               <h3>Explicit signed action</h3>
               <ul>
-                <li>Evolution commitment and public head</li>
-                <li>controller and publication state</li>
-                <li>builder-selected public artifact URI</li>
-                <li>handle, appcoin, or App Store relation</li>
+                <li>signed public lineage actions and availability claims</li>
+                <li>Shot controller and selected lineage checkpoints</li>
+                <li>builder-selected content-addressed artifacts</li>
+                <li>optional handle, token, or App Store association</li>
               </ul>
             </article>
           </div>
@@ -357,30 +363,32 @@
       </section>
 
       <section>
-        <p class="section-label">04 · Replaceability</p>
+        <p class="section-label">04 · Nodes</p>
         <div>
-          <h2>Nodes index. Builders own.</h2>
-          <p class="lead">Anyone may relay a valid action. The messenger gains no ownership. No official app, node, factory, company, token, or website is recognized by the contracts.</p>
-          <pre><code>Cryptography  →  this key signed this digest
-Schema        →  this digest means this exact action
-BuilderID     →  this key is authorized
-Registry      →  the public transition is valid</code></pre>
+          <h2>Nodes preserve records, not truth by decree.</h2>
+          <p class="lead">The candidate node validates and content-addresses signed public actions, rebuilds derived Shot state, reports missing parents and artifacts, and explicitly synchronizes with peers. It stores action records, not referenced artifact bytes. A valid partial segment remains authority-unresolved until its causal context arrives. Nodes may hold different subsets and branches; the protocol invents no distributed consensus.</p>
+          <pre><code>Canonical bytes  →  this action has one digest
+Signature        →  the presented actor key signed it
+Segment          →  available causal links are valid
+Authority        →  verified, unresolved, or rejected
+Availability     →  declared bytes may still be missing here
+Chain anchor     →  this commitment existed on this chain</code></pre>
         </div>
       </section>
 
       <section>
-        <p class="section-label">05 · Conformance</p>
+        <p class="section-label">05 · First factory</p>
         <div>
-          <h2>Compatibility is a testable claim.</h2>
-          <p class="lead">A deterministic verifier reproduces record bytes and commitments, checks P-256 authority and ordered lineage, inspects the Apple project and Fascia, and reports evidence for every judgment. It never asks an LLM whether an app conforms.</p>
-          <pre><code>$ tohseno verify my-app
+          <h2>Native Apple software is the first expression.</h2>
+          <p class="lead">The first TOHSENO factory turns one coherent intention into a native Apple application that its owner can use and evolve. The Apple Fascia provides bounded software organs; deterministic gates—not an LLM's opinion—decide whether a version is accepted.</p>
+          <pre><code>$ tohseno verify my-shot
 
-✓ record
-✓ signature
-✓ lineage
-✓ Apple Fascia
-✓ source commitment
-✓ privacy boundary
+✓ Shot identity and ownership
+✓ original intention and accepted genome
+✓ signed append-only lineage
+✓ expression Version and embedded identity
+✓ Apple Fascia and source commitment
+✓ acceptance evidence and privacy boundary
 
 CONFORMANT</code></pre>
         </div>
@@ -389,14 +397,16 @@ CONFORMANT</code></pre>
       <section class="not-yet">
         <p class="section-label">Candidate boundary</p>
         <div>
-          <h2>Live enough to break. Not final enough to canonize.</h2>
-          <p class="lead">GENESIS exists to exercise the complete lifecycle against reality and leave exact evidence. Candidate code and deployments remain experimental and unaudited.</p>
+          <h2>A stable local product with a noncanonical protocol.</h2>
+          <p class="lead">TOHSENO 0.7 ships the local factory and its exact protocol materials. GENESIS remains a pre-1.0 protocol candidate: schemas, nodes, and deployment plans are experimental, and the contracts are undeployed and unaudited. Portable imports are verified record projections and are not source materializations or ownership transfers.</p>
           <ul>
             <li>No v1.0.0 tag or canonical deployment claim</li>
-            <li>No stable installer replacement or protocol announcement</li>
+            <li>The stable v0.7 installer does not canonize the protocol</li>
+            <li>This candidate protocol-page source is staging material</li>
             <li>No permanent Arweave Genesis publication</li>
             <li>No unrestricted public gas relayer</li>
-            <li>No token requirement and no guessed $TOHSENO coordinates</li>
+            <li>No token requirement and no invented token coordinates</li>
+            <li>No metaphysical truth claim, global consensus, or universal creative generator</li>
           </ul>
         </div>
       </section>
@@ -409,4 +419,3 @@ CONFORMANT</code></pre>
   </footer>
 </body>
 </html>
-

@@ -300,6 +300,11 @@ func exactEngineMetadataFixtureDecodesUnderNormativeSwift() throws {
     #expect(metadata.capabilities.map(\.capability) == [.localStorage])
     #expect(metadata.network.isEmpty)
 
+    let dispatched = try TohsenoEmbeddedMetadata.decodeTransportJSON(fixture)
+    #expect(dispatched.schema == "tohseno.app-metadata/1")
+    #expect(dispatched.expressionID == nil)
+    #expect(dispatched.versionID == nil)
+
     var escapedDuplicate = Data(
         #"{"pro\u0074ocol":"tohseno","#.utf8
     )
@@ -322,6 +327,96 @@ func exactEngineMetadataFixtureDecodesUnderNormativeSwift() throws {
     )
     #expect(throws: TohsenoMetadataError.invalid) {
         try TohsenoMetadata.decodeTransportJSON(unknownNestedKey)
+    }
+
+    let v1WithV2Field = Data(
+        String(decoding: fixture, as: UTF8.self)
+            .replacingOccurrences(
+                of: #""schema": "tohseno.app-metadata/1","#,
+                with: #""schema": "tohseno.app-metadata/1", "protocol_version": "2","#
+            )
+            .utf8
+    )
+    #expect(throws: TohsenoMetadataError.invalid) {
+        try TohsenoEmbeddedMetadata.decodeTransportJSON(v1WithV2Field)
+    }
+}
+
+@Test
+func exactV2MetadataFixtureBindsExpressionVersionAndGenome() throws {
+    let repositoryRoot = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    let fixture = try Data(contentsOf: repositoryRoot.appendingPathComponent(
+        "protocol/test-vectors/app-metadata-v2.json"
+    ))
+
+    // Rust produces this fixture. Swift independently recomputes the
+    // content-bound Version ID while validating the embedded resource.
+    let metadata = try TohsenoMetadataV2.decodeTransportJSON(fixture)
+    #expect(metadata.schema == "tohseno.app-metadata/2")
+    #expect(metadata.expressionID
+        == "0x7777777777777777777777777777777777777777777777777777777777777777")
+    #expect(metadata.versionID
+        == "0xa39c12550976d2087e7ac9173c7377b2f57c1b699fa88ad667bf0553b11421bb")
+    #expect(metadata.versionOrdinal == 1)
+    #expect(metadata.genomeRevision == 1)
+    #expect(metadata.lineageSequence == 8)
+
+    let dispatched = try TohsenoEmbeddedMetadata.decodeTransportJSON(fixture)
+    #expect(dispatched.schema == "tohseno.app-metadata/2")
+    #expect(dispatched.expressionID == metadata.expressionID)
+    #expect(dispatched.versionID == metadata.versionID)
+    #expect(dispatched.genomeDigest == metadata.genomeDigest)
+
+    let tamperedVersion = Data(
+        String(decoding: fixture, as: UTF8.self)
+            .replacingOccurrences(
+                of: metadata.versionID,
+                with: "0x" + String(repeating: "ab", count: 32)
+            )
+            .utf8
+    )
+    #expect(throws: TohsenoMetadataError.invalid) {
+        try TohsenoMetadataV2.decodeTransportJSON(tamperedVersion)
+    }
+
+    let mismatchedBundleVersion = Data(
+        String(decoding: fixture, as: UTF8.self)
+            .replacingOccurrences(
+                of: #""bundle_version": 1"#,
+                with: #""bundle_version": 2"#
+            )
+            .utf8
+    )
+    #expect(throws: TohsenoMetadataError.invalid) {
+        try TohsenoMetadataV2.decodeTransportJSON(mismatchedBundleVersion)
+    }
+
+    let hybrid = Data(
+        String(decoding: fixture, as: UTF8.self)
+            .replacingOccurrences(
+                of: #""protocol_version": "2","#,
+                with: #""protocol_version": "2", "sequence": 1,"#
+            )
+            .utf8
+    )
+    #expect(throws: TohsenoMetadataError.invalid) {
+        try TohsenoEmbeddedMetadata.decodeTransportJSON(hybrid)
+    }
+
+    let unknownSchema = Data(
+        String(decoding: fixture, as: UTF8.self)
+            .replacingOccurrences(
+                of: "tohseno.app-metadata/2",
+                with: "tohseno.app-metadata/999"
+            )
+            .utf8
+    )
+    #expect(throws: TohsenoMetadataError.invalid) {
+        try TohsenoEmbeddedMetadata.decodeTransportJSON(unknownSchema)
     }
 }
 
@@ -399,7 +494,7 @@ private func sampleMetadata(
         bundleVersion: bundleVersion,
         factory: TohsenoFactoryReference(
             implementation: factoryImplementation,
-            version: "1.0.0-rc.1",
+            version: "0.7.0",
             sourceCommit: sourceCommit
         ),
         distribution: TohsenoDistribution(

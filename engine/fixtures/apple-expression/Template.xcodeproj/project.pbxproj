@@ -1,0 +1,243 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B10000010000000000000001 /* TemplateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000001 /* TemplateApp.swift */; };
+		B10000010000000000000002 /* InstallationIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000003 /* InstallationIdentity.swift */; };
+		B10000010000000000000003 /* ContinuityEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000004 /* ContinuityEnvelope.swift */; };
+		B10000010000000000000004 /* LocalPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000005 /* LocalPersistence.swift */; };
+		B10000010000000000000005 /* Provenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000006 /* Provenance.swift */; };
+		B10000010000000000000006 /* TohsenoMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000007 /* TohsenoMetadata.swift */; };
+		B10000010000000000000007 /* fascia.json in Resources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000008 /* fascia.json */; };
+		B10000010000000000000008 /* embedded-provenance.json in Resources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000009 /* embedded-provenance.json */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		C10000010000000000000001 /* TemplateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateApp.swift; sourceTree = "<group>"; };
+		C10000010000000000000002 /* __APP_NAME__.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "__APP_NAME__.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C10000010000000000000003 /* InstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentity.swift; sourceTree = "<group>"; };
+		C10000010000000000000004 /* ContinuityEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinuityEnvelope.swift; sourceTree = "<group>"; };
+		C10000010000000000000005 /* LocalPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPersistence.swift; sourceTree = "<group>"; };
+		C10000010000000000000006 /* Provenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provenance.swift; sourceTree = "<group>"; };
+		C10000010000000000000007 /* TohsenoMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TohsenoMetadata.swift; sourceTree = "<group>"; };
+		C10000010000000000000008 /* fascia.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = fascia.json; sourceTree = "<group>"; };
+		C10000010000000000000009 /* embedded-provenance.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "embedded-provenance.json"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D10000010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E10000010000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C10000010000000000000001 /* TemplateApp.swift */,
+				E10000010000000000000003 /* TohsenoFascia */,
+				E10000010000000000000004 /* TOHSENO */,
+				E10000010000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E10000010000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C10000010000000000000002 /* __APP_NAME__.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E10000010000000000000003 /* TohsenoFascia */ = {
+			isa = PBXGroup;
+			children = (
+				C10000010000000000000003 /* InstallationIdentity.swift */,
+				C10000010000000000000004 /* ContinuityEnvelope.swift */,
+				C10000010000000000000005 /* LocalPersistence.swift */,
+				C10000010000000000000006 /* Provenance.swift */,
+				C10000010000000000000007 /* TohsenoMetadata.swift */,
+			);
+			path = TohsenoFascia;
+			sourceTree = "<group>";
+		};
+		E10000010000000000000004 /* TOHSENO */ = {
+			isa = PBXGroup;
+			children = (
+				C10000010000000000000008 /* fascia.json */,
+				C10000010000000000000009 /* embedded-provenance.json */,
+			);
+			path = TOHSENO;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F10000010000000000000001 /* __APP_NAME__ */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A20000010000000000000001 /* Build configuration list for PBXNativeTarget "__APP_NAME__" */;
+			buildPhases = (
+				D10000010000000000000002 /* Sources */,
+				D10000010000000000000001 /* Frameworks */,
+				D10000010000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = __APP_NAME__;
+			productName = __APP_NAME__;
+			productReference = C10000010000000000000002 /* __APP_NAME__.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F10000010000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					F10000010000000000000001 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = A20000010000000000000002 /* Build configuration list for PBXProject "__APP_NAME__" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E10000010000000000000001;
+			productRefGroup = E10000010000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F10000010000000000000001 /* __APP_NAME__ */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D10000010000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000007 /* fascia.json in Resources */,
+				B10000010000000000000008 /* embedded-provenance.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D10000010000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000001 /* TemplateApp.swift in Sources */,
+				B10000010000000000000002 /* InstallationIdentity.swift in Sources */,
+				B10000010000000000000003 /* ContinuityEnvelope.swift in Sources */,
+				B10000010000000000000004 /* LocalPersistence.swift in Sources */,
+				B10000010000000000000005 /* Provenance.swift in Sources */,
+				B10000010000000000000006 /* TohsenoMetadata.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A10000010000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = __APP_NAME__;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = __BUNDLE_ID__;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A10000010000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = __APP_NAME__;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = __BUNDLE_ID__;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A10000010000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		A10000010000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A20000010000000000000001 /* Build configuration list for PBXNativeTarget "__APP_NAME__" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000010000000000000001 /* Debug */,
+				A10000010000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A20000010000000000000002 /* Build configuration list for PBXProject "__APP_NAME__" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000010000000000000003 /* Debug */,
+				A10000010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F10000010000000000000002 /* Project object */;
+}

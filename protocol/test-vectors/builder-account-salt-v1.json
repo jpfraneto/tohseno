@@ -1,0 +1,10 @@
+{
+  "schema": "tohseno.builder-account-salt-test-vector/1",
+  "law": "sha256(\"TOHSENO-BUILDER-SALT-V1\\0\"||device_key_id)",
+  "public_key": {
+    "x": "0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+    "y": "0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"
+  },
+  "device_key_id": "0xa000ddb94882f9f9cd0a859ed3a9f047ad43d7e2e4e7e491f1fe2e657a2651b6",
+  "account_salt": "0x8fafb619dd5916ff6a74d7ab47714afdad662a8a9c61a260215da22c53d2c93d"
+}

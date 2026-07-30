@@ -37,21 +37,21 @@ const EXPECTED_DEPLOYER: &str = "0x4e59b44847b379578588920ca78fbf26c0b4956c";
 const EXPECTED_DEPLOYER_CODE: &str = "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3";
 const EXPECTED_DEPLOYER_HASH: &str =
     "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989";
-const EXPECTED_FACTORY_ADDRESS: &str = "0xb802f0ef1595734f2529f602f2473d829d6aafaf";
-const EXPECTED_REGISTRY_ADDRESS: &str = "0x5daf4fa6c285afb4b19978ad56a3892e7676cc68";
-const EXPECTED_RELATIONS_ADDRESS: &str = "0xb7dc8acfbfc5d93146e4e88d12e5223a5e6a3b83";
+const EXPECTED_FACTORY_ADDRESS: &str = "0x9a48926c82fe766fe599116dfc7111ba6f7171dd";
+const EXPECTED_REGISTRY_ADDRESS: &str = "0x02d2a9ed5ba8843b82b4e5976c686dce4af3ba5e";
+const EXPECTED_RELATIONS_ADDRESS: &str = "0x75abff418c4cad3c4bd56f467cc2737237dd6ea5";
 const EXPECTED_FACTORY_SALT: &str =
-    "0x2d32554fb15a503d75b83ce5d8d53a828c7420f84de1ee1c80af7ee773521800";
+    "0xe0fd0e28bcdb28bfdfa44c2bba736c6206a798abf890d7d5690e5b77610c603a";
 const EXPECTED_REGISTRY_SALT: &str =
-    "0xbcf41492063a04daa488cd46b8e0e62d6cca2e1da41f58f5bfae84ad42ab6a0f";
+    "0x28355a607bb3452ad437f71bc1b14e43f270e721b2bfbf028a867711aa473af1";
 const EXPECTED_RELATIONS_SALT: &str =
-    "0xecb33008d6d462cb873510b5bd93291242ca14f4156a2fae7d9f04dd9a956c25";
+    "0xdb5c183795d37085c73de55b04fb086beaa54ab4bde52b3c573952af82200ab3";
 const EXPECTED_FACTORY_INIT_HASH: &str =
     "0xc54e36542c975b6bde3868afded9d3d342e01defdfd0b2c8bc3e25c417526b28";
 const EXPECTED_REGISTRY_INIT_HASH: &str =
     "0x8d76b602133b97f4d0adb171cb0a8339f77be15e76b64d3cb2c4077434ffb482";
 const EXPECTED_RELATIONS_INIT_HASH: &str =
-    "0x50d9e77a0d400b506cc3e0ea439a508a2f243f430245085ee508461b1ff66ea5";
+    "0x5822cd2c638153e6922885fde3a201c232428271aa38ef4fd42716a30c7dd2a5";
 const EXPECTED_FACTORY_RUNTIME_HASH: &str =
     "0x1f44f9fa643277e05f5a9d1f6a05b4cee9264c261a423021c5e0c7f5da3b312a";
 const EXPECTED_REGISTRY_RUNTIME_HASH: &str =
@@ -149,13 +149,11 @@ impl DeploymentPlan {
         let reject = |reason: &str| PublicNetworkError::DeploymentPlan(reason.into());
         if self.schema != DEPLOYMENT_PLAN_SCHEMA
             || self.protocol != "tohseno"
-            || self.candidate.version != "1.0.0-rc.1"
+            || self.candidate.version != "0.7.0"
             || self.candidate.codename != "GENESIS"
             || self.candidate.status != "planned, undeployed, non-canonical and unaudited"
         {
-            return Err(reject(
-                "candidate identity does not match GENESIS 1.0.0-rc.1",
-            ));
+            return Err(reject("candidate identity does not match GENESIS 0.7.0"));
         }
         if self.chain.name != "Robinhood Chain mainnet"
             || self.chain.chain_id != ROBINHOOD_CHAIN_ID

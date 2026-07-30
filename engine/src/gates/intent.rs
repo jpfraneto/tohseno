@@ -1,10 +1,13 @@
 use crate::events::{Event, EventBus};
 use crate::ledger::{Evolution, Ledger, LedgerError};
-use std::collections::HashSet;
-use std::fs;
+use std::collections::BTreeSet;
+use std::fs::{self, OpenOptions};
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use tohseno_protocol::digest::{sha256, Bytes32};
 
 pub const MAX_IMAGES: usize = 8;
+const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 const IMAGE_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "heic", "webp"];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17,6 +20,7 @@ pub struct Intent {
 pub enum IntentError {
     Io(std::io::Error),
     Ledger(LedgerError),
+    Invalid(String),
 }
 
 impl std::fmt::Display for IntentError {
@@ -24,6 +28,7 @@ impl std::fmt::Display for IntentError {
         match self {
             Self::Io(error) => write!(f, "{error}"),
             Self::Ledger(error) => write!(f, "{error}"),
+            Self::Invalid(reason) => write!(f, "invalid intention reference: {reason}"),
         }
     }
 }
@@ -90,21 +95,39 @@ impl Intent {
         shot: &Evolution,
         events: &EventBus,
     ) -> Result<Vec<String>, IntentError> {
-        ledger.write_evolution_file(shot, "prompt.md", self.prompt.as_bytes())?;
-        let mut copied_names = Vec::new();
-        let mut used_names = HashSet::new();
-
-        for (index, path) in self.images.iter().enumerate() {
-            let original_name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("image");
-            if index >= MAX_IMAGES {
-                events.emit(Event::status(format!("ignored {original_name} · 8 of 8")));
-                continue;
+        if self.images.len() > MAX_IMAGES {
+            return Err(IntentError::Invalid(
+                "a Shot accepts at most eight reference images; no attachment was written".into(),
+            ));
+        }
+        let mut prepared = Vec::new();
+        let mut used_names = BTreeSet::new();
+        let mut used_digests = BTreeSet::<Bytes32>::new();
+        for path in &self.images {
+            let original_name =
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| {
+                        IntentError::Invalid(format!("{} has no UTF-8 filename", path.display()))
+                    })?;
+            validate_image_name(original_name)?;
+            if !used_names.insert(original_name.to_ascii_lowercase()) {
+                return Err(IntentError::Invalid(
+                    "image names collide on Apple filesystems".into(),
+                ));
             }
-            let target_name = unique_name(original_name, &mut used_names);
-            let contents = fs::read(path)?;
+            let contents = read_bounded_image(path)?;
+            if !used_digests.insert(sha256(&contents)) {
+                return Err(IntentError::Invalid(
+                    "reference images must not repeat content".into(),
+                ));
+            }
+            prepared.push((original_name.to_owned(), contents));
+        }
+
+        ledger.write_evolution_file(shot, "prompt.md", self.prompt.as_bytes())?;
+        let mut copied_names = Vec::with_capacity(prepared.len());
+        for (target_name, contents) in prepared {
             ledger.write_evolution_file(shot, Path::new("images").join(&target_name), &contents)?;
             copied_names.push(target_name.clone());
             events.emit(Event::status(format!(
@@ -113,6 +136,90 @@ impl Intent {
             )));
         }
         Ok(copied_names)
+    }
+}
+
+fn validate_image_name(name: &str) -> Result<(), IntentError> {
+    let bytes = name.as_bytes();
+    if bytes.is_empty()
+        || bytes.len() > 255
+        || !name.is_ascii()
+        || name.starts_with('.')
+        || name.ends_with('.')
+        || name.ends_with(' ')
+        || bytes
+            .iter()
+            .any(|byte| byte.is_ascii_control() || matches!(*byte, b'/' | b'\\' | b':'))
+        || !matches!(
+            Path::new(name).components().collect::<Vec<_>>().as_slice(),
+            [std::path::Component::Normal(_)]
+        )
+    {
+        return Err(IntentError::Invalid(
+            "image name is not one safe portable component".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn read_bounded_image(path: &Path) -> Result<Vec<u8>, IntentError> {
+    let path_metadata = fs::symlink_metadata(path)?;
+    if path_metadata.file_type().is_symlink()
+        || !path_metadata.is_file()
+        || path_metadata.len() > MAX_IMAGE_BYTES
+    {
+        return Err(IntentError::Invalid(format!(
+            "{} is not a regular file of at most 64 MiB",
+            path.display()
+        )));
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    let mut file = options.open(path)?;
+    let open_metadata = file.metadata()?;
+    if !same_file(&path_metadata, &open_metadata) {
+        return Err(IntentError::Invalid(format!(
+            "{} changed before it was opened",
+            path.display()
+        )));
+    }
+    let mut contents = Vec::new();
+    file.by_ref()
+        .take(MAX_IMAGE_BYTES + 1)
+        .read_to_end(&mut contents)?;
+    let final_metadata = fs::symlink_metadata(path)?;
+    if contents.len() as u64 > MAX_IMAGE_BYTES
+        || !same_file(&open_metadata, &final_metadata)
+        || contents.len() as u64 != open_metadata.len()
+    {
+        return Err(IntentError::Invalid(format!(
+            "{} changed while it was read",
+            path.display()
+        )));
+    }
+    Ok(contents)
+}
+
+fn same_file(first: &fs::Metadata, second: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        first.dev() == second.dev()
+            && first.ino() == second.ino()
+            && first.len() == second.len()
+            && first.mtime() == second.mtime()
+            && first.mtime_nsec() == second.mtime_nsec()
+    }
+    #[cfg(not(unix))]
+    {
+        first.len() == second.len()
+            && first.modified().ok() == second.modified().ok()
+            && first.created().ok() == second.created().ok()
     }
 }
 
@@ -135,32 +242,6 @@ fn is_supported_image(path: &Path) -> bool {
                 .iter()
                 .any(|candidate| extension.eq_ignore_ascii_case(candidate))
         })
-}
-
-fn unique_name(original: &str, used: &mut HashSet<String>) -> String {
-    if used.insert(original.to_owned()) {
-        return original.to_owned();
-    }
-    let path = Path::new(original);
-    let stem = path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("image");
-    let extension = path
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .unwrap_or("");
-    for ordinal in 2.. {
-        let candidate = if extension.is_empty() {
-            format!("{stem}-{ordinal}")
-        } else {
-            format!("{stem}-{ordinal}.{extension}")
-        };
-        if used.insert(candidate.clone()) {
-            return candidate;
-        }
-    }
-    unreachable!()
 }
 
 #[derive(Debug)]
@@ -256,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn writes_eight_images_and_ignores_the_ninth() {
+    fn rejects_a_ninth_image_before_writing_any_intention_input() {
         let temporary = tempfile::tempdir().unwrap();
         let ledger = Ledger::at(temporary.path().join("ledger"));
         ledger
@@ -274,12 +355,9 @@ mod tests {
             images: paths,
         };
         let bus = EventBus::default();
-        let copied = intent.write_to_shot(&ledger, &shot, &bus).unwrap();
-        assert_eq!(copied.len(), 8);
-        assert_eq!(
-            fs::read_dir(shot.images_path()).unwrap().count(),
-            MAX_IMAGES
-        );
-        assert_eq!(fs::read_to_string(shot.prompt_path()).unwrap(), "Make it.");
+        let error = intent.write_to_shot(&ledger, &shot, &bus).unwrap_err();
+        assert!(error.to_string().contains("at most eight"));
+        assert!(!shot.prompt_path().exists());
+        assert_eq!(fs::read_dir(shot.images_path()).unwrap().count(), 0);
     }
 }

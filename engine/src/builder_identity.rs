@@ -9,15 +9,15 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tohseno_protocol::digest::{sha256, Address20, Bytes32};
 use tohseno_protocol::identity::{
-    predict_builder_account, BuilderDeviceKey, BuilderId, RecoveryAuthority, ROBINHOOD_CHAIN_ID,
+    initial_builder_account_salt, predict_builder_account, BuilderDeviceKey, BuilderId,
+    RecoveryAuthority, ROBINHOOD_CHAIN_ID,
 };
 use tohseno_protocol::signature::P256PublicKey;
 use tohseno_protocol::signature::{DetachedP256Signature, SignatureAlgorithm, SignatureSidecar};
 
 const BUILDER_SCHEMA: &str = "tohseno.builder/1";
-const CANDIDATE_VERSION: &str = "1.0.0-rc.1";
+const CANDIDATE_VERSION: &str = "0.7.0";
 const KEY_TAG_DOMAIN: &[u8] = b"TOHSENO-LOCAL-KEY-TAG-V1\0";
-const ACCOUNT_SALT_DOMAIN: &[u8] = b"TOHSENO-BUILDER-SALT-V1\0";
 const DEPLOYMENT_PLAN: &str =
     include_str!("../../contracts/deployments/robinhood-mainnet-genesis.json");
 const BUILDER_ACCOUNT_CREATION_HEX: &str =
@@ -158,8 +158,8 @@ impl BuilderIdentityManager {
                 // The bare helper cannot reach the Enclave; earn a
                 // provisioned bundle with the builder's own Xcode session
                 // and try once more.
-                let earned = crate::enclave::earn(bridge.executable(), &self.root)
-                    .map_err(|error| {
+                let earned =
+                    crate::enclave::earn(bridge.executable(), &self.root).map_err(|error| {
                         BuilderIdentityError::InvalidConfiguration(format!(
                             "Secure Enclave access could not be earned: {error}"
                         ))
@@ -217,7 +217,8 @@ impl BuilderIdentityManager {
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let device = BuilderDeviceKey::from_public_key(helper_identity.public_key.clone())
             .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
-        let account_salt = account_salt(&device);
+        let account_salt = initial_builder_account_salt(&device.public_key)
+            .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?;
         let network = candidate_network()?;
         let builder_id = predict_builder_account(
             network.factory_address,
@@ -353,7 +354,8 @@ pub(crate) fn initial_device_builder_id(
     let network = candidate_network()?;
     predict_builder_account(
         network.factory_address,
-        account_salt(&device),
+        initial_builder_account_salt(&device.public_key)
+            .map_err(|error| BuilderIdentityError::Protocol(error.to_string()))?,
         public_key,
         &builder_account_creation_bytecode()?,
     )
@@ -432,13 +434,6 @@ fn local_key_tag(identity_root: &Path) -> Result<String, BuilderIdentityError> {
     input.extend_from_slice(absolute.to_string_lossy().as_bytes());
     let digest = sha256(&input).to_string();
     Ok(format!("org.tohseno.builder.device.{}", &digest[2..34]))
-}
-
-fn account_salt(device: &BuilderDeviceKey) -> Bytes32 {
-    let mut input = Vec::with_capacity(ACCOUNT_SALT_DOMAIN.len() + 32);
-    input.extend_from_slice(ACCOUNT_SALT_DOMAIN);
-    input.extend_from_slice(device.key_id.as_bytes());
-    sha256(&input)
 }
 
 fn verify_helper_identity(
@@ -666,7 +661,13 @@ printf '%s\n' '{{"command":"'"$command"'","ok":true,"result":{{"backend":"softwa
             .unwrap(),
         };
         let device = BuilderDeviceKey::from_public_key(public_key).unwrap();
-        assert_eq!(account_salt(&device), account_salt(&device));
-        assert_ne!(account_salt(&device), device.key_id);
+        assert_eq!(
+            initial_builder_account_salt(&device.public_key).unwrap(),
+            initial_builder_account_salt(&device.public_key).unwrap()
+        );
+        assert_ne!(
+            initial_builder_account_salt(&device.public_key).unwrap(),
+            device.key_id
+        );
     }
 }

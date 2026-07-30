@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/ownership.schema.json",
+  "title": "TOHSENO ownership transition v2",
+  "$ref": "ontology.schema.json#/$defs/ownership"
+}

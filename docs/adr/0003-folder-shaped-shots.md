@@ -1,6 +1,6 @@
 # ADR 0003 — The folder-shaped Shot
 
-**Status:** accepted; implemented in the GENESIS candidate
+**Status:** accepted; terminal-launch behavior superseded by ADR 0005
 **Date:** 2026-07-29
 
 ## Context
@@ -138,20 +138,25 @@ Owner review corrected the ontology and collapsed the surface:
 
 ## Second amendment — the minimal expression that just works (same day)
 
+The historical launch details in this amendment are superseded by ADR 0005:
+current preparation never executes a harness or adds permission-bypass flags.
+
 - **The driven/sandboxed harness mode is deleted.** Every mode that is not
   essential is noise. TOHSENO finds the builder's agent, opens it in the
-  builder's own session on the folder with its uninterrupted-work flags
-  (`claude --dangerously-skip-permissions`, `codex --yolo`), and steps
-  back. The repair loop, the Seatbelt boundary, and the credential broker
-  (ADR 0002) all vanish with the mode they served.
+  builder's own session on the folder and steps back. This historical version
+  used permission-bypass flags; ADR 0005 removes them and inserts an explicit
+  human Enter boundary. The repair loop, the Seatbelt boundary, and the
+  credential broker (ADR 0002) all vanish with the mode they served.
 - **The CLI is minimal:** `create <name>` (the intake box also swallows a
   dropped prompt file and reference images), `evolve [--note]`, `adopt`
   (the current folder becomes a Shot), `refresh`, `list`, `verify`,
   `inspect`, `studio`, plus the protocol surface. No `--harness`, no
   `--prompt-file`, no modes.
-- **References live at `.tohseno/references/`;** dropped text files become
-  the intention verbatim; evolve intents wait in `.tohseno/pending-intent.md`
-  until the next recording carries them into history.
+- **References live privately and content-addressed at
+  `.tohseno/references/<sha256>`;** dropped text files become the intention
+  verbatim; exact reference descriptors and selected Feedback share the
+  prompt-bound pending evolution state until the next recording carries them
+  into signed history.
 - **WORLD is the seventh organ** (story, design system, asset prompts in
   the signed world; `page build` renders it) and **every Evolution gets
   eyes**: a Simulator `preview.png` captured at recording time, shown by

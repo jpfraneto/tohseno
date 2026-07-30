@@ -16,13 +16,13 @@ contract DeployCandidate {
     bytes32 public constant DETERMINISTIC_DEPLOYER_CODE_HASH =
         0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989;
 
-    bytes32 public constant FACTORY_SALT = 0x2d32554fb15a503d75b83ce5d8d53a828c7420f84de1ee1c80af7ee773521800;
-    bytes32 public constant REGISTRY_SALT = 0xbcf41492063a04daa488cd46b8e0e62d6cca2e1da41f58f5bfae84ad42ab6a0f;
-    bytes32 public constant RELATIONS_SALT = 0xecb33008d6d462cb873510b5bd93291242ca14f4156a2fae7d9f04dd9a956c25;
+    bytes32 public constant FACTORY_SALT = 0xe0fd0e28bcdb28bfdfa44c2bba736c6206a798abf890d7d5690e5b77610c603a;
+    bytes32 public constant REGISTRY_SALT = 0x28355a607bb3452ad437f71bc1b14e43f270e721b2bfbf028a867711aa473af1;
+    bytes32 public constant RELATIONS_SALT = 0xdb5c183795d37085c73de55b04fb086beaa54ab4bde52b3c573952af82200ab3;
 
-    address public constant FACTORY = 0xb802F0ef1595734f2529f602F2473d829d6aaFaF;
-    address public constant REGISTRY = 0x5DAf4fA6c285AFb4B19978AD56A3892e7676Cc68;
-    address public constant RELATIONS = 0xb7Dc8acfBfC5D93146e4e88D12e5223a5E6A3b83;
+    address public constant FACTORY = 0x9A48926c82FE766fe599116dFc7111Ba6F7171DD;
+    address public constant REGISTRY = 0x02D2A9ED5ba8843b82b4e5976C686DCE4AF3bA5e;
+    address public constant RELATIONS = 0x75ABff418c4Cad3c4bD56f467cC2737237dd6eA5;
 
     bytes32 public constant FACTORY_RUNTIME_CODE_HASH =
         0x1f44f9fa643277e05f5a9d1f6a05b4cee9264c261a423021c5e0c7f5da3b312a;

@@ -8,6 +8,7 @@ use std::fmt;
 
 pub const ROBINHOOD_CHAIN_ID: u64 = 4663;
 pub const RECOVERY_DERIVATION_PATH: &str = "m/44'/60'/0'/0/0";
+const INITIAL_BUILDER_ACCOUNT_SALT_DOMAIN: &[u8] = b"TOHSENO-BUILDER-SALT-V1\0";
 
 /// Stable Shot controller identity. Device keys are deliberately not part of
 /// this identifier.
@@ -180,6 +181,21 @@ pub fn installation_id(public_key: &P256PublicKey) -> Bytes32 {
     key_digest(b"TOHSENO-INSTALLATION-ID-V1\0", public_key)
 }
 
+/// Derives the candidate factory salt for the BuilderAccount controlled by an
+/// initial P-256 DeviceKey.
+///
+/// This preserves the factory law already used by the engine:
+/// `SHA-256("TOHSENO-BUILDER-SALT-V1\0" || device_key_id)`.
+pub fn initial_builder_account_salt(initial_key: &P256PublicKey) -> Result<Bytes32> {
+    initial_key.validate()?;
+    let key_id = device_key_id(initial_key);
+    let mut bytes =
+        Vec::with_capacity(INITIAL_BUILDER_ACCOUNT_SALT_DOMAIN.len() + key_id.as_bytes().len());
+    bytes.extend_from_slice(INITIAL_BUILDER_ACCOUNT_SALT_DOMAIN);
+    bytes.extend_from_slice(key_id.as_bytes());
+    Ok(sha256(&bytes))
+}
+
 /// Predicts the BuilderAccount address using the EIP-1014/CREATE2 law used by
 /// the protocol factory.
 ///
@@ -264,6 +280,40 @@ mod tests {
             )
             .unwrap()
         );
+    }
+
+    #[test]
+    fn initial_builder_account_salt_is_validated_domain_separated_and_frozen() {
+        let key = P256PublicKey {
+            x: Bytes32::from_hex(
+                "x",
+                "0x6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+            )
+            .unwrap(),
+            y: Bytes32::from_hex(
+                "y",
+                "0x4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+            )
+            .unwrap(),
+        };
+        assert_eq!(
+            initial_builder_account_salt(&key).unwrap(),
+            Bytes32::from_hex(
+                "account_salt",
+                "0x8fafb619dd5916ff6a74d7ab47714afdad662a8a9c61a260215da22c53d2c93d",
+            )
+            .unwrap()
+        );
+        assert_ne!(
+            initial_builder_account_salt(&key).unwrap(),
+            device_key_id(&key)
+        );
+
+        let invalid = P256PublicKey {
+            x: Bytes32::ZERO,
+            y: Bytes32::ZERO,
+        };
+        assert!(initial_builder_account_salt(&invalid).is_err());
     }
 
     #[test]

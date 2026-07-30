@@ -10,7 +10,7 @@
     "recovery_in_prediction": false,
     "salt": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
   },
-  "candidate": "1.0.0-rc.1",
+  "candidate": "0.7.0",
   "continuity": {
     "active_window": [
       {
@@ -259,19 +259,19 @@
       }
     },
     "create_shot": {
-      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144ae0315377fca81edaba2e1aad31b4e642a25cd7bec11beaecf9f8758262bdfd463d6b3f99227d27f0ed4506eb985d3a8a6e15d5149bbe34929d6a11bbcf18ec28",
-      "digest": "0x1c8e1b917d505c390dd2ff23cc6e2ecdc90f31f62ed877a92c4ede9e416296e3",
+      "compact_signature_hex": "0x016ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca163c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a994ad236beb1531e98acc287ff4a2ad9791421244c5317f6997c586f0e26660409a63a7b948115271eb0df08ad70f4dc259f61b25ba01600767193fc450242da",
+      "digest": "0x5ec71e8d45e3f4fb095fb701b9259c2c6d40f7796b18b0c77f8ab5fc536267bf",
       "signature": {
-        "r": "0xe0315377fca81edaba2e1aad31b4e642a25cd7bec11beaecf9f8758262bdfd46",
-        "s": "0x3d6b3f99227d27f0ed4506eb985d3a8a6e15d5149bbe34929d6a11bbcf18ec28"
+        "r": "0x994ad236beb1531e98acc287ff4a2ad9791421244c5317f6997c586f0e266604",
+        "s": "0x09a63a7b948115271eb0df08ad70f4dc259f61b25ba01600767193fc450242da"
       },
-      "struct_hash": "0xd9f3d55675c4a18df2d5b21ba91eaf9ebc9844508165891e42bd16a66f53e637",
+      "struct_hash": "0xb67c8a72bcc7a5a06b78fffa18db692e51576d33af0c5cf884c686445935557e",
       "type_string": "CreateShot(bytes32 shotId,address controller,bytes32 head,uint64 sequence,uint8 publicState,bytes32 contentCommitment,uint64 nonce,uint64 deadline)",
       "value": {
         "content_commitment": "0x9999999999999999999999999999999999999999999999999999999999999999",
         "controller": "0x2222222222222222222222222222222222222222",
         "deadline": 2000000000,
-        "head": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+        "head": "0x127ba9d352e71ae8878f80d56ad015bad05993f87db33b17634a974887499d79",
         "nonce": 0,
         "public_state": "PUBLISHED",
         "sequence": 1,
@@ -390,12 +390,12 @@
       "factory": {
         "implementation": "tohseno/genesis-factory",
         "source_commit": "0123456789abcdef0123456789abcdef01234567",
-        "version": "1.0.0-rc.1"
+        "version": "0.7.0"
       },
       "fascia": "tohseno.apple/1",
       "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",
       "genesis_input_sha256": "0x3434343434343434343434343434343434343434343434343434343434343434",
-      "previous": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+      "previous": "0x3b43f3fa4a035a7905b98cdcbb803a5d1de76314933740a7ed8509518ace84dd",
       "protocol": "tohseno",
       "schema": "tohseno.shot/1",
       "sequence": 9,
@@ -403,10 +403,10 @@
       "slug": "adopted-field-notebook",
       "source_tree_sha256": "0x4646464646464646464646464646464646464646464646464646464646464646"
     },
-    "child_sha256": "0x444f43f24f21a443103edf1950faf245dcdae41d59c1dfcc951394da07532caa",
+    "child_sha256": "0x3cec7272fef12720b4ac7e978bc987c3d7e6ec5618c3d4e3aa1db405e98eb682",
     "child_sidecar": {
       "algorithm": "p256",
-      "digest": "0x444f43f24f21a443103edf1950faf245dcdae41d59c1dfcc951394da07532caa",
+      "digest": "0x3cec7272fef12720b4ac7e978bc987c3d7e6ec5618c3d4e3aa1db405e98eb682",
       "low_s": true,
       "public_key": {
         "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
@@ -414,8 +414,8 @@
       },
       "schema": "tohseno.signature/1",
       "signature": {
-        "r": "0xd6c9858ba68f4bffd97164bf297f646d2fe76a65455ebac8f5fc5329ed4b01ef",
-        "s": "0x7556eee03ff2ffc9b05e66165c8f7204fbec5b8889f34d0d0463a21c0ba9142b"
+        "r": "0xb1026012ff464bfc81eb4dd34ed0213683d1f7090420419cff20f27253e482ae",
+        "s": "0x7d8be217f972e091b2d68d20b744fced4f484172225f24edfb00aadc01ce4b17"
       }
     },
     "root": {
@@ -426,7 +426,7 @@
       "factory": {
         "implementation": "tohseno/genesis-factory",
         "source_commit": "0123456789abcdef0123456789abcdef01234567",
-        "version": "1.0.0-rc.1"
+        "version": "0.7.0"
       },
       "fascia": "tohseno.apple/1",
       "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",
@@ -444,10 +444,10 @@
       "slug": "adopted-field-notebook",
       "source_tree_sha256": "0x4545454545454545454545454545454545454545454545454545454545454545"
     },
-    "root_sha256": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+    "root_sha256": "0x3b43f3fa4a035a7905b98cdcbb803a5d1de76314933740a7ed8509518ace84dd",
     "root_sidecar": {
       "algorithm": "p256",
-      "digest": "0x3a728f8af36130654dc6a5793baefa3a8fe524fee003a8e6f13c938358e081b0",
+      "digest": "0x3b43f3fa4a035a7905b98cdcbb803a5d1de76314933740a7ed8509518ace84dd",
       "low_s": true,
       "public_key": {
         "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
@@ -455,26 +455,26 @@
       },
       "schema": "tohseno.signature/1",
       "signature": {
-        "r": "0xd97a048838076f412602ef5bbb59bab8f5e2ec044e200e44c40a0d95919b9a87",
-        "s": "0x018abe50f74e460c40e6ae09ce237b51740e5beb7f338ec3bd3afa01926d4965"
+        "r": "0xaac65035383d61ae7ceb061d55ea1d38ecc9f6e91c615c98266bb3ee38f4e05e",
+        "s": "0x3fbaa8b202713b46487db6d0314a37bedc8865817ba9f681d5f4a0e8753594da"
       }
     }
   },
   "record": {
     "invalid_high_s_signature": {
-      "r": "0x5f20afece6aaf4451a4c0be1de3420744c1aad0f4eb5b02bb83a066f862c45ad",
-      "s": "0xcf274a23ea626d89a35c945df38d491f643eb50c1138c9f06daa6d8b9ba0e8df"
+      "r": "0x569290935e688bbd16dc00be328c2a364a126033039c14906d958e7060464ce0",
+      "s": "0xbd9afabce8b03308d1b9ca59c49dd4729a4cd8a17f0110525e6e748e83dddd70"
     },
-    "mutated_sha256": "0x0603dcd75e2ed4ac697941114365536b5a5ae71d2306ec1fca78caf491e3b035",
+    "mutated_sha256": "0x268366148abf5eca0dc54d8581bc779a979ff45e2eb507756be3e9b4695970b8",
     "mutation": {
       "field": "slug",
       "value": "quiet-field-notebook-mutated"
     },
-    "rfc8785": "{\"builder_id\":\"eip155:4663:0x2222222222222222222222222222222222222222\",\"bundle_id\":\"com.tohseno.quiet-field-notebook\",\"bundle_version\":1,\"created_at\":\"2026-07-28T12:34:56Z\",\"factory\":{\"implementation\":\"tohseno/genesis-factory\",\"source_commit\":\"0123456789abcdef0123456789abcdef01234567\",\"version\":\"1.0.0-rc.1\"},\"fascia\":\"tohseno.apple/1\",\"fascia_sha256\":\"0x5555555555555555555555555555555555555555555555555555555555555555\",\"genesis_input_sha256\":\"0x3333333333333333333333333333333333333333333333333333333333333333\",\"previous\":null,\"protocol\":\"tohseno\",\"schema\":\"tohseno.shot/1\",\"sequence\":1,\"shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"slug\":\"quiet-field-notebook\",\"source_tree_sha256\":\"0x4444444444444444444444444444444444444444444444444444444444444444\"}",
-    "sha256": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+    "rfc8785": "{\"builder_id\":\"eip155:4663:0x2222222222222222222222222222222222222222\",\"bundle_id\":\"com.tohseno.quiet-field-notebook\",\"bundle_version\":1,\"created_at\":\"2026-07-28T12:34:56Z\",\"factory\":{\"implementation\":\"tohseno/genesis-factory\",\"source_commit\":\"0123456789abcdef0123456789abcdef01234567\",\"version\":\"0.7.0\"},\"fascia\":\"tohseno.apple/1\",\"fascia_sha256\":\"0x5555555555555555555555555555555555555555555555555555555555555555\",\"genesis_input_sha256\":\"0x3333333333333333333333333333333333333333333333333333333333333333\",\"previous\":null,\"protocol\":\"tohseno\",\"schema\":\"tohseno.shot/1\",\"sequence\":1,\"shot_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"slug\":\"quiet-field-notebook\",\"source_tree_sha256\":\"0x4444444444444444444444444444444444444444444444444444444444444444\"}",
+    "sha256": "0x127ba9d352e71ae8878f80d56ad015bad05993f87db33b17634a974887499d79",
     "sidecar": {
       "algorithm": "p256",
-      "digest": "0x28eaf75f4f7080f9f784860cb4f2e498c66c8ce3bee77f575a1ca75e5cb92559",
+      "digest": "0x127ba9d352e71ae8878f80d56ad015bad05993f87db33b17634a974887499d79",
       "low_s": true,
       "public_key": {
         "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
@@ -482,8 +482,8 @@
       },
       "schema": "tohseno.signature/1",
       "signature": {
-        "r": "0x5f20afece6aaf4451a4c0be1de3420744c1aad0f4eb5b02bb83a066f862c45ad",
-        "s": "0x30d8b5db159d92775ca36ba20c72b6e058a845a195ded494860f5d3760c23c72"
+        "r": "0x569290935e688bbd16dc00be328c2a364a126033039c14906d958e7060464ce0",
+        "s": "0x42650542174fccf82e4635a63b622b8d229a220c28168e32954b5634788547e1"
       }
     },
     "value": {
@@ -494,7 +494,7 @@
       "factory": {
         "implementation": "tohseno/genesis-factory",
         "source_commit": "0123456789abcdef0123456789abcdef01234567",
-        "version": "1.0.0-rc.1"
+        "version": "0.7.0"
       },
       "fascia": "tohseno.apple/1",
       "fascia_sha256": "0x5555555555555555555555555555555555555555555555555555555555555555",

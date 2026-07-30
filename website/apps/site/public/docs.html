@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Turn one private intention into a planned, composed, independently owned native iOS shot.">
+    <meta name="theme-color" content="#11100e">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{BRAND}}">
+    <meta property="og:title" content="Docs — {{BRAND}}">
+    <meta property="og:description" content="One planner and deterministic app factory, multiple local doors, and an independent iOS shot.">
+    <meta property="og:url" content="{{CANONICAL_ORIGIN}}/docs">
+    <meta property="og:image" content="{{OG_IMAGE_URL}}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="{{OG_IMAGE_URL}}">
+    <link rel="canonical" href="{{CANONICAL_ORIGIN}}/docs">
+    <link rel="icon" href="/favicon.png" type="image/png">
+    <link rel="apple-touch-icon" href="/favicon.png">
+    <title>Docs — {{BRAND}}</title>
+    <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="{{BRAND}} home">{{BRAND}}</a>
+      <nav class="utility-nav" aria-label="Documentation navigation">
+        <a href="/">Home</a>
+        <a href="{{REPOSITORY_URL}}" rel="noopener">GitHub</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+    </header>
+    <main class="document-main" id="main-content">
+      <article class="document">
+        <header class="document-header">
+          <p class="eyebrow">TOHSENO / DOCS</p>
+          <h1>Take another one.</h1>
+          <p class="document-intro">Install the local factory. Turn an intention into an independent iOS Shot. Open it, use it, and keep moving.</p>
+        </header>
+
+        <nav class="docs-index" aria-label="On this page">
+          <span>ON THIS PAGE</span>
+          <a href="#first-shot">Install</a>
+          <a href="#onboarding">Onboarding</a>
+          <a href="#take-shot">Take a Shot</a>
+          <a href="#follow">Follow and review</a>
+          <a href="#evolve">Feedback and Evolution</a>
+          <a href="#local-data">Local data</a>
+          <a href="#legacy">From v0.6</a>
+        </nav>
+
+        <section id="first-shot">
+          <h2>Make the idea exist</h2>
+          <pre><code>{{INSTALL_COMMAND}}</code></pre>
+          <p><strong>TOHSENO 0.7.0</strong> supports macOS 13 or newer. The one-line installer detects Apple Silicon or Intel, downloads the matching immutable GitHub release, verifies every checksum, installs transactionally under <code>~/.tohseno</code>, adds <code>tohseno</code> to your shell path, and opens Studio.</p>
+          <p>You do not need a TOHSENO account. Xcode is required to build and install the native Apple expression. A local Codex or Claude Code installation and its own authenticated subscription are required when you take a real Shot.</p>
+          <div class="command-block">
+            <code class="command-line" id="install-command" data-install-command data-copy-value="{{INSTALL_COMMAND}}">{{INSTALL_COMMAND}}</code>
+            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{HERO_COPIED_LABEL}}" aria-describedby="install-command">{{HERO_COPY_LABEL}}</button>
+          </div>
+        </section>
+
+        <section id="onboarding">
+          <h2>Studio checks the Mac first</h2>
+          <ol>
+            <li>Confirm macOS and the installed TOHSENO release.</li>
+            <li>Check Xcode, Simulator, and Apple signing readiness.</li>
+            <li>Detect installed Codex and Claude Code harnesses and their authentication state.</li>
+            <li>Show where private Shot data and visible app folders will live.</li>
+          </ol>
+          <p>Studio binds only to <code>127.0.0.1</code> and opens through an owner-only, one-time local session. If a prerequisite is missing, the onboarding screen gives the exact next action. Reopen it at any time with:</p>
+          <pre><code>tohseno studio</code></pre>
+        </section>
+
+        <section id="take-shot">
+          <h2>Take one deliberately small Shot</h2>
+          <ol>
+            <li>Name the app and write one exact intention.</li>
+            <li>Add up to eight reference images.</li>
+            <li>Choose Codex or Claude Code, its model, and the subscription route showing <code>$0.00</code>.</li>
+            <li>Review the accepted Genome and press <strong>PREPARE SHOT</strong>.</li>
+            <li>Watch Terminal or iTerm open with the exact command visibly preloaded.</li>
+            <li>Press Enter yourself. TOHSENO never bypasses this human boundary.</li>
+          </ol>
+          <p>The authentic harness then runs in its own terminal with normal input and output. TOHSENO does not scrape the conversation or insert permission-bypass flags.</p>
+        </section>
+
+        <section id="follow">
+          <h2>Follow and review the result</h2>
+          <pre><code>tohseno shot follow &lt;execution-id&gt;
+tohseno shot result &lt;execution-id&gt;</code></pre>
+          <p>Studio and the CLI read the same durable lifecycle events. When the harness exits, TOHSENO independently compares the Git trees, verifies the accepted Evolution, and reports <strong>SHOT LANDED</strong> only when the resulting state passes its gates. Failed, cancelled, and unlanded sessions stay honestly labelled.</p>
+          <p>Every completion record includes timestamps, outcome, digests, changed files, a diff summary, validation evidence, available cost facts, and one next action.</p>
+        </section>
+
+        <section id="evolve">
+          <h2>Experience version 0001, then evolve it</h2>
+          <pre><code>tohseno feedback &lt;app-name&gt; --version 1 --text "What I experienced"
+tohseno evolve &lt;app-name&gt;</code></pre>
+          <p>Feedback attaches private experience to one exact accepted version. An Evolution changes the same coherent intention and preserves its stable identity, lineage, and repository; a different intention becomes a different Shot.</p>
+          <p>Choose <strong>Evolve a Shot</strong> in Studio to select the feedback, add a focused evolutionary intention and new references, then take the next Shot through the same visible human boundary.</p>
+        </section>
+
+        <section id="local-data">
+          <h2>Your intentions stay on your Mac</h2>
+          <p>Visible Shot folders live under <code>~/Desktop/Tohseno</code>. Private intentions, feedback, reference copies, execution events, and completion records stay in gitignored <code>.tohseno</code> folders. Machine identity and installed release state live under <code>~/.tohseno</code>.</p>
+          <p>Studio does not upload Shot data to TOHSENO. The selected coding harness can read the intention and references to do the requested work and handles them under that provider’s own privacy, retention, and account settings.</p>
+          <p>Every Shot remains an independent Git repository. Removing the TOHSENO command does not remove its source or history.</p>
+        </section>
+
+        <section id="legacy">
+          <h2>Coming from v0.6</h2>
+          <p>The 0.7 installer preserves existing <code>~/.tohseno/apps</code> data byte-for-byte. Nothing is migrated or deleted during installation.</p>
+          <pre><code>tohseno migrate-legacy
+tohseno verify &lt;app-name&gt;</code></pre>
+          <p>The explicit migration copies each valid v0.6 app into the visible folder model and projects its frozen history without rewriting the original ledger. You can migrate every app or pass one app name.</p>
+        </section>
+      </article>
+    </main>
+    <footer class="site-footer">
+      <span>{{FOOTER_OPERATOR}}</span>
+      <span><a href="/">Give every idea a shot.</a> {{FOOTER_DOCTRINE}}</span>
+    </footer>
+  </body>
+</html>

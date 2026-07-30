@@ -20,6 +20,8 @@ pub enum ProtocolError {
     DigestMismatch,
     #[error("lineage error at sequence {sequence}: {reason}")]
     Lineage { sequence: u32, reason: String },
+    #[error("lineage-action error at sequence {sequence}: {reason}")]
+    LineageAction { sequence: u64, reason: String },
     #[error("source-tree path is invalid: {0}")]
     InvalidTreePath(String),
     #[error("source-tree entry is a symbolic link: {0}")]

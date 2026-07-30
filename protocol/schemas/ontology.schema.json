@@ -1,0 +1,1066 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/ontology.schema.json",
+  "title": "TOHSENO coherent-intention ontology v2 records",
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "tokenArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/token"
+      }
+    },
+    "availabilityStatus": {
+      "enum": [
+        "absent",
+        "unknown",
+        "intentionally_private",
+        "locally_available",
+        "publicly_available",
+        "replicated",
+        "cryptographically_verified",
+        "on_chain_anchored"
+      ]
+    },
+    "artifactLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "local_path",
+            "https",
+            "content_address",
+            "node",
+            "chain"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      }
+    },
+    "artifactDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "digest",
+        "media_type",
+        "byte_length"
+      ],
+      "properties": {
+        "digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "byte_length": {
+          "$ref": "common.schema.json#/$defs/safeUint"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    },
+    "artifactAvailability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "artifact",
+        "status",
+        "locations"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.artifact-availability/2"
+        },
+        "artifact": {
+          "$ref": "#/$defs/artifactDescriptor"
+        },
+        "status": {
+          "$ref": "#/$defs/availabilityStatus"
+        },
+        "locations": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/artifactLocation"
+          }
+        }
+      },
+      "$comment": "Protocol validation additionally forbids locations when status is absent or unknown."
+    },
+    "originalMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/artifactAvailability"
+        },
+        "inline_text": {
+          "type": "string"
+        }
+      },
+      "$comment": "When inline_text is present its exact UTF-8 bytes must match the artifact digest and byte length."
+    },
+    "intention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "materials",
+        "captured_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.intention/2"
+        },
+        "materials": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/originalMaterial"
+          },
+          "$comment": "Protocol validation also rejects distinct descriptors that repeat one artifact digest."
+        },
+        "owner_note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "captured_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "commitmentOrigin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "native"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "root_record_commitment",
+            "head_record_commitment",
+            "root_sequence"
+          ],
+          "properties": {
+            "kind": {
+              "const": "legacy_v1"
+            },
+            "root_record_commitment": {
+              "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+            },
+            "head_record_commitment": {
+              "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+            },
+            "root_sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "parent_shot_id",
+            "parent_head"
+          ],
+          "properties": {
+            "kind": {
+              "const": "descendant"
+            },
+            "parent_shot_id": {
+              "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+            },
+            "parent_head": {
+              "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+            }
+          }
+        }
+      ]
+    },
+    "shotCommitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "intention_commitment",
+        "initial_controller",
+        "initial_controller_key",
+        "origin",
+        "committed_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.shot-commitment/2"
+        },
+        "intention_commitment": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "initial_controller": {
+          "$ref": "common.schema.json#/$defs/builderId"
+        },
+        "initial_controller_key": {
+          "$ref": "common.schema.json#/$defs/p256PublicKey"
+        },
+        "origin": {
+          "$ref": "#/$defs/commitmentOrigin"
+        },
+        "committed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "$comment": "Candidate policy must reproduce the BuilderID from the pinned factory and declared key; pure reduction verifies subsequent use of the declared binding."
+    },
+    "genome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "revision",
+        "purpose",
+        "intended_for",
+        "essential_experience",
+        "behavioral_invariants",
+        "interaction_laws",
+        "aesthetic_principles",
+        "privacy_principles",
+        "ownership_principles",
+        "platform_commitments",
+        "boundaries",
+        "non_goals",
+        "required_capabilities",
+        "forbidden_transformations",
+        "acceptance_principles",
+        "freely_changeable"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.genome/2"
+        },
+        "revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "purpose": {
+          "$ref": "#/$defs/token"
+        },
+        "intended_for": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "essential_experience": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "behavioral_invariants": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "interaction_laws": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "aesthetic_principles": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "privacy_principles": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "ownership_principles": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "platform_commitments": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "boundaries": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "non_goals": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "required_capabilities": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "forbidden_transformations": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "acceptance_principles": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "freely_changeable": {
+          "$ref": "#/$defs/tokenArray"
+        }
+      }
+    },
+    "genomeProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "proposed",
+        "rationale",
+        "mutation_summary"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.genome-proposal/2"
+        },
+        "base_revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "base_genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "proposed": {
+          "$ref": "#/$defs/genome"
+        },
+        "rationale": {
+          "$ref": "#/$defs/token"
+        },
+        "mutation_summary": {
+          "$ref": "#/$defs/tokenArray"
+        }
+      },
+      "$comment": "Both base fields are absent for revision 1 and required together for explicit later mutations."
+    },
+    "genomeAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "proposal_action",
+        "revision",
+        "genome_digest",
+        "accepted_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.genome-acceptance/2"
+        },
+        "proposal_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "accepted_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "expression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "expression_id",
+        "kind",
+        "name",
+        "platforms",
+        "genome_revision",
+        "genome_digest",
+        "definition"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.expression/2"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "platforms": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "genome_revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "definition": {
+          "$ref": "#/$defs/artifactAvailability"
+        }
+      }
+    },
+    "organ": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "expression_id",
+        "organ_id",
+        "provides",
+        "owns_state",
+        "permissions",
+        "dependencies",
+        "emits",
+        "consumes",
+        "satisfies_genome_constraints",
+        "acceptance_tests",
+        "platforms"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.organ/2"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "organ_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "provides": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "owns_state": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "permissions": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "dependencies": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "emits": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "consumes": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "satisfies_genome_constraints": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "acceptance_tests": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "platforms": {
+          "$ref": "#/$defs/tokenArray"
+        }
+      },
+      "$comment": "Declarations are immutable per expression and organ ID; each Version binds its exact capability graph."
+    },
+    "materializationProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "factory",
+        "factory_version",
+        "template_digest",
+        "input_action",
+        "deterministic"
+      ],
+      "properties": {
+        "factory": {
+          "$ref": "#/$defs/token"
+        },
+        "factory_version": {
+          "$ref": "#/$defs/token"
+        },
+        "factory_source_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "template_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "input_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "deterministic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "version_id",
+        "expression_id",
+        "ordinal",
+        "genome_revision",
+        "genome_digest",
+        "source_digest",
+        "provenance",
+        "capability_graph_digest",
+        "verification_action",
+        "known_incompleteness",
+        "accepted_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.version/2"
+        },
+        "version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "ordinal": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "genome_revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "source_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "provenance": {
+          "$ref": "#/$defs/materializationProvenance"
+        },
+        "capability_graph_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "verification_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "known_incompleteness": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "build_identity": {
+          "$ref": "#/$defs/token"
+        },
+        "build_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "accepted_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "$comment": "VersionID is deterministically derived from ShotID, ExpressionID, ordinal, genome digest, and source digest."
+    },
+    "feedbackAuthor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity"
+      ],
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/token"
+        },
+        "display_name": {
+          "$ref": "#/$defs/token"
+        }
+      }
+    },
+    "structuredObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subject",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/token"
+        },
+        "subject": {
+          "$ref": "#/$defs/token"
+        },
+        "value": {
+          "$ref": "#/$defs/token"
+        }
+      }
+    },
+    "feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "expression_id",
+        "version_id",
+        "visibility",
+        "observations",
+        "attachments",
+        "observed_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.feedback/2"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "build_identity": {
+          "$ref": "#/$defs/token"
+        },
+        "author": {
+          "$ref": "#/$defs/feedbackAuthor"
+        },
+        "visibility": {
+          "enum": [
+            "private",
+            "public"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100000
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/structuredObservation"
+          }
+        },
+        "attachments": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/artifactAvailability"
+          }
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "$comment": "At least one of text, observations, or attachments must be nonempty; reduction requires the exact expression/version pair to exist."
+    },
+    "desiredChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "description"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "implementation",
+            "expression",
+            "organ",
+            "genome"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/token"
+        }
+      }
+    },
+    "evolutionaryIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "expression_id",
+        "from_version_id",
+        "preserved_invariants",
+        "desired_changes",
+        "feedback_actions",
+        "references"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.evolutionary-intent/2"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "from_version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "preserved_invariants": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "desired_changes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/desiredChange"
+          }
+        },
+        "feedback_actions": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+          }
+        },
+        "references": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/artifactAvailability"
+          },
+          "$comment": "Protocol validation also rejects distinct descriptors that repeat one artifact digest."
+        },
+        "proposed_genome_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      }
+    },
+    "evolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "evolutionary_intent_action",
+        "expression_id",
+        "from_version_id",
+        "to_version_id",
+        "from_genome_digest",
+        "to_genome_digest",
+        "preserved_invariants",
+        "completed_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.evolution/2"
+        },
+        "evolutionary_intent_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "from_version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "to_version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "from_genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "to_genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "genome_acceptance_action": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "preserved_invariants": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "completed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "previous_controller",
+        "new_controller",
+        "new_controller_key",
+        "reason",
+        "effective_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.ownership/2"
+        },
+        "previous_controller": {
+          "$ref": "common.schema.json#/$defs/builderId"
+        },
+        "new_controller": {
+          "$ref": "common.schema.json#/$defs/builderId"
+        },
+        "new_controller_key": {
+          "$ref": "common.schema.json#/$defs/p256PublicKey"
+        },
+        "reason": {
+          "$ref": "#/$defs/token"
+        },
+        "effective_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "chainAnchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chain_id",
+        "contract",
+        "transaction"
+      ],
+      "properties": {
+        "chain_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "contract": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "transaction": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        }
+      },
+      "$comment": "The witness chain is independent from the associated token chain."
+    },
+    "tokenAssociation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "operation",
+        "chain_id",
+        "token"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.token-association/2"
+        },
+        "operation": {
+          "enum": [
+            "associate",
+            "remove"
+          ]
+        },
+        "chain_id": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "token": {
+          "$ref": "common.schema.json#/$defs/nonzeroAddress20"
+        },
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "anchor": {
+          "$ref": "#/$defs/chainAnchor"
+        }
+      },
+      "$comment": "A token relation is never a Shot, expression, version, or ownership identifier."
+    },
+    "verificationGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "passed",
+        "deterministic"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/token"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "deterministic": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "$ref": "#/$defs/artifactAvailability"
+        }
+      }
+    },
+    "verificationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "expression_id",
+        "candidate_version_id",
+        "genome_revision",
+        "genome_digest",
+        "source_digest",
+        "capability_graph_digest",
+        "gates",
+        "passed",
+        "known_incompleteness",
+        "verified_at"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.verification-result/2"
+        },
+        "expression_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "candidate_version_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "genome_revision": {
+          "$ref": "common.schema.json#/$defs/positiveSafeUint"
+        },
+        "genome_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "source_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "capability_graph_digest": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/verificationGate"
+          }
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "known_incompleteness": {
+          "$ref": "#/$defs/tokenArray"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "$comment": "The capability graph digest must reproduce the current canonical Organ declarations, every declared Organ acceptance test must have its deterministic gate name, and passed must equal the conjunction of all gate results."
+    },
+    "artifactAvailabilityRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_role",
+        "availability",
+        "observed_at"
+      ],
+      "properties": {
+        "target_role": {
+          "$ref": "#/$defs/token"
+        },
+        "availability": {
+          "$ref": "#/$defs/artifactAvailability"
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "parentAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "parent_shot_id",
+        "parent_head",
+        "child_shot_id",
+        "relation"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.parent-authorization/2"
+        },
+        "parent_shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "parent_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "child_shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "relation": {
+          "enum": [
+            "fork",
+            "descendant",
+            "inspired_by"
+          ]
+        }
+      }
+    },
+    "parentRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "parent_shot_id",
+        "parent_head",
+        "child_shot_id",
+        "relation"
+      ],
+      "properties": {
+        "schema": {
+          "const": "tohseno.parent-relation/2"
+        },
+        "parent_shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "parent_head": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "child_shot_id": {
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+        },
+        "relation": {
+          "enum": [
+            "fork",
+            "descendant",
+            "inspired_by"
+          ]
+        },
+        "parent_authorization": {
+          "$ref": "signature.schema.json"
+        }
+      }
+    }
+  }
+}

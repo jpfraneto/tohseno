@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/protocol/schemas/verification-result-v2.schema.json",
+  "title": "TOHSENO exact candidate verification result v2",
+  "$ref": "ontology.schema.json#/$defs/verificationResult"
+}

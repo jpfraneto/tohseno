@@ -1,3 +1,5 @@
+use crate::bankr_launch::{BankrLaunchService, DeployApprovalRequest, LaunchParameters};
+use crate::shot_execution_commands;
 use crate::simulator::{self, SimulatorSession};
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
@@ -12,16 +14,22 @@ use std::sync::Arc;
 use tohseno_engine::builder_identity::{
     BuilderDeploymentStatus, BuilderIdentity, BuilderIdentityManager,
 };
+use tohseno_engine::gates::apple_signing::AppleSigningState;
 use tohseno_engine::gates::intent::Intent;
+use tohseno_engine::gates::toolchain::ToolchainState;
 use tohseno_engine::protocol_lifecycle::reference_fascia_root;
 use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
-use tohseno_engine::{Engine, Event, EventBus, Ledger, ShotRequest};
+use tohseno_engine::{
+    Engine, Event, EventBus, InitialExpressionPlan, Ledger, ShotLayout, ShotRequest,
+};
 use tohseno_protocol::builder::PAIRING_SCHEMA;
 use tohseno_protocol::canonical;
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
-use tohseno_protocol::digest::Address20;
+use tohseno_protocol::digest::{Address20, Bytes32};
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::identity::{device_key_id, BuilderId, ROBINHOOD_CHAIN_ID};
+use tohseno_protocol::lineage::AcceptedGenome;
+use tohseno_protocol::ontology::{Expression, VersionRecord};
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -51,6 +59,7 @@ struct State {
     events: EventBus,
     press: Arc<Mutex<()>>,
     simulator: Arc<Mutex<Option<SimulatorSession>>>,
+    bankr: BankrLaunchService,
     authority: String,
     origin: String,
 }
@@ -61,7 +70,28 @@ struct ShotSubmission {
     app_name: String,
     prompt: String,
     #[serde(default)]
+    accept_genome: bool,
+    #[serde(default)]
+    selected_feedback_actions: Vec<Bytes32>,
+    harness: String,
+    model: String,
+    route: String,
+    #[serde(default)]
     images: Vec<UploadedImage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InitialPlanRequest {
+    app_name: String,
+    prompt: String,
+}
+
+#[derive(Debug, Serialize)]
+struct InitialPlanResponse {
+    genome: tohseno_protocol::Genome,
+    genome_markdown: String,
+    expression_plan: InitialExpressionPlan,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -81,6 +111,22 @@ struct UploadedImage {
 struct SimulatorLaunch {
     app_name: String,
     shot: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FeedbackSubmission {
+    app_name: String,
+    version_ordinal: u64,
+    text: String,
+}
+
+#[derive(Debug, Serialize)]
+struct FeedbackSaved {
+    feedback_id: String,
+    action_commitment: String,
+    private: bool,
+    version_ordinal: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +152,32 @@ struct LibraryApp {
 #[derive(Debug, Serialize)]
 struct HarnessesResponse {
     harnesses: Vec<tohseno_engine::HarnessOption>,
+}
+
+#[derive(Debug, Serialize)]
+struct OnboardingResponse {
+    schema: &'static str,
+    version: &'static str,
+    first_run: bool,
+    accepted_shots: usize,
+    xcode: OnboardingCheck,
+    apple_signing: OnboardingCheck,
+    harness_ready: bool,
+    ready_for_first_shot: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct OnboardingCheck {
+    ready: bool,
+    status: &'static str,
+    detail: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ExecutionStateResponse {
+    execution: tohseno_engine::PreparedExecution,
+    events: Vec<tohseno_engine::ShotExecutionEvent>,
+    completion: Option<tohseno_engine::CompletionRecord>,
 }
 
 #[derive(Debug, Serialize)]
@@ -195,6 +267,16 @@ struct PublishFacts {
 }
 
 #[derive(Debug, Serialize)]
+struct StudioNodeFacts {
+    configured: bool,
+    reachable: bool,
+    identity: Option<String>,
+    protocol_version: Option<String>,
+    replicated_shots: Option<usize>,
+    detail: String,
+}
+
+#[derive(Debug, Serialize)]
 struct ShotProtocolFacts {
     app_name: String,
     ledger_shot: u32,
@@ -212,6 +294,48 @@ struct ShotProtocolFacts {
     verification: VerificationFacts,
     handle: RelationFacts,
     appcoin: RelationFacts,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ontology: Option<ShotOntologyFacts>,
+}
+
+#[derive(Debug, Serialize)]
+struct ShotOntologyFacts {
+    status: &'static str,
+    shot_id: String,
+    original_intention: OriginalIntentionFacts,
+    accepted_genome: AcceptedGenome,
+    expression: Expression,
+    version: VersionRecord,
+    token_association: OntologyTokenAssociationFacts,
+    lineage: OntologyLineageFacts,
+    detail: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct OriginalIntentionFacts {
+    status: &'static str,
+    exact: String,
+}
+
+#[derive(Debug, Serialize)]
+struct OntologyLineageFacts {
+    sequence: u64,
+    head: String,
+    verification: &'static str,
+    availability: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct OntologyTokenAssociationFacts {
+    status: &'static str,
+    current_action: Option<String>,
+    chain_id: Option<u64>,
+    token_address: Option<String>,
+    symbol: Option<String>,
+    anchor_declared: bool,
+    anchor_verified: bool,
+    history_count: usize,
+    identity_role: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -281,6 +405,7 @@ pub async fn serve(port: u16, events: EventBus) -> Result<(), Box<dyn std::error
         events,
         press: Arc::new(Mutex::new(())),
         simulator: Arc::new(Mutex::new(None)),
+        bankr: BankrLaunchService::from_environment()?,
         authority: format!("127.0.0.1:{}", address.port()),
         origin: url,
     };
@@ -338,8 +463,17 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     if request.method == "GET" && request.path == "/api/harnesses" {
         return serve_harnesses(&mut socket, &state).await;
     }
+    if request.method == "GET" && request.path == "/api/onboarding" {
+        return serve_onboarding(&mut socket, &state).await;
+    }
     if request.method == "GET" && request.path == "/api/protocol" {
         return serve_protocol_overview(&mut socket).await;
+    }
+    if request.method == "GET" && request.path == "/api/node" {
+        return serve_node_status(&mut socket).await;
+    }
+    if request.method == "GET" && request.path == "/api/bankr/launch" {
+        return serve_bankr_launch_status(&mut socket, &state).await;
     }
     if request.method == "GET" && request.path == PAIRING_QR_PATH {
         return serve_pairing_qr(&mut socket).await;
@@ -347,11 +481,26 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     if request.method == "GET" && request.path.starts_with("/api/protocol/shot/") {
         return serve_shot_protocol(&mut socket, &request.path).await;
     }
+    if request.method == "GET" && request.path.starts_with("/api/executions/") {
+        return serve_execution_state(&mut socket, &request.path).await;
+    }
     if request.method == "GET" && request.path.starts_with("/api/icon/") {
         return serve_icon(&mut socket, &request.path).await;
     }
     if request.method == "POST" && request.path == "/api/evolve" {
         return record_evolution(&mut socket, &request.body, &state).await;
+    }
+    if request.method == "POST" && request.path == "/api/feedback" {
+        return save_feedback(&mut socket, &request.body, &state).await;
+    }
+    if request.method == "POST" && request.path == "/api/bankr/launch/simulate" {
+        return simulate_bankr_launch(&mut socket, &request.body, &state).await;
+    }
+    if request.method == "POST" && request.path == "/api/bankr/launch/deploy" {
+        return deploy_bankr_launch(&mut socket, &request.body, &state).await;
+    }
+    if request.method == "POST" && request.path == "/api/plan" {
+        return serve_initial_plan(&mut socket, &request.body).await;
     }
     if request.method == "POST" && request.path == "/api/open" {
         return open_folder(&mut socket, &request.body).await;
@@ -411,17 +560,42 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                     return Ok(());
                 }
             };
+            if matches!(submission.mode, ShotMode::Create) && !submission.accept_genome {
+                respond(
+                    &mut socket,
+                    422,
+                    "text/plain; charset=utf-8",
+                    "the initial Genome and Apple expression plan must be reviewed and explicitly accepted",
+                )
+                .await?;
+                return Ok(());
+            }
+            if matches!(submission.mode, ShotMode::Create)
+                && !submission.selected_feedback_actions.is_empty()
+            {
+                respond(
+                    &mut socket,
+                    422,
+                    "text/plain; charset=utf-8",
+                    "Feedback actions can be selected only for an evolution from an accepted Version",
+                )
+                .await?;
+                return Ok(());
+            }
             let staging = tempfile::tempdir()?;
-            let image_paths = stage_images(staging.path(), submission.images).await?;
-            respond(
-                &mut socket,
-                202,
-                "application/json; charset=utf-8",
-                r#"{"accepted":true}"#,
-            )
-            .await?;
-            socket.shutdown().await?;
-
+            let image_paths = match stage_images(staging.path(), submission.images).await {
+                Ok(paths) => paths,
+                Err(error) => {
+                    respond(
+                        &mut socket,
+                        422,
+                        "text/plain; charset=utf-8",
+                        &format!("reference images were rejected: {error}"),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            };
             let events = state.events.clone();
             let press = state.press.clone();
             let _staging = staging;
@@ -429,26 +603,226 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
             let request = ShotRequest {
                 app_name: submission.app_name,
                 intent: Intent::parse(&submission.prompt).with_images(image_paths),
+                selected_feedback_actions: submission.selected_feedback_actions,
             };
-            let outcome = match Engine::discover(events.clone()) {
-                Ok(engine) => match submission.mode {
-                    ShotMode::Create => engine
-                        .create(&request)
-                        .map(|creation| conduct_from_studio(&creation, &events)),
-                    ShotMode::Evolve => engine.evolve(&request).await.map(|evolved| {
-                        if let tohseno_engine::machine::Evolved::Conducted(creation) = evolved {
-                            conduct_from_studio(&creation, &events);
+            let outcome: Result<tohseno_engine::PreparedExecution, String> =
+                async {
+                    let engine =
+                        Engine::discover(events.clone()).map_err(|error| error.to_string())?;
+                    let selected = shot_execution_commands::selection(
+                        &engine,
+                        Some(&submission.harness),
+                        Some(&submission.model),
+                        Some(&submission.route),
+                    )
+                    .map_err(|error| error.to_string())?;
+                    match submission.mode {
+                        ShotMode::Create => {
+                            let genome = Engine::propose_initial_genome(&request)
+                                .map_err(|error| error.to_string())?;
+                            let plan =
+                                Engine::propose_initial_expression_plan(&request, &genome)
+                                    .map_err(|error| error.to_string())?;
+                            engine.create(&request).map_err(|error| error.to_string())?;
+                            engine.accept_genome(
+                                &request.app_name,
+                                &genome,
+                                "Owner reviewed and accepted the initial operational Genome in Studio.",
+                                &[],
+                            )
+                            .map_err(|error| error.to_string())?;
+                            engine
+                                .declare_initial_expression(&request.app_name, &plan)
+                                .map_err(|error| error.to_string())?;
+                            let creation =
+                                engine.conduct_accepted_creation(&request.app_name)
+                                    .map_err(|error| error.to_string())?;
+                            shot_execution_commands::prepare(
+                                &engine,
+                                &creation,
+                                &request.app_name,
+                                &selected,
+                                true,
+                                &events,
+                            )
+                            .map_err(|error| error.to_string())
                         }
-                    }),
-                },
-                Err(error) => Err(error),
-            };
-            if let Err(error) = outcome {
-                events.emit(Event::status(format!("engine stopped: {error}")));
+                        ShotMode::Evolve => match engine
+                            .evolve(&request)
+                            .await
+                            .map_err(|error| error.to_string())?
+                        {
+                            tohseno_engine::machine::Evolved::Conducted(creation) => {
+                                shot_execution_commands::prepare(
+                                    &engine,
+                                    &creation,
+                                    &request.app_name,
+                                    &selected,
+                                    true,
+                                    &events,
+                                )
+                                .map_err(|error| error.to_string())
+                            }
+                            _ => Err("the requested intention did not produce a prepared execution"
+                                .into()),
+                        },
+                    }
+                }
+                .await;
+            match outcome {
+                Ok(execution) => {
+                    let body = serde_json::to_string(&execution)?;
+                    respond(&mut socket, 201, "application/json; charset=utf-8", &body).await?;
+                }
+                Err(error) => {
+                    events.emit(Event::status(format!("engine stopped: {error}")));
+                    respond(
+                        &mut socket,
+                        422,
+                        "text/plain; charset=utf-8",
+                        &format!("Shot was not prepared: {error}"),
+                    )
+                    .await?;
+                }
             }
         }
         _ => respond(&mut socket, 404, "text/plain; charset=utf-8", "not found").await?,
     }
+    Ok(())
+}
+
+async fn serve_bankr_launch_status(
+    socket: &mut TcpStream,
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let body = serde_json::to_string(&state.bankr.status())?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
+    Ok(())
+}
+
+async fn simulate_bankr_launch(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let parameters = match serde_json::from_slice::<LaunchParameters>(body) {
+        Ok(parameters) => parameters,
+        Err(error) => {
+            respond(
+                socket,
+                400,
+                "text/plain; charset=utf-8",
+                &format!("invalid Bankr launch configuration: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    match state.bankr.simulate(parameters).await {
+        Ok(approval) => {
+            let body = serde_json::to_string(&approval)?;
+            respond(socket, 200, "application/json; charset=utf-8", &body).await?;
+        }
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("Bankr simulation was not approved: {}", error.message),
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn deploy_bankr_launch(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let approval = match serde_json::from_slice::<DeployApprovalRequest>(body) {
+        Ok(approval) => approval,
+        Err(error) => {
+            respond(
+                socket,
+                400,
+                "text/plain; charset=utf-8",
+                &format!("invalid Bankr deployment approval: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    match state.bankr.deploy(approval).await {
+        Ok(outcome) => {
+            let body = serde_json::to_string(&outcome)?;
+            respond(socket, 201, "application/json; charset=utf-8", &body).await?;
+        }
+        Err(error) => {
+            let prefix = if error.uncertain_deployment_outcome {
+                "DEPLOYMENT OUTCOME UNKNOWN"
+            } else {
+                "Bankr deployment was not submitted"
+            };
+            respond(
+                socket,
+                if error.uncertain_deployment_outcome {
+                    500
+                } else {
+                    422
+                },
+                "text/plain; charset=utf-8",
+                &format!("{prefix}: {}", error.message),
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn serve_initial_plan(
+    socket: &mut TcpStream,
+    body: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request: InitialPlanRequest = match serde_json::from_slice(body) {
+        Ok(request) => request,
+        Err(error) => {
+            respond(
+                socket,
+                400,
+                "text/plain; charset=utf-8",
+                &format!("invalid plan request: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let request = ShotRequest {
+        app_name: request.app_name,
+        intent: Intent::parse(&request.prompt),
+        selected_feedback_actions: Vec::new(),
+    };
+    let genome = match Engine::propose_initial_genome(&request) {
+        Ok(genome) => genome,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("plan could not be produced: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let expression_plan = Engine::propose_initial_expression_plan(&request, &genome)?;
+    let body = serde_json::to_string(&InitialPlanResponse {
+        genome_markdown: tohseno_engine::render_genome_document(&genome)?,
+        genome,
+        expression_plan,
+    })?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
 }
 
@@ -487,6 +861,53 @@ async fn record_evolution(
     };
     if let Err(error) = outcome {
         events.emit(Event::status(format!("engine stopped: {error}")));
+    }
+    Ok(())
+}
+
+/// Records private feedback only after the engine resolves the exact accepted
+/// Expression and Version and signs the canonical lineage action.
+async fn save_feedback(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request = match serde_json::from_slice::<FeedbackSubmission>(body) {
+        Ok(request) => request,
+        Err(error) => {
+            respond(
+                socket,
+                400,
+                "text/plain; charset=utf-8",
+                &format!("invalid feedback: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let _guard = state.press.lock().await;
+    let result = Engine::discover(state.events.clone()).and_then(|engine| {
+        engine.record_feedback(&request.app_name, request.version_ordinal, &request.text)
+    });
+    match result {
+        Ok(stored) => {
+            let body = serde_json::to_string(&FeedbackSaved {
+                feedback_id: stored.feedback_id.to_string(),
+                action_commitment: stored.action_commitment.to_string(),
+                private: true,
+                version_ordinal: request.version_ordinal,
+            })?;
+            respond(socket, 201, "application/json; charset=utf-8", &body).await?;
+        }
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("feedback was not recorded: {error}"),
+            )
+            .await?;
+        }
     }
     Ok(())
 }
@@ -544,41 +965,6 @@ async fn open_folder(
     Ok(())
 }
 
-/// Studio conducts exactly like the CLI: the builder's own agent, their own
-/// session, one visible Terminal window on the folder.
-fn conduct_from_studio(creation: &tohseno_engine::ConductedCreation, events: &EventBus) {
-    let folder = creation.folder.display();
-    let Some(agent_command) = &creation.agent_command else {
-        events.emit(Event::handoff(format!(
-            "open a terminal in {folder} and run your coding agent — AGENTS.md guides it."
-        )));
-        return;
-    };
-    let quote = |value: &str| format!("'{}'", value.replace('\'', "'\\''"));
-    let shell = format!(
-        "cd {} && {} {}",
-        quote(&creation.folder.to_string_lossy()),
-        agent_command,
-        quote(&creation.instruction)
-    );
-    let opened = std::process::Command::new("osascript")
-        .arg("-e")
-        .arg(format!(
-            "tell application \"Terminal\"\n\tactivate\n\tdo script \"{}\"\nend tell",
-            shell.replace('\\', "\\\\").replace('"', "\\\"")
-        ))
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false);
-    if opened {
-        events.emit(Event::handoff(format!(
-            "your agent is working in {folder} — it records each evolution itself."
-        )));
-    } else {
-        events.emit(Event::handoff(format!("in {folder}, run: {shell}")));
-    }
-}
-
 async fn serve_harnesses(
     socket: &mut TcpStream,
     state: &State,
@@ -586,6 +972,52 @@ async fn serve_harnesses(
     let engine = Engine::discover(state.events.clone())?;
     let body = serde_json::to_string(&HarnessesResponse {
         harnesses: engine.harnesses(),
+    })?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
+    Ok(())
+}
+
+async fn serve_execution_state(
+    socket: &mut TcpStream,
+    path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let suffix = path
+        .strip_prefix("/api/executions/")
+        .ok_or("invalid execution path")?;
+    let mut components = suffix.split('/');
+    let app_name = components.next().ok_or("missing execution app")?;
+    let execution_id = components.next().ok_or("missing execution identity")?;
+    if components.next().is_some() {
+        respond(
+            socket,
+            404,
+            "text/plain; charset=utf-8",
+            "invalid execution path",
+        )
+        .await?;
+        return Ok(());
+    }
+    tohseno_engine::ledger::validate_app_name(app_name)?;
+    let ledger = Ledger::discover()?;
+    let repository = ledger.working_tree(app_name);
+    let execution = match tohseno_engine::shot_execution::load_execution(&repository, execution_id)
+    {
+        Ok(execution) => execution,
+        Err(error) => {
+            respond(
+                socket,
+                404,
+                "text/plain; charset=utf-8",
+                &format!("execution is unavailable: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let body = serde_json::to_string(&ExecutionStateResponse {
+        events: tohseno_engine::shot_execution::read_events(&repository, execution_id)?,
+        completion: tohseno_engine::shot_execution::load_completion(&repository, execution_id)?,
+        execution,
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
@@ -643,6 +1075,102 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
+}
+
+async fn serve_node_status(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
+    let facts = studio_node_facts();
+    let body = serde_json::to_string(&facts)?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
+    Ok(())
+}
+
+fn studio_node_facts() -> StudioNodeFacts {
+    let Some(root) = std::env::var_os("TOHSENO_NODE_ROOT").map(PathBuf::from) else {
+        return StudioNodeFacts {
+            configured: false,
+            reachable: false,
+            identity: None,
+            protocol_version: None,
+            replicated_shots: None,
+            detail:
+                "Set TOHSENO_NODE_ROOT to an existing node store to inspect its local contribution."
+                    .into(),
+        };
+    };
+    if !root.is_absolute() {
+        return unavailable_node_facts(
+            "TOHSENO_NODE_ROOT must be an absolute path to an existing node store.",
+        );
+    }
+    match fs::symlink_metadata(&root) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+        Ok(_) => {
+            return unavailable_node_facts(
+                "The configured node root is not a real local directory.",
+            )
+        }
+        Err(error) => {
+            return unavailable_node_facts(&format!(
+                "The configured node root is unavailable: {error}"
+            ))
+        }
+    }
+    let store = match tohseno_node::NodeStore::open(&root) {
+        Ok(store) => store,
+        Err(error) => {
+            return unavailable_node_facts(&format!(
+                "The configured node store did not validate: {error}"
+            ))
+        }
+    };
+    let info = match store.info() {
+        Ok(info) => info,
+        Err(error) => {
+            return unavailable_node_facts(&format!(
+                "The configured node status could not be derived: {error}"
+            ))
+        }
+    };
+    match store.integrity() {
+        Ok(integrity) if integrity.ok => StudioNodeFacts {
+            configured: true,
+            reachable: true,
+            identity: Some(info.node_id.to_string()),
+            protocol_version: Some(format!(
+                "{} {} · schema {}",
+                info.lineage_protocol,
+                info.lineage_protocol_version,
+                info.supported_schema_versions
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )),
+            replicated_shots: Some(info.indexed_shots),
+            detail: format!(
+                "Integrity verified for {} stored public actions. This local view does not claim global completeness.",
+                info.stored_actions
+            ),
+        },
+        Ok(integrity) => unavailable_node_facts(&format!(
+            "The node store is degraded: {} integrity issue(s).",
+            integrity.issues.len()
+        )),
+        Err(error) => unavailable_node_facts(&format!(
+            "The configured node integrity check failed: {error}"
+        )),
+    }
+}
+
+fn unavailable_node_facts(detail: &str) -> StudioNodeFacts {
+    StudioNodeFacts {
+        configured: true,
+        reachable: false,
+        identity: None,
+        protocol_version: None,
+        replicated_shots: None,
+        detail: detail.into(),
+    }
 }
 
 fn load_identity_facts(ledger: &Ledger) -> Result<BuilderIdentity, String> {
@@ -987,6 +1515,70 @@ async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
+async fn serve_onboarding(
+    socket: &mut TcpStream,
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let engine = Engine::discover(state.events.clone())?;
+    let accepted_shots = engine
+        .ledger()
+        .list_apps()?
+        .iter()
+        .filter(|app| app.latest_evolution.is_some())
+        .count();
+    let harness_ready = engine.harnesses().iter().any(|harness| {
+        harness.installed
+            && harness.routes.iter().any(|route| {
+                route.available
+                    && route.billing == "subscription"
+                    && route.estimated_additional_cost_usd == Some(0.0)
+            })
+    });
+    let xcode = match tohseno_engine::gates::toolchain::check() {
+        ToolchainState::Ready => OnboardingCheck {
+            ready: true,
+            status: "ready",
+            detail: "The selected Xcode toolchain responds and can build native Apple expressions."
+                .into(),
+        },
+        ToolchainState::Missing => OnboardingCheck {
+            ready: false,
+            status: "action_required",
+            detail:
+                "Install Xcode from the Mac App Store, open it once, and accept its setup prompts."
+                    .into(),
+        },
+    };
+    let apple_signing = match tohseno_engine::gates::apple_signing::check() {
+        AppleSigningState::Ready { .. } => OnboardingCheck {
+            ready: true,
+            status: "ready",
+            detail:
+                "Xcode has an Apple Development identity associated with one of its signed-in teams."
+                    .into(),
+        },
+        AppleSigningState::Missing => OnboardingCheck {
+            ready: false,
+            status: "action_required",
+            detail: "In Xcode → Settings → Accounts, sign in and create an Apple Development certificate under Manage Certificates."
+                .into(),
+        },
+    };
+    let ready_for_first_shot = xcode.ready && apple_signing.ready && harness_ready;
+    let body = serde_json::to_string(&OnboardingResponse {
+        schema: "tohseno.studio-onboarding/1",
+        version: env!("CARGO_PKG_VERSION"),
+        first_run: accepted_shots == 0,
+        accepted_shots,
+        xcode,
+        apple_signing,
+        harness_ready,
+        ready_for_first_shot,
+    })?;
+    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
+    Ok(())
+}
+
 async fn serve_shot_protocol(
     socket: &mut TcpStream,
     request_path: &str,
@@ -1033,10 +1625,12 @@ async fn serve_shot_protocol(
         respond(socket, 404, "text/plain; charset=utf-8", "not found").await?;
         return Ok(());
     };
+    let ontology = shot_ontology_facts(&ledger, &app.name, shot_number)?;
     let body = serde_json::to_string(&shot_protocol_facts(
         &app.name,
         app.latest_evolution == Some(shot_number),
         &shot,
+        ontology,
     ))?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
@@ -1046,6 +1640,7 @@ fn shot_protocol_facts(
     app_name: &str,
     current: bool,
     shot: &tohseno_engine::Evolution,
+    ontology: Option<ShotOntologyFacts>,
 ) -> ShotProtocolFacts {
     let record_path = Path::new("TOHSENO/shot.json");
     let record_exists = fs::symlink_metadata(shot.path.join(record_path)).is_ok();
@@ -1289,7 +1884,127 @@ fn shot_protocol_facts(
             value: None,
             detail: "No appcoin association receipt exists in local evidence.",
         },
+        ontology,
     }
+}
+
+fn shot_ontology_facts(
+    ledger: &Ledger,
+    app_name: &str,
+    version_ordinal: u32,
+) -> Result<Option<ShotOntologyFacts>, Box<dyn std::error::Error>> {
+    let root = ledger.working_tree(app_name);
+    let layout = ShotLayout::at(&root);
+    let lineage = layout.read_lineage()?;
+    if lineage.is_empty() {
+        return Ok(None);
+    }
+    let state = tohseno_protocol::reduce_lineage(&lineage)?;
+    let mut matching = state.expressions.values().filter_map(|expression| {
+        expression
+            .versions
+            .iter()
+            .find(|version| version.ordinal == u64::from(version_ordinal))
+            .map(|version| (expression.expression.clone(), version.clone()))
+    });
+    let Some((expression, version)) = matching.next() else {
+        return Ok(None);
+    };
+    if matching.next().is_some() {
+        return Err("multiple expressions claim the selected version ordinal".into());
+    }
+    let (acceptance_action, acceptance) = state
+        .genome_acceptances
+        .iter()
+        .find(|(_, acceptance)| {
+            acceptance.revision == version.genome_revision
+                && acceptance.genome_digest == version.genome_digest
+        })
+        .ok_or("the selected v2 Version has no matching accepted Shot genome")?;
+    let proposal = state
+        .genome_proposals
+        .get(&acceptance.proposal_action)
+        .ok_or("the accepted Shot genome proposal is unavailable")?;
+    let accepted_genome = AcceptedGenome {
+        genome: proposal.proposed.clone(),
+        proposal_action: acceptance.proposal_action,
+        acceptance_action: *acceptance_action,
+    };
+    if accepted_genome.genome.digest()? != version.genome_digest {
+        return Err("the selected Version does not bind the accepted Shot genome".into());
+    }
+    let intention_path = safe_regular_file(&root, Path::new("INTENTION.md"))
+        .map_err(|error| format!("original intention: {error}"))?;
+    let intention_metadata = fs::symlink_metadata(&intention_path)?;
+    if intention_metadata.len() > MAX_PROTOCOL_JSON {
+        return Err("original intention exceeds the Studio display limit".into());
+    }
+    let exact = String::from_utf8(fs::read(intention_path)?)
+        .map_err(|_| "original intention is not valid UTF-8")?;
+    let exact_digest = tohseno_protocol::digest::sha256(exact.as_bytes());
+    let intention_matches = state.intention.as_ref().is_some_and(|intention| {
+        intention.materials.iter().any(|material| {
+            material.artifact.artifact.digest == exact_digest
+                && material.artifact.artifact.byte_length
+                    == u64::try_from(exact.len()).unwrap_or(u64::MAX)
+        })
+    });
+    if !intention_matches {
+        return Err("original intention bytes do not match signed lineage".into());
+    }
+    let token_association = match &state.token_association {
+        Some(association) => {
+            let current_action = state
+                .token_history
+                .last()
+                .filter(|entry| entry.record == *association)
+                .map(|entry| entry.action.to_string());
+            OntologyTokenAssociationFacts {
+                status: "associated",
+                current_action,
+                chain_id: Some(association.chain_id),
+                token_address: Some(association.token.to_string()),
+                symbol: association.symbol.clone(),
+                anchor_declared: association.anchor.is_some(),
+                // A declared anchor remains an unverified claim until a
+                // chain-specific verifier checks its transaction and chain.
+                anchor_verified: false,
+                history_count: state.token_history.len(),
+                identity_role: "relationship_only",
+            }
+        }
+        None => OntologyTokenAssociationFacts {
+            status: "absent",
+            current_action: None,
+            chain_id: None,
+            token_address: None,
+            symbol: None,
+            anchor_declared: false,
+            anchor_verified: false,
+            history_count: state.token_history.len(),
+            identity_role: "relationship_only",
+        },
+    };
+    Ok(Some(ShotOntologyFacts {
+        status: "verified",
+        shot_id: state.shot_id.to_string(),
+        original_intention: OriginalIntentionFacts {
+            status: "locally_available",
+            exact,
+        },
+        accepted_genome,
+        expression,
+        version,
+        token_association,
+        lineage: OntologyLineageFacts {
+            sequence: state.sequence,
+            head: state.head.to_string(),
+            verification: "verified",
+            availability: "locally_available",
+        },
+        detail:
+            "Derived from the locally verified signed lineage; private bytes remain on this Mac.",
+    }))
 }
 
 fn conformance_counts(report: &ConformanceReport) -> (usize, usize, usize) {
@@ -1496,7 +2211,10 @@ fn collect_icons(
 async fn stage_images(
     directory: &Path,
     images: Vec<UploadedImage>,
-) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+) -> Result<Vec<PathBuf>, String> {
+    if images.len() > tohseno_engine::gates::intent::MAX_IMAGES {
+        return Err("at most eight reference images may be attached".into());
+    }
     let mut paths = Vec::new();
     for (index, image) in images.into_iter().enumerate() {
         let original = Path::new(&image.name)
@@ -1512,13 +2230,25 @@ async fn stage_images(
                     .any(|candidate| extension.eq_ignore_ascii_case(candidate))
             });
         if !extension_is_valid {
-            continue;
+            return Err(format!(
+                "attachment {} has an unsupported filename or extension",
+                index + 1
+            ));
         }
         let image_directory = directory.join(index.to_string());
-        tokio::fs::create_dir(&image_directory).await?;
+        tokio::fs::create_dir(&image_directory)
+            .await
+            .map_err(|error| error.to_string())?;
         let path = image_directory.join(original);
-        let bytes = STANDARD.decode(image.data)?;
-        tokio::fs::write(&path, bytes).await?;
+        let bytes = STANDARD
+            .decode(image.data)
+            .map_err(|error| error.to_string())?;
+        if bytes.is_empty() {
+            return Err(format!("attachment {} is empty", index + 1));
+        }
+        tokio::fs::write(&path, bytes)
+            .await
+            .map_err(|error| error.to_string())?;
         paths.push(path);
     }
     Ok(paths)
@@ -1675,10 +2405,12 @@ async fn respond(
 ) -> std::io::Result<()> {
     let reason = match status {
         200 => "OK",
+        201 => "Created",
         202 => "Accepted",
         400 => "Bad Request",
         403 => "Forbidden",
         404 => "Not Found",
+        422 => "Unprocessable Content",
         500 => "Internal Server Error",
         _ => "Error",
     };
@@ -1803,6 +2535,21 @@ mod tests {
             &duplicate_host,
             "127.0.0.1:7331"
         ));
+    }
+
+    #[test]
+    fn feedback_submission_is_closed_and_exact_version_bound() {
+        let request: FeedbackSubmission = serde_json::from_str(
+            r#"{"app_name":"field-notebook","version_ordinal":2,"text":"The save affordance was unclear."}"#,
+        )
+        .unwrap();
+        assert_eq!(request.app_name, "field-notebook");
+        assert_eq!(request.version_ordinal, 2);
+        assert_eq!(request.text, "The save affordance was unclear.");
+        assert!(serde_json::from_str::<FeedbackSubmission>(
+            r#"{"app_name":"field-notebook","version_ordinal":2,"text":"x","version_id":"invented"}"#
+        )
+        .is_err());
     }
 
     #[test]

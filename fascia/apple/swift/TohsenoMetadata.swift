@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum TohsenoCapability: String, Codable, CaseIterable, Sendable {
@@ -324,6 +325,338 @@ public struct TohsenoMetadata: Codable, Equatable, Sendable {
     }
 }
 
+/// Embedded identity for new expression versions.
+///
+/// The `/1` structure above remains frozen. New worlds use this distinct
+/// closed shape in the same self-reference-excluded resource and dispatch by
+/// the exact `schema` value.
+public struct TohsenoMetadataV2: Codable, Equatable, Sendable {
+    public let protocolName: String
+    public let protocolVersion: String
+    public let schema: String
+    public let fascia: String
+    public let shotID: String
+    public let builderID: String
+    public let expressionID: String
+    public let versionID: String
+    public let versionOrdinal: UInt64
+    public let genomeRevision: UInt64
+    public let genomeDigest: String
+    public let lineageSequence: UInt64
+    public let lineageHead: String
+    public let sourceTreeSHA256: String
+    public let fasciaSHA256: String
+    public let buildDigest: String?
+    public let bundleID: String
+    public let bundleVersion: UInt32
+    public let factory: TohsenoFactoryReference
+    public let distribution: TohsenoDistribution
+    public let capabilities: [TohsenoCapabilityDeclaration]
+    public let network: [TohsenoNetworkDeclaration]
+    public let registry: TohsenoRegistryReference?
+    public let legacyV1EvolutionCommitment: String?
+
+    public init(
+        protocolName: String = "tohseno",
+        protocolVersion: String = "2",
+        schema: String = "tohseno.app-metadata/2",
+        fascia: String = "tohseno.apple/1",
+        shotID: String,
+        builderID: String,
+        expressionID: String,
+        versionID: String,
+        versionOrdinal: UInt64,
+        genomeRevision: UInt64,
+        genomeDigest: String,
+        lineageSequence: UInt64,
+        lineageHead: String,
+        sourceTreeSHA256: String,
+        fasciaSHA256: String,
+        buildDigest: String? = nil,
+        bundleID: String,
+        bundleVersion: UInt32,
+        factory: TohsenoFactoryReference,
+        distribution: TohsenoDistribution,
+        capabilities: [TohsenoCapabilityDeclaration],
+        network: [TohsenoNetworkDeclaration],
+        registry: TohsenoRegistryReference?,
+        legacyV1EvolutionCommitment: String? = nil
+    ) {
+        self.protocolName = protocolName
+        self.protocolVersion = protocolVersion
+        self.schema = schema
+        self.fascia = fascia
+        self.shotID = shotID
+        self.builderID = builderID
+        self.expressionID = expressionID
+        self.versionID = versionID
+        self.versionOrdinal = versionOrdinal
+        self.genomeRevision = genomeRevision
+        self.genomeDigest = genomeDigest
+        self.lineageSequence = lineageSequence
+        self.lineageHead = lineageHead
+        self.sourceTreeSHA256 = sourceTreeSHA256
+        self.fasciaSHA256 = fasciaSHA256
+        self.buildDigest = buildDigest
+        self.bundleID = bundleID
+        self.bundleVersion = bundleVersion
+        self.factory = factory
+        self.distribution = distribution
+        self.capabilities = capabilities
+        self.network = network
+        self.registry = registry
+        self.legacyV1EvolutionCommitment = legacyV1EvolutionCommitment
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolName = "protocol"
+        case protocolVersion = "protocol_version"
+        case schema
+        case fascia
+        case shotID = "shot_id"
+        case builderID = "builder_id"
+        case expressionID = "expression_id"
+        case versionID = "version_id"
+        case versionOrdinal = "version_ordinal"
+        case genomeRevision = "genome_revision"
+        case genomeDigest = "genome_digest"
+        case lineageSequence = "lineage_sequence"
+        case lineageHead = "lineage_head"
+        case sourceTreeSHA256 = "source_tree_sha256"
+        case fasciaSHA256 = "fascia_sha256"
+        case buildDigest = "build_digest"
+        case bundleID = "bundle_id"
+        case bundleVersion = "bundle_version"
+        case factory
+        case distribution
+        case capabilities
+        case network
+        case registry
+        case legacyV1EvolutionCommitment = "legacy_v1_evolution_commitment"
+    }
+
+    public func validate() throws {
+        let hasNetworkCapability = capabilities.contains {
+            $0.capability == .networkAccess
+        }
+        guard protocolName == "tohseno",
+              protocolVersion == "2",
+              schema == "tohseno.app-metadata/2",
+              fascia == "tohseno.apple/1",
+              isNonzeroHex32(shotID),
+              isValidBuilderID(builderID),
+              isNonzeroHex32(expressionID),
+              isNonzeroHex32(versionID),
+              isSafePositive(versionOrdinal),
+              isSafePositive(genomeRevision),
+              isNonzeroHex32(genomeDigest),
+              isSafePositive(lineageSequence),
+              isNonzeroHex32(lineageHead),
+              isNonzeroHex32(sourceTreeSHA256),
+              isNonzeroHex32(fasciaSHA256),
+              buildDigest.map(isNonzeroHex32) ?? true,
+              legacyV1EvolutionCommitment.map(isNonzeroHex32) ?? true,
+              expectedVersionID(
+                  shotID: shotID,
+                  expressionID: expressionID,
+                  ordinal: versionOrdinal,
+                  genomeDigest: genomeDigest,
+                  sourceDigest: sourceTreeSHA256
+              ) == versionID,
+              UInt64(bundleVersion) == versionOrdinal,
+              isValidBundleID(bundleID),
+              isBoundedToken(factory.implementation, minimum: 1, maximum: 200),
+              isBoundedToken(factory.version, minimum: 1, maximum: 64),
+              isLowerUnprefixedHex(factory.sourceCommit, digits: 40),
+              Set(capabilities.map(\.capability)).count == capabilities.count,
+              capabilities.allSatisfy({
+                  isBoundedToken($0.purpose, minimum: 1, maximum: 500)
+                      && $0.details.allSatisfy {
+                          isBoundedToken($0, minimum: 1, maximum: 500)
+                      }
+              }),
+              capabilities.allSatisfy({
+                  ![
+                      .privateCloudKitSync,
+                      .otherAppleEntitlements,
+                  ].contains($0.capability) || !$0.details.isEmpty
+              }),
+              network.allSatisfy({
+                  isBoundedToken($0.endpoint, minimum: 1, maximum: 2_048)
+                      && isBoundedToken(
+                          $0.purpose,
+                          minimum: 1,
+                          maximum: 500
+                      )
+              }),
+              Set(network.map(\.endpoint)).count == network.count,
+              hasNetworkCapability == !network.isEmpty,
+              !distribution.supportedAppleSurfaces.isEmpty,
+              Set(distribution.supportedAppleSurfaces).count
+                  == distribution.supportedAppleSurfaces.count,
+              distribution.state == .appStore
+                  ? distribution.appStoreID.map(isValidAppStoreID) == true
+                  : distribution.appStoreID == nil,
+              registry.map(isValidRegistry) ?? true
+        else {
+            throw TohsenoMetadataError.invalid
+        }
+    }
+
+    public static func decodeTransportJSON(
+        _ data: Data
+    ) throws -> TohsenoMetadataV2 {
+        try fasciaStrictJSONPreflight(data)
+        try validateMetadataV2JSONShape(data)
+        let metadata = try JSONDecoder().decode(TohsenoMetadataV2.self, from: data)
+        try metadata.validate()
+        return metadata
+    }
+
+    public func canonicalTransportJSON() throws -> Data {
+        try validate()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(self)
+    }
+}
+
+/// Exact schema dispatch for the one embedded provenance resource.
+public enum TohsenoEmbeddedMetadata: Equatable, Sendable {
+    case v1(TohsenoMetadata)
+    case v2(TohsenoMetadataV2)
+
+    public static func loadEmbedded(
+        from bundle: Bundle = .main
+    ) throws -> TohsenoEmbeddedMetadata {
+        let url = bundle.url(
+            forResource: "embedded-provenance",
+            withExtension: "json",
+            subdirectory: "TOHSENO"
+        ) ?? bundle.url(
+            forResource: "embedded-provenance",
+            withExtension: "json"
+        )
+        guard let url else {
+            throw TohsenoMetadataError.missing
+        }
+        return try decodeTransportJSON(Data(contentsOf: url))
+    }
+
+    public static func decodeTransportJSON(
+        _ data: Data
+    ) throws -> TohsenoEmbeddedMetadata {
+        try fasciaStrictJSONPreflight(data)
+        guard let root = try JSONSerialization.jsonObject(
+            with: data,
+            options: [.fragmentsAllowed]
+        ) as? [String: Any],
+              let schema = root["schema"] as? String
+        else {
+            throw TohsenoMetadataError.invalid
+        }
+        switch schema {
+        case "tohseno.app-metadata/1":
+            return .v1(try TohsenoMetadata.decodeTransportJSON(data))
+        case "tohseno.app-metadata/2":
+            return .v2(try TohsenoMetadataV2.decodeTransportJSON(data))
+        default:
+            throw TohsenoMetadataError.invalid
+        }
+    }
+
+    public var schema: String {
+        switch self {
+        case let .v1(value): value.schema
+        case let .v2(value): value.schema
+        }
+    }
+
+    public var shotID: String {
+        switch self {
+        case let .v1(value): value.shotID
+        case let .v2(value): value.shotID
+        }
+    }
+
+    public var builderID: String {
+        switch self {
+        case let .v1(value): value.builderID
+        case let .v2(value): value.builderID
+        }
+    }
+
+    public var expressionID: String? {
+        switch self {
+        case .v1: nil
+        case let .v2(value): value.expressionID
+        }
+    }
+
+    public var versionID: String? {
+        switch self {
+        case .v1: nil
+        case let .v2(value): value.versionID
+        }
+    }
+
+    public var genomeRevision: UInt64? {
+        switch self {
+        case .v1: nil
+        case let .v2(value): value.genomeRevision
+        }
+    }
+
+    public var genomeDigest: String? {
+        switch self {
+        case .v1: nil
+        case let .v2(value): value.genomeDigest
+        }
+    }
+
+    public var bundleID: String {
+        switch self {
+        case let .v1(value): value.bundleID
+        case let .v2(value): value.bundleID
+        }
+    }
+
+    public var bundleVersion: UInt32 {
+        switch self {
+        case let .v1(value): value.bundleVersion
+        case let .v2(value): value.bundleVersion
+        }
+    }
+
+    public var evolution: UInt32 {
+        switch self {
+        case let .v1(value): value.sequence
+        case let .v2(value): value.bundleVersion
+        }
+    }
+
+    public var lineageHead: String {
+        switch self {
+        case let .v1(value): value.evolutionCommitment
+        case let .v2(value): value.lineageHead
+        }
+    }
+
+    public var distribution: TohsenoDistribution {
+        switch self {
+        case let .v1(value): value.distribution
+        case let .v2(value): value.distribution
+        }
+    }
+
+    public var registry: TohsenoRegistryReference? {
+        switch self {
+        case let .v1(value): value.registry
+        case let .v2(value): value.registry
+        }
+    }
+}
+
 public enum TohsenoMetadataError: Error, Equatable, Sendable {
     case missing
     case invalid
@@ -342,6 +675,56 @@ private func isHex32(_ value: String) -> Bool {
 
 private func isNonzeroHex32(_ value: String) -> Bool {
     isHex32(value) && value.dropFirst(2).contains { $0 != "0" }
+}
+
+private func isSafePositive(_ value: UInt64) -> Bool {
+    value > 0 && value <= 9_007_199_254_740_991
+}
+
+private func expectedVersionID(
+    shotID: String,
+    expressionID: String,
+    ordinal: UInt64,
+    genomeDigest: String,
+    sourceDigest: String
+) -> String? {
+    guard let shot = strictHex32Data(shotID),
+          let expression = strictHex32Data(expressionID),
+          let genome = strictHex32Data(genomeDigest),
+          let source = strictHex32Data(sourceDigest)
+    else {
+        return nil
+    }
+    var preimage = Data("TOHSENO-VERSION-ID-V2\0".utf8)
+    preimage.append(shot)
+    preimage.append(expression)
+    var bigEndianOrdinal = ordinal.bigEndian
+    withUnsafeBytes(of: &bigEndianOrdinal) {
+        preimage.append(contentsOf: $0)
+    }
+    preimage.append(genome)
+    preimage.append(source)
+    let digest = SHA256.hash(data: preimage)
+    return "0x" + digest.map { String(format: "%02x", $0) }.joined()
+}
+
+private func strictHex32Data(_ value: String) -> Data? {
+    guard isHex32(value) else {
+        return nil
+    }
+    let digits = value.dropFirst(2)
+    var output = Data()
+    output.reserveCapacity(32)
+    var index = digits.startIndex
+    for _ in 0 ..< 32 {
+        let next = digits.index(index, offsetBy: 2)
+        guard let byte = UInt8(digits[index ..< next], radix: 16) else {
+            return nil
+        }
+        output.append(byte)
+        index = next
+    }
+    return output
 }
 
 private func isValidBuilderID(_ value: String) -> Bool {
@@ -477,6 +860,73 @@ private func validateMetadataJSONShape(_ data: Data) throws {
         try requireMetadataKeys(
             origin,
             required: ["kind", "legacy_latest_shot", "legacy_source_sha256"]
+        )
+    }
+    if let value = root["registry"], !(value is NSNull) {
+        guard let registry = value as? [String: Any] else {
+            throw TohsenoMetadataError.invalid
+        }
+        try requireMetadataKeys(
+            registry,
+            required: ["chain_id", "contract"],
+            optional: ["transaction"]
+        )
+    }
+}
+
+private func validateMetadataV2JSONShape(_ data: Data) throws {
+    guard let root = try JSONSerialization.jsonObject(
+        with: data,
+        options: [.fragmentsAllowed]
+    ) as? [String: Any] else {
+        throw TohsenoMetadataError.invalid
+    }
+    try requireMetadataKeys(
+        root,
+        required: [
+            "protocol", "protocol_version", "schema", "fascia", "shot_id",
+            "builder_id", "expression_id", "version_id", "version_ordinal",
+            "genome_revision", "genome_digest", "lineage_sequence",
+            "lineage_head", "source_tree_sha256", "fascia_sha256",
+            "bundle_id", "bundle_version", "factory", "distribution",
+            "capabilities", "network",
+        ],
+        optional: [
+            "build_digest", "registry", "legacy_v1_evolution_commitment",
+        ]
+    )
+    guard let factory = root["factory"] as? [String: Any],
+          let distribution = root["distribution"] as? [String: Any],
+          let capabilities = root["capabilities"] as? [Any],
+          let network = root["network"] as? [Any]
+    else {
+        throw TohsenoMetadataError.invalid
+    }
+    try requireMetadataKeys(
+        factory,
+        required: ["implementation", "version", "source_commit"]
+    )
+    try requireMetadataKeys(
+        distribution,
+        required: ["state", "supported_apple_surfaces"],
+        optional: ["app_store_id"]
+    )
+    for value in capabilities {
+        guard let declaration = value as? [String: Any] else {
+            throw TohsenoMetadataError.invalid
+        }
+        try requireMetadataKeys(
+            declaration,
+            required: ["capability", "purpose", "details"]
+        )
+    }
+    for value in network {
+        guard let declaration = value as? [String: Any] else {
+            throw TohsenoMetadataError.invalid
+        }
+        try requireMetadataKeys(
+            declaration,
+            required: ["endpoint", "purpose"]
         )
     }
     if let value = root["registry"], !(value is NSNull) {

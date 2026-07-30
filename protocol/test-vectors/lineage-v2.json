@@ -1,0 +1,102 @@
+{
+  "actions": [
+    {
+      "action": {
+        "actor": "eip155:4663:0x1111111111111111111111111111111111111111",
+        "availability": "publicly_available",
+        "payload": {
+          "committed_at": "2026-07-29T00:00:01Z",
+          "initial_controller": "eip155:4663:0x1111111111111111111111111111111111111111",
+          "initial_controller_key": {
+            "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+            "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+          },
+          "intention_commitment": "0xa69803c07d126ed9c9b8119f3f06f4200a79b6a06cdb7701c55d055c51f500da",
+          "origin": {
+            "kind": "native"
+          },
+          "schema": "tohseno.shot-commitment/2",
+          "type": "commitment"
+        },
+        "payload_digest": "0xc3b411c71180120684a9ae7b8cf6ba9f582a990b81da8e89b20446fcd918197a",
+        "previous": null,
+        "protocol": "tohseno",
+        "protocol_version": "2",
+        "schema": "tohseno.lineage-action/2",
+        "schema_version": 2,
+        "sequence": 1,
+        "shot_id": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "timestamp": "2026-07-29T00:00:01Z"
+      },
+      "signature": {
+        "algorithm": "p256",
+        "digest": "0xdc4dec567219cdf7b7c2ddd7f12d27e4e6434a7e2a94d13f95b0bbc4b08770ec",
+        "low_s": true,
+        "public_key": {
+          "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+          "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+        },
+        "schema": "tohseno.signature/1",
+        "signature": {
+          "r": "0xf8b9c735f8471c0178339b0c7af803d7fd22f9dc8edb1538c26a3a5d811a2dff",
+          "s": "0x059b6c1bd5f95e1a3faffde9df914c9a86153660225a973b69c3e2bb8d6b4a10"
+        }
+      }
+    },
+    {
+      "action": {
+        "actor": "eip155:4663:0x1111111111111111111111111111111111111111",
+        "availability": "publicly_available",
+        "payload": {
+          "availability": {
+            "artifact": {
+              "byte_length": 27,
+              "digest": "0x09a849c4a285c4e2a81881e3cd2b602d4804661df9478718d79e1a6b85e4e484",
+              "media_type": "application/json",
+              "name": "expression.json"
+            },
+            "locations": [
+              {
+                "kind": "content_address",
+                "value": "sha256:0x09a849c4a285c4e2a81881e3cd2b602d4804661df9478718d79e1a6b85e4e484"
+              }
+            ],
+            "schema": "tohseno.artifact-availability/2",
+            "status": "publicly_available"
+          },
+          "observed_at": "2026-07-29T00:00:02Z",
+          "target_role": "expression_definition",
+          "type": "artifact_availability"
+        },
+        "payload_digest": "0xffee2b517cbe87dfc3355255dc19c6c9041477398b4fc7692c275682f414ea15",
+        "previous": "0xdc4dec567219cdf7b7c2ddd7f12d27e4e6434a7e2a94d13f95b0bbc4b08770ec",
+        "protocol": "tohseno",
+        "protocol_version": "2",
+        "schema": "tohseno.lineage-action/2",
+        "schema_version": 2,
+        "sequence": 2,
+        "shot_id": "0x2222222222222222222222222222222222222222222222222222222222222222",
+        "timestamp": "2026-07-29T00:00:02Z"
+      },
+      "signature": {
+        "algorithm": "p256",
+        "digest": "0x1f854d518eaebdac4aafe103ddcdc5336c75212db3fb0eab18612d98db993fef",
+        "low_s": true,
+        "public_key": {
+          "x": "0x6ff03b949241ce1dadd43519e6960e0a85b41a69a05c328103aa2bce1594ca16",
+          "y": "0x3c4f753a55bf01dc53f6c0b0c7eee78b40c6ff7d25a96e2282b989cef71c144a"
+        },
+        "schema": "tohseno.signature/1",
+        "signature": {
+          "r": "0xa437899349329c67c44597a20a0faded43c4d3a2759dbe176894a496120d5dbf",
+          "s": "0x049ef5aecd29969a4b199348aaf5c2caa1c793b2b5e48d233f1704ecd3875dd5"
+        }
+      }
+    }
+  ],
+  "commitments": [
+    "0xdc4dec567219cdf7b7c2ddd7f12d27e4e6434a7e2a94d13f95b0bbc4b08770ec",
+    "0x1f854d518eaebdac4aafe103ddcdc5336c75212db3fb0eab18612d98db993fef"
+  ],
+  "schema": "tohseno.lineage-test-vectors/2"
+}

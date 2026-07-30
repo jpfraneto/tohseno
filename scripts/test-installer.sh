@@ -3,7 +3,7 @@ set -eu
 
 if [ "$#" -ne 2 ]; then
   printf '%s\n' \
-    "usage: scripts/test-genesis-installer.sh PACKAGE_DIRECTORY GENESIS_ARCHIVE" >&2
+    "usage: scripts/test-installer.sh PACKAGE_DIRECTORY GENESIS_ARCHIVE" >&2
   exit 2
 fi
 
@@ -19,7 +19,7 @@ if [ -L "$package_directory/bin/tohseno" ] ||
   [ ! -f "$archive" ] ||
   [ -L "$archive" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: package or archive fixture is incomplete." >&2
+    "test-installer.sh: package or archive fixture is incomplete." >&2
   exit 2
 fi
 
@@ -35,7 +35,7 @@ cleanup() {
       ;;
     *)
       printf '%s\n' \
-        "test-genesis-installer.sh: refusing unsafe cleanup." >&2
+        "test-installer.sh: refusing unsafe cleanup." >&2
       ;;
   esac
 }
@@ -53,7 +53,7 @@ case "$(uname -m)" in
   x86_64) target="x86_64-apple-darwin" ;;
   *)
     printf '%s\n' \
-      "test-genesis-installer.sh: unsupported test architecture." >&2
+      "test-installer.sh: unsupported test architecture." >&2
     exit 2
     ;;
 esac
@@ -78,7 +78,7 @@ refresh_outer_manifest
 if [ ! -f "$package_directory/CHECKSUMS.sha256" ] ||
   [ -L "$package_directory/CHECKSUMS.sha256" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: package has no safe checksum manifest." >&2
+    "test-installer.sh: package has no safe checksum manifest." >&2
   exit 2
 fi
 (
@@ -118,7 +118,7 @@ case "$artifact" in
     SHA256SUMS) ;;
   *) exit 2 ;;
 esac
-expected_url="https://github.com/jpfraneto/tohseno/releases/download/v1.0.0-rc.1/$artifact"
+expected_url="https://github.com/jpfraneto/tohseno/releases/download/v0.7.0/$artifact"
 [ "$url" = "$expected_url" ] || exit 2
 printf '%s\n' "$url" >>"${TOHSENO_INSTALLER_CURL_LOG:?}"
 cp "${TOHSENO_INSTALLER_FIXTURE_DIR:?}/$artifact" "$destination"
@@ -134,11 +134,29 @@ stable_digest="$(
 curl_log="$temporary_root/curl.log"
 expected_urls="$temporary_root/expected-urls"
 printf '%s\n' \
-  "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0-rc.1/$binary_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0-rc.1/$helper_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0-rc.1/$materials_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0-rc.1/SHA256SUMS" |
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.7.0/$binary_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.7.0/$helper_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.7.0/$materials_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.7.0/SHA256SUMS" |
   LC_ALL=C sort >"$expected_urls"
+
+invalid_start_log="$temporary_root/invalid-start.log"
+if env \
+  HOME="$test_home" \
+  SHELL=/bin/zsh \
+  TMPDIR="$installer_tmp" \
+  PATH="$fake_bin:$PATH" \
+  TOHSENO_START_STUDIO=2 \
+  sh "$repository_root/oneshot/oneshot.sh" \
+  >"$invalid_start_log" 2>&1; then
+  printf '%s\n' \
+    "test-installer.sh: accepted an invalid Studio launch choice." >&2
+  exit 1
+fi
+grep -Fqx \
+  "TOHSENO installer: TOHSENO_START_STUDIO must be 0 or 1." \
+  "$invalid_start_log"
+test ! -e "$test_home/.tohseno/.tohseno-install-root"
 
 run_installer() {
   env \
@@ -146,7 +164,7 @@ run_installer() {
     SHELL=/bin/zsh \
     TMPDIR="$installer_tmp" \
     PATH="$fake_bin:$PATH" \
-    TOHSENO_CHANNEL=genesis \
+    TOHSENO_START_STUDIO=0 \
     TOHSENO_INSTALLER_FIXTURE_DIR="$fixture" \
     TOHSENO_INSTALLER_CURL_LOG="$curl_log" \
     sh "$repository_root/oneshot/oneshot.sh"
@@ -154,20 +172,20 @@ run_installer() {
 
 : >"$curl_log"
 run_installer >/dev/null
-install_root="$test_home/.tohseno-genesis"
+install_root="$test_home/.tohseno"
 first_current="$(readlink "$install_root/current")"
 case "$first_current" in
   releases/*) first_release_name="${first_current#releases/}" ;;
   *)
     printf '%s\n' \
-      "test-genesis-installer.sh: current escaped the release directory." >&2
+      "test-installer.sh: current escaped the release directory." >&2
     exit 1
     ;;
 esac
 case "$first_release_name" in
   "" | "." | ".." | */*)
     printf '%s\n' \
-      "test-genesis-installer.sh: current has a non-canonical target." >&2
+      "test-installer.sh: current has a non-canonical target." >&2
     exit 1
     ;;
 esac
@@ -176,35 +194,35 @@ case "$first_physical/" in
   "$install_root"/releases/*/) ;;
   *)
     printf '%s\n' \
-      "test-genesis-installer.sh: current escaped its physical release root." >&2
+      "test-installer.sh: current escaped its physical release root." >&2
     exit 1
     ;;
 esac
-"$install_root/bin/tohseno-genesis" --version |
-  grep -Fqx 'tohseno 1.0.0-rc.1'
+"$install_root/bin/tohseno" --version |
+  grep -Fqx 'tohseno 0.7.0'
 "$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 1.0.0-rc.1'
+  grep -Fqx 'tohseno-apple-identity 0.7.0'
 test -f "$install_root/share/genesis/GENESIS.json"
 test -f "$install_root/share/genesis/FILES.sha256"
 test -L "$install_root/share/genesis"
 test "$(readlink "$install_root/share/genesis")" = "../current/share/genesis"
-test -f "$install_root/.genesis-install-root"
-test ! -L "$install_root/.genesis-install-root"
-test "$(cat "$install_root/.genesis-install-root")" = "tohseno-genesis-install-v1"
-test ! -L "$install_root/bin/tohseno-genesis"
+test -f "$install_root/.tohseno-install-root"
+test ! -L "$install_root/.tohseno-install-root"
+test "$(cat "$install_root/.tohseno-install-root")" = "tohseno-stable-install-v2"
+test ! -L "$install_root/bin/tohseno"
 test ! -L "$install_root/bin/tohseno-apple-identity"
-cmp "$first_physical/bin/tohseno-genesis" "$package_directory/bin/tohseno"
+cmp "$first_physical/bin/tohseno" "$package_directory/bin/tohseno"
 cmp \
   "$first_physical/bin/tohseno-apple-identity" \
   "$package_directory/bin/tohseno-apple-identity"
 if find "$first_physical" ! -type f ! -type d -print -quit | grep -q .; then
   printf '%s\n' \
-    "test-genesis-installer.sh: physical release contains a special entry." >&2
+    "test-installer.sh: physical release contains a special entry." >&2
   exit 1
 fi
 if ! LC_ALL=C sort "$curl_log" | cmp -s - "$expected_urls"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: installer did not fetch the exact release set." >&2
+    "test-installer.sh: installer did not fetch the exact release set." >&2
   exit 1
 fi
 reference_materials="$temporary_root/reference-materials"
@@ -217,7 +235,7 @@ run_installer >/dev/null
 second_current="$(readlink "$install_root/current")"
 if [ "$first_current" = "$second_current" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: reinstall did not switch releases." >&2
+    "test-installer.sh: reinstall did not switch releases." >&2
   exit 1
 fi
 test -d "$first_physical"
@@ -227,14 +245,14 @@ case "$second_current:$second_release_name" in
   releases/*:?*) ;;
   *)
     printf '%s\n' \
-      "test-genesis-installer.sh: reinstalled current has an invalid target." >&2
+      "test-installer.sh: reinstalled current has an invalid target." >&2
     exit 1
     ;;
 esac
 case "$second_release_name" in
   "." | ".." | */*)
     printf '%s\n' \
-      "test-genesis-installer.sh: reinstalled current is non-canonical." >&2
+      "test-installer.sh: reinstalled current is non-canonical." >&2
     exit 1
     ;;
 esac
@@ -242,18 +260,18 @@ case "$second_physical/" in
   "$install_root"/releases/*/) ;;
   *)
     printf '%s\n' \
-      "test-genesis-installer.sh: reinstalled current escaped its release root." >&2
+      "test-installer.sh: reinstalled current escaped its release root." >&2
     exit 1
     ;;
 esac
-cmp "$second_physical/bin/tohseno-genesis" "$package_directory/bin/tohseno"
+cmp "$second_physical/bin/tohseno" "$package_directory/bin/tohseno"
 cmp \
   "$second_physical/bin/tohseno-apple-identity" \
   "$package_directory/bin/tohseno-apple-identity"
 diff -qr "$reference_materials/genesis" "$second_physical/share/genesis" >/dev/null
 if find "$second_physical" ! -type f ! -type d -print -quit | grep -q .; then
   printf '%s\n' \
-    "test-genesis-installer.sh: reinstalled release contains a special entry." >&2
+    "test-installer.sh: reinstalled release contains a special entry." >&2
   exit 1
 fi
 if [ "$(
@@ -261,40 +279,40 @@ if [ "$(
     wc -l | tr -d ' '
 )" -ne 2 ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: reinstall leaked or omitted a release." >&2
+    "test-installer.sh: reinstall leaked or omitted a release." >&2
   exit 1
 fi
 if ! LC_ALL=C sort "$curl_log" | cmp -s - "$expected_urls"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: reinstall did not fetch the exact release set." >&2
+    "test-installer.sh: reinstall did not fetch the exact release set." >&2
   exit 1
 fi
 first_hold="$first_physical.routing-check"
 mv "$first_physical" "$first_hold"
-"$install_root/bin/tohseno-genesis" --version |
-  grep -Fqx 'tohseno 1.0.0-rc.1'
+"$install_root/bin/tohseno" --version |
+  grep -Fqx 'tohseno 0.7.0'
 "$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 1.0.0-rc.1'
+  grep -Fqx 'tohseno-apple-identity 0.7.0'
 mv "$first_hold" "$first_physical"
 if [ "$(
-  grep -Fxc 'export PATH="$HOME/.tohseno-genesis/bin:$PATH"' \
+  grep -Fxc 'export PATH="$HOME/.tohseno/bin:$PATH"' \
     "$test_home/.zshrc"
 )" -ne 1 ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: candidate PATH entry is not idempotent." >&2
+    "test-installer.sh: stable PATH entry is not idempotent." >&2
   exit 1
 fi
 expected_zshrc="$temporary_root/expected.zshrc"
 printf '%s\n\n%s\n' \
   "export EXISTING_SETTING=yes" \
-  'export PATH="$HOME/.tohseno-genesis/bin:$PATH"' >"$expected_zshrc"
+  'export PATH="$HOME/.tohseno/bin:$PATH"' >"$expected_zshrc"
 if ! cmp -s "$expected_zshrc" "$test_home/.zshrc"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: installation clobbered shell configuration." >&2
+    "test-installer.sh: installation clobbered shell configuration." >&2
   exit 1
 fi
 
-candidate_state() {
+installed_state() {
   find "$install_root" -type d -print |
     LC_ALL=C sort |
     while IFS= read -r path; do
@@ -314,26 +332,28 @@ candidate_state() {
   stat -f '%Lp %N' "$test_home/.zshrc"
   shasum -a 256 "$test_home/.zshrc"
 }
-state_before_failure="$(candidate_state)"
+state_before_failure="$(installed_state)"
 
 printf '%s\n' "corruption" >>"$fixture/$binary_name"
 outer_failure="$temporary_root/outer-failure.log"
 if run_installer >"$outer_failure" 2>&1; then
   printf '%s\n' \
-    "test-genesis-installer.sh: accepted an outer checksum mismatch." >&2
+    "test-installer.sh: accepted an outer checksum mismatch." >&2
   exit 1
 fi
-if ! grep -Fqx \
+expected_outer_failure="$temporary_root/expected-outer-failure.log"
+printf '%s\n' \
+  "installing TOHSENO v0.7.0 - https://github.com/jpfraneto/tohseno" \
   "TOHSENO installer: Release checksum failed for $binary_name." \
-  "$outer_failure" ||
-  [ "$(wc -l <"$outer_failure" | tr -d ' ')" -ne 1 ]; then
+  >"$expected_outer_failure"
+if ! cmp -s "$expected_outer_failure" "$outer_failure"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: checksum test failed for an unrelated reason." >&2
+    "test-installer.sh: checksum test failed for an unrelated reason." >&2
   exit 1
 fi
-if [ "$(candidate_state)" != "$state_before_failure" ]; then
+if [ "$(installed_state)" != "$state_before_failure" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: checksum failure changed installed state." >&2
+    "test-installer.sh: checksum failure changed installed state." >&2
   exit 1
 fi
 
@@ -351,82 +371,88 @@ refresh_outer_manifest
 inner_failure="$temporary_root/inner-failure.log"
 if run_installer >"$inner_failure" 2>&1; then
   printf '%s\n' \
-    "test-genesis-installer.sh: accepted an incomplete inner manifest." >&2
+    "test-installer.sh: accepted an incomplete inner manifest." >&2
   exit 1
 fi
-if ! grep -Fqx \
+expected_inner_failure="$temporary_root/expected-inner-failure.log"
+printf '%s\n' \
+  "installing TOHSENO v0.7.0 - https://github.com/jpfraneto/tohseno" \
   "TOHSENO installer: Genesis FILES.sha256 does not cover exactly the staged files." \
-  "$inner_failure" ||
-  [ "$(wc -l <"$inner_failure" | tr -d ' ')" -ne 1 ]; then
+  >"$expected_inner_failure"
+if ! cmp -s "$expected_inner_failure" "$inner_failure"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: inner-manifest test failed for an unrelated reason." >&2
+    "test-installer.sh: inner-manifest test failed for an unrelated reason." >&2
   exit 1
 fi
-if [ "$(candidate_state)" != "$state_before_failure" ]; then
+if [ "$(installed_state)" != "$state_before_failure" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: inner-manifest failure changed installed state." >&2
+    "test-installer.sh: inner-manifest failure changed installed state." >&2
   exit 1
 fi
 
 cp "$archive" "$fixture/$materials_name"
 refresh_outer_manifest
-printf '%s\n' "unrecognized-marker" >"$install_root/.genesis-install-root"
-late_state_before="$(candidate_state)"
+printf '%s\n' "unrecognized-marker" >"$install_root/.tohseno-install-root"
+late_state_before="$(installed_state)"
 late_failure="$temporary_root/late-failure.log"
 if run_installer >"$late_failure" 2>&1; then
   printf '%s\n' \
-    "test-genesis-installer.sh: accepted an unrecognized late marker." >&2
+    "test-installer.sh: accepted an unrecognized late marker." >&2
   exit 1
 fi
 if ! grep -Fqx \
-  "TOHSENO installer: Existing candidate installation marker is unrecognized." \
+  "TOHSENO installer: Existing installation marker is unrecognized." \
   "$late_failure"; then
   printf '%s\n' \
-    "test-genesis-installer.sh: late rollback failed for an unrelated reason." >&2
+    "test-installer.sh: late rollback failed for an unrelated reason." >&2
   exit 1
 fi
-if [ "$(candidate_state)" != "$late_state_before" ]; then
+if [ "$(installed_state)" != "$late_state_before" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: late failure did not roll back installed state." >&2
+    "test-installer.sh: late failure did not roll back installed state." >&2
   exit 1
 fi
-printf '%s\n' "tohseno-genesis-install-v1" \
-  >"$install_root/.genesis-install-root"
-
-overlap_failure="$temporary_root/overlap-failure.log"
-if HOME="$test_home" \
-  TOHSENO_DATA_ROOT="$test_home/.tohseno" \
-  "$install_root/bin/tohseno-genesis" --version \
-  >"$overlap_failure" 2>&1; then
-  printf '%s\n' \
-    "test-genesis-installer.sh: candidate launcher accepted stable state." >&2
-  exit 1
-fi
-grep -Fq "candidate data root overlaps stable state" "$overlap_failure"
-
-alternate_home="$temporary_root/alternate-home"
-mkdir "$alternate_home"
-ln -s "$test_home/.tohseno" "$alternate_home/.tohseno"
-symlink_failure="$temporary_root/symlink-failure.log"
-if HOME="$alternate_home" \
-  "$install_root/bin/tohseno-genesis" --version \
-  >"$symlink_failure" 2>&1; then
-  printf '%s\n' \
-    "test-genesis-installer.sh: launcher accepted a symlinked stable root." >&2
-  exit 1
-fi
-grep -Fq \
-  "stable data root is symlinked; candidate isolation cannot be proven" \
-  "$symlink_failure"
+printf '%s\n' "tohseno-stable-install-v2" \
+  >"$install_root/.tohseno-install-root"
 
 observed_stable_digest="$(
   shasum -a 256 "$test_home/.tohseno/stable-state" | awk '{print $1}'
 )"
-if [ "$observed_stable_digest" != "$stable_digest" ] ||
-  [ "$(find "$test_home/.tohseno" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" -ne 1 ]; then
+if [ "$observed_stable_digest" != "$stable_digest" ]; then
   printf '%s\n' \
-    "test-genesis-installer.sh: candidate installation changed stable state." >&2
+    "test-installer.sh: installation changed pre-existing stable state." >&2
   exit 1
 fi
 
-printf '%s\n' "Genesis installer regressions passed."
+bootstrap_home="$temporary_root/bootstrap-home"
+bootstrap_log="$temporary_root/bootstrap.log"
+mkdir "$bootstrap_home"
+cat >"$fixture/$binary_name" <<'FAKE_TOHSENO'
+#!/bin/sh
+set -eu
+case "${1:-}" in
+  --version) printf '%s\n' "tohseno 0.7.0" ;;
+  studio) printf '%s\n' "studio" >>"${TOHSENO_BOOTSTRAP_LOG:?}" ;;
+  *) exit 2 ;;
+esac
+FAKE_TOHSENO
+cat >"$fixture/$helper_name" <<'FAKE_IDENTITY'
+#!/bin/sh
+set -eu
+[ "${1:-}" = "--version" ] || exit 2
+printf '%s\n' "tohseno-apple-identity 0.7.0"
+FAKE_IDENTITY
+chmod 0755 "$fixture/$binary_name" "$fixture/$helper_name"
+refresh_outer_manifest
+env \
+  HOME="$bootstrap_home" \
+  SHELL=/bin/zsh \
+  TMPDIR="$installer_tmp" \
+  PATH="$fake_bin:$PATH" \
+  TOHSENO_BOOTSTRAP_LOG="$bootstrap_log" \
+  TOHSENO_INSTALLER_FIXTURE_DIR="$fixture" \
+  TOHSENO_INSTALLER_CURL_LOG="$curl_log" \
+  sh "$repository_root/oneshot/oneshot.sh" >/dev/null
+grep -Fqx "studio" "$bootstrap_log"
+
+printf '%s\n' "Stable 0.7.0 installer regressions passed."

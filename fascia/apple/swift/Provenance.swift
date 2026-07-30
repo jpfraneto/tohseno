@@ -1,17 +1,32 @@
 import Foundation
 
 public struct Provenance: Equatable, Sendable {
-    public let metadata: TohsenoMetadata
+    public let metadata: TohsenoEmbeddedMetadata
 
     public init(metadata: TohsenoMetadata) throws {
         try metadata.validate()
+        self.metadata = .v1(metadata)
+    }
+
+    public init(metadata: TohsenoMetadataV2) throws {
+        try metadata.validate()
+        self.metadata = .v2(metadata)
+    }
+
+    public init(metadata: TohsenoEmbeddedMetadata) throws {
+        switch metadata {
+        case let .v1(value):
+            try value.validate()
+        case let .v2(value):
+            try value.validate()
+        }
         self.metadata = metadata
     }
 
     public static func current(
         bundle: Bundle = .main
     ) throws -> Provenance {
-        let metadata = try TohsenoMetadata.loadEmbedded(from: bundle)
+        let metadata = try TohsenoEmbeddedMetadata.loadEmbedded(from: bundle)
         guard bundle.bundleIdentifier == metadata.bundleID,
               let rawVersion = bundle.object(
                   forInfoDictionaryKey: "CFBundleVersion"
@@ -32,11 +47,27 @@ public struct Provenance: Equatable, Sendable {
     }
 
     public var evolution: UInt32 {
-        metadata.sequence
+        metadata.evolution
     }
 
     public var evolutionCommitment: String {
-        metadata.evolutionCommitment
+        metadata.lineageHead
+    }
+
+    public var expressionID: String? {
+        metadata.expressionID
+    }
+
+    public var versionID: String? {
+        metadata.versionID
+    }
+
+    public var genomeRevision: UInt64? {
+        metadata.genomeRevision
+    }
+
+    public var genomeDigest: String? {
+        metadata.genomeDigest
     }
 
     public var isPublished: Bool {

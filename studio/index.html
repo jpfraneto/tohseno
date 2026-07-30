@@ -11,6 +11,146 @@
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
+    <section
+      id="onboarding"
+      class="onboarding"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+      hidden
+    >
+      <div class="onboarding-card">
+        <header class="onboarding-head">
+          <div class="onboarding-brand">
+            <img src="/brand/logos/tohseno-core-circle.svg" alt="">
+            <div>
+              <span>FIRST SHOT</span>
+              <strong id="onboarding-title">Welcome to TOHSENO.</strong>
+            </div>
+          </div>
+          <button id="onboarding-close" type="button" aria-label="Close first-Shot guide">×</button>
+        </header>
+
+        <div class="onboarding-progress" aria-label="Onboarding progress">
+          <span data-onboarding-progress="1">1</span>
+          <span data-onboarding-progress="2">2</span>
+          <span data-onboarding-progress="3">3</span>
+          <span data-onboarding-progress="4">4</span>
+        </div>
+
+        <div class="onboarding-body">
+          <article class="onboarding-step" data-onboarding-step="1">
+            <span class="onboarding-kicker">01 · THE PREMISE</span>
+            <h2>One intention becomes a living app.</h2>
+            <p>
+              TOHSENO keeps the intention, identity, source, and every accepted
+              Evolution together on this Mac. Studio is local. Your private intention,
+              images, feedback, and harness conversation are not sent to a TOHSENO server.
+            </p>
+            <div class="onboarding-principles">
+              <div><strong>You direct it.</strong><span>The agent remains an authentic Codex or Claude Code session.</span></div>
+              <div><strong>You confirm it.</strong><span>No inference starts until you press Enter in Terminal.</span></div>
+              <div><strong>You can verify it.</strong><span>Every landed Evolution is bound to exact files and lineage.</span></div>
+            </div>
+          </article>
+
+          <article class="onboarding-step" data-onboarding-step="2" hidden>
+            <span class="onboarding-kicker">02 · PREPARE THIS MAC</span>
+            <h2>Give the factory its Apple tools.</h2>
+            <p>
+              Xcode builds the native expression. A free Apple ID is enough for the
+              first local build and development signing.
+            </p>
+            <div class="readiness-list">
+              <div id="onboarding-xcode" class="readiness-row" data-status="checking">
+                <span class="readiness-mark" aria-hidden="true"></span>
+                <div><strong>Xcode</strong><span id="onboarding-xcode-detail">Checking this Mac…</span></div>
+              </div>
+              <div id="onboarding-signing" class="readiness-row" data-status="checking">
+                <span class="readiness-mark" aria-hidden="true"></span>
+                <div><strong>Apple Development signing</strong><span id="onboarding-signing-detail">Checking Xcode accounts…</span></div>
+              </div>
+            </div>
+            <div class="onboarding-actions">
+              <a
+                class="onboarding-link"
+                href="https://apps.apple.com/app/xcode/id497799835"
+                target="_blank"
+                rel="noreferrer"
+              >Get Xcode</a>
+              <button id="onboarding-refresh-mac" class="onboarding-secondary" type="button">Check again</button>
+            </div>
+            <p class="onboarding-note">
+              After Xcode installs: open it, finish first-launch setup, then use
+              Settings → Accounts → Manage Certificates → + → Apple Development.
+            </p>
+          </article>
+
+          <article class="onboarding-step" data-onboarding-step="3" hidden>
+            <span class="onboarding-kicker">03 · CHOOSE YOUR HARNESS</span>
+            <h2>Bring the coding agent you already trust.</h2>
+            <p>
+              Install one harness, sign in through its own interface, then return here.
+              TOHSENO never receives that account credential.
+            </p>
+            <div class="harness-onboarding-grid">
+              <section id="onboarding-codex" class="harness-onboarding-card" data-status="checking">
+                <header><strong>Codex</strong><span>ChatGPT subscription</span></header>
+                <code>curl -fsSL https://chatgpt.com/codex/install.sh | sh</code>
+                <p>Then run <code>codex login</code> and complete the browser sign-in.</p>
+                <button
+                  class="copy-harness-command"
+                  data-command="curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+                  type="button"
+                >Copy install command</button>
+                <span class="harness-onboarding-status">Checking…</span>
+              </section>
+              <section id="onboarding-claude" class="harness-onboarding-card" data-status="checking">
+                <header><strong>Claude Code</strong><span>Claude subscription</span></header>
+                <code>curl -fsSL https://claude.ai/install.sh | bash</code>
+                <p>Then run <code>claude</code> and choose your subscription login.</p>
+                <button
+                  class="copy-harness-command"
+                  data-command="curl -fsSL https://claude.ai/install.sh | bash"
+                  type="button"
+                >Copy install command</button>
+                <span class="harness-onboarding-status">Checking…</span>
+              </section>
+            </div>
+            <div class="onboarding-actions">
+              <button id="onboarding-refresh-harnesses" class="onboarding-secondary" type="button">Check again</button>
+            </div>
+          </article>
+
+          <article class="onboarding-step" data-onboarding-step="4" hidden>
+            <span class="onboarding-kicker">04 · TAKE THE FIRST SHOT</span>
+            <h2>Make it small, genuine, and completely legible.</h2>
+            <p>
+              Use a real app you care about, one focused evolution, and at least one
+              reference image. Choose the subscription route showing <strong>$0.00</strong>.
+            </p>
+            <ol class="first-shot-sequence">
+              <li>Write the exact intention.</li>
+              <li>Add the reference image.</li>
+              <li>Review the proposed Genome.</li>
+              <li>Prepare the Shot.</li>
+              <li>Press Enter in the terminal TOHSENO opens.</li>
+              <li>Return here to review <strong>SHOT LANDED</strong>.</li>
+            </ol>
+            <div id="onboarding-ready" class="onboarding-ready" data-status="checking">
+              Checking first-Shot readiness…
+            </div>
+          </article>
+        </div>
+
+        <footer class="onboarding-footer">
+          <button id="onboarding-back" class="onboarding-secondary" type="button" hidden>Back</button>
+          <span id="onboarding-position">Step 1 of 4</span>
+          <button id="onboarding-next" class="onboarding-primary" type="button">Continue</button>
+        </footer>
+      </div>
+    </section>
+
     <main class="studio">
       <aside class="library-panel" aria-label="Shot library">
         <header class="brand">
@@ -19,11 +159,17 @@
             <strong>Studio</strong>
             <span id="connection">connecting</span>
           </div>
+          <button id="onboarding-open" type="button" aria-label="Open first-Shot guide">?</button>
         </header>
 
         <button id="new-shot" class="new-shot-action" type="button">
           <span class="plus" aria-hidden="true">+</span>
           <span><strong>New Shot</strong><small>Create a native iPhone app</small></span>
+        </button>
+
+        <button id="launch-token" class="token-launch-action" type="button">
+          <span class="token-mark" aria-hidden="true">$</span>
+          <span><strong>Launch $TOHSENO</strong><small>Simulate with Bankr first</small></span>
         </button>
 
         <div class="library-scroll">
@@ -67,6 +213,22 @@
                   <div><dt>P-256</dt><dd id="p256-status">Not queried</dd></div>
                 </dl>
                 <p id="network-detail" class="protocol-note"></p>
+              </section>
+
+              <section id="node-section" aria-labelledby="node-heading">
+                <div class="protocol-section-heading">
+                  <h2 id="node-heading">Local node</h2>
+                  <span id="node-status" class="protocol-badge">Optional</span>
+                </div>
+                <dl class="protocol-facts">
+                  <div><dt>Node identity</dt><dd id="node-identity">Not configured</dd></div>
+                  <div><dt>Protocol</dt><dd id="node-protocol">Local only</dd></div>
+                  <div><dt>Replicated</dt><dd id="node-replicated">Not queried</dd></div>
+                </dl>
+                <p id="node-detail" class="protocol-note">
+                  Studio does not require a node. A configured node contributes public records;
+                  private intention and feedback remain local.
+                </p>
               </section>
 
               <section id="pairing-section" aria-labelledby="pairing-heading">
@@ -130,6 +292,68 @@
               <span id="shot-position">Evolution 1 of 1</span>
               <button id="next-shot" type="button" aria-label="Run next evolution">›</button>
             </div>
+
+            <details id="shot-continuity" class="shot-continuity" hidden>
+              <summary>
+                <span>Shot continuity</span>
+                <span id="continuity-status" class="protocol-badge">Checking</span>
+              </summary>
+              <div class="continuity-content">
+                <dl class="protocol-facts">
+                  <div><dt>ShotID</dt><dd id="continuity-shot-id">Unavailable</dd></div>
+                  <div><dt>Expression</dt><dd id="continuity-expression">Unavailable</dd></div>
+                  <div><dt>Version</dt><dd id="continuity-version">Unavailable</dd></div>
+                  <div><dt>Genome</dt><dd id="continuity-genome">Unavailable</dd></div>
+                  <div><dt>Lineage</dt><dd id="continuity-lineage">Unavailable</dd></div>
+                  <div><dt>Token association (v2)</dt><dd id="continuity-token">None</dd></div>
+                  <div><dt>Availability</dt><dd id="continuity-availability">Unknown</dd></div>
+                </dl>
+
+                <section class="continuity-document" aria-labelledby="intention-heading">
+                  <div>
+                    <h2 id="intention-heading">Original intention</h2>
+                    <span id="intention-status">Unknown</span>
+                  </div>
+                  <pre id="intention-text">No intention record is available.</pre>
+                </section>
+
+                <section class="continuity-document" aria-labelledby="genome-heading">
+                  <div>
+                    <h2 id="genome-heading">Accepted genome</h2>
+                    <span id="genome-status">Unknown</span>
+                  </div>
+                  <pre id="genome-text">No accepted genome is available.</pre>
+                </section>
+
+                <p id="continuity-detail" class="protocol-note"></p>
+
+                <form id="feedback-form" class="feedback-form">
+                  <div class="protocol-section-heading">
+                    <h2>Experience this version</h2>
+                    <span class="protocol-badge">Private</span>
+                  </div>
+                  <p id="feedback-binding" class="protocol-note">
+                    Feedback becomes available when an exact expression version is selected.
+                  </p>
+                  <label for="feedback-text">Feedback</label>
+                  <textarea
+                    id="feedback-text"
+                    rows="4"
+                    maxlength="100000"
+                    placeholder="What did this exact version make possible, obscure, or break?"
+                    disabled
+                  ></textarea>
+                  <label class="feedback-selection" for="feedback-select-evolution">
+                    <input id="feedback-select-evolution" type="checkbox" disabled />
+                    Select this signed observation for the next evolution
+                  </label>
+                  <button id="save-feedback" class="protocol-action" type="submit" disabled>
+                    Save private feedback
+                  </button>
+                  <p id="feedback-status" class="feedback-status" role="status"></p>
+                </form>
+              </div>
+            </details>
 
             <div id="working-state" class="working-state" hidden>
               <span>the folder has unrecorded work</span>
@@ -203,7 +427,43 @@
           </div>
           <div id="attachments" class="attachments" aria-live="polite"></div>
 
-          <button id="submit" class="submit-shot" type="submit" disabled>Take Shot</button>
+          <div class="harness-grid">
+            <label>
+              <span>Coding harness</span>
+              <select id="harness" required></select>
+            </label>
+            <label>
+              <span>Model</span>
+              <select id="model" required></select>
+            </label>
+          </div>
+          <label>
+            <span>Inference / payment route</span>
+            <select id="route" required></select>
+          </label>
+          <p id="harness-status" role="status">Detecting local coding harnesses…</p>
+
+          <section id="plan-review" class="plan-review" aria-labelledby="plan-review-title" hidden>
+            <header>
+              <div>
+                <span>PROPOSED · NOT COMMITTED</span>
+                <h3 id="plan-review-title">Review the Shot genome</h3>
+              </div>
+              <strong id="plan-genome-revision">Revision 1</strong>
+            </header>
+            <p>
+              This is the operational interpretation of your intention. Accepting it establishes
+              the first Genome and Apple expression plan; your original words remain unchanged.
+            </p>
+            <pre id="plan-genome"></pre>
+            <div class="expression-plan">
+              <span>FIRST EXPRESSION</span>
+              <strong id="plan-expression"></strong>
+              <p id="plan-capabilities"></p>
+            </div>
+          </section>
+
+          <button id="submit" class="submit-shot" type="submit" disabled>PREPARE SHOT</button>
 
           <section class="press">
             <div class="press-heading">
@@ -260,6 +520,116 @@
         </div>
       </section>
     </main>
+
+    <dialog id="bankr-dialog" class="bankr-dialog" aria-labelledby="bankr-title">
+      <form id="bankr-launch-form" method="dialog">
+        <header class="bankr-head">
+          <div>
+            <span>BANKR · PROGRAMMATIC LAUNCH</span>
+            <h2 id="bankr-title">Deploy $TOHSENO</h2>
+            <p>Bankr signs and broadcasts. <strong>jpfraneto.eth</strong> receives the creator fee and vesting rights.</p>
+          </div>
+          <button id="bankr-close" type="button" aria-label="Close token launch">×</button>
+        </header>
+
+        <section class="bankr-fixed-facts" aria-label="Fixed launch identity">
+          <dl>
+            <div><dt>Token</dt><dd>TOHSENO · TOHSENO</dd></div>
+            <div><dt>Recipient</dt><dd>jpfraneto.eth</dd></div>
+            <div><dt>Pinned address</dt><dd>0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15</dd></div>
+            <div><dt>Signer</dt><dd>Bankr API-key wallet</dd></div>
+          </dl>
+          <p id="bankr-status" role="status">Checking the local Bankr configuration…</p>
+          <p id="bankr-configuration" class="bankr-configuration"></p>
+        </section>
+
+        <div class="bankr-fields">
+          <label>
+            <span>Chain</span>
+            <select id="bankr-chain" required>
+              <option value="robinhood">Robinhood Chain · 4663</option>
+              <option value="base">Base · 8453</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Creator vesting</span>
+            <select id="bankr-vesting" required>
+              <option value="fifteen_percent">15% · one year, 30-day cliff</option>
+              <option value="none">None · 100% enters the pool</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Creator fees</span>
+            <select id="bankr-fee-mode" required>
+              <option value="mixed">Launched token + quote token</option>
+              <option value="quote_only">Quote token only</option>
+            </select>
+          </label>
+
+          <label class="bankr-wide">
+            <span>Description</span>
+            <textarea id="bankr-description" maxlength="500" required>Persistent computational identity for coherent human intentions.</textarea>
+          </label>
+
+          <label class="bankr-wide">
+            <span>Token image URL · optional HTTPS</span>
+            <input id="bankr-image" type="url" inputmode="url" placeholder="https://tohseno.com/token.png">
+          </label>
+
+          <label>
+            <span>Website · optional HTTPS</span>
+            <input id="bankr-website" type="url" inputmode="url" value="https://tohseno.com">
+          </label>
+
+          <label>
+            <span>Launch post · optional HTTPS</span>
+            <input id="bankr-tweet" type="url" inputmode="url" placeholder="https://x.com/…/status/…">
+          </label>
+        </div>
+
+        <p class="bankr-warning">
+          Simulation calls Bankr but broadcasts nothing. Deployment is irreversible. Bankr’s wallet—not
+          jpfraneto.eth—will be the on-chain deployer.
+        </p>
+
+        <button id="bankr-simulate" class="bankr-primary" type="submit" disabled>Simulate with Bankr</button>
+
+        <section id="bankr-simulation" class="bankr-simulation" hidden>
+          <div class="bankr-review-heading">
+            <span>SIMULATION VERIFIED</span>
+            <strong>Valid for 10 minutes</strong>
+          </div>
+          <dl>
+            <div><dt>Predicted token</dt><dd id="bankr-predicted-address"></dd></div>
+            <div><dt>Recipient</dt><dd id="bankr-resolved-recipient"></dd></div>
+            <div><dt>Configuration</dt><dd id="bankr-configuration-digest"></dd></div>
+          </dl>
+          <label>
+            <span>Bankr fee distribution</span>
+            <pre id="bankr-fee-distribution"></pre>
+          </label>
+          <label class="bankr-acknowledgment">
+            <input id="bankr-acknowledge" type="checkbox">
+            <span>I understand Bankr signs the deployment and jpfraneto.eth receives the creator rights.</span>
+          </label>
+          <label>
+            <span>Type this exact phrase</span>
+            <code id="bankr-confirmation-phrase"></code>
+            <input id="bankr-confirmation" type="text" autocomplete="off" spellcheck="false">
+          </label>
+          <button id="bankr-deploy" class="bankr-deploy" type="button" disabled>Deploy $TOHSENO through Bankr</button>
+        </section>
+
+        <section id="bankr-result" class="bankr-result" hidden aria-live="polite">
+          <h3 id="bankr-result-title"></h3>
+          <p id="bankr-result-summary"></p>
+          <a id="bankr-explorer" target="_blank" rel="noreferrer noopener" hidden>Open transaction explorer</a>
+          <pre id="bankr-result-json"></pre>
+        </section>
+      </form>
+    </dialog>
 
     <script src="/app.js" defer></script>
   </body>

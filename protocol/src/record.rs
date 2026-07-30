@@ -239,7 +239,7 @@ mod tests {
             fascia_sha256: Bytes32::new([5; 32]),
             factory: FactoryDescriptor {
                 implementation: "example/factory".into(),
-                version: "1.0.0-rc.1".into(),
+                version: "0.7.0".into(),
                 source_commit: "a".repeat(40),
             },
             created_at: CanonicalTimestamp::parse("2026-07-28T00:00:00Z").unwrap(),

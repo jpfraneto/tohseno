@@ -3,12 +3,12 @@ set -eu
 
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 integrity_tool="$repository_root/scripts/release-package-integrity.py"
-dirty_override="${TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE:-0}"
+dirty_override="${TOHSENO_ALLOW_DIRTY_RELEASE:-0}"
 case "$dirty_override" in
   0 | 1) ;;
   *)
     printf '%s\n' \
-      "release-candidate.sh: TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE must be 0 or 1." >&2
+      "release.sh: TOHSENO_ALLOW_DIRTY_RELEASE must be 0 or 1." >&2
     exit 2
     ;;
 esac
@@ -21,7 +21,7 @@ if ! source_status="$(
     --ignore-submodules=none
 )"; then
   printf '%s\n' \
-    "release-candidate.sh: could not determine full-worktree source state." >&2
+    "release.sh: could not determine full-worktree source state." >&2
   exit 1
 fi
 
@@ -34,13 +34,13 @@ if [ -n "$source_status" ]; then
   source_dirty=true
   if [ "$dirty_override" != "1" ]; then
     printf '%s\n' \
-      "release-candidate.sh: the full worktree is dirty; commit or stash every tracked and untracked change." \
-      "For explicit local-only inspection, set TOHSENO_ALLOW_DIRTY_RELEASE_CANDIDATE=1; RELEASE.json will record dirty=true." >&2
+      "release.sh: the full worktree is dirty; commit or stash every tracked and untracked change." \
+      "For explicit local-only inspection, set TOHSENO_ALLOW_DIRTY_RELEASE=1; RELEASE.json will record dirty=true." >&2
     exit 1
   fi
   bundle_dirty_override=1
   printf '%s\n' \
-    "release-candidate.sh: WARNING: assembling dirty sources; RELEASE.json will record dirty=true." >&2
+    "release.sh: WARNING: assembling dirty sources; RELEASE.json will record dirty=true." >&2
 fi
 
 target="${TOHSENO_RELEASE_TARGET:-$(rustc -vV | awk '/^host:/ {print $2}')}"
@@ -57,7 +57,7 @@ cleanup() {
       --repository-root "$repository_root" \
       --stage-name "$stage_name" ||
       printf '%s\n' \
-        "release-candidate.sh: could not safely remove the package stage." >&2
+        "release.sh: could not safely remove the package stage." >&2
   fi
   if [ -n "$snapshot_root" ]; then
     case "$snapshot_root" in
@@ -67,7 +67,7 @@ cleanup() {
         ;;
       *)
         printf '%s\n' \
-          "release-candidate.sh: refusing unsafe source-snapshot cleanup." >&2
+          "release.sh: refusing unsafe source-snapshot cleanup." >&2
         ;;
     esac
   fi
@@ -80,7 +80,7 @@ cleanup() {
         ;;
       *)
         printf '%s\n' \
-          "release-candidate.sh: refusing unsafe snapshot-root cleanup." >&2
+          "release.sh: refusing unsafe snapshot-root cleanup." >&2
         ;;
     esac
   fi
@@ -107,7 +107,7 @@ verify_macho() {
   binary="$1"
   actual_architectures="$(lipo -archs "$binary")"
   if [ "$actual_architectures" != "$macho_architecture" ]; then
-    printf 'release-candidate.sh: unexpected architectures for %s: %s\n' \
+    printf 'release.sh: unexpected architectures for %s: %s\n' \
       "$binary" "$actual_architectures" >&2
     return 1
   fi
@@ -119,7 +119,7 @@ verify_macho() {
       '
   )"
   if [ "$build_versions" != "MACOS:13.0" ]; then
-    printf 'release-candidate.sh: unexpected build versions for %s: %s\n' \
+    printf 'release.sh: unexpected build versions for %s: %s\n' \
       "$binary" "$build_versions" >&2
     return 1
   fi
@@ -133,7 +133,7 @@ if [ "$source_dirty" = false ]; then
     mktemp -d "${TMPDIR:-/tmp}/tohseno-release-source.XXXXXX"
   )" || {
     printf '%s\n' \
-      "release-candidate.sh: could not create a private source snapshot." >&2
+      "release.sh: could not create a private source snapshot." >&2
     exit 1
   }
   chmod 0700 "$snapshot_parent"
@@ -144,7 +144,7 @@ if [ "$source_dirty" = false ]; then
     "$snapshot_root" \
     "$source_commit"; then
     printf '%s\n' \
-      "release-candidate.sh: could not materialize the captured source commit." >&2
+      "release.sh: could not materialize the captured source commit." >&2
     exit 1
   fi
   build_root="$snapshot_root"
@@ -156,7 +156,7 @@ if [ "$source_dirty" = false ]; then
         --ignore-submodules=none
     )" ]; then
     printf '%s\n' \
-      "release-candidate.sh: private source snapshot is not the exact clean commit." >&2
+      "release.sh: private source snapshot is not the exact clean commit." >&2
     exit 1
   fi
   # Bundle timestamps must follow the pinned commit, not caller state.
@@ -213,7 +213,7 @@ python3 "$integrity_tool" validate-tree --root "$build_root/dist/genesis"
 genesis_source_commit="$(sed -n '1p' "$build_root/dist/genesis/SOURCE_COMMIT.txt")"
 if [ "$genesis_source_commit" != "$source_commit" ]; then
   printf '%s\n' \
-    "release-candidate.sh: Genesis bundle source commit disagrees with the candidate source." >&2
+    "release.sh: Genesis bundle source commit disagrees with the release source." >&2
   exit 1
 fi
 
@@ -249,7 +249,7 @@ cp -RP "$build_root/studio/." "$package/studio/"
 cp -RP "$build_root/dist/genesis/." "$package/genesis/"
 
 jq -n \
-  --arg version "1.0.0-rc.1" \
+  --arg version "0.7.0" \
   --arg codename "GENESIS" \
   --arg target "$target" \
   --arg source_commit "$source_commit" \
@@ -263,9 +263,8 @@ jq -n \
     source_commit:$source_commit,
     source_state_sha256:$source_state_sha256,
     dirty:$dirty,
-    channel:"genesis",
-    prerelease:true,
-    stable_untouched:true
+    channel:"stable",
+    prerelease:false
   }' >"$package/RELEASE.json"
 
 python3 "$integrity_tool" write-manifest --root "$package"
@@ -279,7 +278,7 @@ final_source_state_sha256="$(
 if [ "$final_snapshot_commit" != "$source_commit" ] ||
   [ "$final_source_state_sha256" != "$source_state_sha256" ]; then
   printf '%s\n' \
-    "release-candidate.sh: source state changed during assembly." >&2
+    "release.sh: source state changed during assembly." >&2
   exit 1
 fi
 if [ "$source_dirty" = false ]; then
@@ -291,7 +290,7 @@ if [ "$source_dirty" = false ]; then
   )"
   if [ -n "$final_snapshot_status" ]; then
     printf '%s\n' \
-      "release-candidate.sh: private source snapshot changed during assembly." >&2
+      "release.sh: private source snapshot changed during assembly." >&2
     exit 1
   fi
 fi
@@ -304,15 +303,14 @@ fi
     --arg target "$target" \
     --argjson dirty "$source_dirty" \
     '.schema == "tohseno.release/1"
-     and .version == "1.0.0-rc.1"
+     and .version == "0.7.0"
      and .codename == "GENESIS"
      and .target == $target
      and .source_commit == $source_commit
      and .source_state_sha256 == $source_state_sha256
      and .dirty == $dirty
-     and .channel == "genesis"
-     and .prerelease == true
-     and .stable_untouched == true' \
+     and .channel == "stable"
+     and .prerelease == false' \
     RELEASE.json >/dev/null
 )
 

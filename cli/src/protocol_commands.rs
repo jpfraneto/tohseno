@@ -24,7 +24,7 @@ use tohseno_engine::public_submission::{
 use tohseno_engine::verifier::{
     self, LineageVerificationReport, ShotVerificationReport, VerificationCheck, VerificationStatus,
 };
-use tohseno_engine::{Event, EventBus, Evolution, Ledger};
+use tohseno_engine::{Event, EventBus, Evolution, Ledger, ShotBodyVerification, ShotLayout};
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
@@ -42,11 +42,24 @@ pub fn protocol_command(
             let deployment: serde_json::Value = serde_json::from_str(DEPLOYMENT)?;
             let info = ProtocolInfo {
                 protocol: "tohseno",
-                candidate_version: "1.0.0-rc.1",
+                candidate_version: "0.7.0",
                 shot_schema: tohseno_protocol::record::SHOT_SCHEMA,
+                compatibility_shot_schema: tohseno_protocol::record::SHOT_SCHEMA,
+                lineage_protocol_version: tohseno_protocol::lineage::LINEAGE_PROTOCOL_VERSION,
+                lineage_action_schema: tohseno_protocol::lineage::LINEAGE_ACTION_SCHEMA,
+                lineage_schema_version: tohseno_protocol::lineage::LINEAGE_SCHEMA_VERSION,
                 signature_schema: SignatureSidecar::SCHEMA,
                 fascia: tohseno_protocol::record::APPLE_FASCIA_ID,
+                app_metadata_schemas: [
+                    tohseno_protocol::app_metadata::APP_METADATA_SCHEMA,
+                    tohseno_protocol::app_metadata::APP_METADATA_V2_SCHEMA,
+                ],
                 chain_id: tohseno_protocol::identity::ROBINHOOD_CHAIN_ID,
+                registry_chain_id: tohseno_protocol::identity::ROBINHOOD_CHAIN_ID,
+                supported_token_association_chains: [
+                    tohseno_protocol::identity::ROBINHOOD_CHAIN_ID,
+                    8_453,
+                ],
                 canonical_release: false,
                 deployment,
             };
@@ -54,7 +67,7 @@ pub fn protocol_command(
                 print_json(&info)?;
             } else {
                 bus.emit(Event::result(
-                    "TOHSENO GENESIS 1.0.0-rc.1 · protocol candidate, not canonical.",
+                    "TOHSENO GENESIS 0.7.0 · protocol candidate, not canonical.",
                 ));
                 bus.emit(Event::status(
                     "Robinhood Chain 4663 · deterministic deployment planned, not deployed.",
@@ -71,7 +84,7 @@ pub fn protocol_command(
                     "the frozen cross-language protocol vectors are valid JSON.",
                 ));
                 bus.emit(Event::status(format!(
-                    "{} · candidate 1.0.0-rc.1",
+                    "{} · candidate 0.7.0",
                     value
                         .get("schema")
                         .and_then(serde_json::Value::as_str)
@@ -111,10 +124,37 @@ pub fn inspect_target(
     json: bool,
     bus: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let shot_body = resolve_shot_body(target)?;
+    let shot = match resolve_shot(target) {
+        Ok(shot) => shot,
+        Err(error) => {
+            if let Some(body) = shot_body {
+                let view = ShotBodyInspection::from_report(target, body);
+                if json {
+                    print_json(&view)?;
+                } else {
+                    bus.emit(Event::result(format!(
+                        "Shot {} has a verified protocol {} body.",
+                        view.report.shot_id, view.report.protocol_version
+                    )));
+                    bus.emit(Event::status(format!(
+                        "{} signed action(s) · head {}.",
+                        view.report.lineage_sequence, view.report.lineage_head
+                    )));
+                }
+                return Ok(());
+            }
+            if report_unfinished_app(target, json, bus)? {
+                return Err(
+                    "no complete Shot yet; the attempt above is unfinished and unsigned".into(),
+                );
+            }
+            return Err(error);
+        }
+    };
     if report_unfinished_app(target, json, bus)? {
         return Err("no complete Shot yet; the attempt above is unfinished and unsigned".into());
     }
-    let shot = resolve_shot(target)?;
     let fascia_reference = protocol_lifecycle::reference_fascia_root()?;
     let verification = verifier::verify_shot_directory(&shot.path, &fascia_reference);
     if !verification.conformant {
@@ -148,6 +188,7 @@ pub fn inspect_target(
         signer_key_id: tohseno_protocol::identity::device_key_id(&signature.public_key).to_string(),
         conformant: conformance.conformant,
         public_state: "private",
+        shot_body,
     };
     if json {
         print_json(&view)?;
@@ -981,19 +1022,31 @@ fn resolve_verification(
     target: &str,
     fascia_reference: &Path,
 ) -> Result<LocalVerification, Box<dyn std::error::Error>> {
+    let shot_body = resolve_shot_body(target)?;
     let candidate = PathBuf::from(target);
     if fs::symlink_metadata(&candidate).is_ok() {
-        let shot = resolve_shot(target)?;
-        return Ok(LocalVerification::Evolution(
-            verifier::verify_shot_directory(&shot.path, fascia_reference),
-        ));
+        return match resolve_shot(target) {
+            Ok(shot) => {
+                let expression = verifier::verify_shot_directory(&shot.path, fascia_reference);
+                Ok(match shot_body {
+                    Some(shot_body) => LocalVerification::EvolutionAndShotBody {
+                        expression,
+                        shot_body,
+                    },
+                    None => LocalVerification::Evolution(expression),
+                })
+            }
+            Err(error) => shot_body.map(LocalVerification::ShotBody).ok_or(error),
+        };
     }
 
     tohseno_engine::ledger::validate_app_name(target)?;
     let ledger = Ledger::discover()?;
     let shots = ledger.list_evolutions(target)?;
     if shots.is_empty() {
-        return Err("app has no complete Shot".into());
+        return shot_body
+            .map(LocalVerification::ShotBody)
+            .ok_or_else(|| "app has no complete Shot".into());
     }
     let protocol_start = shots.iter().position(|shot| {
         fs::symlink_metadata(shot.path.join("TOHSENO"))
@@ -1007,8 +1060,61 @@ fn resolve_verification(
             .collect::<Vec<_>>(),
         None => vec![shots.last().ok_or("app has no complete Shot")?.path.clone()],
     };
-    Ok(LocalVerification::Lineage(
-        verifier::verify_lineage_directories(&roots, fascia_reference),
+    let expression = verifier::verify_lineage_directories(&roots, fascia_reference);
+    Ok(match shot_body {
+        Some(shot_body) => LocalVerification::LineageAndShotBody {
+            expression,
+            shot_body,
+        },
+        None => LocalVerification::Lineage(expression),
+    })
+}
+
+fn resolve_shot_body(
+    target: &str,
+) -> Result<Option<ShotBodyVerification>, Box<dyn std::error::Error>> {
+    let candidate = PathBuf::from(target);
+    if let Ok(metadata) = fs::symlink_metadata(&candidate) {
+        if metadata.file_type().is_symlink() {
+            return Err("Shot target must not be a symbolic link".into());
+        }
+        let start = if metadata.is_file() {
+            candidate
+                .parent()
+                .ok_or("Shot target has no parent directory")?
+                .to_path_buf()
+        } else {
+            candidate
+        };
+        let root = std::iter::successors(Some(start.as_path()), |path| path.parent())
+            .take(5)
+            .find(|path| {
+                path.join(".tohseno/lineage.jsonl").is_file()
+                    || path.join(".tohseno/legacy-v1.json").is_file()
+            });
+        return root
+            .map(|root| ShotLayout::at(root).verify_shot_body(None))
+            .transpose()
+            .map_err(Into::into);
+    }
+
+    if tohseno_engine::ledger::validate_app_name(target).is_err() {
+        return Ok(None);
+    }
+    let ledger = Ledger::discover()?;
+    let app = match ledger.load_app(target) {
+        Ok(app) => app,
+        Err(tohseno_engine::LedgerError::AppMissing(_)) => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let root = ledger.working_tree(target);
+    if !root.join(".tohseno/lineage.jsonl").is_file()
+        && !root.join(".tohseno/legacy-v1.json").is_file()
+    {
+        return Ok(None);
+    }
+    Ok(Some(
+        ShotLayout::at(root).verify_shot_body(app.expression_id)?,
     ))
 }
 
@@ -1026,6 +1132,36 @@ fn render_verification(report: &VerificationOutput, bus: &EventBus) {
             String::new()
         };
         bus.emit(Event::status(format!("{marker} {}{detail}", check.id)));
+    }
+    if let Some(body) = report.local.shot_body() {
+        bus.emit(Event::status(format!(
+            "✓ lineage.v{} · {} signed action(s)",
+            body.protocol_version, body.lineage_sequence
+        )));
+        bus.emit(Event::status(format!(
+            "{} intention.exact-bytes",
+            if body.intention_bytes_verified {
+                "✓"
+            } else {
+                "–"
+            }
+        )));
+        bus.emit(Event::status(format!(
+            "{} genome.accepted",
+            if body.genome_revision.is_some() {
+                "✓"
+            } else {
+                "–"
+            }
+        )));
+        bus.emit(Event::status(format!(
+            "{} expression.embedded-identity",
+            if body.selected_version_id.is_none() || body.embedded_metadata_verified {
+                "✓"
+            } else {
+                "×"
+            }
+        )));
     }
     if let Some(public) = &report.public {
         render_public_checks(&public.network.checks, bus);
@@ -1133,10 +1269,19 @@ fn print_json(value: &impl Serialize) -> Result<(), Box<dyn std::error::Error>> 
 struct ProtocolInfo {
     protocol: &'static str,
     candidate_version: &'static str,
+    /// Frozen v1 field retained for existing machine consumers.
     shot_schema: &'static str,
+    compatibility_shot_schema: &'static str,
+    lineage_protocol_version: &'static str,
+    lineage_action_schema: &'static str,
+    lineage_schema_version: u32,
     signature_schema: &'static str,
     fascia: &'static str,
+    app_metadata_schemas: [&'static str; 2],
+    /// Frozen v1 field retained for existing machine consumers.
     chain_id: u64,
+    registry_chain_id: u64,
+    supported_token_association_chains: [u64; 2],
     canonical_release: bool,
     deployment: serde_json::Value,
 }
@@ -1157,6 +1302,15 @@ struct RecordVerification {
 enum LocalVerification {
     Evolution(ShotVerificationReport),
     Lineage(LineageVerificationReport),
+    ShotBody(ShotBodyVerification),
+    EvolutionAndShotBody {
+        expression: ShotVerificationReport,
+        shot_body: ShotBodyVerification,
+    },
+    LineageAndShotBody {
+        expression: LineageVerificationReport,
+        shot_body: ShotBodyVerification,
+    },
 }
 
 impl LocalVerification {
@@ -1164,6 +1318,9 @@ impl LocalVerification {
         match self {
             Self::Evolution(report) => report.conformant,
             Self::Lineage(report) => report.conformant,
+            Self::ShotBody(_) => true,
+            Self::EvolutionAndShotBody { expression, .. } => expression.conformant,
+            Self::LineageAndShotBody { expression, .. } => expression.conformant,
         }
     }
 
@@ -1176,6 +1333,23 @@ impl LocalVerification {
                 .flat_map(|shot| shot.checks.iter())
                 .chain(std::iter::once(&report.lineage))
                 .collect(),
+            Self::ShotBody(_) => Vec::new(),
+            Self::EvolutionAndShotBody { expression, .. } => expression.checks.iter().collect(),
+            Self::LineageAndShotBody { expression, .. } => expression
+                .shots
+                .iter()
+                .flat_map(|shot| shot.checks.iter())
+                .chain(std::iter::once(&expression.lineage))
+                .collect(),
+        }
+    }
+
+    fn shot_body(&self) -> Option<&ShotBodyVerification> {
+        match self {
+            Self::ShotBody(report) => Some(report),
+            Self::EvolutionAndShotBody { shot_body, .. }
+            | Self::LineageAndShotBody { shot_body, .. } => Some(shot_body),
+            Self::Evolution(_) | Self::Lineage(_) => None,
         }
     }
 }
@@ -1222,6 +1396,31 @@ struct Inspection {
     signer_key_id: String,
     conformant: bool,
     public_state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shot_body: Option<ShotBodyVerification>,
+}
+
+#[derive(Serialize)]
+struct ShotBodyInspection {
+    schema: &'static str,
+    target: String,
+    local_state: &'static str,
+    ownership_acquired: bool,
+    source_materialized: bool,
+    report: ShotBodyVerification,
+}
+
+impl ShotBodyInspection {
+    fn from_report(target: &str, report: ShotBodyVerification) -> Self {
+        Self {
+            schema: "tohseno.cli-shot-body-inspection/1",
+            target: target.into(),
+            local_state: "verified_records",
+            ownership_acquired: false,
+            source_materialized: report.embedded_metadata_verified,
+            report,
+        }
+    }
 }
 
 #[cfg(test)]

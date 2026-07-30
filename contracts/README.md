@@ -1,6 +1,6 @@
 # TOHSENO Genesis Candidate contracts
 
-Status: `1.0.0-rc.1`, GENESIS protocol candidate, undeployed and unaudited.
+Status: `0.7.0`, GENESIS protocol candidate, undeployed and unaudited.
 
 These contracts are a neutral public witness. They are non-upgradeable, have no
 administrator, hold no tokens, and grant no privilege to a TOHSENO client,
@@ -26,6 +26,14 @@ server, relayer, company, website, or deployer.
   caller may relay a valid action and the caller never becomes owner.
 - `ShotRelations` keeps handles, appcoins, and App Store attestations outside
   the neutral registry.
+
+`appcoin` is the frozen candidate contract/API name for a **Token
+Association**. It does not make the token the Shot, transfer Shot ownership,
+grant controller authority to a token holder, or require a Shot to have a
+token. The relation stores the token's own chain ID, so a Shot witnessed on
+Robinhood Chain 4663 may independently associate a token such as `$ANKY` on
+Base 8453. Replacing or removing that current relation is a separate
+owner-authorized action; historical events remain chain history.
 
 `keyId` is exactly `keccak256(abi.encodePacked(bytes32(x), bytes32(y)))`.
 

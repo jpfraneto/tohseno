@@ -85,3 +85,26 @@ Each JSON Schema must identify Draft 2020-12, have a stable `$id`, and close
 every object with `additionalProperties: false`. Schema validation alone is
 not a conformance result; all semantic checks applicable to the artifact are
 required.
+
+## Neutral lineage checks
+
+| Check ID | Required observation |
+|---|---|
+| `lineage_v2.payload_digest` | SHA-256 of RFC 8785 payload bytes equals `payload_digest`. |
+| `lineage_v2.action_signature` | The unchanged strict P-256 sidecar signs SHA-256 of RFC 8785 action bytes exactly once. |
+| `lineage_v2.causality` | ShotID is stable; sequence and previous commitments are contiguous; timestamps do not move backward. |
+| `lineage_v2.authority` | Commitment actor/key agree; each later actor and signing key equal current derived authority; ownership changes take effect only after an authorized action. |
+| `lineage_v2.factory_binding` | Candidate policy independently reproduces the initial BuilderID from the pinned factory, salt, creation bytecode, and declared key. Pure reduction alone does not satisfy this check. |
+| `lineage_v2.intention` | Exact original material descriptors match the commitment; inline UTF-8, when present, matches digest and length; the source is never replaced. |
+| `lineage_v2.genome` | Proposal base matches current accepted genome and every mutation has a distinct explicit acceptance. |
+| `lineage_v2.organ_graph` | The full same-Expression Organ declarations, sorted by `organ_id` and RFC 8785 encoded, reproduce the graph digest in both VerificationResult and Version at their respective actions. |
+| `lineage_v2.organ_acceptance` | Every acceptance-test declaration has its exact deterministic gate name, including the test-text SHA-256, and every gate contributes to the VerificationResult conjunction. |
+| `lineage_v2.version` | VersionID derivation, expression ordinal, genome, source, provenance, exact graph digest, verification result, known incompleteness, and optional build identity agree. |
+| `lineage_v2.evolution_scope` | A graph transition has an `organ`-scoped desired change; an `organ`-scoped intent does not finalize against an unchanged graph. |
+| `lineage_v2.failed_attempt` | Failed verification is representable but cannot produce an accepted Version. |
+| `lineage_v2.feedback` | Feedback names an accepted exact ExpressionID/VersionID and matching optional build identity. |
+| `lineage_v2.token_separation` | Token relation is optional, chain-specific, authorized, and never substituted for ShotID or ownership. |
+| `lineage_v2.availability` | Missing, unknown, private, local, public, replicated, verified, and anchored states are reported without implication or upgrade. |
+| `lineage_v2.partial_segment` | An unanchored middle segment reports that authority context is unavailable even when signatures and adjacency verify. |
+| `lineage_v2.v1_adapter` | Every original `/1` record and sidecar remains byte-identical; unavailable historical ontology fields remain unknown. |
+| `provenance_v2.embedded` | New-world `/2` metadata at the existing excluded provenance path binds Shot, expression, VersionID, genome, lineage head, source, optional build digest, and protocol version. |

@@ -86,7 +86,11 @@ pub fn earn(helper: &Path, identity_root: &Path) -> Result<PathBuf, EnclaveEarnE
 /// personal team mints Mac development profiles like a paid one.
 fn first_xcode_team() -> Result<String, EnclaveEarnError> {
     let output = Command::new("defaults")
-        .args(["read", "com.apple.dt.Xcode", "IDEProvisioningTeamByIdentifier"])
+        .args([
+            "read",
+            "com.apple.dt.Xcode",
+            "IDEProvisioningTeamByIdentifier",
+        ])
         .output()
         .map_err(|error| EnclaveEarnError(format!("reading Xcode accounts: {error}")))?;
     let listing = String::from_utf8_lossy(&output.stdout);
@@ -118,7 +122,10 @@ fn write_scratch_project(root: &Path, team: &str) -> Result<(), EnclaveEarnError
         fs::write(&path, contents)
             .map_err(|error| EnclaveEarnError(format!("scratch project: {error}")))
     };
-    write("Sources/main.swift", "// placeholder executable; replaced by the real helper\n")?;
+    write(
+        "Sources/main.swift",
+        "// placeholder executable; replaced by the real helper\n",
+    )?;
     write(
         "Identity.entitlements",
         concat!(
@@ -162,7 +169,11 @@ fn build_scratch_app(root: &Path) -> Result<PathBuf, EnclaveEarnError> {
             .join("; ");
         return Err(EnclaveEarnError(format!(
             "Xcode could not mint the identity profile: {}",
-            if reason.is_empty() { "unknown xcodebuild failure" } else { &reason }
+            if reason.is_empty() {
+                "unknown xcodebuild failure"
+            } else {
+                &reason
+            }
         )));
     }
     let app = root.join(format!("build/Build/Products/Release/{PRODUCT_NAME}.app"));
@@ -212,11 +223,7 @@ fn extract_entitlements(root: &Path, app: &Path) -> Result<PathBuf, EnclaveEarnE
 fn copy_bundle(source: &Path, destination: &Path) -> Result<(), EnclaveEarnError> {
     run(
         "cp",
-        &[
-            "-R".as_ref(),
-            source.as_os_str(),
-            destination.as_os_str(),
-        ],
+        &["-R".as_ref(), source.as_os_str(), destination.as_os_str()],
         "installing the earned bundle",
     )
 }

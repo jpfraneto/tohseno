@@ -103,6 +103,130 @@ impl fmt::Display for ShotId {
     }
 }
 
+/// Stable identity of one concrete manifestation of a Shot.
+///
+/// Expression IDs are random rather than derived from a name, repository,
+/// bundle identifier, or platform so those replaceable facts may change
+/// without changing expression identity.
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ExpressionId(Bytes32);
+
+impl ExpressionId {
+    pub fn random() -> Self {
+        let mut bytes = [0_u8; 32];
+        OsRng.fill_bytes(&mut bytes);
+        Self(Bytes32::new(bytes))
+    }
+
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(Bytes32::new(bytes))
+    }
+
+    pub const fn bytes(self) -> Bytes32 {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == Bytes32::ZERO
+    }
+
+    /// Deterministic projection used only when adapting a frozen v1 Apple
+    /// lineage, which did not carry an ExpressionID.
+    pub fn for_legacy_v1(shot_id: ShotId, bundle_id: &str) -> Self {
+        let mut preimage =
+            Vec::with_capacity(b"TOHSENO-LEGACY-V1-EXPRESSION\0".len() + 32 + bundle_id.len());
+        preimage.extend_from_slice(b"TOHSENO-LEGACY-V1-EXPRESSION\0");
+        preimage.extend_from_slice(shot_id.bytes().as_bytes());
+        preimage.extend_from_slice(bundle_id.as_bytes());
+        Self(sha256(&preimage))
+    }
+}
+
+impl fmt::Debug for ExpressionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, formatter)
+    }
+}
+
+impl fmt::Display for ExpressionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, formatter)
+    }
+}
+
+/// Content-bound identity of one accepted immutable expression state.
+///
+/// The derivation intentionally excludes folders, remotes, display names, and
+/// token addresses. It binds the Shot, expression, expression-local ordinal,
+/// accepted genome, and concrete source state.
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct VersionId(Bytes32);
+
+impl VersionId {
+    pub fn derive(
+        shot_id: ShotId,
+        expression_id: ExpressionId,
+        ordinal: u64,
+        genome_digest: Bytes32,
+        source_digest: Bytes32,
+    ) -> Self {
+        let mut preimage =
+            Vec::with_capacity(b"TOHSENO-VERSION-ID-V2\0".len() + 32 + 32 + 8 + 32 + 32);
+        preimage.extend_from_slice(b"TOHSENO-VERSION-ID-V2\0");
+        preimage.extend_from_slice(shot_id.bytes().as_bytes());
+        preimage.extend_from_slice(expression_id.bytes().as_bytes());
+        preimage.extend_from_slice(&ordinal.to_be_bytes());
+        preimage.extend_from_slice(genome_digest.as_bytes());
+        preimage.extend_from_slice(source_digest.as_bytes());
+        Self(sha256(&preimage))
+    }
+
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(Bytes32::new(bytes))
+    }
+
+    /// Deterministic projection used only for an already signed v1 Apple
+    /// record. It binds the untouched v1 record commitment rather than
+    /// inventing a historical neutral genome.
+    pub fn for_legacy_v1(
+        shot_id: ShotId,
+        expression_id: ExpressionId,
+        sequence: u32,
+        record_commitment: Bytes32,
+    ) -> Self {
+        let mut preimage =
+            Vec::with_capacity(b"TOHSENO-LEGACY-V1-VERSION\0".len() + 32 + 32 + 4 + 32);
+        preimage.extend_from_slice(b"TOHSENO-LEGACY-V1-VERSION\0");
+        preimage.extend_from_slice(shot_id.bytes().as_bytes());
+        preimage.extend_from_slice(expression_id.bytes().as_bytes());
+        preimage.extend_from_slice(&sequence.to_be_bytes());
+        preimage.extend_from_slice(record_commitment.as_bytes());
+        Self(sha256(&preimage))
+    }
+
+    pub const fn bytes(self) -> Bytes32 {
+        self.0
+    }
+
+    pub fn is_zero(self) -> bool {
+        self.0 == Bytes32::ZERO
+    }
+}
+
+impl fmt::Debug for VersionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.0, formatter)
+    }
+}
+
+impl fmt::Display for VersionId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, formatter)
+    }
+}
+
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Address20(HexAddress);

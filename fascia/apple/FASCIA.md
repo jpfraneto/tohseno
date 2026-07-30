@@ -32,8 +32,9 @@ The application must:
 - prepare its app-specific `InstallationIdentity` during first launch;
 - keep storage local first and make CloudKit opt-in;
 - declare every network use, protected API, and entitlement;
-- embed public Shot provenance without embedding signing or recovery secrets;
-- keep `CFBundleVersion` equal to the integer Evolution sequence.
+- embed exact Shot, expression, version, genome, lineage, source, and practical
+  build provenance without embedding signing or recovery secrets;
+- keep `CFBundleVersion` equal to the expression-local Version ordinal.
 
 ## Deterministic enforcement
 
@@ -45,8 +46,11 @@ the app complied.
 
 `TOHSENO/embedded-provenance.json` is generated after the source-tree
 commitment is known and is the single explicit source-tree exclusion needed to
-avoid a self-referential commitment. The verifier still hashes and compares
-that file independently against `shot.json`; it is excluded from only the
+avoid a self-referential commitment. Frozen histories use the exact closed
+`tohseno.app-metadata/1` shape; new expression versions use the exact closed
+`tohseno.app-metadata/2` shape. Dispatch uses the schema value and hybrid
+objects fail. The verifier still hashes and compares the resource independently
+against the applicable signed records; it is excluded from only the
 source-tree commitment, not from conformance.
 
 The Fascia commitment follows the length-prefixed tree rule in `FASCIA.json`.
@@ -63,5 +67,5 @@ non-regular included filesystem entry is a conformance failure. Build
 products, `.swiftpm`, `Package.resolved`, and `.build` are excluded. All other
 normative Fascia files are included.
 
-This is the `1.0.0-rc.1` GENESIS protocol candidate. It is not yet a canonical
+This is the `0.7.0` GENESIS protocol candidate. It is not yet a canonical
 shipped Fascia.

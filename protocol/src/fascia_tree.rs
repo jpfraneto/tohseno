@@ -8,12 +8,12 @@ use std::path::{Component, Path};
 use unicode_normalization::UnicodeNormalization;
 
 pub const DEFAULT_FASCIA_EXCLUSIONS: &[&str] = &[".build", ".swiftpm", "Package.resolved"];
-/// Exact reusable Apple law accepted by the GENESIS 1.0.0-rc.1 candidate.
+/// Exact reusable Apple law accepted by the GENESIS 0.7.0 candidate.
 ///
 /// This is intentionally a source constant, not an environment-selected
 /// value. Update it only alongside an explicit candidate Fascia revision.
 pub const PINNED_APPLE_FASCIA_SHA256: &str =
-    "0x329b21be15d304dfc8cb7c47cf7e16f820e533c67de428d4d43d46025afca2e8";
+    "0x6f12250499208f5751a00951f8ad2beea21084cbbc8a69b87f74d2642954a482";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FasciaInputEntry {

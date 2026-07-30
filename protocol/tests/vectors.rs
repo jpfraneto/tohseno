@@ -11,7 +11,8 @@ use tohseno_protocol::evolution::verify_lineage;
 use tohseno_protocol::fascia_tree::hash_fascia_tree;
 use tohseno_protocol::genesis::{genesis_image, genesis_input_sha256};
 use tohseno_protocol::identity::{
-    device_key_id, installation_id, predict_builder_account, BuilderId,
+    device_key_id, initial_builder_account_salt, installation_id, predict_builder_account,
+    BuilderId,
 };
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::{
@@ -177,6 +178,26 @@ fn frozen_identity_actions_and_create2_agree() {
         predict_builder_account(factory, salt, &public_key, &creation_bytecode).unwrap();
     let expected: BuilderId = decode(&create2["predicted_builder_id"]);
     assert_eq!(predicted, expected);
+}
+
+#[test]
+fn frozen_initial_builder_account_salt_agrees() {
+    let fixture = include_str!("../test-vectors/builder-account-salt-v1.json");
+    let vector: Value = serde_json::from_str(fixture).unwrap();
+    assert_eq!(
+        vector["schema"],
+        "tohseno.builder-account-salt-test-vector/1"
+    );
+    assert_eq!(
+        vector["law"],
+        "sha256(\"TOHSENO-BUILDER-SALT-V1\\0\"||device_key_id)"
+    );
+    let public_key: P256PublicKey = decode(&vector["public_key"]);
+    assert_eq!(device_key_id(&public_key), bytes(&vector["device_key_id"]));
+    assert_eq!(
+        initial_builder_account_salt(&public_key).unwrap(),
+        bytes(&vector["account_salt"])
+    );
 }
 
 #[test]
@@ -404,7 +425,7 @@ fn every_committed_schema_is_draft_2020_12_and_closes_object_shapes() {
         assert!(value["$id"].is_string(), "{}", path.display());
         assert_closed_objects(&value, &path);
     }
-    assert_eq!(count, 12);
+    assert_eq!(count, 32);
 }
 
 fn assert_closed_objects(value: &Value, path: &Path) {

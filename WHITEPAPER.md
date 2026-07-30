@@ -1,237 +1,528 @@
 # TOHSENO
 
-## Personal software with an identity and a history
+## Persistent identity for coherent human intention
 
-**GENESIS candidate · `1.0.0-rc.1` · not the canonical release**
+**GENESIS candidate · `0.7.0` · not the canonical release**
 
-> A Shot is an Apple app with a permanent identity, a known anatomy, and a
-> history controlled by its builder.
+> TOHSENO is a protocol for giving coherent human intentions persistent
+> computational identity and allowing them to become, remain, and evolve as
+> verifiable expressions.
 
-> TOHSENO is the open protocol that lets any compatible machine create,
-> understand, verify, and continue a Shot.
+> The first TOHSENO factory turns one coherent intention into a native Apple
+> application that its owner can use and evolve.
 
-## The problem
+The protocol is broader than software. The factory is deliberately not.
+TOHSENO begins with native Apple software because it is a concrete medium in
+which intention can become a complete, useful, inspectable thing.
 
-Software has traditionally arrived as somebody else's finished product. Even
-when a person can now describe software in ordinary language, the output often
-remains trapped inside the tool that generated it: identity belongs to an
-account, history belongs to a database, and trust belongs to a hosted service.
+## 1. The problem
 
-Personal software needs a different center. The app should remain usable,
-understandable, and evolvable when the first generator, website, company, or
-server disappears.
+People increasingly describe software in ordinary language, yet generated work
+usually remains subordinate to the system that produced it. Its identity is an
+account row, its history is a chat transcript, its source is an export, and its
+continuity depends on a company, model, server, or repository URL.
 
-## The Shot
+That model mistakes the current material for the thing that persists.
 
-A Shot begins with one coherent intention and becomes one complete Apple app.
-It receives a random permanent ShotID. Every later Evolution keeps that ID and
-produces another complete source world rather than a patch.
+A person may recognize that something should exist before an application,
+repository, deployment, token, or even a precise specification exists. The
+creative act begins with that declaration and the commitment to bring it into
+form. The resulting work should be able to change its name, code, location,
+platform, expression, and economic relationships without losing its origin or
+authorized continuity.
 
-The integer Evolution number is also the Xcode `CFBundleVersion`. Each
-Evolution commits to its source, its connective anatomy, and the preceding
-Evolution. The builder signs the canonical record. Old Evolutions remain
-immutable.
+TOHSENO gives that continuity a small, verifiable protocol body.
 
-The result is an app with a locally verifiable lineage:
+## 2. Canonical objects
 
-```text
-intention → Evolution 1 → use → Evolution 2 → use → …
-```
+- **Coherent Intention** — the preserved human declaration that something
+  should exist.
+- **Shot** — the persistent identity created when that intention is committed
+  into reality.
+- **Commitment** — the signed act that begins the Shot.
+- **Genome** — the current accepted operational interpretation of what must
+  remain true.
+- **Expression** — one concrete manifestation of the Shot.
+- **Organ** — a bounded declared capability that lets a software expression
+  live.
+- **Version** — one immutable identifiable state of one expression.
+- **Feedback** — experience attached to the exact state that produced it.
+- **Evolutionary Intent** — an authorized proposal for changing an existing
+  Shot.
+- **Evolution** — a verified transition from one accepted version to another.
+- **Lineage** — the signed history connecting origin, ownership, expressions,
+  versions, experience, and change.
+- **Ownership** — authority to approve the Shot's recognized continuity.
+- **Token Association** — an optional economic relationship that does not
+  replace Shot identity.
 
-## BuilderID
+These objects are intentionally few. Repositories, generated files, build
+artifacts, deployments, public indexes, chain anchors, and tokens are useful
+material or evidence. None is the primary object.
 
-The BuilderID is the durable controller of a Shot. In the GENESIS candidate it
-is a deterministic smart-account address on Robinhood Chain.
+## 3. Coherent intention
 
-The BuilderID is not an Apple ID, username, company account, computer, phone,
-or permanent private key. Replaceable P-256 DeviceKeys authorize actions for
-it. A compromised device can be revoked without changing the BuilderID or
-Shot ownership. Optional recovery uses an established Ethereum recovery
-authority derived from BIP-39 and BIP-44; recovery material never enters a
-generated app.
+A coherent intention is human source material: written, spoken, visual,
+technical, emotional, incomplete, or accompanied by references. “Coherent”
+does not mean polished. It means a person recognizes one thing that should
+exist and commits to making it real.
 
-Those replacement and recovery transitions are protocol design targets, not a
-completed GENESIS implementation. The candidate signer and offline verifier
-accept only the initial DeviceKey that reproduces the BuilderID. Its encrypted
-recovery vault is a local backup only; it does not activate account recovery.
-The CLI exposes no authorize, revoke, rotate, or recover command until a
-canonical proof chain and evidence-backed nonce source exist.
+TOHSENO preserves the original material exactly. Operational planning may
+interpret it, but must not silently replace it with cleaned product language.
+Private intention bytes remain private by default. A public record may commit
+their digest and describe their availability without publishing them.
 
-On a Mac where hardware-backed key storage is unavailable, a visibly
-test-only software DeviceKey may still sign local private records — its
-conformance receipt says so in plain text — but it can never authorize a
-public action. Private creation degrades gracefully; publication never does.
+The protocol does not prove that an intention is philosophically true,
+valuable, or good. It preserves a verifiable relationship between a declared
+origin and the expressions later accepted under its identity.
 
-Apple ID remains relevant to Apple's code-signing and distribution systems. It
-does not establish TOHSENO ownership.
+## 4. The Shot and its commitment
 
-## The Apple Fascia
+A Shot receives a random permanent Shot ID when an authorized creator signs its
+initial commitment. That identity is not derived from a folder, app name,
+bundle ID, Git remote, database row, token address, or blockchain transaction.
 
-The purpose of a generated app may be infinitely expressive. Its connective
-tissue is finite.
+The first signed lineage action binds the Shot ID, creator authority and key,
+preserved intention commitment, origin time, and native, legacy, or descendant
+origin. Genome proposal and acceptance follow as distinct actions; they are not
+silently folded into creation. This is the explicit transition from
+possibility into recognized protocol history.
 
-The TOHSENO Apple Fascia declares the small shared anatomy that another machine
-can inspect:
+A Shot survives changes to:
+
+- its display name and description;
+- source code and repository location;
+- icon, bundle identifier, platform, or deployment;
+- individual expressions and their versions;
+- owner-facing tools and model providers;
+- public availability and node replication;
+- token associations.
+
+The current Apple candidate created a stable Shot ID at folder creation but
+signed its first record only when the first application state passed all gates.
+The evolved protocol makes the initial commitment explicit while preserving
+those existing version signatures through a compatibility adapter.
+
+## 5. Genome
+
+The Shot genome is the current accepted interpretation of what must remain true
+for the Shot to remain itself. It may declare:
+
+- purpose and intended people or community;
+- essential experience and behavior;
+- hard invariants and interaction laws;
+- aesthetic, privacy, and ownership principles;
+- platform commitments and required capabilities;
+- boundaries, non-goals, and forbidden transformations;
+- acceptance principles.
+
+The genome is not the raw intention, source tree, or a generic model prompt.
+The accepted machine-readable revision is canonical, and `GENOME.md` is its
+deterministic human-readable rendering. Verification fails if those bytes
+drift. Human edits are inputs to a new proposal; the accepted rendering changes
+only after an authorized genome acceptance.
+
+Ordinary implementation evolution does not change the genome. A proposed
+mutation is a distinct signed action and becomes current only after explicit
+acceptance by present authority. Historical revisions remain part of lineage.
+
+The repository also contains a factory `Genome`: Laws, Structure, Taste,
+Listening, Unfolding, Memory, and World. That constitution guides materializing
+agents and remains important, but it is not the Shot-specific genome.
+
+## 6. Expressions
+
+An expression is one concrete manifestation of a Shot. It has a stable
+expression ID, a medium, its own versions, capability graph, materialization
+policy, and availability.
+
+An iPhone app and a Mac app can be two expressions of one Shot. A later website
+or protocol service can be another. A painting, song, book, or ritual can also
+be represented at the protocol level without pretending that the current
+factory knows how to produce it.
+
+The first factory remains narrow: complete native Apple software built from an
+owner's coherent intention.
+
+## 7. Organs and the Apple Fascia
+
+An organ is a bounded capability declaration, not merely a source directory.
+It can state:
+
+- what it provides;
+- what state it owns;
+- permissions and dependencies;
+- events it emits and consumes;
+- genome constraints it satisfies;
+- acceptance tests;
+- supported platforms.
+
+The existing TOHSENO Apple Fascia is the first mature capability substrate. It
+defines a finite connective anatomy for expressive applications:
 
 - an app-specific InstallationKey;
-- local-first storage behavior;
-- private-by-default data boundaries;
+- local-first persistence;
+- private-by-default boundaries;
 - narrowly scoped continuity envelopes;
 - embedded provenance;
-- distribution metadata;
+- distribution facts;
 - declared network and Apple capabilities;
 - deterministic conformance receipts.
 
-The Genome guides the intelligence that creates an app. It has seven
-organs: Laws (what must always hold), Structure (the skeleton), Taste (how
-it should feel), Listening (how to read the builder — their language is
-the app's language, a thin intention is distilled into one complete
-gesture, a thick intention is a contract), Unfolding (how a world grows —
-whole at every rest, so any pause is recordable), Memory (the Shot
-remembers — decisions, deviations, and current state live in the world's
-own `MEMORY.md`), and World (the Shot casts more than code — its story,
-its design system, and ready-to-run asset prompts live in `WORLD.md`,
-because marketing grows from the same seed).
-
-The Fascia is checked by ordinary deterministic code. An LLM is never the
-conformance judge.
-
 Generated applications use native Apple frameworks and carry no third-party
 runtime dependencies by default. They open to useful behavior without a
-mandatory account.
+mandatory account. A deterministic verifier, never an LLM, judges conformance.
 
-## Local first
+Neutral organ records adapt and explain the Fascia; they do not replace its
+normative sources or turn the Apple factory into a vague universal generator.
 
-Creating, building, signing, installing, using, evolving, and verifying a
-private Shot require no TOHSENO server.
+## 8. Versions
 
-The Mac is enough for a complete Shot. A Shot finishes — signed record,
-conformance receipt, retained Simulator artifact, verifiable lineage — when
-its world builds and verifies on the Mac. The iPhone is a destination, not a
-birth requirement: installation happens immediately when a phone is present
-and resumes later through `tohseno refresh` when it is not. An unfinished
-attempt never poisons the lineage, and a finished Shot can always evolve.
+A version is one immutable state of one expression. It binds:
 
-A Shot is a visible folder — and there is only ever one Shot per app: the
-enduring intent behind it. Its recorded states are Evolutions of that same
-Shot, never new Shots. The folder is an ordinary directory the builder can
-open with any tool — their coding agent, Xcode, an editor — and it carries
-its own ledger inside `.tohseno/`: identity binding, recorded Evolutions,
-records, signatures. Editing is never a protocol operation; *evolving* is.
-`tohseno evolve` records the folder's current state — however it got there —
-as the next signed Evolution, the way a commit records a working tree.
-Because the folder carries everything, moving the folder moves the Shot:
-portability is a property of the object, not a service.
+- Shot and expression IDs;
+- expression version ID and sequence;
+- accepted genome revision and digest;
+- source state or digest;
+- materialization provenance;
+- capability lock;
+- build identity and artifact digests where practical;
+- acceptance and verification results;
+- actor and time;
+- known incompleteness.
 
-The folder also carries its own constitution and its own memory. An
-engine-written `AGENTS.md` — the standing file coding agents read on
-arrival — constitutes any agent that enters by any door: obey the genome,
-keep the world whole, and record each finished Evolution yourself. A
-`MEMORY.md` inside the signed world is the Shot's memory of how it came to
-be and where it stands. TOHSENO does not drive the agents; its ontology
-permeates whatever works in the folder.
+The existing candidate already seals complete numbered worlds containing
+source, record, signature, Fascia, conformance, build log, Simulator artifact,
+and best-effort preview. A crash-safe marker is the commit point. Failed
+attempts are archived and do not consume the next canonical number.
 
-Prompts, reference images, unpublished source, app data, usage, recovery
-material, and continuity relationships stay local by default. Publication is a
-separate signed act. The builder chooses which commitment and public artifact,
-if any, to expose.
+Those worlds remain the material body of accepted Apple versions. Existing
+`tohseno.shot/1` records remain byte-for-byte valid and are interpreted as v1
+Apple-expression version commitments.
 
-## Consentful continuity
+## 9. Feedback
 
-Each installation creates its own P-256 InstallationKey. Apps do not receive a
-universal person identifier and cannot correlate a user merely because both
-were made with TOHSENO.
+Feedback belongs to the exact state that produced an experience. A feedback
+record therefore binds the Shot ID, expression ID, version ID, build identity
+when available, author identity when known, timestamp, privacy, observation,
+and attachment descriptors.
 
-When a person wants continuity, one installation can issue a signed, expiring,
-nonced envelope for a specific audience, originating Shot, and narrow set of
-claims. No username, password, Apple ID, shared private key, or Anky identity
-server is necessary.
+Text, screenshots, files, and structured observations are supported. Private
+is the default. Attachments can remain local while their digests and
+availability are recorded. No feedback is a valid and honest state; absence is
+not synthesized into approval.
 
-Continuity begins with consent. Unlinkability is the default.
+Feedback never floats vaguely at the Shot level. An observation about version
+`0001` remains about `0001` after later evolution.
 
-## Signed Evolutions
+## 10. Evolutionary intent and evolution
 
-TOHSENO uses RFC 8785 canonical JSON, SHA-256 commitments, and low-`s` P-256
-signatures. These are established technologies.
+An evolutionary intent is a coherent instruction for changing an existing
+Shot. It may arise from direct human desire, selected feedback, failures,
+references, environmental change, or new technical possibilities.
 
-Cryptography proves that a key signed bytes. The protocol schema gives those
-bytes exact meaning. The BuilderID determines whether the key has authority.
-A contract enforces the consequence of a public action.
+It distinguishes:
 
-> TOHSENO uses established cryptography to create a portable ownership and
-> continuity layer for personal software.
+- expression behavior or experience changes;
+- implementation changes;
+- capability or organ changes;
+- proposed genome mutations.
 
-It does not claim to have invented the underlying cryptography.
+A generated evolutionary intent is a proposal until accepted by an authorized
+actor.
 
-## A neutral public witness
+An evolution is the verified transition from one accepted version to another.
+It preserves unchanged hard invariants, names accepted genome mutations, binds
+materialization provenance, runs acceptance gates, records incompleteness, and
+appends lineage only after success. It never overwrites the prior version or
+the original intention.
 
-A private Shot already exists before it reaches a chain.
+## 11. Lineage
 
-The registry records only the minimal facts needed to witness a public lineage:
-controller, current Evolution commitment, sequence, public state, and an
-optional public content commitment. Anyone may relay a valid action. The
-messenger does not become the owner.
+New canonical lineage is a sequence of signed, append-only actions encoded with
+closed JSON, RFC 8785 canonicalization, SHA-256 commitments, and low-s P-256
+signatures. Actions include their protocol and schema versions, Shot ID, actor,
+time, previous action, payload and payload digest, and availability.
 
-The candidate contracts are non-upgradeable and have no privileged official
-client, company key, relayer, or node. Human-readable handles, appcoin
-associations, and App Store attestations remain outside the neutral core.
+Lineage can contain:
 
-The registry is a public judge of signed transitions. It is not the author of
-the protocol language and it is not the creator of a Shot.
+- origin and commitment;
+- intention descriptors;
+- genome proposals and acceptances;
+- expression and organ declarations;
+- accepted versions and verification;
+- feedback and evolutionary intents;
+- evolutions and publications;
+- ownership changes;
+- token associations;
+- artifact availability;
+- forks and descendants;
+- optional public anchors.
 
-## Independent factories and nodes
+Derived snapshots and indexes are useful but reproducible. They cannot
+supersede canonical actions.
 
-The first TOHSENO CLI and Studio are one doorway. They are not a required
-doorway. The same is true one level down: the coding agent is not
-canonical either. TOHSENO does not drive agents at all — it constitutes
-whatever agent the builder already uses, through the standing orders in
-the folder, and that agent records each Evolution itself.
+Lineage need not be globally complete to be valid. The protocol distinguishes
+absent, unknown, intentionally private, locally available, publicly committed,
+replicated, cryptographically verified, and on-chain anchored. A participant
+must not upgrade one state into another by implication.
 
-The normative schemas, byte rules, vectors, and conformance tests allow another
-factory to read a Shot, verify it, and create the next complete Evolution. A
-node may relay signed actions, index contract events, or serve public artifacts,
-but indexing does not confer ownership.
+## 12. Ownership and identity
 
-One canonical rulebook. No canonical doorway.
+Ownership is authority to approve continuity-changing actions. It does not
+claim authorship of every generated line.
 
-## TOHSENO as Shot 1
+The candidate's existing identity system remains authoritative:
 
-The first TOHSENO companion app is created through the same factory path as any
-other app. It can display Builder identity and devices, approve pairing,
-inspect records, and show provenance. It has no username/password system and
-needs no Anky server for local operation.
+- a P-256 DeviceKey signs protocol commitments;
+- the pinned counterfactual BuilderAccount on Robinhood Chain determines a
+  durable chain-scoped Builder ID;
+- private keys remain in Keychain/Secure Enclave and never enter a Shot;
+- Apple ID governs Apple signing and distribution, not TOHSENO ownership.
 
-It is Shot 1 historically, not constitutionally. It receives no protocol
-privilege. The `tohseno` handle must be claimed through the same signed action
-available to any Shot.
+The on-chain BuilderAccount supports device administration and optional
+recovery. The current CLI and offline verifier deliberately accept only the
+initial DeviceKey that reproduces the Builder ID. Replacement, transfer, and
+recovery cannot be claimed as fully offline-verifiable until a canonical
+authority proof chain and evidence-backed nonce source are implemented.
 
-## Relationship to `$TOHSENO`
+A visibly test-only software key may sign local private records where hardware
+storage is unavailable. It cannot authorize public actions.
 
-An appcoin is an optional relation selected by a Shot controller. A token is
-not required for Shot creation, ownership, verification, publication,
-evolution, transfer, or use.
+## 13. Nodes
 
-The GENESIS candidate never guesses a token address and does not deploy or
-modify `$TOHSENO`. An association may be recorded only when exact coordinates
-and explicit authorization are supplied.
+A TOHSENO node preserves, validates, serves, and optionally replicates public
+protocol records. The current candidate node stores action records, not
+referenced artifact bytes. A node has its own identity and storage and can:
 
-## Conformance
+- validate schemas, commitments, signatures, and available lineage segments;
+- store content-addressed signed actions;
+- rebuild derived Shot indexes;
+- serve the public records it possesses;
+- report missing or private artifacts honestly;
+- synchronize valid public records with configured peers;
+- inspect storage integrity and supported schema versions;
+- index optional chain anchors.
 
-Compatibility is a testable claim. A conforming implementation reproduces the
-canonical record bytes and commitments, verifies signatures and ordered
-lineage, checks the Fascia and Apple project, detects undeclared sensitive
-capabilities, and emits evidence for every judgment.
+Validity is layered. A schema-valid, signature-valid segment whose predecessor
+is unavailable can be retained as an unresolved public segment; it is not
+promoted to authority-verified state until the complete available branch
+reduces under the candidate authority policy. A later parent can resolve or
+reject it.
 
-Human output can remain simple. Machine output includes each check, expected
-and observed values, and its evidence path. Failure returns a non-zero status.
+Nodes do not need a shared mutable database or distributed consensus. They
+agree on deterministic byte, signature, segment, and authority results when the
+required context is available. They need not agree that an intention is
+subjectively coherent, possess every artifact, choose one global current head
+amid unresolved authorized branches, or materialize code.
+
+One surviving node can still preserve and serve the public lineage it holds.
+A malicious node can withhold or lie about availability, but cannot forge an
+authorized action or alter content without failing verification.
+
+Local creation, use, evolution, and verification do not require a node.
+
+## 14. Public and private data
+
+Private by default:
+
+- raw intentions and references;
+- unpublished source and artifacts;
+- private feedback and attachments;
+- application data and usage;
+- transient plans and agent transcripts;
+- recovery material and private keys;
+- local continuity relationships.
+
+Suitable for optional public commitment or replication:
+
+- Shot and expression identifiers;
+- signed public lineage actions;
+- content digests and declared availability;
+- accepted public genome projections;
+- public verification receipts;
+- owner-authorized artifacts;
+- public chain anchors and token relationships.
+
+Portable export and public page generation are projections, not recursive
+copies of a working directory. A generated repository excludes private working
+material from publication by default.
+
+## 15. Verification and threat model
+
+Cryptography proves that an authorized key signed exact bytes. Schemas and
+reducers give those bytes deterministic meaning. Acceptance receipts prove
+which checks ran and what they observed. None proves creative or metaphysical
+truth.
+
+Verification defends against:
+
+- forged or replayed lineage actions;
+- signature and payload tampering;
+- schema downgrade and unknown-field attacks;
+- unauthorized genome mutation;
+- divergent derived state;
+- incomplete or malicious replication;
+- tampered portable bundles;
+- chain/domain mismatch;
+- spoofed token associations;
+- private-data publication;
+- malicious references and unsafe paths;
+- untrusted templates, organs, and dependency substitution;
+- arbitrary code execution disguised as inspection.
+
+Materialization remains a code-execution boundary. Templates, dependencies, and
+agents are not trusted merely because a record is signed. The Apple factory
+uses strict project anatomy, source scans, fixed Fascia sources, bounded
+dependencies, compilation, artifact checks, and deterministic conformance.
+
+## 16. Smart-contract boundary
+
+A private Shot exists before and independently of a chain.
+
+The candidate contracts are optional public witnesses:
+
+- `BuilderAccountFactory` predicts and deploys controller accounts;
+- `BuilderAccount` validates authorized actions;
+- `ShotRegistry` records controller, accepted head, sequence, nonce, public
+  state, and an optional public checkpoint commitment;
+- `ShotRelations` records optional handles, token coordinates, and App Store
+  attestations.
+
+They do not store repositories, intentions, genomes, feedback, transcripts, or
+private references. A chain anchor can prove that a commitment existed and was
+authorized; it cannot contain the total creative object or make subjective
+intention objectively true.
+
+The contracts are non-upgradeable, administrator-free, unaudited, planned, and
+undeployed in this candidate. Planned addresses are not production contracts.
+
+## 17. Token association
+
+A Shot may have zero or more historical token associations. One current
+association can identify a chain and token contract, with prior relationships
+preserved in lineage or contract event history.
+
+A token is not:
+
+- the Shot ID;
+- the owner or controller;
+- an expression or repository;
+- application ownership;
+- a requirement for creation, use, verification, or evolution.
+
+The existing v1 contract ABI names this relationship an Appcoin and accepts any
+nonzero target chain ID, including Base `8453`. Protocol-facing language calls
+it a Token Association while retaining ABI compatibility.
+
+Anky can therefore be its own Shot, have one or more software expressions, and
+associate `$ANKY` on Base. That relationship does not make the token contract
+the Shot, merge Anky with TOHSENO, conflate `$ANKY` with any `$TOHSENO`
+association, or constrain either project's ownership.
+
+## 18. Portability: downloaded coherent intentions
+
+“The open-source factory of downloaded coherent intentions” has a technically
+honest meaning:
+
+A Shot can be projected into a portable, verifiable bundle that another person
+or machine can receive, inspect, follow, instantiate, express, fork, or evolve
+according to its authority and available artifacts.
+
+Such a bundle contains or resolves:
+
+- Shot identity and origin;
+- genome and ownership facts;
+- expression definitions and accepted versions;
+- signed lineage;
+- explicit artifact availability and omissions;
+- verification results;
+- optional token associations;
+- enough metadata for safe inspection or supported materialization.
+
+It is not merely a zip of generated code. Import verifies before trust.
+Receiving records is not adopting ownership. Cloning source is not creating
+lineage. Attaching private local material does not publish it.
+
+The current candidate bundle is deliberately narrower than the full portable
+model: it carries a canonical file inventory and verified lineage projection,
+omits expression source and retained build artifacts, and declares that it is
+not ready for materialization. Its manifest proves the included bytes relative
+to that manifest; signed lineage authenticates canonical actions. A trusted
+transport or separately communicated manifest digest is still required to
+authenticate the bundle as a whole. Resolving source and safely materializing
+a received Shot remain future work.
+
+## 19. Forks and descendants
+
+An evolution preserves Shot identity. A descendant creates a new Shot ID and a
+signed relationship to its parent. A copy without that relationship is simply
+a copy.
+
+This rule allows inspiration, independent ownership, and divergent genomes
+without corrupting the parent's continuity or pretending every derivative is
+the same creative identity.
+
+## 20. The first factory: native Apple software
+
+The concrete loop is:
+
+```text
+human intention
+→ signed Shot commitment
+→ accepted Shot genome
+→ native Apple expression plan
+→ resolved capabilities and Fascia
+→ materialized source and Simulator artifact
+→ deterministic acceptance
+→ immutable version
+→ exact-version feedback
+→ authorized evolutionary intent
+→ next accepted version
+```
+
+The visible folder remains the builder's direct working surface. It carries its
+own identity, human-readable intention and genome, concise evolutionary-intent
+surface, immutable version worlds, exact-version feedback, verification, and
+private working area. Any compatible coding agent or editor can work in it.
+Editing is ordinary filesystem activity; accepting an evolution is a signed
+protocol event.
+
+An accepted version completes on the Mac. A phone is a destination, not a birth
+requirement. `tohseno refresh` can install later when a device is present.
+
+Every generated application embeds Shot ID, expression ID, version ID, genome
+revision and digest, protocol version, and practical source/build identity.
+That metadata lets the app and tooling bind exported feedback or logs to the
+exact experienced state. It does not claim that iOS permits arbitrary
+inspection of other installed applications.
 
 ## Explicit non-goals
 
-TOHSENO does not make Apple ID a protocol identity, put private app data
-on-chain, require a token, standardize every Apple API, create a universal user
-profile, make one server canonical, or promise that unaudited contracts are
-safe merely because tests pass.
+TOHSENO does not:
 
-The GENESIS release candidate is deliberately not the final canonical
-protocol. Its job is to run the whole design against reality, expose failures,
-and leave exact evidence for the cleanup that precedes canonical shipment.
+- prove the metaphysical coherence or worth of an intention;
+- make an application, repository, token, or chain record the Shot itself;
+- turn the first factory into a universal creative generator;
+- require a server, blockchain, token, account, or Apple ID for local
+  continuity;
+- put private intentions, feedback, app data, or transcripts on-chain;
+- create a universal human or installation identifier;
+- permit one app to inspect arbitrary other installed iOS apps;
+- make an LLM the verifier;
+- trust unverified imported code or templates;
+- invent distributed consensus where deterministic signed records suffice;
+- claim undeployed or unaudited contracts are production infrastructure;
+- fabricate missing history during migration.
+
+## Release and protocol status
+
+TOHSENO `0.7.0` is the stable local product release. Its installer, CLI,
+Studio, Apple identity helper, and deterministic protocol materials are
+released together as one checksummed artifact set.
+
+The GENESIS protocol carried by that product remains explicitly pre-1.0 and
+noncanonical. Its contracts are undeployed and unaudited, the public protocol
+page is staging material, and there is no mainnet or permanent Arweave
+publication claim. Product stability does not canonize the protocol or turn
+candidate infrastructure into production fact.

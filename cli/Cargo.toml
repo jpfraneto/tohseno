@@ -16,8 +16,10 @@ serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 tohseno-engine = { path = "../engine" }
+tohseno-node = { path = "../node" }
 tohseno-protocol = { path = "../protocol" }
 qrcode = { version = "=0.14.1", default-features = false, features = ["svg"] }
+reqwest.workspace = true
 rpassword = "=7.4.0"
 zeroize = "=1.8.1"
 

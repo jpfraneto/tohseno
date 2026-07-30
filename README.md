@@ -1,84 +1,98 @@
 # TOHSENO
 
-TOHSENO is a printing press for Apple apps and an open continuity protocol for
-the worlds it creates. Describe one app, let a coding agent build it, and put a
-complete signed Shot on your iPhone. Evolving the app creates another complete
-world with the same permanent Shot identity and an append-only history.
+TOHSENO is a protocol for giving coherent human intentions persistent
+computational identity and allowing them to become, remain, and evolve as
+verifiable expressions.
 
-The repository is currently **GENESIS 1.0.0-rc.1**. It is a protocol candidate,
-not the canonical shipped protocol. Its contracts are planned but undeployed,
-the candidate GitHub release has not been created, and the real-iPhone Genesis
-lifecycle has not been completed. The stable `v0.6.0` installer remains
-unchanged.
+The first factory is concrete: declare one coherent intention, let the Apple
+factory and your coding agent materialize a native application, experience an
+immutable version, attach feedback to that exact state, and evolve it without
+losing origin or ownership continuity.
+
+A Shot is the durable identity created by committing the intention. The app,
+folder, repository, current source, deployment, and optional token are
+expressions or relationships of that Shot—not the Shot itself.
+
+The current product release is **TOHSENO 0.7.0**. It ships the local GENESIS
+protocol implementation without claiming a canonical 1.0 protocol, deployed
+contracts, or public infrastructure.
 
 ## The ordinary loop
 
-The current stable release remains:
-
 ```sh
 curl -fsSL https://tohseno.com/oneshot.sh | bash
-tohseno create my-app
-tohseno evolve my-app
 ```
 
-The prepared candidate channel will be installable after the
-`v1.0.0-rc.1` prerelease exists:
+On a new Mac, that command verifies the complete immutable 0.7.0 release,
+installs it transactionally, starts the loopback-only Studio server, opens
+Studio in the default browser, and presents the resumable first-Shot guide.
+The guide checks the actual Mac for Xcode, Apple Development signing, and an
+authenticated `$0.00`
+subscription route through Codex or Claude Code before enabling the first
+Shot. The official harness install commands are copied for the person to run
+and authenticate themselves; TOHSENO never installs an agent or receives its
+credentials silently.
+
+Studio remains attached to the installing terminal so the process has an
+obvious lifetime. Press Control-C there to stop it. Later launches use:
+
+```sh
+tohseno studio
+```
+
+Automation or package inspection can install without launching Studio:
 
 ```sh
 curl -fsSL https://tohseno.com/oneshot.sh |
-  TOHSENO_CHANNEL=genesis bash
+  TOHSENO_START_STUDIO=0 bash
 ```
 
-The candidate uses `~/.tohseno-genesis/` and the command
-`tohseno-genesis`; it does not replace the stable `~/.tohseno/` ledger or
-`tohseno` binary.
-
-In the candidate, apps are visible folders under `~/Desktop/Tohseno/`
-(override with `TOHSENO_HOME`), each carrying its own ledger in `.tohseno/`
-(ADR 0003). One Shot per app — the enduring intent — with many recorded
-Evolutions. Edit the folder with anything — your coding agent, Xcode, an
-editor — and record its state as the next signed Evolution:
+Shots are visible folders under `~/Desktop/Tohseno/`
+(override with `TOHSENO_HOME`). Each carries its local protocol body in
+`.tohseno/`, exact intention and genome surfaces, an evolutionary-intent
+working file, immutable version worlds, and version-bound feedback. The first
+expression is one native Apple app. Edit that expression with anything—your
+coding agent, Xcode, or an editor—and accept its next state through:
 
 ```sh
 cd ~/Desktop/Tohseno/my-app
-tohseno-genesis evolve
+tohseno evolve
 ```
 
-An engine-written `AGENTS.md` in every folder tells whatever agent enters
-to obey the genome, maintain the Shot's `MEMORY.md`, and run that command
-itself when its work is whole — the builder never has to remember it.
+An engine-written `AGENTS.md` tells any entering agent to obey both the factory
+constitution and the accepted Shot genome, maintain the expression's
+`MEMORY.md`, and run the recording command only when its work is whole.
 
 An Evolution completes on the Mac: once the world builds, the engine
 materializes a Simulator artifact, captures a `preview.png` of the running
 first screen, signs the record, and verifies it — no iPhone required.
-`tohseno-genesis refresh my-app` installs the latest Evolution on a phone
-whenever one is cabled. `create` opens your own agent in a new terminal on
-the folder, launched to work uninterrupted (`claude
---dangerously-skip-permissions`, `codex --yolo`); TOHSENO never drives
-agents itself, so no credential machinery exists or is needed
-(ADR 0002 is superseded by ADR 0003).
+`tohseno refresh my-app` installs the latest Evolution on a phone
+whenever one is cabled. An intent-bearing `create` or `evolve` prepares a
+private execution boundary and opens a native terminal with
+`tohseno shot run …` visible but unexecuted. The person presses Enter to start
+the selected Codex or Claude Code interface. TOHSENO observes durable lifecycle
+and repository evidence without proxying the conversation or bypassing the
+harness's native permissions (ADR 0005).
 
-Do not use that candidate command as evidence of a release today: no candidate
-tag or release artifact has been published yet. The release workflow requires
-both machine-readable candidate readiness for a prerelease and explicit
-prerelease authorization; both remain false in the current evidence report.
-Publication also requires recorded verification that GitHub
+Upgrading from 0.6.0 preserves the old hidden ledger at
+`~/.tohseno/apps`. Run `tohseno migrate-legacy` after installation to copy
+those apps into visible folders and project their frozen signed histories.
+The operation never deletes or rewrites the 0.6.0 source.
+
+Publication requires machine-readable stable-release authorization, GitHub
 [release immutability](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
-is enabled and that an active tag ruleset prevents updates or deletion of
-`v1.0.0-rc.1`; those prerequisites remain false as well.
-Cleanup readiness is a separate post-release acceptance signal and remains
-false until the published prerelease has been installed and exercised.
+and an active tag ruleset that prevents updates or deletion of `v0.7.0`.
 Immediately before publication, the workflow also reads the exact live GitHub
 tag ref, safely peels a bounded annotated-tag chain, and requires its commit to
 match the workflow event commit. It attaches every asset to a draft, repeats
-the live tag check, and only then publishes the prerelease. Interrupted runs
+the live tag check, and only then publishes the stable release. Interrupted runs
 may reuse only the same commit-bound unpublished draft; expected assets are
 clobbered, downloaded, and compared byte-for-byte before publication. A retry
-after a lost publish response accepts only the exact immutable prerelease after
+after a lost publish response accepts only the exact immutable release after
 the same asset and tag verification. The checkout remains credential-free, and
 write permission remains scoped to the publish job.
 
-The GENESIS candidate requires macOS 13 or later and Xcode. A physical install
+TOHSENO 0.7.0 requires macOS 13 or later and Xcode. A physical install
 requires an iPhone connected through Apple’s device tooling and a usable Apple
 signing identity. A free Apple ID is the default development path; paid Apple
 Developer membership is only needed for longer-lived signing or App Store
@@ -86,14 +100,45 @@ distribution.
 
 ## Protocol candidate
 
-A Shot is an Apple app with:
+The canonical v2 model is additive around the frozen v1 Apple records:
 
-- a random permanent `ShotID`;
-- a stable `BuilderID`, predicted before its smart account is deployed;
-- a finite Apple Fascia describing identity, storage, continuity, privacy,
-  provenance, distribution, and declared capabilities;
-- a complete source-tree commitment;
-- an ordered Evolution record signed by an authorized P-256 DeviceKey.
+- a random permanent `ShotID`, independent of names, folders, repositories,
+  bundle identifiers, tokens, and controllers;
+- a signed Commitment and exact original Intention;
+- an explicitly proposed and accepted Shot Genome;
+- stable Expression IDs and content-bound immutable Version IDs;
+- declared capability organs, with the Apple Fascia as the first concrete
+  substrate;
+- Feedback bound to an exact expression Version;
+- authorized Evolutionary Intents and verified Evolution transitions;
+- signed append-only lineage actions with honest artifact availability;
+- ownership under the existing BuilderID and P-256 DeviceKey system;
+- optional Token Associations that never replace identity;
+- verifiable public replication through independent partial nodes.
+
+`tohseno.shot/1` remains byte-for-byte valid. It is the compatibility record
+for one accepted state of the first Apple expression, not a second competing
+architecture.
+
+Token Association is a relationship, never identity. A Shot does not need a
+token, and one owner may control any number of Shots and token relationships.
+For example, Anky can remain its own independently owned Shot while `$ANKY` is
+associated with it on Base (`eip155:8453`); that does not make the token
+contract the Shot, transfer Shot ownership, merge Anky with TOHSENO, or
+conflate `$ANKY` with any `$TOHSENO` association. This repository asserts no
+`$ANKY` token address.
+
+The candidate node stores signed public lineage actions, derives indexes, and
+reports unresolved parents and missing artifacts. It does not store referenced
+artifact bytes or manufacture one global network head. A public segment can be
+signature-valid while authority remains unresolved until its predecessor is
+available.
+
+Portable export/import is a verified record projection, not a source clone,
+ownership transfer, or trusted materialization. Public export does not relabel
+private intention or feedback as public. The candidate bundle inventory commits
+every included payload file, while source and retained build artifacts remain
+explicit omissions.
 
 Local creation and verification do not require a TOHSENO server. Publishing is
 a separate signed action. The candidate Robinhood Chain contracts are
@@ -105,6 +150,12 @@ are planned CREATE2 addresses, not deployed contracts.
 The normative entry points are:
 
 - [`WHITEPAPER.md`](WHITEPAPER.md) for the short model;
+- [`docs/IMPLEMENTATION_MAP.md`](docs/IMPLEMENTATION_MAP.md) for the audited
+  pre-change system and compatibility decisions;
+- [`docs/adr/0004-coherent-intention-lineage.md`](docs/adr/0004-coherent-intention-lineage.md)
+  for the ontology decision;
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for security and privacy
+  boundaries;
 - [`protocol/SPECIFICATION.md`](protocol/SPECIFICATION.md) for protocol law;
 - [`protocol/IMPLEMENTERS.md`](protocol/IMPLEMENTERS.md) for independent
   implementations;
@@ -118,25 +169,25 @@ The normative entry points are:
 Protocol and identity inspection support structured output:
 
 ```sh
-tohseno-genesis protocol info
-tohseno-genesis protocol vectors
-tohseno-genesis --json identity show
-tohseno-genesis identity devices
-tohseno-genesis inspect my-app
-tohseno-genesis verify my-app
-tohseno-genesis --json verify my-app
+tohseno protocol info
+tohseno protocol vectors
+tohseno --json identity show
+tohseno identity devices
+tohseno inspect my-app
+tohseno verify my-app
+tohseno --json verify my-app
 ```
 
 Strict local verification does not call an LLM.
-`tohseno-genesis verify --public` adds bounded read-only RPC checks; it
+`tohseno verify --public` adds bounded read-only RPC checks; it
 currently fails honestly because the candidate registry is undeployed.
 
 Recovery-root backups are encrypted locally and require explicit confirmation.
 Secret words are never emitted as JSON:
 
 ```sh
-tohseno-genesis identity backup --confirm
-tohseno-genesis identity import-backup --confirm
+tohseno identity backup --confirm
+tohseno identity import-backup --confirm
 ```
 
 `identity backup` and `identity import-backup` store encrypted local
@@ -151,20 +202,122 @@ key fails closed because the candidate has no canonical authorization proof
 chain or evidence-backed nonce source yet. See
 [ADR 0001](docs/adr/0001-device-key-replacement-deferred.md).
 
+The candidate's complete local Shot lifecycle is explicit and automation-safe:
+
+```sh
+tohseno create field-notebook \
+  --prompt-file intention.md \
+  --accept-genome \
+  --no-launch
+
+# After the accepted Apple expression has been materialized:
+tohseno evolve field-notebook
+
+feedback_action="$(
+  tohseno --json feedback field-notebook \
+    --version 1 \
+    --file feedback.md |
+  jq -er .action_commitment
+)"
+
+tohseno evolve field-notebook \
+  --prompt-file EVOLUTIONARY_INTENT.md \
+  --feedback-action "$feedback_action" \
+  --no-launch
+
+# After applying the proposed source change:
+tohseno evolve field-notebook
+tohseno verify field-notebook
+```
+
+The local authentic-harness flow is:
+
+```sh
+tohseno shot harnesses
+
+tohseno create field-notebook \
+  --prompt-file intention.md \
+  --image reference-one.png \
+  --image reference-two.jpg \
+  --accept-genome \
+  --harness claude-code \
+  --model opus \
+  --route claude-subscription
+
+# Terminal opens in the Shot repository with this line visible but unexecuted:
+# tohseno shot run --app field-notebook --execution <execution-id>
+# Press Enter there to start Claude Code's native interface.
+
+tohseno shot follow --app field-notebook --execution <execution-id>
+tohseno shot result --app field-notebook --execution <execution-id>
+```
+
+Use `--harness codex --model default --route chatgpt-subscription` for Codex.
+`create` and an intent-bearing `evolve` both prepare the same durable local
+execution state. `--no-launch` preserves the existing automation-safe staging
+behavior. Preparation never starts inference, commits a result, publishes,
+deploys, tags, or releases anything.
+
+`feedback_id` identifies the canonical Feedback payload.
+`action_commitment` identifies its signed lineage action; only the latter is a
+valid `--feedback-action` reference. The engine verifies every selected action
+belongs to the current exact Expression and Version. Staging an intent does
+not accept a Version, and a failed materialization leaves the last accepted
+Version unchanged.
+
+Receiving records is separate from cloning source, adopting ownership, or
+materializing code:
+
+```sh
+tohseno export field-notebook \
+  --output /absolute/path/field-notebook.shot \
+  --include-private
+tohseno import /absolute/path/field-notebook.shot \
+  --output /absolute/path/received-field-notebook
+tohseno verify /absolute/path/received-field-notebook
+```
+
+The current portable bundle carries verified lineage and explicit omissions;
+it deliberately does not carry expression source or owner keys. See
+[`node/README.md`](node/README.md) for running and synchronizing independent
+public-record nodes.
+
+The neutral v2 Token Association lifecycle is local-first and chain-specific.
+This example signs a relationship to a mock Base address and explicitly makes
+only that action node-ingestible:
+
+```sh
+tohseno --json token associate anky 8453 \
+  0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7 \
+  --symbol ANKY --public
+tohseno-node --root /absolute/path/to/node \
+  ingest /path/reported/in/outbox_path
+```
+
+`--public` writes exact canonical signed bytes beneath the Shot's ignored local
+outbox. It does not contact a node, prove the token contract exists, broadcast
+a transaction, or verify a chain anchor. Because the rest of a private Shot is
+not leaked, a node receiving only this public child reports the exact private
+predecessor as missing and authority as unresolved. The signature and available
+segment still verify. Omit `--public` to keep the action intentionally private;
+use `token remove` for an explicit historical removal.
+
 Legacy `v0.6` apps keep their existing ledger. Their first protocol record is
 an explicit N+1 adoption root; TOHSENO does not invent cryptographic history:
 
 ```sh
-tohseno-genesis adopt my-legacy-app
+tohseno adopt my-legacy-app
 ```
 
 A deterministic private static page can be prepared without publishing it:
 
 ```sh
-tohseno-genesis page build my-app
+tohseno page build my-app
 ```
 
-Public mutation commands require an explicit RPC URL and a future Unix
+The older `publish`, `handle`, and `appcoin` commands below are the frozen
+GENESIS contract-compatibility lifecycle; they are distinct from neutral v2
+Token Associations. These public mutation commands require an explicit RPC URL and a future Unix
 deadline. They first verify chain 4663, every pinned candidate runtime, the
 P-256 precompile, the relations binding, the exact BuilderAccount code and
 DeviceKey permission, and all relevant controller/head/sequence/nonce state at
@@ -174,11 +327,11 @@ mismatched:
 ```sh
 deadline="$(( $(date +%s) + 900 ))"
 
-tohseno-genesis publish my-app \
+tohseno publish my-app \
   --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
-tohseno-genesis handle claim field-notebook my-app \
+tohseno handle claim field-notebook my-app \
   --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
-tohseno-genesis appcoin associate my-app 4663 0x1111111111111111111111111111111111111111 \
+tohseno appcoin associate my-app 4663 0x1111111111111111111111111111111111111111 \
   --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline"
 ```
 
@@ -196,7 +349,7 @@ attached Ledger/Trezor—never a raw private key, mnemonic, password, or unlocke
 RPC account:
 
 ```sh
-tohseno-genesis publish my-app \
+tohseno publish my-app \
   --rpc-url "$ROBINHOOD_RPC_URL" --deadline "$deadline" \
   --submit \
   --confirm-experimental-mainnet \
@@ -236,6 +389,7 @@ The candidate toolchain is Rust 1.88, Swift 6, Xcode, and Foundry 1.3.5.
 cargo fmt --all --check
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo test --locked --workspace --all-targets --all-features
+scripts/test-ontology-lifecycle.sh
 
 swift build --package-path apple-identity
 swift test --package-path apple-identity
@@ -247,6 +401,13 @@ forge build --root contracts
 forge test --root contracts -vvv
 scripts/build-contract-abi.sh --check
 ```
+
+The ontology lifecycle smoke uses a unique software-test identity and an
+isolated temporary data root. It performs real Apple Simulator builds for
+versions `0001` and `0002`, binds selected feedback by signed action
+commitment, reconstructs lineage, and verifies a private record-only
+export/import. It requires macOS, Xcode, a matching development identity, and
+the source-built CLI and Apple identity helper.
 
 To use a source-built Apple identity helper:
 
@@ -285,12 +446,15 @@ release bundle must come from committed inputs.
 | Protocol schemas, vectors, canonicalization, identities, and lineage law | Implemented; covered by local automated tests |
 | Apple identity helper and reusable Fascia | Implemented; software-backed tests completed |
 | Solidity factory, account, registry, and relations | Implemented and locally tested; unaudited |
+| Public lineage node | Implemented for signed action records and explicit static-peer synchronization; no artifact store or production node claimed |
+| Neutral Token Association | Implemented as signed v2 lineage with private-by-default or explicit node outbox handling; no token existence or chain anchor claimed |
+| Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
 | Robinhood Chain P256VERIFY read-only probe | Observed successfully; exact request/result is in the lifecycle report |
 | Candidate contracts | Planned deterministic addresses; not deployed |
 | Guarded prepare/sign/relay/receipt verification for publish, handle, and appcoin | Implemented; no mainnet lifecycle transaction performed in this source task |
 | BuilderAccount, Shot #1, Evolutions 1–2, handle, and appcoin relation | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |
-| Candidate tag, GitHub prerelease, and installer-from-release test | Not completed |
+| Stable v0.7.0 release and installer-from-release test | Recorded in `release/V0_7_0_READINESS.json` |
 | Canonical release or Arweave publication | Deliberately not completed |
 
 TOHSENO is Apache-2.0 software. It uses established cryptography to create a

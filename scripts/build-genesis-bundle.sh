@@ -270,7 +270,7 @@ test_vector_commitment="$(aggregate_commitment "$bundle/test-vectors")"
 
 jq -S -n \
   --arg protocol "tohseno" \
-  --arg version "1.0.0-rc.1" \
+  --arg version "0.7.0" \
   --arg codename "GENESIS" \
   --arg source_commit "$source_commit" \
   --arg created_at "$created_at" \

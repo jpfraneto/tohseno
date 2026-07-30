@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, Metadata};
 use std::path::{Component, Path, PathBuf};
-use tohseno_protocol::app_metadata::AppMetadata;
+use tohseno_protocol::app_metadata::{AppMetadata, EmbeddedAppMetadata};
 use tohseno_protocol::conformance::{
     CheckStatus as ReceiptStatus, ConformanceReport, CONFORMANCE_SCHEMA,
 };
@@ -515,14 +515,10 @@ fn verify_shot_directory_inner(
         );
     }
 
-    let provenance = load_validated_json::<AppMetadata, _>(
-        &source_root,
-        "TOHSENO/embedded-provenance.json",
-        validate_provenance,
-    );
+    let provenance = load_embedded_app_metadata(&source_root, "TOHSENO/embedded-provenance.json");
     checks.push(result_check(
         "provenance.schema",
-        "strict, closed, valid tohseno.app-metadata/1 JSON",
+        "strict, closed, valid supported embedded app-metadata JSON",
         &provenance
             .as_ref()
             .map(|_| "embedded provenance validated".to_owned()),
@@ -943,24 +939,53 @@ fn required_file_exists(
     read_scoped_regular(&root, relative, MAX_FILE_BYTES).map(|_| ())
 }
 
-fn validate_provenance(value: &AppMetadata) -> Result<(), String> {
-    value.validate().map_err(|error| error.to_string())
+pub(crate) fn load_embedded_app_metadata(
+    root: &Path,
+    relative: &str,
+) -> Result<EmbeddedAppMetadata, String> {
+    let bytes = read_scoped_regular(root, relative, MAX_JSON_BYTES)?;
+    EmbeddedAppMetadata::decode_transport_json(&bytes)
+        .map_err(|error| format!("{relative}: {error}"))
 }
 
 fn compare_provenance(
-    provenance: &AppMetadata,
+    provenance: &EmbeddedAppMetadata,
     record: &ShotRecord,
     fascia: &FasciaManifest,
     commitment: Bytes32,
 ) -> Result<String, String> {
     let expected = AppMetadata::for_record(record, commitment, fascia)
         .map_err(|error| format!("could not derive signed app metadata: {error}"))?;
-    if provenance == &expected {
-        Ok(format!("all public facts matched commitment {commitment}"))
-    } else {
-        Err(format!(
-            "embedded provenance does not exactly match commitment {commitment} and record public facts"
-        ))
+    match provenance {
+        EmbeddedAppMetadata::V1(provenance) if provenance == &expected => {
+            Ok(format!("all v1 public facts matched commitment {commitment}"))
+        }
+        EmbeddedAppMetadata::V1(_) => Err(format!(
+            "embedded v1 provenance does not exactly match commitment {commitment} and record public facts"
+        )),
+        EmbeddedAppMetadata::V2(provenance)
+            if provenance.protocol_name == expected.protocol_name
+                && provenance.fascia == expected.fascia
+                && provenance.shot_id == expected.shot_id
+                && provenance.builder_id == expected.builder_id
+                && provenance.source_tree_sha256 == expected.source_tree_sha256
+                && provenance.fascia_sha256 == expected.fascia_sha256
+                && provenance.bundle_id == expected.bundle_id
+                && provenance.bundle_version == expected.bundle_version
+                && provenance.factory == expected.factory
+                && provenance.distribution == expected.distribution
+                && provenance.capabilities == expected.capabilities
+                && provenance.network == expected.network
+                && provenance.registry == expected.registry
+                && provenance.legacy_v1_evolution_commitment == Some(commitment) =>
+        {
+            Ok(format!(
+                "all shared v2 public facts and legacy v1 witness matched commitment {commitment}"
+            ))
+        }
+        EmbeddedAppMetadata::V2(_) => Err(format!(
+            "embedded v2 provenance does not match commitment {commitment}, its legacy v1 witness, and record public facts"
+        )),
     }
 }
 
@@ -1412,7 +1437,7 @@ fn verify_artifact(
                 path.strip_prefix(&app_root)
                     .map_err(|_| "artifact provenance escaped app root".to_owned())?,
             )?;
-            load_validated_json::<AppMetadata, _>(&app_root, &relative, validate_provenance)
+            load_embedded_app_metadata(&app_root, &relative)
         })
         .and_then(|value| {
             let commitment = record.commitment().map_err(|error| error.to_string())?;
@@ -2505,6 +2530,83 @@ CURRENT_PROJECT_VERSION = 1;
             VerificationStatus::Pass
         );
         assert_eq!(status(&report, "artifact.fascia"), VerificationStatus::Pass);
+    }
+
+    #[test]
+    fn v2_embedded_metadata_preserves_and_verifies_the_v1_public_witness() {
+        let fixture = Fixture::new();
+        let record: ShotRecord =
+            serde_json::from_slice(&fs::read(fixture.shot.join("TOHSENO/shot.json")).unwrap())
+                .unwrap();
+        let fascia: FasciaManifest =
+            serde_json::from_slice(&fs::read(fixture.shot.join("TOHSENO/fascia.json")).unwrap())
+                .unwrap();
+        let commitment = record.commitment().unwrap();
+        let v1 = AppMetadata::for_record(&record, commitment, &fascia).unwrap();
+        let expression_id = tohseno_protocol::digest::ExpressionId::from_bytes([0x44; 32]);
+        let genome_digest = Bytes32::new([0x55; 32]);
+        let version_id = tohseno_protocol::digest::VersionId::derive(
+            record.shot_id,
+            expression_id,
+            1,
+            genome_digest,
+            record.source_tree_sha256,
+        );
+        let v2 = tohseno_protocol::app_metadata::AppMetadataV2::from_v1(
+            &v1,
+            expression_id,
+            version_id,
+            1,
+            1,
+            genome_digest,
+            7,
+            Bytes32::new([0x66; 32]),
+            None,
+        )
+        .unwrap();
+        write_json(
+            &fixture.shot.join("src/TOHSENO/embedded-provenance.json"),
+            &v2,
+        );
+        retain_xml_artifact(&fixture, "com.example.fixture", "1");
+        let report = verify_shot_directory(&fixture.shot, &fixture.reference);
+        assert!(
+            report.conformant,
+            "{}",
+            serde_json::to_string_pretty(&report).unwrap()
+        );
+        assert_eq!(
+            status(&report, "provenance.binding"),
+            VerificationStatus::Pass
+        );
+        assert_eq!(
+            status(&report, "artifact.provenance"),
+            VerificationStatus::Pass
+        );
+
+        let mut forged = v2;
+        forged.legacy_v1_evolution_commitment = Some(Bytes32::new([0x77; 32]));
+        write_json(
+            &fixture.shot.join("src/TOHSENO/embedded-provenance.json"),
+            &forged,
+        );
+        fs::copy(
+            fixture.shot.join("src/TOHSENO/embedded-provenance.json"),
+            fixture
+                .shot
+                .join("artifact/fixture.app/embedded-provenance.json"),
+        )
+        .unwrap();
+        let report = verify_shot_directory(&fixture.shot, &fixture.reference);
+        assert!(!report.conformant);
+        assert_eq!(
+            status(&report, "provenance.binding"),
+            VerificationStatus::Fail
+        );
+        assert_eq!(
+            status(&report, "artifact.provenance"),
+            VerificationStatus::Fail
+        );
     }
 
     #[test]

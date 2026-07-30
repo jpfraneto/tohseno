@@ -1,0 +1,42 @@
+{
+  "protocol": "tohseno",
+  "protocol_version": "2",
+  "schema": "tohseno.app-metadata/2",
+  "fascia": "tohseno.apple/1",
+  "shot_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+  "builder_id": "eip155:4663:0x1111111111111111111111111111111111111111",
+  "expression_id": "0x7777777777777777777777777777777777777777777777777777777777777777",
+  "version_id": "0xa39c12550976d2087e7ac9173c7377b2f57c1b699fa88ad667bf0553b11421bb",
+  "version_ordinal": 1,
+  "genome_revision": 1,
+  "genome_digest": "0x7878787878787878787878787878787878787878787878787878787878787878",
+  "lineage_sequence": 8,
+  "lineage_head": "0x7979797979797979797979797979797979797979797979797979797979797979",
+  "source_tree_sha256": "0x0404040404040404040404040404040404040404040404040404040404040404",
+  "fascia_sha256": "0x0505050505050505050505050505050505050505050505050505050505050505",
+  "build_digest": "0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a",
+  "bundle_id": "example.app",
+  "bundle_version": 1,
+  "factory": {
+    "implementation": "example/factory",
+    "version": "0.7.0",
+    "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "distribution": {
+    "state": "local",
+    "supported_apple_surfaces": [
+      "iphone"
+    ],
+    "app_store_id": null
+  },
+  "capabilities": [
+    {
+      "capability": "local_storage",
+      "purpose": "Save the user's documents",
+      "details": []
+    }
+  ],
+  "network": [],
+  "registry": null,
+  "legacy_v1_evolution_commitment": "0x4be2ec1058e59fd23b37219669358ceae9aca313d333223709c448294fe85f9c"
+}
