@@ -4,9 +4,19 @@ on:
   push:
     tags:
       - "v0.7.0"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable stable tag to recover
+        required: true
+        default: v0.7.0
+        type: string
 
 permissions:
   contents: read
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 jobs:
   verify:
@@ -14,13 +24,15 @@ jobs:
 
   authorize-release:
     name: Require recorded stable-release authorization
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       - name: Verify stable-release readiness and explicit authorization
         run: |
+          test "$RELEASE_TAG" = "v0.7.0"
           jq -e \
             '.schema == "tohseno.release-readiness/1"
              and .version == "0.7.0"
@@ -33,7 +45,7 @@ jobs:
 
   build:
     needs: [verify, authorize-release]
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       matrix:
         include:
@@ -45,6 +57,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: 1.88.0
@@ -143,13 +156,14 @@ jobs:
 
   publish:
     needs: build
-    runs-on: macos-14
+    runs-on: macos-15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: 1.88.0
@@ -178,21 +192,38 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          release_source_commit="$(git rev-parse 'HEAD^{commit}')"
           verify_live_tag() {
-          if [ "$GITHUB_EVENT_NAME" != "push" ] ||
-            [ "$GITHUB_REF_TYPE" != "tag" ]; then
-            printf 'release publication requires an exact tag push event\n' >&2
+          if [ "$RELEASE_TAG" != "v0.7.0" ]; then
+            printf 'release tag must be exactly v0.7.0\n' >&2
             exit 1
           fi
-          expected_ref="refs/tags/$GITHUB_REF_NAME"
-          if [ "$GITHUB_REF" != "$expected_ref" ]; then
-            printf 'event ref %s does not match expected tag ref %s\n' \
-              "$GITHUB_REF" "$expected_ref" >&2
-            exit 1
-          fi
-          if ! printf '%s\n' "$GITHUB_SHA" |
+          expected_ref="refs/tags/$RELEASE_TAG"
+          case "$GITHUB_EVENT_NAME" in
+            push)
+              if [ "$GITHUB_REF_TYPE" != "tag" ] ||
+                [ "$GITHUB_REF" != "$expected_ref" ] ||
+                [ "$GITHUB_REF_NAME" != "$RELEASE_TAG" ]; then
+                printf 'push event does not match exact release tag %s\n' \
+                  "$expected_ref" >&2
+                exit 1
+              fi
+              ;;
+            workflow_dispatch)
+              if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+                printf 'release recovery must be dispatched from main\n' >&2
+                exit 1
+              fi
+              ;;
+            *)
+              printf 'unsupported release event: %s\n' \
+                "$GITHUB_EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          if ! printf '%s\n' "$release_source_commit" |
             grep -Eq '^[0-9a-f]{40}$'; then
-            printf 'event SHA is not a full lowercase Git object ID\n' >&2
+            printf 'checked-out release commit is not a full object ID\n' >&2
             exit 1
           fi
 
@@ -201,7 +232,7 @@ jobs:
               --method GET \
               -H 'Accept: application/vnd.github+json' \
               -H 'X-GitHub-Api-Version: 2026-03-10' \
-              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}"
+              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}"
           )"
           ref_object="$(
             printf '%s\n' "$ref_json" |
@@ -269,9 +300,9 @@ jobs:
               "$object_type" >&2
             exit 1
           fi
-          if [ "$object_sha" != "$GITHUB_SHA" ]; then
-            printf 'live tag commit %s does not match event commit %s\n' \
-              "$object_sha" "$GITHUB_SHA" >&2
+          if [ "$object_sha" != "$release_source_commit" ]; then
+            printf 'live tag commit %s does not match checked-out commit %s\n' \
+              "$object_sha" "$release_source_commit" >&2
             exit 1
           fi
           }
@@ -284,7 +315,7 @@ jobs:
               -H 'Accept: application/vnd.github+json' \
               -H 'X-GitHub-Api-Version: 2026-03-10' \
               "repos/${GITHUB_REPOSITORY}/releases?per_page=100" |
-              jq -er --arg tag "$GITHUB_REF_NAME" '
+              jq -er --arg tag "$RELEASE_TAG" '
                 [
                   .[][]
                   | select(.tag_name == $tag)
@@ -300,7 +331,7 @@ jobs:
           }
 
           verify_live_tag
-          release_marker="TOHSENO v0.7.0 source commit: $GITHUB_SHA"
+          release_marker="TOHSENO v0.7.0 source commit: $release_source_commit"
           releases_json="$(
             gh api \
               --method GET \
@@ -312,7 +343,7 @@ jobs:
           )"
           matching_release_count="$(
             printf '%s\n' "$releases_json" |
-              jq -er --arg tag "$GITHUB_REF_NAME" '
+              jq -er --arg tag "$RELEASE_TAG" '
                 [
                   .[][]
                   | select(.tag_name == $tag)
@@ -323,7 +354,7 @@ jobs:
           case "$matching_release_count" in
             0)
               gh release create \
-                "$GITHUB_REF_NAME" \
+                "$RELEASE_TAG" \
                 --draft \
                 --verify-tag \
                 --generate-notes \
@@ -332,7 +363,7 @@ jobs:
             1) ;;
             *)
               printf 'expected at most one release for tag %s; found %s\n' \
-                "$GITHUB_REF_NAME" "$matching_release_count" >&2
+                "$RELEASE_TAG" "$matching_release_count" >&2
               exit 1
               ;;
           esac
@@ -340,7 +371,7 @@ jobs:
           release_json="$(load_matching_release)"
           printf '%s\n' "$release_json" |
             jq -e \
-              --arg tag "$GITHUB_REF_NAME" \
+              --arg tag "$RELEASE_TAG" \
               --arg marker "$release_marker" '
                 .tag_name == $tag
                 and .prerelease == false
@@ -459,7 +490,7 @@ jobs:
           fi
 
           gh release upload \
-            "$GITHUB_REF_NAME" \
+            "$RELEASE_TAG" \
             "${local_assets[@]}" \
             --clobber
 
@@ -468,13 +499,13 @@ jobs:
 
           verify_live_tag
           gh release edit \
-            "$GITHUB_REF_NAME" \
+            "$RELEASE_TAG" \
             --draft=false \
             --verify-tag
           published_release_json="$(load_matching_release)"
           printf '%s\n' "$published_release_json" |
             jq -e \
-              --arg tag "$GITHUB_REF_NAME" \
+              --arg tag "$RELEASE_TAG" \
               --arg marker "$release_marker" \
               --argjson expected_count "${#local_assets[@]}" '
                 .tag_name == $tag
