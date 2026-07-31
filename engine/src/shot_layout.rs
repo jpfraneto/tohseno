@@ -1813,6 +1813,19 @@ impl ShotLayout {
             ShotLayoutError::Limit("version ordinal does not fit the feedback layout".into())
         })?;
         let path = self.initialize_feedback_version(version.expression_id, sequence)?;
+        let index_path = path.join("index.json");
+        // A version accepts feedback more than once. An existing index that
+        // names the same exact expression Version is valid whether its status
+        // is Absent or Present; only a different identity is a conflict.
+        if index_path.is_file() {
+            let existing = read_canonical_json::<FeedbackVersionIndex>(&index_path)?;
+            if existing.expression_id != version.expression_id
+                || existing.version_id != version.version_id
+            {
+                return Err(ShotLayoutError::ImmutableConflict(index_path));
+            }
+            return Ok(path);
+        }
         let index = FeedbackVersionIndex {
             schema: FEEDBACK_INDEX_SCHEMA_V2.into(),
             expression_id: version.expression_id,
@@ -1823,7 +1836,7 @@ impl ShotLayout {
             .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
         let mut terminated = encoded;
         terminated.push(b'\n');
-        ensure_exact_file(&path.join("index.json"), &terminated, true)?;
+        ensure_exact_file(&index_path, &terminated, true)?;
         Ok(path)
     }
 
@@ -5456,6 +5469,50 @@ mod tests {
                 .unwrap()
                 .digest
         );
+    }
+
+    #[test]
+    fn a_version_accepts_feedback_more_than_once() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("shot");
+        fs::create_dir(&root).unwrap();
+        let layout = ShotLayout::at(&root);
+        let shot_id = ShotId::from_bytes([0x21; 32]);
+        let expression_id = ExpressionId::from_bytes([0x22; 32]);
+        let version = version(shot_id, expression_id, sha256(b"input action"));
+
+        let first = layout.initialize_feedback_for(shot_id, &version).unwrap();
+        // store_feedback flips the index to Present after the first feedback;
+        // initializing again for a second observation must accept it.
+        let present = FeedbackVersionIndex {
+            schema: FEEDBACK_INDEX_SCHEMA_V2.into(),
+            expression_id: version.expression_id,
+            version_id: version.version_id,
+            status: FeedbackPresence::Present,
+        };
+        let mut bytes = tohseno_protocol::canonical::to_vec(&present).unwrap();
+        bytes.push(b'\n');
+        write_replace_file(&first.join("index.json"), &bytes, true).unwrap();
+        let second = layout.initialize_feedback_for(shot_id, &version).unwrap();
+        assert_eq!(first, second);
+
+        // A different exact Version behind the same path stays a conflict.
+        let mut foreign = present;
+        foreign.version_id = VersionId::derive(
+            shot_id,
+            expression_id,
+            2,
+            sha256(b"genome"),
+            sha256(b"other source"),
+        );
+        let mut bytes = tohseno_protocol::canonical::to_vec(&foreign).unwrap();
+        bytes.push(b'\n');
+        write_replace_file(&first.join("index.json"), &bytes, true).unwrap();
+        assert!(layout
+            .initialize_feedback_for(shot_id, &version)
+            .unwrap_err()
+            .to_string()
+            .contains("immutable Shot material already differs"));
     }
 
     #[test]
