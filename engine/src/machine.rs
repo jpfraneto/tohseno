@@ -313,7 +313,7 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
-        if self.working_tree_has_content(&request.app_name)? {
+        if self.working_tree_has_user_content(&request.app_name)? {
             return Err(EngineError::FolderInProgress(request.app_name.clone()));
         }
         let layout = ShotLayout::at(self.ledger.working_tree(&request.app_name));
@@ -1984,6 +1984,23 @@ impl Engine {
         Ok(!commitment.entries.is_empty())
     }
 
+    /// Whether the folder holds anything the BUILDER put there. The engine's
+    /// own standing orders do not count: a prepared-but-never-run Shot must
+    /// remain re-creatable, or a failed first handoff wedges the folder
+    /// forever.
+    fn working_tree_has_user_content(&self, app_name: &str) -> Result<bool, EngineError> {
+        let working = self.ledger.working_tree(app_name);
+        if !working.is_dir() {
+            return Ok(false);
+        }
+        let commitment = crate::shot_layout::hash_expression_working_tree(&working)
+            .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
+        Ok(commitment
+            .entries
+            .iter()
+            .any(|entry| entry.path != "AGENTS.md" && entry.path != "CLAUDE.md"))
+    }
+
     fn working_tree_matches(&self, sealed: &Evolution) -> Result<bool, EngineError> {
         let working = self.ledger.working_tree(&sealed.app_name);
         if !working.is_dir() {
@@ -2964,5 +2981,31 @@ mod tests {
         )
         .validate()
         .unwrap();
+    }
+
+    #[test]
+    fn engine_standing_orders_do_not_count_as_builder_work() {
+        // A prepared Shot folder holds AGENTS.md and CLAUDE.md written by the
+        // engine itself. Re-creating after a failed first handoff must see
+        // that folder as pristine, or the Shot is wedged forever (F-003).
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let working = family.join("quiet-press");
+        fs::create_dir_all(&working).unwrap();
+        fs::write(working.join("AGENTS.md"), "# This folder is a TOHSENO Shot\n").unwrap();
+        fs::write(working.join("CLAUDE.md"), "Read AGENTS.md.\n").unwrap();
+        fs::write(working.join("README.md"), "# TOHSENO Shot\n").unwrap();
+
+        let engine = Engine::at(
+            Ledger::at_homes(&family, &machine),
+            EventBus::default(),
+            Config::default(),
+        );
+        assert!(engine.working_tree_has_content("quiet-press").unwrap());
+        assert!(!engine.working_tree_has_user_content("quiet-press").unwrap());
+
+        fs::write(working.join("Anything.swift"), "// builder work\n").unwrap();
+        assert!(engine.working_tree_has_user_content("quiet-press").unwrap());
     }
 }
