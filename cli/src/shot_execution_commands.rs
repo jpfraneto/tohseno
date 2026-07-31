@@ -58,6 +58,9 @@ pub fn prepare(
     open_terminal_window: bool,
     events: &EventBus,
 ) -> Result<PreparedExecution, Box<dyn std::error::Error>> {
+    // No anonymous Shots: the execution must land attributed to the local
+    // Builder identity, so the binding is proven before anything is prepared.
+    engine.verify_builder_binding(app_name)?;
     let app = engine.ledger().load_app(app_name)?;
     let shot_id = app
         .shot_id
@@ -238,6 +241,9 @@ pub async fn run(
             return Err(format!("prepared reference is unavailable: {}", image.display()).into());
         }
     }
+    // Re-proven here because `run` is a separate process: identity state may
+    // have changed between the prepared Terminal window and this launch.
+    engine.verify_builder_binding(app_name)?;
 
     update_phase(
         &mut execution,

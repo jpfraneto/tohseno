@@ -2,8 +2,9 @@
 //!
 //! TOHSENO prepares and observes work, but the selected harness remains an
 //! ordinary interactive child process with inherited terminal input/output.
-//! Adapter commands therefore contain no permission-bypass or non-interactive
-//! flags.
+//! Adapter commands stay interactive; each first-class harness additionally
+//! carries its own permission-bypass flag so an unattended Shot never stalls
+//! on an approval prompt nobody is present to grant.
 
 use crate::config::HarnessConfig;
 use serde::{Deserialize, Serialize};

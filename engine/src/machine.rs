@@ -426,6 +426,29 @@ impl Engine {
         Ok(adapted)
     }
 
+    /// Refuse any Shot execution that would not land attributed to the local
+    /// Builder identity. Running is a recording act: an app with no recorded
+    /// Builder, or one recorded under a different Builder, must be refused
+    /// before the harness is allowed to touch the folder.
+    pub fn verify_builder_binding(&self, app_name: &str) -> Result<(), EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let app = self.ledger.load_app(app_name)?;
+        let manager = BuilderIdentityManager::for_ledger(&self.ledger);
+        let builder = manager.ensure()?;
+        let shot_id =
+            verify_recorded_builder(app_name, app.shot_id, app.builder_id, builder.builder_id)?;
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let lineage = layout.read_lineage()?;
+        let state = tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+        if state.shot_id != shot_id
+            || state.controller != builder.builder_id
+            || state.controller_key != builder.device.public_key
+        {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        Ok(())
+    }
+
     /// Append an optional economic relationship without changing Shot,
     /// Expression, Version, or ownership identity.
     ///
@@ -2797,6 +2820,25 @@ fn sign_lineage_action(
         .map_err(EngineError::from)
 }
 
+/// The recording law behind `Engine::verify_builder_binding`, kept pure so
+/// every refusal branch is provable without a Keychain: an app is runnable
+/// only when its recorded Shot and Builder bindings exist and the recorded
+/// Builder is the local one.
+fn verify_recorded_builder(
+    app_name: &str,
+    recorded_shot: Option<tohseno_protocol::digest::ShotId>,
+    recorded_builder: Option<tohseno_protocol::identity::BuilderId>,
+    local_builder: tohseno_protocol::identity::BuilderId,
+) -> Result<tohseno_protocol::digest::ShotId, EngineError> {
+    let shot_id = recorded_shot.ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+    let recorded =
+        recorded_builder.ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+    if recorded != local_builder {
+        return Err(EngineError::BuilderMismatch(app_name.into()));
+    }
+    Ok(shot_id)
+}
+
 #[derive(Debug)]
 pub enum EngineError {
     Io(std::io::Error),
@@ -3156,5 +3198,37 @@ mod tests {
 
         fs::write(working.join("Anything.swift"), "// builder work\n").unwrap();
         assert!(engine.working_tree_has_user_content("quiet-press").unwrap());
+    }
+
+    #[test]
+    fn running_is_refused_without_a_recorded_local_builder() {
+        // Running is a recording act: no anonymous executions, and no
+        // executions of a folder recorded under someone else's Builder.
+        let local = tohseno_protocol::identity::BuilderId::parse(
+            "eip155:4663:0x1111111111111111111111111111111111111111",
+        )
+        .unwrap();
+        let foreign = tohseno_protocol::identity::BuilderId::parse(
+            "eip155:4663:0x2222222222222222222222222222222222222222",
+        )
+        .unwrap();
+        let shot = tohseno_protocol::digest::ShotId::random();
+
+        // An app that predates canonical bindings is not runnable.
+        let error = verify_recorded_builder("quiet-press", None, Some(local), local).unwrap_err();
+        assert!(matches!(error, EngineError::LegacyRequiresAdoption(_)));
+        let error = verify_recorded_builder("quiet-press", Some(shot), None, local).unwrap_err();
+        assert!(matches!(error, EngineError::LegacyRequiresAdoption(_)));
+
+        // An app recorded under a different Builder is not runnable here.
+        let error =
+            verify_recorded_builder("quiet-press", Some(shot), Some(foreign), local).unwrap_err();
+        assert!(matches!(error, EngineError::BuilderMismatch(_)));
+
+        // The recorded local Builder is the one identity allowed to run.
+        assert_eq!(
+            verify_recorded_builder("quiet-press", Some(shot), Some(local), local).unwrap(),
+            shot
+        );
     }
 }
