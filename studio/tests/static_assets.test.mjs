@@ -121,7 +121,7 @@ test("Bankr launch belongs to one selected Shot and is separately confirmed", ()
   const selection = html.match(/<section id="selection"[\s\S]*?<\/section>/)?.[0] || "";
   const globalActions = html.slice(0, html.indexOf('<div class="library-scroll">'));
   assert.match(selection, /id="launch-token"/);
-  assert.match(selection, /Launch \$TOHSENO for this Shot/);
+  assert.match(selection, /Launch Appcoin for this Shot, via Bankr/);
   assert.doesNotMatch(globalActions, /id="launch-token"/);
   assert.match(html, /id="bankr-shot-id"/);
   assert.match(html, /jpfraneto\.eth/);

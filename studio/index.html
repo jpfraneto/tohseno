@@ -254,108 +254,6 @@
             </div>
           </details>
 
-          <section id="selection" class="selection" hidden>
-            <div class="selected-app">
-              <div id="selected-icon" class="selected-icon"></div>
-              <div>
-                <h1 id="selected-name"></h1>
-                <span id="selected-location"></span>
-              </div>
-            </div>
-
-            <div class="shot-stepper" aria-label="Evolution history">
-              <button id="previous-shot" type="button" aria-label="Run previous evolution">‹</button>
-              <span id="shot-position">Evolution 1 of 1</span>
-              <button id="next-shot" type="button" aria-label="Run next evolution">›</button>
-            </div>
-
-            <button id="launch-token" class="token-launch-action" type="button" disabled>
-              <span class="token-mark" aria-hidden="true">$</span>
-              <span>
-                <strong id="launch-token-label">Launch $TOHSENO for this Shot</strong>
-                <small id="launch-token-detail">Loading the selected ShotID…</small>
-              </span>
-            </button>
-
-            <details id="shot-continuity" class="shot-continuity" hidden>
-              <summary>
-                <span>Shot continuity</span>
-                <span id="continuity-status" class="protocol-badge">Checking</span>
-              </summary>
-              <div class="continuity-content">
-                <dl class="protocol-facts">
-                  <div><dt>ShotID</dt><dd id="continuity-shot-id">Unavailable</dd></div>
-                  <div><dt>Expression</dt><dd id="continuity-expression">Unavailable</dd></div>
-                  <div><dt>Version</dt><dd id="continuity-version">Unavailable</dd></div>
-                  <div><dt>Genome</dt><dd id="continuity-genome">Unavailable</dd></div>
-                  <div><dt>Lineage</dt><dd id="continuity-lineage">Unavailable</dd></div>
-                  <div><dt>Token association (v2)</dt><dd id="continuity-token">None</dd></div>
-                  <div><dt>Availability</dt><dd id="continuity-availability">Unknown</dd></div>
-                </dl>
-
-                <section class="continuity-document" aria-labelledby="intention-heading">
-                  <div>
-                    <h2 id="intention-heading">Original intention</h2>
-                    <span id="intention-status">Unknown</span>
-                  </div>
-                  <pre id="intention-text">No intention record is available.</pre>
-                </section>
-
-                <section class="continuity-document" aria-labelledby="genome-heading">
-                  <div>
-                    <h2 id="genome-heading">Accepted genome</h2>
-                    <span id="genome-status">Unknown</span>
-                  </div>
-                  <pre id="genome-text">No accepted genome is available.</pre>
-                </section>
-
-                <p id="continuity-detail" class="protocol-note"></p>
-
-                <form id="feedback-form" class="feedback-form">
-                  <div class="protocol-section-heading">
-                    <h2>Experience this version</h2>
-                    <span class="protocol-badge">Private</span>
-                  </div>
-                  <p id="feedback-binding" class="protocol-note">
-                    Feedback becomes available when an exact expression version is selected.
-                  </p>
-                  <label for="feedback-text">Feedback</label>
-                  <textarea
-                    id="feedback-text"
-                    rows="4"
-                    maxlength="100000"
-                    placeholder="What did this exact version make possible, obscure, or break?"
-                    disabled
-                  ></textarea>
-                  <label class="feedback-selection" for="feedback-select-evolution">
-                    <input id="feedback-select-evolution" type="checkbox" disabled />
-                    Select this signed observation for the next evolution
-                  </label>
-                  <button id="save-feedback" class="protocol-action" type="submit" disabled>
-                    Save private feedback
-                  </button>
-                  <p id="feedback-status" class="feedback-status" role="status"></p>
-                </form>
-              </div>
-            </details>
-
-            <div id="working-state" class="working-state" hidden>
-              <span>the folder has unrecorded work</span>
-              <button id="record-evolution" class="evolve-action" type="button">Record evolution</button>
-            </div>
-            <div id="expiry-state" class="expiry-state" hidden>
-              <span id="expiry-label"></span>
-              <button id="refresh-app" class="evolve-action" type="button">Refresh</button>
-            </div>
-            <button id="evolve" class="evolve-action" type="button">Evolve this app</button>
-            <button id="open-folder" class="secondary-action" type="button">Open folder</button>
-            <button id="open-simulator" class="secondary-action" type="button">Open Simulator to interact</button>
-
-            <details id="memory-panel" class="memory-panel" hidden>
-              <summary>Memory</summary>
-              <pre id="memory-text"></pre>
-            </details>
-          </section>
         </div>
 
         <section class="machine-state" aria-live="polite">
@@ -382,6 +280,122 @@
         aria-valuemax="520"
         tabindex="0"
       ><span></span></div>
+
+      <section id="detail-panel" class="detail-panel" aria-label="Selected Shot detail" hidden>
+        <header class="composer-head detail-head">
+          <div>
+            <span id="detail-kicker">SHOT</span>
+            <h2 id="detail-title">Details</h2>
+            <p id="detail-support">Everything this Shot is, in one place.</p>
+          </div>
+          <button id="close-detail" type="button" aria-label="Close Shot detail">×</button>
+        </header>
+        <div class="detail-scroll">
+        <section id="selection" class="selection" hidden>
+          <div class="selected-app">
+            <div id="selected-icon" class="selected-icon"></div>
+            <div>
+              <h1 id="selected-name"></h1>
+              <span id="selected-location"></span>
+            </div>
+          </div>
+
+          <div class="shot-stepper" aria-label="Evolution history">
+            <button id="previous-shot" type="button" aria-label="Run previous evolution">‹</button>
+            <span id="shot-position">Evolution 1 of 1</span>
+            <button id="next-shot" type="button" aria-label="Run next evolution">›</button>
+          </div>
+
+          <button id="launch-token" class="token-launch-action" type="button" disabled>
+            <span class="token-mark" aria-hidden="true">$</span>
+            <span>
+              <strong id="launch-token-label">Launch Appcoin for this Shot, via Bankr</strong>
+              <small id="launch-token-detail">Loading the selected ShotID…</small>
+            </span>
+          </button>
+
+          <details id="shot-continuity" class="shot-continuity" hidden>
+            <summary>
+              <span>Shot continuity</span>
+              <span id="continuity-status" class="protocol-badge">Checking</span>
+            </summary>
+            <div class="continuity-content">
+              <dl class="protocol-facts">
+                <div><dt>ShotID</dt><dd id="continuity-shot-id">Unavailable</dd></div>
+                <div><dt>Expression</dt><dd id="continuity-expression">Unavailable</dd></div>
+                <div><dt>Version</dt><dd id="continuity-version">Unavailable</dd></div>
+                <div><dt>Genome</dt><dd id="continuity-genome">Unavailable</dd></div>
+                <div><dt>Lineage</dt><dd id="continuity-lineage">Unavailable</dd></div>
+                <div><dt>Token association (v2)</dt><dd id="continuity-token">None</dd></div>
+                <div><dt>Availability</dt><dd id="continuity-availability">Unknown</dd></div>
+              </dl>
+
+              <section class="continuity-document" aria-labelledby="intention-heading">
+                <div>
+                  <h2 id="intention-heading">Original intention</h2>
+                  <span id="intention-status">Unknown</span>
+                </div>
+                <pre id="intention-text">No intention record is available.</pre>
+              </section>
+
+              <section class="continuity-document" aria-labelledby="genome-heading">
+                <div>
+                  <h2 id="genome-heading">Accepted genome</h2>
+                  <span id="genome-status">Unknown</span>
+                </div>
+                <pre id="genome-text">No accepted genome is available.</pre>
+              </section>
+
+              <p id="continuity-detail" class="protocol-note"></p>
+
+              <form id="feedback-form" class="feedback-form">
+                <div class="protocol-section-heading">
+                  <h2>Experience this version</h2>
+                  <span class="protocol-badge">Private</span>
+                </div>
+                <p id="feedback-binding" class="protocol-note">
+                  Feedback becomes available when an exact expression version is selected.
+                </p>
+                <label for="feedback-text">Feedback</label>
+                <textarea
+                  id="feedback-text"
+                  rows="4"
+                  maxlength="100000"
+                  placeholder="What did this exact version make possible, obscure, or break?"
+                  disabled
+                ></textarea>
+                <label class="feedback-selection" for="feedback-select-evolution">
+                  <input id="feedback-select-evolution" type="checkbox" disabled />
+                  Select this signed observation for the next evolution
+                </label>
+                <button id="save-feedback" class="protocol-action" type="submit" disabled>
+                  Save private feedback
+                </button>
+                <p id="feedback-status" class="feedback-status" role="status"></p>
+              </form>
+            </div>
+          </details>
+
+          <div id="working-state" class="working-state" hidden>
+            <span>the folder has unrecorded work</span>
+            <button id="record-evolution" class="evolve-action" type="button">Record evolution</button>
+          </div>
+          <div id="expiry-state" class="expiry-state" hidden>
+            <span id="expiry-label"></span>
+            <button id="refresh-app" class="evolve-action" type="button">Refresh</button>
+          </div>
+          <button id="evolve" class="evolve-action" type="button">Evolve this app</button>
+          <button id="open-folder" class="secondary-action" type="button">Open folder</button>
+          <button id="open-simulator" class="secondary-action" type="button">Open Simulator to interact</button>
+
+          <details id="memory-panel" class="memory-panel" hidden>
+            <summary>Memory</summary>
+            <pre id="memory-text"></pre>
+          </details>
+        </section>
+        </div>
+      </section>
+
 
       <section id="composer" class="intent-panel" aria-label="Shot intention" hidden>
         <form id="shot-form">

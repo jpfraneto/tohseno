@@ -21,6 +21,9 @@ const ui = {
   appGrid: document.querySelector("#app-grid"),
   noApps: document.querySelector("#no-apps"),
   selection: document.querySelector("#selection"),
+  detailPanel: document.querySelector("#detail-panel"),
+  detailTitle: document.querySelector("#detail-title"),
+  closeDetail: document.querySelector("#close-detail"),
   selectedIcon: document.querySelector("#selected-icon"),
   selectedName: document.querySelector("#selected-name"),
   selectedLocation: document.querySelector("#selected-location"),
@@ -229,7 +232,7 @@ const renderTokenLaunchState = () => {
   }
   const binding = selectedLaunchBinding();
   ui.launchToken.disabled = !binding;
-  ui.launchTokenLabel.textContent = "Launch $TOHSENO for this Shot";
+  ui.launchTokenLabel.textContent = "Launch Appcoin for this Shot, via Bankr";
   ui.launchTokenDetail.textContent = binding
     ? `After deployment, record a private relation to ${displayIdentifier(binding.shot_id)}`
     : "A verified selected ShotID is required";
@@ -907,12 +910,15 @@ const renderSlots = () => {
 const renderSelection = () => {
   if (!selectedApp) {
     ui.selection.hidden = true;
+    ui.detailPanel.hidden = true;
     renderTokenLaunchState();
     return;
   }
 
   const index = selectedApp.shots.indexOf(selectedShot);
   ui.selection.hidden = false;
+  ui.detailPanel.hidden = false;
+  ui.detailTitle.textContent = selectedApp.name;
   ui.selectedIcon.replaceChildren(...icon(selectedApp, selectedShot, "selected-icon").childNodes);
   ui.selectedName.textContent = selectedApp.name;
   ui.selectedLocation.textContent = selectedApp.retired ? "Local library" : "Installed on iPhone";
@@ -1021,6 +1027,7 @@ ui.nextShot.addEventListener("click", () => {
 });
 
 ui.showLibrary.addEventListener("click", showSimulatorEmpty);
+ui.closeDetail.addEventListener("click", showSimulatorEmpty);
 
 ui.openSimulator.addEventListener("click", async () => {
   await fetch("/api/simulator/focus", {
