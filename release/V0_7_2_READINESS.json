@@ -29,9 +29,9 @@
   },
   "publication": {
     "tag": "v0.7.2",
-    "release_url": null,
-    "release_immutable": false,
+    "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.7.2",
+    "release_immutable": true,
     "production_url": "https://tohseno.com",
-    "tohseno_com_installer_verified": false
+    "tohseno_com_installer_verified": true
   }
 }
