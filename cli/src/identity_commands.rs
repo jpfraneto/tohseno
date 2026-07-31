@@ -32,6 +32,10 @@ pub fn show(bus: &EventBus, json: bool) -> Result<(), Box<dyn std::error::Error>
                 "not configured"
             }
         )));
+        bus.emit(Event::status(
+            "The retired v0.7 contract generation will never be deployed; this predicted \
+             address is not a durable public identity. See https://tohseno.com/docs.",
+        ));
     }
     Ok(())
 }
