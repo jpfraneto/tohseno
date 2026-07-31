@@ -59,6 +59,7 @@ const FEEDBACK_INDEX_SCHEMA_V2: &str = "tohseno.local-feedback-index/2";
 const PENDING_EVOLUTION_SELECTION_SCHEMA_V1: &str = "tohseno.pending-evolution-selection/1";
 const PENDING_EVOLUTION_SELECTION_SCHEMA_V2: &str = "tohseno.pending-evolution-selection/2";
 pub const MAX_PRIVATE_REFERENCES: usize = 8;
+const IMAGE_REFERENCE_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "heic", "webp"];
 
 const PRIVATE_IGNORE_BLOCK: &str = r#"# BEGIN TOHSENO PRIVATE MATERIAL
 INTENTION.md
@@ -589,37 +590,7 @@ impl ShotLayout {
         &self,
         sources: &[PathBuf],
     ) -> Result<Vec<StoredReference>, ShotLayoutError> {
-        if sources.len() > MAX_PRIVATE_REFERENCES {
-            return Err(ShotLayoutError::Limit(format!(
-                "this Apple factory accepts at most {MAX_PRIVATE_REFERENCES} references"
-            )));
-        }
-        let mut prepared = Vec::with_capacity(sources.len());
-        let mut names = BTreeSet::new();
-        let mut digests = BTreeSet::new();
-        for source in sources {
-            let name = source
-                .file_name()
-                .and_then(|value| value.to_str())
-                .ok_or_else(|| ShotLayoutError::UnsafePath(source.clone()))?
-                .to_owned();
-            validate_reference_name(&name)?;
-            let collision_key = name.to_ascii_lowercase();
-            if !names.insert(collision_key) {
-                return Err(ShotLayoutError::Invalid(
-                    "private reference names collide on Apple filesystems".into(),
-                ));
-            }
-            let attachment = read_private_attachment(source)?;
-            if !digests.insert(attachment.digest) {
-                return Err(ShotLayoutError::Invalid(
-                    "private references must not repeat content".into(),
-                ));
-            }
-            let availability = private_reference_availability(&attachment, name)?;
-            prepared.push((attachment, availability));
-        }
-        prepared.sort_by_key(|(_, availability)| availability.artifact.digest);
+        let prepared = validated_private_references(sources)?;
 
         self.initialize_directories()?;
         let destination = self.metadata_root().join("references");
@@ -2839,8 +2810,72 @@ fn validate_private_reference_availability(
     Ok(())
 }
 
+/// Validates reference sources without touching the Shot folder: bounded
+/// count, safe unique names, readable regular files, supported image bytes,
+/// and unique content. Callers stage the returned attachments afterwards.
+fn validated_private_references(
+    sources: &[PathBuf],
+) -> Result<Vec<(PrivateAttachment, ArtifactAvailability)>, ShotLayoutError> {
+    if sources.len() > MAX_PRIVATE_REFERENCES {
+        return Err(ShotLayoutError::Limit(format!(
+            "this Apple factory accepts at most {MAX_PRIVATE_REFERENCES} references"
+        )));
+    }
+    let mut prepared = Vec::with_capacity(sources.len());
+    let mut names = BTreeSet::new();
+    let mut digests = BTreeSet::new();
+    for source in sources {
+        let name = source
+            .file_name()
+            .and_then(|value| value.to_str())
+            .ok_or_else(|| ShotLayoutError::UnsafePath(source.clone()))?
+            .to_owned();
+        validate_reference_name(&name)?;
+        let collision_key = name.to_ascii_lowercase();
+        if !names.insert(collision_key) {
+            return Err(ShotLayoutError::Invalid(
+                "private reference names collide on Apple filesystems".into(),
+            ));
+        }
+        let extension = source
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(str::to_ascii_lowercase)
+            .filter(|extension| IMAGE_REFERENCE_EXTENSIONS.contains(&extension.as_str()))
+            .ok_or_else(|| {
+                ShotLayoutError::Invalid(format!(
+                    "{} is not a supported PNG, JPEG, HEIC, or WebP image",
+                    source.display()
+                ))
+            })?;
+        let attachment = read_private_attachment(source)?;
+        validate_image_bytes(&extension, &attachment.bytes)
+            .map_err(|reason| ShotLayoutError::Invalid(format!("{}: {reason}", source.display())))?;
+        if !digests.insert(attachment.digest) {
+            return Err(ShotLayoutError::Invalid(
+                "private references must not repeat content".into(),
+            ));
+        }
+        let availability = private_reference_availability(&attachment, name)?;
+        prepared.push((attachment, availability));
+    }
+    prepared.sort_by_key(|(_, availability)| availability.artifact.digest);
+    Ok(prepared)
+}
+
+/// Proves every reference source would stage cleanly, before any Shot-folder
+/// side effect exists. A failed creation must not strand a partial folder.
+pub fn preflight_private_references(sources: &[PathBuf]) -> Result<(), ShotLayoutError> {
+    validated_private_references(sources).map(|_| ())
+}
+
 fn read_private_attachment(source: &Path) -> Result<PrivateAttachment, ShotLayoutError> {
-    let metadata = fs::symlink_metadata(source)?;
+    let metadata = fs::symlink_metadata(source).map_err(|error| {
+        ShotLayoutError::Invalid(format!(
+            "private reference is unreadable: {}: {error}",
+            source.display()
+        ))
+    })?;
     if metadata.file_type().is_symlink()
         || !metadata.is_file()
         || metadata.len() > MAX_ATTACHMENT_BYTES as u64
@@ -4496,7 +4531,7 @@ mod tests {
         let root = temporary.path().join("shot");
         fs::create_dir(&root).unwrap();
         let source = temporary.path().join("Visual Direction.PNG");
-        fs::write(&source, b"exact private image bytes").unwrap();
+        fs::write(&source, b"\x89PNG\r\n\x1a\nexact private image bytes").unwrap();
         let layout = ShotLayout::at(&root);
 
         let stored = layout
@@ -4529,7 +4564,7 @@ mod tests {
             layout
                 .read_private_reference(&reference.availability)
                 .unwrap(),
-            b"exact private image bytes"
+            b"\x89PNG\r\n\x1a\nexact private image bytes"
         );
         assert_eq!(
             layout
@@ -5421,5 +5456,29 @@ mod tests {
                 .unwrap()
                 .digest
         );
+    }
+
+    #[test]
+    fn reference_preflight_names_the_offending_path_and_touches_nothing() {
+        let temporary = tempfile::tempdir().unwrap();
+        let missing = temporary.path().join("not-there.png");
+        let error = preflight_private_references(&[missing.clone()]).unwrap_err();
+        assert!(error.to_string().contains("not-there.png"));
+
+        let unsupported = temporary.path().join("mock.gif");
+        fs::write(&unsupported, b"GIF89a").unwrap();
+        let error = preflight_private_references(&[unsupported]).unwrap_err();
+        assert!(error.to_string().contains("supported PNG"));
+
+        let png = temporary.path().join("mock.png");
+        fs::write(&png, b"\x89PNG\r\n\x1a\nfixture").unwrap();
+        let duplicate = temporary.path().join("copy.png");
+        fs::write(&duplicate, b"\x89PNG\r\n\x1a\nfixture").unwrap();
+        let error = preflight_private_references(&[png.clone(), duplicate]).unwrap_err();
+        assert!(error.to_string().contains("must not repeat content"));
+
+        preflight_private_references(&[png]).unwrap();
+        // Validation is side-effect free: only the inputs exist afterwards.
+        assert_eq!(fs::read_dir(temporary.path()).unwrap().count(), 3);
     }
 }

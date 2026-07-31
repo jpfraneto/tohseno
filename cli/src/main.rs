@@ -428,6 +428,19 @@ async fn dispatch(
         } => {
             let engine = Engine::discover(bus.clone())?;
             engine.prime_toolchain();
+            // Resolve the harness before any intake or folder side effect: an
+            // uninstalled or unauthenticated harness must fail here, not after
+            // a Shot body already exists.
+            let selection = if no_launch {
+                None
+            } else {
+                Some(shot_execution_commands::selection(
+                    &engine,
+                    harness.as_deref(),
+                    model.as_deref(),
+                    route.as_deref(),
+                )?)
+            };
             let prompt = collect_prompt(prompt_file.as_deref(), bus)?;
             let request = ShotRequest {
                 app_name,
@@ -465,23 +478,18 @@ async fn dispatch(
             )?;
             engine.declare_initial_expression(&request.app_name, &expression_plan)?;
             let creation = engine.conduct_accepted_creation(&request.app_name)?;
-            if no_launch {
-                handoff_without_launch(&creation, bus);
-            } else {
-                let selection = shot_execution_commands::selection(
-                    &engine,
-                    harness.as_deref(),
-                    model.as_deref(),
-                    route.as_deref(),
-                )?;
-                shot_execution_commands::prepare(
-                    &engine,
-                    &creation,
-                    &request.app_name,
-                    &selection,
-                    true,
-                    bus,
-                )?;
+            match selection {
+                None => handoff_without_launch(&creation, bus),
+                Some(selection) => {
+                    shot_execution_commands::prepare(
+                        &engine,
+                        &creation,
+                        &request.app_name,
+                        &selection,
+                        true,
+                        bus,
+                    )?;
+                }
             }
         }
         Command::Evolve {

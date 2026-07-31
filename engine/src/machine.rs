@@ -286,6 +286,9 @@ impl Engine {
         }
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
         self.check_slot_limit()?;
+        // Prove every reference source stages cleanly BEFORE the folder or
+        // identity exists; a failed creation must not strand a partial Shot.
+        crate::shot_layout::preflight_private_references(&request.intent.images)?;
         self.emit_upsell_once(
             "welcome",
             "first shot: Xcode + Apple ID now · iPhone later · free Apple IDs refresh weekly.",
@@ -2197,19 +2200,62 @@ impl Engine {
     }
 
     pub fn doctor_once(&self) -> Result<bool, EngineError> {
+        let mut ready = true;
         match toolchain::check() {
             ToolchainState::Ready => {
                 self.events.emit(Event::status("Xcode is ready."));
-                Ok(true)
             }
             ToolchainState::Missing => {
+                ready = false;
                 let _ = toolchain::trigger_install();
                 self.events.emit(Event::handoff(
                     "Install Xcode from the App Store, then open it once.",
                 ));
-                Ok(false)
             }
         }
+        // Recording waits on Apple Development signing; say so now instead
+        // of letting the first evolve poll silently.
+        match apple_signing::check() {
+            AppleSigningState::Ready { .. } => {
+                self.events
+                    .emit(Event::status("Apple Development signing is ready."));
+            }
+            AppleSigningState::Missing => {
+                ready = false;
+                self.events.emit(Event::handoff(
+                    "Add an Apple Development identity: Xcode → Settings → Accounts → Manage Certificates → + → Apple Development.",
+                ));
+            }
+        }
+        let harnesses = self.harnesses();
+        let usable = harnesses
+            .iter()
+            .filter(|harness| {
+                harness.installed && harness.routes.iter().any(|route| route.available)
+            })
+            .map(|harness| harness.label.as_str())
+            .collect::<Vec<_>>();
+        if usable.is_empty() {
+            ready = false;
+            self.events.emit(Event::handoff(
+                "Install and sign in to a coding harness (Codex or Claude Code); `tohseno shot harnesses` shows what this Mac detects.",
+            ));
+        } else {
+            self.events.emit(Event::status(format!(
+                "coding harness ready: {}.",
+                usable.join(", ")
+            )));
+        }
+        let identity_path = self.ledger.machine_root().join("identity/builder.json");
+        if identity_path.is_file() {
+            self.events
+                .emit(Event::status("local Builder identity is present."));
+        } else {
+            self.events.emit(Event::status(
+                "no local Builder identity yet — the first Shot creates a local, test-only one.",
+            ));
+        }
+        Ok(ready)
     }
 
     /// Starts Apple's installer before the user begins describing the app so
