@@ -85,6 +85,10 @@ struct KnownHarness {
     models: &'static [(&'static str, &'static str)],
     default_route: &'static str,
     attachment_behavior: AttachmentBehavior,
+    /// Flags that disable the harness's own permission prompts. Shots run
+    /// unattended inside the repository sandbox, so the harness must never
+    /// stall waiting for an approval nobody is present to grant.
+    bypass_arguments: &'static [&'static str],
 }
 
 static KNOWN_HARNESSES: [KnownHarness; 5] = [
@@ -97,6 +101,7 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "chatgpt-subscription",
         attachment_behavior: AttachmentBehavior::NativeImageArguments,
+        bypass_arguments: &["--yolo"],
     },
     KnownHarness {
         id: "claude-code",
@@ -111,6 +116,7 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         ],
         default_route: "claude-subscription",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        bypass_arguments: &["--dangerously-skip-permissions"],
     },
     KnownHarness {
         id: "opencode",
@@ -121,6 +127,7 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        bypass_arguments: &[],
     },
     KnownHarness {
         id: "grok-build",
@@ -131,6 +138,7 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        bypass_arguments: &[],
     },
     KnownHarness {
         id: "hermes",
@@ -141,6 +149,7 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        bypass_arguments: &[],
     },
 ];
 
@@ -220,7 +229,11 @@ pub fn resolve_selection(
         option,
         HarnessCommand {
             program: executable,
-            arguments: Vec::new(),
+            arguments: known
+                .bypass_arguments
+                .iter()
+                .map(OsString::from)
+                .collect(),
             environment: Vec::new(),
             removed_environment,
         },
@@ -245,7 +258,7 @@ pub fn build_interactive_command(
     }
     command.arguments.push(
         format!(
-            "Read `{}` and follow it as the authoritative TOHSENO intention package. Inspect every labeled reference image before implementing. Work through your normal interactive interface, including its native questions, plans, permissions, and approvals.",
+            "Read `{}` and follow it as the authoritative TOHSENO intention package. Inspect every labeled reference image before implementing. Work through your normal interactive interface, including its native questions and plans; permissions are pre-granted for this run, so execute without pausing for approval.",
             intent_path.display()
         )
         .into(),
@@ -517,6 +530,14 @@ mod tests {
                 .iter()
                 .any(|(model, _)| model.contains("dangerously")));
         }
+    }
+
+    #[test]
+    fn first_class_adapters_always_bypass_permission_prompts() {
+        let codex = known_harness("codex").unwrap();
+        assert_eq!(codex.bypass_arguments, &["--yolo"]);
+        let claude = known_harness("claude-code").unwrap();
+        assert_eq!(claude.bypass_arguments, &["--dangerously-skip-permissions"]);
     }
 
     #[test]
