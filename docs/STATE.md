@@ -1,8 +1,9 @@
 # State of this repository
 
-Written 2026-07-30. This is the plain-language answer to "what is going on
-here" for someone returning after time away. When something below stops being
-true, update this file in the same change that makes it untrue.
+Written 2026-07-30, amended 2026-07-31 after the first full dogfooding pass
+(`docs/DOGFOOD_REPORT.md`). This is the plain-language answer to "what is
+going on here" for someone returning after time away. When something below
+stops being true, update this file in the same change that makes it untrue.
 
 ## What ships today
 
@@ -68,7 +69,11 @@ record binding the generation digest, the chain, observed addresses and
 runtime code hashes, the deployment transactions, and a canonical activation
 block; and a fresh EIP-7951 probe of the actual target RPC immediately before
 broadcast. Until such a signed activation exists, new secure public identity
-creation and all public signing in the engine fail closed.
+creation and all public signing in the engine fail closed. The private local
+lifecycle does not wait on that: on a machine with no identity, the first
+Shot now creates a local, explicitly test-only Builder identity by default
+(it can never authorize a public action); only an explicit
+`TOHSENO_IDENTITY_BACKEND=secure-enclave` request keeps the hard failure.
 
 ## What v0.7 retirement means for someone who already installed
 
@@ -110,6 +115,25 @@ notifications got. Device-key replacement for the frozen v0.7 identities is
 closed — the successor generation's recovery design (ADR 0006) is the answer,
 and no signed identity-supersession flow will be built until a real migration
 needs one.
+
+## After the first dogfooding pass (2026-07-31)
+
+The full ceremony — intention → Shot → execution → usable app → contact →
+version-bound feedback → evolutionary intent → Evolution — was run end to
+end with a real coding harness on the subscription route, three Shots and
+one Evolution landing as verified accepted Versions. The pass surfaced and
+fixed five flow breaks: fresh-machine identity creation (above), retrying a
+failed first execution (the engine's own standing orders no longer count as
+builder work), feedback-to-evolution continuity (a successful seal now
+mirrors its engine substitutions back into the living folder, and evolve
+proves the feedback selection before any recording side effect), honest
+handling of a Terminal window that cannot open, and `tohseno retire --local`
+so the slot wall has an exit that needs no phone. `tohseno doctor` now
+checks signing, harness, and identity state, and Shot inputs are validated
+before any folder exists. `docs/DOGFOOD_REPORT.md` carries the full
+findings, including open P2/P3 items (harness-local files inside sealed
+sources, phone-centric copy in the phone-free loop, simulator-only apps
+counting against iPhone slots).
 
 ## Half-finished or worth knowing
 
