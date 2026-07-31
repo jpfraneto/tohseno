@@ -2,17 +2,17 @@
   "schema": "tohseno.release-readiness/1",
   "version": "0.7.2",
   "channel": "stable",
-  "ready": false,
+  "ready": true,
   "authorization": {
-    "authorized": false,
-    "authorized_by": null,
-    "authorized_at": null
+    "authorized": true,
+    "authorized_by": "jpfraneto",
+    "authorized_at": "2026-07-31T17:14:19Z"
   },
   "protection": {
-    "immutable_release_policy_verified": false,
-    "release_tag_protection_verified": false,
-    "release_tag_ruleset_id": null,
-    "verified_at": null
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 20135522,
+    "verified_at": "2026-07-31T17:14:19Z"
   },
   "evidence": {
     "predecessor_tag": "v0.7.1",
@@ -20,12 +20,12 @@
     "product_patch_version": "0.7.2",
     "builder_bound_shot_execution": true,
     "harness_permission_bypass": true,
-    "candidate_source_commit": null,
-    "rust_workspace_tests": null,
-    "clippy_warnings_denied": null,
-    "studio_tests": null,
-    "website_tests": null,
-    "main_ci_run": null
+    "candidate_source_commit": "143afeaa940af0048e846cc8e96c3f3add083ec2",
+    "rust_workspace_tests": 270,
+    "clippy_warnings_denied": true,
+    "studio_tests": 10,
+    "website_tests": 14,
+    "main_ci_run": "https://github.com/jpfraneto/tohseno/actions/runs/30649466003"
   },
   "publication": {
     "tag": "v0.7.2",
