@@ -29,6 +29,13 @@ through loopback read APIs. The CLI follows the same files with
 `tohseno shot result`. These records, intention bytes, images, and any harness
 transcript remain ignored private material and are never sent to a node.
 
+`GET /api/apps` rediscovers the filesystem ledger on every request and lists
+only committed Evolutions. An Evolution that fails its gates is never
+committed, so it never appears as accepted; once the corrected Evolution
+commits, a plain browser refresh shows the app and its latest Evolution
+without restarting Studio, because no library state is cached between
+requests.
+
 `tohseno studio` listens on `http://127.0.0.1:8888` by default. Port 88 is a
 privileged system port on macOS and would require running TOHSENO as root, so
 Studio deliberately uses the closest memorable unprivileged port instead.
