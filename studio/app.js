@@ -1254,7 +1254,7 @@ const renderOnboarding = () => {
     ? "ready"
     : "action";
   ui.onboardingReady.textContent = onboardingFacts.ready_for_first_shot
-    ? "This Mac is ready. The first protocol action will create your Secure Enclave-backed Builder identity."
+    ? "This Mac is ready. The first protocol action will create your local Builder identity (private to this Mac; public authority stays closed until a contract generation is activated)."
     : "Finish the Apple and harness steps before taking the first Shot.";
 };
 

@@ -1142,7 +1142,7 @@ async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn s
                 deployment_status: None,
                 recovery_status: "not_configured",
                 device_keys: Vec::new(),
-                detail: "No local signing identity exists. Contract generation 0.8.0 is inactive, so Studio will not create or publish a BuilderID.".into(),
+                detail: "No local signing identity exists yet. The first Shot creates a local, test-only identity; contract generation 0.8.0 is inactive, so no public BuilderID is created or published.".into(),
             },
             Err(detail) => IdentityFacts {
                 status: "invalid_local_state",

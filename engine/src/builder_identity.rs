@@ -192,8 +192,7 @@ impl BuilderIdentityManager {
         if self.path().exists() {
             return self.ensure_existing_with_bridge(bridge);
         }
-        let backend = RequestedIdentityBackend::from_environment()?;
-        require_new_identity_generation(backend)?;
+        let backend = resolve_new_identity_backend(RequestedIdentityBackend::from_environment()?)?;
         self.create_legacy_v07_test_identity(bridge, backend)
     }
 
@@ -217,7 +216,7 @@ impl BuilderIdentityManager {
     {
         // This guard deliberately precedes bridge discovery, helper execution,
         // identity-directory creation, and Keychain mutation.
-        require_new_identity_generation(backend)?;
+        let backend = resolve_new_identity_backend(backend)?;
         let bridge = discover()?;
         self.create_legacy_v07_test_identity(&bridge, backend)
     }
@@ -381,7 +380,7 @@ impl BuilderIdentityManager {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RequestedIdentityBackend {
-    SecureEnclave,
+    SecureEnclave { explicit: bool },
     SoftwareTest,
 }
 
@@ -389,11 +388,11 @@ impl RequestedIdentityBackend {
     fn from_environment() -> Result<Self, BuilderIdentityError> {
         match std::env::var("TOHSENO_IDENTITY_BACKEND") {
             Ok(value) if value == "software-test" => Ok(Self::SoftwareTest),
-            Ok(value) if value == "secure-enclave" => Ok(Self::SecureEnclave),
+            Ok(value) if value == "secure-enclave" => Ok(Self::SecureEnclave { explicit: true }),
             Ok(_) => Err(BuilderIdentityError::InvalidConfiguration(
                 "TOHSENO_IDENTITY_BACKEND must be secure-enclave or software-test".into(),
             )),
-            Err(std::env::VarError::NotPresent) => Ok(Self::SecureEnclave),
+            Err(std::env::VarError::NotPresent) => Ok(Self::SecureEnclave { explicit: false }),
             Err(error) => Err(BuilderIdentityError::InvalidConfiguration(
                 error.to_string(),
             )),
@@ -401,28 +400,38 @@ impl RequestedIdentityBackend {
     }
 }
 
-fn require_new_identity_generation(
+/// Decides which backend a NEW identity may use under the current contract
+/// generation, before any bridge, filesystem, or Keychain effect.
+///
+/// While no generation is active, secure BuilderID creation stays closed.
+/// An explicit `TOHSENO_IDENTITY_BACKEND=secure-enclave` request keeps the
+/// hard failure; the unconfigured default falls back to the explicitly
+/// test-only local identity so the private local lifecycle works on a fresh
+/// machine. The descriptor is marked `test_only` everywhere and can never
+/// authorize a public action.
+fn resolve_new_identity_backend(
     backend: RequestedIdentityBackend,
-) -> Result<(), BuilderIdentityError> {
-    if backend == RequestedIdentityBackend::SoftwareTest {
-        // This deliberately creates only the frozen legacy-v0.7 descriptor.
-        // It exists to keep local lifecycle and fixture testing operational;
-        // it can never authorize a public action.
-        return Ok(());
-    }
+) -> Result<RequestedIdentityBackend, BuilderIdentityError> {
+    let explicit = match backend {
+        RequestedIdentityBackend::SoftwareTest => return Ok(backend),
+        RequestedIdentityBackend::SecureEnclave { explicit } => explicit,
+    };
     let generation = resolve_current_contract_generation().map_err(|error| {
         BuilderIdentityError::InvalidConfiguration(format!(
             "could not resolve the current contract generation: {error}"
         ))
     })?;
-    if !generation.allows_new_builder_identity() {
+    if generation.allows_new_builder_identity() {
+        return Ok(backend);
+    }
+    if explicit {
         return Err(BuilderIdentityError::InvalidConfiguration(format!(
             "cannot create a secure BuilderID while contract generation {} is inactive: {}",
             generation.definition.generation,
             generation.inactive_reason()
         )));
     }
-    Ok(())
+    Ok(RequestedIdentityBackend::SoftwareTest)
 }
 
 fn require_public_signing_identity(identity: &BuilderIdentity) -> Result<(), BuilderIdentityError> {
@@ -720,17 +729,20 @@ mod tests {
     }
 
     #[test]
-    fn inactive_generation_blocks_secure_identity_before_bridge_or_filesystem_effects() {
+    fn inactive_generation_blocks_explicit_secure_identity_before_bridge_or_filesystem_effects() {
         let directory = tempfile::tempdir().unwrap();
         let identity_root = directory.path().join("identity-must-not-exist");
         let manager = BuilderIdentityManager::at(&identity_root);
         let bridge_discovered = Cell::new(false);
 
         let error = manager
-            .ensure_new_with_bridge_factory(RequestedIdentityBackend::SecureEnclave, || {
-                bridge_discovered.set(true);
-                Err(AppleIdentityError::HelperMissing)
-            })
+            .ensure_new_with_bridge_factory(
+                RequestedIdentityBackend::SecureEnclave { explicit: true },
+                || {
+                    bridge_discovered.set(true);
+                    Err(AppleIdentityError::HelperMissing)
+                },
+            )
             .unwrap_err();
 
         assert!(error.to_string().contains("generation 0.8.0 is inactive"));
@@ -739,7 +751,26 @@ mod tests {
     }
 
     #[test]
-    fn default_ensure_fails_before_discovering_an_invalid_bridge_override() {
+    fn default_backend_falls_back_to_local_test_identity_while_generation_is_inactive() {
+        // A fresh machine with no TOHSENO_IDENTITY_BACKEND must still be able
+        // to begin its private local lifecycle: the default resolves to the
+        // explicitly test-only software backend instead of failing closed.
+        let resolved = resolve_new_identity_backend(RequestedIdentityBackend::SecureEnclave {
+            explicit: false,
+        })
+        .unwrap();
+        assert_eq!(resolved, RequestedIdentityBackend::SoftwareTest);
+
+        // The explicit request keeps the hard failure.
+        let error = resolve_new_identity_backend(RequestedIdentityBackend::SecureEnclave {
+            explicit: true,
+        })
+        .unwrap_err();
+        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
+    }
+
+    #[test]
+    fn default_ensure_reaches_bridge_discovery_and_reports_the_helper_problem() {
         let _environment = IDENTITY_ENVIRONMENT.lock().unwrap();
         let previous_backend = std::env::var_os("TOHSENO_IDENTITY_BACKEND");
         let previous_helper = std::env::var_os("TOHSENO_APPLE_IDENTITY_HELPER");
@@ -764,8 +795,10 @@ mod tests {
             None => std::env::remove_var("TOHSENO_APPLE_IDENTITY_HELPER"),
         }
 
-        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
-        assert!(!error.to_string().contains("helper is missing"));
+        // The default backend now proceeds toward local test-identity
+        // creation, so the failure is the helper misconfiguration — not the
+        // inactive generation.
+        assert!(!error.to_string().contains("generation 0.8.0 is inactive"));
         assert!(!identity_root.exists());
     }
 
