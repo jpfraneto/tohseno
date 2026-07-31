@@ -131,6 +131,8 @@ const ui = {
   bankrStatus: document.querySelector("#bankr-status"),
   bankrConfiguration: document.querySelector("#bankr-configuration"),
   bankrShotName: document.querySelector("#bankr-shot-name"),
+  bankrTitle: document.querySelector("#bankr-title"),
+  bankrTokenIdentity: document.querySelector("#bankr-token-identity"),
   bankrShotId: document.querySelector("#bankr-shot-id"),
   bankrShotVersion: document.querySelector("#bankr-shot-version"),
   bankrChain: document.querySelector("#bankr-chain"),
@@ -225,9 +227,11 @@ const renderTokenLaunchState = () => {
   const association = shotProtocol?.ontology?.token_association;
   if (association?.status === "associated") {
     ui.launchToken.disabled = true;
-    ui.launchTokenLabel.textContent = "$TOHSENO is associated";
-    ui.launchTokenDetail.textContent =
-      `${association.symbol || "TOHSENO"} · ${displayIdentifier(association.token_address)}`;
+    const associated = association.symbol || appcoinSymbol(selectedApp?.name || "");
+    ui.launchTokenLabel.textContent = associated
+      ? `$${associated} is associated with this Shot`
+      : "An Appcoin is associated with this Shot";
+    ui.launchTokenDetail.textContent = displayIdentifier(association.token_address);
     return;
   }
   const binding = selectedLaunchBinding();
@@ -322,9 +326,10 @@ const renderBankrDeployment = (outcome) => {
   const warnings = outcome.warnings || [];
   ui.bankrResult.hidden = false;
   ui.bankrResult.dataset.status = warnings.length > 0 ? "error" : "ready";
+  const deployed = outcome.token_symbol ? `$${outcome.token_symbol}` : "The Appcoin";
   ui.bankrResultTitle.textContent = warnings.length > 0
-    ? "$TOHSENO deployed · verification attention"
-    : "$TOHSENO deployed";
+    ? `${deployed} deployed · verification attention`
+    : `${deployed} deployed`;
   ui.bankrResultSummary.textContent = warnings.length > 0
     ? `${tokenAddress}. ${warnings.join(" ")}`
     : `${tokenAddress} · private signed association recorded for Shot ${displayIdentifier(
@@ -1632,17 +1637,33 @@ const configureSplitter = (splitter, property, minimum, maximum, storageKey) => 
 configureSplitter(ui.librarySplitter, "--library-width", 240, 520, "tohseno-library-width");
 configureSplitter(ui.composerSplitter, "--composer-width", 320, 640, "tohseno-composer-width");
 
+// Mirrors the engine's Appcoin derivation so the modal previews exactly what
+// the server will commit and broadcast.
+const appcoinSymbol = (appName) =>
+  [...appName].filter((character) => /[a-z0-9]/i.test(character)).slice(0, 11).join("").toUpperCase();
+
+const bankrDeployLabel = () => {
+  const appName = ui.bankrDialog.dataset.appName;
+  return appName
+    ? `Deploy $${appcoinSymbol(appName)} through Bankr`
+    : "Deploy this Appcoin through Bankr";
+};
+
 ui.launchToken.addEventListener("click", () => {
   const binding = selectedLaunchBinding();
   if (!binding || shotProtocol?.ontology?.token_association?.status === "associated") return;
   clearBankrApproval();
   resetBankrResult();
+  const symbol = appcoinSymbol(binding.app_name);
+  ui.bankrTitle.textContent = `Deploy $${symbol}`;
+  ui.bankrTokenIdentity.textContent = `${binding.app_name} · ${symbol}`;
   ui.bankrShotName.textContent = binding.app_name;
   ui.bankrShotId.textContent = binding.shot_id;
   ui.bankrShotVersion.textContent = String(binding.version_ordinal).padStart(4, "0");
   ui.bankrDialog.dataset.appName = binding.app_name;
   ui.bankrDialog.dataset.shotId = binding.shot_id;
   ui.bankrDialog.dataset.versionOrdinal = String(binding.version_ordinal);
+  ui.bankrDeploy.textContent = bankrDeployLabel();
   if (!ui.bankrDialog.open) ui.bankrDialog.showModal();
 });
 
@@ -1735,7 +1756,7 @@ ui.bankrDeploy.addEventListener("click", async () => {
     ui.bankrStatus.textContent = error.message;
     ui.bankrStatus.dataset.status = "error";
   } finally {
-    ui.bankrDeploy.textContent = "Deploy $TOHSENO through Bankr";
+    ui.bankrDeploy.textContent = bankrDeployLabel();
     updateBankrDeployState();
   }
 });

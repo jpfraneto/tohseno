@@ -169,7 +169,7 @@ node --test studio/tests/static_assets.test.mjs
 
 ## Shot-bound programmatic Bankr launch
 
-Studio exposes `$TOHSENO` launch only inside a selected, verified Shot. It is
+Studio exposes Appcoin launch only inside a selected, verified Shot. It is
 not a global Studio or onboarding action. The local Rust server independently
 resolves the selected app and version to its authoritative `ShotID`; the
 simulation approval, exact confirmation phrase, private Bankr receipt, and
@@ -181,9 +181,11 @@ The server calls Bankr's `POST /token-launches/deploy` endpoint; the API key is
 never embedded in HTML, returned by an API route, written to a receipt, or sent
 to browser JavaScript.
 
-The launch identity is fixed:
+The launch identity is derived from the Shot, and everything else is fixed:
 
-- token name and symbol: `TOHSENO`;
+- token name: the Shot's own name (`exhale`);
+- token symbol: that name upper-cased, separators removed, bounded to 11
+  characters (`EXHALE`) — one Appcoin per Shot, never a shared ticker;
 - fee recipient: `jpfraneto.eth`;
 - currently pinned ENS resolution:
   `0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15`;

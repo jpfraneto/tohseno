@@ -14,8 +14,9 @@ use tokio::sync::Mutex;
 use zeroize::Zeroizing;
 
 const BANKR_DEPLOY_URL: &str = "https://api.bankr.bot/token-launches/deploy";
-const TOKEN_NAME: &str = "TOHSENO";
-const TOKEN_SYMBOL: &str = "TOHSENO";
+/// An Appcoin belongs to one Shot, so its identity is derived from that
+/// Shot's name rather than fixed for the whole factory.
+const MAX_TOKEN_SYMBOL: usize = 11;
 const FEE_RECIPIENT_ENS: &str = "jpfraneto.eth";
 const FEE_RECIPIENT_ADDRESS: &str = "0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15";
 const APPROVAL_LIFETIME: Duration = Duration::from_secs(10 * 60);
@@ -86,6 +87,24 @@ pub struct ShotLaunchBinding {
     pub version_ordinal: u64,
 }
 
+impl ShotLaunchBinding {
+    /// The Appcoin's human-facing name: the Shot's own name, unchanged.
+    pub fn token_name(&self) -> String {
+        self.app_name.clone()
+    }
+
+    /// The Appcoin's ticker: the Shot's name in upper case with separators
+    /// removed, bounded to a length exchanges and explorers accept.
+    pub fn token_symbol(&self) -> String {
+        self.app_name
+            .chars()
+            .filter(|character| character.is_ascii_alphanumeric())
+            .take(MAX_TOKEN_SYMBOL)
+            .collect::<String>()
+            .to_ascii_uppercase()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LaunchParameters {
@@ -115,8 +134,9 @@ pub struct BankrLaunchStatus {
     pub configuration_error: Option<String>,
     pub deploy_enabled: bool,
     pub signer: &'static str,
-    pub token_name: &'static str,
-    pub token_symbol: &'static str,
+    /// The Appcoin identity is per Shot, so the global status states the
+    /// rule rather than a name that would be wrong for every Shot.
+    pub token_identity: &'static str,
     pub fee_recipient_ens: &'static str,
     pub fee_recipient_address: &'static str,
     pub supported_chains: [&'static str; 2],
@@ -129,8 +149,8 @@ pub struct SimulationApproval {
     pub expires_in_seconds: u64,
     pub configuration_digest: String,
     pub confirmation_phrase: String,
-    pub token_name: &'static str,
-    pub token_symbol: &'static str,
+    pub token_name: String,
+    pub token_symbol: String,
     pub fee_recipient_ens: &'static str,
     pub fee_recipient_address: &'static str,
     pub signer: &'static str,
@@ -150,8 +170,8 @@ pub struct ShotAssociationEvidence {
 #[derive(Debug, Serialize)]
 pub struct DeploymentOutcome {
     pub deployed: bool,
-    pub token_name: &'static str,
-    pub token_symbol: &'static str,
+    pub token_name: String,
+    pub token_symbol: String,
     pub fee_recipient_ens: &'static str,
     pub fee_recipient_address: &'static str,
     pub signer: &'static str,
@@ -207,8 +227,8 @@ impl std::error::Error for BankrLaunchError {}
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BankrDeployPayload<'a> {
-    token_name: &'static str,
-    token_symbol: &'static str,
+    token_name: &'a str,
+    token_symbol: &'a str,
     description: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     image: Option<&'a str>,
@@ -233,8 +253,8 @@ struct FeeRecipient {
 #[derive(Serialize)]
 struct LaunchCommitment<'a> {
     schema: &'static str,
-    token_name: &'static str,
-    token_symbol: &'static str,
+    token_name: &'a str,
+    token_symbol: &'a str,
     fee_recipient_ens: &'static str,
     fee_recipient_address: &'static str,
     shot: &'a ShotLaunchBinding,
@@ -245,8 +265,8 @@ struct LaunchCommitment<'a> {
 struct StoredReceipt<'a> {
     schema: &'static str,
     recorded_at_unix_ms: u128,
-    token_name: &'static str,
-    token_symbol: &'static str,
+    token_name: &'a str,
+    token_symbol: &'a str,
     signer: &'static str,
     fee_recipient_ens: &'static str,
     fee_recipient_address: &'static str,
@@ -301,8 +321,7 @@ impl BankrLaunchService {
             configuration_error: self.configuration.configuration_error.clone(),
             deploy_enabled: self.configuration.deploy_enabled,
             signer: "Bankr wallet that owns BANKR_API_KEY",
-            token_name: TOKEN_NAME,
-            token_symbol: TOKEN_SYMBOL,
+            token_identity: "Each Appcoin takes the name and ticker of its own Shot.",
             fee_recipient_ens: FEE_RECIPIENT_ENS,
             fee_recipient_address: FEE_RECIPIENT_ADDRESS,
             supported_chains: ["robinhood", "base"],
@@ -316,7 +335,7 @@ impl BankrLaunchService {
         mut parameters: LaunchParameters,
     ) -> Result<SimulationApproval, BankrLaunchError> {
         normalize_and_validate(&mut parameters)?;
-        let bankr_simulation = self.call_bankr(&parameters, true).await?;
+        let bankr_simulation = self.call_bankr(&shot, &parameters, true).await?;
         verify_simulation(&bankr_simulation, parameters.chain)?;
         let simulated_token_address = required_string(
             &bankr_simulation,
@@ -325,8 +344,11 @@ impl BankrLaunchService {
         )?
         .to_owned();
         let configuration_digest = configuration_digest(&shot, &parameters)?;
-        let confirmation_phrase =
-            confirmation_phrase(parameters.chain, &simulated_token_address, &shot.shot_id);
+        let confirmation_phrase = confirmation_phrase(
+            &shot,
+            parameters.chain,
+            &simulated_token_address,
+        );
         let approval_id = ShotId::random().to_string();
         *self.pending.lock().await = Some(PendingApproval {
             approval_id: approval_id.clone(),
@@ -342,8 +364,8 @@ impl BankrLaunchService {
             expires_in_seconds: APPROVAL_LIFETIME.as_secs(),
             configuration_digest,
             confirmation_phrase,
-            token_name: TOKEN_NAME,
-            token_symbol: TOKEN_SYMBOL,
+            token_name: shot.token_name(),
+            token_symbol: shot.token_symbol(),
             fee_recipient_ens: FEE_RECIPIENT_ENS,
             fee_recipient_address: FEE_RECIPIENT_ADDRESS,
             signer: "Bankr wallet that owns BANKR_API_KEY",
@@ -399,7 +421,9 @@ impl BankrLaunchService {
             approval
         };
 
-        let bankr_deployment = self.call_bankr(&approval.parameters, false).await?;
+        let bankr_deployment = self
+            .call_bankr(&approval.shot, &approval.parameters, false)
+            .await?;
         let mut warnings = verify_deployment(
             &bankr_deployment,
             approval.parameters.chain,
@@ -416,8 +440,8 @@ impl BankrLaunchService {
         };
         Ok(DeploymentOutcome {
             deployed: true,
-            token_name: TOKEN_NAME,
-            token_symbol: TOKEN_SYMBOL,
+            token_name: approval.shot.token_name(),
+            token_symbol: approval.shot.token_symbol(),
             fee_recipient_ens: FEE_RECIPIENT_ENS,
             fee_recipient_address: FEE_RECIPIENT_ADDRESS,
             signer: "Bankr wallet that owns BANKR_API_KEY",
@@ -433,6 +457,7 @@ impl BankrLaunchService {
 
     async fn call_bankr(
         &self,
+        shot: &ShotLaunchBinding,
         parameters: &LaunchParameters,
         simulate_only: bool,
     ) -> Result<Value, BankrLaunchError> {
@@ -443,7 +468,9 @@ impl BankrLaunchService {
                 ),
             )
         })?;
-        let payload = bankr_payload(parameters, simulate_only);
+        let token_name = shot.token_name();
+        let token_symbol = shot.token_symbol();
+        let payload = bankr_payload(&token_name, &token_symbol, parameters, simulate_only);
         let sent = self
             .client
             .post(BANKR_DEPLOY_URL)
@@ -461,7 +488,9 @@ impl BankrLaunchService {
             }
             Err(_) => {
                 return Err(BankrLaunchError::uncertain(
-                    "Bankr's deployment response was not received. Do not retry automatically: first inspect Bankr's recent launches for $TOHSENO because the request may have reached Bankr.",
+                    format!(
+                        "Bankr's deployment response was not received. Do not retry automatically: first inspect Bankr's recent launches for ${token_symbol} because the request may have reached Bankr."
+                    ),
                 ))
             }
         };
@@ -551,10 +580,15 @@ fn normalize_optional_url(
     Ok(())
 }
 
-fn bankr_payload(parameters: &LaunchParameters, simulate_only: bool) -> BankrDeployPayload<'_> {
+fn bankr_payload<'a>(
+    token_name: &'a str,
+    token_symbol: &'a str,
+    parameters: &'a LaunchParameters,
+    simulate_only: bool,
+) -> BankrDeployPayload<'a> {
     BankrDeployPayload {
-        token_name: TOKEN_NAME,
-        token_symbol: TOKEN_SYMBOL,
+        token_name,
+        token_symbol,
         description: &parameters.description,
         image: parameters.image.as_deref(),
         tweet_url: parameters.tweet_url.as_deref(),
@@ -574,10 +608,12 @@ fn configuration_digest(
     shot: &ShotLaunchBinding,
     parameters: &LaunchParameters,
 ) -> Result<String, BankrLaunchError> {
+    let token_name = shot.token_name();
+    let token_symbol = shot.token_symbol();
     canonical::sha256_commitment(&LaunchCommitment {
         schema: "tohseno.bankr-launch-commitment/1",
-        token_name: TOKEN_NAME,
-        token_symbol: TOKEN_SYMBOL,
+        token_name: &token_name,
+        token_symbol: &token_symbol,
         fee_recipient_ens: FEE_RECIPIENT_ENS,
         fee_recipient_address: FEE_RECIPIENT_ADDRESS,
         shot,
@@ -591,10 +627,15 @@ fn configuration_digest(
     })
 }
 
-fn confirmation_phrase(chain: LaunchChain, token_address: &str, shot_id: &str) -> String {
+fn confirmation_phrase(
+    shot: &ShotLaunchBinding,
+    chain: LaunchChain,
+    token_address: &str,
+) -> String {
     format!(
-        "DEPLOY $TOHSENO FOR SHOT {} ON {} TO JPFRANETO.ETH AT {}",
-        shot_id,
+        "DEPLOY ${} FOR SHOT {} ON {} TO JPFRANETO.ETH AT {}",
+        shot.token_symbol(),
+        shot.shot_id,
         chain.display(),
         token_address
     )
@@ -765,15 +806,18 @@ fn persist_receipt(
         "deployed token address",
     )?;
     let path = directory.join(format!(
-        "tohseno-{}-{}.json",
+        "{}-{}-{}.json",
+        approval.shot.app_name,
         approval.parameters.chain.as_str(),
         token_address.to_ascii_lowercase()
     ));
+    let token_name = approval.shot.token_name();
+    let token_symbol = approval.shot.token_symbol();
     let receipt = StoredReceipt {
         schema: "tohseno.bankr-launch-receipt/1",
         recorded_at_unix_ms: SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis(),
-        token_name: TOKEN_NAME,
-        token_symbol: TOKEN_SYMBOL,
+        token_name: &token_name,
+        token_symbol: &token_symbol,
         signer: "Bankr wallet that owns BANKR_API_KEY",
         fee_recipient_ens: FEE_RECIPIENT_ENS,
         fee_recipient_address: FEE_RECIPIENT_ADDRESS,
@@ -825,16 +869,38 @@ mod tests {
     }
 
     #[test]
-    fn payload_is_fixed_to_tohseno_and_personal_ens() {
-        let payload = serde_json::to_value(bankr_payload(&parameters(), true)).unwrap();
-        assert_eq!(payload["tokenName"], TOKEN_NAME);
-        assert_eq!(payload["tokenSymbol"], TOKEN_SYMBOL);
+    fn payload_carries_the_shots_own_appcoin_and_the_personal_ens() {
+        let shot = shot();
+        let payload = serde_json::to_value(bankr_payload(
+            &shot.token_name(),
+            &shot.token_symbol(),
+            &parameters(),
+            true,
+        ))
+        .unwrap();
+        assert_eq!(payload["tokenName"], "anky");
+        assert_eq!(payload["tokenSymbol"], "ANKY");
         assert_eq!(payload["feeRecipient"]["type"], "ens");
         assert_eq!(payload["feeRecipient"]["value"], FEE_RECIPIENT_ENS);
         assert_eq!(payload["chain"], "robinhood");
         assert_eq!(payload["simulateOnly"], true);
         assert_eq!(payload["disableVesting"], false);
         assert_eq!(payload["quoteOnlyFees"], true);
+    }
+
+    #[test]
+    fn each_shot_names_its_own_appcoin() {
+        assert_eq!(shot().token_name(), "anky");
+        assert_eq!(shot().token_symbol(), "ANKY");
+
+        let mut hyphenated = shot();
+        hyphenated.app_name = "field-notebook".to_owned();
+        assert_eq!(hyphenated.token_name(), "field-notebook");
+        assert_eq!(hyphenated.token_symbol(), "FIELDNOTEBO");
+        assert!(hyphenated.token_symbol().len() <= MAX_TOKEN_SYMBOL);
+
+        // Two Shots never share one Appcoin identity.
+        assert_ne!(shot().token_symbol(), hyphenated.token_symbol());
     }
 
     #[test]
@@ -852,6 +918,10 @@ mod tests {
             first,
             configuration_digest(&another_shot, &parameters()).unwrap()
         );
+        // The committed configuration includes the Appcoin identity itself.
+        let mut renamed = shot();
+        renamed.app_name = "another-shot".to_owned();
+        assert_ne!(first, configuration_digest(&renamed, &parameters()).unwrap());
     }
 
     #[test]
@@ -886,11 +956,11 @@ mod tests {
     fn confirmation_names_chain_recipient_and_predicted_address() {
         assert_eq!(
             confirmation_phrase(
+                &shot(),
                 LaunchChain::Base,
                 "0x1111111111111111111111111111111111111111",
-                &shot().shot_id,
             ),
-            "DEPLOY $TOHSENO FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON BASE TO JPFRANETO.ETH AT 0x1111111111111111111111111111111111111111"
+            "DEPLOY $ANKY FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON BASE TO JPFRANETO.ETH AT 0x1111111111111111111111111111111111111111"
         );
     }
 }
