@@ -1081,11 +1081,18 @@ const loadHarnesses = async () => {
     option.textContent = `${harness.label}${harness.installed ? "" : " · unavailable"}`;
     return option;
   }));
+  applyPreferredHarness();
+  renderOnboarding();
+};
+
+// form.reset() snaps the select back to its first option while the model and
+// route lists keep the previously rendered harness; re-apply the coherent
+// default triple whenever the form state is reset.
+const applyPreferredHarness = () => {
   const preferred = harnesses.find((harness) => harness.selected && harness.installed)
     || harnesses.find((harness) => harness.installed);
   if (preferred) ui.harness.value = preferred.id;
   renderModels();
-  renderOnboarding();
 };
 
 const updateSubmitState = () => {
@@ -1149,6 +1156,7 @@ const openComposer = (mode) => {
   clearInitialPlanReview();
   renderFiles();
   ui.form.reset();
+  applyPreferredHarness();
 
   if (mode === "create") {
     ui.composerKicker.textContent = "CREATE";
