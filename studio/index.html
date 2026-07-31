@@ -65,22 +65,37 @@
               <div id="onboarding-xcode" class="readiness-row" data-status="checking">
                 <span class="readiness-mark" aria-hidden="true"></span>
                 <div><strong>Xcode</strong><span id="onboarding-xcode-detail">Checking this Mac…</span></div>
+                <span class="readiness-state"></span>
               </div>
               <div id="onboarding-signing" class="readiness-row" data-status="checking">
                 <span class="readiness-mark" aria-hidden="true"></span>
                 <div><strong>Apple Development signing</strong><span id="onboarding-signing-detail">Checking Xcode accounts…</span></div>
+                <span class="readiness-state"></span>
               </div>
             </div>
             <div class="onboarding-actions">
               <a
+                id="onboarding-get-xcode"
                 class="onboarding-link"
                 href="https://apps.apple.com/app/xcode/id497799835"
                 target="_blank"
                 rel="noreferrer"
+                hidden
               >Get Xcode</a>
-              <button id="onboarding-refresh-mac" class="onboarding-secondary" type="button">Check again</button>
+              <button
+                id="onboarding-refresh-mac"
+                class="onboarding-refresh"
+                type="button"
+                aria-label="Check again"
+                title="Check again"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+              </button>
             </div>
-            <p class="onboarding-note">
+            <p id="onboarding-xcode-note" class="onboarding-note" hidden>
               After Xcode installs: open it, finish first-launch setup, then use
               Settings → Accounts → Manage Certificates → + → Apple Development.
             </p>
@@ -95,7 +110,10 @@
             </p>
             <div class="harness-onboarding-grid">
               <section id="onboarding-codex" class="harness-onboarding-card" data-status="checking">
-                <header><strong>Codex</strong><span>ChatGPT subscription</span></header>
+                <header>
+                  <div><strong>Codex</strong><span>ChatGPT subscription</span></div>
+                  <span class="harness-check" role="img" aria-label="Ready"></span>
+                </header>
                 <code>curl -fsSL https://chatgpt.com/codex/install.sh | sh</code>
                 <p>Then run <code>codex login</code> and complete the browser sign-in.</p>
                 <button
@@ -106,7 +124,10 @@
                 <span class="harness-onboarding-status">Checking…</span>
               </section>
               <section id="onboarding-claude" class="harness-onboarding-card" data-status="checking">
-                <header><strong>Claude Code</strong><span>Claude subscription</span></header>
+                <header>
+                  <div><strong>Claude Code</strong><span>Claude subscription</span></div>
+                  <span class="harness-check" role="img" aria-label="Ready"></span>
+                </header>
                 <code>curl -fsSL https://claude.ai/install.sh | bash</code>
                 <p>Then run <code>claude</code> and choose your subscription login.</p>
                 <button
@@ -118,7 +139,18 @@
               </section>
             </div>
             <div class="onboarding-actions">
-              <button id="onboarding-refresh-harnesses" class="onboarding-secondary" type="button">Check again</button>
+              <button
+                id="onboarding-refresh-harnesses"
+                class="onboarding-refresh"
+                type="button"
+                aria-label="Check again"
+                title="Check again"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+              </button>
             </div>
           </article>
 
@@ -126,17 +158,49 @@
             <span class="onboarding-kicker">04 · TAKE THE FIRST SHOT</span>
             <h2>Make it small, genuine, and completely legible.</h2>
             <p>
-              Use a real app you care about, one focused evolution, and at least one
-              reference image. Choose the subscription route showing <strong>$0.00</strong>.
+              Write the exact intention for a real app you care about — or drop a
+              <code>.md</code> brief straight onto the field. The intention and up to
+              eight reference images land in the app folder TOHSENO creates and are
+              handed to your harness.
             </p>
-            <ol class="first-shot-sequence">
-              <li>Write the exact intention.</li>
-              <li>Add the reference image.</li>
-              <li>Review the proposed Genome.</li>
-              <li>Prepare the Shot.</li>
-              <li>Press Enter in the terminal TOHSENO opens.</li>
-              <li>Return here to review <strong>SHOT LANDED</strong>.</li>
-            </ol>
+            <div class="first-shot-form">
+              <label>
+                <span>App name</span>
+                <input
+                  id="onboarding-app-name"
+                  pattern="[a-z0-9][a-z0-9-]{0,62}"
+                  placeholder="replyguy-trencher"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
+              <label>
+                <span>Intention</span>
+                <textarea
+                  id="onboarding-intention"
+                  placeholder="A focused, offline app that… (drop or paste a .md file and it is read in)"
+                ></textarea>
+              </label>
+              <div
+                id="onboarding-drop-zone"
+                class="drop-zone"
+                tabindex="0"
+                role="button"
+                aria-label="Attach up to eight reference images"
+              >
+                <input
+                  id="onboarding-images"
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.heic,.webp,.md,.markdown,.txt,image/png,image/jpeg,image/heic,image/webp,text/markdown,text/plain"
+                  multiple
+                  hidden
+                >
+                <strong>Drop reference images</strong>
+                <span>Up to 8 · PNG, JPEG, HEIC, WebP</span>
+              </div>
+              <div id="onboarding-attachments" class="attachments" aria-live="polite"></div>
+              <p id="onboarding-attach-note" class="onboarding-attach-note" role="status"></p>
+            </div>
             <div id="onboarding-ready" class="onboarding-ready" data-status="checking">
               Checking first-Shot readiness…
             </div>

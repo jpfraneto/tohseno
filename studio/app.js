@@ -16,6 +16,14 @@ const ui = {
   onboardingCodex: document.querySelector("#onboarding-codex"),
   onboardingClaude: document.querySelector("#onboarding-claude"),
   onboardingReady: document.querySelector("#onboarding-ready"),
+  onboardingGetXcode: document.querySelector("#onboarding-get-xcode"),
+  onboardingXcodeNote: document.querySelector("#onboarding-xcode-note"),
+  onboardingAppName: document.querySelector("#onboarding-app-name"),
+  onboardingIntention: document.querySelector("#onboarding-intention"),
+  onboardingDropZone: document.querySelector("#onboarding-drop-zone"),
+  onboardingImages: document.querySelector("#onboarding-images"),
+  onboardingAttachments: document.querySelector("#onboarding-attachments"),
+  onboardingAttachNote: document.querySelector("#onboarding-attach-note"),
   newShot: document.querySelector("#new-shot"),
   appCount: document.querySelector("#app-count"),
   appGrid: document.querySelector("#app-grid"),
@@ -1226,12 +1234,18 @@ const renderHarnessOnboarding = (card, harness) => {
     status.textContent = "Not installed";
   } else if (subscriptionReady(harness)) {
     card.dataset.status = "ready";
-    status.textContent = "$0.00 subscription route ready";
+    status.textContent = "Ready";
   } else {
     card.dataset.status = "action";
     status.textContent = "Installed · sign in, then check again";
   }
 };
+
+const firstShotComplete = () => (
+  ui.onboardingAppName.validity.valid
+  && ui.onboardingAppName.value.length > 0
+  && ui.onboardingIntention.value.trim().length > 0
+);
 
 const onboardingStepReady = () => {
   if (onboardingStep === 1) return true;
@@ -1239,7 +1253,7 @@ const onboardingStepReady = () => {
     return onboardingFacts?.xcode.ready && onboardingFacts?.apple_signing.ready;
   }
   if (onboardingStep === 3) return onboardingFacts?.harness_ready === true;
-  return onboardingFacts?.ready_for_first_shot === true;
+  return onboardingFacts?.ready_for_first_shot === true && firstShotComplete();
 };
 
 const renderOnboarding = () => {
@@ -1262,6 +1276,8 @@ const renderOnboarding = () => {
   ui.onboardingXcodeDetail.textContent = onboardingFacts.xcode.detail;
   ui.onboardingSigning.dataset.status = onboardingFacts.apple_signing.ready ? "ready" : "action";
   ui.onboardingSigningDetail.textContent = onboardingFacts.apple_signing.detail;
+  ui.onboardingGetXcode.hidden = onboardingFacts.xcode.ready === true;
+  ui.onboardingXcodeNote.hidden = onboardingFacts.xcode.ready === true;
   renderHarnessOnboarding(
     ui.onboardingCodex,
     harnesses.find((harness) => harness.id === "codex"),
@@ -1270,12 +1286,19 @@ const renderOnboarding = () => {
     ui.onboardingClaude,
     harnesses.find((harness) => harness.id === "claude-code"),
   );
-  ui.onboardingReady.dataset.status = onboardingFacts.ready_for_first_shot
-    ? "ready"
-    : "action";
-  ui.onboardingReady.textContent = onboardingFacts.ready_for_first_shot
-    ? "This Mac is ready. The first protocol action will create your local Builder identity (private to this Mac; public authority stays closed until a contract generation is activated)."
-    : "Finish the Apple and harness steps before taking the first Shot.";
+  if (!onboardingFacts.ready_for_first_shot) {
+    ui.onboardingReady.dataset.status = "action";
+    ui.onboardingReady.textContent =
+      "Finish the Apple and harness steps before taking the first Shot.";
+  } else if (!firstShotComplete()) {
+    ui.onboardingReady.dataset.status = "ready";
+    ui.onboardingReady.textContent =
+      "This Mac is ready. Name the app and write the exact intention to unlock the first Shot.";
+  } else {
+    ui.onboardingReady.dataset.status = "ready";
+    ui.onboardingReady.textContent =
+      "BEGIN FIRST SHOT creates the app folder, hands this intention and its images to your harness, and opens the Genome review. The first protocol action creates your local Builder identity (private to this Mac).";
+  }
 };
 
 const showOnboarding = () => {
@@ -1310,16 +1333,15 @@ const loadOnboarding = async ({ autoOpen = false } = {}) => {
 };
 
 const refreshOnboarding = async (button) => {
-  const previous = button.textContent;
   button.disabled = true;
-  button.textContent = "Checking…";
+  button.classList.add("checking");
   try {
     await Promise.all([loadHarnesses(), loadOnboarding()]);
   } catch (error) {
     appendEvent("status", `readiness check failed: ${error.message}`);
   } finally {
     button.disabled = false;
-    button.textContent = previous;
+    button.classList.remove("checking");
     renderOnboarding();
   }
 };
@@ -1331,6 +1353,24 @@ ui.onboardingBack.addEventListener("click", () => {
   localStorage.setItem(onboardingStepKey, String(onboardingStep));
   renderOnboarding();
 });
+const beginFirstShot = () => {
+  localStorage.setItem(onboardingCompletionKey, "1");
+  localStorage.removeItem(onboardingStepKey);
+  hideOnboarding();
+  openComposer("create");
+  ui.appName.value = ui.onboardingAppName.value;
+  ui.prompt.value = ui.onboardingIntention.value;
+  files = [...firstShotFiles];
+  renderFiles();
+  updateSubmitState();
+  if (!ui.submit.disabled) ui.form.requestSubmit();
+  firstShotFiles = [];
+  ui.onboardingAppName.value = "";
+  ui.onboardingIntention.value = "";
+  ui.onboardingAttachNote.textContent = "";
+  renderFirstShotFiles();
+};
+
 ui.onboardingNext.addEventListener("click", () => {
   if (!onboardingStepReady()) return;
   if (onboardingStep < 4) {
@@ -1339,10 +1379,7 @@ ui.onboardingNext.addEventListener("click", () => {
     renderOnboarding();
     return;
   }
-  localStorage.setItem(onboardingCompletionKey, "1");
-  localStorage.removeItem(onboardingStepKey);
-  hideOnboarding();
-  openComposer("create");
+  beginFirstShot();
 });
 ui.onboardingRefreshMac.addEventListener(
   "click",
@@ -1367,6 +1404,92 @@ document.querySelectorAll(".copy-harness-command").forEach((button) => {
     }, 1800);
   });
 });
+
+let firstShotFiles = [];
+const intentionFilePattern = /\.(md|markdown|txt)$/i;
+const referenceImagePattern = /\.(png|jpe?g|heic|webp)$/i;
+
+const renderFirstShotFiles = () => {
+  ui.onboardingAttachments.replaceChildren(...firstShotFiles.map((file) => {
+    const chip = document.createElement("span");
+    chip.className = "attachment";
+    chip.textContent = file.name;
+    return chip;
+  }));
+};
+
+const readIntentionFile = (file) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = String(reader.result).trim();
+    const current = ui.onboardingIntention.value.trim();
+    ui.onboardingIntention.value = current ? `${current}\n\n${text}` : text;
+    renderOnboarding();
+  };
+  reader.readAsText(file);
+};
+
+const acceptFirstShotFiles = (incoming) => {
+  const incomingFiles = Array.from(incoming);
+  const intention = incomingFiles.find((file) => intentionFilePattern.test(file.name));
+  if (intention) readIntentionFile(intention);
+  const images = incomingFiles.filter((file) => referenceImagePattern.test(file.name));
+  const rejected = incomingFiles.filter((file) => (
+    !referenceImagePattern.test(file.name) && !intentionFilePattern.test(file.name)
+  ));
+  const available = 8 - firstShotFiles.length;
+  firstShotFiles = [...firstShotFiles, ...images.slice(0, available)];
+  const notes = [];
+  if (rejected.length > 0) {
+    notes.push(`${rejected.length} file${rejected.length === 1 ? "" : "s"} skipped: use PNG, JPEG, HEIC, WebP, or a .md brief.`);
+  }
+  if (images.length > available) {
+    notes.push("Eight reference images are attached; extra images were not attached.");
+  }
+  ui.onboardingAttachNote.textContent = notes.join(" ");
+  renderFirstShotFiles();
+  renderOnboarding();
+};
+
+ui.onboardingDropZone.addEventListener("click", () => ui.onboardingImages.click());
+ui.onboardingDropZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") ui.onboardingImages.click();
+});
+ui.onboardingImages.addEventListener("change", () => {
+  acceptFirstShotFiles(ui.onboardingImages.files);
+  ui.onboardingImages.value = "";
+});
+for (const name of ["dragenter", "dragover"]) {
+  ui.onboardingDropZone.addEventListener(name, (event) => {
+    event.preventDefault();
+    ui.onboardingDropZone.classList.add("dragging");
+  });
+}
+for (const name of ["dragleave", "drop"]) {
+  ui.onboardingDropZone.addEventListener(name, (event) => {
+    event.preventDefault();
+    ui.onboardingDropZone.classList.remove("dragging");
+  });
+}
+ui.onboardingDropZone.addEventListener("drop", (event) => acceptFirstShotFiles(event.dataTransfer.files));
+
+ui.onboardingIntention.addEventListener("paste", (event) => {
+  const pasted = [...(event.clipboardData?.files || [])]
+    .find((file) => intentionFilePattern.test(file.name));
+  if (!pasted) return;
+  event.preventDefault();
+  readIntentionFile(pasted);
+});
+for (const name of ["dragenter", "dragover"]) {
+  ui.onboardingIntention.addEventListener(name, (event) => event.preventDefault());
+}
+ui.onboardingIntention.addEventListener("drop", (event) => {
+  event.preventDefault();
+  acceptFirstShotFiles(event.dataTransfer.files);
+});
+for (const field of [ui.onboardingAppName, ui.onboardingIntention]) {
+  field.addEventListener("input", renderOnboarding);
+}
 
 const renderFiles = () => {
   ui.attachments.replaceChildren(...files.map((file) => {

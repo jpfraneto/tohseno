@@ -1973,7 +1973,7 @@ textarea:disabled {
 
 .readiness-row {
   display: grid;
-  grid-template-columns: 22px 1fr;
+  grid-template-columns: 22px 1fr auto;
   gap: 13px;
   padding: 16px;
   border: 1px solid var(--iron);
@@ -1982,11 +1982,17 @@ textarea:disabled {
 }
 
 .readiness-mark {
-  width: 12px;
-  height: 12px;
-  margin-top: 3px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
   border: 1px solid var(--ash);
   border-radius: 50%;
+  place-items: center;
+}
+
+.readiness-row[data-status="ready"] {
+  border-color: color-mix(in srgb, #45d68b 40%, var(--iron));
 }
 
 .readiness-row[data-status="ready"] .readiness-mark {
@@ -1995,9 +2001,41 @@ textarea:disabled {
   box-shadow: 0 0 0 4px rgb(69 214 139 / 10%);
 }
 
+.readiness-row[data-status="ready"] .readiness-mark::after {
+  content: "";
+  width: 4px;
+  height: 8px;
+  margin-top: -2px;
+  border: solid var(--void);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
 .readiness-row[data-status="action"] .readiness-mark {
   border-color: var(--amber);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--amber) 10%, transparent);
+}
+
+.readiness-state {
+  margin-top: 3px;
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.09em;
+}
+
+.readiness-state::before {
+  content: "CHECKING…";
+  color: var(--ash);
+}
+
+.readiness-row[data-status="ready"] .readiness-state::before {
+  content: "READY";
+  color: #45d68b;
+}
+
+.readiness-row[data-status="action"] .readiness-state::before {
+  content: "ACTION NEEDED";
+  color: var(--amber);
 }
 
 .readiness-row > div {
@@ -2065,6 +2103,35 @@ textarea:disabled {
   border-color: var(--silver);
 }
 
+.onboarding-link[hidden] {
+  display: none;
+}
+
+.onboarding-refresh {
+  display: grid;
+  width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--iron);
+  border-radius: 8px;
+  color: var(--bone);
+  background: var(--graphite);
+  place-items: center;
+}
+
+.onboarding-refresh:hover:not(:disabled) {
+  border-color: var(--silver);
+}
+
+.onboarding-refresh.checking svg {
+  animation: onboarding-spin 0.9s linear infinite;
+}
+
+@keyframes onboarding-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .onboarding-note {
   margin-top: 20px !important;
   color: var(--ash) !important;
@@ -2099,8 +2166,46 @@ textarea:disabled {
 }
 
 .harness-onboarding-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.harness-onboarding-card header > div {
   display: grid;
   gap: 3px;
+}
+
+.harness-check {
+  display: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #45d68b;
+  place-items: center;
+}
+
+.harness-check::after {
+  content: "";
+  width: 5px;
+  height: 10px;
+  margin-top: -2px;
+  border: solid var(--void);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.harness-onboarding-card[data-status="ready"] .harness-check {
+  display: grid;
+}
+
+.harness-onboarding-card[data-status="ready"] > code,
+.harness-onboarding-card[data-status="ready"] > p,
+.harness-onboarding-card[data-status="ready"] .copy-harness-command,
+.harness-onboarding-card[data-status="ready"] .harness-onboarding-status {
+  display: none;
 }
 
 .harness-onboarding-card header strong {
@@ -2143,33 +2248,38 @@ textarea:disabled {
   justify-self: start;
 }
 
-.harness-onboarding-card[data-status="ready"] .harness-onboarding-status {
-  color: #45d68b;
+.first-shot-form {
+  margin: 22px 0 24px;
 }
 
-.first-shot-sequence {
-  display: grid;
-  gap: 10px;
-  margin: 26px 0 24px;
-  padding: 0;
-  list-style: none;
-  counter-reset: first-shot;
+.first-shot-form label {
+  display: block;
+  margin-top: 15px;
 }
 
-.first-shot-sequence li {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  align-items: center;
-  color: var(--bone);
-  font-size: 11px;
-  counter-increment: first-shot;
+.first-shot-form label:first-child {
+  margin-top: 0;
 }
 
-.first-shot-sequence li::before {
-  content: counter(first-shot, decimal-leading-zero);
+.first-shot-form label > span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--silver);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.first-shot-form textarea {
+  min-height: 150px;
+}
+
+.onboarding-attach-note {
+  min-height: 12px;
+  margin: 8px 0 0;
   color: var(--amber);
   font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
   font-size: 8px;
+  line-height: 1.4;
 }
 
 .onboarding-ready {
