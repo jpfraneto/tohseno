@@ -2280,6 +2280,12 @@ mod tests {
 
     impl Fixture {
         fn new() -> Self {
+            Self::with_app_source(
+                "func prepareIdentity() async throws {\n    try await InstallationIdentity.shared.prepare()\n}\n",
+            )
+        }
+
+        fn with_app_source(app_source: &str) -> Self {
             let temporary = tempfile::tempdir().unwrap();
             let shot = temporary.path().join("shot");
             let reference = Path::new(env!("CARGO_MANIFEST_DIR")).join("../fascia/apple");
@@ -2336,11 +2342,7 @@ mod tests {
             ] {
                 fs::write(shot.join("src/TohsenoFascia").join(source), bytes).unwrap();
             }
-            fs::write(
-                shot.join("src/App.swift"),
-                "func prepareIdentity() async throws {\n    try await InstallationIdentity.shared.prepare()\n}\n",
-            )
-            .unwrap();
+            fs::write(shot.join("src/App.swift"), app_source).unwrap();
             fs::write(
                 shot.join("src/Test.xcodeproj/project.pbxproj"),
                 r#"
@@ -2510,6 +2512,34 @@ CURRENT_PROJECT_VERSION = 1;
             app.join("fascia.json"),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn notification_using_fixture_reproduces_declarations_during_verification() {
+        let fixture = Fixture::with_app_source(
+            "import UserNotifications\n\nfunc prepareIdentity() async throws {\n    try await InstallationIdentity.shared.prepare()\n}\n\nfunc armAlarm() async throws {\n    let center = UNUserNotificationCenter.current()\n    _ = try await center.requestAuthorization(options: [.alert, .sound])\n}\n",
+        );
+        let manifest: FasciaManifest =
+            serde_json::from_slice(&fs::read(fixture.shot.join("TOHSENO/fascia.json")).unwrap())
+                .unwrap();
+        assert!(manifest
+            .capabilities
+            .iter()
+            .any(|declaration| declaration.capability == Capability::Notifications));
+
+        let report = verify_shot_directory(&fixture.shot, &fixture.reference);
+        assert_eq!(
+            status(&report, "fascia.source_declarations"),
+            VerificationStatus::Pass
+        );
+        assert_eq!(
+            status(&report, "record.signature"),
+            VerificationStatus::Pass
+        );
+        assert_eq!(
+            status(&report, "provenance.binding"),
+            VerificationStatus::Pass
+        );
     }
 
     #[test]

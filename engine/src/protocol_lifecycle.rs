@@ -545,18 +545,28 @@ pub(crate) fn inspect_fascia(
                 .into(),
         ));
     }
-    if !scan.apple_capabilities.is_empty() {
+    let unsupported_apple_capabilities = scan
+        .apple_capabilities
+        .iter()
+        .copied()
+        .filter(|capability| supported_apple_capability_declaration(*capability).is_none())
+        .collect::<BTreeSet<_>>();
+    if !unsupported_apple_capabilities.is_empty() {
         return Err(ProtocolLifecycleError::InvalidState(format!(
-            "protected Apple capabilities are unsupported by this candidate: {:?}",
-            scan.apple_capabilities
+            "protected Apple capabilities are unsupported by this candidate: {unsupported_apple_capabilities:?}"
         )));
     }
 
-    let capabilities = vec![CapabilityDeclaration {
+    let mut capabilities = vec![CapabilityDeclaration {
         capability: Capability::LocalStorage,
         purpose: "Local-first application state and Apple Fascia metadata".into(),
         entitlement: None,
     }];
+    capabilities.extend(
+        scan.apple_capabilities
+            .iter()
+            .filter_map(|capability| supported_apple_capability_declaration(*capability)),
+    );
 
     let mut surfaces = vec![AppleSurface::Iphone];
     if scan.ipad {
@@ -616,6 +626,22 @@ pub(crate) fn inspect_fascia(
             app_store_id: None,
         },
     })
+}
+
+/// The exact Fascia declaration this candidate can prove for one scanned
+/// protected Apple capability. `None` keeps that capability conservatively
+/// rejected until its declaration and policy are supported. Local
+/// notifications need no Apple entitlement, no network, and no account, so
+/// their declaration stays inside the candidate's finite offline surface.
+fn supported_apple_capability_declaration(capability: Capability) -> Option<CapabilityDeclaration> {
+    match capability {
+        Capability::Notifications => Some(CapabilityDeclaration {
+            capability: Capability::Notifications,
+            purpose: "User-requested local alerts and sounds".into(),
+            entitlement: None,
+        }),
+        _ => None,
+    }
 }
 
 fn local_checks(
@@ -1299,6 +1325,7 @@ impl SourceScan {
                 ("NSHealth", Capability::Health),
                 ("NSBluetooth", Capability::Bluetooth),
                 ("UNUserNotificationCenter", Capability::Notifications),
+                ("import UserNotifications", Capability::Notifications),
                 ("import StoreKit", Capability::Storekit),
             ] {
                 if text.contains(marker) {
@@ -1398,6 +1425,130 @@ mod tests {
     use tohseno_protocol::app_metadata::AppMetadataRegistryReference;
     use tohseno_protocol::digest::{Address20, ExpressionId, ShotId, VersionId};
     use tohseno_protocol::identity::BuilderId;
+
+    /// A minimal generated `src/` tree that passes the Fascia inventory gate:
+    /// the five normative reference sources plus the given app files.
+    fn candidate_source(files: &[(&str, &str)]) -> (tempfile::TempDir, std::path::PathBuf) {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("src");
+        fs::create_dir_all(source.join("TohsenoFascia")).unwrap();
+        for (name, bytes) in [
+            (
+                "InstallationIdentity.swift",
+                include_bytes!("../../fascia/apple/swift/InstallationIdentity.swift").as_slice(),
+            ),
+            (
+                "ContinuityEnvelope.swift",
+                include_bytes!("../../fascia/apple/swift/ContinuityEnvelope.swift").as_slice(),
+            ),
+            (
+                "LocalPersistence.swift",
+                include_bytes!("../../fascia/apple/swift/LocalPersistence.swift").as_slice(),
+            ),
+            (
+                "Provenance.swift",
+                include_bytes!("../../fascia/apple/swift/Provenance.swift").as_slice(),
+            ),
+            (
+                "TohsenoMetadata.swift",
+                include_bytes!("../../fascia/apple/swift/TohsenoMetadata.swift").as_slice(),
+            ),
+        ] {
+            fs::write(source.join("TohsenoFascia").join(name), bytes).unwrap();
+        }
+        for (name, contents) in files {
+            fs::write(source.join(name), contents).unwrap();
+        }
+        (directory, source)
+    }
+
+    fn declared_capabilities(manifest: &FasciaManifest) -> Vec<Capability> {
+        manifest
+            .capabilities
+            .iter()
+            .map(|declaration| declaration.capability)
+            .collect()
+    }
+
+    #[test]
+    fn source_scan_maps_notification_center_use_to_the_notifications_capability() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("Alarm.swift"),
+            "import UserNotifications\n\nlet center = UNUserNotificationCenter.current()\n",
+        )
+        .unwrap();
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert_eq!(
+            scan.apple_capabilities,
+            BTreeSet::from([Capability::Notifications])
+        );
+        assert!(!scan.network);
+        assert!(!scan.cloud);
+        assert!(!scan.tracking_or_accounts);
+        assert!(!scan.explicit_entitlements);
+    }
+
+    #[test]
+    fn notification_only_source_declares_local_storage_and_notifications() {
+        let (_directory, source) = candidate_source(&[(
+            "Alarm.swift",
+            "import UserNotifications\n\nfunc arm() {\n    UNUserNotificationCenter.current()\n}\n",
+        )]);
+        let manifest = inspect_fascia(&source, "com.example.alarm", 1).unwrap();
+        manifest.validate().unwrap();
+        assert_eq!(
+            declared_capabilities(&manifest),
+            vec![Capability::LocalStorage, Capability::Notifications]
+        );
+        let notifications = &manifest.capabilities[1];
+        assert_eq!(notifications.entitlement, None);
+        assert_eq!(
+            notifications.purpose,
+            "User-requested local alerts and sounds"
+        );
+    }
+
+    #[test]
+    fn notification_source_with_protected_capability_rejects_only_the_unsupported_subset() {
+        let (_directory, source) = candidate_source(&[(
+            "Alarm.swift",
+            "import UserNotifications\nlet keys = [\"NSCameraUsageDescription\"]\nlet center = UNUserNotificationCenter.current()\n",
+        )]);
+        let message = inspect_fascia(&source, "com.example.alarm", 1)
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("Camera"), "{message}");
+        assert!(!message.contains("Notifications"), "{message}");
+    }
+
+    #[test]
+    fn source_without_notification_use_keeps_the_existing_capability_set() {
+        let (_directory, source) = candidate_source(&[("App.swift", "struct Nothing {}\n")]);
+        let manifest = inspect_fascia(&source, "com.example.plain", 1).unwrap();
+        assert_eq!(
+            declared_capabilities(&manifest),
+            vec![Capability::LocalStorage]
+        );
+    }
+
+    #[test]
+    fn notification_capability_declarations_are_deterministic() {
+        let (_directory, source) = candidate_source(&[
+            (
+                "Center.swift",
+                "let center = UNUserNotificationCenter.current()\n",
+            ),
+            ("Imports.swift", "import UserNotifications\n"),
+        ]);
+        let first = inspect_fascia(&source, "com.example.alarm", 1).unwrap();
+        let second = inspect_fascia(&source, "com.example.alarm", 1).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(
+            declared_capabilities(&first),
+            vec![Capability::LocalStorage, Capability::Notifications]
+        );
+    }
 
     #[test]
     fn project_version_requires_exact_integer_setting() {
