@@ -27,6 +27,8 @@ contracts_directory="$repository_root/contracts"
 generation="0.8.0"
 generation_source_commit="862ca6cd3d396271b56b336fee0513ddcf6ecc64"
 generation_source_tree_sha256="5d8c56423f9b9cb97d8e05834a6a2e776034b1257a186e47f25869bf509910c3"
+generation_forge_commit="9979a41b5daa5da1572d973d7ac5a3dd2afc0221"
+generation_forge_version="1.3.5-stable"
 if [ -e "$contracts_directory/src/ShotRelations.sol" ]; then
   printf '%s\n' \
     "build-contract-abi.sh: removed contracts/src/ShotRelations.sol must not exist" >&2
@@ -178,6 +180,13 @@ src/ShotRegistry.sol
   registry_runtime_keccak256="$(cast keccak "$registry_runtime")"
   forge_version="$(forge --version | awk 'NR == 1 { print $3 }')"
   forge_commit="$(forge --version | awk '$1 == "Commit" && $2 == "SHA:" { print $3 }')"
+  # foundryup spells the identical release build differently per install
+  # channel ("1.3.5-stable" vs "1.3.5-v1.3.5"). The commit SHA is the build
+  # identity, so a matching commit adopts the generation's frozen spelling;
+  # any other toolchain records itself as-is and correctly reads as stale.
+  if [ "$forge_commit" = "$generation_forge_commit" ]; then
+    forge_version="$generation_forge_version"
+  fi
 
   jq -S -n \
     --arg generation "$generation" \
