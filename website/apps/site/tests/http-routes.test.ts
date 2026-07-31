@@ -132,7 +132,7 @@ describe("public pages", () => {
         expect(body).toContain("Take one deliberately small Shot");
         expect(body).toContain("Experience version 0001, then evolve it");
         expect(body).toContain("tohseno studio");
-        expect(body).toContain("TOHSENO 0.7.1");
+        expect(body).toContain("TOHSENO 0.7.2");
         expect(body).toContain(
           "binds only to <code>127.0.0.1</code>",
         );
@@ -304,7 +304,7 @@ describe("public pages", () => {
     const expectedOneshot = readFileSync(oneshotInstallerPath);
     expect(expected).toEqual(expectedOneshot);
     expect(expectedOneshot.byteLength).toBeGreaterThan(10_000);
-    expect(expectedOneshot.toString("utf8")).toContain('version="v0.7.1"');
+    expect(expectedOneshot.toString("utf8")).toContain('version="v0.7.2"');
     expect(expectedOneshot.toString("utf8")).toContain(
       "releases/download/$version/$artifact",
     );
