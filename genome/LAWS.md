@@ -11,6 +11,9 @@
   Builder DeviceKey, recovery secret, Apple ID, or universal TOHSENO user key.
 - Declare every network endpoint, protected Apple API, and entitlement; use no
   telemetry or silent identity linkage.
+- Local notifications through UserNotifications are the one supported protected
+  Apple capability; camera, microphone, location, contacts, health, Bluetooth,
+  StoreKit, and explicit entitlements do not pass the gates yet.
 - Build successfully with automatic Apple signing.
 - Make one useful screen reachable within two seconds of first launch.
 - If no icon image is supplied, generate a solid-color app icon bearing the app name's initial.
