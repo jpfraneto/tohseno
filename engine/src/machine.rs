@@ -1006,6 +1006,55 @@ impl Engine {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
         let latest = self.ledger.latest_evolution(&request.app_name)?;
+        // The builder's selected feedback binds the exact Version they
+        // experienced. Prove the selection can survive BEFORE any recording
+        // side effect: otherwise a drifted folder silently seals a surprise
+        // Version and the feedback becomes permanently unselectable.
+        if !request.selected_feedback_actions.is_empty() {
+            let previous = latest.as_ref().ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(
+                    "feedback can be selected only for an evolution from an accepted Version"
+                        .into(),
+                )
+            })?;
+            if !self.working_tree_matches(previous)? {
+                return Err(EngineError::ProtocolBodyIncomplete(format!(
+                    "the folder changed after evolution {} was accepted, so the next Evolution would begin from a new Version while the selected feedback is bound to the one you experienced; record the folder first with `tohseno evolve {}`, attach feedback to the new Version, then retry",
+                    previous.number, request.app_name
+                )));
+            }
+            let layout = ShotLayout::at(self.ledger.working_tree(&request.app_name));
+            let lineage = layout.read_lineage()?;
+            let state =
+                tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+            let expression_id = app.expression_id.ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
+            })?;
+            let expression = state.expression(expression_id).ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(
+                    "the Shot has no declared Expression for feedback selection".into(),
+                )
+            })?;
+            let current_version_id = expression.current_version.ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(
+                    "an evolutionary instruction requires an accepted source Version".into(),
+                )
+            })?;
+            for action in &request.selected_feedback_actions {
+                let feedback = state.feedback.get(action).ok_or_else(|| {
+                    EngineError::ProtocolBodyIncomplete(format!(
+                        "selected Feedback action {action} is unavailable"
+                    ))
+                })?;
+                if feedback.expression_id != expression_id
+                    || feedback.version_id != current_version_id
+                {
+                    return Err(EngineError::ProtocolBodyIncomplete(format!(
+                        "selected Feedback action {action} is not bound to the current exact expression Version"
+                    )));
+                }
+            }
+        }
         let recorded = match &latest {
             Some(previous) => {
                 protocol_lifecycle::verify_completed_evolution(previous)?;
@@ -1948,6 +1997,18 @@ impl Engine {
                 working_digest_at_start,
             )
             .await?;
+        // Sealing substitutes engine-owned values into the SNAPSHOT (shot
+        // token, pbxproj CURRENT_PROJECT_VERSION) and materializes the real
+        // Fascia and provenance sidecars there. Mirror those exact bytes into
+        // the living folder so a landed folder equals its accepted Version;
+        // otherwise every folder drifts the moment it lands, the next evolve
+        // seals a surprise Version, and the builder's version-bound feedback
+        // can never seed an Evolution.
+        if let Err(error) = self.align_working_tree_with_seal(app_name, &completed) {
+            self.events.emit(Event::status(format!(
+                "evolution accepted; aligning the folder with its sealed version needs attention: {error}"
+            )));
+        }
         if let Some(pending) = consumed_pending_intent {
             if let Err(error) = layout
                 .clear_evolution_feedback_selection(pending.as_bytes())
@@ -1959,6 +2020,34 @@ impl Engine {
             }
         }
         Ok(completed)
+    }
+
+    /// Mirrors seal-time engine substitutions from the accepted snapshot back
+    /// into the living folder: the shot-number substitution and the two
+    /// engine-owned identity sidecars. After this, an untouched landed folder
+    /// hashes identically to its accepted Version.
+    fn align_working_tree_with_seal(
+        &self,
+        app_name: &str,
+        sealed: &Evolution,
+    ) -> Result<(), EngineError> {
+        let working = self.ledger.working_tree(app_name);
+        if !working.is_dir() {
+            return Ok(());
+        }
+        build::substitute_shot_number(&working, sealed.number)?;
+        for sidecar in ["TOHSENO/fascia.json", "TOHSENO/embedded-provenance.json"] {
+            let source = sealed.source_path().join(sidecar);
+            if !source.is_file() {
+                continue;
+            }
+            let destination = working.join(sidecar);
+            if let Some(parent) = destination.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&source, &destination)?;
+        }
+        Ok(())
     }
 
     /// The lenient digest of the working tree, or None when the folder is

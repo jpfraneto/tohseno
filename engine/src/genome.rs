@@ -230,6 +230,10 @@ When the work builds and is whole, record it yourself:
 
 That runs the gates, signs the record, and appends the next Evolution to
 this Evolution's history. The builder should never have to remember it.
+
+Sealing is your final act. Write MEMORY.md and every lesson BEFORE you run
+`tohseno evolve`; after it succeeds, change nothing in this folder. A file
+touched after sealing makes the folder drift from its accepted Version.
 "#
             );
             fs::write(&agents, contents)?;
