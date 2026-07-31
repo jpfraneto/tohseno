@@ -1363,8 +1363,13 @@ async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error:
             .collect();
         let folder = ledger.working_tree(&app.name);
         let latest = ledger.shot(&app.name, latest_evolution)?;
+        // The engine's expression hash strips Shot-level surfaces (README,
+        // INTENTION.md, feedback/, versions/…) exactly like `tohseno evolve`
+        // does; the raw protocol walk includes them, which made this flag
+        // permanently true and put Studio at odds with the CLI's
+        // "nothing new" verdict.
         let unrecorded_changes = match (
-            tohseno_protocol::tree_hash::hash_working_tree(&folder),
+            tohseno_engine::hash_expression_working_tree(&folder),
             tohseno_protocol::tree_hash::hash_source_tree(&latest.source_path()),
         ) {
             (Ok(working), Ok(sealed)) => working.digest != sealed.digest,

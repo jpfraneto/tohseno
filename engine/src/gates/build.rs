@@ -551,6 +551,12 @@ fn visit_files(
             ));
         }
         if file_type.is_dir() {
+            // The Shot's ledger and VCS state are never generated source.
+            // Substituting inside `.tohseno` would rewrite sealed history —
+            // the immutable snapshots live beneath it in a living folder.
+            if entry.file_name() == ".tohseno" || entry.file_name() == ".git" {
+                continue;
+            }
             visit_files(&entry.path(), callback)?;
         } else if file_type.is_file() {
             callback(&entry.path())?;
@@ -793,5 +799,38 @@ try await InstallationIdentity.shared.prepare()
         .unwrap();
         assert!(!project.contains("__APP_NAME__"));
         assert!(!project.contains("__BUNDLE_ID__"));
+    }
+
+    #[test]
+    fn shot_number_substitution_never_touches_the_ledger_or_vcs_state() {
+        // Substituting on a LIVING folder must leave `.tohseno` (which holds
+        // the immutable sealed snapshots) and `.git` untouched; rewriting a
+        // sealed pbxproj would silently break its signed source commitment.
+        let temporary = tempfile::tempdir().unwrap();
+        let working = temporary.path();
+        let sealed = working.join(".tohseno/evolutions/0001/src/App.xcodeproj");
+        fs::create_dir_all(&sealed).unwrap();
+        fs::create_dir_all(working.join(".git")).unwrap();
+        fs::create_dir_all(working.join("App.xcodeproj")).unwrap();
+        let sealed_project = sealed.join("project.pbxproj");
+        let living_project = working.join("App.xcodeproj/project.pbxproj");
+        fs::write(&sealed_project, "\tCURRENT_PROJECT_VERSION = 1;\n").unwrap();
+        fs::write(working.join(".git/config"), "CURRENT_PROJECT_VERSION = 1;\n").unwrap();
+        fs::write(&living_project, "\tCURRENT_PROJECT_VERSION = 1;\n").unwrap();
+
+        substitute_shot_number(working, 2).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(&living_project).unwrap(),
+            "\tCURRENT_PROJECT_VERSION = 2;\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&sealed_project).unwrap(),
+            "\tCURRENT_PROJECT_VERSION = 1;\n"
+        );
+        assert_eq!(
+            fs::read_to_string(working.join(".git/config")).unwrap(),
+            "CURRENT_PROJECT_VERSION = 1;\n"
+        );
     }
 }
