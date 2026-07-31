@@ -344,11 +344,8 @@ impl BankrLaunchService {
         )?
         .to_owned();
         let configuration_digest = configuration_digest(&shot, &parameters)?;
-        let confirmation_phrase = confirmation_phrase(
-            &shot,
-            parameters.chain,
-            &simulated_token_address,
-        );
+        let confirmation_phrase =
+            confirmation_phrase(&shot, parameters.chain, &simulated_token_address);
         let approval_id = ShotId::random().to_string();
         *self.pending.lock().await = Some(PendingApproval {
             approval_id: approval_id.clone(),
@@ -921,7 +918,10 @@ mod tests {
         // The committed configuration includes the Appcoin identity itself.
         let mut renamed = shot();
         renamed.app_name = "another-shot".to_owned();
-        assert_ne!(first, configuration_digest(&renamed, &parameters()).unwrap());
+        assert_ne!(
+            first,
+            configuration_digest(&renamed, &parameters()).unwrap()
+        );
     }
 
     #[test]

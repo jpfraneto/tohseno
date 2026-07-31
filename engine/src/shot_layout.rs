@@ -2862,8 +2862,9 @@ fn validated_private_references(
                 ))
             })?;
         let attachment = read_private_attachment(source)?;
-        validate_image_bytes(&extension, &attachment.bytes)
-            .map_err(|reason| ShotLayoutError::Invalid(format!("{}: {reason}", source.display())))?;
+        validate_image_bytes(&extension, &attachment.bytes).map_err(|reason| {
+            ShotLayoutError::Invalid(format!("{}: {reason}", source.display()))
+        })?;
         if !digests.insert(attachment.digest) {
             return Err(ShotLayoutError::Invalid(
                 "private references must not repeat content".into(),

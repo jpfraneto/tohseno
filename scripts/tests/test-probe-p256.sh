@@ -8,6 +8,14 @@ for tool in python3 jq cmp grep mktemp kill sed; do
   fi
 done
 
+# The first python3 execution on a fresh macOS host can stall for many
+# seconds behind Gatekeeper's one-time scan; pay that cost here, before any
+# readiness deadline starts counting.
+python3 -c '' || {
+  printf '%s\n' "test-probe-p256.sh: python3 cannot execute" >&2
+  exit 1
+}
+
 script_directory="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 repository_root="$(CDPATH= cd -- "$script_directory/../.." && pwd)"
 probe="$repository_root/scripts/probe-p256.sh"
@@ -42,8 +50,10 @@ start_server() {
     >"$server_log" 2>&1 &
   server_pid="$!"
 
+  # A busy host may still take a while to schedule the stub; the deadline is
+  # generous because a dead stub is caught immediately by the liveness check.
   attempts=0
-  while [ ! -s "$port_file" ] && [ "$attempts" -lt 100 ]; do
+  while [ ! -s "$port_file" ] && [ "$attempts" -lt 600 ]; do
     if ! kill -0 "$server_pid" 2>/dev/null; then
       printf 'test-probe-p256.sh: stub exited for scenario %s\n' "$scenario" >&2
       sed -n '1,120p' "$server_log" >&2

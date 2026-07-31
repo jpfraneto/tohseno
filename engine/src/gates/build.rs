@@ -815,7 +815,11 @@ try await InstallationIdentity.shared.prepare()
         let sealed_project = sealed.join("project.pbxproj");
         let living_project = working.join("App.xcodeproj/project.pbxproj");
         fs::write(&sealed_project, "\tCURRENT_PROJECT_VERSION = 1;\n").unwrap();
-        fs::write(working.join(".git/config"), "CURRENT_PROJECT_VERSION = 1;\n").unwrap();
+        fs::write(
+            working.join(".git/config"),
+            "CURRENT_PROJECT_VERSION = 1;\n",
+        )
+        .unwrap();
         fs::write(&living_project, "\tCURRENT_PROJECT_VERSION = 1;\n").unwrap();
 
         substitute_shot_number(working, 2).unwrap();

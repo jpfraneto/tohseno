@@ -230,11 +230,7 @@ pub fn resolve_selection(
         option,
         HarnessCommand {
             program: executable,
-            arguments: known
-                .bypass_arguments
-                .iter()
-                .map(OsString::from)
-                .collect(),
+            arguments: known.bypass_arguments.iter().map(OsString::from).collect(),
             environment: Vec::new(),
             removed_environment,
         },

@@ -2830,7 +2830,8 @@ fn verify_recorded_builder(
     recorded_builder: Option<tohseno_protocol::identity::BuilderId>,
     local_builder: tohseno_protocol::identity::BuilderId,
 ) -> Result<tohseno_protocol::digest::ShotId, EngineError> {
-    let shot_id = recorded_shot.ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+    let shot_id =
+        recorded_shot.ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
     let recorded =
         recorded_builder.ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
     if recorded != local_builder {
@@ -3184,7 +3185,11 @@ mod tests {
         let machine = temporary.path().join("machine");
         let working = family.join("quiet-press");
         fs::create_dir_all(&working).unwrap();
-        fs::write(working.join("AGENTS.md"), "# This folder is a TOHSENO Shot\n").unwrap();
+        fs::write(
+            working.join("AGENTS.md"),
+            "# This folder is a TOHSENO Shot\n",
+        )
+        .unwrap();
         fs::write(working.join("CLAUDE.md"), "Read AGENTS.md.\n").unwrap();
         fs::write(working.join("README.md"), "# TOHSENO Shot\n").unwrap();
 
