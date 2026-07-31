@@ -49,6 +49,7 @@
           <a href="#follow">Follow and review</a>
           <a href="#evolve">Feedback and Evolution</a>
           <a href="#local-data">Local data</a>
+          <a href="#v07-identity">v0.7 identity notice</a>
           <a href="#legacy">From v0.6</a>
         </nav>
 
@@ -113,6 +114,12 @@ tohseno evolve &lt;app-name&gt;</code></pre>
           <p>Visible Shot folders live under <code>~/Desktop/Tohseno</code>. Private intentions, feedback, reference copies, execution events, and completion records stay in gitignored <code>.tohseno</code> folders. Machine identity and installed release state live under <code>~/.tohseno</code>.</p>
           <p>Studio does not upload Shot data to TOHSENO. The selected coding harness can read the intention and references to do the requested work and handles them under that provider’s own privacy, retention, and account settings.</p>
           <p>Every Shot remains an independent Git repository. Removing the TOHSENO command does not remove its source or history.</p>
+        </section>
+
+        <section id="v07-identity">
+          <h2>About your v0.7 BuilderID prediction</h2>
+          <p>TOHSENO 0.7.x can show a predicted on-chain BuilderID address, for example through <code>tohseno identity show</code>. That prediction belongs to the v0.7 contract generation, which was retired after security review and <strong>will never be deployed</strong> by the TOHSENO project. No TOHSENO contract is deployed on any network today.</p>
+          <p>Your local identity, Shots, feedback, and signed history remain valid and verifiable on your Mac. Only the predicted public address is affected: do not treat it as a durable public identity, proof of ownership, or a future deployment coordinate, and do not send anything to it. A future release will introduce the finalized successor contract generation and its own public BuilderID path.</p>
         </section>
 
         <section id="legacy">

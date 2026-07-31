@@ -17,6 +17,14 @@ The current product release is **TOHSENO 0.7.1**. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol, deployed
 contracts, or public infrastructure.
 
+> [!IMPORTANT]
+> If your installed 0.7.x CLI shows a predicted BuilderID or BuilderAccount
+> address, that prediction belongs to the retired v0.7 contract generation and
+> will never be deployed by the TOHSENO project. It is not a durable public
+> identity, ownership evidence, or a future deployment coordinate. Local Shots,
+> identities, and signed history remain valid and verifiable offline. See
+> [`release/V0_7_CONTRACT_GENERATION_NOTICE.md`](release/V0_7_CONTRACT_GENERATION_NOTICE.md).
+
 ## The ordinary loop
 
 ```sh

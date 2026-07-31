@@ -8,7 +8,9 @@ deployment-authorized.
 > project. Its predicted addresses are historical verification inputs, not
 > durable BuilderIDs or future coordinates. The unversioned `next`
 > deployment-plan compatibility artifact is also non-authoritative; only the
-> versioned 0.8.0 build definition is frozen, and it remains inactive.
+> versioned 0.8.0 build definition is frozen, and it remains inactive. The
+> user-facing notice text lives at
+> [`release/V0_7_CONTRACT_GENERATION_NOTICE.md`](../release/V0_7_CONTRACT_GENERATION_NOTICE.md).
 
 These contracts are neutral public witnesses. They are non-upgradeable, have
 no administrator, hold no tokens, and grant no privilege to a TOHSENO client,
