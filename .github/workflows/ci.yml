@@ -404,11 +404,11 @@ jobs:
           grep -Fq \
             "will never be deployed by the TOHSENO project" \
             release/V0_7_CONTRACT_GENERATION_NOTICE.md
-          if scripts/build-genesis-bundle.sh >/dev/null 2>&1 ||
-             scripts/build-genesis-archive.sh ignored.tar.gz >/dev/null 2>&1 ||
-             scripts/deploy-candidate.sh --dry-run >/dev/null 2>&1 ||
-             scripts/release.sh >/dev/null 2>&1; then
-            echo "a retired v0.7 command did not fail closed" >&2
+          # The product release ritual returned for the 0.7.2 patch; the v0.7
+          # contract generation itself stays retired, so its deployment
+          # command must still fail closed.
+          if scripts/deploy-candidate.sh --dry-run >/dev/null 2>&1; then
+            echo "the retired v0.7 deployment command did not fail closed" >&2
             exit 1
           fi
       - name: Reject tracked generated drift
