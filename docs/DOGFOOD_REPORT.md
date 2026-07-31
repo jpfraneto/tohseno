@@ -332,3 +332,40 @@ before folder creation; name paths in IO errors), F-004 (composer default
 coherence), F-010/F-005 (copy truthfulness).
 Documentation: the software-test identity hatch, harness-local sealed state
 (F-007), and the phone-slot policy for simulator-only apps.
+
+---
+
+## Addendum — after the repairs (Phase 8/9, 2026-07-31)
+
+The P0/P1 list above was implemented in six commits on main (identity
+fallback; standing-orders pristine check; feedback fail-fast + seal
+mirroring; truthful terminal-failure prepare + `retire --local`; input
+preflight + doctor coverage; composer coherence). Three further findings
+surfaced while re-exercising the repaired loop:
+
+- **F-014 · P1 · Engine** — a second Feedback for the same Version failed
+  with an immutable-material conflict (the version index insisted on
+  reading Absent). Fixed: an existing index naming the same exact Version
+  is accepted in either status; regression test added.
+- **F-016 · P0 (introduced and fixed within this cycle) · Engine** — the
+  new seal-mirroring ran `substitute_shot_number` over the living folder,
+  whose file walk recursed into `.tohseno` and advanced the pbxproj inside
+  the previous SEALED snapshot, breaking its signed source commitment.
+  `tohseno verify` caught the mutation — the immutability machinery works.
+  The walk now skips `.tohseno`/`.git`; a regression test proves a sealed
+  snapshot survives a living-folder substitution byte-for-byte; the one
+  damaged byte was restored and independently re-verified CONFORMANT.
+- **F-015 · P2 · Studio** — the library's `unrecorded_changes` flag used
+  the raw protocol walk (which includes Shot-level surfaces), so it read
+  true for every app forever, contradicting the CLI's "nothing new". Fixed
+  to use the engine's expression hash.
+
+Second clean-workspace run (`~/tohseno-dogfood-2`, no identity env var):
+doctor → Studio → create `exhale` (identity minted by default) →
+deliberate cancel → re-create with the SAME ShotID → landed 73 files →
+"nothing new" immediately after landing (drift gone) → v1 feedback →
+`evolve --feedback-action` staged FIRST TRY → Evolution 2 landed 61 files
+→ soft-edged circle with a breathing background, matching the intent →
+v2 feedback recorded separately → whole app CONFORMANT.
+
+Final verdict and per-gate evidence: `docs/PRODUCTION_READINESS.md`.
