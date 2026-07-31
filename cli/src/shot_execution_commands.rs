@@ -89,11 +89,19 @@ pub fn prepare(
         },
     )?;
     if open_terminal_window {
-        open_terminal(&mut execution)?;
-        events.emit(Event::handoff(format!(
-            "SHOT PREPARED · {} · {} · waiting for confirmation in Terminal…",
-            execution.harness_display_name, execution.model
-        )));
+        // The Shot and its execution are durably prepared either way; a
+        // Terminal that cannot open must not be reported as an unprepared
+        // Shot. The error text already carries the exact manual command.
+        match open_terminal(&mut execution) {
+            Ok(()) => events.emit(Event::handoff(format!(
+                "SHOT PREPARED · {} · {} · waiting for confirmation in Terminal…",
+                execution.harness_display_name, execution.model
+            ))),
+            Err(error) => events.emit(Event::handoff(format!(
+                "SHOT PREPARED · {} · {} · the Terminal window could not open — {error}",
+                execution.harness_display_name, execution.model
+            ))),
+        }
     } else {
         events.emit(Event::handoff(format!(
             "SHOT PREPARED · run `tohseno shot run --app {} --execution {}` from {}.",

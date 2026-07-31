@@ -114,7 +114,12 @@ enum Command {
     /// List local apps and their shots.
     List,
     /// Remove an app from the phone without touching its ledger.
-    Retire { app_name: String },
+    Retire {
+        app_name: String,
+        /// Mark the app retired in the ledger without touching a phone.
+        #[arg(long)]
+        local: bool,
+    },
     /// Open the local Studio intake.
     Studio {
         /// Loopback port. Use 0 to ask macOS for any available port.
@@ -538,8 +543,10 @@ async fn dispatch(
                 .refresh(app_name.as_deref())
                 .await?;
         }
-        Command::Retire { app_name } => {
-            Engine::discover(bus.clone())?.retire(&app_name).await?;
+        Command::Retire { app_name, local } => {
+            Engine::discover(bus.clone())?
+                .retire(&app_name, local)
+                .await?;
         }
         Command::Studio { port } => {
             studio_server::serve(port, bus.clone()).await?;

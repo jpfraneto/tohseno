@@ -2163,11 +2163,25 @@ impl Engine {
         Ok(())
     }
 
-    pub async fn retire(&self, app_name: &str) -> Result<(), EngineError> {
+    pub async fn retire(&self, app_name: &str, local: bool) -> Result<(), EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
         let app = self.ledger.load_app(app_name)?;
         install::require_candidate_namespace(&app.bundle_id).map_err(EngineError::Install)?;
+        if local {
+            self.ledger.set_retired(app_name, true)?;
+            self.events.emit(Event::result(format!(
+                "{app_name} is retired in your ledger. If it is installed on a phone, it stays there until you remove it."
+            )));
+            return Ok(());
+        }
+        // One honest check instead of an endless wait: a loop that never
+        // touched a phone must not block forever on a cable.
+        if matches!(device::check(), Ok(DeviceState::CableMissing)) {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "no iPhone is connected. Plug one in to remove {app_name} from it, or run `tohseno retire {app_name} --local` to retire without a phone."
+            )));
+        }
         self.wait_for_apple_prerequisites().await?;
         let device = DevicePipeline::new(self.events.clone())
             .wait_for_device()
@@ -2222,7 +2236,7 @@ impl Engine {
                 "A paid Apple Developer membership raises this limit: developer.apple.com.",
             )?;
             self.events.emit(Event::handoff(format!(
-                "Run `tohseno retire {candidate}` to free one iPhone slot."
+                "Run `tohseno retire {candidate}` to free one iPhone slot (add --local when no iPhone is connected)."
             )));
             return Err(EngineError::SlotLimit);
         }
