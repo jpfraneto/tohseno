@@ -36,6 +36,12 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Tests, examples, and documentation targets
         run: cargo test --locked --workspace --all-targets --all-features
+      - name: Independent threshold-activation verifier
+        run: scripts/tests/test-verify-contract-activation.sh
+      - name: Release-authority public-policy preparation
+        run: scripts/tests/test-prepare-release-authority-policy.sh
+      - name: Contract-production readiness evidence integrity
+        run: scripts/tests/test-contract-production-readiness.sh
       - name: Verify the committed cross-language protocol vector
         run: |
           cargo run \
@@ -111,7 +117,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-               and .product_version == "0.7.2"
+               and .product_version == "0.8.0"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "definition_only_inactive"
@@ -120,7 +126,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 0.7.2'
+            grep -Fqx 'tohseno 0.8.0'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -183,6 +189,8 @@ jobs:
             --fuzz-runs 256
       - name: P256 deployment gate behavior (local RPC stub)
         run: scripts/tests/test-probe-p256.sh
+      - name: Contract-candidate read-only preflight safety
+        run: scripts/tests/test-verify-contract-candidate-preflight.sh
       - name: Validate the non-authorizing Robinhood P256 audit observation
         run: |
           jq -e \
@@ -253,13 +261,13 @@ jobs:
             genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.7.2"
+             and .version == "0.8.0"
              and .channel == "stable"
              and (.ready | type) == "boolean"
              and (.authorization.authorized | type) == "boolean"
              and (.protection.immutable_release_policy_verified | type) == "boolean"
              and (.protection.release_tag_protection_verified | type) == "boolean"' \
-            release/V0_7_2_READINESS.json
+            release/V0_8_0_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -330,7 +338,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.7.2"',
+            '"$RELEASE_TAG" != "v0.8.0"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -346,7 +354,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.7.2 source commit:",
+            "TOHSENO v0.8.0 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

@@ -1,0 +1,37 @@
+{
+ "schema": "tohseno.release-readiness/1",
+ "version": "0.8.0",
+ "channel": "stable",
+ "ready": false,
+ "authorization": {
+  "authorized": false,
+  "authorized_by": null,
+  "authorized_at": null
+ },
+ "protection": {
+  "immutable_release_policy_verified": true,
+  "release_tag_protection_verified": true,
+  "release_tag_ruleset_id": 20168718,
+  "verified_at": "2026-08-01T03:56:46Z"
+ },
+ "evidence": {
+  "predecessor_tag": "v0.7.2",
+  "predecessor_release_immutable": true,
+  "product_minor_version": "0.8.0",
+  "contract_generation_0_8_0_inactive_deployment": true,
+  "studio_bankr_stock_paired_launch": true,
+  "candidate_source_commit": null,
+  "rust_workspace_tests": null,
+  "clippy_warnings_denied": true,
+  "studio_tests": 10,
+  "website_tests": 14,
+  "main_ci_run": null
+ },
+ "publication": {
+  "tag": "v0.8.0",
+  "release_url": null,
+  "release_immutable": false,
+  "production_url": "https://tohseno.com",
+  "tohseno_com_installer_verified": false
+ }
+}

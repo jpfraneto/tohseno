@@ -3,13 +3,13 @@ name: release
 on:
   push:
     tags:
-      - "v0.7.2"
+      - "v0.8.0"
   workflow_dispatch:
     inputs:
       release_tag:
         description: Existing immutable stable tag to recover
         required: true
-        default: v0.7.2
+        default: v0.8.0
         type: string
 
 permissions:
@@ -32,16 +32,16 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       - name: Verify stable-release readiness and explicit authorization
         run: |
-          test "$RELEASE_TAG" = "v0.7.2"
+          test "$RELEASE_TAG" = "v0.8.0"
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.7.2"
+             and .version == "0.8.0"
              and .channel == "stable"
              and .ready == true
              and .authorization.authorized == true
              and .protection.immutable_release_policy_verified == true
              and .protection.release_tag_protection_verified == true' \
-            release/V0_7_2_READINESS.json
+            release/V0_8_0_READINESS.json
 
   build:
     needs: [verify, authorize-release]
@@ -85,7 +85,7 @@ jobs:
               --arg source_state "$expected_source_state" \
               --arg target '${{ matrix.target }}' \
               '.schema == "tohseno.release/1"
-               and .version == "0.7.2"
+               and .version == "0.8.0"
                and .codename == "GENESIS"
                and .target == $target
                and .source_commit == $commit
@@ -194,8 +194,8 @@ jobs:
         run: |
           release_source_commit="$(git rev-parse 'HEAD^{commit}')"
           verify_live_tag() {
-          if [ "$RELEASE_TAG" != "v0.7.2" ]; then
-            printf 'release tag must be exactly v0.7.2\n' >&2
+          if [ "$RELEASE_TAG" != "v0.8.0" ]; then
+            printf 'release tag must be exactly v0.8.0\n' >&2
             exit 1
           fi
           expected_ref="refs/tags/$RELEASE_TAG"
@@ -361,7 +361,7 @@ jobs:
           }
 
           verify_live_tag
-          release_marker="TOHSENO v0.7.2 source commit: $release_source_commit"
+          release_marker="TOHSENO v0.8.0 source commit: $release_source_commit"
           releases_json="$(
             gh api \
               --method GET \
