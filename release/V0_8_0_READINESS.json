@@ -11,7 +11,7 @@
  "protection": {
   "immutable_release_policy_verified": true,
   "release_tag_protection_verified": true,
-  "release_tag_ruleset_id": 20168718,
+  "release_tag_ruleset_id": 20171615,
   "verified_at": "2026-08-01T03:56:46Z"
  },
  "evidence": {
@@ -29,9 +29,9 @@
  },
  "publication": {
   "tag": "v0.8.0",
-  "release_url": null,
-  "release_immutable": false,
+  "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.8.0",
+  "release_immutable": true,
   "production_url": "https://tohseno.com",
-  "tohseno_com_installer_verified": false
+  "tohseno_com_installer_verified": true
  }
 }
