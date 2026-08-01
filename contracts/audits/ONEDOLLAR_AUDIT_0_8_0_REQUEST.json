@@ -1,0 +1,86 @@
+{
+  "schema": "tohseno.external-audit-request/1",
+  "provider": "One Dollar Audit / LeftClaw Services",
+  "endpoint": "https://leftclaw.services/api/audit",
+  "generation": "0.8.0",
+  "generation_definition_sha256": "0x618fbd1ef9f826a2a642f94733192b130023e7f85db95d9ab066768e8abdf895",
+  "source_commit": "862ca6cd3d396271b56b336fee0513ddcf6ecc64",
+  "target": {
+    "name": "Robinhood Chain mainnet",
+    "chain_id": 4663
+  },
+  "sources": [
+    {
+      "path": "src/BuilderAccount.sol",
+      "sha256": "0x5dc87d036030f4250c034189c6602e33b3368d5bc7dd628aa55ec558f23f3937",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/BuilderAccount.sol"
+    },
+    {
+      "path": "src/BuilderAccountFactory.sol",
+      "sha256": "0x1887ee0605aca9c5b6609bc93fb068011b2e3485ddd9c4e0e00384a5261c7dac",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/BuilderAccountFactory.sol"
+    },
+    {
+      "path": "src/EIP712Domain.sol",
+      "sha256": "0xd098361cf177a1f461828a95d42888ef68bc41d732deb4013a43c693da3fe31c",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/EIP712Domain.sol"
+    },
+    {
+      "path": "src/IERC1271.sol",
+      "sha256": "0x1deefadaa015848bf54f30e73da532d90d74ece8b0004de6be31fa6d6403aca4",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/IERC1271.sol"
+    },
+    {
+      "path": "src/P256Verifier.sol",
+      "sha256": "0xac0b72ce859b4a5761186f69589d805344fac70ebb1c83445bb726c0ecdcb14c",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/P256Verifier.sol"
+    },
+    {
+      "path": "src/ShotRegistry.sol",
+      "sha256": "0x734fe0288c3413a3cb86e6d53da3a8f081d8b6890e162deb26eefddc9e85bd94",
+      "url": "https://raw.githubusercontent.com/jpfraneto/tohseno/862ca6cd3d396271b56b336fee0513ddcf6ecc64/contracts/src/ShotRegistry.sol"
+    }
+  ],
+  "review_priorities": [
+    "P-256 input and exact return semantics",
+    "P-256 low-s enforcement",
+    "ERC-1271 authorization and malicious return data",
+    "device permissions, epochs, nonces and exact counters",
+    "delayed recovery, active-admin veto and permissionless finalization",
+    "nonce and inclusive-deadline replay boundaries",
+    "cross-chain and cross-contract EIP-712 domain separation",
+    "CREATE2 prediction and idempotent deployment behavior",
+    "registration commit/reveal front-running, timestamp reset and griefing",
+    "checkpoint append and transfer integrity",
+    "EIP-7702 controller exclusion",
+    "denial of service and invariant completeness"
+  ],
+  "live_x402_terms_observed_at": "2026-07-31T21:47:14Z",
+  "live_x402_terms": {
+    "version": 2,
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "amount_base_units": "1000000",
+    "pay_to": "0xCfB32a7d01Ca2B4B538C83B2b38656D3502D76EA",
+    "max_timeout_seconds": 300
+  },
+  "payer": "0x1eaF00a3F027275077253713C5bF7d0fAC44207F",
+  "payer_base_usdc_balance_observed_base_units": "2030000",
+  "prior_payment": {
+    "transaction": "0x3447833c959f8adf82b5b7d17b47c57bca9271adcb8d5161ea2d38e405c5f994",
+    "job_created": false,
+    "must_not_be_repaid_automatically": true
+  },
+  "authorization": {
+    "fresh_payment_authorized": false,
+    "authorized_at": null,
+    "authorized_by": null
+  },
+  "job": {
+    "job_id": null,
+    "status_url": null,
+    "report_url": null,
+    "status": "not_created"
+  }
+}

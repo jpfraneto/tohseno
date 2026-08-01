@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tohseno.com/protocol/schemas/builder-account-action-v2.schema.json",
   "title": "TOHSENO BuilderAccount contract-generation 0.8 EIP-712 action",
+  "$comment": "Semantic validation additionally requires action.account to equal the EIP-712 verifyingContract and forbids recovery/current_recovery/new_recovery from equaling action.account.",
   "oneOf": [
     {
       "$ref": "actions.schema.json#/$defs/authorizeDevice"

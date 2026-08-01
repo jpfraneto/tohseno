@@ -5,7 +5,8 @@ import {TestBase} from "./TestBase.sol";
 import {BuilderAccount} from "../src/BuilderAccount.sol";
 
 /// @dev Runtime installed at 0x100 in tests. Slot 0 is an optional expected digest.
-/// Slot 1 selects output: 0=valid, 1=zero word, 2=31 bytes, 3=empty, 4=revert, 5=word two.
+/// Slot 1 selects output: 0=valid, 1=zero word, 2=31 bytes, 3=empty, 4=revert,
+/// 5=word two, 6=validate the complete EIP-7951 input stored in slots 0 and 2-5.
 contract ConfigurableP256Precompile {
     fallback() external {
         assembly ("memory-safe") {
@@ -22,6 +23,16 @@ contract ConfigurableP256Precompile {
             case 4 { revert(0, 0) }
             case 5 {
                 mstore(0, 2)
+                return(0, 32)
+            }
+            case 6 {
+                if iszero(eq(calldatasize(), 160)) { return(0, 0) }
+                if iszero(eq(calldataload(0), sload(0))) { return(0, 0) }
+                if iszero(eq(calldataload(32), sload(2))) { return(0, 0) }
+                if iszero(eq(calldataload(64), sload(3))) { return(0, 0) }
+                if iszero(eq(calldataload(96), sload(4))) { return(0, 0) }
+                if iszero(eq(calldataload(128), sload(5))) { return(0, 0) }
+                mstore(0, 1)
                 return(0, 32)
             }
             default {
@@ -61,6 +72,15 @@ abstract contract ProtocolTestBase is TestBase {
 
     function setP256Mode(uint256 mode) internal {
         vm.store(P256_PRECOMPILE, bytes32(uint256(1)), bytes32(mode));
+    }
+
+    function setP256ExpectedInput(bytes32 digest, uint256 r, uint256 s, uint256 x, uint256 y) internal {
+        vm.store(P256_PRECOMPILE, bytes32(uint256(0)), digest);
+        vm.store(P256_PRECOMPILE, bytes32(uint256(2)), bytes32(r));
+        vm.store(P256_PRECOMPILE, bytes32(uint256(3)), bytes32(s));
+        vm.store(P256_PRECOMPILE, bytes32(uint256(4)), bytes32(x));
+        vm.store(P256_PRECOMPILE, bytes32(uint256(5)), bytes32(y));
+        setP256Mode(6);
     }
 
     function p256Signature(uint256 x, uint256 y) internal pure returns (bytes memory) {

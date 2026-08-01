@@ -1,0 +1,61 @@
+{
+  "schema": "tohseno.external-audit-recovery-evidence/1",
+  "checked_at": "2026-07-31T23:52:02Z",
+  "authorization_value": "read_only_recovery_evidence",
+  "network": {
+    "name": "Base mainnet",
+    "chain_id": 8453,
+    "rpc": "explicit-public-target"
+  },
+  "payment": {
+    "transaction_hash": "0x3447833c959f8adf82b5b7d17b47c57bca9271adcb8d5161ea2d38e405c5f994",
+    "status": 1,
+    "block_number": 49371261,
+    "block_number_hex": "0x2f1587d",
+    "block_hash": "0x2b723b80a315c2e143796da4272ab8057fc930dbfe6fc618a50ed79fa73a0ad3",
+    "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    "from": "0x1eaf00a3f027275077253713c5bf7d0fac44207f",
+    "to": "0xcfb32a7d01ca2b4b538c83b2b38656d3502d76ea",
+    "amount_base_units": "1000000",
+    "amount_usdc": "1.000000"
+  },
+  "pay_to_balance": {
+    "address": "0xcfb32a7d01ca2b4b538c83b2b38656d3502d76ea",
+    "before_payment": {
+      "block_number": 49371260,
+      "block_number_hex": "0x2f1587c",
+      "block_hash": "0x6a0732637009e860304bf84f3f446724c5ffd1561ead61e3d7a7b47d926e48f9",
+      "usdc_base_units": "47430996"
+    },
+    "at_payment_block": {
+      "block_number": 49371261,
+      "block_number_hex": "0x2f1587d",
+      "block_hash": "0x2b723b80a315c2e143796da4272ab8057fc930dbfe6fc618a50ed79fa73a0ad3",
+      "usdc_base_units": "48430996"
+    },
+    "at_recovery_check": {
+      "block_number": 49376285,
+      "block_number_hex": "0x2f16c1d",
+      "block_hash": "0x5f9ccec5fe76b44de5eaa258d0e60b3b8633d0c42174a2f6d1caf82364a2afe9",
+      "usdc_base_units": "48430996"
+    },
+    "increase_at_payment_base_units": "1000000",
+    "post_payment_balance_unchanged_at_recovery_check": true
+  },
+  "job_contract": {
+    "address": "0xb2fb486a9569ad2c97d9c73936b46ef7fdaa413a",
+    "client": "0x1eaf00a3f027275077253713c5bf7d0fac44207f",
+    "checked_block_number": 49376285,
+    "checked_block_hash": "0x5f9ccec5fe76b44de5eaa258d0e60b3b8633d0c42174a2f6d1caf82364a2afe9",
+    "get_jobs_by_client": [],
+    "next_job_id": 524,
+    "total_jobs": 523,
+    "delayed_job_found": false
+  },
+  "recovery_issue": {
+    "url": "https://github.com/clawdbotatg/leftclaw-services/issues/58",
+    "evidence_comment_url": "https://github.com/clawdbotatg/leftclaw-services/issues/58#issuecomment-5148414853"
+  },
+  "conclusion": "The authorized 1.000000 USDC payment settled, the provider pay-to balance increased by exactly that amount and remained at the post-payment value at the recovery check, but no job exists for the client after later jobs were created.",
+  "fresh_payment_authorized": false
+}

@@ -165,5 +165,5 @@
       }
     }
   },
-  "$comment": "The signing digest is SHA-256('TOHSENO-CONTRACT-ACTIVATION-V1\\0' || RFC8785(payload)). Semantic validation additionally binds the immutable generation definition, exact runtime hashes and predicted addresses, deployment observations, activation-block ordering, and fresh target-RPC P256 probe digest."
+  "$comment": "The signing digest is SHA-256('TOHSENO-CONTRACT-ACTIVATION-V1\\0' || RFC8785(payload)). Semantic validation binds the immutable generation definition, predicted addresses, exact instantiated runtime hashes approved by release authorities, deployment observations, activation-block ordering, and fresh target-RPC P256 probe digest. Generation runtime hashes are compiler templates and can differ at Solidity immutable-reference offsets."
 }

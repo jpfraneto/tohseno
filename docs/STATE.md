@@ -37,12 +37,14 @@ The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
 
-## The contracts, and the fact that none are deployed
+## The contracts and their inactive deployment
 
-`contracts/src/` holds four Solidity sources. None of them — and no TOHSENO
-contract of any generation — is deployed on any network. They exist so that,
-if a public witness layer is ever activated, its design is already reviewed,
-tested, and reproducible.
+`contracts/src/` holds six successor Solidity source files. On 2026-08-01 UTC the
+exact generation 0.8.0 `BuilderAccountFactory` and `ShotRegistry` were deployed
+to Robinhood Chain mainnet as an inactive, untrusted candidate. They are not in
+any client trust root, no Builder account or Shot was created by that ceremony,
+and deployment is not activation. Public evidence is
+`contracts/audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json`.
 
 `BuilderAccount` is a non-upgradeable smart account controlled by P-256 device
 keys (the kind Apple hardware produces). It keeps separate counts of active
@@ -71,16 +73,16 @@ deployment and release-build commands for it fail closed on purpose.
 
 Generation 0.8.0 is the remediated successor: the sources currently in
 `contracts/src/`, with a reproducible build definition committed at
-`contracts/generations/0.8.0/generation.json`. It is a build definition only —
-inactive, undeployed, and identifying no chain state. Before it could ever be
-activated, all of the following must happen, none of which has: an independent
-security audit; creation of a release-authority policy (a trust root, which is
-deliberately not committed to this repository); a threshold-signed activation
-record binding the generation digest, the chain, observed addresses and
-runtime code hashes, the deployment transactions, and a canonical activation
-block; and a fresh EIP-7951 probe of the actual target RPC immediately before
-broadcast. Until such a signed activation exists, new secure public identity
-creation and all public signing in the engine fail closed. The private local
+`contracts/generations/0.8.0/generation.json`. The definition remains a build
+definition only; separate evidence records the inactive chain deployment. Two
+independent AI audits are complete, but a human/competitive review, the
+three-day production canary, a release-authority policy, and a threshold-signed
+activation remain outstanding. Post-deployment verification also found and
+fixed an off-chain activation-validator assumption: compiler runtime templates
+contain zero placeholders for Solidity immutables, while instantiated runtime
+bytes are constructor-patched. ADR 0010 governs the exact distinction. Until a
+signed activation exists and clients pin its policy digest, new secure public
+identity creation and all public signing in the engine fail closed. The private local
 lifecycle does not wait on that: on a machine with no identity, the first
 Shot now creates a local, explicitly test-only Builder identity by default
 (it can never authorize a public action); only an explicit
@@ -116,10 +118,10 @@ appears.
 
 ## Deliberately deferred
 
-Public deployment and everything downstream of it (durable public BuilderIDs,
-the public witness registry, publication receipts) wait on the audit and
-activation chain described above; the project treats an unaudited deployment
-as worse than none. Network-capable generated apps wait until exact endpoint
+Public activation and everything downstream of it (durable public BuilderIDs,
+the public witness registry, publication receipts) wait on the remaining audit,
+canary, and activation chain described above. Network-capable generated apps
+wait until exact endpoint
 declarations can be proven rather than trusted. The other protected Apple
 capabilities wait until each has a declaration and policy as tight as the one
 notifications got. Device-key replacement for the frozen v0.7 identities is

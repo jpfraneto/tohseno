@@ -354,6 +354,9 @@ pub struct ContractBuild {
     pub abi: BuildArtifact,
     pub creation_bytecode: Option<BuildArtifact>,
     pub creation_code_keccak256: Bytes32,
+    /// Keccak-256 of the compiler's deployed-bytecode template. Solidity leaves
+    /// zero placeholders at immutable-reference offsets; this is therefore not
+    /// necessarily the hash of runtime bytes instantiated by a constructor.
     pub runtime_code_keccak256: Bytes32,
 }
 

@@ -305,6 +305,13 @@ The frozen v0.7 model remains `DeviceAction`; the successor model is
 are `schemas/builder-account-action-v2.schema.json` and
 `test-vectors/builder-account-v2.json`.
 
+For every `BuilderAccountActionV2`, `action.account` MUST equal the EIP-712
+domain's `verifyingContract`. A recovery address encoded as `recovery`,
+`currentRecovery`, or `newRecovery` MUST NOT equal `action.account`. These are
+semantic validation rules in addition to JSON Schema: the deployed contract
+hashes itself as `account` and rejects itself as a recovery authority, so any
+other combination is unexecutable and MUST fail before signing.
+
 ## ShotRegistry contract generation 0.8
 
 The v0.7 registry and relations actions above remain frozen decoding inputs
@@ -424,7 +431,10 @@ private until a distinct closed, ancestry-free public relation record exists.
 deployment. It closes over the protocol major, generation and component
 versions, target chain and EIP-7951 requirement, exact source inventory,
 compiler profile, ABI artifacts, portable BuilderAccount creation bytecode,
-creation/runtime code hashes, and conditional CREATE2 coordinates.
+creation code hashes, compiler deployed-bytecode template hashes, and
+conditional CREATE2 coordinates. A compiler runtime template contains zero
+placeholders at Solidity immutable-reference offsets; it is not necessarily
+the byte sequence installed by a constructor.
 
 The definition MUST NOT contain deployment status, transaction or block
 evidence, activation authority, signatures, or a trust root. A predicted
@@ -466,6 +476,13 @@ SHA-256(
   RFC8785(contract_activation)
 )
 ```
+
+The runtime hashes in an activation are hashes of exact instantiated on-chain
+bytes. For a contract with Solidity immutables, they MUST NOT be compared to
+the generation's compiler-template hash as if the placeholder bytes were an
+instance. Release review MUST instead reproduce the instance from the exact
+bound creation input and compare the resulting runtime bytes, while the
+threshold signatures approve the observed instantiated hashes.
 
 `tohseno.release-authority-policy/1` contains a threshold and a strictly
 ordered set of curve-valid offline P-256 keys. Release key IDs use

@@ -34,6 +34,19 @@ contract P256VerifierTest is ProtocolTestBase {
         assertEqBytes4(account.isValidSignature(digest, signature), account.ERC1271_MAGIC_VALUE());
     }
 
+    function testWrapperUsesExactOfficialEip7951InputOrder() public {
+        bytes32 digest = 0xbb5a52f42f9c9261ed4361f59422a1e30036e7c32b270c8807a419feca605023;
+        uint256 r = 0x2ba3a8be6b94d5ec80a6d9d1190a436effe50d85a1eee859b8cc6af9bd5c2e18;
+        uint256 s = 0x4cd60b855d442f5b3c7b11eb6c4e0ae7525fe710fab9aa7c77a67f79e6fadd76;
+        bytes memory signature = abi.encodePacked(bytes1(0x01), KEY3_X, KEY3_Y, r, s);
+        setP256ExpectedInput(digest, r, s, KEY3_X, KEY3_Y);
+
+        (bool valid, bytes32 signerKeyId) = harness.verify(digest, signature);
+
+        assertTrue(valid);
+        assertEq(signerKeyId, P256Verifier.keyId(KEY3_X, KEY3_Y));
+    }
+
     function testRejectsWrongVersionAndLength() public {
         bytes32 digest = keccak256("encoding");
         setP256Expected(digest);

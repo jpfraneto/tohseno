@@ -258,7 +258,8 @@
           "$ref": "common.schema.json#/$defs/nonzeroBytes32"
         },
         "runtime_code_keccak256": {
-          "$ref": "common.schema.json#/$defs/nonzeroBytes32"
+          "$ref": "common.schema.json#/$defs/nonzeroBytes32",
+          "$comment": "Keccak-256 of the compiler deployed-bytecode template. Solidity immutable-reference offsets contain zero placeholders here; an instantiated contract can therefore have a different observed runtime hash."
         }
       }
     },

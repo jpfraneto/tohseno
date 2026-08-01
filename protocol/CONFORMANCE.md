@@ -59,6 +59,16 @@ record:
 Recovery verification uses the separate secp256k1 authority and MUST require a
 nonzero new recovery address.
 
+## BuilderAccount generation 0.8 checks
+
+| Check ID | Required observation |
+|---|---|
+| `builder_v2.generation` | The action dispatches as exact `tohseno.builder-account-action/2`; no frozen v0.7 recovery action is reinterpreted. |
+| `builder_v2.domain` | Name is `TOHSENO BuilderAccount`, version is `1`, chain is 4663, and `action.account` exactly equals the domain verifying contract. |
+| `builder_v2.recovery_coordinates` | Every recovery address is nonzero and differs from the BuilderAccount itself; current recovery matches observed contract state before signing. |
+| `builder_v2.action_digest` | Exact type string, ABI word order, struct hash, and `0x1901` digest reproduce the frozen generation-0.8 vector law. |
+| `builder_v2.live_authority` | Required device permission or recovery authority, nonce, deadline, pending recovery, epoch, and counters are checked against the intended account state. |
+
 ## ShotRegistry generation 0.8 checks
 
 | Check ID | Required observation |
@@ -83,7 +93,7 @@ nonzero new recovery address.
 | `contract_generation.digest` | SHA-256 of exact RFC 8785 definition bytes matches the frozen vector. |
 | `contract_generation.source` | Every declared source file matches its byte length and SHA-256; the strictly ordered domain-separated source-tree digest recomputes exactly. |
 | `contract_generation.build` | solc, EVM target, optimizer, metadata, IR, and Foundry facts match the committed profile. |
-| `contract_generation.artifacts` | Every versioned ABI and BuilderAccount creation-bytecode artifact matches its byte length and SHA-256; raw creation and runtime code hashes match the build. |
+| `contract_generation.artifacts` | Every versioned ABI and BuilderAccount creation-bytecode artifact matches its byte length and SHA-256; raw creation hashes and compiler deployed-bytecode template hashes match the build. Immutable-reference placeholders are not misreported as instantiated runtime bytes. |
 | `contract_generation.create2` | Each predicted coordinate recomputes under EIP-1014 from the declared deployer, salt, and init-code hash and is reported only as conditional arithmetic. |
 | `contract_generation.p256` | The requirement is final EIP-7951 at `0x100` with 6,900 gas, never legacy RIP-7212 semantics. |
 | `contract_generation.inactive` | The build definition contains no deployment/transaction/block/authority/signature/trust-root evidence and is never accepted as activation. |
@@ -92,7 +102,7 @@ nonzero new recovery address.
 
 | Check ID | Required observation |
 |---|---|
-| `contract_activation.definition` | Activation generation, protocol major, chain, predicted factory/registry addresses, approved BuilderAccount runtime, and all observed runtime hashes match the exact immutable definition digest. |
+| `contract_activation.definition` | Activation generation, protocol major, chain, and predicted factory/registry addresses match the exact immutable definition digest. The factory instance matches its template because it has no immutables; BuilderAccount and registry instantiated runtime hashes are independently reproduced from exact creation inputs and approved by the threshold rather than compared to zero-placeholder templates. |
 | `contract_activation.evidence` | Deployment transaction/block evidence is nonzero; the canonical activation block is at or after both deployments; the actual-target P256 probe digest is present. |
 | `contract_activation.causality` | Sequence starts at one/null and each successor increments once, names the prior activation signing digest, advances block height, and does not move time backward. |
 | `contract_activation.digest` | SHA-256 of `TOHSENO-CONTRACT-ACTIVATION-V1\0` plus exact RFC 8785 payload bytes is the approval digest. |

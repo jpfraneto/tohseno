@@ -177,18 +177,25 @@ is normative. Probe output is evidence, not reusable authorization.
 
 ## Deployment status
 
-There is no deployment command on `main`.
+Generation 0.8.0 is deployed on Robinhood Chain mainnet as an inactive,
+untrusted candidate. There is still no deployment command on `main`.
+
+- `BuilderAccountFactory`:
+  `0xb1bd208cd2af98e701f43d06aaa889d3a594df65`
+- `ShotRegistry`: `0x3fe6508ba2660bc575080024f402c192a2e035a0`
+- public evidence:
+  `audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json`
+
+Deployment did not activate the generation, create a Builder, publish a Shot,
+or authorize a token launch. ADR 0010 distinguishes compiler runtime templates
+from constructor-patched runtime instances for the activation record.
 
 The v0.7 deployment, mainnet lifecycle, Genesis archive builder, and stable
 release builder fail closed. Their immutable historical implementations remain
-auditable at tag `v0.7.1`. A successor deployment path will exist only after
-the actual target RPC passes the complete EIP-7951 positive, negative,
-infinity-edge, and 6,900-gas hard gate and the final generation coordinates
-are committed in a separately authorized release activation. The immutable
-0.8.0 build definition is committed, but no activation record or release
-authority trust root exists.
-
-No contract in this repository has been deployed by this work.
+auditable at tag `v0.7.1`. The inactive successor deployment passed the
+complete EIP-7951 positive, negative, infinity-edge, and 6,900-gas hard gate.
+The immutable 0.8.0 build definition and deployment evidence are committed,
+but no activation record or release-authority trust root exists.
 
 See
 [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](../docs/MIGRATION_0_8_CONTRACT_GENERATION.md)

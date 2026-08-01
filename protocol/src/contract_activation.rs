@@ -289,14 +289,11 @@ impl ContractActivation {
                 "does not bind the supplied generation exactly",
             ));
         }
-        if self.builder_account_runtime_keccak256
-            != generation.contracts.builder_account.runtime_code_keccak256
-        {
-            return Err(invalid(
-                "contract_activation.builder_account_runtime_keccak256",
-                "does not match the generation",
-            ));
-        }
+        // The generation records compiler deployed-bytecode template hashes.
+        // BuilderAccount and ShotRegistry contain Solidity immutables, whose
+        // zero template placeholders are constructor-patched in live runtime
+        // code. The activation separately approves those exact instantiated
+        // hashes; equality to a template hash would reject every real instance.
         if self.factory.address != generation.create2.builder_account_factory.predicted_address
             || self.factory.runtime_code_keccak256
                 != generation
@@ -309,13 +306,10 @@ impl ContractActivation {
                 "does not match the generation",
             ));
         }
-        if self.registry.address != generation.create2.shot_registry.predicted_address
-            || self.registry.runtime_code_keccak256
-                != generation.contracts.shot_registry.runtime_code_keccak256
-        {
+        if self.registry.address != generation.create2.shot_registry.predicted_address {
             return Err(invalid(
                 "contract_activation.registry",
-                "does not match the generation",
+                "address does not match the generation",
             ));
         }
         Ok(())

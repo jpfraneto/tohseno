@@ -207,8 +207,15 @@ fn generation_and_successor_mismatches_fail_closed() {
     let (policy, keys) = policy_and_keys();
     let first = activation(&generation, &policy);
 
+    let mut instantiated_runtime = first.clone();
+    instantiated_runtime.builder_account_runtime_keccak256 = Bytes32::new([0xaa; 32]);
+    instantiated_runtime.registry.runtime_code_keccak256 = Bytes32::new([0xbb; 32]);
+    instantiated_runtime
+        .validate_against_generation(&generation)
+        .unwrap();
+
     let mut wrong_runtime = first.clone();
-    wrong_runtime.registry.runtime_code_keccak256 = Bytes32::new([0xbb; 32]);
+    wrong_runtime.factory.runtime_code_keccak256 = Bytes32::new([0xbb; 32]);
     assert!(wrong_runtime
         .validate_against_generation(&generation)
         .is_err());

@@ -1,0 +1,469 @@
+{
+  "schema": "tohseno.contract-candidate-readiness/1",
+  "record_kind": "production_readiness_evidence",
+  "observed_at": "2026-08-01T02:32:41Z",
+  "ready": false,
+  "deployment_authorized": false,
+  "activation_authorized": false,
+  "repository": {
+    "base_commit": "e3f1396e38ad7180ff619dfc7e932ce797850c8e",
+    "branch": "main",
+    "worktree_clean": false,
+    "worktree_understood": true,
+    "unrelated_changes_preserved": true,
+    "preexisting_understood_dirty_scope": [
+      "BANKR_DEPLOYMENT_CHECKLIST.md",
+      "cli/src/bankr_launch.rs",
+      "cli/src/studio_server.rs",
+      "studio/README.md",
+      "studio/app.js",
+      "studio/index.html",
+      "studio/style.css",
+      "studio/tests/static_assets.test.mjs",
+      "PRODUCTION_LIFECYCLE_PROMPT.md",
+      "brand/logos/bankr-symbol-full-color.svg",
+      "contracts/audits/ONEDOLLAR_AUDIT_2026-07-31.md",
+      "contracts/audits/PREAUDIT_0_8_0_2026-07-31.md"
+    ]
+  },
+  "generation": {
+    "version": "0.8.0",
+    "definition": "contracts/generations/0.8.0/generation.json",
+    "definition_sha256": "0x618fbd1ef9f826a2a642f94733192b130023e7f85db95d9ab066768e8abdf895",
+    "source_commit": "862ca6cd3d396271b56b336fee0513ddcf6ecc64",
+    "source_commit_present_locally": true,
+    "source_commit_reachable_from_origin_main": true,
+    "source_tree_sha256": "0x5d8c56423f9b9cb97d8e05834a6a2e776034b1257a186e47f25869bf509910c3",
+    "source_immutable": true,
+    "unversioned_next_projection_is_authority": false,
+    "retired_v0_7_is_deployable": false
+  },
+  "target": {
+    "name": "Robinhood Chain mainnet",
+    "chain_id": 4663,
+    "rpc": "https://rpc.mainnet.chain.robinhood.com",
+    "payer": "0x1eaF00a3F027275077253713C5bF7d0fAC44207F"
+  },
+  "compiler": {
+    "solc_version": "0.8.30",
+    "evm_version": "cancun",
+    "optimizer": true,
+    "optimizer_runs": 10000,
+    "via_ir": false,
+    "cbor_metadata": false,
+    "bytecode_hash": "none",
+    "forge_version": "1.3.5-stable",
+    "forge_commit": "9979a41b5daa5da1572d973d7ac5a3dd2afc0221"
+  },
+  "contracts": {
+    "builder_account": {
+      "creation_code_keccak256": "0xd7a8e6d4678ba3cdfd73750c75455b2d29cf0ec3ef3190c94adfb6baf15e7405",
+      "runtime_code_keccak256": "0xfb669f5ab8e1d9a665bcde72f09f8d38c781c6b30056a516244a4abf0cc1afe7"
+    },
+    "builder_account_factory": {
+      "creation_code_keccak256": "0x4a06468df5e31a81a23c5874258de8b3c3c70031a27c98fb8ef677f061c854eb",
+      "runtime_code_keccak256": "0xb880403ff0da9a3f4c0c982cdea56fb198912c66bc436305e20861378f45c5f4",
+      "predicted_address": "0xb1bd208cd2af98e701f43d06aaa889d3a594df65"
+    },
+    "shot_registry": {
+      "creation_code_keccak256": "0x865bf1508195e35de9e0b0620f0bbc9026485a6022e755369ce6fad1c825cf6b",
+      "runtime_code_keccak256": "0xb6279467956165a9520803fdfe5a2254c98569b71541bf67d57fcd54ab3a2524",
+      "runtime_code_hash_kind": "compiler_template_with_immutable_placeholders",
+      "observed_instantiated_runtime_keccak256": "0xfc80358a8f52ac8ae96691fecb611ade47447df79274e70defdd37989f3ca5e0",
+      "predicted_address": "0x3fe6508ba2660bc575080024f402c192a2e035a0"
+    },
+    "create2_deployer": {
+      "address": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "expected_runtime_byte_length": 69,
+      "expected_runtime_keccak256": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989"
+    }
+  },
+  "local_gates": [
+    {
+      "command": "cargo fmt --all --check",
+      "status": "pass"
+    },
+    {
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "status": "pass",
+      "tests_passed": 272
+    },
+    {
+      "command": "swift build --package-path apple-identity",
+      "status": "pass"
+    },
+    {
+      "command": "swift test --package-path apple-identity",
+      "status": "pass",
+      "tests_passed": 7
+    },
+    {
+      "command": "swift test --package-path fascia/apple",
+      "status": "pass",
+      "tests_passed": 9
+    },
+    {
+      "command": "forge fmt --check --root contracts",
+      "status": "pass"
+    },
+    {
+      "command": "forge build --sizes --root contracts",
+      "status": "pass"
+    },
+    {
+      "command": "forge test --root contracts -vvv",
+      "status": "pass",
+      "tests_passed": 81
+    },
+    {
+      "command": "forge snapshot --root contracts --check .gas-snapshot --fuzz-seed 0x746f6873656e6f --fuzz-runs 256",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/tests/test-probe-p256.sh",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/tests/test-verify-contract-candidate-preflight.sh",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/build-contract-abi.sh --check",
+      "status": "pass"
+    },
+    {
+      "command": "node --test studio/tests/static_assets.test.mjs",
+      "status": "pass",
+      "tests_passed": 10
+    },
+    {
+      "command": "cargo clippy -p tohseno-protocol --all-targets -- -D warnings",
+      "status": "pass"
+    },
+    {
+      "command": "regenerate and byte-compare protocol-v1, registry-v2, public-checkpoint and contract-generation-v1 vectors",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/test-ontology-lifecycle.sh",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/tests/test-verify-contract-activation.sh",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/tests/test-prepare-release-authority-policy.sh",
+      "status": "pass"
+    },
+    {
+      "command": "./scripts/tests/test-contract-production-readiness.sh",
+      "status": "pass"
+    }
+  ],
+  "security_review": {
+    "internal_pre_audit": "contracts/audits/PREAUDIT_0_8_0_2026-07-31.md",
+    "internal_pre_audit_sha256": "ee3f9b755ca8c80c19b6e22ad0abdb8e608e8836406a1792b38a8c10b332d73e",
+    "manual_review_status": "complete_for_internal_and_two_independent_ai_reviews",
+    "manual_review_surfaces": [
+      "external calls and exact ERC-1271 return handling",
+      "P-256 input, curve and low-s semantics",
+      "EIP-712 domains and action field order",
+      "device and recovery nonces, deadlines and epochs",
+      "recovery delay, veto, finalization and exact counters",
+      "CREATE2 prediction and front-run idempotence",
+      "registration commit/reveal inclusivity and timestamp preservation",
+      "checkpoint append, transfer and stale-action refusal",
+      "EIP-7702 controller exclusion",
+      "timestamp and integer overflow boundaries"
+    ],
+    "slither": {
+      "version": "0.11.6",
+      "contracts_analyzed": 6,
+      "detector_count": 27,
+      "medium": 2,
+      "low": 12,
+      "informational": 13,
+      "actionable_findings": 0,
+      "disposition": "The two medium strict-equality reports are required zero and exact ERC-1271 magic comparisons. Low timestamp and zero-check reports and informational assembly, call and literal reports match reviewed protocol boundaries."
+    },
+    "aderyn": {
+      "version": "0.6.8",
+      "contracts_analyzed": 6,
+      "detectors_run": 88,
+      "high_detector_classes": 1,
+      "low_detector_classes": 4,
+      "actionable_findings": 0,
+      "disposition": "The high packed-encoding report targets invariant creation code concatenated with fixed-width ABI constructor data. Low ecrecover and address reports are covered by strict low-s/v checks and pre-assignment authority guards; remaining reports are style/API suggestions."
+    },
+    "independent_ai_audit_complete": true,
+    "independent_ai_audits": [
+      {
+        "auditor": "Claude Fable 5 via Claude Code CLI",
+        "report": "contracts/audits/FABLE_5_AUDIT_0_8_0_2026-07-31.md",
+        "report_sha256": "c627f9fdb40e9d8c3c624f05eb4e5a22206fe45fd3b4d1fa1c51d32d606693e5",
+        "recommendation": "CONDITIONAL_GO",
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 3
+      },
+      {
+        "auditor": "GPT-5.6-Sol xhigh",
+        "report": "contracts/audits/GPT_5_6_SOL_AUDIT_0_8_0_2026-07-31.md",
+        "report_sha256": "c032475b73ab9f94450d86f4a91489d531ad76efe2209aa491ba4ad5ae3a8d53",
+        "recommendation": "NO_GO_CURRENT_STATE",
+        "critical": 0,
+        "high": 0,
+        "medium": 1,
+        "low": 2
+      }
+    ],
+    "independent_ai_disposition": "contracts/audits/INDEPENDENT_AI_AUDIT_DISPOSITION_0_8_0_2026-07-31.md",
+    "independent_ai_disposition_sha256": "9c481e134da4611c3e236513b53bfb42dfb2c7d98cd2f03ab2c2ba8fb691d3e9",
+    "unresolved_medium_findings": [],
+    "medium_finding_disposition": "GPT M-01 is governed by accepted ADR 0008; exact-code provenance was established and preactivation state remains untrusted.",
+    "independent_human_or_competitive_audit_complete": false,
+    "manual_audit_brief": "release/CONTRACT_0_8_MANUAL_AUDIT_BRIEF.md",
+    "manual_audit_brief_sha256": "6e0f42fc2655385ffa2222be5278b6a2c1b4027fbd313edc8b76d3e24d26a1b8",
+    "manual_audit_provider_selected": false,
+    "manual_audit_spend_authorized": false
+  },
+  "external_audit": {
+    "request_record": "contracts/audits/ONEDOLLAR_AUDIT_0_8_0_REQUEST.json",
+    "request_record_sha256": "25a9c679805a6278f2e08676cc9fc549cf125793f4074e3c6951b0d0c9f4e429",
+    "prior_payment_record": "contracts/audits/ONEDOLLAR_AUDIT_2026-07-31.md",
+    "prior_payment_created_job": false,
+    "provider_recovery_request": "contracts/audits/ONEDOLLAR_AUDIT_RECOVERY_REQUEST_2026-07-31.md",
+    "provider_recovery_request_sha256": "9ca886cdd72709a3aa70f17eeabc9937e6676fcb683dcd45b5ea699bb95eb5b2",
+    "provider_recovery_request_sent": true,
+    "provider_recovery_issue_number": 58,
+    "provider_recovery_issue_url": "https://github.com/clawdbotatg/leftclaw-services/issues/58",
+    "provider_recovery_issue_created_at": "2026-07-31T23:22:35Z",
+    "provider_recovery_issue_last_checked_at": "2026-08-01T02:12:31Z",
+    "provider_recovery_issue_state": "open",
+    "provider_recovery_issue_comment_count": 1,
+    "provider_recovery_evidence_comment_url": "https://github.com/clawdbotatg/leftclaw-services/issues/58#issuecomment-5148414853",
+    "provider_recovery_chain_evidence": "contracts/audits/ONEDOLLAR_AUDIT_RECOVERY_EVIDENCE_2026-07-31.json",
+    "provider_recovery_chain_evidence_sha256": "46cf854e06214c301e5fa4fed07f280a3249ceb594fc0c332d7e1aef67596ff2",
+    "job_contract_jobs_for_client": 0,
+    "job_contract_total_jobs_at_check": 523,
+    "provider_pay_to_balance_increased_by_payment": true,
+    "provider_pay_to_balance_unchanged_since_payment": true,
+    "fresh_payment_authorized": false,
+    "job_id": null,
+    "report_sha256": null,
+    "release_blocking": false,
+    "release_blocking_reason": "Two independent local AI audits now satisfy the independent-AI review gate. Provider recovery remains owed evidence and must not trigger a duplicate payment."
+  },
+  "release_authority": {
+    "proposed_runbook": "release/CONTRACT_0_8_RELEASE_AUTHORITY_RUNBOOK.md",
+    "proposed_runbook_sha256": "84439b21b4e84bb3a98f6cb2f383da259b41da30cc9522cff5453e0db486c195",
+    "proposed_threshold": 2,
+    "proposed_authority_count": 3,
+    "owner_accepted_design": false,
+    "production_policy_exists": false,
+    "trusted_policy_digest": null,
+    "offline_fixture_drill": "pass",
+    "second_independent_verifier": true,
+    "independent_verifier": "scripts/verify-contract-activation.py",
+    "independent_verifier_sha256": "abeb2954537b043c89b62fdeb93e73902d907939e51e8192c2bf0319351673b6",
+    "independent_verifier_reviewed": false,
+    "public_policy_preparer": "scripts/prepare-release-authority-policy.py",
+    "public_policy_preparer_sha256": "d55a30a3d1d2195315700c4e422ef2e2afac68237ef457817c70c2b1b46fec38",
+    "independent_policy_digest_verifier": "protocol/examples/verify_release_authority_policy.rs",
+    "independent_policy_digest_verifier_sha256": "54aec8b808561b9a5f73bc243aaa102e445d001aaca49f25f9e52a9a004be628",
+    "public_policy_preparation_safety_test": "scripts/tests/test-prepare-release-authority-policy.sh",
+    "public_policy_preparation_safety_test_sha256": "0f9ae34efeb2bdbfac7a402ef31fffcd3fd93719144a748c0cdb9ab5694a457e",
+    "public_policy_preparation_test": "pass",
+    "production_private_keys_generated": false,
+    "production_public_policy_constructed": false
+  },
+  "deployment_authority": {
+    "proposal": "release/CONTRACT_0_8_0_DEPLOYMENT_AUTHORITY_PROPOSAL.md",
+    "proposal_sha256": "d7a9800e345ea0c48999f52382a8ebb41982cc55a30e6dfc7699a3a9ff0dc26b",
+    "owner_decision": "accepted_inactive_deployment_only_and_consumed",
+    "accepted_policy_or_adr_exists": true,
+    "prepared_operator_runbook": "release/CONTRACT_0_8_0_INACTIVE_DEPLOYMENT_CEREMONY.md",
+    "prepared_operator_runbook_sha256": "412ccab1042b2b553483beecc0fdcf4a729978c9f76a3e5417a316851164d812",
+    "create2_risk_policy_proposal": "docs/adr/0008-create2-provenance-and-preactivation-state.md",
+    "create2_risk_policy_proposal_sha256": "9f010685344723a2db8523a50bc01373fc6cafc6a71e059cb7796a72c7d24525",
+    "create2_risk_policy_status": "accepted",
+    "unresolved_medium_finding": null,
+    "read_only_preflight_verifier": "scripts/verify-contract-candidate-preflight.py",
+    "read_only_preflight_verifier_sha256": "97d5b7d9275cd447110c8353c73b7f1e24f1538c75c3f283c2f66401f09cd9fa",
+    "read_only_preflight_safety_test": "scripts/tests/test-verify-contract-candidate-preflight.sh",
+    "ceremony_implementation_exists": false,
+    "broadcast_authorized": false,
+    "broadcast_authorization_consumed": true,
+    "deployment_completed": true,
+    "deployment_evidence": "contracts/audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json",
+    "deployment_evidence_sha256": "79c69f090fdb1818798626ad279d43f4d36b8f5fa8b0b39d25b8f27377982ce7",
+    "activation_semantics_adr": "docs/adr/0010-instantiated-runtime-hash-binding.md",
+    "activation_semantics_adr_sha256": "9a1bbfda4bf5c7e86f6010d849089fa44d1f3c696ee772025ad7b20b06ba9bd3"
+  },
+  "read_only_robinhood_preflight": {
+    "authorization_value": "historical_consumed_ceremony_gate",
+    "reusable_for_deployment": false,
+    "checked_at": "2026-08-01T02:19:45Z",
+    "block_number_hex": "0x178835c",
+    "block_hash": "0x0e8634bd3d13ca616df5b3084d8f71dbe60159ff3b9ab15ffb1129aa237ac1dd",
+    "p256_evidence": "contracts/audits/robinhood-p256-ceremony-20260801T021920Z.json",
+    "p256_evidence_sha256": "12db825d0b11bced60723835992d964729ad15221c09e84054780280c39f9b27",
+    "p256_valid": true,
+    "p256_measured_gas": 6900,
+    "candidate_evidence": "contracts/audits/robinhood-contract-candidate-ceremony-20260801T021920Z.json",
+    "candidate_evidence_sha256": "362040bfbf817fa37b54c9d7e2ba3fb8e9d0b77d82faab61ce9bb3365ebd086b",
+    "candidate_checked_at": "2026-08-01T02:19:59Z",
+    "candidate_block_number_hex": "0x17883e3",
+    "candidate_block_hash": "0x68128b903bb5f8a90a79034cbaae28f9a2e7ee3b9b30adbaa97fa75ae42f9ae7",
+    "candidate_block_rechecked_canonical": true,
+    "create2_deployer_runtime_matches": true,
+    "predicted_factory_code_bytes": 0,
+    "predicted_registry_code_bytes": 0,
+    "factory_calldata_byte_length": 13937,
+    "factory_simulated_return": "0xb1bd208cd2af98e701f43d06aaa889d3a594df65",
+    "registry_calldata_byte_length": 8057,
+    "registry_simulated_return": "0x3fe6508ba2660bc575080024f402c192a2e035a0",
+    "payer_nonce": 0,
+    "payer_balance_wei": "777000000000000",
+    "factory_estimated_gas": 3086555,
+    "factory_estimated_cost_wei": "62780528700000",
+    "registry_estimated_gas": 1778196,
+    "registry_estimated_cost_wei": "36168506640000",
+    "observed_gas_price_wei": "20340000",
+    "combined_estimated_cost_wei": "98949035340000",
+    "payer_balance_covers_combined_estimate": true,
+    "private_key_accessed": false,
+    "transaction_signed": false,
+    "transaction_broadcast": false
+  },
+  "production_canary_preparation": {
+    "runbook": "release/CONTRACT_0_8_0_PRODUCTION_CANARY_RUNBOOK.md",
+    "runbook_sha256": "936ba8e737973871aed6ba79243000cea973760a7f43585358aae364a51ef3be",
+    "dedicated_keys_generated": false,
+    "funder_and_relayer_approved": false,
+    "maximum_spend_approved": false,
+    "transactions_authorized": false,
+    "started_at": null,
+    "recovery_matures_at": null,
+    "completed_at": null,
+    "result": "not_started"
+  },
+  "downstream_public_lifecycle_readiness": {
+    "gap_audit": "release/POST_ACTIVATION_PRODUCT_GAP_AUDIT.md",
+    "gap_audit_sha256": "304b818c42131dd7f0ceb1991901a3c2194782781a89d1ff20ab90b043166e44",
+    "private_creation_evolution_lifecycle_available": true,
+    "activated_generation_resolver_implemented": false,
+    "trusted_release_manifest_implemented": false,
+    "app_metadata_v3_schema_accepted": false,
+    "app_metadata_v3_implemented": false,
+    "successor_apple_fascia_accepted": false,
+    "successor_apple_fascia_implemented": false,
+    "public_builder_transaction_workflow_implemented": false,
+    "registry_publication_workflow_implemented": false,
+    "publication_receipt_verifier_implemented": false,
+    "node_public_checkpoint_inventory_implemented": false,
+    "two_node_publication_discovery_verified": false,
+    "bounded_remote_feedback_policy_accepted": false,
+    "bounded_remote_feedback_transport_implemented": false,
+    "public_lifecycle_complete": false
+  },
+  "downstream_bankr_readiness": {
+    "bankr_user_key_configured": true,
+    "bankr_user_key_format_verified_without_disclosure": true,
+    "selected_tohseno_shot_verified_v2": true,
+    "selected_tohseno_shot_has_no_token_association": true,
+    "selected_shot_scope_enforced": true,
+    "bankr_user_api_key_input_present": true,
+    "fee_and_vesting_recipient_input_present": true,
+    "https_image_preview_present": true,
+    "bankr_brand_asset_present": true,
+    "credential_persistence_forbidden": true,
+    "simulation_before_deploy_required": true,
+    "single_use_confirmation_required": true,
+    "static_ui_tests": "pass (10/10)",
+    "interactive_visual_verification": false,
+    "locked_studio_status_verified": "configured=true, deploy_enabled=false",
+    "interactive_visual_verification_reason": "Static UI and live locked-status behavior were verified; final visual and image-preview acceptance remains an operator check with the chosen HTTPS metadata.",
+    "broadcast_unlocked": false,
+    "token_deployed": false
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "establish_exact_candidate",
+      "status": "pass"
+    },
+    {
+      "phase": 2,
+      "name": "local_security_gates",
+      "status": "pass"
+    },
+    {
+      "phase": 3,
+      "name": "external_review",
+      "status": "pass_for_inactive_deployment"
+    },
+    {
+      "phase": 4,
+      "name": "release_authority",
+      "status": "blocked"
+    },
+    {
+      "phase": 5,
+      "name": "production_ceremony",
+      "status": "pass_inactive_deployed"
+    },
+    {
+      "phase": 6,
+      "name": "inactive_production_canary",
+      "status": "not_started"
+    },
+    {
+      "phase": 7,
+      "name": "threshold_activation",
+      "status": "not_started"
+    },
+    {
+      "phase": 8,
+      "name": "complete_product_lifecycle",
+      "status": "not_started"
+    },
+    {
+      "phase": 9,
+      "name": "optional_bankr_appcoin_lifecycle",
+      "status": "not_started"
+    }
+  ],
+  "outstanding_blockers": [
+    {
+      "id": "independent_manual_audit",
+      "requires": "a separate human or competitive audit of the exact frozen generation and disposition of every finding"
+    },
+    {
+      "id": "release_authority_trust_root",
+      "requires": "explicit owner acceptance of the policy design, offline key ceremony, independent verification and an exact pinned policy digest"
+    },
+    {
+      "id": "production_chain_evidence",
+      "requires": "the inactive deployment is complete; run the separately authorized full real-time three-day canary before activation"
+    },
+    {
+      "id": "instantiated_runtime_activation_review",
+      "requires": "independent review of ADR 0010 and the corrected activation validators before any release-authority signing"
+    },
+    {
+      "id": "activation_and_product_lifecycle",
+      "requires": "threshold-signed activation under the pinned trust root before public identity or public signing"
+    },
+    {
+      "id": "publication_receipt_and_clients",
+      "requires": "an accepted additive app-metadata/3 publication receipt and successor Apple Fascia, plus verified activation resolution and public Builder/registry transaction workflows"
+    },
+    {
+      "id": "network_discovery_and_feedback",
+      "requires": "receipt-aware public-checkpoint node inventory with verified two-node discovery, followed by an accepted bounded remote-feedback privacy/abuse policy and owner-controlled transport"
+    }
+  ]
+}

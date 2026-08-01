@@ -1,0 +1,131 @@
+{
+  "schema": "tohseno.inactive-contract-deployment-evidence/1",
+  "observed_at": "2026-08-01T02:32:41Z",
+  "state": "deployed_inactive_untrusted",
+  "activation_authorized": false,
+  "chain": {
+    "name": "Robinhood Chain mainnet",
+    "chain_id": 4663,
+    "rpc": "explicit-target",
+    "latest_observed_block": 24682950
+  },
+  "generation": {
+    "version": "0.8.0",
+    "definition": "contracts/generations/0.8.0/generation.json",
+    "definition_file_sha256": "0x047ac1c33b442aac4b8a5e4c688bd29dbe02ab241465f79f32e6193d26387956",
+    "definition_sha256": "0x618fbd1ef9f826a2a642f94733192b130023e7f85db95d9ab066768e8abdf895",
+    "source_commit": "862ca6cd3d396271b56b336fee0513ddcf6ecc64",
+    "source_tree_sha256": "0x5d8c56423f9b9cb97d8e05834a6a2e776034b1257a186e47f25869bf509910c3"
+  },
+  "authorization": {
+    "adr": "docs/adr/0009-one-time-inactive-0-8-0-deployment.md",
+    "adr_sha256": "0x85bcc8c3171881d9057ff04206cc98f7e0fc3acc24f564a6378ca7496289b0d4",
+    "authority_record": "release/CONTRACT_0_8_0_DEPLOYMENT_AUTHORITY_PROPOSAL.md",
+    "authority_record_authorized_sha256": "0x4c4a9c5e92206acc98b23452779b3aa18c883c23b1e12088fcb9621e8c09ddd0",
+    "authority_record_completed_sha256": "0xd7a9800e345ea0c48999f52382a8ebb41982cc55a30e6dfc7699a3a9ff0dc26b",
+    "ceremony": "release/CONTRACT_0_8_0_INACTIVE_DEPLOYMENT_CEREMONY.md",
+    "ceremony_authorized_sha256": "0xbc3eb7843d068d900390f90924cefffe41c6ab1945d44f8a1ab34e04591b8bcd",
+    "ceremony_completed_sha256": "0x412ccab1042b2b553483beecc0fdcf4a729978c9f76a3e5417a316851164d812",
+    "scope_consumed": true
+  },
+  "fresh_gates": {
+    "p256_evidence": "contracts/audits/robinhood-p256-ceremony-20260801T021920Z.json",
+    "p256_evidence_sha256": "0x12db825d0b11bced60723835992d964729ad15221c09e84054780280c39f9b27",
+    "candidate_preflight": "contracts/audits/robinhood-contract-candidate-ceremony-20260801T021920Z.json",
+    "candidate_preflight_sha256": "0x362040bfbf817fa37b54c9d7e2ba3fb8e9d0b77d82faab61ce9bb3365ebd086b",
+    "p256_positive_negative_infinity_and_exact_6900_gas": true,
+    "targets_empty_before_broadcast": true,
+    "simulated_returns_matched_predicted_addresses": true
+  },
+  "payer": {
+    "address": "0x1eaf00a3f027275077253713c5bf7d0fac44207f",
+    "starting_nonce": 0,
+    "ending_nonce": 2,
+    "starting_balance_wei": "777000000000000",
+    "ending_balance_wei": "681052043008000",
+    "total_cost_wei": "95947956992000",
+    "protocol_authority_acquired": false
+  },
+  "create2_deployer": {
+    "address": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "runtime_byte_length": 69,
+    "runtime_keccak256": "0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989"
+  },
+  "contracts": {
+    "builder_account_factory": {
+      "address": "0xb1bd208cd2af98e701f43d06aaa889d3a594df65",
+      "salt": "0x5fd2db5a85724a3ec24a912bfbf24fc577d26b53aafaf22e45dd425901249ef4",
+      "init_code_keccak256": "0x4a06468df5e31a81a23c5874258de8b3c3c70031a27c98fb8ef677f061c854eb",
+      "transaction_input_keccak256": "0x425967d5a3a70ddc855338dbcc9f733adc31c15683816202dd05b5bdb2e6462c",
+      "runtime_byte_length": 13877,
+      "compiler_runtime_template_keccak256": "0xb880403ff0da9a3f4c0c982cdea56fb198912c66bc436305e20861378f45c5f4",
+      "observed_runtime_keccak256": "0xb880403ff0da9a3f4c0c982cdea56fb198912c66bc436305e20861378f45c5f4",
+      "transaction": {
+        "hash": "0x259f8f6d7fc09b392e46928066d172c3cce8f436c7a63591c64ec9c58409a5ef",
+        "type": 0,
+        "nonce": 0,
+        "gas_limit": 3549539,
+        "gas_price_wei": "25000000",
+        "gas_used": 3036028,
+        "effective_gas_price_wei": "20024000",
+        "cost_wei": "60793424672000",
+        "value_wei": "0",
+        "status": 1,
+        "block_number": 24677436,
+        "block_hash": "0x9217ee7c6d6aa328c35634ce542a3f2273ea38dc07d720964bd211b81737964c",
+        "block_timestamp": "2026-08-01T02:23:28Z"
+      }
+    },
+    "shot_registry": {
+      "address": "0x3fe6508ba2660bc575080024f402c192a2e035a0",
+      "salt": "0x9c40694097bc8150c4d1b158a4947ebce701ac78a428182953119033cb17f8c4",
+      "init_code_keccak256": "0x865bf1508195e35de9e0b0620f0bbc9026485a6022e755369ce6fad1c825cf6b",
+      "transaction_input_keccak256": "0xa4483242563ba9e7eb429bc8baa1ca787ac4993d64897a6dfde508f1b280cfb3",
+      "runtime_byte_length": 7871,
+      "compiler_runtime_template_keccak256": "0xb6279467956165a9520803fdfe5a2254c98569b71541bf67d57fcd54ab3a2524",
+      "observed_runtime_keccak256": "0xfc80358a8f52ac8ae96691fecb611ade47447df79274e70defdd37989f3ca5e0",
+      "exact_signed_transaction_replay_on_parent_block_matches_observed_runtime": true,
+      "domain_separator": "0xbf05334eb631353433cc38c72f34591ac6c15d23c082952f320d527b43e95a98",
+      "min_commit_age_seconds": 60,
+      "max_commit_age_seconds": 86400,
+      "transaction": {
+        "hash": "0x1f7d2ccc24f66e9826b2a2729808a2fcc58dfd2f830ee10631ebf30eac72de91",
+        "type": 0,
+        "nonce": 1,
+        "gas_limit": 2044926,
+        "gas_price_wei": "25000000",
+        "gas_used": 1748112,
+        "effective_gas_price_wei": "20110000",
+        "cost_wei": "35154532320000",
+        "value_wei": "0",
+        "status": 1,
+        "block_number": 24679962,
+        "block_hash": "0xa88cccfdc33d60652f3292e4ae497769c91cf080158b17cc88c4cc785c9e512d",
+        "block_timestamp": "2026-08-01T02:27:41Z"
+      }
+    }
+  },
+  "verification": {
+    "transaction_senders_nonces_chain_recipients_values_and_inputs_exact": true,
+    "receipt_blocks_rechecked_canonical": true,
+    "factory_runtime_matches_compiler_template": true,
+    "registry_runtime_matches_exact_local_replay": true,
+    "restricted_signed_transaction_evidence_retained": true,
+    "ephemeral_decrypted_or_encrypted_signer_material_destroyed": true,
+    "source_or_generation_bytes_changed_by_ceremony": false
+  },
+  "activation_conformance_issue": {
+    "status": "normative_fix_implemented_pending_independent_review",
+    "kind": "compiler_runtime_template_hash_is_not_instantiated_runtime_hash",
+    "affected_contracts": [
+      "BuilderAccount",
+      "ShotRegistry"
+    ],
+    "explanation": "Solidity immutable references are zero placeholders in forge inspect deployedBytecode and are constructor-patched in instantiated runtime bytecode. The generation records compiler-template hashes, while contract-activation/1 currently requires those hashes to equal observed instantiated hashes.",
+    "builder_account_compiler_runtime_template_keccak256": "0xfb669f5ab8e1d9a665bcde72f09f8d38c781c6b30056a516244a4abf0cc1afe7",
+    "builder_account_locally_instantiated_runtime_keccak256": "0xb5ff14ddc150b2f64cb2243e6d8c8a0c441007841548f1b0ee8d6e22ad452fc0",
+    "registry_compiler_runtime_template_keccak256": "0xb6279467956165a9520803fdfe5a2254c98569b71541bf67d57fcd54ab3a2524",
+    "registry_observed_runtime_keccak256": "0xfc80358a8f52ac8ae96691fecb611ade47447df79274e70defdd37989f3ca5e0",
+    "effect": "ADR 0010 and activation validators now distinguish compiler templates from instantiated runtime. Generation 0.8.0 remains inactive pending independent review, the production canary, and threshold activation."
+  }
+}

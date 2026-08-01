@@ -1228,6 +1228,12 @@ impl BuilderAccountActionV2 {
                 deadline,
             } => {
                 nonzero_address("action.recovery", *recovery)?;
+                if recovery == account {
+                    return Err(invalid(
+                        "action.recovery",
+                        "must differ from action.account",
+                    ));
+                }
                 (*account, *nonce, *deadline)
             }
             Self::ChangeRecovery {
@@ -1239,6 +1245,18 @@ impl BuilderAccountActionV2 {
             } => {
                 nonzero_address("action.current_recovery", *current_recovery)?;
                 nonzero_address("action.new_recovery", *new_recovery)?;
+                if current_recovery == account {
+                    return Err(invalid(
+                        "action.current_recovery",
+                        "must differ from action.account",
+                    ));
+                }
+                if new_recovery == account {
+                    return Err(invalid(
+                        "action.new_recovery",
+                        "must differ from action.account",
+                    ));
+                }
                 (*account, *nonce, *deadline)
             }
             Self::InitiateRecovery {
@@ -1253,6 +1271,18 @@ impl BuilderAccountActionV2 {
             } => {
                 nonzero_address("action.current_recovery", *current_recovery)?;
                 nonzero_address("action.new_recovery", *new_recovery)?;
+                if current_recovery == account {
+                    return Err(invalid(
+                        "action.current_recovery",
+                        "must differ from action.account",
+                    ));
+                }
+                if new_recovery == account {
+                    return Err(invalid(
+                        "action.new_recovery",
+                        "must differ from action.account",
+                    ));
+                }
                 let key = P256PublicKey {
                     x: *new_x,
                     y: *new_y,
@@ -1386,6 +1416,20 @@ impl BuilderAccountActionV2 {
 
     pub fn digest(&self, domain: &Eip712Domain) -> Result<Bytes32> {
         domain.validate_for(BUILDER_ACCOUNT_DOMAIN)?;
+        let account = match self {
+            Self::AuthorizeDevice { account, .. }
+            | Self::RevokeDevice { account, .. }
+            | Self::SetRecovery { account, .. }
+            | Self::ChangeRecovery { account, .. }
+            | Self::InitiateRecovery { account, .. }
+            | Self::CancelRecovery { account, .. } => *account,
+        };
+        if account != domain.verifying_contract {
+            return Err(invalid(
+                "action.account",
+                "must equal domain.verifying_contract",
+            ));
+        }
         Ok(eip712_digest(domain.separator(), self.struct_hash()?))
     }
 }
@@ -1533,7 +1577,7 @@ mod tests {
             name: BUILDER_ACCOUNT_DOMAIN.into(),
             version: EIP712_VERSION.into(),
             chain_id: ROBINHOOD_CHAIN_ID,
-            verifying_contract: Address20::from_bytes([3; 20]),
+            verifying_contract: Address20::from_bytes([1; 20]),
         };
         let mut other_chain = domain.clone();
         other_chain.chain_id += 1;
@@ -1544,6 +1588,42 @@ mod tests {
         assert!(cancel.digest(&domain).is_ok());
         assert_ne!(domain.separator(), other_chain.separator());
         assert!(cancel.digest(&other_chain).is_err());
+    }
+
+    #[test]
+    fn builder_v2_rejects_contract_unusable_coordinates() {
+        let account = Address20::from_bytes([1; 20]);
+        let other = Address20::from_bytes([2; 20]);
+        let action = BuilderAccountActionV2::SetRecovery {
+            account,
+            recovery: other,
+            nonce: 0,
+            deadline: 1,
+        };
+        let mismatched_domain = Eip712Domain {
+            name: BUILDER_ACCOUNT_DOMAIN.into(),
+            version: EIP712_VERSION.into(),
+            chain_id: ROBINHOOD_CHAIN_ID,
+            verifying_contract: other,
+        };
+        assert!(action.digest(&mismatched_domain).is_err());
+
+        let self_recovery = BuilderAccountActionV2::SetRecovery {
+            account,
+            recovery: account,
+            nonce: 0,
+            deadline: 1,
+        };
+        assert!(self_recovery.validate().is_err());
+
+        let self_change = BuilderAccountActionV2::ChangeRecovery {
+            account,
+            current_recovery: other,
+            new_recovery: account,
+            nonce: 0,
+            deadline: 1,
+        };
+        assert!(self_change.validate().is_err());
     }
 
     #[test]
