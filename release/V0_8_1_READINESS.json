@@ -4,7 +4,9 @@
  "channel": "stable",
  "ready": true,
  "authorization": {
-  "authorized": false
+  "authorized": true,
+  "authorized_by": "jpfraneto",
+  "authorized_at": "2026-08-01T09:31:08Z"
  },
  "protection": {
   "immutable_release_policy_verified": true,
@@ -17,6 +19,8 @@
   "predecessor_release_immutable": true,
   "product_minor_version": "0.8.1",
   "bankr_deploy_process_lock_removed": true,
+  "candidate_source_commit": "9480e14a78322e7b044aba9976912a54622c4dc6",
+  "main_ci_run": "https://github.com/jpfraneto/tohseno/actions/runs/30693465308",
   "rust_workspace_tests": 274,
   "clippy_warnings_denied": true,
   "studio_tests": 10,
