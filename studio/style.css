@@ -1579,14 +1579,6 @@ textarea:disabled {
   line-height: 1.5;
 }
 
-.bankr-deploy-note {
-  margin: 0;
-  color: color-mix(in srgb, var(--amber) 55%, var(--silver));
-  font-size: 11.5px;
-  line-height: 1.5;
-  text-align: center;
-}
-
 .bankr-deploy {
   min-height: 56px;
   border: 1px solid color-mix(in srgb, var(--amber) 76%, #ff613d);

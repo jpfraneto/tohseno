@@ -1,0 +1,25 @@
+{
+ "schema": "tohseno.release-readiness/1",
+ "version": "0.8.1",
+ "channel": "stable",
+ "ready": true,
+ "authorization": {
+  "authorized": false
+ },
+ "protection": {
+  "immutable_release_policy_verified": true,
+  "release_tag_protection_verified": true,
+  "release_tag_ruleset_id": 20177445,
+  "verified_at": "2026-08-01T09:17:09Z"
+ },
+ "evidence": {
+  "predecessor_tag": "v0.8.0",
+  "predecessor_release_immutable": true,
+  "product_minor_version": "0.8.1",
+  "bankr_deploy_process_lock_removed": true,
+  "rust_workspace_tests": 274,
+  "clippy_warnings_denied": true,
+  "studio_tests": 10,
+  "website_tests": 14
+ }
+}

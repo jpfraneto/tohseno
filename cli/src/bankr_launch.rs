@@ -30,7 +30,6 @@ pub struct BankrLaunchService {
 struct Configuration {
     api_key: Option<Zeroizing<String>>,
     configuration_error: Option<String>,
-    deploy_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -168,7 +167,6 @@ pub struct DeployApprovalRequest {
 pub struct BankrLaunchStatus {
     pub configured: bool,
     pub configuration_error: Option<String>,
-    pub deploy_enabled: bool,
     pub signer: &'static str,
     /// The Appcoin identity is per Shot, so the global status states the
     /// rule rather than a name that would be wrong for every Shot.
@@ -346,8 +344,6 @@ impl BankrLaunchService {
             configuration: Arc::new(Configuration {
                 api_key,
                 configuration_error,
-                deploy_enabled: std::env::var("TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY")
-                    .is_ok_and(|value| value == "1"),
             }),
             pending: Arc::new(Mutex::new(None)),
         })
@@ -357,7 +353,6 @@ impl BankrLaunchService {
         BankrLaunchStatus {
             configured: self.configuration.api_key.is_some(),
             configuration_error: self.configuration.configuration_error.clone(),
-            deploy_enabled: self.configuration.deploy_enabled,
             signer: "Bankr wallet that owns BANKR_API_KEY",
             token_identity: "Each Appcoin takes the name and ticker of its own Shot.",
             accepts_session_key: true,
@@ -437,11 +432,6 @@ impl BankrLaunchService {
         &self,
         request: DeployApprovalRequest,
     ) -> Result<DeploymentOutcome, BankrLaunchError> {
-        if !self.configuration.deploy_enabled {
-            return Err(BankrLaunchError::definite(
-                "deployment is locked; restart Studio with TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1 after reviewing the simulation",
-            ));
-        }
         let approval = {
             let mut pending = self.pending.lock().await;
             let approval = pending.take().ok_or_else(|| {

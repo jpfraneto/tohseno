@@ -5,9 +5,12 @@ The vision putting on shoes. Every line below is enforced by code in
 aspirational. Work top to bottom. Stop at the first unchecked box.
 
 Current verified state on 2026-08-01: the Keychain entry is a Bankr user key,
-and a locked Studio reports `configured: true, deploy_enabled: false`. The
-`tohseno` Shot is conformant protocol v2 and has no Token Association. That is
-the correct pre-simulation state; deployment remains intentionally locked.
+and a configured Studio reports `configured: true`. The `tohseno` Shot is
+conformant protocol v2 and has no Token Association. That is the correct
+pre-simulation state. Since 0.8.1 there is no process-level deploy lock: the
+deployment ceremony itself — fresh single-use simulation, acknowledgment, and
+the exact typed phrase — is the only thing between a simulation and a
+broadcast.
 
 ---
 
@@ -78,10 +81,14 @@ startup. Keep either form out of shell history:
 - [ ] The Shot has **no** existing token association
       (Shot continuity panel → "Token association (v2)" → None).
 
-## 5 · Dress rehearsal (deploy stays locked)
+## 5 · Dress rehearsal (nothing broadcasts)
 
-- [ ] Start Studio **without** the deploy unlock. Either enter the key in the
-      launch modal or supply it from Keychain at startup:
+A simulation alone never deploys — Studio always calls Bankr in `simulateOnly`
+mode, and the deploy button stays disarmed until you tick the acknowledgment
+and type the exact phrase. Rehearse without touching either.
+
+- [ ] Start Studio. Either enter the key in the launch modal or supply it
+      from Keychain at startup:
 
       BANKR_API_KEY="$(security find-generic-password -s bankr-api-key -w)" tohseno studio
 
@@ -98,13 +105,9 @@ startup. Keep either form out of shell history:
 
 ## 6 · The live run
 
-- [ ] Restart Studio with both locks open:
-
-      BANKR_API_KEY="$(security find-generic-password -s bankr-api-key -w)" TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1 tohseno studio
-
-- [ ] Enter the API key in the modal or use the environment command above,
-      then simulate again (approvals are single-use and expire after
-      **10 minutes**; changing any parameter invalidates the approval).
+- [ ] Simulate again in the same Studio session if the rehearsal approval
+      expired (approvals are single-use and expire after **10 minutes**;
+      changing any parameter invalidates the approval).
 - [ ] Tick the acknowledgment, then type the exact phrase Studio shows:
 
       DEPLOY $TOHSENO FOR SHOT <shot_id> ON <ROBINHOOD|BASE> TO <TYPE>:<RECIPIENT> AT <predicted_address>
@@ -126,13 +129,12 @@ nothing deployed.
 - [ ] The private Token Association is recorded — Shot continuity panel
       shows it; availability stays `intentionally_private`.
 - [ ] Open the transaction in the explorer link Studio offers; save the URL.
-- [ ] Remove the deploy unlock: next Studio starts **without**
-      `TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1`.
 
 ## Known limits of this personal surface
 
-- The irreversible deploy step still requires the explicit process-level
-  `TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1` lock.
+- The irreversible deploy step has no process-level lock (removed in 0.8.1).
+  Its gates are the ceremony itself: a Bankr user key, a fresh single-use
+  simulation approval, the acknowledgment, and the exact typed phrase.
 - The post-deploy Token Association is private local lineage. It does not
   publish the Shot, write the TOHSENO registry, or make the token an identity
   or ownership credential.

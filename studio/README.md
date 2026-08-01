@@ -211,14 +211,13 @@ without putting the key on a command line:
 read -s "BANKR_API_KEY?Bankr user API key: "
 echo
 export BANKR_API_KEY
-export TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1
 tohseno studio
 ```
 
-Unset both values after Studio exits:
+Unset the key after Studio exits:
 
 ```sh
-unset BANKR_API_KEY TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY
+unset BANKR_API_KEY
 ```
 
 The browser can configure metadata, recipient, Robinhood Chain or Base, the

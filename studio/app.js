@@ -178,7 +178,6 @@ const ui = {
   bankrCopyPhrase: document.querySelector("#bankr-copy-phrase"),
   bankrConfirmation: document.querySelector("#bankr-confirmation"),
   bankrDeploy: document.querySelector("#bankr-deploy"),
-  bankrDeployNote: document.querySelector("#bankr-deploy-note"),
   bankrResult: document.querySelector("#bankr-result"),
   bankrResultTitle: document.querySelector("#bankr-result-title"),
   bankrResultSummary: document.querySelector("#bankr-result-summary"),
@@ -286,10 +285,8 @@ const resetBankrResult = () => {
 };
 
 const updateBankrDeployState = () => {
-  ui.bankrDeployNote.hidden = ui.bankrSimulation.hidden || Boolean(bankrOverview?.deploy_enabled);
   ui.bankrDeploy.disabled = !(
     bankrApproval
-    && bankrOverview?.deploy_enabled
     && ui.bankrAcknowledge.checked
     && ui.bankrConfirmation.value === bankrApproval.confirmation_phrase
   );
@@ -333,13 +330,11 @@ const renderBankrStatus = () => {
     updateBankrSimulateState();
     return;
   }
-  ui.bankrStatus.textContent = bankrOverview.deploy_enabled
-    ? "Bankr is configured. Simulation and the separately confirmed deployment are enabled."
-    : "Bankr is configured for simulation. Deployment remains locked.";
+  ui.bankrStatus.textContent =
+    "Bankr is configured. Simulation and the separately confirmed deployment are enabled.";
   ui.bankrStatus.dataset.status = "ready";
-  ui.bankrConfiguration.textContent = bankrOverview.deploy_enabled
-    ? "The key remains server-side. Every approval is single-use and expires after 10 minutes."
-    : "To unlock the irreversible step, restart Studio with TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1.";
+  ui.bankrConfiguration.textContent =
+    "The key remains server-side. Every approval is single-use and expires after 10 minutes.";
   updateBankrSimulateState();
   updateBankrDeployState();
 };
