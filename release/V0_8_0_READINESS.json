@@ -6,7 +6,7 @@
  "authorization": {
   "authorized": true,
   "authorized_by": "jpfraneto",
-  "authorized_at": "2026-08-01T05:03:15Z"
+  "authorized_at": "2026-08-01T05:35:41Z"
  },
  "protection": {
   "immutable_release_policy_verified": true,
@@ -20,12 +20,12 @@
   "product_minor_version": "0.8.0",
   "contract_generation_0_8_0_inactive_deployment": true,
   "studio_bankr_stock_paired_launch": true,
-  "candidate_source_commit": "cd42c54b9be27e0b47998a223084c0052e19cf6f",
+  "candidate_source_commit": "8e36a84dd8c119411ea62d750de6ab6dbffef500",
   "rust_workspace_tests": 274,
   "clippy_warnings_denied": true,
   "studio_tests": 10,
   "website_tests": 14,
-  "main_ci_run": "https://github.com/jpfraneto/tohseno/actions/runs/30684630712"
+  "main_ci_run": "https://github.com/jpfraneto/tohseno/actions/runs/30685704004"
  },
  "publication": {
   "tag": "v0.8.0",
