@@ -26,6 +26,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      # The runner's system openssl is LibreSSL without KECCAK-256; the
+      # ceremony-pinned activation verifier needs a real OpenSSL first on PATH.
+      - name: Prefer Homebrew OpenSSL for KECCAK-256
+        run: |
+          echo "/opt/homebrew/opt/openssl@3/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/opt/openssl@3/bin" >> "$GITHUB_PATH"
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: 1.88.0

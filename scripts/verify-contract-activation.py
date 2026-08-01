@@ -12,7 +12,6 @@ import argparse
 import datetime as dt
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
@@ -148,32 +147,16 @@ def sha256(data: bytes) -> bytes:
 
 
 def keccak256(data: bytes) -> bytes:
-    # The system `openssl` on macOS is LibreSSL, which has no KECCAK-256;
-    # accept the first OpenSSL that produces a correct-length digest and
-    # keep failing closed when none does.
-    candidates = [
-        os.environ.get("TOHSENO_OPENSSL"),
-        "openssl",
-        "/opt/homebrew/opt/openssl@3/bin/openssl",
-        "/usr/local/opt/openssl@3/bin/openssl",
-    ]
-    for binary in candidates:
-        if not binary:
-            continue
-        try:
-            result = subprocess.run(
-                [binary, "dgst", "-KECCAK-256", "-binary"],
-                input=data,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
-        except OSError:
-            continue
-        if result.returncode == 0 and len(result.stdout) == 32:
-            return result.stdout
-    fail("OpenSSL KECCAK-256 is unavailable or returned the wrong length")
-    raise AssertionError("unreachable")
+    result = subprocess.run(
+        ["openssl", "dgst", "-KECCAK-256", "-binary"],
+        input=data,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if result.returncode != 0 or len(result.stdout) != 32:
+        fail("OpenSSL KECCAK-256 is unavailable or returned the wrong length")
+    return result.stdout
 
 
 def hex32(value: Any, field: str, *, nonzero: bool = True) -> bytes:
