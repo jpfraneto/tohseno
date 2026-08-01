@@ -180,8 +180,8 @@ case "$tohseno_bin/" in
 esac
 candidate_version="$("$tohseno_bin" --version 2>/dev/null)" ||
   fail "candidate executable did not start."
-if [ "$candidate_version" != "tohseno 0.7.2" ]; then
-  fail "candidate executable reported '$candidate_version', not tohseno 0.7.2."
+if [ "$candidate_version" != "tohseno 0.8.0" ]; then
+  fail "candidate executable reported '$candidate_version', not tohseno 0.8.0."
 fi
 
 prompt_file="$repository_root/genesis/SHOT_1_INTENT.md"
