@@ -16,9 +16,7 @@ use zeroize::Zeroizing;
 const BANKR_DEPLOY_URL: &str = "https://api.bankr.bot/token-launches/deploy";
 /// An Appcoin belongs to one Shot, so its identity is derived from that
 /// Shot's name rather than fixed for the whole factory.
-const MAX_TOKEN_SYMBOL: usize = 11;
-const FEE_RECIPIENT_ENS: &str = "jpfraneto.eth";
-const FEE_RECIPIENT_ADDRESS: &str = "0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15";
+const MAX_TOKEN_SYMBOL: usize = 10;
 const APPROVAL_LIFETIME: Duration = Duration::from_secs(10 * 60);
 const MAX_BANKR_RESPONSE: usize = 1024 * 1024;
 
@@ -79,6 +77,34 @@ pub enum CreatorFeeMode {
     QuoteOnly,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FeeRecipientKind {
+    Wallet,
+    Ens,
+    X,
+    Farcaster,
+}
+
+impl FeeRecipientKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Wallet => "wallet",
+            Self::Ens => "ens",
+            Self::X => "x",
+            Self::Farcaster => "farcaster",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FeeRecipient {
+    #[serde(rename = "type")]
+    pub kind: FeeRecipientKind,
+    pub value: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShotLaunchBinding {
@@ -118,6 +144,16 @@ pub struct LaunchParameters {
     pub chain: LaunchChain,
     pub creator_vesting: CreatorVesting,
     pub creator_fee_mode: CreatorFeeMode,
+    pub fee_recipient: FeeRecipient,
+    /// Robinhood-issued tokenized stock ticker the new pool is quoted in
+    /// (e.g. "AAPL"). Absent means Bankr's standard WETH pairing.
+    #[serde(default)]
+    pub paired_stock: Option<String>,
+    /// The tokenized stock's Robinhood Chain contract address. Bankr's deploy
+    /// API identifies the pairing by address; the ticker names the intent and
+    /// both must survive the simulation echo together.
+    #[serde(default)]
+    pub paired_stock_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -137,8 +173,8 @@ pub struct BankrLaunchStatus {
     /// The Appcoin identity is per Shot, so the global status states the
     /// rule rather than a name that would be wrong for every Shot.
     pub token_identity: &'static str,
-    pub fee_recipient_ens: &'static str,
-    pub fee_recipient_address: &'static str,
+    pub accepts_session_key: bool,
+    pub fee_recipient_rule: &'static str,
     pub supported_chains: [&'static str; 2],
     pub key_setup_url: &'static str,
 }
@@ -151,8 +187,8 @@ pub struct SimulationApproval {
     pub confirmation_phrase: String,
     pub token_name: String,
     pub token_symbol: String,
-    pub fee_recipient_ens: &'static str,
-    pub fee_recipient_address: &'static str,
+    pub fee_recipient: FeeRecipient,
+    pub fee_recipient_address: String,
     pub signer: &'static str,
     pub shot: ShotLaunchBinding,
     pub parameters: LaunchParameters,
@@ -172,8 +208,8 @@ pub struct DeploymentOutcome {
     pub deployed: bool,
     pub token_name: String,
     pub token_symbol: String,
-    pub fee_recipient_ens: &'static str,
-    pub fee_recipient_address: &'static str,
+    pub fee_recipient: FeeRecipient,
+    pub fee_recipient_address: String,
     pub signer: &'static str,
     pub shot: ShotLaunchBinding,
     pub parameters: LaunchParameters,
@@ -192,6 +228,8 @@ struct PendingApproval {
     shot: ShotLaunchBinding,
     parameters: LaunchParameters,
     simulated_token_address: String,
+    simulated_fee_recipient_address: String,
+    api_key: Zeroizing<String>,
 }
 
 #[derive(Debug)]
@@ -237,17 +275,19 @@ struct BankrDeployPayload<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     website_url: Option<&'a str>,
     chain: &'static str,
-    fee_recipient: FeeRecipient,
+    fee_recipient: BankrFeeRecipient<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    paired_stock_address: Option<&'a str>,
     disable_vesting: bool,
     quote_only_fees: bool,
     simulate_only: bool,
 }
 
 #[derive(Serialize)]
-struct FeeRecipient {
+struct BankrFeeRecipient<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    value: &'static str,
+    value: &'a str,
 }
 
 #[derive(Serialize)]
@@ -255,8 +295,6 @@ struct LaunchCommitment<'a> {
     schema: &'static str,
     token_name: &'a str,
     token_symbol: &'a str,
-    fee_recipient_ens: &'static str,
-    fee_recipient_address: &'static str,
     shot: &'a ShotLaunchBinding,
     parameters: &'a LaunchParameters,
 }
@@ -268,8 +306,8 @@ struct StoredReceipt<'a> {
     token_name: &'a str,
     token_symbol: &'a str,
     signer: &'static str,
-    fee_recipient_ens: &'static str,
-    fee_recipient_address: &'static str,
+    fee_recipient: &'a FeeRecipient,
+    fee_recipient_address: &'a str,
     shot: &'a ShotLaunchBinding,
     configuration_digest: &'a str,
     simulated_token_address: &'a str,
@@ -322,21 +360,37 @@ impl BankrLaunchService {
             deploy_enabled: self.configuration.deploy_enabled,
             signer: "Bankr wallet that owns BANKR_API_KEY",
             token_identity: "Each Appcoin takes the name and ticker of its own Shot.",
-            fee_recipient_ens: FEE_RECIPIENT_ENS,
-            fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+            accepts_session_key: true,
+            fee_recipient_rule: "The person launching chooses an ENS name, wallet, X account, or Farcaster account; Bankr resolves and pins it during simulation.",
             supported_chains: ["robinhood", "base"],
             key_setup_url: "https://bankr.bot/api-keys",
         }
+    }
+
+    pub async fn cancel_pending(&self) {
+        *self.pending.lock().await = None;
     }
 
     pub async fn simulate(
         &self,
         shot: ShotLaunchBinding,
         mut parameters: LaunchParameters,
+        supplied_api_key: Option<String>,
     ) -> Result<SimulationApproval, BankrLaunchError> {
         normalize_and_validate(&mut parameters)?;
-        let bankr_simulation = self.call_bankr(&shot, &parameters, true).await?;
-        verify_simulation(&bankr_simulation, parameters.chain)?;
+        let api_key = self.resolve_api_key(supplied_api_key)?;
+        let bankr_simulation = self
+            .call_bankr(&shot, &parameters, true, api_key.as_str())
+            .await?;
+        let fee_recipient_address = verify_simulation(
+            &bankr_simulation,
+            parameters.chain,
+            &parameters.fee_recipient,
+            parameters
+                .paired_stock
+                .as_deref()
+                .zip(parameters.paired_stock_address.as_deref()),
+        )?;
         let simulated_token_address = required_string(
             &bankr_simulation,
             &["tokenAddress"],
@@ -344,8 +398,13 @@ impl BankrLaunchService {
         )?
         .to_owned();
         let configuration_digest = configuration_digest(&shot, &parameters)?;
-        let confirmation_phrase =
-            confirmation_phrase(&shot, parameters.chain, &simulated_token_address);
+        let confirmation_phrase = confirmation_phrase(
+            &shot,
+            parameters.chain,
+            &simulated_token_address,
+            &parameters.fee_recipient,
+            parameters.paired_stock.as_deref(),
+        );
         let approval_id = ShotId::random().to_string();
         *self.pending.lock().await = Some(PendingApproval {
             approval_id: approval_id.clone(),
@@ -355,6 +414,8 @@ impl BankrLaunchService {
             shot: shot.clone(),
             parameters: parameters.clone(),
             simulated_token_address,
+            simulated_fee_recipient_address: fee_recipient_address.clone(),
+            api_key,
         });
         Ok(SimulationApproval {
             approval_id,
@@ -363,8 +424,8 @@ impl BankrLaunchService {
             confirmation_phrase,
             token_name: shot.token_name(),
             token_symbol: shot.token_symbol(),
-            fee_recipient_ens: FEE_RECIPIENT_ENS,
-            fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+            fee_recipient: parameters.fee_recipient.clone(),
+            fee_recipient_address,
             signer: "Bankr wallet that owns BANKR_API_KEY",
             shot,
             parameters,
@@ -419,12 +480,23 @@ impl BankrLaunchService {
         };
 
         let bankr_deployment = self
-            .call_bankr(&approval.shot, &approval.parameters, false)
+            .call_bankr(
+                &approval.shot,
+                &approval.parameters,
+                false,
+                approval.api_key.as_str(),
+            )
             .await?;
         let mut warnings = verify_deployment(
             &bankr_deployment,
             approval.parameters.chain,
             &approval.simulated_token_address,
+            &approval.simulated_fee_recipient_address,
+            approval
+                .parameters
+                .paired_stock
+                .as_deref()
+                .zip(approval.parameters.paired_stock_address.as_deref()),
         );
         let receipt_path = match persist_receipt(&approval, &bankr_deployment, &warnings) {
             Ok(path) => Some(path.display().to_string()),
@@ -439,8 +511,8 @@ impl BankrLaunchService {
             deployed: true,
             token_name: approval.shot.token_name(),
             token_symbol: approval.shot.token_symbol(),
-            fee_recipient_ens: FEE_RECIPIENT_ENS,
-            fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+            fee_recipient: approval.parameters.fee_recipient.clone(),
+            fee_recipient_address: approval.simulated_fee_recipient_address,
             signer: "Bankr wallet that owns BANKR_API_KEY",
             shot: approval.shot,
             parameters: approval.parameters,
@@ -457,21 +529,15 @@ impl BankrLaunchService {
         shot: &ShotLaunchBinding,
         parameters: &LaunchParameters,
         simulate_only: bool,
+        api_key: &str,
     ) -> Result<Value, BankrLaunchError> {
-        let key = self.configuration.api_key.as_ref().ok_or_else(|| {
-            BankrLaunchError::definite(
-                self.configuration.configuration_error.as_deref().unwrap_or(
-                    "BANKR_API_KEY is not configured; create a least-privilege Bankr user API key and restart Studio",
-                ),
-            )
-        })?;
         let token_name = shot.token_name();
         let token_symbol = shot.token_symbol();
         let payload = bankr_payload(&token_name, &token_symbol, parameters, simulate_only);
         let sent = self
             .client
             .post(BANKR_DEPLOY_URL)
-            .header("X-API-Key", key.as_str())
+            .header("X-API-Key", api_key)
             .header("Accept", "application/json")
             .json(&payload)
             .send()
@@ -531,6 +597,34 @@ impl BankrLaunchService {
         }
         Ok(decoded)
     }
+
+    fn resolve_api_key(
+        &self,
+        supplied_api_key: Option<String>,
+    ) -> Result<Zeroizing<String>, BankrLaunchError> {
+        if let Some(value) = supplied_api_key {
+            let key = Zeroizing::new(value.trim().to_owned());
+            validate_api_key(key.as_str())?;
+            return Ok(key);
+        }
+        self.configuration.api_key.as_ref().cloned().ok_or_else(|| {
+            BankrLaunchError::definite(
+                self.configuration
+                    .configuration_error
+                    .as_deref()
+                    .unwrap_or("enter a Bankr user API key with token-launch access"),
+            )
+        })
+    }
+}
+
+fn validate_api_key(value: &str) -> Result<(), BankrLaunchError> {
+    if !value.starts_with("bk_usr_") || value.len() < 16 || value.chars().any(char::is_whitespace) {
+        return Err(BankrLaunchError::definite(
+            "Bankr API key must be a user key beginning with bk_usr_",
+        ));
+    }
+    Ok(())
 }
 
 fn normalize_and_validate(parameters: &mut LaunchParameters) -> Result<(), BankrLaunchError> {
@@ -543,7 +637,90 @@ fn normalize_and_validate(parameters: &mut LaunchParameters) -> Result<(), Bankr
     normalize_optional_url("image", &mut parameters.image)?;
     normalize_optional_url("tweet_url", &mut parameters.tweet_url)?;
     normalize_optional_url("website_url", &mut parameters.website_url)?;
+    normalize_fee_recipient(&mut parameters.fee_recipient)?;
+    normalize_paired_stock(parameters)?;
     Ok(())
+}
+
+fn normalize_paired_stock(parameters: &mut LaunchParameters) -> Result<(), BankrLaunchError> {
+    let ticker = parameters
+        .paired_stock
+        .take()
+        .map(|observed| observed.trim().trim_start_matches('$').to_ascii_uppercase())
+        .filter(|ticker| !ticker.is_empty());
+    let address = parameters
+        .paired_stock_address
+        .take()
+        .map(|observed| observed.trim().to_owned())
+        .filter(|address| !address.is_empty());
+    let (Some(ticker), Some(address)) = (ticker.clone(), address.clone()) else {
+        if ticker.is_some() || address.is_some() {
+            return Err(BankrLaunchError::definite(
+                "a stock pairing needs both the ticker and its Robinhood Chain token address",
+            ));
+        }
+        return Ok(());
+    };
+    if parameters.chain != LaunchChain::Robinhood {
+        return Err(BankrLaunchError::definite(
+            "stock pairing is available on Robinhood Chain only; choose Robinhood Chain or clear the pair",
+        ));
+    }
+    if ticker.len() > 10
+        || !ticker
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '.')
+    {
+        return Err(BankrLaunchError::definite(
+            "paired stock must be a tokenized-stock ticker of at most 10 letters, digits, or dots (for example AAPL)",
+        ));
+    }
+    if !is_evm_address(&address) {
+        return Err(BankrLaunchError::definite(
+            "paired stock address must be a 20-byte EVM address",
+        ));
+    }
+    parameters.paired_stock = Some(ticker);
+    parameters.paired_stock_address = Some(address);
+    Ok(())
+}
+
+fn normalize_fee_recipient(recipient: &mut FeeRecipient) -> Result<(), BankrLaunchError> {
+    recipient.value = recipient.value.trim().to_owned();
+    if matches!(
+        recipient.kind,
+        FeeRecipientKind::X | FeeRecipientKind::Farcaster
+    ) {
+        recipient.value = recipient.value.trim_start_matches('@').to_owned();
+    }
+    if recipient.value.is_empty() || recipient.value.len() > 255 {
+        return Err(BankrLaunchError::definite(
+            "fee recipient must contain 1–255 characters",
+        ));
+    }
+    match recipient.kind {
+        FeeRecipientKind::Wallet if !is_evm_address(&recipient.value) => Err(
+            BankrLaunchError::definite("wallet fee recipient must be a 20-byte EVM address"),
+        ),
+        FeeRecipientKind::Ens
+            if !recipient.value.to_ascii_lowercase().ends_with(".eth")
+                || recipient.value.chars().any(char::is_whitespace) =>
+        {
+            Err(BankrLaunchError::definite(
+                "ENS fee recipient must be a .eth name without whitespace",
+            ))
+        }
+        FeeRecipientKind::X | FeeRecipientKind::Farcaster
+            if !recipient.value.chars().all(|character| {
+                character.is_ascii_alphanumeric() || "_.-".contains(character)
+            }) =>
+        {
+            Err(BankrLaunchError::definite(
+                "social fee recipient contains unsupported characters",
+            ))
+        }
+        _ => Ok(()),
+    }
 }
 
 fn normalize_optional_url(
@@ -591,10 +768,11 @@ fn bankr_payload<'a>(
         tweet_url: parameters.tweet_url.as_deref(),
         website_url: parameters.website_url.as_deref(),
         chain: parameters.chain.as_str(),
-        fee_recipient: FeeRecipient {
-            kind: "ens",
-            value: FEE_RECIPIENT_ENS,
+        fee_recipient: BankrFeeRecipient {
+            kind: parameters.fee_recipient.kind.as_str(),
+            value: &parameters.fee_recipient.value,
         },
+        paired_stock_address: parameters.paired_stock_address.as_deref(),
         disable_vesting: parameters.creator_vesting == CreatorVesting::None,
         quote_only_fees: parameters.creator_fee_mode == CreatorFeeMode::QuoteOnly,
         simulate_only,
@@ -608,11 +786,9 @@ fn configuration_digest(
     let token_name = shot.token_name();
     let token_symbol = shot.token_symbol();
     canonical::sha256_commitment(&LaunchCommitment {
-        schema: "tohseno.bankr-launch-commitment/1",
+        schema: "tohseno.bankr-launch-commitment/2",
         token_name: &token_name,
         token_symbol: &token_symbol,
-        fee_recipient_ens: FEE_RECIPIENT_ENS,
-        fee_recipient_address: FEE_RECIPIENT_ADDRESS,
         shot,
         parameters,
     })
@@ -628,17 +804,30 @@ fn confirmation_phrase(
     shot: &ShotLaunchBinding,
     chain: LaunchChain,
     token_address: &str,
+    fee_recipient: &FeeRecipient,
+    paired_stock: Option<&str>,
 ) -> String {
+    let pair = paired_stock
+        .map(|ticker| format!("/${ticker}"))
+        .unwrap_or_default();
     format!(
-        "DEPLOY ${} FOR SHOT {} ON {} TO JPFRANETO.ETH AT {}",
+        "DEPLOY ${}{} FOR SHOT {} ON {} TO {}:{} AT {}",
         shot.token_symbol(),
+        pair,
         shot.shot_id,
         chain.display(),
+        fee_recipient.kind.as_str().to_ascii_uppercase(),
+        fee_recipient.value.to_ascii_uppercase(),
         token_address
     )
 }
 
-fn verify_simulation(value: &Value, chain: LaunchChain) -> Result<(), BankrLaunchError> {
+fn verify_simulation(
+    value: &Value,
+    chain: LaunchChain,
+    fee_recipient: &FeeRecipient,
+    paired_stock: Option<(&str, &str)>,
+) -> Result<String, BankrLaunchError> {
     if value.get("success").and_then(Value::as_bool) != Some(true) {
         return Err(BankrLaunchError::definite(
             "Bankr simulation did not report success",
@@ -651,19 +840,60 @@ fn verify_simulation(value: &Value, chain: LaunchChain) -> Result<(), BankrLaunc
         ));
     }
     verify_chain(value, chain)?;
-    verify_creator_recipient(value)?;
+    verify_paired_stock(value, paired_stock)?;
+    let resolved_recipient = verify_creator_recipient(
+        value,
+        matches!(fee_recipient.kind, FeeRecipientKind::Wallet)
+            .then_some(fee_recipient.value.as_str()),
+    )?;
     if value.get("txHash").and_then(Value::as_str).is_some() {
         return Err(BankrLaunchError::definite(
             "Bankr simulation unexpectedly returned a transaction hash",
         ));
     }
-    Ok(())
+    Ok(resolved_recipient)
+}
+
+/// A requested stock pairing is real only when Bankr's own response names the
+/// same ticker and pool quote address; an unechoed request must never reach
+/// deployment as if the pairing existed.
+fn verify_paired_stock(
+    value: &Value,
+    requested: Option<(&str, &str)>,
+) -> Result<(), BankrLaunchError> {
+    let observed = value.get("pairedStock").filter(|value| !value.is_null());
+    match (requested, observed) {
+        (None, None) => Ok(()),
+        (None, Some(_)) => Err(BankrLaunchError::definite(
+            "Bankr reported a stock pairing that was not requested; refusing the approval",
+        )),
+        (Some((ticker, _)), None) => Err(BankrLaunchError::definite(format!(
+            "Bankr did not confirm the {ticker} pairing; the response names no pairedStock, so this key or ticker may not support stock-paired launches"
+        ))),
+        (Some((ticker, requested_address)), Some(observed)) => {
+            let symbol = required_string(observed, &["symbol"], "paired stock symbol")?;
+            if !symbol.eq_ignore_ascii_case(ticker) {
+                return Err(BankrLaunchError::definite(format!(
+                    "Bankr paired the launch with {symbol}, but {ticker} was requested"
+                )));
+            }
+            let address = required_string(observed, &["address"], "paired stock address")?;
+            if !address.eq_ignore_ascii_case(requested_address) {
+                return Err(BankrLaunchError::definite(format!(
+                    "Bankr paired the launch with stock token {address}, but {requested_address} was requested"
+                )));
+            }
+            Ok(())
+        }
+    }
 }
 
 fn verify_deployment(
     value: &Value,
     chain: LaunchChain,
     simulated_token_address: &str,
+    simulated_fee_recipient_address: &str,
+    paired_stock: Option<(&str, &str)>,
 ) -> Vec<String> {
     let mut warnings = Vec::new();
     if value.get("success").and_then(Value::as_bool) != Some(true) {
@@ -691,7 +921,10 @@ fn verify_deployment(
     if let Err(error) = verify_chain(value, chain) {
         warnings.push(error.message);
     }
-    if let Err(error) = verify_creator_recipient(value) {
+    if let Err(error) = verify_paired_stock(value, paired_stock) {
+        warnings.push(error.message);
+    }
+    if let Err(error) = verify_creator_recipient(value, Some(simulated_fee_recipient_address)) {
         warnings.push(error.message);
     }
     warnings
@@ -708,18 +941,27 @@ fn verify_chain(value: &Value, expected: LaunchChain) -> Result<(), BankrLaunchE
     Ok(())
 }
 
-fn verify_creator_recipient(value: &Value) -> Result<(), BankrLaunchError> {
+fn verify_creator_recipient(
+    value: &Value,
+    expected_address: Option<&str>,
+) -> Result<String, BankrLaunchError> {
     let observed = required_string(
         value,
         &["feeDistribution", "creator", "address"],
         "creator fee recipient",
     )?;
-    if !observed.eq_ignore_ascii_case(FEE_RECIPIENT_ADDRESS) {
+    if !is_evm_address(observed) {
+        return Err(BankrLaunchError::definite(
+            "Bankr returned an invalid creator fee recipient address",
+        ));
+    }
+    if expected_address.is_some_and(|expected| !observed.eq_ignore_ascii_case(expected)) {
         return Err(BankrLaunchError::definite(format!(
-            "Bankr resolved {FEE_RECIPIENT_ENS} to {observed}, but Studio is pinned to {FEE_RECIPIENT_ADDRESS}; deployment is blocked"
+            "Bankr returned creator fee recipient {observed}, but the approved simulation pinned {expected_address}; deployment is blocked",
+            expected_address = expected_address.unwrap_or_default()
         )));
     }
-    Ok(())
+    Ok(observed.to_owned())
 }
 
 fn required_string<'a>(
@@ -811,13 +1053,13 @@ fn persist_receipt(
     let token_name = approval.shot.token_name();
     let token_symbol = approval.shot.token_symbol();
     let receipt = StoredReceipt {
-        schema: "tohseno.bankr-launch-receipt/1",
+        schema: "tohseno.bankr-launch-receipt/2",
         recorded_at_unix_ms: SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis(),
         token_name: &token_name,
         token_symbol: &token_symbol,
         signer: "Bankr wallet that owns BANKR_API_KEY",
-        fee_recipient_ens: FEE_RECIPIENT_ENS,
-        fee_recipient_address: FEE_RECIPIENT_ADDRESS,
+        fee_recipient: &approval.parameters.fee_recipient,
+        fee_recipient_address: &approval.simulated_fee_recipient_address,
         shot: &approval.shot,
         configuration_digest: &approval.configuration_digest,
         simulated_token_address: &approval.simulated_token_address,
@@ -862,11 +1104,19 @@ mod tests {
             chain: LaunchChain::Robinhood,
             creator_vesting: CreatorVesting::FifteenPercent,
             creator_fee_mode: CreatorFeeMode::QuoteOnly,
+            fee_recipient: FeeRecipient {
+                kind: FeeRecipientKind::Ens,
+                value: "creator.eth".to_owned(),
+            },
+            paired_stock: None,
+            paired_stock_address: None,
         }
     }
 
+    const AAPL_ADDRESS: &str = "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9";
+
     #[test]
-    fn payload_carries_the_shots_own_appcoin_and_the_personal_ens() {
+    fn payload_carries_the_shots_own_appcoin_and_selected_recipient() {
         let shot = shot();
         let payload = serde_json::to_value(bankr_payload(
             &shot.token_name(),
@@ -878,7 +1128,7 @@ mod tests {
         assert_eq!(payload["tokenName"], "anky");
         assert_eq!(payload["tokenSymbol"], "ANKY");
         assert_eq!(payload["feeRecipient"]["type"], "ens");
-        assert_eq!(payload["feeRecipient"]["value"], FEE_RECIPIENT_ENS);
+        assert_eq!(payload["feeRecipient"]["value"], "creator.eth");
         assert_eq!(payload["chain"], "robinhood");
         assert_eq!(payload["simulateOnly"], true);
         assert_eq!(payload["disableVesting"], false);
@@ -893,7 +1143,7 @@ mod tests {
         let mut hyphenated = shot();
         hyphenated.app_name = "field-notebook".to_owned();
         assert_eq!(hyphenated.token_name(), "field-notebook");
-        assert_eq!(hyphenated.token_symbol(), "FIELDNOTEBO");
+        assert_eq!(hyphenated.token_symbol(), "FIELDNOTEB");
         assert!(hyphenated.token_symbol().len() <= MAX_TOKEN_SYMBOL);
 
         // Two Shots never share one Appcoin identity.
@@ -937,19 +1187,116 @@ mod tests {
 
     #[test]
     fn simulation_must_resolve_the_pinned_personal_wallet() {
+        let recipient = FeeRecipient {
+            kind: FeeRecipientKind::Ens,
+            value: "creator.eth".to_owned(),
+        };
         let valid = serde_json::json!({
             "success": true,
             "tokenAddress": "0x1111111111111111111111111111111111111111",
             "chain": "robinhood",
             "feeDistribution": {
-                "creator": { "address": FEE_RECIPIENT_ADDRESS, "bps": 9500 }
+                "creator": { "address": "0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15", "bps": 9500 }
             }
         });
-        verify_simulation(&valid, LaunchChain::Robinhood).unwrap();
+        verify_simulation(&valid, LaunchChain::Robinhood, &recipient, None).unwrap();
         let mut hostile = valid;
         hostile["feeDistribution"]["creator"]["address"] =
-            Value::String("0x2222222222222222222222222222222222222222".to_owned());
-        assert!(verify_simulation(&hostile, LaunchChain::Robinhood).is_err());
+            Value::String("not-an-address".to_owned());
+        assert!(verify_simulation(&hostile, LaunchChain::Robinhood, &recipient, None).is_err());
+    }
+
+    #[test]
+    fn a_requested_stock_pairing_must_be_echoed_exactly_or_the_approval_dies() {
+        let unpaired = serde_json::json!({
+            "success": true,
+            "tokenAddress": "0x1111111111111111111111111111111111111111",
+            "chain": "robinhood",
+            "feeDistribution": {
+                "creator": { "address": "0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15", "bps": 9500 }
+            }
+        });
+        let recipient = parameters().fee_recipient;
+        let requested = Some(("AAPL", AAPL_ADDRESS));
+        // Requested but not echoed: refused.
+        assert!(
+            verify_simulation(&unpaired, LaunchChain::Robinhood, &recipient, requested).is_err()
+        );
+        let mut paired = unpaired.clone();
+        paired["pairedStock"] = serde_json::json!({
+            "address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+            "symbol": "AAPL"
+        });
+        // Echoed exactly (case-insensitive address): approved.
+        verify_simulation(&paired, LaunchChain::Robinhood, &recipient, requested).unwrap();
+        // Echoed with a different stock: refused.
+        assert!(
+            verify_simulation(
+                &paired,
+                LaunchChain::Robinhood,
+                &recipient,
+                Some(("TSLA", AAPL_ADDRESS)),
+            )
+            .is_err()
+        );
+        // Echoed with a different quote address: refused.
+        assert!(
+            verify_simulation(
+                &paired,
+                LaunchChain::Robinhood,
+                &recipient,
+                Some(("AAPL", "0x2222222222222222222222222222222222222222")),
+            )
+            .is_err()
+        );
+        // Pairing that was never requested: refused.
+        assert!(verify_simulation(&paired, LaunchChain::Robinhood, &recipient, None).is_err());
+    }
+
+    #[test]
+    fn paired_stock_is_normalized_gated_to_robinhood_and_committed() {
+        let mut paired = parameters();
+        paired.paired_stock = Some(" $aapl ".to_owned());
+        paired.paired_stock_address = Some(AAPL_ADDRESS.to_owned());
+        normalize_and_validate(&mut paired).unwrap();
+        assert_eq!(paired.paired_stock.as_deref(), Some("AAPL"));
+        assert_eq!(paired.paired_stock_address.as_deref(), Some(AAPL_ADDRESS));
+
+        // The payload identifies the pairing by the stock token address.
+        let payload =
+            serde_json::to_value(bankr_payload("anky", "ANKY", &paired, true)).unwrap();
+        assert_eq!(payload["pairedStockAddress"], AAPL_ADDRESS);
+        assert!(payload.get("pairedStock").is_none());
+        let unpaired = serde_json::to_value(bankr_payload("anky", "ANKY", &parameters(), true))
+            .unwrap();
+        assert!(unpaired.get("pairedStockAddress").is_none());
+
+        // A ticker without its address (or the reverse) is refused.
+        let mut half = parameters();
+        half.paired_stock = Some("AAPL".to_owned());
+        assert!(normalize_and_validate(&mut half).is_err());
+        let mut other_half = parameters();
+        other_half.paired_stock_address = Some(AAPL_ADDRESS.to_owned());
+        assert!(normalize_and_validate(&mut other_half).is_err());
+
+        let mut on_base = parameters();
+        on_base.chain = LaunchChain::Base;
+        on_base.paired_stock = Some("AAPL".to_owned());
+        on_base.paired_stock_address = Some(AAPL_ADDRESS.to_owned());
+        assert!(normalize_and_validate(&mut on_base).is_err());
+
+        let mut invalid = parameters();
+        invalid.paired_stock = Some("NOT A TICKER!".to_owned());
+        invalid.paired_stock_address = Some(AAPL_ADDRESS.to_owned());
+        assert!(normalize_and_validate(&mut invalid).is_err());
+
+        let mut bad_address = parameters();
+        bad_address.paired_stock = Some("AAPL".to_owned());
+        bad_address.paired_stock_address = Some("not-an-address".to_owned());
+        assert!(normalize_and_validate(&mut bad_address).is_err());
+
+        let baseline = configuration_digest(&shot(), &parameters()).unwrap();
+        assert_ne!(baseline, configuration_digest(&shot(), &paired).unwrap());
     }
 
     #[test]
@@ -959,8 +1306,34 @@ mod tests {
                 &shot(),
                 LaunchChain::Base,
                 "0x1111111111111111111111111111111111111111",
+                &parameters().fee_recipient,
+                None,
             ),
-            "DEPLOY $ANKY FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON BASE TO JPFRANETO.ETH AT 0x1111111111111111111111111111111111111111"
+            "DEPLOY $ANKY FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON BASE TO ENS:CREATOR.ETH AT 0x1111111111111111111111111111111111111111"
         );
+        assert_eq!(
+            confirmation_phrase(
+                &shot(),
+                LaunchChain::Robinhood,
+                "0x1111111111111111111111111111111111111111",
+                &parameters().fee_recipient,
+                Some("AAPL"),
+            ),
+            "DEPLOY $ANKY/$AAPL FOR SHOT 0x1111111111111111111111111111111111111111111111111111111111111111 ON ROBINHOOD TO ENS:CREATOR.ETH AT 0x1111111111111111111111111111111111111111"
+        );
+    }
+
+    #[test]
+    fn recipient_is_normalized_and_committed() {
+        let mut social = parameters();
+        social.fee_recipient = FeeRecipient {
+            kind: FeeRecipientKind::X,
+            value: " @creator ".to_owned(),
+        };
+        normalize_and_validate(&mut social).unwrap();
+        assert_eq!(social.fee_recipient.value, "creator");
+
+        let baseline = configuration_digest(&shot(), &parameters()).unwrap();
+        assert_ne!(baseline, configuration_digest(&shot(), &social).unwrap());
     }
 }

@@ -46,6 +46,7 @@ const SCRIPT: &str = include_str!("../../studio/app.js");
 const BRAND_COLORS: &str = include_str!("../../brand/tokens/colors.css");
 const CORE_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-core-circle.svg");
 const MICRO_CIRCLE: &[u8] = include_bytes!("../../brand/logos/tohseno-micro-circle.png");
+const BANKR_SYMBOL: &[u8] = include_bytes!("../../brand/logos/bankr-symbol-full-color.svg");
 const MAX_BODY: usize = 160 * 1024 * 1024;
 const MAX_HEADERS: usize = 32 * 1024;
 const MAX_PROTOCOL_JSON: u64 = 4 * 1024 * 1024;
@@ -65,6 +66,8 @@ struct State {
 struct BankrSimulationRequest {
     app_name: String,
     version_ordinal: u32,
+    #[serde(default)]
+    api_key: Option<String>,
     parameters: LaunchParameters,
 }
 
@@ -464,6 +467,17 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     if request.method == "POST" && request.path == "/api/bankr/launch/deploy" {
         return deploy_bankr_launch(&mut socket, &request.body, &state).await;
     }
+    if request.method == "POST" && request.path == "/api/bankr/launch/cancel" {
+        state.bankr.cancel_pending().await;
+        respond(
+            &mut socket,
+            200,
+            "application/json; charset=utf-8",
+            r#"{"cancelled":true}"#,
+        )
+        .await?;
+        return Ok(());
+    }
     if request.method == "POST" && request.path == "/api/plan" {
         return serve_initial_plan(&mut socket, &request.body).await;
     }
@@ -509,6 +523,9 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         }
         ("GET", "/brand/logos/tohseno-micro-circle.png") => {
             respond_bytes(&mut socket, 200, "image/png", MICRO_CIRCLE).await?
+        }
+        ("GET", "/brand/logos/bankr-symbol-full-color.svg") => {
+            respond_bytes(&mut socket, 200, "image/svg+xml", BANKR_SYMBOL).await?
         }
         ("GET", "/events") => stream_events(socket, state.events).await?,
         ("POST", "/shots") => {
@@ -696,7 +713,11 @@ async fn simulate_bankr_launch(
             return Ok(());
         }
     };
-    match state.bankr.simulate(shot, request.parameters).await {
+    match state
+        .bankr
+        .simulate(shot, request.parameters, request.api_key)
+        .await
+    {
         Ok(approval) => {
             let body = serde_json::to_string(&approval)?;
             respond(socket, 200, "application/json; charset=utf-8", &body).await?;
@@ -862,7 +883,7 @@ fn record_bankr_shot_association(
                 operation: TokenAssociationOperation::Associate,
                 chain_id: outcome.parameters.chain.chain_id(),
                 token,
-                symbol: Some("TOHSENO".into()),
+                symbol: Some(outcome.token_symbol.clone()),
                 anchor: None,
             },
             AvailabilityStatus::IntentionallyPrivate,

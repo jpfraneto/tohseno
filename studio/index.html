@@ -586,43 +586,216 @@
     <dialog id="bankr-dialog" class="bankr-dialog" aria-labelledby="bankr-title">
       <form id="bankr-launch-form" method="dialog">
         <header class="bankr-head">
-          <div>
-            <span>BANKR · PROGRAMMATIC LAUNCH</span>
-            <h2 id="bankr-title">Deploy this Shot’s Appcoin</h2>
-            <p>
-              Bankr signs and broadcasts the token deployment. After confirmation,
-              Studio records its relationship to this Shot only in private local lineage.
-              <strong>jpfraneto.eth</strong> receives the creator fee and vesting rights.
-            </p>
+          <div class="bankr-brand">
+            <div>
+              <h2 id="bankr-title">Deploy this Shot’s Appcoin</h2>
+              <p id="bankr-subtitle" class="bankr-subtitle">The AppCoin of this Shot</p>
+              <p class="bankr-head-note">
+                Simulate the exact launch, review Bankr’s resolved recipient, then explicitly
+                approve the irreversible deployment.
+              </p>
+            </div>
           </div>
           <button id="bankr-close" type="button" aria-label="Close token launch">×</button>
         </header>
 
-        <section class="bankr-fixed-facts" aria-label="Fixed launch identity">
-          <dl>
-            <div><dt>Shot</dt><dd id="bankr-shot-name">No Shot selected</dd></div>
-            <div><dt>ShotID</dt><dd id="bankr-shot-id">Unavailable</dd></div>
-            <div><dt>Version viewed</dt><dd id="bankr-shot-version">Unavailable</dd></div>
-            <div><dt>Appcoin</dt><dd id="bankr-token-identity">Select a Shot</dd></div>
-            <div><dt>Recipient</dt><dd>jpfraneto.eth</dd></div>
-            <div><dt>Pinned address</dt><dd>0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15</dd></div>
-            <div><dt>Signer</dt><dd>Bankr API-key wallet</dd></div>
-          </dl>
-          <p id="bankr-status" role="status">Checking the local Bankr configuration…</p>
+        <section class="bankr-market-preview" aria-label="Public token preview">
+          <span class="bankr-section-label">WHAT TRADERS WILL SEE</span>
+          <div class="bankr-market-preview-body">
+            <div class="bankr-preview-image">
+              <img id="bankr-image-preview" alt="Token image preview" referrerpolicy="no-referrer">
+              <span id="bankr-image-placeholder">Add token image</span>
+            </div>
+            <div class="bankr-preview-copy">
+              <strong id="bankr-preview-name">TOHSENO</strong>
+              <span id="bankr-preview-symbol">$TOHSENO</span>
+              <p id="bankr-preview-description">Persistent computational identity for coherent human intentions.</p>
+            </div>
+            <dl>
+              <div><dt>Network</dt><dd id="bankr-preview-chain">Robinhood Chain · 4663</dd></div>
+              <div><dt>Pair</dt><dd id="bankr-preview-pair">$TOHSENO / WETH</dd></div>
+              <div><dt>Website</dt><dd id="bankr-preview-website">tohseno.com</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="bankr-access" aria-labelledby="bankr-access-title">
+          <div class="bankr-section-heading">
+            <div>
+              <span class="bankr-section-label">LAUNCH AUTHORITY</span>
+              <h3 id="bankr-access-title">Your Bankr wallet, your fee recipient</h3>
+            </div>
+            <a id="bankr-key-link" href="https://bankr.bot/api-keys" target="_blank" rel="noreferrer noopener">Create API key ↗</a>
+          </div>
+          <div class="bankr-access-fields">
+            <label class="bankr-key-field">
+              <span>Bankr user API key</span>
+              <input id="bankr-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="bk_usr_…">
+              <small id="bankr-key-note">Required for this launch. It is never saved to disk or returned by Studio.</small>
+            </label>
+            <label>
+              <span>Recipient type</span>
+              <select id="bankr-recipient-type">
+                <option value="ens">ENS name</option>
+                <option value="wallet">Wallet address</option>
+                <option value="x">X account</option>
+                <option value="farcaster">Farcaster account</option>
+              </select>
+            </label>
+            <label class="bankr-recipient-field">
+              <span>Creator fee + vesting recipient</span>
+              <input id="bankr-recipient" type="text" autocomplete="off" spellcheck="false" placeholder="name.eth" required>
+              <small>Bankr resolves this during simulation; deployment is pinned to the resolved address.</small>
+            </label>
+          </div>
+          <p id="bankr-status" role="status">Checking Bankr launch readiness…</p>
           <p id="bankr-configuration" class="bankr-configuration"></p>
         </section>
 
+        <section class="bankr-fixed-facts" aria-label="Shot protocol details">
+          <span class="bankr-section-label">PROTOCOL DETAILS</span>
+          <dl>
+            <div><dt>Shot</dt><dd id="bankr-shot-name">No Shot selected</dd></div>
+            <div><dt>Version viewed</dt><dd id="bankr-shot-version">Unavailable</dd></div>
+            <div><dt>Appcoin</dt><dd id="bankr-token-identity">Select a Shot</dd></div>
+            <div><dt>Signer</dt><dd>Wallet owning the Bankr API key</dd></div>
+            <div class="bankr-shot-id"><dt>ShotID</dt><dd id="bankr-shot-id">Unavailable</dd></div>
+          </dl>
+        </section>
+
+        <span class="bankr-section-label">LAUNCH SETUP</span>
         <div class="bankr-fields">
-          <label>
-            <span>Chain</span>
+          <label class="bankr-select-row">
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Chain
+            </span>
             <select id="bankr-chain" required>
               <option value="robinhood">Robinhood Chain · 4663</option>
               <option value="base">Base · 8453</option>
             </select>
           </label>
 
-          <label>
-            <span>Creator vesting</span>
+          <label class="bankr-select-row">
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="15 7 21 7 21 13"></polyline></svg>
+              Pair · quote token
+            </span>
+            <select id="bankr-paired-stock">
+              <option value="">WETH · standard pair</option>
+              <option value="0x521Cf887E6531c6F667b5BC4D896E5d9bfE8EB2E" data-symbol="AAOI">AAOI · Applied Optoelectronics</option>
+              <option value="0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9" data-symbol="AAPL">AAPL · Apple</option>
+              <option value="0x36046893810a7E7fCE501229d57dc3FC8c8716d0" data-symbol="AMAT">AMAT · Applied Materials</option>
+              <option value="0x86923f96303D656E4aa86D9d42D1e57ad2023fdC" data-symbol="AMD">AMD · AMD</option>
+              <option value="0x12f190a9F9d7D37a250758b26824B97CE941bF54" data-symbol="AMZN">AMZN · Amazon</option>
+              <option value="0xb8DBf92F9741c9ac1c32115E78581f23509916FD" data-symbol="APLD">APLD · Applied Digital</option>
+              <option value="0x47F93d52cBeC7C6D2CfC080e154002370a60dAEA" data-symbol="ASML">ASML · ASML Holding NV</option>
+              <option value="0x1AF6446f07eb1d97c546AFC8c9544cBDF3AD5137" data-symbol="ASTS">ASTS · AST SpaceMobile</option>
+              <option value="0x156E175DD063a8cE274C50654eF40e0032b3fbcF" data-symbol="AVGO">AVGO · Broadcom</option>
+              <option value="0x4D21483a44Bf67a86b77E3dA301411880797D452" data-symbol="BA">BA · Boeing</option>
+              <option value="0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4" data-symbol="BABA">BABA · Alibaba</option>
+              <option value="0x822CC93fFD030293E9842c30BBD678F530701867" data-symbol="BE">BE · Bloom Energy</option>
+              <option value="0x5c90450Bbb4273D7b2f17CF6917AEB237A569679" data-symbol="CBRS">CBRS · Cerebras Systems</option>
+              <option value="0x9651342CeA770aE9a2969Ba2A52611523146aef9" data-symbol="CCL">CCL · Carnival Corporation</option>
+              <option value="0x8cF07C5A878945185d327aAa6e33FAa95F95e7bF" data-symbol="CELH">CELH · Celsius</option>
+              <option value="0xcBB95BBF36099d34dA091dc6Fa6F49EfA257Cee3" data-symbol="CLSK">CLSK · CleanSpark</option>
+              <option value="0x6330D8C3178a418788dF01a47479c0ce7CCF450b" data-symbol="COIN">COIN · Coinbase</option>
+              <option value="0x4EA005168D7F09a7A0Ba9D1DEf21a479950E44C2" data-symbol="COST">COST · Costco</option>
+              <option value="0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5" data-symbol="CRCL">CRCL · Circle Internet Group</option>
+              <option value="0xea72Ecca2d0f6bFA1394DBBCff85b52CD4233931" data-symbol="CRWD">CRWD · CrowdStrike Holdings</option>
+              <option value="0x5f10A1C971B69e47e059e1dC91901B59b3fB49C3" data-symbol="CRWV">CRWV · CoreWeave</option>
+              <option value="0x27c99fBde9D0d2AA4f4Bfb4943f237843DdF6958" data-symbol="DDOG">DDOG · Datadog</option>
+              <option value="0x941AE714EC6D8130c7B75d67160Ca08f1e7d11Dd" data-symbol="DELL">DELL · Dell</option>
+              <option value="0x39EC44Bee4F6A116c6F9B8De566848a985C53C60" data-symbol="ELF">ELF · e.l.f. Beauty</option>
+              <option value="0x7f0aBeF0C07280F82c6a08ead09dEd6BAE2C13Fc" data-symbol="EWY">EWY · iShares MSCI South Korea fund</option>
+              <option value="0x25C288E6D899b9BC30160965aD9644c67e73bE0C" data-symbol="F">F · Ford Motor</option>
+              <option value="0x282e87451E10fA6679BC7D76C69BE44cD3fC777C" data-symbol="FLNC">FLNC · Fluence Energy</option>
+              <option value="0xeB30663bDFf0622Ef4e4E5cBb4E975F19f33f51D" data-symbol="FUTU">FUTU · Futu Holdings</option>
+              <option value="0x7c04E6A3368F2A1DE3874f0e80d2e0A1a9915da6" data-symbol="GLW">GLW · Corning</option>
+              <option value="0x1b0E319c6A659F002271B69dB8A7df2F911c153E" data-symbol="GME">GME · GameStop</option>
+              <option value="0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3" data-symbol="GOOGL">GOOGL · Alphabet Class A</option>
+              <option value="0xf1953DAB6FaD537488d5A022361FfAa8B4c95eC6" data-symbol="INOD">INOD · Innodata</option>
+              <option value="0xc72b96e0E48ecd4DC75E1e45396e26300BC39681" data-symbol="INTC">INTC · Intel</option>
+              <option value="0x56d23beE5f41A7120170b0c603Dae30128e460e9" data-symbol="INTU">INTU · Intuit</option>
+              <option value="0x558378E000D634A36593E338eBacdd6207640EfE" data-symbol="IONQ">IONQ · IonQ</option>
+              <option value="0xF0AB0c93bE6F41369d302e55db1A96b3c430212D" data-symbol="IREN">IREN · IREN Limited</option>
+              <option value="0x8eF20885F94e3D9bc7eB3080279188Bd5ED7c08C" data-symbol="LITE">LITE · Lumentum</option>
+              <option value="0x8005d266423c7ea827372c9c864491e5786600ea" data-symbol="LLY">LLY · Eli Lilly</option>
+              <option value="0x4e62068525Ab11FE768e29dfD00ef909B9803016" data-symbol="LULU">LULU · Lululemon</option>
+              <option value="0xa5D4968421bA94814Be3B136b15cf422101aC1a3" data-symbol="LUNR">LUNR · Intuitive Machines</option>
+              <option value="0xDdf2266b79abf0B48898959B0ed6E6adf512be74" data-symbol="MDB">MDB · MongoDB</option>
+              <option value="0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35" data-symbol="META">META · Meta Platforms</option>
+              <option value="0x62fd0668e10D8B72339BE2DCF7643001688ff13B" data-symbol="MRVL">MRVL · Marvell Technology</option>
+              <option value="0xe93237C50D904957Cf27E7B1133b510C669c2e74" data-symbol="MSFT">MSFT · Microsoft</option>
+              <option value="0xec262a75e413fAfD0dF80480274532C79D42da09" data-symbol="MSTR">MSTR · Strategy Inc.</option>
+              <option value="0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD" data-symbol="MU">MU · Micron Technology</option>
+              <option value="0x48961813349333209994750ffA89b3c5C22eC969" data-symbol="MXL">MXL · MaxLinear</option>
+              <option value="0x9D9c6684F596F66a64C030B93A886D51Fd4D7931" data-symbol="NBIS">NBIS · Nebius Group</option>
+              <option value="0xE0444EF8BF4eD74f74FD73686e2ddF4C1c5591E8" data-symbol="NFLX">NFLX · Netflix</option>
+              <option value="0xBEF75684C43c4ea7BD18Dd532a2244674Ee8b926" data-symbol="NNE">NNE · Nano Nuclear Energy</option>
+              <option value="0x0C3260aF4B8f13a69c4c2dFb84fD667890CDFa14" data-symbol="NOW">NOW · ServiceNow</option>
+              <option value="0x408c14038a04f7bD235329E26d2bf569ee20e250" data-symbol="NU">NU · Nu</option>
+              <option value="0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC" data-symbol="NVDA">NVDA · NVIDIA</option>
+              <option value="0xbE6702d7b70315376dC48a3293f24f0982F86386" data-symbol="NVTS">NVTS · Navitas Semiconductor</option>
+              <option value="0xb0992820E760d836549ba69BC7598b4af75dEE03" data-symbol="ORCL">ORCL · Oracle</option>
+              <option value="0x1Cdad396DB64BDa184d5182A97Dd9B3C62100b7D" data-symbol="P">P · Everpure</option>
+              <option value="0x9b23573b156B52565012F5cE02CDF60AFBaa70Be" data-symbol="PENG">PENG · Penguin Solutions</option>
+              <option value="0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A" data-symbol="PLTR">PLTR · Palantir Technologies</option>
+              <option value="0xcf6B2D875361be807EAfa57458c80f28521F9333" data-symbol="POET">POET · POET Technologies</option>
+              <option value="0x4189F0c66EBBB0bfeF1C31f763131361EF32f77C" data-symbol="PR">PR · Permian Resources</option>
+              <option value="0xC583c60aeF9Dc401Da72cEC1B404743a93cea1Cc" data-symbol="QBTS">QBTS · D-Wave Quantum</option>
+              <option value="0x0f17206447090e464C277571124dD2688E48AEA9" data-symbol="QCOM">QCOM · Qualcomm</option>
+              <option value="0xD5f3879160bc7c32ebb4dC785F8a4F505888de68" data-symbol="QQQ">QQQ · Invesco QQQ</option>
+              <option value="0x59818904ab4cE163b3cE4FfB64f2D6Ca02c434B4" data-symbol="QUBT">QUBT · Quantum Computing</option>
+              <option value="0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8" data-symbol="RBLX">RBLX · Roblox</option>
+              <option value="0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C" data-symbol="RDDT">RDDT · Reddit</option>
+              <option value="0x92Ef19E82bD8fF36661DE838D5eaE7e5CEF0EfFE" data-symbol="RDW">RDW · Redwire</option>
+              <option value="0x284358abc07F9359f19f4b5b4aC91901Be2597Ba" data-symbol="RGTI">RGTI · Rigetti Computing</option>
+              <option value="0xB1BF26c1D20ff267A4f93550d1E0d06ac40a114B" data-symbol="RIVN">RIVN · Rivian Automotive</option>
+              <option value="0x3b14C39E89D60D627b42a1A4CA45b5bb45Fc12e2" data-symbol="RKLB">RKLB · Rocket Lab Corporation</option>
+              <option value="0x95052ddcd5DC25641657424A8Cf04834997E1730" data-symbol="SATS">SATS · EchoStar</option>
+              <option value="0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5" data-symbol="SGOV">SGOV · iShares 0-3 Month Treasury Bond ETF</option>
+              <option value="0xF53F66751B1Eff985311b693531E3290F600c410" data-symbol="SHOP">SHOP · Shopify</option>
+              <option value="0x411eFb0E7f985935DAec3D4C3ebaEa0d0AD7D89f" data-symbol="SLV">SLV · iShares Silver Trust</option>
+              <option value="0xc01aA1fECeC0605b13bc84874ff7256C0f5F562a" data-symbol="SMCI">SMCI · Super Micro Computer</option>
+              <option value="0xB90A19fF0Af67f7779afF50A882A9CfF42446400" data-symbol="SNDK">SNDK · Sandisk Corporation</option>
+              <option value="0x98E75885157C80992A8D41b696D8c9C6Fb30A926" data-symbol="SOFI">SOFI · SoFi Technologies</option>
+              <option value="0x75742c18BC1f1C5c5f448f4C9D9C6F66dafAAa38" data-symbol="SOXX">SOXX · iShares Semiconductor ETF</option>
+              <option value="0xAd622320e520de39e72d41EF07438C3Fd3354875" data-symbol="SPMO">SPMO · Invesco S&amp;P 500 Momentum ETF</option>
+              <option value="0x117cc2133c37B721F49dE2A7a74833232B3B4C0C" data-symbol="SPY">SPY · SPDR S&amp;P 500 ETF Trust</option>
+              <option value="0x89776d4Cd68193597A2fC132cfaC1fDe36CCeA8a" data-symbol="TSEM">TSEM · Tower Semiconductor</option>
+              <option value="0x322F0929c4625eD5bAd873c95208D54E1c003b2d" data-symbol="TSLA">TSLA · Tesla</option>
+              <option value="0x58FfE4a942d3885bAa22D7520691F611EF09e7AA" data-symbol="TSM">TSM · Taiwan Semiconductor Manufacturing</option>
+              <option value="0x5e81213613b6B86EaB4c6c50d718d34359459786" data-symbol="TTWO">TTWO · Take-Two Interactive Software</option>
+              <option value="0x0E6e67Ba88e7b5d9B67636A215c76779B948dE79" data-symbol="UMC">UMC · United Microelectronics</option>
+              <option value="0xf23250dac154D05Bb671CB0d0eBEf3c635c79CE2" data-symbol="UPS">UPS · UPS</option>
+              <option value="0xd917B029C761D264c6A312BBbcDA868658eF86a6" data-symbol="USAR">USAR · USA Rare Earth</option>
+              <option value="0xa30FA36Db767ad9eD3f7a60fC79526fB4d56D344" data-symbol="USO">USO · United States Oil Fund</option>
+              <option value="0x82DA4646242e1D962e96e932269Dc644c94a9CaA" data-symbol="WDAY">WDAY · Workday</option>
+              <option value="0x15Cd20759CE7F3285c29A319dE2D1A2e098c6f43" data-symbol="XLK">XLK · State Street Technology Select Sector SPDR ETF</option>
+              <option value="0xA8eB3BCcbf2017eE7CBfb652eB51CF2E1B153289" data-symbol="XNDU">XNDU · Xanadu Quantum</option>
+              <option value="0xf9B46d3D1B22199D4D1025a9cEDB540A33F1a2d5" data-symbol="XOM">XOM · Exxon Mobil</option>
+              <option value="0x44c4F142009036cF477eD2d09932051843137CF1" data-symbol="ZM">ZM · Zoom</option>
+              <option value="0x7dc013eB55e436f30d7ED1AFE4E36d6e45e3c3f7" data-symbol="ZS">ZS · Zscaler</option>
+            </select>
+          </label>
+
+          <label class="bankr-select-row">
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 15.5 15.5 8"></path><circle cx="8.7" cy="8.7" r="1.2"></circle><circle cx="15.3" cy="15.3" r="1.2"></circle></svg>
+              Creator fees
+            </span>
+            <select id="bankr-fee-mode" required>
+              <option value="mixed">Launched token + quote token</option>
+              <option value="quote_only">Quote token only</option>
+            </select>
+          </label>
+
+          <label class="bankr-select-row">
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Creator vesting
+            </span>
             <select id="bankr-vesting" required>
               <option value="fifteen_percent">15% · one year, 30-day cliff</option>
               <option value="none">None · 100% enters the pool</option>
@@ -630,41 +803,52 @@
           </label>
 
           <label>
-            <span>Creator fees</span>
-            <select id="bankr-fee-mode" required>
-              <option value="mixed">Launched token + quote token</option>
-              <option value="quote_only">Quote token only</option>
-            </select>
-          </label>
-
-          <label class="bankr-wide">
-            <span>Description</span>
-            <textarea id="bankr-description" maxlength="500" required>Persistent computational identity for coherent human intentions.</textarea>
-          </label>
-
-          <label class="bankr-wide">
-            <span>Token image URL · optional HTTPS</span>
-            <input id="bankr-image" type="url" inputmode="url" placeholder="https://tohseno.com/token.png">
-          </label>
-
-          <label>
-            <span>Website · optional HTTPS</span>
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+              Website
+            </span>
             <input id="bankr-website" type="url" inputmode="url" value="https://tohseno.com">
           </label>
 
           <label>
-            <span>Launch post · optional HTTPS</span>
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              Token image URL
+            </span>
+            <input id="bankr-image" type="url" inputmode="url" placeholder="https://tohseno.com/token.png">
+          </label>
+
+          <label>
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l7.2 8.6L4.4 20h2.3l5.5-6.1L17 20h3l-7.5-9L19.4 4h-2.3l-5 5.6L7 4z"></path></svg>
+              Launch post
+            </span>
             <input id="bankr-tweet" type="url" inputmode="url" placeholder="https://x.com/…/status/…">
+          </label>
+
+          <label class="bankr-wide bankr-description-row">
+            <span>
+              <svg class="bankr-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="14" y2="17"></line></svg>
+              Description
+            </span>
+            <textarea id="bankr-description" maxlength="500" required>Persistent computational identity for coherent human intentions.</textarea>
           </label>
         </div>
 
         <p class="bankr-warning">
-          Simulation calls Bankr but broadcasts nothing. Deployment is irreversible. Bankr’s wallet—not
-          jpfraneto.eth—will be the on-chain deployer. The later private Token Association is not
-          a Shot publication, registry write, or ownership transfer.
+          <svg class="bankr-warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="11" x2="12" y2="17"></line><circle cx="12" cy="7.5" r="0.4"></circle></svg>
+          <span>
+          Simulation calls Bankr but broadcasts nothing. Deployment is irreversible. The Bankr API-key
+          wallet is the on-chain deployer; <strong id="bankr-warning-recipient">your chosen recipient</strong>
+          receives creator fees and any vesting rights. The later private Token Association is not a Shot
+          publication, registry write, or ownership transfer.
+          </span>
         </p>
 
-        <button id="bankr-simulate" class="bankr-primary" type="submit" disabled>Simulate with Bankr</button>
+        <button id="bankr-simulate" class="bankr-primary" type="submit" disabled>
+          <img src="/brand/logos/bankr-symbol-full-color.svg" alt="">
+          <span id="bankr-simulate-label">Simulate securely with Bankr</span>
+        </button>
 
         <section id="bankr-simulation" class="bankr-simulation" hidden>
           <div class="bankr-review-heading">
@@ -677,19 +861,38 @@
             <div><dt>Configuration</dt><dd id="bankr-configuration-digest"></dd></div>
           </dl>
           <label>
-            <span>Bankr fee distribution</span>
+            <span>Fee split</span>
             <pre id="bankr-fee-distribution"></pre>
+            <small class="bankr-pool-note">
+              Bankr creates the pool through Doppler on Uniswap v4, quoted in the selected pair —
+              WETH by default, or the chosen Robinhood tokenized stock. A stock pairing counts only
+              when this simulation confirms it.
+            </small>
           </label>
           <label class="bankr-acknowledgment">
             <input id="bankr-acknowledge" type="checkbox">
-            <span>I understand Bankr signs the deployment and jpfraneto.eth receives the creator rights.</span>
+            <span id="bankr-acknowledge-copy">I understand Bankr signs the deployment and the chosen recipient receives the creator rights.</span>
           </label>
-          <label>
-            <span>Type this exact phrase</span>
+          <div class="bankr-phrase">
+            <div class="bankr-phrase-head">
+              <span>Type or paste this exact phrase to arm the deployment</span>
+              <button id="bankr-copy-phrase" type="button">Copy phrase</button>
+            </div>
             <code id="bankr-confirmation-phrase"></code>
-            <input id="bankr-confirmation" type="text" autocomplete="off" spellcheck="false">
-          </label>
+            <input
+              id="bankr-confirmation"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Exact deployment confirmation phrase"
+              placeholder="DEPLOY $… ON … TO … AT 0x…"
+            >
+          </div>
           <button id="bankr-deploy" class="bankr-deploy" type="button" disabled>Deploy this Appcoin through Bankr</button>
+          <p id="bankr-deploy-note" class="bankr-deploy-note" hidden>
+            Deployment is locked: Studio is running without TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1.
+            Restart Studio with that variable set, then simulate again to arm this button.
+          </p>
         </section>
 
         <section id="bankr-result" class="bankr-result" hidden aria-live="polite">

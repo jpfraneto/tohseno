@@ -21,9 +21,13 @@
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="/favicon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TOHSENO">
   <title>Tohseno — Give Every Idea a Shot</title>
   <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/landing.css?v=1ad480ac993b">
+  <link rel="stylesheet" href="/landing.css?v=17cacb1006ee">
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -54,6 +58,101 @@
   </header>
 
   <main id="main-content">
+    <section class="mobile-home" aria-label="TOHSENO mobile home screen">
+      <div class="mobile-status-bar" aria-hidden="true">
+        <time data-mobile-time>9:41</time>
+        <span class="mobile-dynamic-island"></span>
+        <span class="mobile-status-icons">5G&nbsp;&nbsp;▰</span>
+      </div>
+
+      <div class="mobile-app-grid" aria-hidden="true">
+        <div class="mobile-app-tile" aria-label="Calendar">
+          <span class="mobile-app-icon mobile-app-icon--calendar" aria-hidden="true"><small>FRI</small><strong>31</strong></span>
+          <span>Calendar</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Photos">
+          <span class="mobile-app-icon mobile-app-icon--photos" aria-hidden="true">✣</span>
+          <span>Photos</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Camera">
+          <span class="mobile-app-icon mobile-app-icon--camera" aria-hidden="true">●</span>
+          <span>Camera</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Mail">
+          <span class="mobile-app-icon mobile-app-icon--mail" aria-hidden="true">⌁</span>
+          <span>Mail</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Clock">
+          <span class="mobile-app-icon mobile-app-icon--clock" aria-hidden="true"><i></i></span>
+          <span>Clock</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Maps">
+          <span class="mobile-app-icon mobile-app-icon--maps" aria-hidden="true">➤</span>
+          <span>Maps</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Notes">
+          <span class="mobile-app-icon mobile-app-icon--notes" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Notes</span>
+        </div>
+        <div class="mobile-app-tile" aria-label="Settings">
+          <span class="mobile-app-icon mobile-app-icon--settings" aria-hidden="true">⚙</span>
+          <span>Settings</span>
+        </div>
+      </div>
+
+      <button class="mobile-shot-widget" type="button" data-mobile-shot-launcher aria-controls="mobile-tohseno-app" aria-expanded="false" aria-label="Open the TOHSENO Shot composer">
+        <span class="mobile-widget-topline"><span>TOHSENO</span><span>NEW</span></span>
+        <span class="mobile-widget-enso" aria-hidden="true"><img src="/logo.svg" alt="" width="88" height="88"></span>
+        <span class="mobile-widget-copy">Take<br>a Shot.</span>
+        <span class="mobile-widget-action">Open composer <span aria-hidden="true">↗</span></span>
+      </button>
+
+      <div class="mobile-dock" aria-hidden="true">
+        <span class="mobile-dock-icon mobile-dock-icon--phone">●</span>
+        <span class="mobile-dock-icon mobile-dock-icon--browser">◇</span>
+        <span class="mobile-dock-icon mobile-dock-icon--messages">●</span>
+        <span class="mobile-dock-icon mobile-dock-icon--music">♫</span>
+      </div>
+
+      <section class="mobile-tohseno-app" id="mobile-tohseno-app" data-mobile-app hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mobile-app-title">
+        <header class="mobile-tohseno-header">
+          <span class="mobile-tohseno-mark"><img src="/logo.svg" alt="" width="34" height="34">TOHSENO</span>
+          <button type="button" data-mobile-app-close aria-label="Return to home screen">Done</button>
+        </header>
+        <div class="mobile-tohseno-body">
+          <p class="mobile-tohseno-kicker">NEW SHOT</p>
+          <h2 id="mobile-app-title">Take<br>a Shot.</h2>
+          <p class="mobile-tohseno-lede">Paste your Markdown brief and add up to eight references. TOHSENO will seal those private inputs into a local Shot Seed.</p>
+          <div class="mobile-brief-label">
+            <label for="mobile-shot-intention">Markdown brief</label>
+            <label class="mobile-brief-file" for="mobile-shot-brief-file">Choose .md</label>
+          </div>
+          <input id="mobile-shot-brief-file" data-mobile-brief-file type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+          <textarea id="mobile-shot-intention" data-mobile-intention rows="7" placeholder="# My app\n\nI keep thinking about…"></textarea>
+          <label class="mobile-image-picker" for="mobile-shot-images">
+            <span><strong>Add reference images</strong><small>PNG, JPEG, HEIC or WebP</small></span>
+            <span data-mobile-image-count>0 / 8</span>
+          </label>
+          <input id="mobile-shot-images" data-mobile-images type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
+          <div class="mobile-attachments" data-mobile-attachments aria-live="polite"></div>
+          <button class="mobile-tohseno-primary" type="button" data-mobile-take-shot disabled>Take Shot</button>
+          <p class="mobile-tohseno-status" data-mobile-intention-status aria-live="polite">The ZIP is built on this phone. Nothing is uploaded to tohseno.com.</p>
+          <section class="mobile-app-next" data-mobile-app-next hidden aria-labelledby="mobile-app-next-title">
+            <span>YOUR SEED IS SAFE</span>
+            <h3 id="mobile-app-next-title">Install TOHSENO Mobile.</h3>
+            <p>Keep the factory one tap away. Install this private Shot composer on your Home Screen, then open the ZIP in TOHSENO Studio on your Mac.</p>
+            <button type="button" data-mobile-install-app>Install the mobile app</button>
+            <ol data-mobile-install-steps hidden tabindex="-1">
+              <li>Tap Safari’s Share button.</li>
+              <li>Choose <strong>Add to Home Screen</strong>.</li>
+              <li>Tap <strong>Add</strong>.</li>
+            </ol>
+          </section>
+          <a class="mobile-tohseno-help" href="/docs#take-shot">How taking a Shot works <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+    </section>
+
     <section class="hero shell" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow">The fastest way to prototype iOS apps</p>

@@ -138,28 +138,47 @@ const ui = {
   bankrForm: document.querySelector("#bankr-launch-form"),
   bankrStatus: document.querySelector("#bankr-status"),
   bankrConfiguration: document.querySelector("#bankr-configuration"),
+  bankrApiKey: document.querySelector("#bankr-api-key"),
+  bankrKeyNote: document.querySelector("#bankr-key-note"),
+  bankrRecipientType: document.querySelector("#bankr-recipient-type"),
+  bankrRecipient: document.querySelector("#bankr-recipient"),
   bankrShotName: document.querySelector("#bankr-shot-name"),
   bankrTitle: document.querySelector("#bankr-title"),
+  bankrSubtitle: document.querySelector("#bankr-subtitle"),
   bankrTokenIdentity: document.querySelector("#bankr-token-identity"),
   bankrShotId: document.querySelector("#bankr-shot-id"),
   bankrShotVersion: document.querySelector("#bankr-shot-version"),
   bankrChain: document.querySelector("#bankr-chain"),
+  bankrPairedStock: document.querySelector("#bankr-paired-stock"),
+  bankrPreviewPair: document.querySelector("#bankr-preview-pair"),
   bankrVesting: document.querySelector("#bankr-vesting"),
   bankrFeeMode: document.querySelector("#bankr-fee-mode"),
   bankrDescription: document.querySelector("#bankr-description"),
   bankrImage: document.querySelector("#bankr-image"),
+  bankrImagePreview: document.querySelector("#bankr-image-preview"),
+  bankrImagePlaceholder: document.querySelector("#bankr-image-placeholder"),
+  bankrPreviewName: document.querySelector("#bankr-preview-name"),
+  bankrPreviewSymbol: document.querySelector("#bankr-preview-symbol"),
+  bankrPreviewDescription: document.querySelector("#bankr-preview-description"),
+  bankrPreviewChain: document.querySelector("#bankr-preview-chain"),
+  bankrPreviewWebsite: document.querySelector("#bankr-preview-website"),
   bankrWebsite: document.querySelector("#bankr-website"),
   bankrTweet: document.querySelector("#bankr-tweet"),
   bankrSimulate: document.querySelector("#bankr-simulate"),
+  bankrSimulateLabel: document.querySelector("#bankr-simulate-label"),
+  bankrWarningRecipient: document.querySelector("#bankr-warning-recipient"),
   bankrSimulation: document.querySelector("#bankr-simulation"),
   bankrPredictedAddress: document.querySelector("#bankr-predicted-address"),
   bankrResolvedRecipient: document.querySelector("#bankr-resolved-recipient"),
   bankrConfigurationDigest: document.querySelector("#bankr-configuration-digest"),
   bankrFeeDistribution: document.querySelector("#bankr-fee-distribution"),
   bankrAcknowledge: document.querySelector("#bankr-acknowledge"),
+  bankrAcknowledgeCopy: document.querySelector("#bankr-acknowledge-copy"),
   bankrConfirmationPhrase: document.querySelector("#bankr-confirmation-phrase"),
+  bankrCopyPhrase: document.querySelector("#bankr-copy-phrase"),
   bankrConfirmation: document.querySelector("#bankr-confirmation"),
   bankrDeploy: document.querySelector("#bankr-deploy"),
+  bankrDeployNote: document.querySelector("#bankr-deploy-note"),
   bankrResult: document.querySelector("#bankr-result"),
   bankrResultTitle: document.querySelector("#bankr-result-title"),
   bankrResultSummary: document.querySelector("#bankr-result-summary"),
@@ -207,9 +226,15 @@ const bankrParameters = () => ({
   image: optionalBankrValue(ui.bankrImage),
   tweet_url: optionalBankrValue(ui.bankrTweet),
   website_url: optionalBankrValue(ui.bankrWebsite),
+  paired_stock: pairedStockTicker() || null,
+  paired_stock_address: optionalBankrValue(ui.bankrPairedStock),
   chain: ui.bankrChain.value,
   creator_vesting: ui.bankrVesting.value,
   creator_fee_mode: ui.bankrFeeMode.value,
+  fee_recipient: {
+    type: ui.bankrRecipientType.value,
+    value: ui.bankrRecipient.value,
+  },
 });
 
 const selectedLaunchBinding = () => {
@@ -261,6 +286,7 @@ const resetBankrResult = () => {
 };
 
 const updateBankrDeployState = () => {
+  ui.bankrDeployNote.hidden = ui.bankrSimulation.hidden || Boolean(bankrOverview?.deploy_enabled);
   ui.bankrDeploy.disabled = !(
     bankrApproval
     && bankrOverview?.deploy_enabled
@@ -277,15 +303,34 @@ const clearBankrApproval = () => {
   updateBankrDeployState();
 };
 
+const validBankrApiKey = () => /^bk_usr_\S{8,}$/.test(ui.bankrApiKey.value.trim());
+
+const validBankrRecipient = () => {
+  const value = ui.bankrRecipient.value.trim();
+  if (!value) return false;
+  if (ui.bankrRecipientType.value === "wallet") return /^0x[0-9a-f]{40}$/i.test(value);
+  if (ui.bankrRecipientType.value === "ens") return value.toLowerCase().endsWith(".eth");
+  return /^@?[a-z0-9_.-]+$/i.test(value);
+};
+
+const updateBankrSimulateState = () => {
+  const hasKey = Boolean(bankrOverview?.configured) || validBankrApiKey();
+  ui.bankrSimulate.disabled = !hasKey || !validBankrRecipient();
+};
+
 const renderBankrStatus = () => {
   if (!bankrOverview) return;
+  ui.bankrApiKey.required = !bankrOverview.configured;
+  ui.bankrKeyNote.textContent = bankrOverview.configured
+    ? "A server-configured key is available. Enter another user key only to override it for this launch."
+    : "Required for this launch. Studio holds it only in memory for the single-use approval and never writes it to disk.";
   if (!bankrOverview.configured) {
     ui.bankrStatus.textContent = bankrOverview.configuration_error
-      || "BANKR_API_KEY is not configured. This browser never receives the key.";
-    ui.bankrStatus.dataset.status = "error";
+      || "Enter a Bankr user API key to simulate this launch.";
+    ui.bankrStatus.dataset.status = "ready";
     ui.bankrConfiguration.textContent =
-      "Create a Bankr user API key with token-launch access and read-only disabled, export it in the terminal, then restart Studio.";
-    ui.bankrSimulate.disabled = true;
+      "Use a dedicated key with token-launch access. It is sent only to this loopback Studio and then to Bankr.";
+    updateBankrSimulateState();
     return;
   }
   ui.bankrStatus.textContent = bankrOverview.deploy_enabled
@@ -293,9 +338,9 @@ const renderBankrStatus = () => {
     : "Bankr is configured for simulation. Deployment remains locked.";
   ui.bankrStatus.dataset.status = "ready";
   ui.bankrConfiguration.textContent = bankrOverview.deploy_enabled
-    ? "The API key remains server-side. Every approval is single-use and expires after 10 minutes."
+    ? "The key remains server-side. Every approval is single-use and expires after 10 minutes."
     : "To unlock the irreversible step, restart Studio with TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1.";
-  ui.bankrSimulate.disabled = false;
+  updateBankrSimulateState();
   updateBankrDeployState();
 };
 
@@ -306,20 +351,30 @@ const loadBankrStatus = async () => {
   renderBankrStatus();
 };
 
+const describeFeeDistribution = (distribution) => {
+  const lines = Object.entries(distribution || {})
+    .filter(([, share]) => share && typeof share === "object")
+    .map(([name, share]) => {
+      const percent = Number.isFinite(share.bps) ? `${(share.bps / 100).toFixed(2)}%` : "?";
+      return `${name} · ${percent} → ${share.address || "unknown address"}`;
+    });
+  return lines.length > 0
+    ? lines.join("\n")
+    : JSON.stringify(distribution || {}, null, 2);
+};
+
 const renderBankrSimulation = (approval) => {
   bankrApproval = approval;
   resetBankrResult();
   ui.bankrPredictedAddress.textContent =
     approval.bankr_simulation.tokenAddress || "Bankr did not return an address";
   ui.bankrResolvedRecipient.textContent =
-    `${approval.fee_recipient_ens} · ${approval.fee_recipient_address}`;
+    `${approval.fee_recipient.type}:${approval.fee_recipient.value} · ${approval.fee_recipient_address}`;
   ui.bankrConfigurationDigest.textContent = approval.configuration_digest;
-  ui.bankrFeeDistribution.textContent = JSON.stringify(
-    approval.bankr_simulation.feeDistribution || {},
-    null,
-    2,
-  );
+  ui.bankrFeeDistribution.textContent =
+    describeFeeDistribution(approval.bankr_simulation.feeDistribution);
   ui.bankrConfirmationPhrase.textContent = approval.confirmation_phrase;
+  ui.bankrCopyPhrase.textContent = "Copy phrase";
   ui.bankrAcknowledge.checked = false;
   ui.bankrConfirmation.value = "";
   ui.bankrSimulation.hidden = false;
@@ -1763,13 +1818,96 @@ configureSplitter(ui.composerSplitter, "--composer-width", 320, 640, "tohseno-co
 // Mirrors the engine's Appcoin derivation so the modal previews exactly what
 // the server will commit and broadcast.
 const appcoinSymbol = (appName) =>
-  [...appName].filter((character) => /[a-z0-9]/i.test(character)).slice(0, 11).join("").toUpperCase();
+  [...appName].filter((character) => /[a-z0-9]/i.test(character)).slice(0, 10).join("").toUpperCase();
+
+const bankrRecipientLabel = () => {
+  const value = ui.bankrRecipient.value.trim();
+  return value || "your chosen recipient";
+};
+
+const updateBankrRecipient = () => {
+  const placeholders = {
+    ens: "name.eth",
+    wallet: "0x…",
+    x: "@username",
+    farcaster: "username",
+  };
+  ui.bankrRecipient.placeholder = placeholders[ui.bankrRecipientType.value];
+  const recipient = bankrRecipientLabel();
+  ui.bankrWarningRecipient.textContent = recipient;
+  ui.bankrAcknowledgeCopy.textContent =
+    `I understand Bankr signs the deployment and ${recipient} receives the creator rights.`;
+  updateBankrSimulateState();
+};
+
+const showBankrImagePreview = (source, placeholder = "Add token image") => {
+  ui.bankrImagePlaceholder.textContent = placeholder;
+  ui.bankrImagePlaceholder.hidden = false;
+  ui.bankrImagePreview.hidden = true;
+  if (!source) return;
+  ui.bankrImagePreview.onload = () => {
+    ui.bankrImagePreview.hidden = false;
+    ui.bankrImagePlaceholder.hidden = true;
+  };
+  ui.bankrImagePreview.onerror = () => {
+    ui.bankrImagePreview.hidden = true;
+    ui.bankrImagePlaceholder.hidden = false;
+    ui.bankrImagePlaceholder.textContent = "Preview unavailable";
+  };
+  ui.bankrImagePreview.src = source;
+};
+
+const renderBankrPublicPreview = () => {
+  const appName = ui.bankrDialog.dataset.appName || "TOHSENO";
+  ui.bankrPreviewName.textContent = appName.toUpperCase();
+  ui.bankrPreviewSymbol.textContent = `$${appcoinSymbol(appName)}`;
+  ui.bankrPreviewDescription.textContent = ui.bankrDescription.value.trim()
+    || "Add a public token description.";
+  ui.bankrPreviewChain.textContent = ui.bankrChain.selectedOptions[0]?.textContent || "Unknown chain";
+  const pair = pairedStockTicker();
+  ui.bankrPreviewPair.textContent =
+    `$${appcoinSymbol(appName)} / ${pair ? `$${pair}` : "WETH"}`;
+  const website = ui.bankrWebsite.value.trim();
+  try {
+    ui.bankrPreviewWebsite.textContent = website ? new URL(website).hostname : "Not supplied";
+  } catch {
+    ui.bankrPreviewWebsite.textContent = website || "Not supplied";
+  }
+
+  const image = ui.bankrImage.value.trim();
+  if (image) {
+    try {
+      const parsed = new URL(image);
+      showBankrImagePreview(parsed.protocol === "https:" ? parsed.href : null, "Use an HTTPS image URL");
+    } catch {
+      showBankrImagePreview(null, "Enter a valid image URL");
+    }
+  } else if (ui.bankrDialog.dataset.appName && ui.bankrDialog.dataset.versionOrdinal) {
+    showBankrImagePreview(
+      `/api/icon/${encodeURIComponent(ui.bankrDialog.dataset.appName)}/${ui.bankrDialog.dataset.versionOrdinal}`
+    );
+  }
+};
+
+const pairedStockTicker = () =>
+  (ui.bankrPairedStock.value && ui.bankrPairedStock.selectedOptions[0]?.dataset.symbol) || "";
 
 const bankrDeployLabel = () => {
   const appName = ui.bankrDialog.dataset.appName;
-  return appName
-    ? `Deploy $${appcoinSymbol(appName)} through Bankr`
-    : "Deploy this Appcoin through Bankr";
+  if (!appName) return "Deploy this Appcoin through Bankr";
+  const pair = pairedStockTicker();
+  const identity = pair
+    ? `$${appcoinSymbol(appName)}/$${pair}`
+    : `$${appcoinSymbol(appName)}`;
+  const chainName = ui.bankrChain.value === "base" ? "Base" : "Robinhood Chain";
+  return `Deploy ${identity} on ${chainName} via Bankr`;
+};
+
+const bankrTickerNode = (symbol) => {
+  const ticker = document.createElement("span");
+  ticker.className = "bankr-ticker";
+  ticker.textContent = `$${symbol}`;
+  return ticker;
 };
 
 ui.launchToken.addEventListener("click", () => {
@@ -1778,7 +1916,8 @@ ui.launchToken.addEventListener("click", () => {
   clearBankrApproval();
   resetBankrResult();
   const symbol = appcoinSymbol(binding.app_name);
-  ui.bankrTitle.textContent = `Deploy $${symbol}`;
+  ui.bankrTitle.replaceChildren("Deploy ", bankrTickerNode(symbol));
+  ui.bankrSubtitle.textContent = `The AppCoin of ${binding.app_name.toUpperCase()}`;
   ui.bankrTokenIdentity.textContent = `${binding.app_name} · ${symbol}`;
   ui.bankrShotName.textContent = binding.app_name;
   ui.bankrShotId.textContent = binding.shot_id;
@@ -1787,10 +1926,25 @@ ui.launchToken.addEventListener("click", () => {
   ui.bankrDialog.dataset.shotId = binding.shot_id;
   ui.bankrDialog.dataset.versionOrdinal = String(binding.version_ordinal);
   ui.bankrDeploy.textContent = bankrDeployLabel();
+  renderBankrPublicPreview();
+  updateBankrRecipient();
   if (!ui.bankrDialog.open) ui.bankrDialog.showModal();
 });
 
-ui.bankrClose.addEventListener("click", () => ui.bankrDialog.close());
+ui.bankrClose.addEventListener("click", () => {
+  ui.bankrDialog.close();
+});
+
+ui.bankrDialog.addEventListener("close", () => {
+  ui.bankrApiKey.value = "";
+  clearBankrApproval();
+  updateBankrSimulateState();
+  void fetch("/api/bankr/launch/cancel", {
+    method: "POST",
+    headers: studioJsonHeaders,
+    body: "{}",
+  });
+});
 
 for (const field of [
   ui.bankrChain,
@@ -1800,15 +1954,59 @@ for (const field of [
   ui.bankrImage,
   ui.bankrWebsite,
   ui.bankrTweet,
+  ui.bankrRecipientType,
+  ui.bankrRecipient,
+  ui.bankrPairedStock,
 ]) {
   field.addEventListener("input", () => {
     clearBankrApproval();
     resetBankrResult();
+    renderBankrPublicPreview();
+    updateBankrRecipient();
+    ui.bankrDeploy.textContent = bankrDeployLabel();
   });
 }
 
+ui.bankrChain.addEventListener("input", () => {
+  if (ui.bankrChain.value !== "robinhood" && ui.bankrPairedStock.value) {
+    ui.bankrPairedStock.value = "";
+    renderBankrPublicPreview();
+    ui.bankrDeploy.textContent = bankrDeployLabel();
+  }
+});
+
+ui.bankrApiKey.addEventListener("input", () => {
+  clearBankrApproval();
+  resetBankrResult();
+  updateBankrSimulateState();
+});
+
 ui.bankrAcknowledge.addEventListener("change", updateBankrDeployState);
 ui.bankrConfirmation.addEventListener("input", updateBankrDeployState);
+
+ui.bankrCopyPhrase.addEventListener("click", async () => {
+  if (!bankrApproval) return;
+  try {
+    await navigator.clipboard.writeText(bankrApproval.confirmation_phrase);
+    ui.bankrCopyPhrase.textContent = "Copied";
+  } catch {
+    ui.bankrCopyPhrase.textContent = "Select it manually";
+  }
+  setTimeout(() => {
+    ui.bankrCopyPhrase.textContent = "Copy phrase";
+  }, 1600);
+});
+
+const presentBankrError = (message) => {
+  let text = String(message ?? "").trim();
+  for (let pass = 0; pass < 3; pass += 1) {
+    text = text
+      .replace(/^Bankr (?:simulation|deployment) was not approved:\s*/i, "")
+      .replace(/^Bankr returned \d+[^:]*:\s*/i, "")
+      .trim();
+  }
+  return text || "Bankr rejected the request. Check the API key and try again.";
+};
 
 ui.bankrForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1816,7 +2014,7 @@ ui.bankrForm.addEventListener("submit", async (event) => {
   clearBankrApproval();
   resetBankrResult();
   ui.bankrSimulate.disabled = true;
-  ui.bankrSimulate.textContent = "Bankr is simulating…";
+  ui.bankrSimulateLabel.textContent = "Bankr is simulating…";
   ui.bankrStatus.textContent = "Bankr is simulating the exact launch. Nothing is being broadcast.";
   ui.bankrStatus.dataset.status = "ready";
   try {
@@ -1826,19 +2024,21 @@ ui.bankrForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         app_name: ui.bankrDialog.dataset.appName,
         version_ordinal: Number(ui.bankrDialog.dataset.versionOrdinal),
+        api_key: optionalBankrValue(ui.bankrApiKey),
         parameters: bankrParameters(),
       }),
     });
     if (!response.ok) throw new Error(await response.text());
     renderBankrSimulation(await response.json());
+    ui.bankrApiKey.value = "";
     ui.bankrStatus.textContent =
-      "Simulation verified the chain, predicted token address, and pinned jpfraneto.eth recipient.";
+      "Simulation verified the chain, predicted token address, and resolved creator recipient.";
   } catch (error) {
-    ui.bankrStatus.textContent = error.message;
+    ui.bankrStatus.textContent = presentBankrError(error.message);
     ui.bankrStatus.dataset.status = "error";
   } finally {
-    ui.bankrSimulate.textContent = "Simulate with Bankr";
-    ui.bankrSimulate.disabled = !bankrOverview?.configured;
+    ui.bankrSimulateLabel.textContent = "Simulate securely with Bankr";
+    updateBankrSimulateState();
   }
 });
 
@@ -1873,10 +2073,10 @@ ui.bankrDeploy.addEventListener("click", async () => {
     ui.bankrResultTitle.textContent = error.message.startsWith("DEPLOYMENT OUTCOME UNKNOWN")
       ? "Deployment outcome unknown"
       : "Deployment not completed";
-    ui.bankrResultSummary.textContent = error.message;
+    ui.bankrResultSummary.textContent = presentBankrError(error.message);
     ui.bankrResultJson.textContent =
       "Do not click deploy again. If the outcome is unknown, inspect Bankr's recent launches before simulating a new request.";
-    ui.bankrStatus.textContent = error.message;
+    ui.bankrStatus.textContent = presentBankrError(error.message);
     ui.bankrStatus.dataset.status = "error";
   } finally {
     ui.bankrDeploy.textContent = bankrDeployLabel();

@@ -177,18 +177,21 @@ signed Token Association all bind to that identity. A Shot that already has a
 current token association cannot launch an unbound replacement through this
 surface.
 
-The server calls Bankr's `POST /token-launches/deploy` endpoint; the API key is
-never embedded in HTML, returned by an API route, written to a receipt, or sent
-to browser JavaScript.
+The server calls Bankr's `POST /token-launches/deploy` endpoint. When no
+environment key is configured, the modal asks for a user key and sends it once
+over the loopback Studio request; Studio holds it zeroized in process memory
+for the resulting single-use approval. A key is never returned by an API
+route, written to a receipt, persisted in browser storage, or saved to disk.
 
-The launch identity is derived from the Shot, and everything else is fixed:
+The launch identity is derived from the Shot, while the person launching
+chooses the recipient and metadata:
 
 - token name: the Shot's own name (`exhale`);
-- token symbol: that name upper-cased, separators removed, bounded to 11
+- token symbol: that name upper-cased, separators removed, bounded to 10
   characters (`EXHALE`) — one Appcoin per Shot, never a shared ticker;
-- fee recipient: `jpfraneto.eth`;
-- currently pinned ENS resolution:
-  `0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15`;
+- fee recipient: one ENS name, wallet address, X account, or Farcaster account;
+- resolved recipient address: returned by Bankr simulation and pinned for the
+  approved deployment;
 - signer: the Bankr wallet that owns the user API key.
 
 The Bankr receipt is stored privately under the selected Shot's
@@ -200,7 +203,8 @@ changes Shot identity or ownership.
 
 Create a dedicated user key at `https://bankr.bot/api-keys`. It must begin with
 `bk_usr_`, have token-launch access enabled, and have read-only mode disabled.
-Enable no unrelated API capabilities. In a fresh zsh session, start Studio
+Enable no unrelated API capabilities. Enter it when the launch modal requests
+it, or, for operator-managed startup, supply it from a fresh zsh session
 without putting the key on a command line:
 
 ```sh
@@ -217,14 +221,16 @@ Unset both values after Studio exits:
 unset BANKR_API_KEY TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY
 ```
 
-The browser can configure metadata, Robinhood Chain or Base, the documented
-15% creator vest or no vesting, and mixed or quote-only creator fees. Studio
-always calls Bankr in `simulateOnly` mode first. It rejects the simulation
-unless Bankr returns the selected chain and resolves the creator allocation to
-the pinned personal wallet. A successful simulation creates one in-memory,
-single-use approval that expires after ten minutes. Deployment additionally
-requires the exact phrase containing the chain, ENS name, and predicted token
-address.
+The browser can configure metadata, recipient, Robinhood Chain or Base, the
+documented 15% creator vest or no vesting, and mixed or quote-only creator
+fees. A valid HTTPS image URL updates the public token preview. Studio always
+calls Bankr in `simulateOnly` mode first. It rejects the simulation unless
+Bankr returns the selected chain and a valid resolved creator address; a raw
+wallet recipient must resolve to that exact wallet. A successful simulation
+pins that address in one in-memory, single-use approval that expires after ten
+minutes. Deployment additionally requires the exact phrase containing the
+chain, recipient type/value, and predicted token address, and its response must
+preserve the simulated recipient address.
 
 If a deployment response is lost, Studio reports the outcome as unknown and
 does not reuse the approval. Check Bankr's recent launches before doing
@@ -232,9 +238,9 @@ anything else; never retry an irreversible request merely because the client
 timed out.
 
 After a confirmed deployment, Studio stores the Bankr response and exact
-approved configuration under the candidate machine root's
-`bankr-launches/` directory with private filesystem permissions. The receipt
-contains no API credential. Studio then attempts the separate owner-authorized
-private Token Association action and reports a warning if that local action
-cannot be recorded. The token is never made into the Shot, and no public
-witness write follows from the deployment.
+approved configuration under the selected Shot's `.tohseno/token-launches/`
+directory with private filesystem permissions. The receipt contains no API
+credential. Studio then attempts the separate owner-authorized private Token
+Association action using the Shot-derived symbol and reports a warning if that
+local action cannot be recorded. The token is never made into the Shot, and no
+public witness write follows from the deployment.

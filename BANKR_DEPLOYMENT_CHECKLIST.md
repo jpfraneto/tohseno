@@ -4,8 +4,10 @@ The vision putting on shoes. Every line below is enforced by code in
 `cli/src/bankr_launch.rs` and `cli/src/studio_server.rs`; nothing here is
 aspirational. Work top to bottom. Stop at the first unchecked box.
 
-Current state at the time this file was written: the running Studio reports
-`configured: false, deploy_enabled: false`. That is the correct starting point.
+Current verified state on 2026-08-01: the Keychain entry is a Bankr user key,
+and a locked Studio reports `configured: true, deploy_enabled: false`. The
+`tohseno` Shot is conformant protocol v2 and has no Token Association. That is
+the correct pre-simulation state; deployment remains intentionally locked.
 
 ---
 
@@ -15,10 +17,11 @@ Current state at the time this file was written: the running Studio reports
   Not jpfraneto.eth. Not this Mac. Studio only sends one HTTPS request to
   `https://api.bankr.bot/token-launches/deploy`.
 - **Token identity:** derived from the Shot, not chosen. Name = the Shot's
-  app name. Ticker = its alphanumerics, uppercased, max 11 — a Shot named
+  app name. Ticker = its alphanumerics, uppercased, max 10 — a Shot named
   `tohseno` deploys **$TOHSENO**.
-- **Creator rights:** pinned in the binary. Fee recipient is
-  `jpfraneto.eth` (`0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15`), sent as ENS.
+- **Creator rights:** chosen in Studio as an ENS name, wallet address, X
+  account, or Farcaster account. Simulation resolves the identifier to an
+  address; the live deployment is pinned to that simulated address.
 - **One coin per Shot:** if the Shot already has a token association,
   Studio refuses to deploy a replacement.
 - **Afterwards:** a receipt lands in the app folder and a signed, private
@@ -38,9 +41,13 @@ Current state at the time this file was written: the running Studio reports
 
 ## 2 · Key custody on this Mac
 
-The key lives only in the Studio process's environment. It is held zeroized
-in memory, sent only as an `X-API-Key` header over TLS, and never written to
-disk — receipts do not contain it. Keep it out of your shell history too:
+The modal asks for a Bankr user API key when Studio has no environment key.
+The submitted key is held zeroized in Studio process memory for the single-use
+approval, sent only as an `X-API-Key` header over TLS, and never written to
+disk or included in a response or receipt. Closing the modal clears the field;
+using, replacing, or ending Studio clears the in-memory approval. An
+environment key remains supported for operators who prefer Keychain-backed
+startup. Keep either form out of shell history:
 
 - [ ] Store it in the macOS keychain once:
 
@@ -56,6 +63,8 @@ disk — receipts do not contain it. Keep it out of your shell history too:
       or `none` (100% enters the pool). Write it here: ____________
 - [ ] **Creator fees:** `mixed` (launched token + quote token) or
       `quote_only`. Write it here: ____________
+- [ ] **Creator fee and vesting recipient:** choose its identifier type and
+      exact value. Write both here: ____________ / ____________
 - [ ] **Description:** 1–500 characters. The default in the dialog is
       "Persistent computational identity for coherent human intentions."
 - [ ] **Optional URLs:** image / website / launch post. HTTPS only, no
@@ -71,12 +80,15 @@ disk — receipts do not contain it. Keep it out of your shell history too:
 
 ## 5 · Dress rehearsal (deploy stays locked)
 
-- [ ] Restart Studio with the key but **without** the deploy unlock:
+- [ ] Start Studio **without** the deploy unlock. Either enter the key in the
+      launch modal or supply it from Keychain at startup:
 
       BANKR_API_KEY="$(security find-generic-password -s bankr-api-key -w)" tohseno studio
 
 - [ ] Select the Shot → "Launch Appcoin for this Shot, via Bankr".
-- [ ] Fill the decided parameters → **Simulate with Bankr**.
+- [ ] Enter the API key if requested, fill the recipient and remaining
+      parameters, and confirm that a supplied image URL renders in the public
+      preview → **Simulate securely with Bankr**.
 - [ ] Simulation must report success and show:
       predicted token address · resolved recipient · configuration digest ·
       fee distribution. A simulation never returns a transaction hash —
@@ -90,11 +102,12 @@ disk — receipts do not contain it. Keep it out of your shell history too:
 
       BANKR_API_KEY="$(security find-generic-password -s bankr-api-key -w)" TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1 tohseno studio
 
-- [ ] Simulate again (approvals are single-use and expire after
+- [ ] Enter the API key in the modal or use the environment command above,
+      then simulate again (approvals are single-use and expire after
       **10 minutes**; changing any parameter invalidates the approval).
 - [ ] Tick the acknowledgment, then type the exact phrase Studio shows:
 
-      DEPLOY $TOHSENO FOR SHOT <shot_id> ON <ROBINHOOD|BASE> TO JPFRANETO.ETH AT <predicted_address>
+      DEPLOY $TOHSENO FOR SHOT <shot_id> ON <ROBINHOOD|BASE> TO <TYPE>:<RECIPIENT> AT <predicted_address>
 
 - [ ] Press deploy **once**. Keep the window open until a receipt appears.
 
@@ -116,10 +129,13 @@ nothing deployed.
 - [ ] Remove the deploy unlock: next Studio starts **without**
       `TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1`.
 
-## Known limits of this personal surface (by design, revisit before anyone else uses it)
+## Known limits of this personal surface
 
-- Fee recipient is hard-pinned to jpfraneto.eth in the binary.
-- The recorded association symbol is hard-coded `TOHSENO`
-  (`studio_server.rs → record_bankr_shot_association`) — correct for this
-  launch, wrong for any other Shot. Generalize before a second coin.
-- The deploy button copy says "$TOHSENO" regardless of Shot.
+- The irreversible deploy step still requires the explicit process-level
+  `TOHSENO_ALLOW_BANKR_TOKEN_DEPLOY=1` lock.
+- The post-deploy Token Association is private local lineage. It does not
+  publish the Shot, write the TOHSENO registry, or make the token an identity
+  or ownership credential.
+- A session-entered key lives in the local Studio process only while its
+  single-use simulation approval is pending; Studio deliberately has no key
+  persistence feature.

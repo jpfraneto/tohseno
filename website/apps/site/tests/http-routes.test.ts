@@ -104,6 +104,21 @@ describe("public pages", () => {
     expect(body).not.toContain("slot machine");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain("Managed intake");
+    expect(body).toContain('class="mobile-home"');
+    expect(body).toContain('data-mobile-shot-launcher');
+    expect(body).toContain('aria-controls="mobile-tohseno-app"');
+    expect(body).toContain('data-mobile-app');
+    expect(body).toContain('data-mobile-intention');
+    expect(body).toContain('data-mobile-brief-file');
+    expect(body).toContain('data-mobile-images');
+    expect(body).toContain('data-mobile-take-shot');
+    expect(body).toContain('data-mobile-app-next');
+    expect(body).toContain('data-mobile-install-app');
+    expect(body).toContain("Take<br>a Shot.");
+    expect(body).toContain(">0 / 8</span>");
+    expect(body).toContain(">Take Shot</button>");
+    expect(body).toContain(">Notes</span>");
+    expect(body).toContain(">Settings</span>");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
       'content="An open-source factory for independent iOS apps — native shots you can run, use, and own in Simulator."',
@@ -187,6 +202,15 @@ describe("public pages", () => {
     expect(browserScript).toContain("navigator.clipboard.writeText(copyValue)");
     expect(browserScript).toContain('querySelector("[data-install-command]")');
     expect(browserScript).toContain('shotToggle.setAttribute("aria-expanded"');
+    expect(browserScript).toContain(
+      'querySelector("[data-mobile-shot-launcher]")',
+    );
+    expect(browserScript).toContain("mobileApp.hidden = false");
+    expect(browserScript).toContain('schema: "tohseno.shot-seed/1"');
+    expect(browserScript).toContain('type: "application/zip"');
+    expect(browserScript).toContain('download.download = `tohseno-shot-seed-');
+    expect(browserScript).toContain('navigator.serviceWorker.register("/sw.js")');
+    expect(browserScript).toContain("accepted.slice(0, available)");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toMatch(/\.shot-tile\s*\{[^}]*aspect-ratio:\s*1;/s);
@@ -230,6 +254,21 @@ describe("public pages", () => {
     expect(landingStyle).not.toMatch(
       /\.(?:hero-icon|shot-tile|proof-grid)[^{]*img\s*\{[^}]*height:\s*100%;/s,
     );
+    expect(landingStyle).toMatch(
+      /\.mobile-shot-widget\s*\{[^}]*aspect-ratio:\s*1;/,
+    );
+    expect(landingStyle).toMatch(
+      /@media \(max-width: 38rem\) and \(min-height: 48rem\)[\s\S]*\.mobile-shot-widget\s*\{[^}]*aspect-ratio:\s*2\s*\/\s*3;/,
+    );
+    expect(landingStyle).toMatch(
+      /main > :not\(\.mobile-home\)[\s\S]*display:\s*none;/,
+    );
+    expect(landingStyle).toMatch(
+      /@media \(min-width: 38\.01rem\)[\s\S]*\.mobile-home\s*\{[^}]*width:\s*min\(27rem,[^}]*border-radius:\s*3\.25rem;/,
+    );
+    expect(landingStyle).toMatch(
+      /@media \(max-width: 38rem\)[\s\S]*\.mobile-home\s*\{[^}]*width:\s*100%;[^}]*border:\s*0;/,
+    );
   });
 
   test("serves the health check", async () => {
@@ -247,6 +286,8 @@ describe("public pages", () => {
       ["/fonts/fraunces-latin.woff2", "font/woff2"],
       ["/fonts/plex-mono-latin.woff2", "font/woff2"],
       ["/app.js", "text/javascript"],
+      ["/manifest.webmanifest", "application/manifest+json"],
+      ["/sw.js", "text/javascript"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
       ["/favicon.png", "image/png"],

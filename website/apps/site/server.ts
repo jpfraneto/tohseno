@@ -117,6 +117,16 @@ const STATIC_FILES: Record<
     type: "text/javascript; charset=utf-8",
     revalidate: true,
   },
+  "/manifest.webmanifest": {
+    file: "manifest.webmanifest",
+    type: "application/manifest+json; charset=utf-8",
+    revalidate: true,
+  },
+  "/sw.js": {
+    file: "sw.js",
+    type: "text/javascript; charset=utf-8",
+    revalidate: true,
+  },
   "/install.sh": {
     file: "install.sh",
     type: "text/x-shellscript; charset=utf-8",
