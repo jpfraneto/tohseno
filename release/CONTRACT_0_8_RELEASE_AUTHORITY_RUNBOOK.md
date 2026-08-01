@@ -186,6 +186,32 @@ client trusts the activation only when its separately authorized trust root
 already pins the same policy digest. Deployment, a transaction-payer signature,
 or a Builder signature never supplies that trust.
 
+## Ceremony tooling
+
+Every step above now has a non-authorizing tool, drilled end to end with test
+keys by `scripts/tests/test-activation-ceremony-tools.sh`:
+
+- `scripts/generate-release-authority-key.py` — one custodian key on one
+  offline device; prints only public coordinates and the derived key ID.
+- `scripts/prepare-release-authority-policy.py` — the 2-of-3 policy from
+  public keys only.
+- `scripts/prepare-contract-activation.py` — the canonical activation record
+  from the generation, approved policy, published deployment evidence, fresh
+  probe evidence, canary-established BuilderAccount instance hash, and a
+  fresh activation block; refuses ADR 0010 template-hash substitution.
+- `scripts/sign-contract-activation.py` — one low-s P-256 approval on the
+  key's own device; recomputes the digest from the inspected record and
+  refuses non-canonical input.
+- `scripts/assemble-signed-activation.py` — threshold-checked envelope
+  assembly with per-approval OpenSSL verification.
+- `scripts/verify-contract-activation.py` and
+  `cargo run -p tohseno-protocol --example verify_signed_contract_activation`
+  — the two independent verifier implementations run before any client
+  configuration change.
+
+Tool existence authorizes nothing; the hard stops below still hold until each
+is explicitly cleared.
+
 ## Loss, rotation, incident, and successor rules
 
 - One lost or unavailable key leaves a 2-of-3 policy usable; record the event

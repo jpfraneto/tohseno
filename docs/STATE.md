@@ -82,7 +82,19 @@ fixed an off-chain activation-validator assumption: compiler runtime templates
 contain zero placeholders for Solidity immutables, while instantiated runtime
 bytes are constructor-patched. ADR 0010 governs the exact distinction. Until a
 signed activation exists and clients pin its policy digest, new secure public
-identity creation and all public signing in the engine fail closed. The private local
+identity creation and all public signing in the engine fail closed.
+
+As of 2026-08-01 the mechanism for that pin exists: the engine resolves the
+generation from a compiled-in trust root (three constants in
+`engine/src/contract_generation.rs`, all shipping `None`) and verifies the
+complete policy-plus-threshold-signed-activation chain before ever reporting
+Active; a partial or non-verifying trust root refuses to resolve. The full
+ceremony tool chain also exists — key generation, policy preparation,
+activation payload construction, custodian signing, envelope assembly, and
+two independent verifier implementations — drilled end to end by
+`scripts/tests/test-activation-ceremony-tools.sh` with test keys. None of
+this activates anything: the owner key ceremony, canary, and explicit
+trust-root commit remain the only path. The private local
 lifecycle does not wait on that: on a machine with no identity, the first
 Shot now creates a local, explicitly test-only Builder identity by default
 (it can never authorize a public action); only an explicit
