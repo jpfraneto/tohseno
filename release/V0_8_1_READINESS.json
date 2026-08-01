@@ -25,5 +25,12 @@
   "clippy_warnings_denied": true,
   "studio_tests": 10,
   "website_tests": 14
+ },
+ "publication": {
+  "tag": "v0.8.1",
+  "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.8.1",
+  "release_immutable": true,
+  "production_url": "https://tohseno.com",
+  "tohseno_com_installer_verified": true
  }
 }
