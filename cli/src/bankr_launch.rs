@@ -1230,25 +1230,21 @@ mod tests {
         // Echoed exactly (case-insensitive address): approved.
         verify_simulation(&paired, LaunchChain::Robinhood, &recipient, requested).unwrap();
         // Echoed with a different stock: refused.
-        assert!(
-            verify_simulation(
-                &paired,
-                LaunchChain::Robinhood,
-                &recipient,
-                Some(("TSLA", AAPL_ADDRESS)),
-            )
-            .is_err()
-        );
+        assert!(verify_simulation(
+            &paired,
+            LaunchChain::Robinhood,
+            &recipient,
+            Some(("TSLA", AAPL_ADDRESS)),
+        )
+        .is_err());
         // Echoed with a different quote address: refused.
-        assert!(
-            verify_simulation(
-                &paired,
-                LaunchChain::Robinhood,
-                &recipient,
-                Some(("AAPL", "0x2222222222222222222222222222222222222222")),
-            )
-            .is_err()
-        );
+        assert!(verify_simulation(
+            &paired,
+            LaunchChain::Robinhood,
+            &recipient,
+            Some(("AAPL", "0x2222222222222222222222222222222222222222")),
+        )
+        .is_err());
         // Pairing that was never requested: refused.
         assert!(verify_simulation(&paired, LaunchChain::Robinhood, &recipient, None).is_err());
     }
@@ -1263,12 +1259,11 @@ mod tests {
         assert_eq!(paired.paired_stock_address.as_deref(), Some(AAPL_ADDRESS));
 
         // The payload identifies the pairing by the stock token address.
-        let payload =
-            serde_json::to_value(bankr_payload("anky", "ANKY", &paired, true)).unwrap();
+        let payload = serde_json::to_value(bankr_payload("anky", "ANKY", &paired, true)).unwrap();
         assert_eq!(payload["pairedStockAddress"], AAPL_ADDRESS);
         assert!(payload.get("pairedStock").is_none());
-        let unpaired = serde_json::to_value(bankr_payload("anky", "ANKY", &parameters(), true))
-            .unwrap();
+        let unpaired =
+            serde_json::to_value(bankr_payload("anky", "ANKY", &parameters(), true)).unwrap();
         assert!(unpaired.get("pairedStockAddress").is_none());
 
         // A ticker without its address (or the reverse) is refused.
