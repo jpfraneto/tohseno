@@ -37,15 +37,28 @@ pub async fn launch(
     events.emit(Event::status(format!(
         "opening evolution {shot_number} of {app_name} in Simulator…"
     )));
-    let build_directory = tempfile::tempdir()?;
-    let app_bundle = build(
-        &shot.source_path(),
-        app_name,
-        shot_number,
-        &device.udid,
-        &build_directory,
-    )
-    .await?;
+    // Every completed Shot retains its conformance Simulator bundle at
+    // artifact/<app>.app; installing it directly is what makes reopening an
+    // evolution seamless. Building here is only a fallback for records that
+    // predate retained artifacts.
+    let retained = shot.artifact_path().join(format!("{app_name}.app"));
+    let (_build_directory, app_bundle) = if retained.is_dir() {
+        (None, retained)
+    } else {
+        events.emit(Event::status(format!(
+            "evolution {shot_number} of {app_name} has no retained artifact; building from source…"
+        )));
+        let build_directory = tempfile::tempdir()?;
+        let app_bundle = build(
+            &shot.source_path(),
+            app_name,
+            shot_number,
+            &device.udid,
+            &build_directory,
+        )
+        .await?;
+        (Some(build_directory), app_bundle)
+    };
     checked(
         "xcrun",
         [

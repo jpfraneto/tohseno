@@ -1023,7 +1023,7 @@ const selectApp = async (app, shot) => {
   ui.simulatorTitle.textContent = `${app.name} · Evolution ${shot}`;
   ui.simulatorLoading.hidden = false;
   ui.simulatorLoading.querySelector("strong").textContent = "Opening evolution…";
-  ui.simulatorLoading.querySelector("span").textContent = "Building for Simulator";
+  ui.simulatorLoading.querySelector("span").textContent = "Preparing Simulator";
   ui.simulatorScreen.removeAttribute("src");
 
   stopScreenshots();
