@@ -18,10 +18,15 @@ pub(crate) fn validate_current_app_metadata_v2(
     let generation = resolve_current_contract_generation()
         .map_err(|error| AppMetadataPolicyError::Generation(error.to_string()))?;
     match generation.state {
-        ContractGenerationState::Inactive if metadata.registry.is_some() => {
+        // ADR 0007: the shipped /2 registry coordinates never become
+        // publication proof — not even under an activated generation, which
+        // requires the successor metadata schema instead.
+        ContractGenerationState::Inactive | ContractGenerationState::Active
+            if metadata.registry.is_some() =>
+        {
             Err(AppMetadataPolicyError::InactiveRegistryEvidence)
         }
-        ContractGenerationState::Inactive => Ok(()),
+        ContractGenerationState::Inactive | ContractGenerationState::Active => Ok(()),
     }
 }
 
@@ -43,7 +48,7 @@ impl std::fmt::Display for AppMetadataPolicyError {
             }
             Self::InactiveRegistryEvidence => write!(
                 formatter,
-                "app-metadata/2 registry evidence is forbidden while no contract generation is active; an activated witness requires a successor metadata schema"
+                "app-metadata/2 registry evidence is forbidden in every generation state; a public witness requires the ADR 0007 successor metadata schema"
             ),
         }
     }

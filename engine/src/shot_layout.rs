@@ -4970,12 +4970,12 @@ mod tests {
             .verify_apple_materialization_binding(&untrusted_registry_claim, &version)
             .unwrap_err()
             .to_string()
-            .contains("no contract generation is active"));
+            .contains("forbidden in every generation state"));
         assert!(layout
             .verify_accepted_apple_metadata(&untrusted_registry_claim)
             .unwrap_err()
             .to_string()
-            .contains("no contract generation is active"));
+            .contains("forbidden in every generation state"));
         layout
             .verify_apple_materialization_binding(&metadata, &version)
             .unwrap();

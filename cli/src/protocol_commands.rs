@@ -256,9 +256,28 @@ fn protocol_info() -> Result<ProtocolInfo, Box<dyn std::error::Error>> {
         ],
         supported_token_association_chains: [tohseno_protocol::identity::ROBINHOOD_CHAIN_ID, 8_453],
         contract_generation: ContractGenerationSummary::from_resolved(&generation),
-        active_generation: None,
-        public_authority_available: false,
+        active_generation: active_generation_label(&generation),
+        public_authority_available: generation.allows_public_signing(),
     })
+}
+
+/// The generation label surfaces only when the resolved trust root grants
+/// public authority; a committed or deployed-inactive definition stays null.
+fn active_generation_label(generation: &ResolvedContractGeneration) -> Option<String> {
+    generation
+        .allows_public_signing()
+        .then(|| generation.definition.generation.clone())
+}
+
+/// Why public workflows are unavailable right now, in either state: inactive
+/// builds lack authority, and active builds still lack the registry
+/// RPC/receipt workflow, which is separate implementation work.
+fn public_workflow_reason(generation: &ResolvedContractGeneration) -> &'static str {
+    if generation.allows_public_signing() {
+        "the generation is active, but the registry verification workflow is not implemented in this build"
+    } else {
+        generation.inactive_reason()
+    }
 }
 
 fn inactive_network_status() -> Result<NetworkStatus, Box<dyn std::error::Error>> {
@@ -268,11 +287,11 @@ fn inactive_network_status() -> Result<NetworkStatus, Box<dyn std::error::Error>
         protocol: "tohseno",
         product_version: env!("CARGO_PKG_VERSION"),
         contract_generation: ContractGenerationSummary::from_resolved(&generation),
-        active_generation: None,
+        active_generation: active_generation_label(&generation),
         ready: false,
         rpc_checked: false,
-        public_authority_available: false,
-        reason: generation.inactive_reason(),
+        public_authority_available: generation.allows_public_signing(),
+        reason: public_workflow_reason(&generation),
     })
 }
 
@@ -284,6 +303,14 @@ fn ensure_public_verification_available() -> Result<(), Box<dyn std::error::Erro
             generation.inactive_reason()
         )
         .into()),
+        // Activation authorizes public verification, but the registry
+        // RPC/receipt workflow is separate implementation work; until it
+        // exists an activated build must still refuse rather than pass a
+        // local-only check off as a public one.
+        ContractGenerationState::Active => Err(
+            "public verification unavailable: the registry verification workflow is not implemented in this build; no RPC was contacted"
+                .into(),
+        ),
     }
 }
 
@@ -302,10 +329,10 @@ pub fn registry_show(
         local_sequence: record.sequence,
         local_state: "private",
         local_verified: true,
-        active_generation: None,
+        active_generation: active_generation_label(&generation),
         public_checked: false,
-        public_authority_available: false,
-        reason: generation.inactive_reason(),
+        public_authority_available: generation.allows_public_signing(),
+        reason: public_workflow_reason(&generation),
         evidence_path: shot.path.join("TOHSENO/shot.json").display().to_string(),
     };
     if json {
@@ -315,9 +342,11 @@ pub fn registry_show(
             "shot {} is locally verified and private.",
             record.sequence
         )));
-        bus.emit(Event::status(
-            "public witness not checked: no contract generation is active.",
-        ));
+        bus.emit(Event::status(if generation.allows_public_signing() {
+            "public witness not checked: the registry workflow is not implemented in this build."
+        } else {
+            "public witness not checked: no contract generation is active."
+        }));
     }
     Ok(())
 }
@@ -731,7 +760,11 @@ impl ContractGenerationSummary {
             protocol_major: resolved.definition.protocol_major,
             definition_path: CURRENT_GENERATION_REPOSITORY_PATH,
             definition_digest: resolved.definition_digest.to_string(),
-            status: "definition_only_inactive",
+            status: if resolved.allows_public_signing() {
+                "active"
+            } else {
+                "deployed_inactive_untrusted"
+            },
             chain_id: resolved.definition.chain.chain_id,
             conditional_create2: ConditionalCreate2Coordinates {
                 condition:
@@ -912,7 +945,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn protocol_info_reports_stable_product_and_definition_only_generation() {
+    fn protocol_info_reports_stable_product_and_deployed_inactive_generation() {
         let info = serde_json::to_value(protocol_info().unwrap()).unwrap();
         assert_eq!(info["schema"], "tohseno.protocol-info/2");
         assert_eq!(info["product_version"], env!("CARGO_PKG_VERSION"));
@@ -920,7 +953,7 @@ mod tests {
         assert_eq!(info["contract_generation"]["generation"], "0.8.0");
         assert_eq!(
             info["contract_generation"]["status"],
-            "definition_only_inactive"
+            "deployed_inactive_untrusted"
         );
         assert!(info["contract_generation"]["definition_digest"]
             .as_str()

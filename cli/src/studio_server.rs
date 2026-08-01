@@ -15,7 +15,9 @@ use std::sync::Arc;
 use tohseno_engine::builder_identity::{
     BuilderDeploymentStatus, BuilderIdentity, BuilderIdentityManager,
 };
-use tohseno_engine::contract_generation::resolve_current_contract_generation;
+use tohseno_engine::contract_generation::{
+    resolve_current_contract_generation, ResolvedContractGeneration,
+};
 use tohseno_engine::gates::apple_signing::AppleSigningState;
 use tohseno_engine::gates::intent::Intent;
 use tohseno_engine::gates::toolchain::ToolchainState;
@@ -1145,15 +1147,23 @@ async fn serve_execution_state(
 async fn serve_protocol_overview(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     let ledger = Ledger::discover()?;
     let identity = load_identity_facts(&ledger);
-    let contract_definition = contract_definition_facts()?;
+    let generation = resolve_current_contract_generation()?;
+    let contract_definition = contract_definition_facts(&generation);
     let publication = PublicationFacts {
         enabled: false,
         transport: "none",
-        reason: "No contract generation is active. Studio has no RPC, deployment, relayer, or public broadcast path.",
+        reason: if generation.allows_public_signing() {
+            "The generation is active, but Studio has no RPC, deployment, relayer, or public broadcast path in this build."
+        } else {
+            "No contract generation is active. Studio has no RPC, deployment, relayer, or public broadcast path."
+        },
     };
+    let active_generation = generation
+        .allows_public_signing()
+        .then(|| generation.definition.generation.clone());
     let body = serde_json::to_string(&ProtocolOverview {
         contract_definition,
-        active_generation: None,
+        active_generation,
         identity: match identity {
             Ok(identity) => identity_facts(&identity),
             Err(detail) if detail == "not_initialized" => IdentityFacts {
@@ -1327,42 +1337,44 @@ fn identity_facts(identity: &BuilderIdentity) -> IdentityFacts {
     }
 }
 
-fn contract_definition_facts() -> Result<ContractDefinitionFacts, Box<dyn std::error::Error>> {
-    let resolved = resolve_current_contract_generation()?;
-    let inactive_reason = resolved.inactive_reason();
-    let definition_digest = resolved.definition_digest.to_string();
-    let definition = resolved.definition;
+fn contract_definition_facts(resolved: &ResolvedContractGeneration) -> ContractDefinitionFacts {
+    let active = resolved.allows_public_signing();
+    let definition = &resolved.definition;
     let contracts = [
-        ("BuilderAccount", definition.contracts.builder_account),
+        ("BuilderAccount", &definition.contracts.builder_account),
         (
             "BuilderAccountFactory",
-            definition.contracts.builder_account_factory,
+            &definition.contracts.builder_account_factory,
         ),
-        ("ShotRegistry", definition.contracts.shot_registry),
+        ("ShotRegistry", &definition.contracts.shot_registry),
     ]
     .into_iter()
     .map(|(name, contract)| ContractBuildFacts {
         name,
-        component_version: contract.component_version,
+        component_version: contract.component_version.clone(),
         runtime_code_hash: contract.runtime_code_keccak256.to_string(),
     })
     .collect();
-    Ok(ContractDefinitionFacts {
-        schema: definition.schema,
-        generation: definition.generation,
+    ContractDefinitionFacts {
+        schema: definition.schema.clone(),
+        generation: definition.generation.clone(),
         protocol_major: definition.protocol_major,
-        definition_digest,
+        definition_digest: resolved.definition_digest.to_string(),
         chain_id: definition.chain.chain_id,
-        status: "inactive",
-        source_commit: definition.source.commit,
+        status: if active { "active" } else { "inactive" },
+        source_commit: definition.source.commit.clone(),
         p256: P256Facts {
-            standard: definition.chain.p256_verifier.standard,
+            standard: definition.chain.p256_verifier.standard.clone(),
             address: definition.chain.p256_verifier.address.to_string(),
             gas: definition.chain.p256_verifier.gas,
         },
         contracts,
-        detail: inactive_reason,
-    })
+        detail: if active {
+            "A trusted release-authority root and threshold-signed chain activation are embedded in this build"
+        } else {
+            resolved.inactive_reason()
+        },
+    }
 }
 
 async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
@@ -2422,7 +2434,8 @@ mod tests {
 
     #[test]
     fn committed_contract_definition_is_inactive_and_has_no_relations_contract() {
-        let definition = contract_definition_facts().unwrap();
+        let definition =
+            contract_definition_facts(&resolve_current_contract_generation().unwrap());
         assert_eq!(definition.generation, "0.8.0");
         assert_eq!(definition.protocol_major, 2);
         assert_eq!(definition.chain_id, 4663);

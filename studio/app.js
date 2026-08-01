@@ -531,7 +531,8 @@ const renderProtocolOverview = () => {
   } = protocolOverview;
   const device = identity.device_keys[0];
 
-  ui.protocolReadiness.textContent = `${definition.generation} · inactive`;
+  ui.protocolReadiness.textContent =
+    `${definition.generation} · ${activeGeneration ? "active" : "inactive"}`;
   ui.identityStatus.textContent = humanStatus(identity.status);
   ui.identityStatus.dataset.status = identity.status === "local_only" ? "pass" : "pending";
   ui.builderId.textContent = identity.builder_id || "Not created";

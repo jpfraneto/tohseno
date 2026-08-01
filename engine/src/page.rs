@@ -461,12 +461,12 @@ fn render_html(
          <div><dt>Source commit</dt><dd class=\"mono\">{}</dd></div>\
          <div><dt>Compiler</dt><dd class=\"mono\">{}</dd></div>\
          <div><dt>Target chain</dt><dd class=\"mono\">eip155:{}</dd></div>\
-         <div><dt>Active generation</dt><dd>None</dd></div>\
+         <div><dt>Active generation</dt><dd>{}</dd></div>\
          <div><dt>CREATE2 deployer</dt><dd class=\"mono\">{}</dd></div>\
          <div><dt>Conditional factory</dt><dd class=\"mono\">{}</dd></div>\
          <div><dt>Conditional registry</dt><dd class=\"mono\">{}</dd></div>\
          </dl>\
-         <p class=\"quiet\">Inactive: {}.</p>\
+         <p class=\"quiet\">{}</p>\
          <p class=\"quiet\">{} These offline predictions are not RPC observations, \
          deployment evidence, or public authority.</p>",
         escape_html(&contract_generation.generation),
@@ -476,6 +476,12 @@ fn render_html(
         escape_html(&contract_generation.source_commit),
         escape_html(&contract_generation.compiler),
         contract_generation.chain_id,
+        escape_html(
+            contract_generation
+                .active_generation
+                .as_deref()
+                .unwrap_or("None")
+        ),
         escape_html(&contract_generation.conditional_create2.deployer.to_string()),
         escape_html(
             &contract_generation
@@ -489,7 +495,11 @@ fn render_html(
                 .shot_registry
                 .to_string()
         ),
-        escape_html(&contract_generation.inactive_reason),
+        escape_html(&if contract_generation.active_generation.is_some() {
+            "Active: a trusted release-authority root and threshold-signed chain activation are embedded in this build.".to_owned()
+        } else {
+            format!("Inactive: {}.", contract_generation.inactive_reason)
+        }),
         escape_html(&contract_generation.conditional_create2.condition),
     );
 
@@ -769,6 +779,9 @@ fn contract_generation_audit() -> Result<ContractGenerationAudit, PageError> {
     let resolved = resolve_current_contract_generation()
         .map_err(|error| PageError::Protocol(error.to_string()))?;
     let inactive_reason = resolved.inactive_reason().to_owned();
+    let active_generation = resolved
+        .allows_public_signing()
+        .then(|| resolved.definition.generation.clone());
     let definition = resolved.definition;
     Ok(ContractGenerationAudit {
         definition_repository_path: CURRENT_GENERATION_REPOSITORY_PATH.into(),
@@ -783,7 +796,7 @@ fn contract_generation_audit() -> Result<ContractGenerationAudit, PageError> {
             definition.build.evm_version,
             definition.build.optimizer_runs
         ),
-        active_generation: None,
+        active_generation,
         inactive_reason,
         conditional_create2: ConditionalCreate2Coordinates {
             condition: format!(
