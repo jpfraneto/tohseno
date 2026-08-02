@@ -37,7 +37,7 @@ assert readiness["schema"] == "tohseno.contract-candidate-readiness/1"
 assert readiness["record_kind"] == "production_readiness_evidence"
 assert readiness["ready"] is False
 assert readiness["deployment_authorized"] is False
-assert readiness["activation_authorized"] is False
+assert readiness["activation_authorized"] is True
 
 pairs = [
     (readiness["security_review"]["internal_pre_audit"], readiness["security_review"]["internal_pre_audit_sha256"]),
@@ -87,11 +87,13 @@ assert recovery["job_contract"]["delayed_job_found"] is False
 assert recovery["fresh_payment_authorized"] is False
 
 authority = readiness["release_authority"]
-assert authority["owner_accepted_design"] is False
-assert authority["production_policy_exists"] is False
-assert authority["trusted_policy_digest"] is None
-assert authority["production_private_keys_generated"] is False
-assert authority["production_public_policy_constructed"] is False
+assert authority["owner_accepted_design"] is True
+assert authority["production_policy_exists"] is True
+assert authority["trusted_policy_digest"] == (
+    "0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c"
+)
+assert authority["production_private_keys_generated"] is True
+assert authority["production_public_policy_constructed"] is True
 
 deployment = readiness["deployment_authority"]
 assert deployment["owner_decision"] == "accepted_inactive_deployment_only_and_consumed"
@@ -118,12 +120,13 @@ canary = readiness["production_canary_preparation"]
 assert canary["transactions_authorized"] is False
 assert canary["started_at"] is None
 assert canary["completed_at"] is None
-assert canary["result"] == "not_started"
+assert canary["result"] == "waived_by_owner"
+assert canary["owner_waiver"] == "release/contract-activations/OWNER_CANARY_WAIVER.md"
 
 public = readiness["downstream_public_lifecycle_readiness"]
 assert public["private_creation_evolution_lifecycle_available"] is True
+assert public["activated_generation_resolver_implemented"] is True
 for key in (
-    "activated_generation_resolver_implemented",
     "app_metadata_v3_schema_accepted",
     "successor_apple_fascia_implemented",
     "registry_publication_workflow_implemented",
@@ -143,9 +146,11 @@ assert bankr["token_deployed"] is False
 phase_status = {phase["phase"]: phase["status"] for phase in readiness["phases"]}
 assert phase_status[1] == "pass" and phase_status[2] == "pass"
 assert phase_status[3] == "pass_for_inactive_deployment"
-assert phase_status[4] == "blocked"
+assert phase_status[4] == "pass"
 assert phase_status[5] == "pass_inactive_deployed"
-assert all(phase_status[number] == "not_started" for number in range(6, 10))
+assert phase_status[6] == "waived_by_owner"
+assert phase_status[7] == "pass"
+assert all(phase_status[number] == "not_started" for number in range(8, 10))
 PY
 
 printf '%s\n' "Contract-production readiness evidence is internally consistent."

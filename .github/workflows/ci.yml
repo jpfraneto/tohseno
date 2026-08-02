@@ -48,6 +48,8 @@ jobs:
         run: scripts/tests/test-prepare-release-authority-policy.sh
       - name: Contract-production readiness evidence integrity
         run: scripts/tests/test-contract-production-readiness.sh
+      - name: Activation ceremony tooling drill
+        run: scripts/tests/test-activation-ceremony-tools.sh
       - name: Verify the committed cross-language protocol vector
         run: |
           cargo run \
