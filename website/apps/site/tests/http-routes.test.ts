@@ -72,6 +72,7 @@ describe("public pages", () => {
     expect(body).toContain('data-terminal');
     expect(body).toContain('data-term-idle');
     expect(body).toContain("GIVE EVERY IDEA A");
+    expect(body).toContain('<span class="beta-tag">BETA</span>');
     expect(body).toContain("# give your idea a shot");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('class="mobile-home"');
@@ -143,7 +144,7 @@ describe("public pages", () => {
         expect(body).not.toContain("prepared, unpublished");
         expect(body).not.toContain("bun run tohseno");
       } else {
-        expect(body).toContain("The installed 0.7 factory sends no TOHSENO telemetry");
+        expect(body).toContain("The installed factory sends no TOHSENO telemetry");
         expect(body).toContain(
           "requires a private local browser session for every Shot read or mutation",
         );

@@ -38,7 +38,7 @@
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
           <h1>Take another one.</h1>
-          <p class="document-intro">Install the local factory. Turn an intention into an independent iOS Shot. Open it, use it, and keep moving.</p>
+          <p class="document-intro">TOHSENO is in beta and evolves quickly. Install the local factory, turn an intention into an independent iOS Shot, open it, use it, and keep moving.</p>
         </header>
 
         <nav class="docs-index" aria-label="On this page">
@@ -117,16 +117,16 @@ tohseno evolve &lt;app-name&gt;</code></pre>
         </section>
 
         <section id="v07-identity">
-          <h2>On-chain contracts and your v0.7 BuilderID</h2>
+          <h2>On-chain status</h2>
           <p>Contract generation <strong>0.8.0</strong> is deployed on Robinhood Chain mainnet (chain ID 4663) as an <strong>inactive, untrusted candidate</strong>: <code>BuilderAccountFactory</code> at <code>0xb1bd208cd2af98e701f43d06aaa889d3a594df65</code> and <code>ShotRegistry</code> at <code>0x3fe6508ba2660bc575080024f402c192a2e035a0</code>.</p>
           <p>No TOHSENO release reads from or writes to these contracts, and activation is not authorized: it stays gated behind independent review, a production canary, and threshold activation. A defective candidate is abandoned, never repaired in place. Do not send anything to these addresses. The complete signed deployment evidence lives in the repository under <code>contracts/deployments</code> and <code>contracts/audits</code>.</p>
-          <p>TOHSENO 0.7.x can show a predicted on-chain BuilderID address, for example through <code>tohseno identity show</code>. That prediction belongs to the retired v0.7 contract generation, which <strong>will never be deployed</strong>, and it is not an address in the 0.8.0 generation: do not treat it as a durable public identity, proof of ownership, or a future deployment coordinate, and do not send anything to it.</p>
+          <p>Legacy 0.7.x installs could show a predicted on-chain BuilderID address through <code>tohseno identity show</code>. That prediction belongs to the retired v0.7 contract generation, which <strong>will never be deployed</strong>, and it is not an address in the 0.8.0 generation: do not treat it as a durable public identity, proof of ownership, or a future deployment coordinate, and do not send anything to it.</p>
           <p>Your local identity, Shots, feedback, and signed history remain valid and verifiable on your Mac. A future release will activate the finalized successor generation and its own public BuilderID path.</p>
         </section>
 
         <section id="legacy">
           <h2>Coming from v0.6</h2>
-          <p>The 0.7 installer preserves existing <code>~/.tohseno/apps</code> data byte-for-byte. Nothing is migrated or deleted during installation.</p>
+          <p>The installer preserves existing <code>~/.tohseno/apps</code> data byte-for-byte. Nothing is migrated or deleted during installation.</p>
           <pre><code>tohseno migrate-legacy
 tohseno verify &lt;app-name&gt;</code></pre>
           <p>The explicit migration copies each valid v0.6 app into the visible folder model and projects its frozen history without rewriting the original ledger. You can migrate every app or pass one app name.</p>

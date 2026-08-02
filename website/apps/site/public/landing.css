@@ -79,6 +79,15 @@ body {
   display: block;
 }
 
+.beta-tag {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--signal);
+  border-radius: 999px;
+  color: var(--signal);
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+}
+
 .mast h1 {
   font-family: var(--display);
   font-size: clamp(1.5rem, 5.5vw, 2.5rem);
