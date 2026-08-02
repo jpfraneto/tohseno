@@ -45,7 +45,7 @@ const landingStylePath = fileURLToPath(
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("serves the canonical installer path and no stale intake surface", async () => {
+  test("serves the three-command terminal landing page", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -56,69 +56,38 @@ describe("public pages", () => {
       .digest("hex")
       .slice(0, 12);
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
-    expect(body).toContain(INSTALL_COMMAND);
-    expect(body).not.toContain("$ </span>tohseno");
-    expect(body).toContain(
-      `data-copy-value="${INSTALL_COMMAND}"`,
+
+    const installIndex = body.indexOf(`data-copy-value="${INSTALL_COMMAND}"`);
+    const createIndex = body.indexOf(
+      'data-copy-value="tohseno create my-app-name"',
     );
-    expect(body).toContain("Copy installer");
+    const studioIndex = body.indexOf('data-copy-value="tohseno studio"');
+    expect(installIndex).toBeGreaterThan(-1);
+    expect(createIndex).toBeGreaterThan(installIndex);
+    expect(studioIndex).toBeGreaterThan(createIndex);
+
+    expect(body.match(/data-copy-command/g)).toHaveLength(3);
+    expect(body.match(/data-copied-label="copied ✓"/g)).toHaveLength(3);
+    expect(body).toMatch(/<button[^>]*hidden[^>]*data-copy-command/);
+    expect(body).toContain('data-terminal');
+    expect(body).toContain('data-term-idle');
+    expect(body).toContain("GIVE EVERY IDEA A");
+    expect(body).toContain("# give your idea a shot");
     expect(body).not.toContain("bun run tohseno");
-    expect(body).toContain("GIVE EVERY");
-    expect(body).toContain("IDEA A");
-    expect(body).toContain("The fastest way to prototype iOS apps");
-    expect(body).toContain(
-      "An open-source factory for independent iOS apps, for builders with more ideas than time.",
-    );
-    expect(body).toContain(
-      "Get rid of your recurring thoughts by turning them into an app you can run, use, and judge in iPhone Simulator.",
-    );
-    expect(body).toContain("INFINITE SHOTS.");
-    expect(body).toContain("Some shots live.");
-    expect(body).toContain("Every shot begins from a working SwiftUI base");
-    expect(body).toContain(
-      "Every coding-agent exit is followed by privacy and integrity verification",
-    );
-    expect(body).toContain("STOP PROTECTING");
-    expect(body).toContain("TAKE ANOTHER ONE.");
-    expect(body).toContain(">ONE SHOT</span>");
-    expect(body).toContain("100 EXAMPLES / ∞ SHOTS");
-    const shotField = body.match(/<ol class="shot-field"[\s\S]*?<\/ol>/)?.[0];
-    expect(shotField).toBeDefined();
-    const shotIcons = new Set(
-      [...(shotField?.matchAll(/\/shot-icons\/shot-(\d{3})\.webp/g) ?? [])].map(
-        (match) => match[1],
-      ),
-    );
-    expect(shotIcons.size).toBe(100);
+    expect(body).not.toContain('class="mobile-home"');
+    expect(body).not.toContain("shot-field");
+    expect(body).not.toContain("/shot-icons/");
+    expect(body).not.toContain('rel="manifest"');
+    expect(body).not.toContain('href="/intake"');
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
-    expect(body).not.toContain("four years");
     expect(body).toContain('href="/whitepaper.pdf"');
+    expect(body).toContain('href="/docs"');
+    expect(body).toContain('href="/privacy"');
     expect(body).toContain('src="/logo.svg"');
     expect(body).toContain(">Community</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('target="_blank"');
     expect(body).toContain('rel="noopener noreferrer"');
-    expect(body).not.toContain("YOUR WEIRDNESS IS NOW EXECUTABLE.");
-    expect(body).not.toContain("Keep up to 100 ideas");
-    expect(body).not.toContain("UP TO");
-    expect(body).not.toContain("slot machine");
-    expect(body).not.toContain('href="/intake"');
-    expect(body).not.toContain("Managed intake");
-    expect(body).toContain('class="mobile-home"');
-    expect(body).toContain('data-mobile-shot-launcher');
-    expect(body).toContain('aria-controls="mobile-tohseno-app"');
-    expect(body).toContain('data-mobile-app');
-    expect(body).toContain('data-mobile-intention');
-    expect(body).toContain('data-mobile-brief-file');
-    expect(body).toContain('data-mobile-images');
-    expect(body).toContain('data-mobile-take-shot');
-    expect(body).toContain('data-mobile-app-next');
-    expect(body).toContain('data-mobile-install-app');
-    expect(body).toContain("Take<br>a Shot.");
-    expect(body).toContain(">0 / 8</span>");
-    expect(body).toContain(">Take Shot</button>");
-    expect(body).toContain(">Notes</span>");
-    expect(body).toContain(">Settings</span>");
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
       'content="An open-source factory for independent iOS apps — native shots you can run, use, and own in Simulator."',
@@ -195,79 +164,30 @@ describe("public pages", () => {
       expect(target.status).toBe(200);
     }
     expect(body).not.toContain('href="#"');
-    expect(body).toContain('aria-controls="shot-field"');
-    expect(body).toContain('aria-describedby="hero-command"');
+    for (const commandId of [
+      "command-install",
+      "command-create",
+      "command-studio",
+    ]) {
+      expect(body).toContain(`id="${commandId}"`);
+      expect(body).toContain(`aria-describedby="${commandId}"`);
+    }
 
     const browserScript = readFileSync(browserScriptPath, "utf8");
-    expect(browserScript).toContain("navigator.clipboard.writeText(copyValue)");
-    expect(browserScript).toContain('querySelector("[data-install-command]")');
-    expect(browserScript).toContain('shotToggle.setAttribute("aria-expanded"');
-    expect(browserScript).toContain(
-      'querySelector("[data-mobile-shot-launcher]")',
-    );
-    expect(browserScript).toContain("mobileApp.hidden = false");
-    expect(browserScript).toContain('schema: "tohseno.shot-seed/1"');
-    expect(browserScript).toContain('type: "application/zip"');
-    expect(browserScript).toContain('download.download = `tohseno-shot-seed-');
-    expect(browserScript).toContain('navigator.serviceWorker.register("/sw.js")');
-    expect(browserScript).toContain("accepted.slice(0, available)");
+    expect(browserScript).toContain("navigator.clipboard.writeText(");
+    expect(browserScript).toContain('querySelector("[data-copy-value]")');
+    expect(browserScript).toContain("prefers-reduced-motion");
+    expect(browserScript).toContain('querySelectorAll("[data-term-step]")');
+    expect(browserScript).toContain("registration.unregister()");
+    expect(browserScript).not.toContain("serviceWorker.register");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
-    expect(landingStyle).toMatch(/\.shot-tile\s*\{[^}]*aspect-ratio:\s*1;/s);
+    expect(landingStyle).toContain("@keyframes cursor-blink");
     expect(landingStyle).toMatch(
-      /\.proof-grid > span\s*\{[^}]*aspect-ratio:\s*1;/s,
-    );
-    for (const selector of [
-      String.raw`\.hero-icon`,
-      String.raw`\.shot-tile`,
-      String.raw`\.proof-grid > span`,
-    ]) {
-      expect(landingStyle).toMatch(
-        new RegExp(
-          `${selector}\\s*\\{[^}]*aspect-ratio:\\s*1;[^}]*min-height:\\s*0;[^}]*align-self:\\s*start;`,
-          "s",
-        ),
-      );
-    }
-    for (const selector of [
-      String.raw`\.hero-icon-grid`,
-      String.raw`\.shot-field`,
-      String.raw`\.proof-grid`,
-    ]) {
-      expect(landingStyle).toMatch(
-        new RegExp(`${selector}\\s*\\{[^}]*align-items:\\s*start;`, "s"),
-      );
-    }
-    for (const selector of [
-      String.raw`\.hero-icon img`,
-      String.raw`\.shot-tile img`,
-      String.raw`\.icon-constellation img`,
-      String.raw`\.proof-grid img`,
-    ]) {
-      expect(landingStyle).toMatch(
-        new RegExp(
-          `${selector}\\s*\\{[^}]*height:\\s*auto;[^}]*aspect-ratio:\\s*1\\s*\\/\\s*1;`,
-          "s",
-        ),
-      );
-    }
-    expect(landingStyle).not.toMatch(
-      /\.(?:hero-icon|shot-tile|proof-grid)[^{]*img\s*\{[^}]*height:\s*100%;/s,
+      /\[data-typing\][\s\S]*?visibility:\s*hidden;/,
     );
     expect(landingStyle).toMatch(
-      /\.mobile-shot-widget\s*\{[^}]*aspect-ratio:\s*1;/,
-    );
-    expect(landingStyle).toMatch(
-      /@media \(max-width: 38rem\) and \(min-height: 48rem\)[\s\S]*\.mobile-shot-widget\s*\{[^}]*aspect-ratio:\s*2\s*\/\s*3;/,
-    );
-    expect(landingStyle).toMatch(
-      /main > :not\(\.mobile-home\)[\s\S]*display:\s*none;/,
-    );
-    expect(landingStyle).toMatch(
-      /@media \(min-width: 38\.01rem\)[\s\S]*\.mobile-home\s*\{[^}]*width:\s*min\(27rem,[^}]*border-radius:\s*3\.25rem;/,
-    );
-    expect(landingStyle).toMatch(
-      /@media \(max-width: 38rem\)[\s\S]*\.mobile-home\s*\{[^}]*width:\s*100%;[^}]*border:\s*0;/,
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.term-cursor\s*\{[^}]*animation:\s*none;/,
     );
   });
 
