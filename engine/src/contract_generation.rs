@@ -20,16 +20,20 @@ pub const CURRENT_GENERATION_REPOSITORY_PATH: &str = "contracts/generations/0.8.
 const CURRENT_GENERATION_JSON: &[u8] =
     include_bytes!("../../contracts/generations/0.8.0/generation.json");
 
-/// The compiled-in client trust root. All three constants stay `None` until
-/// the release-authority ceremony completes. The activating release changes
-/// exactly these constants in one commit: the owner-approved policy digest
-/// (canonical lowercase `0x` hex), plus `include_bytes!` of the policy
-/// instance and the threshold-signed activation published under
-/// `release/contract-activations/`. Shipping some but not all three is a
-/// broken release and refuses to resolve.
-pub const TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX: Option<&str> = None;
-const TRUSTED_RELEASE_AUTHORITY_POLICY_JSON: Option<&[u8]> = None;
-const SIGNED_CONTRACT_ACTIVATION_JSON: Option<&[u8]> = None;
+/// The compiled-in client trust root, established by the owner ceremony of
+/// 2026-08-02: the owner-approved policy digest (canonical lowercase `0x`
+/// hex) plus the policy instance and threshold-signed activation published
+/// under `release/contract-activations/`. Resolution verifies the complete
+/// chain on every call; shipping a partial or non-verifying trust root
+/// refuses to resolve rather than degrading.
+pub const TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX: Option<&str> =
+    Some("0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c");
+const TRUSTED_RELEASE_AUTHORITY_POLICY_JSON: Option<&[u8]> = Some(include_bytes!(
+    "../../release/contract-activations/release-authority-policy.json"
+));
+const SIGNED_CONTRACT_ACTIVATION_JSON: Option<&[u8]> = Some(include_bytes!(
+    "../../release/contract-activations/signed-contract-activation-1.json"
+));
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContractGenerationState {
@@ -243,28 +247,47 @@ mod tests {
     };
 
     #[test]
-    fn committed_generation_is_valid_but_inactive_without_activation_authority() {
+    fn shipped_build_resolves_the_active_generation_under_the_pinned_trust_root() {
         let resolved = resolve_current_contract_generation().unwrap();
         assert_eq!(resolved.definition.generation, "0.8.0");
         assert_ne!(resolved.definition_digest, Bytes32::ZERO);
+        assert_eq!(resolved.state, ContractGenerationState::Active);
+        assert!(resolved.allows_new_builder_identity());
+        assert!(resolved.allows_public_signing());
+        assert_eq!(
+            resolved
+                .trusted_release_authority_policy_digest
+                .unwrap()
+                .to_hex(),
+            TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX.unwrap()
+        );
+        assert_eq!(
+            resolved.signed_activation_head.unwrap().to_hex(),
+            "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28"
+        );
+    }
+
+    #[test]
+    fn shipped_build_embeds_the_complete_trust_root() {
+        // The 2026-08-02 activating commit flipped all three constants
+        // together; a partial trust root must never ship.
+        assert!(TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX.is_some());
+        assert!(TRUSTED_RELEASE_AUTHORITY_POLICY_JSON.is_some());
+        assert!(SIGNED_CONTRACT_ACTIVATION_JSON.is_some());
+    }
+
+    #[test]
+    fn a_build_without_a_trust_root_still_resolves_inactive() {
+        let resolved = resolve_with_trust_root(None).unwrap();
+        assert_eq!(resolved.state, ContractGenerationState::Inactive);
         assert_eq!(resolved.trusted_release_authority_policy_digest, None);
         assert_eq!(resolved.signed_activation_head, None);
-        assert_eq!(resolved.state, ContractGenerationState::Inactive);
         assert!(!resolved.allows_new_builder_identity());
         assert!(!resolved.allows_public_signing());
         assert!(resolved.inactive_reason().contains("no trusted"));
         assert!(resolved
             .inactive_reason()
             .contains("signed chain activation"));
-    }
-
-    #[test]
-    fn shipped_build_embeds_no_trust_root() {
-        // The activating release flips these three constants in one reviewed
-        // commit; until then every build must resolve inactive.
-        assert!(TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX.is_none());
-        assert!(TRUSTED_RELEASE_AUTHORITY_POLICY_JSON.is_none());
-        assert!(SIGNED_CONTRACT_ACTIVATION_JSON.is_none());
     }
 
     #[test]
@@ -465,14 +488,19 @@ mod tests {
     }
 
     #[test]
-    fn a_partial_trust_root_refuses_to_resolve_rather_than_degrade() {
-        // resolve_current_contract_generation guards the constant triple; the
-        // guard is exercised here through its match arms: all-None resolves
-        // inactive, and the compile-time constants are asserted None in
-        // shipped_build_embeds_no_trust_root. A partial root cannot be
-        // constructed through resolve_with_trust_root's Option, so assert the
-        // public entry rejects nothing today and stays inactive.
-        let resolved = resolve_current_contract_generation().unwrap();
-        assert_eq!(resolved.state, ContractGenerationState::Inactive);
+    fn the_pinned_digest_matches_the_embedded_policy_exactly() {
+        // Defense in depth for the activating commit itself: the embedded
+        // policy's independently recomputed digest must equal the pinned
+        // constant, or resolution would refuse at startup.
+        let policy: ReleaseAuthorityPolicy = canonical::from_slice(
+            TRUSTED_RELEASE_AUTHORITY_POLICY_JSON.unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            policy.digest().unwrap().to_hex(),
+            TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX.unwrap()
+        );
+        assert_eq!(policy.threshold, 2);
+        assert_eq!(policy.authorities.len(), 3);
     }
 }

@@ -1,0 +1,31 @@
+{
+  "schema": "tohseno.release-authority-policy/1",
+  "protocol": "tohseno",
+  "protocol_major": 2,
+  "purpose": "contract_generation_activation",
+  "threshold": 2,
+  "authorities": [
+    {
+      "key_id": "0x2816c99af6408c1dbe79ab715573473b70e8fe39f2fbaaf51f95fefda0fc73d8",
+      "public_key": {
+        "x": "0x4017a1f10e986be62506b7c1721911a8b8f47a28f8777b29063e5073ce24537c",
+        "y": "0xedc35f4d5b7adbbd204a9297d4ae452d1bbdabf3e789db097848165d81aac23f"
+      }
+    },
+    {
+      "key_id": "0x6692ef9bcd1e5c6dc278ac152db9c6abccf0bd5e2b4d27baa84fe761f8e52879",
+      "public_key": {
+        "x": "0xd6eaacc9bb3084073a29cac22996edcc4f0f65baaaa696927e682a5ae4926c4b",
+        "y": "0x49d07f22ebffbcab90d2df4a45a80ebd669442d2b6f312ad1d1dcc48119973da"
+      }
+    },
+    {
+      "key_id": "0x743485127d599fd1a5bfc43f7ec9c7f6e07fc60112e86fa39bfcaabf17038b2d",
+      "public_key": {
+        "x": "0xac6f6ce3db9cbab63ad38864336683473ffd55eb8a73c6643d4ad31d14ce03c6",
+        "y": "0xf3b9437fe776ac24785cf325481731de879574523f2741474e13bfe1bc2d4a90"
+      }
+    }
+  ],
+  "issued_at": "2026-08-02T01:35:29Z"
+}

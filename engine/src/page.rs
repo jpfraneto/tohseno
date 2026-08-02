@@ -1009,7 +1009,7 @@ mod tests {
         assert!(html.contains("Not published"));
         assert!(html.contains("Contract generation audit"));
         assert!(html.contains("0.8.0 (protocol major 2)"));
-        assert!(html.contains("<dt>Active generation</dt><dd>None</dd>"));
+        assert!(html.contains("<dt>Active generation</dt><dd>0.8.0</dd>"));
         assert!(html.contains("Conditional factory"));
         assert!(html.contains("not RPC observations"));
         assert!(!html.contains("ShotRelations"));
@@ -1020,7 +1020,7 @@ mod tests {
 
         let audit = serde_json::to_value(&generation).unwrap();
         assert_eq!(audit["generation"], "0.8.0");
-        assert_eq!(audit["active_generation"], serde_json::Value::Null);
+        assert_eq!(audit["active_generation"], "0.8.0");
         assert_eq!(
             audit["definition_repository_path"],
             "contracts/generations/0.8.0/generation.json"

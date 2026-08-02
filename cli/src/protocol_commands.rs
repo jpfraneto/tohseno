@@ -945,21 +945,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn protocol_info_reports_stable_product_and_deployed_inactive_generation() {
+    fn protocol_info_reports_stable_product_and_the_active_generation() {
         let info = serde_json::to_value(protocol_info().unwrap()).unwrap();
         assert_eq!(info["schema"], "tohseno.protocol-info/2");
         assert_eq!(info["product_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(info["release_status"], "stable");
         assert_eq!(info["contract_generation"]["generation"], "0.8.0");
-        assert_eq!(
-            info["contract_generation"]["status"],
-            "deployed_inactive_untrusted"
-        );
+        assert_eq!(info["contract_generation"]["status"], "active");
         assert!(info["contract_generation"]["definition_digest"]
             .as_str()
             .is_some_and(|value| value.starts_with("0x") && value.len() == 66));
-        assert!(info["active_generation"].is_null());
-        assert_eq!(info["public_authority_available"], false);
+        assert_eq!(info["active_generation"], "0.8.0");
+        assert_eq!(info["public_authority_available"], true);
         assert!(info.get("deployment").is_none());
         assert!(info.get("candidate_version").is_none());
         assert!(info["contract_generation"]["conditional_create2"]
@@ -968,17 +965,17 @@ mod tests {
     }
 
     #[test]
-    fn network_status_is_offline_and_inactive() {
+    fn network_status_is_active_but_still_offline_without_the_registry_workflow() {
         let status = serde_json::to_value(inactive_network_status().unwrap()).unwrap();
         assert_eq!(status["schema"], "tohseno.network-status/2");
         assert_eq!(status["rpc_checked"], false);
         assert_eq!(status["ready"], false);
-        assert!(status["active_generation"].is_null());
+        assert_eq!(status["active_generation"], "0.8.0");
         assert_eq!(status["contract_generation"]["generation"], "0.8.0");
         assert!(status["reason"]
             .as_str()
             .unwrap()
-            .contains("no trusted release-authority"));
+            .contains("registry verification workflow is not implemented"));
     }
 
     #[test]
@@ -988,6 +985,6 @@ mod tests {
             .to_string();
         assert!(error.starts_with("public verification unavailable:"));
         assert!(error.contains("no RPC was contacted"));
-        assert!(error.contains("signed chain activation"));
+        assert!(error.contains("not implemented"));
     }
 }

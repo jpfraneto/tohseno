@@ -403,12 +403,14 @@ impl RequestedIdentityBackend {
 /// Decides which backend a NEW identity may use under the current contract
 /// generation, before any bridge, filesystem, or Keychain effect.
 ///
-/// While no generation is active, secure BuilderID creation stays closed.
-/// An explicit `TOHSENO_IDENTITY_BACKEND=secure-enclave` request keeps the
-/// hard failure; the unconfigured default falls back to the explicitly
-/// test-only local identity so the private local lifecycle works on a fresh
-/// machine. The descriptor is marked `test_only` everywhere and can never
-/// authorize a public action.
+/// Secure BuilderID creation stays closed until the 0.8 public identity
+/// workflow is implemented, whatever the generation state. An explicit
+/// `TOHSENO_IDENTITY_BACKEND=secure-enclave` request keeps the hard failure
+/// (with a reason that reflects whether authorization or implementation is
+/// missing); the unconfigured default falls back to the explicitly test-only
+/// local identity so the private local lifecycle works on a fresh machine.
+/// The descriptor is marked `test_only` everywhere and can never authorize a
+/// public action.
 fn resolve_new_identity_backend(
     backend: RequestedIdentityBackend,
 ) -> Result<RequestedIdentityBackend, BuilderIdentityError> {
@@ -421,15 +423,26 @@ fn resolve_new_identity_backend(
             "could not resolve the current contract generation: {error}"
         ))
     })?;
-    if generation.allows_new_builder_identity() {
-        return Ok(backend);
-    }
+    // Even under an active generation, secure 0.8 BuilderID creation is a
+    // separate unimplemented workflow (registry RPC, EIP-712 domains, durable
+    // pending state). Authorization without an implementation must still fail
+    // closed on an explicit request and fall back to the local test-only
+    // identity otherwise, so a fresh machine's first Shot keeps working.
     if explicit {
-        return Err(BuilderIdentityError::InvalidConfiguration(format!(
-            "cannot create a secure BuilderID while contract generation {} is inactive: {}",
-            generation.definition.generation,
-            generation.inactive_reason()
-        )));
+        return Err(BuilderIdentityError::InvalidConfiguration(
+            if generation.allows_new_builder_identity() {
+                format!(
+                    "contract generation {} is active, but secure BuilderID creation is not implemented in this build; only the local test-only identity can be created",
+                    generation.definition.generation
+                )
+            } else {
+                format!(
+                    "cannot create a secure BuilderID while contract generation {} is inactive: {}",
+                    generation.definition.generation,
+                    generation.inactive_reason()
+                )
+            },
+        ));
     }
     Ok(RequestedIdentityBackend::SoftwareTest)
 }
@@ -448,7 +461,7 @@ fn require_public_signing_identity(identity: &BuilderIdentity) -> Result<(), Bui
     })?;
     if identity.candidate_version == LEGACY_V07_CANDIDATE_VERSION {
         return Err(BuilderIdentityError::InvalidConfiguration(format!(
-            "legacy 0.7 BuilderIDs are private/offline compatibility identities and cannot authorize public actions; contract generation {} remains inactive",
+            "legacy 0.7 BuilderIDs are private/offline compatibility identities and cannot authorize public actions under any generation, including generation {}",
             generation.definition.generation
         )));
     }
@@ -729,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn inactive_generation_blocks_explicit_secure_identity_before_bridge_or_filesystem_effects() {
+    fn explicit_secure_identity_fails_closed_before_bridge_or_filesystem_effects() {
         let directory = tempfile::tempdir().unwrap();
         let identity_root = directory.path().join("identity-must-not-exist");
         let manager = BuilderIdentityManager::at(&identity_root);
@@ -745,13 +758,15 @@ mod tests {
             )
             .unwrap_err();
 
-        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
+        // Generation 0.8.0 is active, but the secure creation workflow is
+        // separate unimplemented work; the refusal names that honestly.
+        assert!(error.to_string().contains("not implemented in this build"));
         assert!(!bridge_discovered.get());
         assert!(!identity_root.exists());
     }
 
     #[test]
-    fn default_backend_falls_back_to_local_test_identity_while_generation_is_inactive() {
+    fn default_backend_falls_back_to_local_test_identity_while_secure_creation_is_unimplemented() {
         // A fresh machine with no TOHSENO_IDENTITY_BACKEND must still be able
         // to begin its private local lifecycle: the default resolves to the
         // explicitly test-only software backend instead of failing closed.
@@ -766,7 +781,7 @@ mod tests {
             explicit: true,
         })
         .unwrap_err();
-        assert!(error.to_string().contains("generation 0.8.0 is inactive"));
+        assert!(error.to_string().contains("not implemented in this build"));
     }
 
     #[test]

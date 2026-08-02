@@ -232,11 +232,15 @@ is explicitly cleared.
   prior activation signing digest, advances the canonical block, and never
   moves issuance time backward.
 
-## Current hard stops
+## Ceremony record (2026-08-02)
 
-No production policy instance, owner-approved policy digest, offline release
-keys, independently reviewed second verifier, signed activation, or trusted
-client configuration exists. Generation 0.8.0 is deployed but inactive and
-untrusted. This
-document does not authorize creating those keys, accepting a trust root, adding
-a deployment command, broadcasting a transaction, or activating a generation.
+The owner ceremony of 2026-08-02 executed this runbook with two recorded
+deviations, both owner-approved in writing: the three authority keys were
+generated on the owner's Mac rather than three separate offline devices, and
+the production canary was waived before signing. The production policy
+(digest `0xf144…943c`), the sequence-1 signed activation, both independent
+verification results, and the owner decision evidence live in
+`release/contract-activations/`; the engine pins the policy digest as its
+trust root. Independent human review of the second verifier implementation
+remains outstanding. A successor-policy ceremony with separated custody, and
+a retroactive canary run, remain advisable next steps.

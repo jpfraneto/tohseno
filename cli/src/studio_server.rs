@@ -2433,13 +2433,13 @@ mod tests {
     }
 
     #[test]
-    fn committed_contract_definition_is_inactive_and_has_no_relations_contract() {
+    fn committed_contract_definition_is_active_and_has_no_relations_contract() {
         let definition =
             contract_definition_facts(&resolve_current_contract_generation().unwrap());
         assert_eq!(definition.generation, "0.8.0");
         assert_eq!(definition.protocol_major, 2);
         assert_eq!(definition.chain_id, 4663);
-        assert_eq!(definition.status, "inactive");
+        assert_eq!(definition.status, "active");
         assert_eq!(definition.p256.standard, "EIP-7951");
         assert_eq!(definition.p256.gas, 6_900);
         assert_eq!(definition.contracts.len(), 3);

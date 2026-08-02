@@ -37,14 +37,25 @@ The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
 
-## The contracts and their inactive deployment
+## The contracts, their deployment, and their activation
 
 `contracts/src/` holds six successor Solidity source files. On 2026-08-01 UTC the
 exact generation 0.8.0 `BuilderAccountFactory` and `ShotRegistry` were deployed
-to Robinhood Chain mainnet as an inactive, untrusted candidate. They are not in
-any client trust root, no Builder account or Shot was created by that ceremony,
-and deployment is not activation. Public evidence is
-`contracts/audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json`.
+to Robinhood Chain mainnet as an inactive, untrusted candidate. Public evidence
+is `contracts/audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json`.
+
+On 2026-08-02 UTC the owner ceremony activated the generation. A 2-of-3
+release-authority policy was constructed and its digest
+(`0xf144…943c`) explicitly approved by the owner; a sequence-1 activation
+binding the deployment evidence, a fresh EIP-7951 probe, and activation block
+25511561 was threshold-signed and accepted by two independent verifier
+implementations; and the engine now pins that policy digest as its compiled-in
+trust root, verifying the complete chain on every resolution. All artifacts
+and owner-decision evidence live in `release/contract-activations/`. Two
+recorded owner deviations: all three authority keys were generated on the
+owner's Mac rather than separate offline devices, and the 72-hour production
+canary was explicitly waived before signing — so the on-chain recovery path
+has not yet been exercised, and a retroactive canary remains advisable.
 
 `BuilderAccount` is a non-upgradeable smart account controlled by P-256 device
 keys (the kind Apple hardware produces). It keeps separate counts of active
@@ -73,32 +84,29 @@ deployment and release-build commands for it fail closed on purpose.
 
 Generation 0.8.0 is the remediated successor: the sources currently in
 `contracts/src/`, with a reproducible build definition committed at
-`contracts/generations/0.8.0/generation.json`. The definition remains a build
-definition only; separate evidence records the inactive chain deployment. Two
-independent AI audits are complete, but a human/competitive review, the
-three-day production canary, a release-authority policy, and a threshold-signed
-activation remain outstanding. Post-deployment verification also found and
-fixed an off-chain activation-validator assumption: compiler runtime templates
-contain zero placeholders for Solidity immutables, while instantiated runtime
-bytes are constructor-patched. ADR 0010 governs the exact distinction. Until a
-signed activation exists and clients pin its policy digest, new secure public
-identity creation and all public signing in the engine fail closed.
+`contracts/generations/0.8.0/generation.json`. Two independent AI audits are
+complete; a human/competitive review remains outstanding. Post-deployment
+verification also found and fixed an off-chain activation-validator
+assumption: compiler runtime templates contain zero placeholders for Solidity
+immutables, while instantiated runtime bytes are constructor-patched. ADR 0010
+governs the exact distinction, and the signed activation binds the locally
+instantiated BuilderAccount runtime hash per the owner's canary waiver.
 
-As of 2026-08-01 the mechanism for that pin exists: the engine resolves the
-generation from a compiled-in trust root (three constants in
-`engine/src/contract_generation.rs`, all shipping `None`) and verifies the
-complete policy-plus-threshold-signed-activation chain before ever reporting
-Active; a partial or non-verifying trust root refuses to resolve. The full
-ceremony tool chain also exists — key generation, policy preparation,
-activation payload construction, custodian signing, envelope assembly, and
-two independent verifier implementations — drilled end to end by
-`scripts/tests/test-activation-ceremony-tools.sh` with test keys. None of
-this activates anything: the owner key ceremony, canary, and explicit
-trust-root commit remain the only path. The private local
-lifecycle does not wait on that: on a machine with no identity, the first
-Shot now creates a local, explicitly test-only Builder identity by default
-(it can never authorize a public action); only an explicit
-`TOHSENO_IDENTITY_BACKEND=secure-enclave` request keeps the hard failure.
+The engine resolves the generation from its compiled-in trust root (three
+constants in `engine/src/contract_generation.rs`, now carrying the approved
+digest and ceremony artifacts) and verifies the complete
+policy-plus-threshold-signed-activation chain on every resolution; a partial
+or non-verifying trust root refuses to resolve. `tohseno protocol` and Studio
+report the generation as active. What activation does NOT change yet: the 0.8
+secure public identity workflow, registry RPC/relayer paths, and publication
+receipts are separate unimplemented work (the post-activation gap audit's
+Gaps 2–4), so every public-action surface still fails closed with an honest
+"not implemented" reason. The private local lifecycle is unchanged: on a
+machine with no identity, the first Shot creates a local, explicitly
+test-only Builder identity by default (it can never authorize a public
+action); an explicit `TOHSENO_IDENTITY_BACKEND=secure-enclave` request fails
+with "not implemented" rather than "inactive", and legacy v0.7 identities
+remain non-authoritative under every generation.
 
 ## What v0.7 retirement means for someone who already installed
 

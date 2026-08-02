@@ -243,14 +243,55 @@ fn generation_and_successor_mismatches_fail_closed() {
 }
 
 #[test]
-fn no_production_activation_or_trust_root_is_committed() {
+fn the_committed_production_activation_verifies_under_the_committed_trust_root() {
+    // The 2026-08-02 owner ceremony committed the production instances; this
+    // test permanently proves their internal consistency from raw bytes.
     let directory = repository_root().join("release/contract-activations");
-    let mut entries = fs::read_dir(directory)
+    let mut entries = fs::read_dir(&directory)
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect::<Vec<_>>();
     entries.sort();
-    assert_eq!(entries, vec!["README.md"]);
+    assert_eq!(
+        entries,
+        vec![
+            "OWNER_CANARY_WAIVER.md",
+            "OWNER_POLICY_APPROVAL.md",
+            "README.md",
+            "independent-verification-1.json",
+            "p256-probe-20260802T013802Z.json",
+            "release-authority-policy.json",
+            "signed-contract-activation-1.json",
+        ]
+    );
+
+    let committed_policy: ReleaseAuthorityPolicy =
+        canonical::from_slice(&fs::read(directory.join("release-authority-policy.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        committed_policy.digest().unwrap().to_string(),
+        "0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c"
+    );
+    let committed_signed: SignedContractActivation = canonical::from_slice(
+        &fs::read(directory.join("signed-contract-activation-1.json")).unwrap(),
+    )
+    .unwrap();
+    committed_signed
+        .verify_for_generation(&committed_policy, &generation())
+        .unwrap();
+    assert_eq!(committed_signed.activation.activation_sequence, 1);
+    let probe_bytes = fs::read(directory.join("p256-probe-20260802T013802Z.json")).unwrap();
+    let probe_digest = Sha256::digest(&probe_bytes);
+    assert_eq!(
+        committed_signed.activation.p256_probe_sha256.as_bytes(),
+        probe_digest.as_slice()
+    );
+
+    let committed_value =
+        serde_json::to_value(&committed_signed.activation).unwrap();
+    for field in ["private_key", "mnemonic", "builder_id", "shot_id", "installation_id"] {
+        assert!(!contains_key(&committed_value, field));
+    }
 
     let activation = serde_json::to_value(activation(&generation(), &policy_and_keys().0)).unwrap();
     let forbidden = [
