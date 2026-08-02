@@ -157,24 +157,24 @@ fn verify_trust_root(
     definition: &ContractGeneration,
     trust_root: &EmbeddedTrustRoot<'_>,
 ) -> Result<(Bytes32, Bytes32), ContractGenerationError> {
-    let untrusted =
-        |reason: String| ContractGenerationError::TrustRootInvalid(reason);
+    let untrusted = |reason: String| ContractGenerationError::TrustRootInvalid(reason);
     let pinned = Bytes32::from_hex(
         "trusted_release_authority_policy_digest",
         trust_root.pinned_policy_digest_hex,
     )
     .map_err(|error| untrusted(format!("the pinned policy digest is malformed: {error}")))?;
     if pinned == Bytes32::ZERO {
-        return Err(untrusted("the pinned policy digest must not be zero".into()));
+        return Err(untrusted(
+            "the pinned policy digest must not be zero".into(),
+        ));
     }
-    let policy = tohseno_protocol::canonical::from_slice::<ReleaseAuthorityPolicy>(
-        trust_root.policy_json,
-    )
-    .map_err(|error| {
-        untrusted(format!(
-            "the embedded release-authority policy is not strict canonical JSON: {error}"
-        ))
-    })?;
+    let policy =
+        tohseno_protocol::canonical::from_slice::<ReleaseAuthorityPolicy>(trust_root.policy_json)
+            .map_err(|error| {
+            untrusted(format!(
+                "the embedded release-authority policy is not strict canonical JSON: {error}"
+            ))
+        })?;
     let policy_digest = policy
         .digest()
         .map_err(|error| untrusted(format!("the embedded policy digest failed: {error}")))?;
@@ -236,10 +236,10 @@ mod tests {
     use p256::ecdsa::{Signature, SigningKey};
     use tohseno_protocol::canonical;
     use tohseno_protocol::contract_activation::{
-        ActivatedContract, ChainBlock, ContractActivation, DeploymentObservation,
-        ReleaseAuthority, ReleaseAuthorityApproval, ReleaseAuthorityPurpose,
-        CONTRACT_ACTIVATION_PROTOCOL, CONTRACT_ACTIVATION_SCHEMA,
-        RELEASE_AUTHORITY_POLICY_SCHEMA, SIGNED_CONTRACT_ACTIVATION_SCHEMA,
+        ActivatedContract, ChainBlock, ContractActivation, DeploymentObservation, ReleaseAuthority,
+        ReleaseAuthorityApproval, ReleaseAuthorityPurpose, CONTRACT_ACTIVATION_PROTOCOL,
+        CONTRACT_ACTIVATION_SCHEMA, RELEASE_AUTHORITY_POLICY_SCHEMA,
+        SIGNED_CONTRACT_ACTIVATION_SCHEMA,
     };
     use tohseno_protocol::record::CanonicalTimestamp;
     use tohseno_protocol::signature::{
@@ -323,9 +323,7 @@ mod tests {
         }
     }
 
-    fn policy_and_keys(
-        scalars: [u8; 3],
-    ) -> (ReleaseAuthorityPolicy, Vec<(Bytes32, SigningKey)>) {
+    fn policy_and_keys(scalars: [u8; 3]) -> (ReleaseAuthorityPolicy, Vec<(Bytes32, SigningKey)>) {
         let mut pairs = scalars
             .into_iter()
             .map(|scalar| {
@@ -352,9 +350,7 @@ mod tests {
         (policy, keys)
     }
 
-    fn activation_for_embedded_generation(
-        policy: &ReleaseAuthorityPolicy,
-    ) -> ContractActivation {
+    fn activation_for_embedded_generation(policy: &ReleaseAuthorityPolicy) -> ContractActivation {
         let generation: ContractGeneration =
             canonical::from_slice(CURRENT_GENERATION_JSON).unwrap();
         ContractActivation {
@@ -464,7 +460,10 @@ mod tests {
         let signed = signed_activation(activation_for_embedded_generation(&policy), &keys, 2);
         let pinned = other_policy.digest().unwrap().to_hex();
         let error = resolve_with(&pinned, &policy, &signed).unwrap_err();
-        assert!(matches!(error, ContractGenerationError::TrustRootInvalid(_)));
+        assert!(matches!(
+            error,
+            ContractGenerationError::TrustRootInvalid(_)
+        ));
     }
 
     #[test]
@@ -473,7 +472,10 @@ mod tests {
         let signed = signed_activation(activation_for_embedded_generation(&policy), &keys, 1);
         let pinned = policy.digest().unwrap().to_hex();
         let error = resolve_with(&pinned, &policy, &signed).unwrap_err();
-        assert!(matches!(error, ContractGenerationError::TrustRootInvalid(_)));
+        assert!(matches!(
+            error,
+            ContractGenerationError::TrustRootInvalid(_)
+        ));
     }
 
     #[test]
@@ -484,7 +486,10 @@ mod tests {
         let signed = signed_activation(activation, &keys, 2);
         let pinned = policy.digest().unwrap().to_hex();
         let error = resolve_with(&pinned, &policy, &signed).unwrap_err();
-        assert!(matches!(error, ContractGenerationError::TrustRootInvalid(_)));
+        assert!(matches!(
+            error,
+            ContractGenerationError::TrustRootInvalid(_)
+        ));
     }
 
     #[test]
@@ -492,10 +497,8 @@ mod tests {
         // Defense in depth for the activating commit itself: the embedded
         // policy's independently recomputed digest must equal the pinned
         // constant, or resolution would refuse at startup.
-        let policy: ReleaseAuthorityPolicy = canonical::from_slice(
-            TRUSTED_RELEASE_AUTHORITY_POLICY_JSON.unwrap(),
-        )
-        .unwrap();
+        let policy: ReleaseAuthorityPolicy =
+            canonical::from_slice(TRUSTED_RELEASE_AUTHORITY_POLICY_JSON.unwrap()).unwrap();
         assert_eq!(
             policy.digest().unwrap().to_hex(),
             TRUSTED_RELEASE_AUTHORITY_POLICY_DIGEST_HEX.unwrap()

@@ -2434,8 +2434,7 @@ mod tests {
 
     #[test]
     fn committed_contract_definition_is_active_and_has_no_relations_contract() {
-        let definition =
-            contract_definition_facts(&resolve_current_contract_generation().unwrap());
+        let definition = contract_definition_facts(&resolve_current_contract_generation().unwrap());
         assert_eq!(definition.generation, "0.8.0");
         assert_eq!(definition.protocol_major, 2);
         assert_eq!(definition.chain_id, 4663);

@@ -43,8 +43,8 @@ fn main() {
             eprintln!("invalid release-authority policy: {error}");
             process::exit(1);
         });
-    let signed: SignedContractActivation =
-        canonical::from_slice(&read(&signed_path)).unwrap_or_else(|error| {
+    let signed: SignedContractActivation = canonical::from_slice(&read(&signed_path))
+        .unwrap_or_else(|error| {
             eprintln!("invalid signed activation: {error}");
             process::exit(1);
         });

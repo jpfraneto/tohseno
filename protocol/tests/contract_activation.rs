@@ -287,9 +287,14 @@ fn the_committed_production_activation_verifies_under_the_committed_trust_root()
         &probe_digest
     );
 
-    let committed_value =
-        serde_json::to_value(&committed_signed.activation).unwrap();
-    for field in ["private_key", "mnemonic", "builder_id", "shot_id", "installation_id"] {
+    let committed_value = serde_json::to_value(&committed_signed.activation).unwrap();
+    for field in [
+        "private_key",
+        "mnemonic",
+        "builder_id",
+        "shot_id",
+        "installation_id",
+    ] {
         assert!(!contains_key(&committed_value, field));
     }
 
