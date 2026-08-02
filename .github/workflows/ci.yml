@@ -246,8 +246,8 @@ jobs:
             '.schema == "tohseno.protocol-page/2"
              and .protocol == "tohseno"
              and .canonical == false
-             and .active_contract_generation == null
-             and .contracts_deployed == false' \
+             and .active_contract_generation == "0.8.0"
+             and .contracts_deployed == true' \
             site/protocol/protocol.json
           jq -e \
             '.schema == "tohseno.genesis-candidate-report/1"
@@ -275,7 +275,7 @@ jobs:
              and (.authorization.authorized | type) == "boolean"
              and (.protection.immutable_release_policy_verified | type) == "boolean"
              and (.protection.release_tag_protection_verified | type) == "boolean"' \
-            release/V0_8_1_READINESS.json
+            release/V0_8_2_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then

@@ -12,9 +12,9 @@
   "token_association_is_identity": false,
   "canonical": false,
   "contract_generation_definition": "0.8.0",
-  "active_contract_generation": null,
-  "contracts_deployed": false,
+  "active_contract_generation": "0.8.0",
+  "contracts_deployed": true,
   "protocol_page_deployed": false,
-  "stable_release": "v0.7.1",
+  "stable_release": "v0.8.2",
   "v0_7_contract_generation_retired": true
 }

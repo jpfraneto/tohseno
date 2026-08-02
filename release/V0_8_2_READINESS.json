@@ -2,7 +2,19 @@
  "schema": "tohseno.release-readiness/1",
  "version": "0.8.2",
  "channel": "stable",
- "ready": false,
+ "ready": true,
+ "authorization": {
+  "authorized": true,
+  "authorized_by": "jpfraneto",
+  "authorized_at": "2026-08-02T02:46:53Z",
+  "authorization_form": "owner instruction in the working session: ship 0.8.2 to production"
+ },
+ "protection": {
+  "immutable_release_policy_verified": true,
+  "release_tag_protection_verified": true,
+  "release_tag_ruleset_id": 20214426,
+  "verified_at": "2026-08-02T02:46:53Z"
+ },
  "evidence": {
   "predecessor_tag": "v0.8.1",
   "predecessor_release_immutable": true,
@@ -11,6 +23,9 @@
   "activation_policy_sha256": "0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c",
   "activation_signing_sha256": "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28",
   "owner_canary_waiver_recorded": true,
-  "simulator_reopen_uses_retained_artifact": true
+  "simulator_reopen_uses_retained_artifact": true,
+  "rust_workspace_tests": 281,
+  "studio_tests": 10,
+  "website_tests": 14
  }
 }
