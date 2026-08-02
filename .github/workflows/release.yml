@@ -41,7 +41,7 @@ jobs:
              and .authorization.authorized == true
              and .protection.immutable_release_policy_verified == true
              and .protection.release_tag_protection_verified == true' \
-            release/V0_8_1_READINESS.json
+            release/V0_8_2_READINESS.json
 
   build:
     needs: [verify, authorize-release]
