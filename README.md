@@ -13,16 +13,25 @@ A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-The current product release is **TOHSENO 0.7.1**. It ships the local GENESIS
-protocol implementation without claiming a canonical 1.0 protocol, deployed
-contracts, or public infrastructure.
+The current product release is **TOHSENO 0.8.1**. The system is in beta and
+evolving quickly: stable releases ship continuously, and every public surface
+is updated to match the latest evolution. It ships the local GENESIS protocol
+implementation without claiming a canonical 1.0 protocol, active contracts, or
+public infrastructure.
+
+Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
+(`eip155:4663`) as an **inactive, untrusted candidate** — see
+[On-chain status](#on-chain-status) below. Deployment is not activation:
+no release reads from or writes to those contracts.
 
 > [!IMPORTANT]
-> If your installed 0.7.x CLI shows a predicted BuilderID or BuilderAccount
-> address, that prediction belongs to the retired v0.7 contract generation and
-> will never be deployed by the TOHSENO project. It is not a durable public
-> identity, ownership evidence, or a future deployment coordinate. Local Shots,
-> identities, and signed history remain valid and verifiable offline. See
+> If an installed legacy 0.7.x CLI shows a predicted BuilderID or
+> BuilderAccount address, that prediction belongs to the retired v0.7 contract
+> generation and will never be deployed by the TOHSENO project. It is not a
+> durable public identity, ownership evidence, or a future deployment
+> coordinate — and it is not an address in the deployed 0.8.0 generation.
+> Local Shots, identities, and signed history remain valid and verifiable
+> offline. See
 > [`release/V0_7_CONTRACT_GENERATION_NOTICE.md`](release/V0_7_CONTRACT_GENERATION_NOTICE.md).
 
 ## The ordinary loop
@@ -31,8 +40,8 @@ contracts, or public infrastructure.
 curl -fsSL https://tohseno.com/oneshot.sh | bash
 ```
 
-On a new Mac, that command verifies the complete immutable 0.7.1 release,
-installs it transactionally, starts the loopback-only Studio server, opens
+On a new Mac, that command verifies the current complete immutable stable
+release, installs it transactionally, starts the loopback-only Studio server, opens
 Studio in the default browser, and presents the resumable first-Shot guide.
 The guide checks the actual Mac for Xcode, Apple Development signing, and an
 authenticated `$0.00`
@@ -52,7 +61,7 @@ The installed CLI checks the stable release channel at most once per day. When
 a newer release exists, interactive commands show one short instruction:
 
 ```text
-TOHSENO 0.7.1 is available. Run `tohseno update`.
+TOHSENO 0.8.1 is available. Run `tohseno update`.
 ```
 
 Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).
@@ -118,7 +127,7 @@ after a lost publish response accepts only the exact immutable release after
 the same asset and tag verification. The checkout remains credential-free, and
 write permission remains scoped to the publish job.
 
-TOHSENO 0.7.1 requires macOS 13 or later and Xcode. A physical install
+TOHSENO requires macOS 13 or later and Xcode. A physical install
 requires an iPhone connected through Apple’s device tooling and a usable Apple
 signing identity. A free Apple ID is the default development path; paid Apple
 Developer membership is only needed for longer-lived signing or App Store
@@ -171,12 +180,32 @@ every included payload file, while source and retained build artifacts remain
 explicit omissions.
 
 Local creation and verification do not require a TOHSENO server. Publication
-is a separate, currently inactive boundary. The successor Robinhood Chain
-contracts are non-upgradeable, unaudited, and undeployed. The versioned
+is a separate, currently inactive boundary. The versioned
 [`0.8.0` contract generation](contracts/generations/0.8.0/generation.json)
 commits exact source, compiler, ABI, bytecode, runtime hashes, and conditional
-CREATE2 arithmetic for audit. It is not deployment or activation evidence.
+CREATE2 arithmetic for audit.
 No signed activation or release-authority trust root is committed.
+
+## On-chain status
+
+On 2026-08-01 an authorized one-time ceremony
+([ADR 0009](docs/adr/0009-one-time-inactive-0-8-0-deployment.md)) deployed the
+non-upgradeable generation `0.8.0` contracts to Robinhood Chain mainnet
+(`eip155:4663`) as an **inactive, untrusted candidate**:
+
+| Contract | Address |
+|---|---|
+| `BuilderAccountFactory` | `0xb1bd208cd2af98e701f43d06aaa889d3a594df65` |
+| `ShotRegistry` | `0x3fe6508ba2660bc575080024f402c192a2e035a0` |
+
+Deployment is not activation. No release reads from or writes to these
+contracts, no client trust root references them, and activation stays gated
+behind independent review, the production canary, and a threshold activation
+ceremony; a defective candidate is abandoned, never repaired in place. Do not
+send anything to these addresses. The complete signed deployment evidence is
+preserved in
+[`contracts/audits/`](contracts/audits/) and
+[`contracts/deployments/`](contracts/deployments/).
 
 The normative entry points are:
 
@@ -417,16 +446,16 @@ deployment coordinates.
 |---|---|
 | Protocol schemas, vectors, canonicalization, identities, and lineage law | Implemented; covered by local automated tests |
 | Apple identity helper and reusable Fascia | Implemented; software-backed tests completed |
-| Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; unaudited |
+| Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; two independent AI reviews complete, independent human audit still pending |
 | Bounded lineage-evidence node | Implements legacy-action preservation and explicit static-peer synchronization; active-generation authority stays unresolved, and checkpoint receipt inventory is deferred |
 | Neutral Token Association | Implemented as private signed v2 lineage; mixed-ancestry public outbox retired, and no token existence or chain anchor claimed |
 | Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
-| Robinhood Chain P256VERIFY read-only probe | Complete positive/negative/infinity and 6,900-gas observation preserved in [`contracts/audits/`](contracts/audits/); time/block scoped and not deployment authorization |
-| Successor contracts | Immutable `0.8.0` build definition committed for audit; no signed activation, trusted release policy, deployment, or production address |
+| Robinhood Chain P256VERIFY read-only probe | Complete positive/negative/infinity and 6,900-gas observation preserved in [`contracts/audits/`](contracts/audits/); re-verified as a fresh gate in the 2026-08-01 deployment ceremony |
+| Successor contracts | Immutable `0.8.0` generation deployed on Robinhood Chain mainnet as an inactive, untrusted candidate (see [On-chain status](#on-chain-status)); no signed activation or client trust root, and activation stays gated behind independent review, the canary, and the threshold ceremony |
 | Frozen v0.7 publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at the immutable v0.7.1 tag |
 | BuilderAccount, Shot #1, and public checkpoints | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |
-| Stable v0.7.1 patch and installer-from-release test | Recorded in `release/V0_7_1_READINESS.json`; v0.7.0 remains immutable |
+| Stable 0.8.1 release and installer-from-release test | Recorded in `release/V0_8_1_READINESS.json`; every earlier stable tag remains immutable |
 | Canonical release or Arweave publication | Deliberately not completed |
 
 TOHSENO is Apache-2.0 software. It uses established cryptography to create a
