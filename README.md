@@ -25,14 +25,12 @@ Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 no release reads from or writes to those contracts.
 
 > [!IMPORTANT]
-> If an installed legacy 0.7.x CLI shows a predicted BuilderID or
-> BuilderAccount address, that prediction belongs to the retired v0.7 contract
-> generation and will never be deployed by the TOHSENO project. It is not a
-> durable public identity, ownership evidence, or a future deployment
-> coordinate — and it is not an address in the deployed 0.8.0 generation.
-> Local Shots, identities, and signed history remain valid and verifiable
-> offline. See
-> [`release/V0_7_CONTRACT_GENERATION_NOTICE.md`](release/V0_7_CONTRACT_GENERATION_NOTICE.md).
+> If an older installed CLI shows a predicted BuilderID or BuilderAccount
+> address, that prediction belongs to a retired contract generation and will
+> never be deployed by the TOHSENO project. It is not a durable public
+> identity, ownership evidence, or a future deployment coordinate — and it is
+> not an address in the deployed generation. Local Shots, identities, and
+> signed history remain valid and verifiable offline.
 
 ## The ordinary loop
 
@@ -71,8 +69,8 @@ Remove only the installed program and its exact shell PATH line with:
 tohseno uninstall
 ```
 
-Uninstall never deletes visible Shot folders, identities, feedback, v0.6 data,
-or other machine state.
+Uninstall never deletes visible Shot folders, identities, feedback, legacy
+data, or other machine state.
 
 Automation or package inspection can install without launching Studio:
 
@@ -108,10 +106,10 @@ the selected Codex or Claude Code interface. TOHSENO observes durable lifecycle
 and repository evidence without proxying the conversation or bypassing the
 harness's native permissions (ADR 0005).
 
-Upgrading from 0.6.0 preserves the old hidden ledger at
+Upgrading preserves any older hidden ledger at
 `~/.tohseno/apps`. Run `tohseno migrate-legacy` after installation to copy
 those apps into visible folders and project their frozen signed histories.
-The operation never deletes or rewrites the 0.6.0 source.
+The operation never deletes or rewrites the original source.
 
 Publication requires machine-readable stable-release authorization, GitHub
 [release immutability](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/establish-provenance-and-integrity/prevent-release-changes)
@@ -148,7 +146,7 @@ The canonical v2 model is additive around the frozen v1 Apple records:
 - authorized Evolutionary Intents and verified Evolution transitions;
 - signed append-only lineage actions with honest artifact availability;
 - ownership under versioned BuilderID and P-256 DeviceKey policy, with frozen
-  v0.7 identity limited to legacy offline verification;
+  legacy identity limited to offline verification;
 - optional Token Associations that never replace identity;
 - neutral replication of bounded lineage evidence through independent partial
   nodes.
@@ -258,13 +256,13 @@ tohseno identity import-backup --confirm
 ```
 
 `identity backup` and `identity import-backup` store encrypted local
-recovery-authority material bound to the stored legacy v0.7 BuilderID. They do
+recovery-authority material bound to the stored legacy BuilderID. They do
 not activate recovery, recover or rotate an account, authorize a replacement
 device, or submit an on-chain action.
 
-The legacy v0.7 CLI exposes no DeviceKey authorize, revoke, rotate, or recover
+The legacy CLI exposes no DeviceKey authorize, revoke, rotate, or recover
 command. Its offline verifier accepts only the original DeviceKey that
-reproduces the frozen v0.7 BuilderID. The successor `BuilderAccount` now has
+reproduces the frozen legacy BuilderID. The successor `BuilderAccount` now has
 permissioned device administration plus delayed, vetoable recovery, closing
 the contract-design question in
 [ADR 0001](docs/adr/0001-device-key-replacement-deferred.md); an off-chain
@@ -366,7 +364,7 @@ action commits its predecessor and can therefore disclose a link to private
 ancestry. Public Token Associations require a future ancestry-free relation
 record. Use `token remove` for an explicit private historical removal.
 
-Legacy `v0.6` apps keep their existing ledger. Their first protocol record is
+Legacy apps keep their existing ledger. Their first protocol record is
 an explicit N+1 adoption root; TOHSENO does not invent cryptographic history:
 
 ```sh
@@ -379,10 +377,10 @@ A deterministic private static page can be prepared without publishing it:
 tohseno page build my-app
 ```
 
-The frozen v0.7 `publish`, `handle`, and `appcoin` mutations are no longer
+The frozen legacy `publish`, `handle`, and `appcoin` mutations are no longer
 exposed by the CLI, and their deployment and lifecycle scripts fail closed.
-Their source and decoding law remain available at the immutable `v0.7.1` tag
-for offline verification only. No successor public-witness command will be
+Their source and decoding law remain available at the immutable legacy release
+tags for offline verification only. No successor public-witness command will be
 enabled until an independently trusted release policy authorizes a signed
 activation and the actual target RPC passes the complete EIP-7951 deployment
 gate.
@@ -429,13 +427,13 @@ cargo run --locked -p tohseno -- --json identity show
 The helper uses Secure Enclave/Keychain by default and does not silently fall
 back. Its software backend is explicitly test-only.
 
-## Immutable v0.7 Genesis material
+## Immutable legacy Genesis material
 
-The released v0.7 Genesis archive is reproduced only from the immutable
-`v0.7.1` tag. Main deliberately refuses to rebuild or archive it: doing so
-would mix changing successor sources with a frozen v0.7 deployment plan.
+The released legacy Genesis archive is reproduced only from its immutable
+release tag. Main deliberately refuses to rebuild or archive it: doing so
+would mix changing successor sources with a frozen legacy deployment plan.
 
-Use the signed v0.7.1 release artifact for legacy inspection and private
+Use the signed legacy release artifact for offline inspection and private
 verification. Its predicted contract and BuilderAccount addresses are
 undeployed historical inputs, not durable public identities or future
 deployment coordinates.
@@ -452,7 +450,7 @@ deployment coordinates.
 | Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
 | Robinhood Chain P256VERIFY read-only probe | Complete positive/negative/infinity and 6,900-gas observation preserved in [`contracts/audits/`](contracts/audits/); re-verified as a fresh gate in the 2026-08-01 deployment ceremony |
 | Successor contracts | Immutable `0.8.0` generation deployed on Robinhood Chain mainnet as an inactive, untrusted candidate (see [On-chain status](#on-chain-status)); no signed activation or client trust root, and activation stays gated behind independent review, the canary, and the threshold ceremony |
-| Frozen v0.7 publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at the immutable v0.7.1 tag |
+| Frozen legacy publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at its immutable release tag |
 | BuilderAccount, Shot #1, and public checkpoints | Not completed on mainnet |
 | Physical iPhone build, install, and launch | Not completed |
 | Stable 0.8.1 release and installer-from-release test | Recorded in `release/V0_8_1_READINESS.json`; every earlier stable tag remains immutable |

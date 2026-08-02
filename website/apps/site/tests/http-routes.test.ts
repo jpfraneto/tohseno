@@ -81,6 +81,7 @@ describe("public pages", () => {
     expect(body).not.toContain('rel="manifest"');
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
+    expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
     expect(body).toContain('href="/whitepaper.pdf"');
     expect(body).toContain('href="/docs"');
     expect(body).toContain('href="/privacy"');
@@ -111,6 +112,8 @@ describe("public pages", () => {
       const body = await response.text();
       expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
       expect(body).not.toContain('href="/intake"');
+      // Only the latest release is ever named; retired versions stay unnamed.
+      expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
       if (path === "/docs") {
         expect(body).toContain("Take another one");
         expect(body).toContain("Studio checks the Mac first");
