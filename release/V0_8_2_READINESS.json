@@ -26,6 +26,15 @@
   "simulator_reopen_uses_retained_artifact": true,
   "rust_workspace_tests": 281,
   "studio_tests": 10,
-  "website_tests": 14
+  "website_tests": 14,
+  "release_workflow_run": "https://github.com/jpfraneto/tohseno/actions/runs/30729572405"
+ },
+ "publication": {
+  "tag": "v0.8.2",
+  "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.8.2",
+  "release_immutable": true,
+  "production_url": "https://tohseno.com",
+  "tohseno_com_installer_verified": true,
+  "installer_byte_identical_to_repository": true
  }
 }
