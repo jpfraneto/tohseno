@@ -263,7 +263,7 @@ A **BuilderID** is the protocol identifier representing that authority. In the s
 
 A **DeviceKey** is a P-256 key authorized within a BuilderAccount. The successor account design separates devices from administrators, allows delegation by permission, and provides delayed recovery that replaces the key set only after a three-day window in which an administrator can cancel. Recovery authority, device rotation, Builder control, and Apple code-signing identity are different concerns. Apple signing is external to TOHSENO's controller-key protocol.
 
-The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics, but the current product status is narrower, as Section 17 records.
+The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics and is deployed and active on its target chain under a threshold-signed release authority; the public witness workflows that would write to it are still being built, so accepted state remains local.
 
 ### 4.7 Generator and Verifier
 
