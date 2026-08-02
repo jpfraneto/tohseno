@@ -1,567 +1,386 @@
-# TOHSENO
+# TOHSENO: A Protocol for Software Continuity
 
-## Persistent identity for coherent human intention
+## Persistent identity across changing implementations
 
-**Stable local factory `0.7.1` · pre-1.0 protocol · no active contract generation**
+**Author:** JP Franetovic  
+**Affiliation:** Anky, Inc.  
+**Date:** August 2026  
+**Status:** Composite pre-1.0 protocol candidate; working paper
 
-> TOHSENO is a protocol for giving coherent human intentions persistent
-> computational identity and allowing them to become, remain, and evolve as
-> verifiable expressions.
+## Abstract
 
-> The first TOHSENO factory turns one coherent intention into a native Apple
-> application that its owner can use and evolve.
+Software is usually identified by something that gives it a present form: a repository, package, binary, bundle identifier, account, deployment, model session, vendor, or running service. Those identifiers can name locations, providers, or exact artifacts. They do not by themselves define one continuing software object across materially different implementations.
 
-The protocol is broader than software. The factory is deliberately not.
-TOHSENO begins with native Apple software because it is a concrete medium in
-which intention can become a complete, useful, inspectable thing.
+TOHSENO proposes such an object: the **Shot**. A Shot has a random stable identifier and a controller-authorized history that binds a preserved founding **Intention**, an explicitly accepted and revisioned **Genome**, one or more runtime **Expressions**, immutable accepted **Versions**, and evidence about both machine verification and use. Continuity is not inferred from code similarity. It is an explicit protocol claim: the current controller authorizes a proposed state under declared constraints, and deterministic reduction makes the claim and its ancestry mechanically checkable. Cryptography establishes commitments, signatures, and ordering; it does not establish usefulness, semantic wisdom, or legal title.
 
-## 1. The problem
+A Shot begins locally. Private material need not be published. An optional public Witness may record a deliberately narrow projection without creating the Shot or acquiring control. Git, content-addressed storage, reproducible builds, and supply-chain attestations can serve as substrates and evidence; TOHSENO does not replace them. Its proposed contribution is the software-specific continuity state machine that composes them.
 
-People increasingly describe software in ordinary language, yet generated work
-usually remains subordinate to the system that produced it. Its identity is an
-account row, its history is a chat transcript, its source is an export, and its
-continuity depends on a company, model, server, or repository URL.
+The first factory is Apple-oriented, but neither Apple nor its Generator is privileged by the protocol. If the Builder retains the necessary keys, records, source, assets, data, and build knowledge, another Generator can continue the Shot. The first Generator can disappear. The Shot remains.
 
-That model mistakes the current material for the thing that persists.
+## 1. Introduction: software without continuity
 
-A person may recognize that something should exist before an application,
-repository, deployment, token, or even a precise specification exists. The
-creative act begins with that declaration and the commitment to bring it into
-form. The resulting work should be able to change its name, code, location,
-platform, expression, and economic relationships without losing its origin or
-authorized continuity.
+Software has acquired excellent identifiers for many things around it. Git names exact content and connects commits into histories. Package managers name releases. OCI descriptors address packaged artifacts. App stores bind listings to vendor accounts and bundle identifiers. Build systems describe derivations. Supply-chain attestations state how an artifact was produced. A running service can be named by an origin, account, or endpoint.
 
-TOHSENO gives that continuity a small, verifiable protocol body.
+Each answer is useful, but each answers a narrower question than this one:
 
-## 2. Canonical objects
+> What makes a materially changed implementation a later state of the same software object?
 
-- **Coherent Intention** — the preserved human declaration that something
-  should exist.
-- **Shot** — the persistent identity created when that intention is committed
-  into reality.
-- **Commitment** — the signed act that begins the Shot.
-- **Genome** — the current accepted operational interpretation of what must
-  remain true.
-- **Expression** — one concrete manifestation of the Shot.
-- **Organ** — a bounded declared capability that lets a software expression
-  live.
-- **Version** — one immutable identifiable state of one expression.
-- **Feedback** — experience attached to the exact state that produced it.
-- **Evolutionary Intent** — an authorized proposal for changing an existing
-  Shot.
-- **Evolution** — a verified transition from one accepted version to another.
-- **Lineage** — the signed history connecting origin, ownership, expressions,
-  versions, experience, and change.
-- **Ownership** — authority to approve the Shot's recognized continuity.
-- **Token Association** — an optional economic relationship that does not
-  replace Shot identity.
+Ordinary practice answers socially. A maintainer says that a rewrite is version 2. A company moves a product between repositories. A mobile application is rebuilt for another platform. A hosted service changes every internal component while keeping its name and account. These continuities may be sensible, but the underlying systems usually identify the artifacts, locations, and authorities involved rather than encoding the continuity claim itself.
 
-These objects are intentionally few. Repositories, generated files, build
-artifacts, deployments, public indexes, chain anchors, and tokens are useful
-material or evidence. None is the primary object.
+Generative systems make the gap easier to see. They can produce many plausible implementations from the same request, replace a source tree, or reconstruct an interface in another language. Artificial intelligence did not create the continuity problem; rewrites, ports, forks, maintainer transfers, and disappearing vendors long predate it. Generation makes implementation cheaper and more replaceable, so the absence of a durable object around which implementations change becomes more consequential. A prompt or agent session cannot carry that burden. It is provider-specific, often incomplete, and neither an accepted state nor an authority record.
 
-## 3. Coherent intention
+TOHSENO tests a narrow hypothesis:
 
-A coherent intention is human source material: written, spoken, visual,
-technical, emotional, incomplete, or accompanied by references. “Coherent”
-does not mean polished. It means a person recognizes one thing that should
-exist and commits to making it real.
+> A Shot is a continuing software object whose identity is independent of any particular implementation.
 
-TOHSENO preserves the original material exactly. Operational planning may
-interpret it, but must not silently replace it with cleaned product language.
-Private intention bytes remain private by default. Public contract checkpoints
-must not contain the intention or a digest derived from it: hashing private,
-low-entropy human material does not make it safe to publish.
+The claim is not that software possesses an essence, or that a protocol can discover metaphysical sameness. The claim is operational. A Shot is constituted by a stable identity and a typed, signed, reducible history with domain-specific rules for origin, accepted constraints, implementations, evidence, and authority. Independent conforming software can decide whether a sequence of records is a valid continuation of that object. It cannot decide whether the continuation was a good idea.
 
-The protocol does not prove that an intention is philosophically true,
-valuable, or good. It preserves a verifiable relationship between a declared
-origin and the expressions later accepted under its identity.
+This separation is the center of the proposal. A radical rewrite may be admitted under the same Shot if the authorized controller accepts it through the required transitions. The controller may instead create a distinct Shot and declare a parent relationship. The protocol exposes which choice was made, who had authority to make it, what commitments changed, and what evidence preceded it. It does not turn judgment into a hash.
 
-## 4. The Shot and its commitment
+The result is neither a replacement for version control nor a universal identity layer. It is a candidate protocol object for software continuity.
 
-A Shot receives a random permanent Shot ID when an authorized creator signs its
-initial commitment. That identity is not derived from a folder, app name,
-bundle ID, Git remote, database row, token address, or blockchain transaction.
+## 2. Continuity through change
 
-The first signed lineage action binds the Shot ID, creator authority and key,
-preserved intention commitment, origin time, and native, legacy, or descendant
-origin. Genome proposal and acceptance follow as distinct actions; they are not
-silently folded into creation. This is the explicit transition from
-possibility into recognized protocol history.
+The Ship of Theseus, a changing organism, and a seed becoming a tree all supply the same useful intuition: material persistence and identity persistence are different questions. None supplies a protocol rule. A seed does not contain a pixel-perfect mature tree; a person is not identified by a checksum of one bodily state; a ship's name does not settle every dispute about replacement. These analogies reveal the problem and then stop.
 
-A Shot survives changes to:
+TOHSENO replaces metaphor with explicit distinctions:
 
-- its display name and description;
-- source code and repository location;
-- icon, bundle identifier, platform, or deployment;
-- individual expressions and their versions;
-- owner-facing tools and model providers;
-- public availability and node replication;
-- token associations.
+- The **Shot** is the continuing protocol object.
+- The **Intention** preserves the exact founding material.
+- The **Genome** records the currently accepted operational promises and boundaries.
+- An **Expression** is one concrete body in a particular environment.
+- A **Version** records one accepted state of one Expression.
+- An **Evolution** is an authorized transition between adjacent accepted Versions.
+- **Contact** is the encounter between an Expression and reality.
+- **Evidence** records bounded machine findings or observations from Contact.
+- A **Generator** proposes an implementation.
+- A **Verifier** establishes declared machine facts.
+- The current controller authorizes what enters accepted history.
+- An optional **Witness** preserves a narrow public projection; it does not create identity.
 
-The current Apple candidate created a stable Shot ID at folder creation but
-signed its first record only when the first application state passed all gates.
-The evolved protocol makes the initial commitment explicit while preserving
-those existing version signatures through a compatibility adapter.
+The biological vocabulary is therefore mnemonic, not ontological. The Genome is not the Shot, and software is not literally alive. Continuity results from a stable identifier, preserved records, accepted constraints, content commitments, explicit transition rules, controller authorization, and visible lineage.
 
-## 5. Genome
+Figure 1 shows the core distinction. The ShotID does not change when source, runtime, or Generator changes. Expression and Version identifiers do change where the protocol requires them to.
 
-The Shot genome is the current accepted interpretation of what must remain true
-for the Shot to remain itself. It may declare:
-
-- purpose and intended people or community;
-- essential experience and behavior;
-- hard invariants and interaction laws;
-- aesthetic, privacy, and ownership principles;
-- platform commitments and required capabilities;
-- boundaries, non-goals, and forbidden transformations;
-- acceptance principles.
-
-The genome is not the raw intention, source tree, or a generic model prompt.
-The accepted machine-readable revision is canonical, and `GENOME.md` is its
-deterministic human-readable rendering. Verification fails if those bytes
-drift. Human edits are inputs to a new proposal; the accepted rendering changes
-only after an authorized genome acceptance.
-
-Ordinary implementation evolution does not change the genome. A proposed
-mutation is a distinct signed action and becomes current only after explicit
-acceptance by present authority. Historical revisions remain part of lineage.
-
-The repository also contains a factory `Genome`: Laws, Structure, Taste,
-Listening, Unfolding, Memory, and World. That constitution guides materializing
-agents and remains important, but it is not the Shot-specific genome.
-
-## 6. Expressions
-
-An expression is one concrete manifestation of a Shot. It has a stable
-expression ID, a medium, its own versions, capability graph, materialization
-policy, and availability.
-
-An iPhone app and a Mac app can be two expressions of one Shot. A later website
-or protocol service can be another. A painting, song, book, or ritual can also
-be represented at the protocol level without pretending that the current
-factory knows how to produce it.
-
-The first factory remains narrow: complete native Apple software built from an
-owner's coherent intention.
-
-## 7. Organs and the Apple Fascia
-
-An organ is a bounded capability declaration, not merely a source directory.
-It can state:
-
-- what it provides;
-- what state it owns;
-- permissions and dependencies;
-- events it emits and consumes;
-- genome constraints it satisfies;
-- acceptance tests;
-- supported platforms.
-
-The existing TOHSENO Apple Fascia is the first mature capability substrate. It
-defines a finite connective anatomy for expressive applications:
-
-- an app-specific InstallationKey;
-- local-first persistence;
-- private-by-default boundaries;
-- narrowly scoped continuity envelopes;
-- embedded provenance;
-- distribution facts;
-- declared network and Apple capabilities;
-- deterministic conformance receipts.
-
-Generated applications use native Apple frameworks and carry no third-party
-runtime dependencies by default. They open to useful behavior without a
-mandatory account. A deterministic verifier, never an LLM, judges conformance.
-
-Neutral organ records adapt and explain the Fascia; they do not replace its
-normative sources or turn the Apple factory into a vague universal generator.
-
-## 8. Versions
-
-A version is one immutable state of one expression. It binds:
-
-- Shot and expression IDs;
-- expression version ID and sequence;
-- accepted genome revision and digest;
-- source state or digest;
-- materialization provenance;
-- capability lock;
-- build identity and artifact digests where practical;
-- acceptance and verification results;
-- actor and time;
-- known incompleteness.
-
-The existing candidate already seals complete numbered worlds containing
-source, record, signature, Fascia, conformance, build log, Simulator artifact,
-and best-effort preview. A crash-safe marker is the commit point. Failed
-attempts are archived and do not consume the next canonical number.
-
-Those worlds remain the material body of accepted Apple versions. Existing
-`tohseno.shot/1` records remain byte-for-byte valid and are interpreted as v1
-Apple-expression version commitments.
-
-## 9. Feedback
-
-Feedback belongs to the exact state that produced an experience. A feedback
-record therefore binds the Shot ID, expression ID, version ID, build identity
-when available, author identity when known, timestamp, privacy, observation,
-and attachment descriptors.
-
-Text, screenshots, files, and structured observations are supported. Private
-is the default. Attachments can remain local while their digests and
-availability are recorded. No feedback is a valid and honest state; absence is
-not synthesized into approval.
-
-Feedback never floats vaguely at the Shot level. An observation about version
-`0001` remains about `0001` after later evolution.
-
-## 10. Evolutionary intent and evolution
-
-An evolutionary intent is a coherent instruction for changing an existing
-Shot. It may arise from direct human desire, selected feedback, failures,
-references, environmental change, or new technical possibilities.
-
-It distinguishes:
-
-- expression behavior or experience changes;
-- implementation changes;
-- capability or organ changes;
-- proposed genome mutations.
-
-A generated evolutionary intent is a proposal until accepted by an authorized
-actor.
-
-An evolution is the verified transition from one accepted version to another.
-It preserves unchanged hard invariants, names accepted genome mutations, binds
-materialization provenance, runs acceptance gates, records incompleteness, and
-appends lineage only after success. It never overwrites the prior version or
-the original intention.
-
-## 11. Lineage
-
-New canonical lineage is a sequence of signed, append-only actions encoded with
-closed JSON, RFC 8785 canonicalization, SHA-256 commitments, and low-s P-256
-signatures. Actions include their protocol and schema versions, Shot ID, actor,
-time, previous action, payload and payload digest, and availability.
-
-Lineage can contain:
-
-- origin and commitment;
-- intention descriptors;
-- genome proposals and acceptances;
-- expression and organ declarations;
-- accepted versions and verification;
-- feedback and evolutionary intents;
-- evolutions and publications;
-- ownership changes;
-- token associations;
-- artifact availability;
-- forks and descendants;
-- optional public anchors.
-
-Derived snapshots and indexes are useful but reproducible. They cannot
-supersede canonical actions.
-
-Lineage need not be globally complete to be valid. The protocol distinguishes
-absent, unknown, intentionally private, locally available, publicly committed,
-replicated, cryptographically verified, and on-chain anchored. A participant
-must not upgrade one state into another by implication.
-
-## 12. Ownership and identity
-
-Ownership is authority to approve continuity-changing actions. It does not
-claim authorship of every generated line.
-
-P-256 DeviceKeys sign protocol commitments. Private keys remain in
-Keychain/Secure Enclave and never enter a Shot; Apple ID governs Apple signing
-and distribution, not TOHSENO ownership.
-
-The frozen v0.7 BuilderID law remains available only to verify existing
-private artifacts. A visibly test-only software key may reproduce that legacy
-identity and sign local private records, but it cannot authorize public
-actions. New secure BuilderID creation fails closed while contract generation
-0.8.0 is inactive.
-
-The successor `BuilderAccount` design supports permissioned device
-administration and delayed, vetoable recovery. A public controller becomes a
-recognized TOHSENO BuilderID only when client policy validates it against an
-activated contract generation; the neutral registry does not pin one account
-runtime forever. No activation or release-authority trust root exists today.
-An off-chain authority-proof format and owner recovery interface remain future
-work rather than implied capabilities.
-
-Builder identity is deliberately linkable after explicit public registration.
-Installation and end-user continuity identities remain local and unlinkable;
-they never become Builder controllers.
-
-## 13. Nodes
-
-A TOHSENO node preserves, validates, serves, and optionally replicates bounded
-protocol records. The current node stores legacy action records, not referenced
-artifact bytes. A node has its own identity and storage and can:
-
-- validate schemas, commitments, signatures, and available lineage segments;
-- store content-addressed signed actions;
-- rebuild derived Shot indexes;
-- serve the eligible ordinary-lineage evidence it possesses;
-- report missing or private artifacts honestly;
-- synchronize eligible evidence records with configured peers;
-- inspect storage integrity and supported schema versions;
-- report its inactive contract-generation status.
-
-Validity is layered. A schema-valid, signature-valid segment whose predecessor
-is unavailable can be retained as an unanchored evidence segment; it is not
-promoted to active public authority merely because its bytes and local segment
-verify. Because no contract generation is active, all candidate authority
-remains unresolved, including complete legacy branches. Frozen v0.7 CREATE2
-predictions are offline compatibility evidence only.
-
-The ancestry-free public-checkpoint format is defined, but the current node
-does not yet inventory checkpoint receipts or infer registry state from
-ordinary lineage records. That boundary stays explicit until an activated
-generation and receipt-verification path exist.
-
-Nodes do not need a shared mutable database or distributed consensus. They
-agree on deterministic byte, signature, segment, and authority results when the
-required context is available. They need not agree that an intention is
-subjectively coherent, possess every artifact, choose one global current head
-amid unresolved authorized branches, or materialize code.
-
-One surviving node can still preserve and serve the records it holds.
-A malicious node can withhold or lie about availability, but cannot forge an
-authorized action or alter content without failing verification.
-
-Local creation, use, evolution, and verification do not require a node.
-
-## 14. Public and private data
-
-Private by default:
-
-- raw intentions and references;
-- ordinary coherent-intention lineage and its ancestry;
-- unpublished source and artifacts;
-- private feedback and attachments;
-- application data and usage;
-- transient plans and agent transcripts;
-- recovery material and private keys;
-- local continuity relationships.
-
-Suitable for a separately defined public projection:
-
-- random Shot ID and public controller;
-- the closed ancestry-free public-checkpoint chain;
-- registry action and receipt evidence after generation activation;
-- explicitly owner-authorized artifacts under a record type that declares
-  exactly what it discloses.
-
-An ordinary lineage digest is not a privacy boundary: its predecessor can
-commit to private ancestry. New ordinary-lineage public outbox writes are
-therefore disabled. Existing already-public legacy records may be retained as
-legacy evidence, but cannot establish active-generation authority. Token
-Associations remain private lineage until a separate closed public relation
-projection is specified.
-
-Portable export and public page generation are projections, not recursive
-copies of a working directory. A generated repository excludes private working
-material from publication by default.
-
-## 15. Verification and threat model
-
-Cryptography proves that an authorized key signed exact bytes. Schemas and
-reducers give those bytes deterministic meaning. Acceptance receipts prove
-which checks ran and what they observed. None proves creative or metaphysical
-truth.
-
-Verification defends against:
-
-- forged or replayed lineage actions;
-- signature and payload tampering;
-- schema downgrade and unknown-field attacks;
-- unauthorized genome mutation;
-- divergent derived state;
-- incomplete or malicious replication;
-- tampered portable bundles;
-- chain/domain mismatch;
-- spoofed token associations;
-- private-data publication;
-- malicious references and unsafe paths;
-- untrusted templates, organs, and dependency substitution;
-- arbitrary code execution disguised as inspection.
-
-Materialization remains a code-execution boundary. Templates, dependencies, and
-agents are not trusted merely because a record is signed. The Apple factory
-uses strict project anatomy, source scans, fixed Fascia sources, bounded
-dependencies, compilation, artifact checks, and deterministic conformance.
-
-## 16. Smart-contract boundary
-
-A private Shot exists before and independently of a chain.
-
-The successor contracts are optional public witnesses:
-
-- `BuilderAccountFactory` predicts and deploys controller accounts;
-- `BuilderAccount` validates authorized actions;
-- `ShotRegistry` records only controller, an ancestry-free public checkpoint
-  head, witness-local checkpoint count, and action nonce after a permissionless
-  commit and controller-signed reveal.
-
-They do not store repositories, intentions, genomes, feedback, transcripts, or
-private references. They must not receive app-runtime continuity or end-user
-data, including hashes of small or guessable private values. A chain anchor can
-prove that a public commitment existed and was authorized; it cannot contain
-the total creative object or make subjective intention objectively true.
-
-The undeployed `ShotRelations` surface was cut. Permanent plaintext handles
-create naming and squatting policy. App Store self-claims are not externally
-verified and may look authoritative when they are not. Token Association
-already exists as a signed lineage relationship and does not require a
-dedicated contract.
-
-Builder identity becomes public and linkable only through explicit
-publication. A private/local Shot does not enter this graph merely because it
-exists. End-user installation and continuity identities stay local and never
-become Builder controllers.
-
-The contracts are non-upgradeable, administrator-free, unaudited, and
-undeployed. The frozen v0.7 generation will never be deployed. The committed
-0.8.0 generation is an immutable build definition for audit, not an activation
-or deployment claim; no release-authority trust root or signed production
-activation exists.
-
-Likewise, a registry address or transaction string embedded in legacy Apple
-metadata is not a publication receipt. Current generation and verification
-policy rejects that claim while no generation is active. Future embedded
-publication evidence requires a new closed receipt schema and versioned Apple
-Fascia rather than reinterpreting released metadata.
-
-## 17. Token association
-
-A Shot may have zero or more historical token associations. Each association
-identifies its own chain and token contract, with prior relationships preserved
-in signed lineage.
-
-A token is not:
-
-- the Shot ID;
-- the owner or controller;
-- an expression or repository;
-- application ownership;
-- a requirement for creation, use, verification, or evolution.
-
-The frozen v0.7 ABI named this relationship an Appcoin. It remains a legacy
-decoding input but will not be deployed. Current protocol language and lineage
-use Token Association directly and accept explicit supported chain
-coordinates, including Base `8453`.
-
-Anky can therefore be its own Shot, have one or more software expressions, and
-associate `$ANKY` on Base. That relationship does not make the token contract
-the Shot, merge Anky with TOHSENO, conflate `$ANKY` with any `$TOHSENO`
-association, or constrain either project's ownership.
-
-## 18. Portability: downloaded coherent intentions
-
-“The open-source factory of downloaded coherent intentions” has a technically
-honest meaning:
-
-A Shot can be projected into a portable, verifiable bundle that another person
-or machine can receive, inspect, follow, instantiate, express, fork, or evolve
-according to its authority and available artifacts.
-
-Such a bundle contains or resolves:
-
-- Shot identity and origin;
-- genome and ownership facts;
-- expression definitions and accepted versions;
-- signed lineage;
-- explicit artifact availability and omissions;
-- verification results;
-- optional token associations;
-- enough metadata for safe inspection or supported materialization.
-
-It is not merely a zip of generated code. Import verifies before trust.
-Receiving records is not adopting ownership. Cloning source is not creating
-lineage. Attaching private local material does not publish it.
-
-The current candidate bundle is deliberately narrower than the full portable
-model: it carries a canonical file inventory and verified lineage projection,
-omits expression source and retained build artifacts, and declares that it is
-not ready for materialization. Its manifest proves the included bytes relative
-to that manifest; signed lineage authenticates canonical actions. A trusted
-transport or separately communicated manifest digest is still required to
-authenticate the bundle as a whole. Resolving source and safely materializing
-a received Shot remain future work.
-
-## 19. Forks and descendants
-
-An evolution preserves Shot identity. A descendant creates a new Shot ID and a
-signed relationship to its parent. A copy without that relationship is simply
-a copy.
-
-This rule allows inspiration, independent ownership, and divergent genomes
-without corrupting the parent's continuity or pretending every derivative is
-the same creative identity.
-
-## 20. The first factory: native Apple software
-
-The concrete loop is:
-
-```text
-human intention
-→ signed Shot commitment
-→ accepted Shot genome
-→ native Apple expression plan
-→ resolved capabilities and Fascia
-→ materialized source and Simulator artifact
-→ deterministic acceptance
-→ immutable version
-→ exact-version feedback
-→ authorized evolutionary intent
-→ next accepted version
+```mermaid
+flowchart LR
+    S["ShotID: stable identity"]
+    E1["Expression A<br/>Apple"]
+    V1["Version A.1"]
+    V2["Version A.2"]
+    E2["Expression B<br/>another runtime"]
+    V3["Version B.1"]
+    S --> E1
+    S --> E2
+    E1 --> V1 --> V2
+    E2 --> V3
+    G1["Generator 1"] -. proposes .-> V1
+    G2["Generator 2"] -. proposes .-> V2
+    G3["Generator 3"] -. proposes .-> V3
 ```
 
-The visible folder remains the builder's direct working surface. It carries its
-own identity, human-readable intention and genome, concise evolutionary-intent
-surface, immutable version worlds, exact-version feedback, verification, and
-private working area. Any compatible coding agent or editor can work in it.
-Editing is ordinary filesystem activity; accepting an evolution is a signed
-protocol event.
+*Figure 1 — The continuing Shot. One Shot may have changing accepted Versions and multiple Expressions. Generators produce candidates; they are not the identity.*
 
-An accepted version completes on the Mac. A phone is a destination, not a birth
-requirement. `tohseno refresh` can install later when a device is present.
+The stable identifier is useful only because the rest of the state machine gives references to it consequences. A random label with no verifiable genesis, transition law, or retained material would be ceremonial. TOHSENO's newness claim must therefore rest on the complete object, not on the label alone.
 
-Every generated application embeds Shot ID, expression ID, version ID, genome
-revision and digest, protocol version, and practical source/build identity.
-That metadata lets the app and tooling bind exported feedback or logs to the
-exact experienced state. It does not claim that iOS permits arbitrary
-inspection of other installed applications.
+## 3. The proposed primitive
 
-## Explicit non-goals
+### 3.1 Definition
 
-TOHSENO does not:
+Within this candidate, a **Shot** is the continuing protocol object formed by:
 
-- prove the metaphysical coherence or worth of an intention;
-- make an application, repository, token, or chain record the Shot itself;
-- turn the first factory into a universal creative generator;
-- require a server, blockchain, token, account, or Apple ID for local
-  continuity;
-- put private intentions, feedback, app data, or transcripts on-chain;
-- create a universal human or installation identifier;
-- permit one app to inspect arbitrary other installed iOS apps;
-- make an LLM the verifier;
-- trust unverified imported code or templates;
-- invent distributed consensus where deterministic signed records suffice;
-- claim undeployed or unaudited contracts are production infrastructure;
-- fabricate missing history during migration.
+1. a random, stable ShotID;
+2. a signed founding commitment to exact Intention material and initial authority;
+3. a current accepted Genome and its explicit revision history;
+4. declared Expressions and their immutable accepted Versions;
+5. evidence and evolutionary decisions bound to exact Versions; and
+6. a controller-authorized, hash-linked lineage reducible under the protocol rules.
 
-## Release and protocol status
+This definition identifies an event-sourced aggregate specialized for software. The current state is not stored as an unexamined mutable row. It is derived from a valid prefix of signed actions. Domain rules determine which actions may follow: an initial Genome must be proposed and accepted; an Expression must bind an accepted Genome; a Version requires a matching successful VerificationResult; feedback must name an accepted Version; an Ownership action must be authorized by the current controller; and so on.
 
-TOHSENO `0.7.1` is the stable local product release. Its installer, CLI,
-Studio, Apple identity helper, and deterministic protocol materials are
-released together as one checksummed artifact set.
+The Shot is not identical to its name, alias, folder, repository, prompt, source tree, current body, binary, app-store listing, token, controller, Generator, public checkpoint, or any Version. Any of these may be changed, lost, duplicated, or replaced without changing the ShotID. Whether the Shot remains *materially continuable* is a separate question considered in Section 11.
 
-The protocol carried by that product remains explicitly pre-1.0 and
-noncanonical. Its contracts are undeployed and unaudited, the public protocol
-page is staging material, and there is no mainnet publication claim. Product
-stability does not canonize the protocol, activate a contract generation, or
-turn predicted addresses into production fact.
+### 3.2 What the ShotID proves
+
+A native ShotID is a cryptographically random, nonzero 32-byte value created once. It is deliberately not derived from an Intention, source digest, BuilderID, token address, bundle identifier, name, or repository. Deriving it from mutable content would make continuity impossible; deriving it from a controller would make transfer change identity.
+
+The ShotID alone proves almost nothing. It is a collision-resistant namespace value, not evidence of authorship, content, public registration, legal ownership, or quality. Its significance arises when a verifier is given a valid founding action and enough authorized lineage to reduce the Shot's state. A reference to a bare ShotID should therefore be read as a claim awaiting context.
+
+For exact content, the protocol uses content commitments. For continuity, it uses the stable ShotID. Conflating those functions would either make changing software impossible or make exact-state verification vague.
+
+### 3.3 A minimal transition model
+
+The normative encodings are in the [protocol specification](protocol/SPECIFICATION.md), schemas, and conformance vectors. The following notation is explanatory.
+
+Let a lineage action be:
+
+```text
+a_i = (schema, sequence i, previous h_(i-1), ShotID,
+       actor, timestamp, availability, payload, H(payload))
+
+h_i = SHA-256(RFC8785(a_i))
+```
+
+The action commitment `h_i` is also the digest signed once by its P-256 signature sidecar. Sequence one has no predecessor and carries a `Commitment` payload:
+
+```text
+Commitment(H(Intention), initial BuilderID,
+           initial controller key, origin, time)
+```
+
+The full Intention record may be carried later, including privately, but its canonical digest must match the founding commitment. A deterministic reducer `R` accepts one complete prefix only if sequences and predecessor commitments are contiguous, timestamps do not move backward, the ShotID is constant, signatures are valid, each actor is the current authority, and each payload-specific transition is legal.
+
+A VersionID is content-bound within a Shot and Expression:
+
+```text
+VersionID = SHA-256(
+  "TOHSENO-VERSION-ID-V2\0" || ShotID || ExpressionID ||
+  u64be(ordinal) || genome_digest || source_digest
+)
+```
+
+The formula does not make two programs semantically equivalent. It makes an exact accepted state unambiguous relative to its Shot, Expression, ordinal, accepted Genome, and source commitment.
+
+The lineage is a single-predecessor chain for any reducible branch. The broader history can contain competing children of one head, so the observed structure is a tree of incompatible prefixes rather than a mergeable Git DAG. The reducer does not erase competing heads or choose a global winner. A deliberately created descendant or fork is a different ShotID with an explicit `ParentRelation`; this is distinct from a same-Shot lineage conflict.
+
+### 3.4 What persists
+
+Across a valid continuation, the following persist:
+
+- the ShotID;
+- the founding commitment and, when available, exact Intention record;
+- the append-only authorized lineage up to the selected head;
+- every prior accepted Genome revision and Version commitment;
+- the current controller state derived from authorized Ownership actions;
+- explicit relationships among Expressions, Versions, evidence, and Evolutions.
+
+Names, interfaces, frameworks, languages, source layouts, Generators, models, devices, accounts, repositories, package coordinates, and distribution channels may change. A Genome may change only by proposal and acceptance. An Expression may receive later Versions; another body requires another ExpressionID. An accepted Version never changes in place.
+
+This is scoped continuity, not universal tracking. Installation identity is local to an application installation. Continuity statements have an explicit Shot audience and bounded claims. The protocol does not give every application a universal cross-service identity for a person.
+
+## 4. Shot anatomy
+
+Figure 2 shows the records that carry the object. Not every conceptual role is a distinct wire payload: Contact is an event in use; Lived Evidence is represented through version-bound Feedback; and Generator and Verifier are roles around proposal and testing. The canonical lineage payload types are defined by the neutral `/2` schema.
+
+```mermaid
+flowchart TB
+    ID["ShotID"]
+    C["Founding Commitment<br/>Intention digest + initial authority"]
+    I["Intention<br/>preserved origin"]
+    G["Accepted Genome<br/>revisioned promises"]
+    X1["Expression A"]
+    X2["Expression B"]
+    VA["Accepted Versions"]
+    VB["Accepted Versions"]
+    EV["Verification Results"]
+    FB["Version-bound Feedback"]
+    AU["Controller / Ownership actions"]
+    L["Hash-linked signed lineage"]
+    ID --> C --> L
+    I --> C
+    L --> G
+    L --> X1 --> VA
+    L --> X2 --> VB
+    EV --> VA
+    VA --> FB
+    VB --> FB
+    AU --> L
+```
+
+*Figure 2 — Shot anatomy. The Shot is the whole reducible object, not the Genome or any single body. Arrows show logical bindings rather than public disclosure.*
+
+### 4.1 Intention
+
+The **Intention** is the preserved human declaration from which the Shot began. In the neutral model it contains one to sixty-four original materials: words, images, references, examples, or other artifacts described by exact digests and availability. Inline text, when present, is bound to exact bytes and length. An optional note and capture time are part of the canonical record.
+
+The Intention is historical evidence, not a perpetually edited product brief. Correcting its spelling after seeing the implementation would change its commitment and falsely rewrite origin. Later understanding belongs in Feedback, an Evolutionary Intention, or a Genome proposal. The full founding material may remain intentionally private while its digest remains bound at genesis.
+
+Preservation does not establish that the Intention was original, lawful, wise, or written by the person named in prose. It establishes that the later Shot history refers to the same committed bytes.
+
+### 4.2 Genome
+
+The **Genome** is the accepted operational constitution of the Shot. It records a revision number and structured statements about purpose, intended users, essential experience, behavioral invariants, interaction laws, privacy and ownership principles, boundaries, non-goals, required capabilities, forbidden transformations, acceptance principles, platform commitments, and matters free to change.
+
+It is more precise than “DNA.” The Genome is neither source code nor a complete architecture. It is not a Generator prompt, static configuration file, model memory, or test suite. Files, gates, and tests may represent and check portions of it, but they remain mechanisms serving the accepted law. Some provisions are mechanically testable; others require Builder judgment.
+
+The distinction can be stated compactly:
+
+> Intention preserves origin. Genome preserves promises.
+
+A Genome becomes current only through two signed actions: a proposal and an explicit acceptance that references that proposal's action commitment. Revision one has no base. A later proposal must name the exact current revision and digest and summarize its mutations. A Version cannot smuggle in a Genome change by merely pointing at new prose.
+
+The Genome does not make semantic conformance decidable. A malicious or careless controller can accept a weak Genome, revise away a defining promise, or approve an implementation that violates a nuanced requirement. The protocol makes those decisions attributable and reviewable; it cannot make them sound.
+
+### 4.3 Expression
+
+An **Expression** is one concrete body of the Shot in an environment. Its declaration has a random stable ExpressionID, a kind, a name, one or more platforms, the accepted Genome revision and digest it claims to embody, and a reference describing the availability of its definition artifact.
+
+Two iOS implementations may be successive Versions of one Expression if the controller treats them as continuations of that body. A mobile application and a web or desktop application may instead be separate Expressions under one Shot. They share Shot identity and accepted law, not necessarily source, interface, storage format, or capabilities.
+
+The protocol does not mechanically prove that multiple Expressions are “really” the same application. It proves that an authorized lineage declared them to be bodies of one Shot under specified Genome commitments. Reviewers can inspect the declaration and evidence; the controller bears the semantic judgment.
+
+The neutral schema also includes **Organ** declarations: immutable, expression-scoped capability units whose dependency graph, state ownership, permissions, events, Genome constraints, and acceptance tests contribute to a Version's capability-graph digest. Organ is useful structured capability vocabulary. The current Apple Fascia gives it a concrete profile. It should not be mistaken for the Shot's timeless essence or assumed to map naturally to every future runtime.
+
+### 4.4 Version
+
+A **Version** is one immutable accepted state of one Expression. Its record binds:
+
+- the ExpressionID and expression-local ordinal;
+- the accepted Genome revision and digest;
+- the source digest;
+- materialization provenance;
+- the exact capability-graph digest;
+- a matching successful VerificationResult action;
+- known incompleteness;
+- acceptance time; and
+- optional build identity and build digest.
+
+“Immutable” here is a verification property, not a claim that storage media cannot be edited. Changing the canonical action changes its commitment, breaks successor links, or invalidates the signature. The old accepted state remains the state named by its VersionID. Later work creates another Version; it does not rewrite this one.
+
+A working tree is not a Version. Neither is a model response, candidate source directory, Git commit, successful compilation, binary, deployment, or app-store release. Any may contribute evidence or a digest. A Version exists in accepted protocol history only after a successful matching VerificationResult and an authorized Version action.
+
+Acceptance does not imply completeness or reproducibility. Known incompleteness is explicit, a build digest is optional, and material referenced by a digest may later be unavailable. Reproducing an artifact requires the stronger conditions of a reproducible build system and retention of all necessary inputs.
+
+### 4.5 Evolution
+
+An **Evolution** is an authorized transition between two distinct adjacent accepted Versions of the same Expression. It references an earlier Evolutionary Intent, names the exact from- and to-VersionIDs and Genome digests, states preserved invariants, and—when the Genome changed—references the exact Genome acceptance.
+
+Not every source edit, Git commit, build, model generation, deployment, or accepted Version is by itself an Evolution. An Evolution closes a declared change from the previously current Version to the newly current one. The target Version must already be accepted; the reducer then checks adjacency and intent.
+
+At protocol level this yields three different cases:
+
+1. **Working change:** files differ, but no accepted action exists. The Shot's accepted state has not moved.
+2. **Accepted successor:** required records, verification, Version acceptance, and Evolution form a valid continuation of the same Expression.
+3. **New Shot:** a separate ShotID begins, optionally recording `fork`, `descendant`, or `inspired_by` relation to a parent head.
+
+Copying a folder does not automatically create any of these claims. Possession of files is not controller authority.
+
+### 4.6 Builder, controller, BuilderID, and DeviceKey
+
+The **Builder** is the human or organization making creative and custodial decisions. The wire protocol cannot prove that a human personally considered each decision; it proves that an authorized key signed it. For this reason the paper uses **controller** for the mechanically evaluated authority state.
+
+A **BuilderID** is the protocol identifier representing that authority. In the successor public design it has the form `eip155:4663:0x…` and denotes a BuilderAccount address on chain 4663. An address-shaped local or predicted identifier is not proof that the account exists or is publicly authoritative. Neutral lineage binds an initial BuilderID and P-256 controller public key; an Ownership action signed by the current controller installs the next BuilderID and controller key.
+
+A **DeviceKey** is a P-256 key authorized within a BuilderAccount. The successor account design separates devices from administrators, allows delegation by permission, and provides delayed recovery that replaces the key set only after a three-day window in which an administrator can cancel. Recovery authority, device rotation, Builder control, and Apple code-signing identity are different concerns. Apple signing is external to TOHSENO's controller-key protocol.
+
+The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics, but the current product status is narrower, as Section 17 records.
+
+### 4.7 Generator and Verifier
+
+A **Generator** is any system that proposes implementation material or a transition: Codex, Claude Code, another coding harness, a human team, a specialized program synthesizer, or a deterministic toolchain. The first Generator has no permanent privilege.
+
+A **Verifier** is a deterministic system that evaluates declared gates and records bounded results against a candidate. It may establish that canonical commitments match, signatures verify, source conforms to a profile rule, a permission is present or absent, specified tests pass, or a build succeeds. The VerificationResult binds the candidate VersionID, Genome, source, capability graph, gate conjunction, known incompleteness, and time.
+
+A Verifier does not prove usefulness, beauty, absence of all defects, full semantic fidelity to natural language, or metaphysical sameness between Expressions. A gate also does not prove that the external test runner itself was trustworthy. Verifier policy and evidence remain reviewable assumptions.
+
+The intended separation is:
+
+> Generation produces a proposal. Verification establishes bounded machine facts. Authorization makes an accepted Version part of history.
+
+The neutral wire schema requires a successful VerificationResult before a Version, but it does not cryptographically enforce organizational independence between Generator and Verifier. A single operator could run both, and the controller could authorize nonsense. Independence is therefore a system and profile requirement, not a fact implied by the record type alone.
+
+## 5. Origin and law without revisionism
+
+The Intention/Genome split solves a recurring provenance failure. If one document must serve both as the origin story and the current specification, evolution produces pressure to rewrite history. A later implementation discovers what the original words omitted; the document is “clarified”; the new system then appears to have satisfied an intention that did not exist at genesis.
+
+TOHSENO instead treats origin and present law as separate timelines. The founding action commits to the Intention. The Intention action, whenever disclosed, must match that digest and may occur only once. The Genome begins at revision one and may change explicitly. Feedback can explain why. An Evolutionary Intent can select exact feedback actions and request implementation-, Expression-, Organ-, or Genome-scoped changes. A later Genome proposal names its exact base and mutation summary.
+
+This does not make the founding words supreme. A vague, harmful, or obsolete Intention may deserve to be left behind. The controller can authorize a Genome that departs radically from it. What the protocol prevents is silent retroactive repair. A reviewer can see both what began the Shot and what it later promised.
+
+That distinction also limits the founding record's power. Intention is evidence of origin, not a perpetual veto, source of legal rights, or oracle of meaning. Genome is current accepted law, not proof that reality conforms to it.
+
+## 6. Bodies and accepted moments
+
+Software continuity requires both stable identity and exact-state identity. A ShotID alone deliberately survives content changes; a VersionID deliberately does not. Expressions locate exact Versions within distinct bodies.
+
+Suppose a field-notebook Shot first appears as a native iPhone app. Its Apple Expression has an ExpressionID and Version 1 binds the accepted Genome, source, capabilities, verification, and known limitations. A later rewrite in a different UI framework can be Version 2 of the same Expression if the authorized history treats it that way. A web implementation can be a second Expression with its own random ExpressionID and ordinal sequence. Both bodies can cite the same current Genome while having different source and platform commitments.
+
+There is no requirement that all Expressions advance together. The iPhone body might be on Version 4 and the web body on Version 1. Feedback must name the exact ExpressionID and VersionID that produced it, so an observation about the web interface cannot silently become evidence about the mobile implementation.
+
+The protocol's immutability is selective. Accepted moments and prior actions do not change. The current head, current Genome, controller, known availability, and collection of Expressions can change only by adding valid actions. This freezes history without freezing software.
+
+An unavailable artifact demonstrates the limit of commitments. A digest can prove that rediscovered bytes are the committed bytes; it cannot reconstruct missing bytes. An `artifact_availability` action can later record an observation without rewriting the referenced record, but an availability label does not make material exist.
+
+## 7. Generation, verification, and authorization
+
+Agentic development often collapses three acts. A model writes code, runs tests that it selected, and reports completion. That report can be useful, but it combines proposal, measurement, and acceptance under one epistemic boundary.
+
+TOHSENO separates them because their failure modes differ:
+
+- A Generator can misunderstand the request, omit files, fabricate a success report, or optimize for a weak test.
+- A Verifier can have incomplete gates, execute compromised tools, or correctly prove an irrelevant property.
+- A controller can be careless, coerced, compromised, or simply choose badly.
+
+The protocol does not eliminate any failure. It makes the roles and resulting claims distinct. A failed VerificationResult may remain in honest history, but it cannot authorize a Version. A passed result must match the candidate's source digest, Genome, capability graph, VersionID, and known incompleteness. The current controller then signs the Version action. The signature establishes key authorization, not conscious human review.
+
+This design permits a Generator to be replaced without replacing Shot identity. A new system receives the retained Intention, current Genome, selected evidence, exact accepted state, and a scoped evolutionary request. It proposes source. A compatible Verifier evaluates the proposal. The controller rejects it or authorizes it. No model session needs to become canonical memory.
+
+```mermaid
+flowchart LR
+    I["Accepted state +<br/>Evolutionary Intent"]
+    G1["Generator A"]
+    G2["Generator B"]
+    C1["Candidate A"]
+    C2["Candidate B"]
+    V["Deterministic Verifier"]
+    A["Controller authorization"]
+    N["Next accepted Version"]
+    I --> G1 --> C1 --> V
+    I --> G2 --> C2 --> V
+    V -->|bounded facts| A
+    A -->|accept one| N
+    A -->|reject| X["No accepted-state change"]
+```
+
+*Figure 3 — Replaceable Generators. Multiple systems may propose candidates for one Shot. Verification and controller authorization determine whether any candidate becomes an accepted Version.*
+
+The figure describes protocol possibility, not a claim that the present factory has demonstrated every Generator or runtime. Interoperability requires other implementations to reproduce canonicalization, signatures, reduction, profile rules, and materialization semantics. Until they do, replaceability is designed and testable at record boundaries but only partly evidenced in operation.
+
+## 8. Contact, evidence, and evolution
+
+A build passing is not the same as an application working in life. TOHSENO calls the encounter between a particular Expression Version and its environment **Contact**. Contact is not a magical validation stage and is not currently a standalone lineage payload. It names the point at which the software meets a person, device, routine, and circumstance that a machine gate cannot fully model.
+
+Two classes of evidence must remain distinct.
+
+**Machine Evidence** consists of bounded technical findings: a digest matched, a signature verified, a schema and semantic reducer accepted a record, a test passed, a build completed, a source scanner found or rejected a declared capability, or an artifact matched an expected commitment. Its force is conditional on the gate, tool, inputs, and environment.
+
+**Lived Evidence** records what Contact revealed: a gesture felt natural or false; a routine survived a week or failed on the first day; a person misunderstood the central behavior; the supposedly secondary feature contained the actual value; the Shot should become smaller; or the accepted Genome should change. The neutral protocol represents this through `Feedback`, which must name an exact accepted Expression and Version and may include text, structured observations, attachments, author information, and an optional matching build identity.
+
+Feelings must not impersonate cryptographic proof. A signed note that an interface was confusing proves the integrity and attribution of that note within the relevant authority context; it does not prove universal confusion. Conversely, a green test suite must not impersonate usefulness.
+
+Figure 4 shows the lifecycle. Authorization is shown after verification for Version acceptance. In the exact reducer, a Genome change requires its own proposal and acceptance, the target Version is recorded after matching verification, and the Evolution action then connects the old and new accepted Versions.
+
+```mermaid
+flowchart LR
+    O["Intention / current Genome"] --> G["Generation"]
+    G --> P["Candidate"]
+    P --> M["Machine verification"]
+    M --> A["Controller authorization<br/>accepted Version"]
+    A --> C["Contact"]
+    C --> E["Version-bound Feedback"]
+    E --> EI["Evolutionary Intent"]
+    EI --> G
+    M -->|failure recorded;<br/>no Version| R["Revise or reject"]
+```
+
+*Figure 4 — The evolutionary loop. Machine Evidence and Lived Evidence answer different questions. Both refer to exact candidate or accepted state.*
+
+### 8.1 A field-notebook Shot
+
+Consider Maya, who wants a small private field notebook for observations made on walks.
+
+1. Maya records an Intention in plain words and includes two sketches. The system commits their exact bytes and creates a random ShotID. The materials can remain local.
+2. A Generator proposes Genome revision 1: the notebook is for one person's field observations; capture must be quick; data remains on device; there are no accounts or analytics; observations can be corrected without erasing earlier accepted history. Maya accepts that proposal.
+3. The Apple factory declares an iPhone Expression and its capability graph. A coding harness proposes the first source tree.
+4. Deterministic gates check bounded facts: source and Genome commitments agree, forbidden capabilities are absent, required profile structure exists, tests pass, and the app builds in the supported environment. These checks do not show that capture feels quick.
+5. Maya's controller authorizes Version 1. Its record binds the source, Genome, capability graph, VerificationResult, provenance, and known incompleteness.
+6. Maya uses that exact Version on walks. She finds that the three-step capture flow makes short observations disappear from practice.
+7. She records private Feedback against the exact iPhone Expression and Version 1. The note is not generalized to later versions.
+8. She authorizes an Evolutionary Intent selecting that signed Feedback action and asking for one-step capture while preserving local-only storage and the rest of the Genome.
+9. A different compatible Generator receives the scoped materials and proposes candidate source for Version 2. This is a protocol-level possibility; the current repository does not claim a completed cross-vendor interoperability trial.
+10. Verification checks the declared gates. Maya may reject the candidate with no accepted-state change, or authorize Version 2 and the Evolution from Version 1.
+11. Years later, a desktop Generator may declare a new Expression under the same Shot and current Genome. It receives its own ExpressionID and Version sequence rather than pretending to be the iPhone body.
+12. The original Generator and model session are gone. If Maya still possesses the authoritative records, controller capability, necessary source and assets, local data, build instructions, and compatible tooling, the Shot can continue.
+
+The protocol proves the record relationships in this story. It does not prove that Maya's revised interface is better, that the desktop body deserves the same identity, or that every necessary artifact was retained. Those remain judgment and custody questions.
+

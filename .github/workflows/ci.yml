@@ -123,7 +123,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-               and .product_version == "0.8.1"
+               and .product_version == "0.8.2"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "definition_only_inactive"
@@ -132,7 +132,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 0.8.1'
+            grep -Fqx 'tohseno 0.8.2'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -267,7 +267,7 @@ jobs:
             genesis/lifecycle/GENESIS_CANDIDATE_REPORT.json
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.8.1"
+             and .version == "0.8.2"
              and .channel == "stable"
              and (.ready | type) == "boolean"
              and (.authorization.authorized | type) == "boolean"
@@ -344,7 +344,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.8.1"',
+            '"$RELEASE_TAG" != "v0.8.2"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -360,7 +360,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.8.1 source commit:",
+            "TOHSENO v0.8.2 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

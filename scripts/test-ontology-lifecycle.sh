@@ -242,18 +242,18 @@ node_bin=$(resolve_regular_executable "$node_input" "TOHSENO_NODE_BIN")
 
 candidate_version=$("$candidate_bin" --version 2>/dev/null) ||
   fail "the candidate executable did not start"
-if [ "$candidate_version" != "tohseno 0.8.1" ]; then
-  fail "candidate reported '$candidate_version', expected 'tohseno 0.8.1'"
+if [ "$candidate_version" != "tohseno 0.8.2" ]; then
+  fail "candidate reported '$candidate_version', expected 'tohseno 0.8.2'"
 fi
 helper_version=$("$identity_helper" --version 2>/dev/null) ||
   fail "the Apple identity helper did not start"
-if [ "$helper_version" != "tohseno-apple-identity 0.8.1" ]; then
-  fail "identity helper reported '$helper_version', expected 'tohseno-apple-identity 0.8.1'"
+if [ "$helper_version" != "tohseno-apple-identity 0.8.2" ]; then
+  fail "identity helper reported '$helper_version', expected 'tohseno-apple-identity 0.8.2'"
 fi
 node_version=$("$node_bin" --version 2>/dev/null) ||
   fail "the node executable did not start"
-if [ "$node_version" != "tohseno-node 0.8.1" ]; then
-  fail "node reported '$node_version', expected 'tohseno-node 0.8.1'"
+if [ "$node_version" != "tohseno-node 0.8.2" ]; then
+  fail "node reported '$node_version', expected 'tohseno-node 0.8.2'"
 fi
 
 fixture_materializer="$repository_root/engine/fixtures/apple-expression/materialize.sh"

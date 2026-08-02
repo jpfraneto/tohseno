@@ -7,7 +7,7 @@ aspirational. Work top to bottom. Stop at the first unchecked box.
 Current verified state on 2026-08-01: the Keychain entry is a Bankr user key,
 and a configured Studio reports `configured: true`. The `tohseno` Shot is
 conformant protocol v2 and has no Token Association. That is the correct
-pre-simulation state. Since 0.8.1 there is no process-level deploy lock: the
+pre-simulation state. There is no process-level deploy lock: the
 deployment ceremony itself — fresh single-use simulation, acknowledgment, and
 the exact typed phrase — is the only thing between a simulation and a
 broadcast.
@@ -132,7 +132,7 @@ nothing deployed.
 
 ## Known limits of this personal surface
 
-- The irreversible deploy step has no process-level lock (removed in 0.8.1).
+- The irreversible deploy step has no process-level lock.
   Its gates are the ceremony itself: a Bankr user key, a fresh single-use
   simulation approval, the acknowledgment, and the exact typed phrase.
 - The post-deploy Token Association is private local lineage. It does not

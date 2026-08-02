@@ -118,7 +118,7 @@ case "$artifact" in
     SHA256SUMS) ;;
   *) exit 2 ;;
 esac
-expected_url="https://github.com/jpfraneto/tohseno/releases/download/v0.8.1/$artifact"
+expected_url="https://github.com/jpfraneto/tohseno/releases/download/v0.8.2/$artifact"
 [ "$url" = "$expected_url" ] || exit 2
 printf '%s\n' "$url" >>"${TOHSENO_INSTALLER_CURL_LOG:?}"
 cp "${TOHSENO_INSTALLER_FIXTURE_DIR:?}/$artifact" "$destination"
@@ -134,10 +134,10 @@ stable_digest="$(
 curl_log="$temporary_root/curl.log"
 expected_urls="$temporary_root/expected-urls"
 printf '%s\n' \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.1/$binary_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.1/$helper_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.1/$materials_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.1/SHA256SUMS" |
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.2/$binary_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.2/$helper_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.2/$materials_name" \
+  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.2/SHA256SUMS" |
   LC_ALL=C sort >"$expected_urls"
 
 invalid_start_log="$temporary_root/invalid-start.log"
@@ -199,9 +199,9 @@ case "$first_physical/" in
     ;;
 esac
 "$install_root/bin/tohseno" --version |
-  grep -Fqx 'tohseno 0.8.1'
+  grep -Fqx 'tohseno 0.8.2'
 "$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 0.8.1'
+  grep -Fqx 'tohseno-apple-identity 0.8.2'
 test -f "$install_root/share/genesis/GENESIS.json"
 test -f "$install_root/share/genesis/FILES.sha256"
 test -L "$install_root/share/genesis"
@@ -290,9 +290,9 @@ fi
 first_hold="$first_physical.routing-check"
 mv "$first_physical" "$first_hold"
 "$install_root/bin/tohseno" --version |
-  grep -Fqx 'tohseno 0.8.1'
+  grep -Fqx 'tohseno 0.8.2'
 "$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 0.8.1'
+  grep -Fqx 'tohseno-apple-identity 0.8.2'
 mv "$first_hold" "$first_physical"
 if [ "$(
   grep -Fxc 'export PATH="$HOME/.tohseno/bin:$PATH"' \
@@ -343,7 +343,7 @@ if run_installer >"$outer_failure" 2>&1; then
 fi
 expected_outer_failure="$temporary_root/expected-outer-failure.log"
 printf '%s\n' \
-  "installing TOHSENO v0.8.1 - https://github.com/jpfraneto/tohseno" \
+  "installing TOHSENO v0.8.2 - https://github.com/jpfraneto/tohseno" \
   "TOHSENO installer: Release checksum failed for $binary_name." \
   >"$expected_outer_failure"
 if ! cmp -s "$expected_outer_failure" "$outer_failure"; then
@@ -376,7 +376,7 @@ if run_installer >"$inner_failure" 2>&1; then
 fi
 expected_inner_failure="$temporary_root/expected-inner-failure.log"
 printf '%s\n' \
-  "installing TOHSENO v0.8.1 - https://github.com/jpfraneto/tohseno" \
+  "installing TOHSENO v0.8.2 - https://github.com/jpfraneto/tohseno" \
   "TOHSENO installer: Genesis FILES.sha256 does not cover exactly the staged files." \
   >"$expected_inner_failure"
 if ! cmp -s "$expected_inner_failure" "$inner_failure"; then
@@ -431,7 +431,7 @@ cat >"$fixture/$binary_name" <<'FAKE_TOHSENO'
 #!/bin/sh
 set -eu
 case "${1:-}" in
-  --version) printf '%s\n' "tohseno 0.8.1" ;;
+  --version) printf '%s\n' "tohseno 0.8.2" ;;
   studio) printf '%s\n' "studio" >>"${TOHSENO_BOOTSTRAP_LOG:?}" ;;
   *) exit 2 ;;
 esac
@@ -440,7 +440,7 @@ cat >"$fixture/$helper_name" <<'FAKE_IDENTITY'
 #!/bin/sh
 set -eu
 [ "${1:-}" = "--version" ] || exit 2
-printf '%s\n' "tohseno-apple-identity 0.8.1"
+printf '%s\n' "tohseno-apple-identity 0.8.2"
 FAKE_IDENTITY
 chmod 0755 "$fixture/$binary_name" "$fixture/$helper_name"
 refresh_outer_manifest
@@ -455,4 +455,4 @@ env \
   sh "$repository_root/oneshot/oneshot.sh" >/dev/null
 grep -Fqx "studio" "$bootstrap_log"
 
-printf '%s\n' "Stable 0.8.1 installer regressions passed."
+printf '%s\n' "Stable 0.8.2 installer regressions passed."

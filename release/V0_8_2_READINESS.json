@@ -1,0 +1,16 @@
+{
+ "schema": "tohseno.release-readiness/1",
+ "version": "0.8.2",
+ "channel": "stable",
+ "ready": false,
+ "evidence": {
+  "predecessor_tag": "v0.8.1",
+  "predecessor_release_immutable": true,
+  "product_minor_version": "0.8.2",
+  "contract_generation_activated": true,
+  "activation_policy_sha256": "0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c",
+  "activation_signing_sha256": "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28",
+  "owner_canary_waiver_recorded": true,
+  "simulator_reopen_uses_retained_artifact": true
+ }
+}

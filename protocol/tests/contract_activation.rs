@@ -281,10 +281,10 @@ fn the_committed_production_activation_verifies_under_the_committed_trust_root()
         .unwrap();
     assert_eq!(committed_signed.activation.activation_sequence, 1);
     let probe_bytes = fs::read(directory.join("p256-probe-20260802T013802Z.json")).unwrap();
-    let probe_digest = Sha256::digest(&probe_bytes);
+    let probe_digest: [u8; 32] = Sha256::digest(&probe_bytes).into();
     assert_eq!(
         committed_signed.activation.p256_probe_sha256.as_bytes(),
-        probe_digest.as_slice()
+        &probe_digest
     );
 
     let committed_value =

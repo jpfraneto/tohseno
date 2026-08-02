@@ -13,11 +13,13 @@ A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-The current product release is **TOHSENO 0.8.1**. The system is in beta and
-evolving quickly: stable releases ship continuously, and every public surface
-is updated to match the latest evolution. It ships the local GENESIS protocol
-implementation without claiming a canonical 1.0 protocol, active contracts, or
-public infrastructure.
+**TOHSENO 0.8.2** ships for macOS. The system is in beta and evolving
+quickly: stable releases ship continuously. It ships the local GENESIS
+protocol implementation without claiming a canonical 1.0 protocol or public
+infrastructure. The 0.8.0 contract generation is deployed and active on
+Robinhood Chain under a threshold-signed release authority; the public
+registry workflows that would write to it are still being built, so every
+Shot remains private and local until they exist.
 
 Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 (`eip155:4663`) as an **inactive, untrusted candidate** — see
@@ -59,7 +61,7 @@ The installed CLI checks the stable release channel at most once per day. When
 a newer release exists, interactive commands show one short instruction:
 
 ```text
-TOHSENO 0.8.1 is available. Run `tohseno update`.
+TOHSENO 0.8.2 is available. Run `tohseno update`.
 ```
 
 Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).

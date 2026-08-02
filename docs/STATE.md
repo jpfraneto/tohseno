@@ -1,30 +1,27 @@
 # State of this repository
 
-Written 2026-07-30, amended 2026-07-31 after the first full dogfooding pass
-(`docs/DOGFOOD_REPORT.md`). This is the plain-language answer to "what is
-going on here" for someone returning after time away. When something below
-stops being true, update this file in the same change that makes it untrue.
+Written 2026-07-30, amended through 2026-08-02. This is the plain-language
+answer to "what is going on here" for someone returning after time away. When
+something below stops being true, update this file in the same change that
+makes it untrue.
 
 ## What ships today
 
-The current product release is TOHSENO 0.7.2, for macOS only. A person runs
-one install command (`curl -fsSL https://tohseno.com/oneshot.sh | bash`),
-which verifies a pinned, immutable 0.7.2 release archive, installs the
-`tohseno` command-line tool and its Apple identity helper transactionally, and
-starts Studio, a localhost-only browser view over the same engine. The
-installer script is pinned to an exact version and checksum; releasing means
-updating that pin, not rebuilding from moving sources. The 0.7.2 patch adds
-two laws to Shot execution: the selected harness always launches with its own
-permission prompts bypassed (`--yolo` for Codex,
-`--dangerously-skip-permissions` for Claude Code) so an unattended Shot never
-stalls on an approval nobody is present to grant, and running a Shot is
-identity-bound — prepare and run both refuse, before any side effect, an app
-whose recorded Builder is missing or is not the local identity, so no
-execution can land anonymously or under someone else's Builder. The release
-ritual retired with the v0.7 contract generation was resurrected for product
-patches: the Genesis bundle now records the 0.8.0 successor contract
-definition with its DRAFT deployment plan instead of mixing successor sources
-with the frozen v0.7 plan.
+TOHSENO 0.8.2 ships for macOS. A person runs one install command
+(`curl -fsSL https://tohseno.com/oneshot.sh | bash`), which verifies a
+pinned, immutable release archive, installs the `tohseno` command-line tool
+and its Apple identity helper transactionally, and starts Studio, a
+localhost-only browser view over the same engine. The installer script is
+pinned to an exact version and checksum; releasing means updating that pin,
+not rebuilding from moving sources. Shot execution carries two laws: the
+selected harness always launches with its own permission prompts bypassed
+(`--yolo` for Codex, `--dangerously-skip-permissions` for Claude Code) so an
+unattended Shot never stalls on an approval nobody is present to grant, and
+running a Shot is identity-bound — prepare and run both refuse, before any
+side effect, an app whose recorded Builder is missing or is not the local
+identity, so no execution can land anonymously or under someone else's
+Builder. Studio opens an evolution by installing its retained Simulator
+artifact directly, so reopening an app is seconds, not a rebuild.
 
 What the user then gets is a local loop that needs no phone, no account, and
 no TOHSENO server: they declare one intention in plain words, their own coding
