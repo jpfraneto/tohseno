@@ -131,6 +131,14 @@ describe("public pages", () => {
         expect(body).toContain(
           "TOHSENO never bypasses this human boundary",
         );
+        expect(body).toContain("Robinhood Chain mainnet (chain ID 4663)");
+        expect(body).toContain("inactive, untrusted candidate");
+        expect(body).toContain("0xb1bd208cd2af98e701f43d06aaa889d3a594df65");
+        expect(body).toContain("0x3fe6508ba2660bc575080024f402c192a2e035a0");
+        expect(body).toContain("activation is not authorized");
+        expect(body).not.toContain(
+          "No TOHSENO contract is deployed on any network",
+        );
         expect(body).toContain(INSTALL_COMMAND);
         expect(body).not.toContain("prepared, unpublished");
         expect(body).not.toContain("bun run tohseno");
