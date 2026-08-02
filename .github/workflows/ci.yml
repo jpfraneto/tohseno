@@ -128,9 +128,9 @@ jobs:
                and .product_version == "0.8.2"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
-               and .contract_generation.status == "definition_only_inactive"
-               and .active_generation == null
-               and .public_authority_available == false
+               and .contract_generation.status == "active"
+               and .active_generation == "0.8.0"
+               and .public_authority_available == true
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
