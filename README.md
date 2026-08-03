@@ -21,8 +21,8 @@ candidate; no release reads from or writes to it.
 
 The immutable `v0.8.3` release is published and the public installer is pinned
 byte-for-byte to its claim-capable installer. The production ciphertext relay
-remains separately fail-closed until its durable storage and capability gates
-are activated through the release runbook.
+is active at the canonical HTTPS origin on an owner-controlled durable volume;
+its release and capability gates remain fail-closed by default in source.
 
 Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 (`eip155:4663`) as an **inactive, untrusted candidate** — see
@@ -52,10 +52,10 @@ The Browser Draft stays in IndexedDB. When encrypted handoff is available,
 the browser uploads only a temporary AES-256-GCM ciphertext package; the Mac
 decrypts it into a durable Local Pending Intention. The website and relay do
 not create or identify a Shot. A Shot still begins only through the existing
-local engine after the person approves the plan and boundaries. Until a
-durable relay configuration is activated, the site continues to offer the
-private `.tohseno-intent` download and generic installer without pretending a
-one-command encrypted claim is available.
+local engine after the person approves the plan and boundaries. The active
+production handoff now presents the one claim command after encryption and
+finalization. The private `.tohseno-intent` download and generic installer
+remain available as local fallbacks.
 
 The CLI-first route remains available as an alternative:
 

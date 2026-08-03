@@ -1,9 +1,35 @@
 # Web-to-local intention handoff activation runbook
 
-This runbook is release preparation, not deployment authorization. Main is
-safe before activation: the public installer remains pinned to the last
-published immutable release, `INTENT_RELAY_ENABLED` defaults false, and
-production refuses relay activation without `CLAIM_INSTALLER_READY=true`.
+The repository owner authorized and completed this activation on 2026-08-03.
+The ordered procedure remains the repeatable fail-closed runbook:
+`INTENT_RELAY_ENABLED` defaults false, and production refuses relay activation
+without `CLAIM_INSTALLER_READY=true`.
+
+## Production activation record
+
+- Reviewed implementation: pull request 1, merged at
+  `ba94806fd64ad87db7711a6db36d2d397a3a105d`.
+- Immutable release: `v0.8.3`, published by recovery workflow run
+  `30840143848` after all release gates passed.
+- Public installer activation: pull request 3, merged at
+  `f1be7619ce5f8ba80ed1bdd70dcdb757869e58d0`; both public paths were verified
+  byte-identical to the released `oneshot.sh`.
+- Production deployment: Railway deployment
+  `00aed190-9c95-4cb1-80a4-eb2c13aa5952`, serving `https://tohseno.com` from
+  the exact merge above.
+- Durable relay: `/data/intent-relay`, private mode `0700`, bounded to 1,000
+  records and 4 GiB with the reviewed global and per-source request limits.
+- Gate order: `CLAIM_INSTALLER_READY=true` preceded
+  `INTENT_RELAY_ENABLED=true`.
+- Verification: capability discovery, security headers, independent cleanup,
+  restart persistence, immutable installer equality, and a real production
+  encrypted claim with two ordered image fixtures all passed. The automated
+  smoke disabled Studio auto-open and did not launch a coding harness or paid
+  model.
+- Privacy observation: installer and relay logs contained no token, prompt,
+  or reference filename from the smoke. Three aborted smoke records were
+  deleted by exact state, size, chunk count, and creation window; one
+  metadata-only completion tombstone remained and persisted across restart.
 
 ## Required order
 
