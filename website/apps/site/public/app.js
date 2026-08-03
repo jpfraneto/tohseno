@@ -6,6 +6,7 @@ import { cancelTransfer, capabilities, relayStatus, uploadEnvelope } from "./mod
 import "./modules/obsolete-worker-cleanup.js";
 
 const ui = Object.freeze({
+  installerCommand: document.querySelector("#installer-command"), copyInstaller: document.querySelector("#copy-installer"),
   prompt: document.querySelector("#prompt"), promptPicker: document.querySelector("#prompt-picker"),
   pickPrompt: document.querySelector("#pick-prompt"), promptChoice: document.querySelector("#prompt-import-choice"),
   promptChoiceLabel: document.querySelector("#prompt-import-label"), imagePicker: document.querySelector("#image-picker"),
@@ -328,6 +329,7 @@ for (const example of document.querySelectorAll("[data-example]")) {
 
 ui.takeShot.addEventListener("click", beginTransfer);
 ui.download.addEventListener("click", downloadPackage); ui.transferDownload.addEventListener("click", downloadPackage);
+ui.copyInstaller.addEventListener("click", async () => { try { await navigator.clipboard.writeText(ui.installerCommand.textContent); ui.copyInstaller.textContent = "COPIED"; window.setTimeout(() => { ui.copyInstaller.textContent = "COPY"; }, 1800); } catch { ui.installerCommand.focus(); } });
 ui.copyCommand.addEventListener("click", async () => { try { await navigator.clipboard.writeText(ui.command.textContent); ui.copyCommand.textContent = "COPIED"; window.setTimeout(() => { ui.copyCommand.textContent = "COPY"; }, 1800); } catch { ui.command.focus(); } });
 ui.cancelTransfer.addEventListener("click", async () => {
   const transfer = draft.transfer;

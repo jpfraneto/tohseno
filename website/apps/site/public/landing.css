@@ -15,6 +15,13 @@ button { color: inherit; }
 .wordmark img { display: block; }
 .beta-tag { padding: .1rem .5rem; border: 1px solid var(--signal); border-radius: 999px; color: var(--signal); font-size: .6rem; letter-spacing: .25em; }
 .mast h1 { font-family: var(--display); font-size: clamp(1.65rem, 5vw, 2.75rem); letter-spacing: .02em; line-height: 1.05; }
+.hero-subtitle { max-width: 40rem; color: var(--silver); font-size: clamp(.82rem, 2vw, .95rem); }
+.hero-installer { width: min(44rem, 100%); display: grid; gap: .5rem; margin-top: .25rem; text-align: left; }
+.hero-installer-label { color: var(--signal); font-size: .64rem; letter-spacing: .16em; }
+.installer-command { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; border: 1px solid var(--line); border-radius: .5rem; overflow: hidden; background: var(--black-pure); }
+.installer-command code { padding: .85rem 1rem; overflow-x: auto; color: var(--bone); font-size: clamp(.68rem, 1.8vw, .76rem); white-space: nowrap; }
+.installer-command button { padding: .65rem .85rem; border: 0; border-left: 1px solid var(--line); background: var(--carbon); color: var(--signal); cursor: pointer; font-size: .68rem; letter-spacing: .08em; }
+.hero-installer-note { color: #77736b; font-size: .68rem; }
 .accent { color: var(--signal); }
 .composer { width: 100%; padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--line-soft); border-radius: 1rem; background: rgba(9, 9, 8, .94); box-shadow: 0 2rem 5rem rgba(0, 0, 0, .42); }
 #draft-view { display: grid; gap: 1rem; }
@@ -65,5 +72,5 @@ button { color: inherit; }
 .site-links nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.25rem 1.75rem; font-size: .75rem; }
 .site-links a { color: var(--silver); text-decoration: none; border-bottom: 1px solid transparent; }
 .site-links a:hover { color: var(--signal); border-color: var(--signal); }
-@media (max-width: 40rem) { body { padding-inline: .75rem; } .composer { padding: .75rem; } #prompt { min-height: 10rem; padding: 1rem; } .reference-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .draft-foot { flex-direction: column; } .claim-command { grid-template-columns: 1fr; } .claim-command button { border-left: 0; border-top: 1px solid var(--line); } }
+@media (max-width: 40rem) { body { padding-inline: .75rem; } .installer-command { grid-template-columns: 1fr; } .installer-command code { white-space: normal; overflow-wrap: anywhere; } .installer-command button { border-left: 0; border-top: 1px solid var(--line); } .composer { padding: .75rem; } #prompt { min-height: 10rem; padding: 1rem; } .reference-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } .draft-foot { flex-direction: column; } .claim-command { grid-template-columns: 1fr; } .claim-command button { border-left: 0; border-top: 1px solid var(--line); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }

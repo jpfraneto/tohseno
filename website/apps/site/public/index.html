@@ -19,7 +19,7 @@
   <link rel="icon" href="/favicon.png" type="image/png">
   <title>Tohseno — Give Every Idea a Shot</title>
   <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/landing.css?v=da13d0cef4c8">
+  <link rel="stylesheet" href="/landing.css?v=ceb9509c392f">
   <script src="/app.js" type="module"></script>
 </head>
 <body>
@@ -27,6 +27,15 @@
     <header class="mast">
       <p class="wordmark"><img src="/logo.svg" alt="" width="26" height="26"><span>TOHSENO</span><span class="beta-tag">BETA</span></p>
       <h1>GIVE EVERY IDEA A <span class="accent">SHOT.</span></h1>
+      <p class="hero-subtitle">TOHSENO runs on your Mac. This page preserves your intention and carries it there.</p>
+      <div class="hero-installer" aria-label="Install TOHSENO on a Mac">
+        <p class="hero-installer-label">INSTALL TOHSENO ON MAC</p>
+        <div class="installer-command">
+          <code id="installer-command" tabindex="0">curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
+          <button id="copy-installer" type="button" aria-label="Copy the TOHSENO Mac installer command">COPY</button>
+        </div>
+        <p class="hero-installer-note">Install now, or write below first to get a private one-time command that carries this intention into Studio.</p>
+      </div>
     </header>
 
     <section id="composer" class="composer" aria-labelledby="composer-heading">
