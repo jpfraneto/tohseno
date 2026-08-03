@@ -66,7 +66,10 @@ describe("public pages", () => {
     expect(body).toContain(">TAKE A SHOT</button>");
     expect(body).toMatch(/id="take-shot"[^>]*disabled/);
     expect(body).not.toContain('class="terminal"');
-    expect(body.indexOf("TAKE A SHOT")).toBeLessThan(body.indexOf(INSTALL_COMMAND));
+    expect(body).toContain("TOHSENO runs on your Mac");
+    expect(body.indexOf(INSTALL_COMMAND)).toBeLessThan(body.indexOf("TAKE A SHOT"));
+    expect(body).toContain('id="copy-installer"');
+    expect(body).toContain("private one-time command that carries this intention into Studio");
     expect(body).toContain("GIVE EVERY IDEA A");
     expect(body).toContain('<span class="beta-tag">BETA</span>');
     expect(body).toContain("Download private intent package");
@@ -175,6 +178,7 @@ describe("public pages", () => {
     expect(body).not.toContain('href="#"');
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(");
+    expect(browserScript).toContain("ui.copyInstaller.addEventListener");
     expect(browserScript).toContain("openDraftStore");
     expect(browserScript).toContain("createEncryptedEnvelope");
     expect(browserScript).not.toContain("innerHTML");
