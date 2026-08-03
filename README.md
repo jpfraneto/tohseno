@@ -13,15 +13,16 @@ A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-**TOHSENO 0.8.2** ships for macOS. The system is in beta and evolving
+**TOHSENO 0.8.3** ships for macOS. The system is in beta and evolving
 quickly: stable releases ship continuously. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol or public
 infrastructure. The 0.8.0 contract generation is an inactive, untrusted
 candidate; no release reads from or writes to it.
 
-Current source identifies the next candidate as **0.8.3**. It has not been
-published. The public installer deliberately remains pinned to immutable
-0.8.2 artifacts until the release and activation runbook is completed.
+The immutable `v0.8.3` release is published and the public installer is pinned
+byte-for-byte to its claim-capable installer. The production ciphertext relay
+remains separately fail-closed until its durable storage and capability gates
+are activated through the release runbook.
 
 Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 (`eip155:4663`) as an **inactive, untrusted candidate** — see
@@ -47,14 +48,14 @@ The public journey now starts with the intention:
 5. finish the real local readiness checks and review the plan;
 6. approve the terminal handoff without entering the intention again.
 
-The Browser Draft stays in IndexedDB. When encrypted handoff is activated,
+The Browser Draft stays in IndexedDB. When encrypted handoff is available,
 the browser uploads only a temporary AES-256-GCM ciphertext package; the Mac
 decrypts it into a durable Local Pending Intention. The website and relay do
 not create or identify a Shot. A Shot still begins only through the existing
 local engine after the person approves the plan and boundaries. Until a
-claim-capable release is published and pinned, this source tree keeps the
-production relay experience disabled and offers the private
-`.tohseno-intent` download instead.
+durable relay configuration is activated, the site continues to offer the
+private `.tohseno-intent` download and generic installer without pretending a
+one-command encrypted claim is available.
 
 The CLI-first route remains available as an alternative:
 
@@ -83,7 +84,7 @@ The installed CLI checks the stable release channel at most once per day. When
 a newer release exists, interactive commands show one short instruction:
 
 ```text
-TOHSENO 0.8.2 is available. Run `tohseno update`.
+TOHSENO 0.8.3 is available. Run `tohseno update`.
 ```
 
 Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).

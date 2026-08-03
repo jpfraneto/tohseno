@@ -286,7 +286,7 @@ jobs:
              and .protection.release_tag_protection_verified == true
              and .protection.release_tag_ruleset_id == 20314843
              and .evidence.claim_capable_installer == true
-             and .evidence.public_installer_repointed == false
+             and .evidence.public_installer_repointed == true
              and .evidence.production_relay_enabled == false' \
             release/V0_8_3_READINESS.json
           if grep -R -E \
@@ -298,13 +298,11 @@ jobs:
       - name: Public website and installer checks
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
+          cmp website/apps/site/public/oneshot.sh oneshot/oneshot.sh
           grep -Fq 'version="v0.8.3"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
-          grep -Fq 'version="v0.8.2"' website/apps/site/public/oneshot.sh
-          if grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh; then
-            echo "public installer was repointed before the claim release" >&2
-            exit 1
-          fi
+          grep -Fq 'version="v0.8.3"' website/apps/site/public/oneshot.sh
+          grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh
           test -s website/apps/site/public/oneshot.sh
           (
             cd website

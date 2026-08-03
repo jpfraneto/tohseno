@@ -32,10 +32,9 @@ if grep -Fq 'intent claim "$claim_token"' "$installer"; then
   exit 1
 fi
 grep -Fq 'version="v0.8.3"' "$installer"
-grep -Fq 'version="v0.8.2"' "$repository_root/website/apps/site/public/oneshot.sh"
-if grep -Fq -- '--claim)' "$repository_root/website/apps/site/public/oneshot.sh"; then
-  printf '%s\n' "published thin installer was repointed before release" >&2
-  exit 1
-fi
+cmp "$installer" "$repository_root/website/apps/site/public/oneshot.sh"
+cmp "$installer" "$repository_root/website/apps/site/public/install.sh"
+grep -Fq 'version="v0.8.3"' "$repository_root/website/apps/site/public/oneshot.sh"
+grep -Fq -- '--claim)' "$repository_root/website/apps/site/public/oneshot.sh"
 
-printf '%s\n' "Claim installer argument and public-pin gates passed."
+printf '%s\n' "Claim installer argument and published-pin gates passed."
