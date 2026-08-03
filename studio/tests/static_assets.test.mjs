@@ -157,3 +157,14 @@ test("existing-coin association and Bankr launch both belong to one selected Sho
   assert.doesNotMatch(html, /jpfraneto\.eth|0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15/i);
   assert.doesNotMatch(script, /localStorage\.(?:setItem|getItem)\([^)]*BANKR_API_KEY/);
 });
+
+test("record evolution remains single-flight until the engine finishes", () => {
+  assert.match(script, /let recordingEvolution = false/);
+  assert.match(script, /setRecordingEvolution\(true\)/);
+  assert.match(script, /if \(!response\.ok\) throw new Error\(await response\.text\(\)\)/);
+  assert.match(script, /is complete and verified on this Mac/);
+  const handler = script.match(
+    /ui\.recordEvolution\.addEventListener\("click",[\s\S]*?\n\}\);/,
+  )?.[0] || "";
+  assert.doesNotMatch(handler, /setTimeout/);
+});

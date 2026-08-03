@@ -519,8 +519,14 @@ pub(crate) fn inspect_fascia(
         ));
     }
     if scan.cloud {
+        let evidence = scan
+            .cloud_evidence
+            .as_deref()
+            .unwrap_or("an executable cloud marker was found");
         return Err(ProtocolLifecycleError::InvalidState(
-            "cloud storage or synchronization is unsupported by this local-first candidate".into(),
+            format!(
+                "cloud storage or synchronization is unsupported by this local-first candidate: {evidence}"
+            ),
         ));
     }
     if scan.tracking_or_accounts {
@@ -1186,6 +1192,7 @@ fn plist_value(path: &Path, key: &str) -> Result<String, ProtocolLifecycleError>
 struct SourceScan {
     network: bool,
     cloud: bool,
+    cloud_evidence: Option<String>,
     tracking_or_accounts: bool,
     explicit_entitlements: bool,
     unsupported_storage: bool,
@@ -1199,11 +1206,11 @@ struct SourceScan {
 impl SourceScan {
     fn inspect(root: &Path) -> Result<Self, ProtocolLifecycleError> {
         let mut scan = Self::default();
-        scan.visit(root)?;
+        scan.visit(root, root)?;
         Ok(scan)
     }
 
-    fn visit(&mut self, directory: &Path) -> Result<(), ProtocolLifecycleError> {
+    fn visit(&mut self, root: &Path, directory: &Path) -> Result<(), ProtocolLifecycleError> {
         for entry in fs::read_dir(directory)? {
             let entry = entry?;
             let file_type = entry.file_type()?;
@@ -1219,7 +1226,7 @@ impl SourceScan {
                 }) {
                     self.third_party_dependency = true;
                 }
-                self.visit(&entry.path())?;
+                self.visit(root, &entry.path())?;
                 continue;
             }
             if !file_type.is_file() {
@@ -1242,71 +1249,11 @@ impl SourceScan {
             let Ok(text) = std::str::from_utf8(&bytes) else {
                 continue;
             };
-            self.network |= [
-                "URLSession",
-                "NSURLSession",
-                "NWConnection",
-                "import Network",
-                "WebSocket",
-                "WKWebView",
-                "SFSafariViewController",
-                "CFStream",
-                "socket(",
-                "connect(",
-                "curl ",
-                "http://",
-                "https://",
-                "Network.framework",
-            ]
-            .iter()
-            .any(|marker| text.contains(marker));
-            self.cloud |= [
-                "import CloudKit",
-                "CKContainer",
-                "NSUbiquitous",
-                "iCloud",
-                "com.apple.developer.icloud",
-                "Firebase",
-                "Supabase",
-            ]
-            .iter()
-            .any(|marker| text.contains(marker));
-            self.tracking_or_accounts |= [
-                "AppTrackingTransparency",
-                "ATTrackingManager",
-                "Analytics",
-                "Telemetry",
-                "advertisingIdentifier",
-                "AuthenticationServices",
-                "SignInWithApple",
-            ]
-            .iter()
-            .any(|marker| text.contains(marker));
             self.explicit_entitlements |= entry
                 .path()
                 .extension()
                 .is_some_and(|extension| extension == "entitlements")
                 && text.contains("<key>");
-            self.swift_data |= text.contains("import SwiftData") || text.contains("@Model");
-            self.unsupported_storage |= [
-                "import CoreData",
-                "NSPersistentContainer",
-                "SQLite",
-                "RealmSwift",
-            ]
-            .iter()
-            .any(|marker| text.contains(marker));
-            self.ipad |= text.contains("TARGETED_DEVICE_FAMILY = \"1,2\"")
-                || text.contains("TARGETED_DEVICE_FAMILY = 1,2");
-            self.third_party_dependency |= [
-                "XCRemoteSwiftPackageReference",
-                "XCLocalSwiftPackageReference",
-                "packageProductDependencies",
-                "CocoaPods",
-                "Carthage",
-            ]
-            .iter()
-            .any(|marker| text.contains(marker));
             self.forbidden_secret_marker |= [
                 "recovery.json.enc",
                 "BIP39",
@@ -1317,24 +1264,120 @@ impl SourceScan {
             .iter()
             .any(|marker| text.contains(marker));
             self.forbidden_secret_marker |= contains_valid_bip39_mnemonic(text);
-            for (marker, capability) in [
-                ("NSCameraUsageDescription", Capability::Camera),
-                ("NSMicrophoneUsageDescription", Capability::Microphone),
-                ("NSLocation", Capability::Location),
-                ("NSContactsUsageDescription", Capability::Contacts),
-                ("NSHealth", Capability::Health),
-                ("NSBluetooth", Capability::Bluetooth),
-                ("UNUserNotificationCenter", Capability::Notifications),
-                ("import UserNotifications", Capability::Notifications),
-                ("import StoreKit", Capability::Storekit),
-            ] {
-                if text.contains(marker) {
-                    self.apple_capabilities.insert(capability);
+
+            // Capability gates inspect files that can participate in the app
+            // or its build. Retained prose remains part of the committed
+            // source tree, but words such as "iCloud" in a whitepaper do not
+            // make the compiled application cloud-capable.
+            if !is_documentation_text(&entry.path()) {
+                self.network |= [
+                    "URLSession",
+                    "NSURLSession",
+                    "NWConnection",
+                    "import Network",
+                    "WebSocket",
+                    "WKWebView",
+                    "SFSafariViewController",
+                    "CFStream",
+                    "socket(",
+                    "connect(",
+                    "curl ",
+                    "http://",
+                    "https://",
+                    "Network.framework",
+                ]
+                .iter()
+                .any(|marker| text.contains(marker));
+                if let Some(marker) = [
+                    "import CloudKit",
+                    "CKContainer",
+                    "NSPersistentCloudKitContainer",
+                    "NSUbiquitous",
+                    "url(forUbiquityContainerIdentifier:",
+                    "ubiquityIdentityToken",
+                    "setUbiquitous(",
+                    "startDownloadingUbiquitousItem",
+                    "cloudKitDatabase",
+                    "com.apple.developer.icloud",
+                    "Firebase",
+                    "Supabase",
+                ]
+                .into_iter()
+                .find(|marker| text.contains(marker))
+                {
+                    self.cloud = true;
+                    if self.cloud_evidence.is_none() {
+                        let path = entry
+                            .path()
+                            .strip_prefix(root)
+                            .unwrap_or(&entry.path())
+                            .display()
+                            .to_string();
+                        self.cloud_evidence =
+                            Some(format!("{path} contains the marker {marker:?}"));
+                    }
+                }
+                self.tracking_or_accounts |= [
+                    "AppTrackingTransparency",
+                    "ATTrackingManager",
+                    "Analytics",
+                    "Telemetry",
+                    "advertisingIdentifier",
+                    "AuthenticationServices",
+                    "SignInWithApple",
+                ]
+                .iter()
+                .any(|marker| text.contains(marker));
+                self.swift_data |= text.contains("import SwiftData") || text.contains("@Model");
+                self.unsupported_storage |= [
+                    "import CoreData",
+                    "NSPersistentContainer",
+                    "SQLite",
+                    "RealmSwift",
+                ]
+                .iter()
+                .any(|marker| text.contains(marker));
+                self.ipad |= text.contains("TARGETED_DEVICE_FAMILY = \"1,2\"")
+                    || text.contains("TARGETED_DEVICE_FAMILY = 1,2");
+                self.third_party_dependency |= [
+                    "XCRemoteSwiftPackageReference",
+                    "XCLocalSwiftPackageReference",
+                    "packageProductDependencies",
+                    "CocoaPods",
+                    "Carthage",
+                ]
+                .iter()
+                .any(|marker| text.contains(marker));
+                for (marker, capability) in [
+                    ("NSCameraUsageDescription", Capability::Camera),
+                    ("NSMicrophoneUsageDescription", Capability::Microphone),
+                    ("NSLocation", Capability::Location),
+                    ("NSContactsUsageDescription", Capability::Contacts),
+                    ("NSHealth", Capability::Health),
+                    ("NSBluetooth", Capability::Bluetooth),
+                    ("UNUserNotificationCenter", Capability::Notifications),
+                    ("import UserNotifications", Capability::Notifications),
+                    ("import StoreKit", Capability::Storekit),
+                ] {
+                    if text.contains(marker) {
+                        self.apple_capabilities.insert(capability);
+                    }
                 }
             }
         }
         Ok(())
     }
+}
+
+fn is_documentation_text(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            matches!(
+                extension.to_ascii_lowercase().as_str(),
+                "md" | "markdown" | "mdown" | "mkd" | "rst" | "adoc" | "tex" | "rtf"
+            )
+        })
 }
 
 fn is_mach_o(bytes: &[u8]) -> bool {
@@ -1487,6 +1530,39 @@ mod tests {
         assert!(!scan.cloud);
         assert!(!scan.tracking_or_accounts);
         assert!(!scan.explicit_entitlements);
+    }
+
+    #[test]
+    fn documentation_vocabulary_does_not_claim_runtime_cloud_capability() {
+        let (_directory, source) = candidate_source(&[
+            (
+                "WHITEPAPER.md",
+                "An app may discuss iCloud, import CloudKit, CKContainer, Firebase, Supabase, URLSession, Analytics, import CoreData, NSCameraUsageDescription, or https://example.invalid without executing any of them.\n",
+            ),
+            (
+                "DESIGN.tex",
+                "The rejected alternative used com.apple.developer.icloud.\n",
+            ),
+        ]);
+        let manifest = inspect_fascia(&source, "com.example.documented", 1).unwrap();
+        assert_eq!(
+            declared_capabilities(&manifest),
+            vec![Capability::LocalStorage]
+        );
+    }
+
+    #[test]
+    fn executable_cloud_use_names_the_exact_evidence() {
+        let (_directory, source) = candidate_source(&[(
+            "App.swift",
+            "import CloudKit\n\nlet container = CKContainer.default()\n",
+        )]);
+        let message = inspect_fascia(&source, "com.example.cloud", 1)
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains("cloud storage or synchronization"));
+        assert!(message.contains("App.swift"), "{message}");
+        assert!(message.contains("import CloudKit"), "{message}");
     }
 
     #[test]

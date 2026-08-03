@@ -1121,6 +1121,19 @@ async fn record_evolution(
     state: &State,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let request: EvolveRequest = serde_json::from_slice(body)?;
+    let _guard = match state.press.try_lock() {
+        Ok(guard) => guard,
+        Err(_) => {
+            respond(
+                socket,
+                409,
+                "text/plain; charset=utf-8",
+                "another Studio operation is still running; wait for it to finish before recording again",
+            )
+            .await?;
+            return Ok(());
+        }
+    };
     respond(
         socket,
         202,
@@ -1130,8 +1143,6 @@ async fn record_evolution(
     .await?;
     socket.shutdown().await?;
     let events = state.events.clone();
-    let press = state.press.clone();
-    let _guard = press.lock().await;
     let outcome = match Engine::discover(events.clone()) {
         Ok(engine) => engine
             .record(&request.app_name, request.note.as_deref())
@@ -2478,6 +2489,7 @@ async fn respond(
         202 => "Accepted",
         400 => "Bad Request",
         403 => "Forbidden",
+        409 => "Conflict",
         404 => "Not Found",
         422 => "Unprocessable Content",
         500 => "Internal Server Error",

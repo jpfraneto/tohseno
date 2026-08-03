@@ -218,6 +218,7 @@ let shotProtocol = null;
 let nodeOverview = null;
 let bankrOverview = null;
 let bankrApproval = null;
+let recordingEvolution = false;
 let harnesses = [];
 let onboardingFacts = null;
 let onboardingStep = 1;
@@ -914,20 +915,26 @@ ui.feedbackForm.addEventListener("submit", async (event) => {
   }
 });
 
+const setRecordingEvolution = (recording) => {
+  recordingEvolution = recording;
+  ui.recordEvolution.disabled = recording;
+  ui.recordEvolution.textContent = recording ? "Recording evolution…" : "Record evolution";
+};
+
 ui.recordEvolution.addEventListener("click", async () => {
-  if (!selectedApp) return;
-  ui.recordEvolution.disabled = true;
+  if (!selectedApp || recordingEvolution) return;
+  const appName = selectedApp.name;
+  setRecordingEvolution(true);
   try {
-    await fetch("/api/evolve", {
+    const response = await fetch("/api/evolve", {
       method: "POST",
       headers: studioJsonHeaders,
-      body: JSON.stringify({ app_name: selectedApp.name }),
+      body: JSON.stringify({ app_name: appName }),
     });
-  } finally {
-    setTimeout(() => {
-      ui.recordEvolution.disabled = false;
-      loadLibrary();
-    }, 1500);
+    if (!response.ok) throw new Error(await response.text());
+  } catch (error) {
+    setRecordingEvolution(false);
+    appendEvent("status", `Evolution was not started: ${error.message}`);
   }
 });
 
@@ -1727,6 +1734,21 @@ const appendEvent = (kind, message) => {
   if (kind === "status" && message.startsWith("engine stopped:")) {
     pendingShot = null;
     setComposerBusy(false);
+    if (recordingEvolution) {
+      setRecordingEvolution(false);
+      void loadLibrary();
+    }
+  }
+  if (
+    recordingEvolution
+    && kind === "result"
+    && (
+      /^evolution \d+ of .+ is complete and verified on this Mac\.$/.test(message)
+      || message.startsWith("nothing new —")
+    )
+  ) {
+    setRecordingEvolution(false);
+    void loadLibrary();
   }
 };
 
