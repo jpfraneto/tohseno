@@ -199,6 +199,16 @@ textarea:focus-visible,
   background: color-mix(in srgb, var(--amber) 6%, var(--carbon));
 }
 
+.token-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.token-launch-secondary {
+  border-color: var(--iron);
+  background: var(--carbon);
+}
+
 .token-launch-action:hover:not(:disabled) {
   border-color: var(--amber);
 }
@@ -237,6 +247,194 @@ textarea:focus-visible,
 .token-launch-action small {
   color: var(--silver);
   font-size: 9px;
+}
+
+.token-association-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--amber) 32%, var(--iron));
+  border-radius: 16px;
+  color: var(--bone);
+  background: var(--carbon);
+  box-shadow: 0 28px 90px rgb(0 0 0 / 70%);
+}
+
+.token-association-dialog::backdrop {
+  background: rgb(0 0 0 / 76%);
+  backdrop-filter: blur(5px);
+}
+
+#token-association-form {
+  display: grid;
+  gap: 20px;
+  overflow-y: auto;
+  max-height: calc(100dvh - 34px);
+  padding: 26px;
+}
+
+.token-association-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--iron);
+}
+
+.token-association-head > div {
+  display: grid;
+  gap: 6px;
+}
+
+.token-association-kicker {
+  color: var(--amber);
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.token-association-head h2 {
+  margin: 0;
+  font-size: 25px;
+  letter-spacing: -0.035em;
+}
+
+.token-association-head p,
+.token-association-note,
+.token-association-status {
+  margin: 0;
+  color: var(--silver);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+#token-association-close {
+  flex: none;
+  color: var(--silver);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.token-association-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--iron);
+  border-radius: 12px;
+  background: var(--graphite);
+}
+
+.token-association-facts div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.token-association-facts .token-association-shot-id {
+  grid-column: 1 / -1;
+}
+
+.token-association-facts dt,
+.token-association-fields label > span {
+  color: var(--ash);
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.token-association-facts dd {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.token-association-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.token-association-fields label {
+  display: grid;
+  gap: 7px;
+}
+
+.token-association-fields label small {
+  color: var(--ash);
+  font: inherit;
+  text-transform: none;
+}
+
+.token-association-address-field {
+  grid-column: 1 / -1;
+}
+
+.token-association-fields input {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid var(--iron);
+  border-radius: 8px;
+  color: var(--bone);
+  background: #08090a;
+  font: 11px/1.4 "SF Mono", SFMono-Regular, ui-monospace, monospace;
+}
+
+.token-association-fields input:focus {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.token-association-note {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--amber) 28%, var(--iron));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 5%, var(--graphite));
+}
+
+.token-association-status[data-status="error"] {
+  color: #ff9c8a;
+}
+
+.token-association-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.token-association-actions button {
+  padding: 10px 14px;
+  border: 1px solid var(--iron);
+  border-radius: 9px;
+}
+
+#token-association-submit {
+  border-color: color-mix(in srgb, var(--amber) 55%, var(--iron));
+  color: var(--carbon);
+  background: var(--amber);
+  font-weight: 700;
+}
+
+#token-association-submit:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+@media (max-width: 680px) {
+  .token-association-fields,
+  .token-association-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .token-association-facts .token-association-shot-id,
+  .token-association-address-field {
+    grid-column: auto;
+  }
 }
 
 .library-scroll,

@@ -133,6 +133,21 @@ const ui = {
   launchToken: document.querySelector("#launch-token"),
   launchTokenLabel: document.querySelector("#launch-token-label"),
   launchTokenDetail: document.querySelector("#launch-token-detail"),
+  associateToken: document.querySelector("#associate-token"),
+  associateTokenLabel: document.querySelector("#associate-token-label"),
+  associateTokenDetail: document.querySelector("#associate-token-detail"),
+  tokenAssociationDialog: document.querySelector("#token-association-dialog"),
+  tokenAssociationForm: document.querySelector("#token-association-form"),
+  tokenAssociationClose: document.querySelector("#token-association-close"),
+  tokenAssociationCancel: document.querySelector("#token-association-cancel"),
+  tokenAssociationShot: document.querySelector("#token-association-shot"),
+  tokenAssociationVersion: document.querySelector("#token-association-version"),
+  tokenAssociationShotId: document.querySelector("#token-association-shot-id"),
+  tokenAssociationChain: document.querySelector("#token-association-chain"),
+  tokenAssociationSymbol: document.querySelector("#token-association-symbol"),
+  tokenAssociationAddress: document.querySelector("#token-association-address"),
+  tokenAssociationStatus: document.querySelector("#token-association-status"),
+  tokenAssociationSubmit: document.querySelector("#token-association-submit"),
   bankrDialog: document.querySelector("#bankr-dialog"),
   bankrClose: document.querySelector("#bankr-close"),
   bankrForm: document.querySelector("#bankr-launch-form"),
@@ -258,17 +273,28 @@ const selectedLaunchBinding = () => {
 const renderTokenLaunchState = () => {
   const association = shotProtocol?.ontology?.token_association;
   if (association?.status === "associated") {
+    ui.associateToken.hidden = false;
+    ui.associateToken.disabled = true;
+    ui.launchToken.hidden = true;
     ui.launchToken.disabled = true;
-    const associated = association.symbol || appcoinSymbol(selectedApp?.name || "");
-    ui.launchTokenLabel.textContent = associated
+    const associated = association.symbol;
+    ui.associateTokenLabel.textContent = associated
       ? `$${associated} is associated with this Shot`
-      : "An Appcoin is associated with this Shot";
-    ui.launchTokenDetail.textContent = displayIdentifier(association.token_address);
+      : "A coin is associated with this Shot";
+    ui.associateTokenDetail.textContent =
+      `eip155:${association.chain_id} · ${displayIdentifier(association.token_address)}`;
     return;
   }
   const binding = selectedLaunchBinding();
+  ui.associateToken.hidden = false;
+  ui.launchToken.hidden = false;
+  ui.associateToken.disabled = !binding;
   ui.launchToken.disabled = !binding;
-  ui.launchTokenLabel.textContent = "Launch Appcoin for this Shot, via Bankr";
+  ui.associateTokenLabel.textContent = "Associate an existing coin";
+  ui.associateTokenDetail.textContent = binding
+    ? "Use its exact EVM chain ID and token contract address"
+    : "A verified selected ShotID is required";
+  ui.launchTokenLabel.textContent = "Launch a new Appcoin via Bankr";
   ui.launchTokenDetail.textContent = binding
     ? `After deployment, record a private relation to ${displayIdentifier(binding.shot_id)}`
     : "A verified selected ShotID is required";
@@ -1905,6 +1931,118 @@ const bankrTickerNode = (symbol) => {
   ticker.textContent = `$${symbol}`;
   return ticker;
 };
+
+const validExistingTokenAssociation = () => {
+  const chainId = Number(ui.tokenAssociationChain.value);
+  return Boolean(
+    selectedLaunchBinding()
+    && Number.isSafeInteger(chainId)
+    && chainId > 0
+    && /^0x[0-9a-f]{40}$/i.test(ui.tokenAssociationAddress.value.trim())
+    && ui.tokenAssociationSymbol.value.trim().length <= 32
+  );
+};
+
+const updateExistingTokenAssociationState = () => {
+  ui.tokenAssociationSubmit.disabled = !validExistingTokenAssociation();
+};
+
+ui.associateToken.addEventListener("click", () => {
+  const binding = selectedLaunchBinding();
+  if (!binding || shotProtocol?.ontology?.token_association?.status === "associated") return;
+  ui.tokenAssociationForm.reset();
+  ui.tokenAssociationShot.textContent = binding.app_name;
+  ui.tokenAssociationVersion.textContent = String(binding.version_ordinal).padStart(4, "0");
+  ui.tokenAssociationShotId.textContent = binding.shot_id;
+  ui.tokenAssociationDialog.dataset.appName = binding.app_name;
+  ui.tokenAssociationDialog.dataset.shotId = binding.shot_id;
+  ui.tokenAssociationDialog.dataset.versionOrdinal = String(binding.version_ordinal);
+  ui.tokenAssociationStatus.textContent = "";
+  ui.tokenAssociationStatus.removeAttribute("data-status");
+  updateExistingTokenAssociationState();
+  if (!ui.tokenAssociationDialog.open) ui.tokenAssociationDialog.showModal();
+});
+
+for (const field of [
+  ui.tokenAssociationChain,
+  ui.tokenAssociationSymbol,
+  ui.tokenAssociationAddress,
+]) {
+  field.addEventListener("input", () => {
+    ui.tokenAssociationStatus.textContent = "";
+    ui.tokenAssociationStatus.removeAttribute("data-status");
+    updateExistingTokenAssociationState();
+  });
+}
+
+ui.tokenAssociationAddress.addEventListener("blur", () => {
+  ui.tokenAssociationAddress.value = ui.tokenAssociationAddress.value.trim().toLowerCase();
+  updateExistingTokenAssociationState();
+});
+
+const closeExistingTokenAssociation = () => ui.tokenAssociationDialog.close();
+ui.tokenAssociationClose.addEventListener("click", closeExistingTokenAssociation);
+ui.tokenAssociationCancel.addEventListener("click", closeExistingTokenAssociation);
+
+ui.tokenAssociationDialog.addEventListener("close", () => {
+  ui.tokenAssociationForm.reset();
+  ui.tokenAssociationDialog.removeAttribute("data-app-name");
+  ui.tokenAssociationDialog.removeAttribute("data-shot-id");
+  ui.tokenAssociationDialog.removeAttribute("data-version-ordinal");
+  ui.tokenAssociationStatus.textContent = "";
+  ui.tokenAssociationStatus.removeAttribute("data-status");
+  updateExistingTokenAssociationState();
+});
+
+ui.tokenAssociationForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!validExistingTokenAssociation()) return;
+  const binding = selectedLaunchBinding();
+  if (
+    !binding
+    || binding.app_name !== ui.tokenAssociationDialog.dataset.appName
+    || binding.shot_id !== ui.tokenAssociationDialog.dataset.shotId
+    || String(binding.version_ordinal) !== ui.tokenAssociationDialog.dataset.versionOrdinal
+  ) {
+    ui.tokenAssociationStatus.textContent =
+      "The selected Shot changed. Close this window, select the intended Shot, and try again.";
+    ui.tokenAssociationStatus.dataset.status = "error";
+    return;
+  }
+  ui.tokenAssociationSubmit.disabled = true;
+  ui.tokenAssociationSubmit.textContent = "Recording association…";
+  ui.tokenAssociationStatus.textContent =
+    "Signing the private Token Association into this Shot’s local lineage…";
+  ui.tokenAssociationStatus.dataset.status = "ready";
+  try {
+    const symbol = ui.tokenAssociationSymbol.value.trim();
+    const response = await fetch("/api/token/associate", {
+      method: "POST",
+      headers: studioJsonHeaders,
+      body: JSON.stringify({
+        app_name: binding.app_name,
+        version_ordinal: binding.version_ordinal,
+        chain_id: Number(ui.tokenAssociationChain.value),
+        token_address: ui.tokenAssociationAddress.value.trim().toLowerCase(),
+        symbol: symbol || null,
+      }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const outcome = await response.json();
+    await loadShotProtocol(selectedApp, selectedShot);
+    appendEvent(
+      "result",
+      `associated ${outcome.token_address} on eip155:${outcome.chain_id} with Shot ${displayIdentifier(outcome.shot.shot_id)}.`
+    );
+    closeExistingTokenAssociation();
+  } catch (error) {
+    ui.tokenAssociationStatus.textContent = error.message;
+    ui.tokenAssociationStatus.dataset.status = "error";
+  } finally {
+    ui.tokenAssociationSubmit.textContent = "Record private association";
+    updateExistingTokenAssociationState();
+  }
+});
 
 ui.launchToken.addEventListener("click", () => {
   const binding = selectedLaunchBinding();

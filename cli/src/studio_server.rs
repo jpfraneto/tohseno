@@ -74,6 +74,30 @@ struct BankrSimulationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExistingTokenAssociationRequest {
+    app_name: String,
+    version_ordinal: u32,
+    chain_id: u64,
+    token_address: String,
+    #[serde(default)]
+    symbol: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ExistingTokenAssociationOutcome {
+    shot: ShotLaunchBinding,
+    chain_id: u64,
+    token_address: String,
+    symbol: Option<String>,
+    association: ShotAssociationEvidence,
+    shot_identity_changed: bool,
+    ownership_changed: bool,
+    chain_anchor_verified: bool,
+    relayed: bool,
+}
+
+#[derive(Debug, Deserialize)]
 struct ShotSubmission {
     mode: ShotMode,
     app_name: String,
@@ -463,6 +487,9 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     if request.method == "POST" && request.path == "/api/feedback" {
         return save_feedback(&mut socket, &request.body, &state).await;
     }
+    if request.method == "POST" && request.path == "/api/token/associate" {
+        return associate_existing_token(&mut socket, &request.body, &state).await;
+    }
     if request.method == "POST" && request.path == "/api/bankr/launch/simulate" {
         return simulate_bankr_launch(&mut socket, &request.body, &state).await;
     }
@@ -702,7 +729,7 @@ async fn simulate_bankr_launch(
             return Ok(());
         }
     };
-    let shot = match bankr_shot_binding(&request.app_name, request.version_ordinal) {
+    let shot = match unassociated_shot_binding(&request.app_name, request.version_ordinal) {
         Ok(shot) => shot,
         Err(error) => {
             respond(
@@ -768,7 +795,7 @@ async fn deploy_bankr_launch(
             return Ok(());
         }
     };
-    let authoritative = match bankr_shot_binding(&approval.shot.app_name, approved_version) {
+    let authoritative = match unassociated_shot_binding(&approval.shot.app_name, approved_version) {
         Ok(shot) if shot == approval.shot => shot,
         Ok(_) => {
             respond(
@@ -825,7 +852,10 @@ async fn deploy_bankr_launch(
     Ok(())
 }
 
-fn bankr_shot_binding(app_name: &str, version_ordinal: u32) -> Result<ShotLaunchBinding, String> {
+fn unassociated_shot_binding(
+    app_name: &str,
+    version_ordinal: u32,
+) -> Result<ShotLaunchBinding, String> {
     tohseno_engine::ledger::validate_app_name(app_name).map_err(|error| error.to_string())?;
     if version_ordinal == 0 {
         return Err("version ordinal must be positive".into());
@@ -847,7 +877,7 @@ fn bankr_shot_binding(app_name: &str, version_ordinal: u32) -> Result<ShotLaunch
         .ok_or("the selected Shot has no verified v2 identity")?;
     if ontology.token_association.status == "associated" {
         return Err(
-            "this Shot already has a token association; Studio will not deploy an unbound replacement"
+            "this Shot already has a token association; Studio will not replace it implicitly"
                 .into(),
         );
     }
@@ -864,7 +894,7 @@ fn record_bankr_shot_association(
 ) -> Result<ShotAssociationEvidence, String> {
     let version_ordinal = u32::try_from(outcome.shot.version_ordinal)
         .map_err(|_| "the deployed token has an invalid Shot version ordinal")?;
-    let current = bankr_shot_binding(&outcome.shot.app_name, version_ordinal)?;
+    let current = unassociated_shot_binding(&outcome.shot.app_name, version_ordinal)?;
     if current != outcome.shot {
         return Err("the authoritative Shot binding changed during deployment".into());
     }
@@ -900,6 +930,135 @@ fn record_bankr_shot_association(
         availability: "intentionally_private",
         outbox_path: receipt.outbox_path.map(|path| path.display().to_string()),
     })
+}
+
+async fn associate_existing_token(
+    socket: &mut TcpStream,
+    body: &[u8],
+    state: &State,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let request = match serde_json::from_slice::<ExistingTokenAssociationRequest>(body) {
+        Ok(request) => request,
+        Err(error) => {
+            respond(
+                socket,
+                400,
+                "text/plain; charset=utf-8",
+                &format!("invalid token association: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let shot = match unassociated_shot_binding(&request.app_name, request.version_ordinal) {
+        Ok(shot) => shot,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("token association is not available for this Shot: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let token = match parse_studio_token_address(&request.token_address) {
+        Ok(token) => token,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("token association is invalid: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let association = TokenAssociation {
+        schema: TOKEN_ASSOCIATION_SCHEMA.into(),
+        operation: TokenAssociationOperation::Associate,
+        chain_id: request.chain_id,
+        token,
+        symbol: request.symbol,
+        anchor: None,
+    };
+    if let Err(error) = association.validate() {
+        respond(
+            socket,
+            422,
+            "text/plain; charset=utf-8",
+            &format!("token association is invalid: {error}"),
+        )
+        .await?;
+        return Ok(());
+    }
+    let engine = match Engine::discover(state.events.clone()) {
+        Ok(engine) => engine,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("token association could not be recorded: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let receipt = match engine.record_token_association(
+        &shot.app_name,
+        association.clone(),
+        AvailabilityStatus::IntentionallyPrivate,
+    ) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            respond(
+                socket,
+                422,
+                "text/plain; charset=utf-8",
+                &format!("token association could not be recorded: {error}"),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    if receipt.action.action.shot_id.to_string() != shot.shot_id {
+        respond(
+            socket,
+            500,
+            "text/plain; charset=utf-8",
+            "the signed association resolved to a different ShotID",
+        )
+        .await?;
+        return Ok(());
+    }
+    let outcome = ExistingTokenAssociationOutcome {
+        shot,
+        chain_id: association.chain_id,
+        token_address: association.token.to_string(),
+        symbol: association.symbol,
+        association: ShotAssociationEvidence {
+            action_commitment: receipt.action_commitment.to_string(),
+            lineage_head: receipt.lineage_head.to_string(),
+            availability: "intentionally_private",
+            outbox_path: receipt.outbox_path.map(|path| path.display().to_string()),
+        },
+        shot_identity_changed: false,
+        ownership_changed: false,
+        chain_anchor_verified: false,
+        relayed: false,
+    };
+    let response = serde_json::to_string(&outcome)?;
+    respond(socket, 201, "application/json; charset=utf-8", &response).await?;
+    Ok(())
+}
+
+fn parse_studio_token_address(value: &str) -> Result<Address20, String> {
+    let normalized = value.to_ascii_lowercase();
+    serde_json::from_value::<Address20>(serde_json::Value::String(normalized))
+        .map_err(|error| error.to_string())
 }
 
 async fn serve_initial_plan(
@@ -2430,6 +2589,28 @@ mod tests {
             r#"{"app_name":"field-notebook","version_ordinal":2,"text":"x","version_id":"invented"}"#
         )
         .is_err());
+    }
+
+    #[test]
+    fn existing_token_request_is_closed_and_normalizes_checksum_case() {
+        let request: ExistingTokenAssociationRequest = serde_json::from_str(
+            r#"{"app_name":"field-notebook","version_ordinal":2,"chain_id":8453,"token_address":"0xA7a7A7a7A7A7a7A7A7a7A7a7A7a7A7a7A7A7a7A7","symbol":"FIELD"}"#,
+        )
+        .unwrap();
+        assert_eq!(request.app_name, "field-notebook");
+        assert_eq!(request.version_ordinal, 2);
+        assert_eq!(request.chain_id, 8453);
+        assert_eq!(
+            parse_studio_token_address(&request.token_address)
+                .unwrap()
+                .to_string(),
+            "0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+        );
+        assert!(serde_json::from_str::<ExistingTokenAssociationRequest>(
+            r#"{"app_name":"field-notebook","version_ordinal":2,"chain_id":8453,"token_address":"0xa7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7","public":true}"#
+        )
+        .is_err());
+        assert!(parse_studio_token_address("0x0000000000000000000000000000000000000001 ").is_err());
     }
 
     #[test]

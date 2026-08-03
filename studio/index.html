@@ -370,13 +370,23 @@
             <button id="next-shot" type="button" aria-label="Run next evolution">›</button>
           </div>
 
-          <button id="launch-token" class="token-launch-action" type="button" disabled>
-            <span class="token-mark" aria-hidden="true">$</span>
-            <span>
-              <strong id="launch-token-label">Launch Appcoin for this Shot, via Bankr</strong>
-              <small id="launch-token-detail">Loading the selected ShotID…</small>
-            </span>
-          </button>
+          <div class="token-actions">
+            <button id="associate-token" class="token-launch-action" type="button" disabled>
+              <span class="token-mark" aria-hidden="true">↗</span>
+              <span>
+                <strong id="associate-token-label">Associate an existing coin</strong>
+                <small id="associate-token-detail">Loading the selected ShotID…</small>
+              </span>
+            </button>
+
+            <button id="launch-token" class="token-launch-action token-launch-secondary" type="button" disabled>
+              <span class="token-mark" aria-hidden="true">+</span>
+              <span>
+                <strong id="launch-token-label">Launch a new Appcoin via Bankr</strong>
+                <small id="launch-token-detail">Loading the selected ShotID…</small>
+              </span>
+            </button>
+          </div>
 
           <details id="shot-continuity" class="shot-continuity" hidden>
             <summary>
@@ -582,6 +592,86 @@
         </div>
       </section>
     </main>
+
+    <dialog id="token-association-dialog" class="token-association-dialog" aria-labelledby="token-association-title">
+      <form id="token-association-form">
+        <header class="token-association-head">
+          <div>
+            <span class="token-association-kicker">BRING YOUR COIN</span>
+            <h2 id="token-association-title">Associate an existing coin</h2>
+            <p>
+              Bind a coin you already have to this Shot by its exact EVM chain and contract address.
+            </p>
+          </div>
+          <button id="token-association-close" type="button" aria-label="Close token association">×</button>
+        </header>
+
+        <dl class="token-association-facts">
+          <div><dt>Shot</dt><dd id="token-association-shot">No Shot selected</dd></div>
+          <div><dt>Version viewed</dt><dd id="token-association-version">Unavailable</dd></div>
+          <div class="token-association-shot-id"><dt>ShotID</dt><dd id="token-association-shot-id">Unavailable</dd></div>
+        </dl>
+
+        <div class="token-association-fields">
+          <label>
+            <span>EVM chain ID</span>
+            <input
+              id="token-association-chain"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="9007199254740991"
+              step="1"
+              list="token-association-chains"
+              placeholder="8453"
+              required
+            >
+            <datalist id="token-association-chains">
+              <option value="1">Ethereum</option>
+              <option value="8453">Base</option>
+              <option value="4663">Robinhood Chain</option>
+            </datalist>
+          </label>
+          <label>
+            <span>Symbol <small>optional, descriptive</small></span>
+            <input
+              id="token-association-symbol"
+              type="text"
+              maxlength="32"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="YOURCOIN"
+            >
+          </label>
+          <label class="token-association-address-field">
+            <span>Token contract address</span>
+            <input
+              id="token-association-address"
+              type="text"
+              inputmode="text"
+              minlength="42"
+              maxlength="42"
+              pattern="0[xX][0-9a-fA-F]{40}"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="0x…"
+              required
+            >
+          </label>
+        </div>
+
+        <p class="token-association-note">
+          Studio records a private signed relationship only. It does not contact the chain, verify
+          that the contract exists, publish the Shot, transfer ownership, or make the coin the Shot.
+        </p>
+        <p id="token-association-status" class="token-association-status" role="status"></p>
+        <div class="token-association-actions">
+          <button id="token-association-cancel" type="button">Cancel</button>
+          <button id="token-association-submit" type="submit" disabled>Record private association</button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="bankr-dialog" class="bankr-dialog" aria-labelledby="bankr-title">
       <form id="bankr-launch-form" method="dialog">

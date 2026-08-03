@@ -117,12 +117,22 @@ test("contract definition is visibly inactive and Studio has no retired public s
   assert.doesNotMatch(script, /pairing|claimHandle|attestAppStore|ShotRelations/);
 });
 
-test("Bankr launch belongs to one selected Shot and is separately confirmed", () => {
+test("existing-coin association and Bankr launch both belong to one selected Shot", () => {
   const selection = html.match(/<section id="selection"[\s\S]*?<\/section>/)?.[0] || "";
   const globalActions = html.slice(0, html.indexOf('<div class="library-scroll">'));
+  assert.match(selection, /id="associate-token"/);
+  assert.match(selection, /Associate an existing coin/);
   assert.match(selection, /id="launch-token"/);
-  assert.match(selection, /Launch Appcoin for this Shot, via Bankr/);
+  assert.match(selection, /Launch a new Appcoin via Bankr/);
+  assert.doesNotMatch(globalActions, /id="associate-token"/);
   assert.doesNotMatch(globalActions, /id="launch-token"/);
+  assert.match(html, /id="token-association-dialog"/);
+  assert.match(html, /id="token-association-chain"/);
+  assert.match(html, /id="token-association-address"/);
+  assert.match(html, /private signed relationship only/);
+  assert.match(script, /fetch\("\/api\/token\/associate"/);
+  assert.match(script, /chain_id: Number\(ui\.tokenAssociationChain\.value\)/);
+  assert.match(script, /token_address: ui\.tokenAssociationAddress\.value\.trim\(\)\.toLowerCase\(\)/);
   assert.match(html, /id="bankr-shot-id"/);
   assert.match(html, /id="bankr-api-key"/);
   assert.match(html, /id="bankr-recipient-type"/);
