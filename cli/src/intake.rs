@@ -74,6 +74,7 @@ struct Composer<W> {
     harness_index: usize,
     model_index: usize,
     notice: Option<String>,
+    drop_scan_start: usize,
     rendered_height: u16,
 }
 
@@ -119,6 +120,7 @@ impl<W: Write> Composer<W> {
             harness_index,
             model_index,
             notice: None,
+            drop_scan_start: 0,
             rendered_height: 0,
         })
     }
@@ -161,6 +163,7 @@ impl<W: Write> Composer<W> {
                     }
                     KeyCode::Backspace => {
                         self.prompt.pop();
+                        self.drop_scan_start = self.drop_scan_start.min(self.prompt.len());
                         self.notice = None;
                         self.draw()?;
                     }
@@ -171,8 +174,7 @@ impl<W: Write> Composer<W> {
                         ));
                     }
                     KeyCode::Char(character) => {
-                        self.prompt.push(character);
-                        self.notice = None;
+                        self.push_character(character);
                         self.draw()?;
                     }
                     KeyCode::Tab => {
@@ -212,11 +214,54 @@ impl<W: Write> Composer<W> {
     }
 
     fn absorb_paste(&mut self, value: &str) {
-        let parsed = Intent::parse(value);
-        let pasted_images = !parsed.images.is_empty();
-        let replaced_by_document = !pasted_images && parsed.prompt != value;
-        let mut new_images = parsed
-            .images
+        let parsed = Intent::parse_dropped(value);
+        self.prompt.push_str(&parsed.prompt);
+        self.add_images(parsed.images);
+        self.drop_scan_start = self.prompt.len();
+    }
+
+    fn push_character(&mut self, character: char) {
+        self.prompt.push(character);
+        self.notice = None;
+        self.reconcile_typed_drop();
+    }
+
+    fn reconcile_typed_drop(&mut self) {
+        let scan_start = self.drop_scan_start.min(self.prompt.len());
+        let tail = self.prompt[scan_start..].to_owned();
+        let parsed = Intent::parse_dropped(&tail);
+        if !parsed.images.is_empty() || parsed.prompt != tail {
+            self.prompt.truncate(scan_start);
+            self.prompt.push_str(&parsed.prompt);
+            self.add_images(parsed.images);
+            self.drop_scan_start = self.prompt.len();
+            return;
+        }
+
+        // Some terminal emulators inject a dragged path as ordinary key
+        // events without first inserting whitespace. Find the absolute file
+        // suffix in that stream so `idea/Users/me/mock.png` still attaches
+        // the real file and leaves `idea` as prose.
+        for (offset, character) in tail.char_indices() {
+            if character != '/' {
+                continue;
+            }
+            let candidate = &tail[offset..];
+            let parsed = Intent::parse_dropped(candidate);
+            if parsed.images.is_empty() && parsed.prompt == candidate {
+                continue;
+            }
+            self.prompt.truncate(scan_start);
+            self.prompt.push_str(&tail[..offset]);
+            self.prompt.push_str(&parsed.prompt);
+            self.add_images(parsed.images);
+            self.drop_scan_start = self.prompt.len();
+            return;
+        }
+    }
+
+    fn add_images(&mut self, images: Vec<PathBuf>) {
+        let mut new_images = images
             .into_iter()
             .filter(|image| !self.images.contains(image))
             .collect::<Vec<_>>();
@@ -231,12 +276,6 @@ impl<W: Write> Composer<W> {
         } else {
             self.notice = None;
         }
-
-        if replaced_by_document && !self.prompt.trim().is_empty() {
-            self.prompt.push_str(value);
-        } else {
-            self.prompt.push_str(&parsed.prompt);
-        }
     }
 
     fn select_default_model(&mut self) {
@@ -248,18 +287,9 @@ impl<W: Write> Composer<W> {
     }
 
     fn draw(&mut self) -> io::Result<()> {
-        if self.rendered_height > 0 {
-            queue!(self.writer, MoveUp(self.rendered_height))?;
-        }
         let terminal_width = terminal::size().map(|size| size.0).unwrap_or(80);
         let lines = self.render_lines(terminal_width.clamp(32, 100) as usize);
-        for line in &lines {
-            queue!(self.writer, MoveToColumn(0), Clear(ClearType::CurrentLine))?;
-            writeln!(self.writer, "{line}")?;
-        }
-        self.writer.flush()?;
-        self.rendered_height = lines.len() as u16;
-        Ok(())
+        redraw(&mut self.writer, &mut self.rendered_height, &lines)
     }
 
     fn render_lines(&self, width: usize) -> Vec<String> {
@@ -396,9 +426,6 @@ impl<W: Write> MultilineBox<W> {
     }
 
     fn draw(&mut self) -> io::Result<()> {
-        if self.rendered_height > 0 {
-            queue!(self.writer, MoveUp(self.rendered_height))?;
-        }
         let terminal_width = terminal::size().map(|size| size.0).unwrap_or(80);
         let width = terminal_width.clamp(32, 100) as usize;
         let inner = width - 4;
@@ -422,14 +449,30 @@ impl<W: Write> MultilineBox<W> {
                 .map(|line| format!("│ {line:<inner$} │")),
         );
         lines.push(bottom);
-        for line in &lines {
-            queue!(self.writer, MoveToColumn(0), Clear(ClearType::CurrentLine))?;
-            writeln!(self.writer, "{line}")?;
-        }
-        self.writer.flush()?;
-        self.rendered_height = lines.len() as u16;
-        Ok(())
+        redraw(&mut self.writer, &mut self.rendered_height, &lines)
     }
+}
+
+fn redraw(writer: &mut impl Write, rendered_height: &mut u16, lines: &[String]) -> io::Result<()> {
+    let previous_height = *rendered_height as usize;
+    if previous_height > 0 {
+        queue!(writer, MoveUp(*rendered_height))?;
+    }
+    for line in lines {
+        queue!(writer, MoveToColumn(0), Clear(ClearType::CurrentLine))?;
+        writeln!(writer, "{line}")?;
+    }
+    let stale_lines = previous_height.saturating_sub(lines.len());
+    for _ in 0..stale_lines {
+        queue!(writer, MoveToColumn(0), Clear(ClearType::CurrentLine))?;
+        writeln!(writer)?;
+    }
+    if stale_lines > 0 {
+        queue!(writer, MoveUp(stale_lines as u16))?;
+    }
+    writer.flush()?;
+    *rendered_height = lines.len() as u16;
+    Ok(())
 }
 
 fn framed(value: &str, inner: usize) -> String {
@@ -606,19 +649,33 @@ mod tests {
 
     #[test]
     fn pasted_images_fill_slots_without_becoming_prompt_text() {
+        let temporary = tempfile::tempdir().unwrap();
+        let first = temporary.path().join("home screen.png");
+        let second = temporary.path().join("detail.jpeg");
+        std::fs::write(&first, "first").unwrap();
+        std::fs::write(&second, "second").unwrap();
         let mut composer = composer();
-        composer.absorb_paste("/tmp/home\\ screen.png /tmp/detail.jpeg");
-        assert_eq!(
-            composer.images,
-            [
-                PathBuf::from("/tmp/home screen.png"),
-                PathBuf::from("/tmp/detail.jpeg")
-            ]
-        );
+        composer.absorb_paste(&format!("'{}' '{}'", first.display(), second.display()));
+        assert_eq!(composer.images, [first, second]);
         assert!(composer.prompt.trim().is_empty());
         let rendered = composer.render_lines(100).join("\n");
         assert!(rendered.contains("home"));
         assert!(rendered.contains("detail"));
+    }
+
+    #[test]
+    fn ordinary_key_events_still_recognize_a_dragged_image_path() {
+        let temporary = tempfile::tempdir().unwrap();
+        let image = temporary.path().join("reference image.png");
+        std::fs::write(&image, "pixels").unwrap();
+        let dropped = image.to_string_lossy().replace(' ', "\\ ");
+        let mut composer = composer();
+        composer.prompt.push_str("one clear idea");
+        for character in dropped.chars() {
+            composer.push_character(character);
+        }
+        assert_eq!(composer.prompt, "one clear idea");
+        assert_eq!(composer.images, [image]);
     }
 
     #[test]
@@ -629,6 +686,32 @@ mod tests {
         let mut composer = composer();
         composer.absorb_paste(&format!("'{}'", path.display()));
         assert_eq!(composer.prompt, "Build one calm thing.");
+        assert!(composer.images.is_empty());
+    }
+
+    #[test]
+    fn dropped_markdown_is_inlined_beside_existing_description() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("idea.md");
+        std::fs::write(&path, "A calm native notebook.").unwrap();
+        let mut composer = composer();
+        composer.prompt.push_str("Start here: ");
+        composer.absorb_paste(&format!("'{}'", path.display()));
+        assert_eq!(composer.prompt, "Start here: A calm native notebook.");
+        assert!(composer.images.is_empty());
+    }
+
+    #[test]
+    fn ordinary_key_events_also_inline_a_dragged_markdown_path() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("idea.md");
+        std::fs::write(&path, "A focused daily ritual.").unwrap();
+        let mut composer = composer();
+        composer.prompt.push_str("Build this: ");
+        for character in path.to_string_lossy().chars() {
+            composer.push_character(character);
+        }
+        assert_eq!(composer.prompt, "Build this: A focused daily ritual.");
         assert!(composer.images.is_empty());
     }
 }

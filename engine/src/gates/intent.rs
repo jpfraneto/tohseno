@@ -84,6 +84,35 @@ impl Intent {
         Self { prompt, images }
     }
 
+    /// Interprets a terminal file-drop payload. Unlike [`Self::parse`], text
+    /// documents are expanded wherever they appear because the interactive
+    /// composer knows this input came from a file insertion rather than prose
+    /// that merely mentions a path. Images must exist before they can become
+    /// a visible composer slot.
+    pub fn parse_dropped(submission: &str) -> Self {
+        let tokens = path_tokens(submission);
+        let mut replacements = Vec::new();
+        let mut images = Vec::new();
+        for token in tokens {
+            let path = PathBuf::from(token.value);
+            if path.is_absolute() && path.is_file() && is_supported_image(&path) {
+                replacements.push((token.start..token.end, String::new()));
+                images.push(path);
+            } else if path.is_absolute() && is_supported_text(&path) {
+                if let Ok(contents) = fs::read_to_string(&path) {
+                    replacements.push((token.start..token.end, contents));
+                }
+            }
+        }
+
+        replacements.sort_by_key(|(range, _)| range.start);
+        let mut prompt = submission.to_owned();
+        for (range, replacement) in replacements.into_iter().rev() {
+            prompt.replace_range(range, &replacement);
+        }
+        Self { prompt, images }
+    }
+
     pub fn with_images(mut self, additional_images: impl IntoIterator<Item = PathBuf>) -> Self {
         self.images.extend(additional_images);
         self
@@ -334,6 +363,22 @@ mod tests {
         let intent = Intent::parse("  Read /tmp/notes.md and build an app.\n");
         assert!(intent.images.is_empty());
         assert_eq!(intent.prompt, "  Read /tmp/notes.md and build an app.\n");
+    }
+
+    #[test]
+    fn dropped_markdown_is_expanded_even_beside_existing_prose() {
+        let temporary = tempfile::tempdir().unwrap();
+        let document = temporary.path().join("MASTER_PROMPT.md");
+        fs::write(&document, "Make the quiet idea tangible.").unwrap();
+        let intent = Intent::parse_dropped(&format!(
+            "Keep this preface. '{}' Keep this ending.",
+            document.display()
+        ));
+        assert_eq!(
+            intent.prompt,
+            "Keep this preface. Make the quiet idea tangible. Keep this ending."
+        );
+        assert!(intent.images.is_empty());
     }
 
     #[test]

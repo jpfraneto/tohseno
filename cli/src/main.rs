@@ -427,6 +427,7 @@ async fn dispatch(
             genome_file,
             no_launch,
         } => {
+            let app_name = normalize_cli_app_name(&app_name)?;
             let engine = Engine::discover(bus.clone())?;
             engine.prime_toolchain();
             // Resolve the harness before any intake or folder side effect: an
@@ -895,7 +896,10 @@ fn engine_for(
     bus: &EventBus,
 ) -> Result<(Engine, String), Box<dyn std::error::Error>> {
     if let Some(name) = app_name {
-        return Ok((Engine::discover(bus.clone())?, name));
+        return Ok((
+            Engine::discover(bus.clone())?,
+            normalize_cli_app_name(&name)?,
+        ));
     }
     let mut directory = std::env::current_dir()?;
     loop {
@@ -910,6 +914,12 @@ fn engine_for(
         }
     }
     Err("run this inside an app folder, or pass the app name".into())
+}
+
+fn normalize_cli_app_name(name: &str) -> Result<String, tohseno_engine::ledger::LedgerError> {
+    let normalized = name.to_ascii_lowercase();
+    tohseno_engine::ledger::validate_app_name(&normalized)?;
+    Ok(normalized)
 }
 
 fn handoff_without_launch(creation: &ConductedCreation, bus: &EventBus) {
@@ -970,6 +980,13 @@ mod tests {
         ));
         assert!(events.try_recv().is_err());
         assert_eq!(INITIAL_REVIEW_QUESTION, "Create this Shot? [y/N] ");
+    }
+
+    #[test]
+    fn cli_app_names_are_case_insensitive_without_sanitizing_unsafe_names() {
+        assert_eq!(normalize_cli_app_name("THYSY").unwrap(), "thysy");
+        assert!(normalize_cli_app_name("../THYSY").is_err());
+        assert!(normalize_cli_app_name("My App").is_err());
     }
 
     #[test]
