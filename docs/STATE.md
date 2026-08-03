@@ -34,7 +34,7 @@ The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
 
-## Web-to-local intention handoff ready for production activation
+## Web-to-local intention handoff active in production
 
 Main now contains an additive first-surface flow: a Browser Draft is retained
 in IndexedDB, frozen into the noncanonical `tohseno.intent-package/1`,
@@ -43,15 +43,13 @@ into durable local pending state, and opened in the existing Studio. Neither
 the browser nor relay creates a Shot. The existing engine creates the Shot
 only after local onboarding, plan and Genome review, and explicit preparation.
 
-This source capability is **not active in production yet**. The public
-installer is byte-identical to the immutable, claim-capable `v0.8.3` release.
-The website relay still defaults off, and production startup rejects an
-enabled relay unless the canonical origin is HTTPS, durable storage is
-configured, and the operator explicitly asserts that the matching installer
-is ready. Until the remaining ordered activation in
-`release/WEB_INTENTION_HANDOFF_ACTIVATION.md`, the browser composer, private
-`.tohseno-intent` download, and generic installer remain the safe public
-surfaces.
+This capability is active in production. The public installer is
+byte-identical to the immutable, claim-capable `v0.8.3` release, and the Bun
+relay uses the owner-controlled durable volume at the canonical HTTPS origin.
+The relay still defaults off in source, and production startup rejects an
+enabled relay unless durable storage, HTTPS, and the matching installer gate
+are all explicit. The completed activation evidence is recorded in
+`release/WEB_INTENTION_HANDOFF_ACTIVATION.md`.
 
 Local pending intentions live under the same machine data root as identities
 and installed state (`~/.tohseno` unless `TOHSENO_DATA_ROOT` is set), outside

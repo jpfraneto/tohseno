@@ -2,8 +2,8 @@
 
 > Historical note: this report records the 2026-07-31 local-alpha session.
 > Current shipped and inactive state is in `docs/STATE.md`. The encrypted
-> web-to-local handoff added on 2026-08-03 remains production-disabled until
-> `release/WEB_INTENTION_HANDOFF_ACTIVATION.md` is completed in order.
+> web-to-local handoff added on 2026-08-03 was activated later that day through
+> the ordered record in `release/WEB_INTENTION_HANDOFF_ACTIVATION.md`.
 
 Assessed 2026-07-31 at the end of the first complete dogfooding cycle
 (`docs/DOGFOOD_REPORT.md`), after the Phase-8 repairs, against a second

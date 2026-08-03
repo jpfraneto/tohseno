@@ -40,6 +40,10 @@ bun test apps/site/tests/local-handoff.e2e.test.ts
 
 ## Production configuration
 
+The production relay was activated on 2026-08-03 after immutable `v0.8.3`
+publication and public-installer pin verification. The deployment evidence and
+repeatable ordering are in `release/WEB_INTENTION_HANDOFF_ACTIVATION.md`.
+
 Production activation requires all of the following:
 
 - `NODE_ENV=production` and an HTTPS `BASE_URL` matching the canonical origin;

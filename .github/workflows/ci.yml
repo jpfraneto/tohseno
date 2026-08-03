@@ -287,7 +287,7 @@ jobs:
              and .protection.release_tag_ruleset_id == 20314843
              and .evidence.claim_capable_installer == true
              and .evidence.public_installer_repointed == true
-             and .evidence.production_relay_enabled == false' \
+             and .evidence.production_relay_enabled == true' \
             release/V0_8_3_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
