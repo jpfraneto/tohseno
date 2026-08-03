@@ -6,6 +6,7 @@ use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::{execute, queue};
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
+use std::time::Duration;
 use tohseno_engine::gates::intent::{Intent, MAX_IMAGES};
 use tohseno_engine::{HarnessOption, HarnessSelection};
 
@@ -128,10 +129,17 @@ impl<W: Write> Composer<W> {
     fn read(mut self) -> io::Result<CreateIntake> {
         let _guard = TerminalGuard::enter(&mut self.writer)?;
         self.draw()?;
+        let mut pending_event = None;
         loop {
-            match event::read()? {
+            let next_event = match pending_event.take() {
+                Some(next_event) => next_event,
+                None => event::read()?,
+            };
+            match next_event {
                 Event::Paste(value) => {
                     self.absorb_paste(&value);
+                    self.drain_text_input(&mut pending_event)?;
+                    self.reconcile_typed_drop();
                     self.draw()?;
                 }
                 Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
@@ -173,8 +181,16 @@ impl<W: Write> Composer<W> {
                             "intake interrupted",
                         ));
                     }
-                    KeyCode::Char(character) => {
-                        self.push_character(character);
+                    KeyCode::Char('j' | 'm') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.append_character('\n');
+                        self.drain_text_input(&mut pending_event)?;
+                        self.reconcile_typed_drop();
+                        self.draw()?;
+                    }
+                    KeyCode::Char(character) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.append_character(character);
+                        self.drain_text_input(&mut pending_event)?;
+                        self.reconcile_typed_drop();
                         self.draw()?;
                     }
                     KeyCode::Tab => {
@@ -220,10 +236,39 @@ impl<W: Write> Composer<W> {
         self.drop_scan_start = self.prompt.len();
     }
 
+    #[cfg(test)]
     fn push_character(&mut self, character: char) {
+        self.append_character(character);
+        self.reconcile_typed_drop();
+    }
+
+    fn append_character(&mut self, character: char) {
         self.prompt.push(character);
         self.notice = None;
-        self.reconcile_typed_drop();
+    }
+
+    fn drain_text_input(&mut self, pending_event: &mut Option<Event>) -> io::Result<()> {
+        while event::poll(Duration::from_millis(4))? {
+            let next_event = event::read()?;
+            match next_event {
+                Event::Paste(value) => self.absorb_paste(&value),
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    match (&key.code, key.modifiers.contains(KeyModifiers::CONTROL)) {
+                        (KeyCode::Char('j' | 'm'), true) => self.append_character('\n'),
+                        (KeyCode::Char(character), false) => self.append_character(*character),
+                        _ => {
+                            *pending_event = Some(Event::Key(key));
+                            break;
+                        }
+                    }
+                }
+                other => {
+                    *pending_event = Some(other);
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn reconcile_typed_drop(&mut self) {
@@ -287,22 +332,42 @@ impl<W: Write> Composer<W> {
     }
 
     fn draw(&mut self) -> io::Result<()> {
-        let terminal_width = terminal::size().map(|size| size.0).unwrap_or(80);
-        let lines = self.render_lines(terminal_width.clamp(32, 100) as usize);
+        let (terminal_width, terminal_height) = terminal::size().unwrap_or((80, 24));
+        let lines = self.render_lines(
+            terminal_width.clamp(32, 100) as usize,
+            terminal_height as usize,
+        );
         redraw(&mut self.writer, &mut self.rendered_height, &lines)
     }
 
-    fn render_lines(&self, width: usize) -> Vec<String> {
+    fn render_lines(&self, width: usize, terminal_height: usize) -> Vec<String> {
         let inner = width - 4;
+        let image_slots = self.render_image_slots(inner);
+        let harness = &self.harnesses[self.harness_index];
+        let model = &harness.models[self.model_index];
+        let controls = format!("↑↓ {} · ←→ {}", harness.label, model.label);
+        let action = "Enter runs Shot preview";
+        let control_lines = if action.chars().count() + controls.chars().count() + 1 <= inner {
+            vec![framed(&left_right(action, &controls, inner), inner)]
+        } else {
+            vec![
+                framed(action, inner),
+                framed(&right(&truncate(&controls, inner), inner), inner),
+            ]
+        };
+        // Leave one terminal row below the composer. Keeping this viewport
+        // fixed prevents long character-by-character pastes from scrolling
+        // the box through the terminal and corrupting its redraw coordinates.
+        let fixed_lines =
+            6 + image_slots.len() + control_lines.len() + usize::from(self.notice.is_some());
+        let prompt_height = terminal_height.saturating_sub(fixed_lines + 1).clamp(3, 10);
+        let prompt_lines = prompt_view(&self.prompt, inner, prompt_height);
+
         let mut lines = vec![truncate(
             "Describe your app (or drop the MASTER_PROMPT.md)",
             width,
         )];
         lines.push(format!("┌{}┐", "─".repeat(width - 2)));
-        let mut prompt_lines = wrap(&self.prompt, inner);
-        while prompt_lines.len() < 3 {
-            prompt_lines.push(String::new());
-        }
         lines.extend(
             prompt_lines
                 .into_iter()
@@ -310,21 +375,12 @@ impl<W: Write> Composer<W> {
         );
         lines.push(format!("├{}┤", "─".repeat(width - 2)));
         lines.push(framed("Drag up to 8 image references", inner));
-        lines.extend(self.render_image_slots(inner));
+        lines.extend(image_slots);
         if let Some(notice) = &self.notice {
             lines.push(framed(&truncate(notice, inner), inner));
         }
         lines.push(format!("├{}┤", "─".repeat(width - 2)));
-        let harness = &self.harnesses[self.harness_index];
-        let model = &harness.models[self.model_index];
-        let controls = format!("↑↓ {} · ←→ {}", harness.label, model.label);
-        let action = "Enter runs Shot preview";
-        if action.chars().count() + controls.chars().count() + 1 <= inner {
-            lines.push(framed(&left_right(action, &controls, inner), inner));
-        } else {
-            lines.push(framed(action, inner));
-            lines.push(framed(&right(&truncate(&controls, inner), inner), inner));
-        }
+        lines.extend(control_lines);
         lines.push(format!("└{}┘", "─".repeat(width - 2)));
         lines
     }
@@ -539,6 +595,21 @@ fn wrap(value: &str, width: usize) -> Vec<String> {
     output
 }
 
+fn prompt_view(value: &str, width: usize, height: usize) -> Vec<String> {
+    let mut lines = wrap(value, width);
+    if lines.len() > height {
+        let visible_content = height.saturating_sub(1);
+        let hidden = lines.len() - visible_content;
+        let mut viewport = vec![truncate(&format!("… {hidden} earlier lines"), width)];
+        viewport.extend(lines.split_off(lines.len() - visible_content));
+        return viewport;
+    }
+    while lines.len() < height {
+        lines.push(String::new());
+    }
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -604,7 +675,7 @@ mod tests {
 
     #[test]
     fn composer_shows_eight_slots_and_direct_controls() {
-        let lines = composer().render_lines(100);
+        let lines = composer().render_lines(100, 27);
         let rendered = lines.join("\n");
         assert!(rendered.contains("Describe your app (or drop the MASTER_PROMPT.md)"));
         assert!(rendered.contains("Drag up to 8 image references"));
@@ -618,13 +689,30 @@ mod tests {
     #[test]
     fn composer_stays_inside_narrow_and_wide_terminals() {
         for width in [32, 56, 80, 100] {
-            for line in composer().render_lines(width) {
+            for line in composer().render_lines(width, 27) {
                 assert!(
                     line.chars().count() <= width,
                     "{width}-column render overflowed: {line}"
                 );
             }
         }
+    }
+
+    #[test]
+    fn long_markdown_stays_in_a_fixed_viewport() {
+        let mut composer = composer();
+        composer.prompt = (1..=40)
+            .map(|number| format!("- Markdown line {number}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let lines = composer.render_lines(100, 27);
+        let rendered = lines.join("\n");
+        assert!(lines.len() <= 26);
+        assert!(rendered.contains("earlier lines"));
+        assert!(rendered.contains("Markdown line 40"));
+        assert!(!rendered.contains("Markdown line 1 "));
+        assert!(rendered.contains("Drag up to 8 image references"));
+        assert!(rendered.contains("Enter runs Shot preview"));
     }
 
     #[test]
@@ -658,7 +746,7 @@ mod tests {
         composer.absorb_paste(&format!("'{}' '{}'", first.display(), second.display()));
         assert_eq!(composer.images, [first, second]);
         assert!(composer.prompt.trim().is_empty());
-        let rendered = composer.render_lines(100).join("\n");
+        let rendered = composer.render_lines(100, 27).join("\n");
         assert!(rendered.contains("home"));
         assert!(rendered.contains("detail"));
     }
