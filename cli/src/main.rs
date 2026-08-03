@@ -21,6 +21,7 @@ use tohseno_engine::{ConductedCreation, Config, Engine, Event, EventBus, Ledger,
 const MAX_PROMPT_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_FEEDBACK_FILE_BYTES: u64 = 100_000;
 const DEFAULT_STUDIO_PORT: u16 = 8888;
+const INITIAL_REVIEW_QUESTION: &str = "Create this Shot? [y/N] ";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -482,7 +483,7 @@ async fn dispatch(
                 Engine::propose_initial_expression_plan(&request, &proposed_genome)?;
             let creation = engine.create(&request)?;
             preserve_initial_review(&creation, &proposed_genome, &expression_plan)?;
-            present_initial_review(&proposed_genome, &expression_plan, bus)?;
+            present_initial_review(&expression_plan, bus);
             let accepted = accept_genome
                 || (io::stdin().is_terminal()
                     && io::stdout().is_terminal()
@@ -871,28 +872,15 @@ fn preserve_initial_review(
     Ok(())
 }
 
-fn present_initial_review(
-    genome: &tohseno_protocol::Genome,
-    plan: &tohseno_engine::InitialExpressionPlan,
-    bus: &EventBus,
-) -> Result<(), Box<dyn std::error::Error>> {
-    bus.emit(Event::status(
-        "review the proposed Shot Genome and first expression:",
-    ));
-    bus.emit(Event::status(tohseno_engine::render_genome_document(
-        genome,
-    )?));
+fn present_initial_review(plan: &tohseno_engine::InitialExpressionPlan, bus: &EventBus) {
     bus.emit(Event::status(format!(
-        "Expression · {} · {} · {} declared organs",
-        plan.name,
-        plan.platforms.join(", "),
-        plan.organs.len()
+        "Shot preview · {} · native iPhone app",
+        plan.name
     )));
-    Ok(())
 }
 
 fn confirm_initial_review() -> Result<bool, std::io::Error> {
-    print!("Accept this Genome and native Apple expression plan? [y/N] ");
+    print!("{INITIAL_REVIEW_QUESTION}");
     io::stdout().flush()?;
     let mut answer = String::new();
     io::stdin().read_line(&mut answer)?;
@@ -958,6 +946,31 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn initial_review_is_one_lightweight_preview_and_one_direct_question() {
+        let bus = EventBus::default();
+        let mut events = bus.subscribe();
+        let plan = tohseno_engine::InitialExpressionPlan {
+            schema: "tohseno.initial-expression-plan/1".into(),
+            kind: "native_apple_application".into(),
+            name: "new-app-idea".into(),
+            platforms: vec!["iphone".into()],
+            genome_revision: 1,
+            genome_digest: tohseno_protocol::digest::Bytes32::ZERO,
+            organs: Vec::new(),
+        };
+
+        present_initial_review(&plan, &bus);
+
+        assert!(matches!(
+            events.try_recv().unwrap(),
+            Event::Status(message)
+                if message == "Shot preview · new-app-idea · native iPhone app"
+        ));
+        assert!(events.try_recv().is_err());
+        assert_eq!(INITIAL_REVIEW_QUESTION, "Create this Shot? [y/N] ");
+    }
 
     #[test]
     fn update_is_canonical_upgrade_is_an_alias_and_uninstall_is_explicit() {
