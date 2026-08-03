@@ -33,6 +33,18 @@ pub fn selection(
     if !selected.installed {
         return Err(format!("{} is not installed", selected.label).into());
     }
+    let selected_model = model.unwrap_or("default");
+    if !selected
+        .models
+        .iter()
+        .any(|candidate| candidate.id == selected_model)
+    {
+        return Err(format!(
+            "{} does not advertise model `{selected_model}` on this machine",
+            selected.label
+        )
+        .into());
+    }
     let selected_route = match route {
         Some(id) => selected.routes.iter().find(|candidate| candidate.id == id),
         None => selected.routes.iter().find(|candidate| candidate.available),
@@ -45,7 +57,7 @@ pub fn selection(
     })?;
     Ok(HarnessSelection {
         harness: selected.id.clone(),
-        model: model.unwrap_or("default").into(),
+        model: selected_model.into(),
         route: selected_route.id.clone(),
     })
 }

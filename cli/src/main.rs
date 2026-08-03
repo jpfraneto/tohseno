@@ -430,8 +430,9 @@ async fn dispatch(
             engine.prime_toolchain();
             // Resolve the harness before any intake or folder side effect: an
             // uninstalled or unauthenticated harness must fail here, not after
-            // a Shot body already exists.
-            let selection = if no_launch {
+            // a Shot body already exists. Interactive create can then change
+            // that ready selection from the one-screen composer.
+            let initial_selection = if no_launch {
                 None
             } else {
                 Some(shot_execution_commands::selection(
@@ -441,7 +442,32 @@ async fn dispatch(
                     route.as_deref(),
                 )?)
             };
-            let prompt = collect_prompt(prompt_file.as_deref(), bus)?;
+            let interactive_composer = prompt_file.is_none()
+                && !no_launch
+                && io::stdin().is_terminal()
+                && io::stdout().is_terminal();
+            let (prompt, images, selection) = if interactive_composer {
+                let intake = intake::collect_create(
+                    &engine.harnesses(),
+                    initial_selection
+                        .as_ref()
+                        .expect("interactive composer requires a harness"),
+                    images,
+                )?;
+                let selection = shot_execution_commands::selection(
+                    &engine,
+                    Some(&intake.harness),
+                    Some(&intake.model),
+                    route.as_deref(),
+                )?;
+                (intake.prompt, intake.images, Some(selection))
+            } else {
+                (
+                    collect_prompt(prompt_file.as_deref())?,
+                    images,
+                    initial_selection,
+                )
+            };
             let request = ShotRequest {
                 app_name,
                 intent: Intent::parse(&prompt).with_images(images),
@@ -510,7 +536,7 @@ async fn dispatch(
             } else if io::stdin().is_terminal() {
                 String::new()
             } else {
-                intake::collect(bus)?
+                intake::collect()?
             };
             if prompt.trim().is_empty() && note.is_some() {
                 if !selected_feedback_actions.is_empty() || !images.is_empty() {
@@ -769,11 +795,10 @@ async fn dispatch(
 
 fn collect_prompt(
     prompt_file: Option<&std::path::Path>,
-    bus: &EventBus,
 ) -> Result<String, Box<dyn std::error::Error>> {
     match prompt_file {
         Some(path) => read_prompt_file(path),
-        None => Ok(intake::collect(bus)?),
+        None => Ok(intake::collect()?),
     }
 }
 
