@@ -68,7 +68,8 @@ test("creation reviews the exact proposed Genome before an explicit acceptance",
 test("Shot preparation selects a native harness and follows durable execution events", () => {
   assert.match(html, /Coding harness/);
   assert.match(html, /Inference \/ payment route/);
-  assert.match(html, /PREPARE SHOT/);
+  assert.match(html, /REVIEW PLAN/);
+  assert.match(script, /APPROVE & OPEN TERMINAL/);
   assert.match(script, /fetch\("\/api\/harnesses"/);
   assert.match(script, /harness: ui\.harness\.value/);
   assert.match(script, /model: ui\.model\.value/);
@@ -77,6 +78,16 @@ test("Shot preparation selects a native harness and follows durable execution ev
   assert.match(script, /SHOT IN FLIGHT/);
   assert.match(script, /SHOT LANDED/);
   assert.doesNotMatch(script, /WebSocket|stream-json|output-format/);
+});
+
+test("imported intentions stay local and reuse the creation path", () => {
+  assert.match(html, /Your intention is safe on this Mac/);
+  assert.match(script, /\/api\/pending-intentions\//);
+  assert.match(script, /pending_intention_id: activePendingIntention\.id/);
+  assert.match(script, /ui\.prompt\.readOnly = Boolean\(pending\)/);
+  assert.match(script, /ui\.dropZone\.hidden = Boolean\(pending\)/);
+  assert.match(script, /openComposer\("create", activePendingIntention\)/);
+  assert.doesNotMatch(script, /activePendingIntention[\s\S]{0,200}(?:Codex|Claude).*run/);
 });
 
 test("first-run onboarding uses authoritative Mac and harness readiness", () => {

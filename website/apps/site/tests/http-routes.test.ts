@@ -39,13 +39,16 @@ const shotIconDirectory = fileURLToPath(
 const browserScriptPath = fileURLToPath(
   new URL("../public/app.js", import.meta.url),
 );
+const workerCleanupPath = fileURLToPath(
+  new URL("../public/modules/obsolete-worker-cleanup.js", import.meta.url),
+);
 const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("serves the three-command terminal landing page", async () => {
+  test("serves the intention-first landing page", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -57,26 +60,19 @@ describe("public pages", () => {
       .slice(0, 12);
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    const installIndex = body.indexOf(`data-copy-value="${INSTALL_COMMAND}"`);
-    const createIndex = body.indexOf(
-      'data-copy-value="tohseno create my-app-name"',
-    );
-    const studioIndex = body.indexOf('data-copy-value="tohseno studio"');
-    expect(installIndex).toBeGreaterThan(-1);
-    expect(createIndex).toBeGreaterThan(installIndex);
-    expect(studioIndex).toBeGreaterThan(createIndex);
-
-    expect(body.match(/data-copy-command/g)).toHaveLength(3);
-    expect(body.match(/data-copied-label="copied ✓"/g)).toHaveLength(3);
-    expect(body).toMatch(/<button[^>]*hidden[^>]*data-copy-command/);
-    expect(body).toContain('data-terminal');
-    expect(body).toContain('data-term-idle');
+    expect(body).toContain('placeholder="Paste your MASTER_PROMPT.md or just write here"');
+    expect(body).toContain('id="reference-count">0 / 8');
+    expect(body.match(/data-example/g)).toHaveLength(3);
+    expect(body).toContain(">TAKE A SHOT</button>");
+    expect(body).toMatch(/id="take-shot"[^>]*disabled/);
+    expect(body).not.toContain('class="terminal"');
+    expect(body.indexOf("TAKE A SHOT")).toBeLessThan(body.indexOf(INSTALL_COMMAND));
     expect(body).toContain("GIVE EVERY IDEA A");
     expect(body).toContain('<span class="beta-tag">BETA</span>');
-    expect(body).toContain("# give your idea a shot");
+    expect(body).toContain("Download private intent package");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('class="mobile-home"');
-    expect(body).not.toContain("shot-field");
+    expect(body).toContain("Encrypted · held for 7 days · deleted after import");
     expect(body).not.toContain("/shot-icons/");
     expect(body).not.toContain('rel="manifest"');
     expect(body).not.toContain('href="/intake"');
@@ -92,7 +88,7 @@ describe("public pages", () => {
     expect(body).toContain('rel="noopener noreferrer"');
     expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
     expect(body).toContain(
-      'content="An open-source factory for independent iOS apps — native shots you can run, use, and own in Simulator."',
+      'content="Give every idea a Shot. Begin with the intention; continue privately on your Mac."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -130,7 +126,7 @@ describe("public pages", () => {
         expect(body).toContain("tohseno migrate-legacy");
         expect(body).toContain("<code>~/Desktop/Tohseno</code>");
         expect(body).toContain(
-          "Studio does not upload Shot data to TOHSENO",
+          "Studio does not upload canonical Shot data",
         );
         expect(body).toContain(
           "TOHSENO never bypasses this human boundary",
@@ -148,10 +144,11 @@ describe("public pages", () => {
         expect(body).not.toContain("bun run tohseno");
       } else {
         expect(body).toContain("The installed factory sends no TOHSENO telemetry");
-        expect(body).toContain(
-          "requires a private local browser session for every Shot read or mutation",
-        );
-        expect(body).toContain("Every app builds and runs without TOHSENO credentials");
+        expect(body).toContain("Pending Relay Intention");
+        expect(body).toContain("never receives the decryption key");
+        expect(body).toContain("at most seven days");
+        expect(body).toContain("single-use bearer token");
+        expect(body).toContain("private but <strong>not encrypted</strong>");
       }
     }
   });
@@ -176,31 +173,18 @@ describe("public pages", () => {
       expect(target.status).toBe(200);
     }
     expect(body).not.toContain('href="#"');
-    for (const commandId of [
-      "command-install",
-      "command-create",
-      "command-studio",
-    ]) {
-      expect(body).toContain(`id="${commandId}"`);
-      expect(body).toContain(`aria-describedby="${commandId}"`);
-    }
-
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(");
-    expect(browserScript).toContain('querySelector("[data-copy-value]")');
-    expect(browserScript).toContain("prefers-reduced-motion");
-    expect(browserScript).toContain('querySelectorAll("[data-term-step]")');
-    expect(browserScript).toContain("registration.unregister()");
+    expect(browserScript).toContain("openDraftStore");
+    expect(browserScript).toContain("createEncryptedEnvelope");
+    expect(browserScript).not.toContain("innerHTML");
+    expect(browserScript).toContain("obsolete-worker-cleanup.js");
+    expect(readFileSync(workerCleanupPath, "utf8")).toContain("registration.unregister()");
     expect(browserScript).not.toContain("serviceWorker.register");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
-    expect(landingStyle).toContain("@keyframes cursor-blink");
-    expect(landingStyle).toMatch(
-      /\[data-typing\][\s\S]*?visibility:\s*hidden;/,
-    );
-    expect(landingStyle).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.term-cursor\s*\{[^}]*animation:\s*none;/,
-    );
+    expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(landingStyle).toContain(".composer");
   });
 
   test("serves the health check", async () => {
@@ -218,6 +202,7 @@ describe("public pages", () => {
       ["/fonts/fraunces-latin.woff2", "font/woff2"],
       ["/fonts/plex-mono-latin.woff2", "font/woff2"],
       ["/app.js", "text/javascript"],
+      ["/modules/intent-package.js", "text/javascript"],
       ["/manifest.webmanifest", "application/manifest+json"],
       ["/sw.js", "text/javascript"],
       ["/robots.txt", "text/plain"],

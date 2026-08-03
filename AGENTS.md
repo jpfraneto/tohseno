@@ -23,6 +23,12 @@ protocol material, not free-form docs.
 5. **`docs/STATE.md`** — plain-prose snapshot of what currently ships,
    what is inactive, and what is deferred.
 
+The web-to-local handoff in ADR 0011 is transport, not protocol law. Keep its
+terms distinct: Browser Draft, Pending Relay Intention, Local Pending
+Intention, Shot, and Evolution. A relay record is never a Shot. Production
+handoff must stay fail-closed until the matching immutable claim-capable
+release is published and the public installer pin is verified.
+
 ## Build and verify
 
 ```sh

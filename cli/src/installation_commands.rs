@@ -592,6 +592,7 @@ mod tests {
         fs::create_dir_all(root.join("releases/0.7.1-test/bin")).unwrap();
         fs::create_dir_all(root.join("share")).unwrap();
         fs::create_dir_all(root.join("identity")).unwrap();
+        fs::create_dir_all(root.join("pending-intentions/records/local-id")).unwrap();
         fs::write(
             root.join(".tohseno-install-root"),
             format!("{INSTALL_MARKER}\n"),
@@ -602,6 +603,11 @@ mod tests {
         fs::write(root.join("releases/0.7.1-test/bin/tohseno"), b"binary").unwrap();
         fs::write(root.join("identity/recovery.vault"), b"preserve").unwrap();
         fs::write(root.join("config.toml"), b"preserve = true\n").unwrap();
+        fs::write(
+            root.join("pending-intentions/records/local-id/record.json"),
+            b"preserve pending intention",
+        )
+        .unwrap();
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink("releases/0.7.1-test", root.join("current")).unwrap();
@@ -626,6 +632,10 @@ mod tests {
             b"preserve"
         );
         assert!(root.join("config.toml").is_file());
+        assert_eq!(
+            fs::read(root.join("pending-intentions/records/local-id/record.json")).unwrap(),
+            b"preserve pending intention"
+        );
         let profile = fs::read_to_string(profile).unwrap();
         assert_eq!(profile, "export PATH=\"/custom:$PATH\"\nalias t=tohseno\n");
     }

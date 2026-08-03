@@ -2,13 +2,78 @@
 set -eu
 
 repository="https://github.com/jpfraneto/tohseno"
-version="v0.8.2"
+version="v0.8.3"
 start_studio="${TOHSENO_START_STUDIO:-}"
+claim_token=""
+claim_requested=0
 
 fail() {
   printf 'TOHSENO installer: %s\n' "$1" >&2
   exit 1
 }
+
+usage() {
+  printf '%s\n' \
+    "usage: oneshot.sh [--claim TOKEN] [--no-studio]" \
+    "" \
+    "Without arguments, install or update TOHSENO and open Studio." \
+    "--claim installs through the same verified release chain, imports one" \
+    "encrypted pending intention, and opens it in local Studio." \
+    "--no-studio imports without opening Studio."
+}
+
+valid_token_segment() {
+  [ "${#1}" -eq "$2" ] || return 1
+  case "$1" in
+    *[!A-Za-z0-9_-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --claim)
+      [ "$#" -ge 2 ] || fail "--claim requires a token."
+      [ "$claim_requested" -eq 0 ] || fail "--claim may be supplied only once."
+      claim_token="$2"
+      claim_requested=1
+      shift 2
+      ;;
+    --no-studio)
+      start_studio=0
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *) fail "unknown argument; run with --help." ;;
+  esac
+done
+
+if [ "$claim_requested" -eq 1 ]; then
+  token_version="${claim_token%%.*}"
+  token_tail="${claim_token#*.}"
+  token_relay="${token_tail%%.*}"
+  token_tail="${token_tail#*.}"
+  token_capability="${token_tail%%.*}"
+  token_key="${token_tail#*.}"
+  if [ "$token_version" != "ti1" ] ||
+    [ "$token_tail" = "$token_key" ] ||
+    [ "${token_key#*.}" != "$token_key" ] ||
+    ! valid_token_segment "$token_relay" 32 ||
+    ! valid_token_segment "$token_capability" 43 ||
+    ! valid_token_segment "$token_key" 43; then
+    claim_token=""
+    token_tail=""
+    token_capability=""
+    token_key=""
+    fail "claim token is malformed or uses an unsupported version."
+  fi
+  token_tail=""
+  token_capability=""
+  token_key=""
+fi
 
 reject_symlink_components() {
   path_check_value="$1"
@@ -66,7 +131,7 @@ case "$macos_major" in
   '' | *[!0-9]*) fail "Could not parse the macOS version." ;;
 esac
 if [ "$macos_major" -lt 13 ]; then
-  fail "TOHSENO 0.8.2 requires macOS 13 or later."
+  fail "TOHSENO 0.8.3 requires macOS 13 or later."
 fi
 
 case "$(uname -m)" in
@@ -406,13 +471,13 @@ verify_artifact "$materials_name"
 
   installed_version="$("$release_stage/bin/tohseno" --version 2>/dev/null)" ||
     fail "The TOHSENO executable did not start from its private stage."
-  if [ "$installed_version" != "tohseno 0.8.2" ]; then
-    fail "The downloaded executable is not the pinned 0.8.2 release."
+  if [ "$installed_version" != "tohseno 0.8.3" ]; then
+    fail "The downloaded executable is not the pinned 0.8.3 release."
   fi
   helper_version="$("$release_stage/bin/tohseno-apple-identity" --version 2>/dev/null)" ||
     fail "The Apple identity helper did not start from its private stage."
-  if [ "$helper_version" != "tohseno-apple-identity 0.8.2" ]; then
-    fail "The downloaded Apple identity helper is not the pinned 0.8.2 release."
+  if [ "$helper_version" != "tohseno-apple-identity 0.8.3" ]; then
+    fail "The downloaded Apple identity helper is not the pinned 0.8.3 release."
   fi
 
   release_name="${version#v}-$target-$(date +%s)-$$"
@@ -619,7 +684,25 @@ if [ -d "$install_root/apps" ]; then
     "Your v0.6 apps remain untouched in $install_root/apps." \
     "After onboarding, run: tohseno migrate-legacy"
 fi
-if [ "$start_studio" -eq 1 ]; then
+if [ "$claim_requested" -eq 1 ]; then
+  printf '%s\n' \
+    "Importing the encrypted intention. The one-time token is not written by the installer."
+  claim_status=0
+  if [ "$start_studio" -eq 1 ]; then
+    printf '%s\n' "$claim_token" |
+      "$install_directory/$command_name" intent claim --stdin &
+  else
+    printf '%s\n' "$claim_token" |
+      "$install_directory/$command_name" intent claim --stdin --no-open &
+  fi
+  claim_process=$!
+  claim_token=""
+  wait "$claim_process" || claim_status=$?
+  claim_process=""
+  if [ "$claim_status" -ne 0 ]; then
+    fail "encrypted intention import did not complete. Rerun the copied claim command; local import is idempotent."
+  fi
+elif [ "$start_studio" -eq 1 ]; then
   printf '%s\n' \
     "Opening Studio. It keeps running in this terminal; press Control-C to stop it."
   cleanup

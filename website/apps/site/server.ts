@@ -2,6 +2,8 @@ import { join } from "node:path";
 import type { AppConfig } from "./config.ts";
 import { loadConfig, PRODUCT, safeStartupSummary } from "./config.ts";
 import { HttpError, withSecurityHeaders } from "./src/security.ts";
+import { INTENT_LIMITS } from "./src/intent-limits.ts";
+import { createRelayRouter } from "./src/relay-routes.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
@@ -149,8 +151,10 @@ const STATIC_FILES: Record<
 };
 
 const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;
+const BROWSER_MODULE_PATH = /^\/modules\/[a-z0-9-]+\.js$/;
 
 function semanticRoute(pathname: string): string {
+  if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
   if (pathname === "/") return "landing-page";
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
@@ -160,6 +164,7 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/whitepaper.pdf") return "whitepaper";
   if (STATIC_FILES[pathname]) return "static-asset";
   if (SHOT_ICON_PATH.test(pathname)) return "shot-icon";
+  if (BROWSER_MODULE_PATH.test(pathname)) return "browser-module";
   return "unmatched";
 }
 
@@ -216,6 +221,7 @@ export async function createApplication(
   options: ApplicationOptions = {},
 ): Promise<TohsenoApplication> {
   const config = options.config ?? loadConfig();
+  const relay = await createRelayRouter(config);
   const log = options.log ??
     ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
   const logError = options.logError ??
@@ -249,12 +255,14 @@ export async function createApplication(
     const method = request.method.toUpperCase();
     const canonicalResponse = canonicalBoundary(request, config);
     if (canonicalResponse) return canonicalResponse;
+    if (relay.handles(pathname)) return relay.fetch(request);
 
     if (method !== "GET" && method !== "HEAD") {
       if (
         (PAGE_PATHS as readonly string[]).includes(pathname) ||
         STATIC_FILES[pathname] ||
-        SHOT_ICON_PATH.test(pathname)
+        SHOT_ICON_PATH.test(pathname) ||
+        BROWSER_MODULE_PATH.test(pathname)
       ) {
         return methodNotAllowed();
       }
@@ -290,6 +298,20 @@ export async function createApplication(
             headers: {
               "Content-Type": "image/webp",
               "Cache-Control": "public, max-age=3600",
+            },
+          }),
+        ),
+        method,
+      );
+    }
+
+    if (BROWSER_MODULE_PATH.test(pathname)) {
+      return headResponse(
+        withSecurityHeaders(
+          new Response(Bun.file(join(PUBLIC_DIRECTORY, pathname.slice(1))), {
+            headers: {
+              "Content-Type": "text/javascript; charset=utf-8",
+              "Cache-Control": "public, max-age=0, must-revalidate",
             },
           }),
         ),
@@ -357,14 +379,16 @@ if (import.meta.main) {
     );
     Bun.serve({
       port: application.config.port,
-      maxRequestBodySize: 1_024,
+      // Encrypted transfers are deliberately chunked; this global bound only
+      // admits one 1 MiB chunk plus conservative HTTP framing.
+      maxRequestBodySize: INTENT_LIMITS.chunkBytes + INTENT_LIMITS.framingAllowance,
       fetch: application.fetch,
     });
   } catch (error) {
     console.error(
       JSON.stringify({
         event: "startup_failed",
-        error: error instanceof Error ? error.message : "Unknown startup error",
+        errorType: error instanceof Error ? error.constructor.name : "Unknown",
       }),
     );
     process.exit(1);

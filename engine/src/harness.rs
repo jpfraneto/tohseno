@@ -188,6 +188,44 @@ pub fn resolve_selection(
     validate_token("harness", &selection.harness)?;
     validate_token("model", &selection.model)?;
     validate_token("route", &selection.route)?;
+    if cfg!(debug_assertions)
+        && std::env::var("TOHSENO_TEST_NONLAUNCHING_HARNESS").as_deref() == Ok("1")
+        && selection.harness == "tohseno-test-nonlaunching"
+        && selection.model == "fixture"
+        && selection.route == "no-inference"
+    {
+        return Ok((
+            HarnessOption {
+                id: selection.harness.clone(),
+                label: "Nonlaunching test harness".into(),
+                command: "/usr/bin/false".into(),
+                installed: true,
+                selected: false,
+                authentication: AuthenticationStatus::Authenticated,
+                models: vec![HarnessModel {
+                    id: selection.model.clone(),
+                    label: "Fixture".into(),
+                    is_default: true,
+                }],
+                routes: vec![HarnessRoute {
+                    id: selection.route.clone(),
+                    label: "No inference".into(),
+                    billing: "none".into(),
+                    available: true,
+                    estimated_additional_cost_usd: Some(0.0),
+                    cost_estimation: true,
+                }],
+                attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+                completion_detection: "never launched".into(),
+            },
+            HarnessCommand {
+                program: PathBuf::from("/usr/bin/false"),
+                arguments: Vec::new(),
+                environment: Vec::new(),
+                removed_environment: Vec::new(),
+            },
+        ));
+    }
     let known = known_harness(&selection.harness)
         .ok_or_else(|| format!("unsupported coding harness `{}`", selection.harness))?;
     let option = describe_harness(known, false);

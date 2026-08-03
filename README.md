@@ -16,10 +16,12 @@ expressions or relationships of that Shot—not the Shot itself.
 **TOHSENO 0.8.2** ships for macOS. The system is in beta and evolving
 quickly: stable releases ship continuously. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol or public
-infrastructure. The 0.8.0 contract generation is deployed and active on
-Robinhood Chain under a threshold-signed release authority; the public
-registry workflows that would write to it are still being built, so every
-Shot remains private and local until they exist.
+infrastructure. The 0.8.0 contract generation is an inactive, untrusted
+candidate; no release reads from or writes to it.
+
+Current source identifies the next candidate as **0.8.3**. It has not been
+published. The public installer deliberately remains pinned to immutable
+0.8.2 artifacts until the release and activation runbook is completed.
 
 Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 (`eip155:4663`) as an **inactive, untrusted candidate** — see
@@ -35,6 +37,26 @@ no release reads from or writes to those contracts.
 > signed history remain valid and verifiable offline.
 
 ## The ordinary loop
+
+The public journey now starts with the intention:
+
+1. visit `tohseno.com`;
+2. write or paste the intention and add up to eight reference images;
+3. press **TAKE A SHOT**;
+4. run the one copied command on the Mac;
+5. finish the real local readiness checks and review the plan;
+6. approve the terminal handoff without entering the intention again.
+
+The Browser Draft stays in IndexedDB. When encrypted handoff is activated,
+the browser uploads only a temporary AES-256-GCM ciphertext package; the Mac
+decrypts it into a durable Local Pending Intention. The website and relay do
+not create or identify a Shot. A Shot still begins only through the existing
+local engine after the person approves the plan and boundaries. Until a
+claim-capable release is published and pinned, this source tree keeps the
+production relay experience disabled and offers the private
+`.tohseno-intent` download instead.
+
+The CLI-first route remains available as an alternative:
 
 ```sh
 curl -fsSL https://tohseno.com/oneshot.sh | bash
@@ -72,7 +94,7 @@ tohseno uninstall
 ```
 
 Uninstall never deletes visible Shot folders, identities, feedback, legacy
-data, or other machine state.
+data, imported pending intentions, or other machine state.
 
 Automation or package inspection can install without launching Studio:
 
@@ -218,6 +240,8 @@ The normative entry points are:
   for the narrowed witness and generation/activation boundary;
 - [`docs/adr/0007-app-metadata-publication-policy.md`](docs/adr/0007-app-metadata-publication-policy.md)
   for the frozen metadata compatibility and current fail-closed policy;
+- [`docs/adr/0011-encrypted-web-to-local-intention-handoff.md`](docs/adr/0011-encrypted-web-to-local-intention-handoff.md)
+  for the additive browser-to-local private transport and release gate;
 - [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for security and privacy
   boundaries;
 - [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](docs/MIGRATION_0_8_CONTRACT_GENERATION.md)

@@ -4,6 +4,30 @@ Studio is a localhost-only view and intake surface over the same engine and
 protocol used by the CLI. It does not define a second Shot model and it does
 not read Shot folders directly in browser JavaScript.
 
+## Imported local pending intentions
+
+`tohseno intent claim --stdin` and `tohseno intent open <file>` validate the
+same noncanonical private package in the engine and atomically import it under
+the machine data root (`~/.tohseno` by default). That Local Pending Intention
+is durable user state, is preserved by uninstall, has no Shot ID, and contains
+no relay capability or decryption key. Re-importing the same package returns
+the same local pending ID.
+
+The CLI opens Studio with only that opaque local ID. The localhost server
+serves the prompt metadata and bounded reference endpoints; private values are
+never put in the URL. If readiness is incomplete, Studio shows the actual
+onboarding gates and keeps the intention visibly safe. Once ready, it opens
+the existing creation surface with exact prompt and reference order, a local
+deterministic editable name suggestion, harness/model controls, cost route,
+Genome review, and the existing human-confirmed terminal boundary.
+
+`POST /api/plan` and `POST /shots` accept exactly one source: the existing
+inline composer fields or `pending_intention_id`. The server resolves pending
+content and executes the same planning and preparation path. Ambiguous mixed
+input is rejected. The record is consumed only after successful preparation;
+onboarding interruption, restart, cancellation, or preparation failure leaves
+it ready.
+
 ## Local Shot execution
 
 Studio loads installed harness adapters from the engine, including detectable

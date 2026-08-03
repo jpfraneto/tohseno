@@ -1,0 +1,19 @@
+{
+  "schema": "tohseno.intent-package-vector/1",
+  "created_at": "2026-08-03T00:00:00Z",
+  "prompt": "A quiet compatibility tree 🌲",
+  "references": [
+    {
+      "display_filename": "tree.png",
+      "media_type": "image/png",
+      "bytes_base64": "iVBORw0KGgpU"
+    },
+    {
+      "display_filename": "detail.jpeg",
+      "media_type": "image/jpeg",
+      "bytes_base64": "/9j/Sg=="
+    }
+  ],
+  "package_sha256": "be630de0006757c2e26128edd6f1bb78e87876f259eba00ad9a7b719026fee4f",
+  "package_base64": "VE9IU0lOVDEAAAMOeyJzY2hlbWEiOiJ0b2hzZW5vLmludGVudC1wYWNrYWdlLzEiLCJjcmVhdGVkX2F0IjoiMjAyNi0wOC0wM1QwMDowMDowMFoiLCJwcm9tcHQiOnsiZW5jb2RpbmciOiJ1dGYtOCIsImJ5dGVfbGVuZ3RoIjozMSwic2hhMjU2IjoiYmYyMTk2NzA3NDJhZGI3YzM1NGMzOTFmNjc2MDE1MzRiMjBmZTZmOTllY2QzZGM0YWE0YmFjMGEyMWZkY2E2NiIsInRleHQiOiJBIHF1aWV0IGNvbXBhdGliaWxpdHkgdHJlZSDwn4yyIn0sInJlZmVyZW5jZXMiOlt7Im9yZGluYWwiOjAsImRpc3BsYXlfZmlsZW5hbWUiOiJ0cmVlLnBuZyIsIm1lZGlhX3R5cGUiOiJpbWFnZS9wbmciLCJieXRlX2xlbmd0aCI6OSwic2hhMjU2IjoiZmI2NjhhZjk3NTU3YjhjMzMwMzVjYTBmNDA2M2RkNjdiZTdlNmQ0OTAzY2RlZjNjZTYzNGE4MWJiN2I4N2Y0ZSIsInBheWxvYWRfb2Zmc2V0IjowfSx7Im9yZGluYWwiOjEsImRpc3BsYXlfZmlsZW5hbWUiOiJkZXRhaWwuanBlZyIsIm1lZGlhX3R5cGUiOiJpbWFnZS9qcGVnIiwiYnl0ZV9sZW5ndGgiOjQsInNoYTI1NiI6Ijg5MWQ4NTFmN2UyMzk3MTcxMmE4ZWNiMWViMGYyZTliYjQ5Y2IxNzc3OGFmMDE5MmFjNDJkYWJmZjhlNTVmYTEiLCJwYXlsb2FkX29mZnNldCI6OX1dLCJsaW1pdHMiOnsidmVyc2lvbiI6MSwibWF4X3Byb21wdF9ieXRlcyI6MTA0ODU3NiwibWF4X3JlZmVyZW5jZXMiOjgsIm1heF9yZWZlcmVuY2VfYnl0ZXMiOjE2Nzc3MjE2LCJtYXhfdG90YWxfcmVmZXJlbmNlX2J5dGVzIjo1MDMzMTY0OCwibWF4X3BhY2thZ2VfYnl0ZXMiOjY3MTA4ODY0fX2JUE5HDQoaClT/2P9K"
+}

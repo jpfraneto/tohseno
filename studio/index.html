@@ -43,9 +43,10 @@
             <span class="onboarding-kicker">01 · THE PREMISE</span>
             <h2>One intention becomes a living app.</h2>
             <p>
-              TOHSENO keeps the intention, identity, source, and every accepted
-              Evolution together on this Mac. Studio is local. Your private intention,
-              images, feedback, and harness conversation are not sent to a TOHSENO server.
+              TOHSENO keeps local pending state, identity, source, and every accepted
+              Evolution on this Mac. Studio is local. The optional website handoff sends
+              only client-encrypted ciphertext; plaintext intentions, images, feedback,
+              and harness conversations are not available to the relay.
             </p>
             <div class="onboarding-principles">
               <div><strong>You direct it.</strong><span>The agent remains an authentic Codex or Claude Code session.</span></div>
@@ -163,7 +164,11 @@
               eight reference images land in the app folder TOHSENO creates and are
               handed to your harness.
             </p>
-            <div class="first-shot-form">
+            <section id="onboarding-pending-safe" class="pending-safe" hidden>
+              <strong>Your intention is safe on this Mac</strong>
+              <span>Finish these real readiness steps, then continue directly into the imported intention. Nothing needs to be typed or attached again.</span>
+            </section>
+            <div id="onboarding-first-shot-form" class="first-shot-form">
               <label>
                 <span>App name</span>
                 <input
@@ -487,6 +492,11 @@
             <input id="app-name" name="app_name" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">
           </label>
 
+          <section id="pending-safe" class="pending-safe" hidden>
+            <strong>Your intention is safe on this Mac</strong>
+            <span>The exact imported prompt and ordered references remain local until Shot preparation succeeds.</span>
+          </section>
+
           <label>
             <span id="prompt-label">Make the intention exact</span>
             <textarea id="prompt" name="prompt" required placeholder="A focused, offline app that…"></textarea>
@@ -535,7 +545,7 @@
             </div>
           </section>
 
-          <button id="submit" class="submit-shot" type="submit" disabled>PREPARE SHOT</button>
+          <button id="submit" class="submit-shot" type="submit" disabled>REVIEW PLAN</button>
 
           <section class="press">
             <div class="press-heading">

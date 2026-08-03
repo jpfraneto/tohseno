@@ -3119,3 +3119,20 @@ textarea:disabled {
     grid-column: auto;
   }
 }
+.pending-safe {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--chemical-amber, #ff9d18);
+  border-radius: 8px;
+  background: rgba(255, 157, 24, 0.07);
+}
+
+.pending-safe strong {
+  color: var(--chemical-amber, #ff9d18);
+}
+
+.pending-safe span {
+  color: var(--bone-60, #aaa69d);
+  font-size: 0.78rem;
+}

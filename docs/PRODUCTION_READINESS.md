@@ -1,5 +1,10 @@
 # TOHSENO production readiness — controlled local alpha gate
 
+> Historical note: this report records the 2026-07-31 local-alpha session.
+> Current shipped and inactive state is in `docs/STATE.md`. The encrypted
+> web-to-local handoff added on 2026-08-03 remains production-disabled until
+> `release/WEB_INTENTION_HANDOFF_ACTIVATION.md` is completed in order.
+
 Assessed 2026-07-31 at the end of the first complete dogfooding cycle
 (`docs/DOGFOOD_REPORT.md`), after the Phase-8 repairs, against a second
 clean workspace. Every claim below was verified on this machine in this

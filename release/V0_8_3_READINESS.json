@@ -1,0 +1,35 @@
+{
+  "schema": "tohseno.release-readiness/1",
+  "version": "0.8.3",
+  "channel": "stable",
+  "ready": true,
+  "authorization": {
+    "authorized": true,
+    "authorized_by": "jpfraneto",
+    "authorized_at": "2026-08-03T17:13:24Z",
+    "authorization_form": "owner instruction in the working session: publish v0.8.3 and deploy the encrypted intention handoff"
+  },
+  "protection": {
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 20314843,
+    "verified_at": "2026-08-03T17:13:24Z"
+  },
+  "evidence": {
+    "predecessor_tag": "v0.8.2",
+    "predecessor_release_immutable": true,
+    "product_minor_version": "0.8.3",
+    "claim_capable_installer": true,
+    "public_installer_repointed": false,
+    "production_relay_enabled": false,
+    "release_workflow_run": null
+  },
+  "publication": {
+    "tag": null,
+    "release_url": null,
+    "release_immutable": false,
+    "production_url": "https://tohseno.com",
+    "tohseno_com_installer_verified": false,
+    "installer_byte_identical_to_repository": false
+  }
+}

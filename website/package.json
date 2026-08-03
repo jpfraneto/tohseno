@@ -1,6 +1,6 @@
 {
   "name": "tohseno",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --watch apps/site/server.ts",
     "start": "bun apps/site/server.ts",
+    "relay:cleanup": "bun apps/site/scripts/cleanup-intent-relay.ts",
     "site:icons": "bun apps/site/scripts/extract-shot-icons.ts",
     "tohseno": "bun packages/cli/src/bin.ts",
     "tohseno:link": "bun link --cwd packages/cli",
@@ -17,7 +18,7 @@
     "test": "bun test",
     "validate": "bun packages/manifest/cli.ts",
     "typecheck": "bunx tsc --noEmit",
-    "check": "bun scripts/check.ts"
+    "check": "bun run typecheck && bun test"
   },
   "devDependencies": {
     "@types/bun": "^1.2.18",

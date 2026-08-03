@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
+    <meta name="description" content="How TOHSENO keeps browser drafts local, relays only temporary ciphertext, and creates canonical Shots on the Mac.">
     <meta name="theme-color" content="#11100e">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{BRAND}}">
     <meta property="og:title" content="Privacy — {{BRAND}}">
-    <meta property="og:description" content="TOHSENO privacy: no site accounts, analytics, or forms. Apps declare data behavior and start with local, account-free defaults.">
+    <meta property="og:description" content="Browser-local drafts, explicit encrypted handoff, temporary ciphertext, and local canonical Shots.">
     <meta property="og:url" content="{{CANONICAL_ORIGIN}}/privacy">
     <meta property="og:image" content="{{OG_IMAGE_URL}}">
     <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
     <title>Privacy — {{BRAND}}</title>
     <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/styles.css">
-    <script src="/app.js" defer></script>
+    <script src="/modules/obsolete-worker-cleanup.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -39,25 +39,36 @@
         <header class="document-header">
           <p class="eyebrow">TOHSENO / PRIVACY</p>
           <h1>Privacy notice</h1>
-          <p class="document-intro">No TOHSENO account, analytics, or generated-app content backend. The factory runs locally; each app declares its own data behavior.</p>
+          <p class="document-intro">No TOHSENO account or analytics. Your browser holds the editable draft; an explicit handoff relays only temporary ciphertext; your Mac creates the Shot.</p>
         </header>
 
         <section>
-          <h2>This website</h2>
-          <p>tohseno.com serves static pages. It has no accounts, no forms, no cookies, no analytics, and no third-party browser resources. The server keeps standard operational request logs (route, status, timing) with no tracking identifiers.</p>
+          <h2>Before TAKE A SHOT</h2>
+          <p>The prompt and reference images are a <strong>Browser Draft</strong>. They remain in browser memory and a versioned IndexedDB record on this device so a reload can restore them. TOHSENO does not put them in cookies, URLs, service workers, server-rendered pages, analytics, or application logs. There is no account, email collection, advertising, analytics, or third-party browser script.</p>
+          <p>The browser reports “Saved on this device” only after IndexedDB confirms the write. Clearing browser site data removes that copy. The private download is a second local fallback.</p>
         </section>
 
         <section>
-          <h2>The local factory</h2>
-          <p>The installed factory sends no TOHSENO telemetry. The public installer verifies the immutable CLI, Apple identity helper, and protocol materials before installing them locally. Each Shot carries its own local history and signed protocol records.</p>
-          <p>TOHSENO Studio runs on the Mac and binds to <code>127.0.0.1</code>. It opens through an owner-only temporary launcher and requires a private local browser session for every Shot read or mutation. Intentions, reference images, Shots, builds, and execution records are not uploaded to tohseno.com. Temporary browser uploads are removed after the local request finishes or fails safely.</p>
-          <p>Each Shot keeps its exact intention package, reference copies, feedback, and harness execution records inside gitignored <code>.tohseno</code> directories so the owner can move the complete Shot between their machines. Private input is not committed to the Shot’s Git history or written to centralized TOHSENO logs. After every coding-harness exit, the verifier independently compares the repository state and reports an accepted Evolution only when it passes the local gates. Anyone given the whole unfiltered Shot directory may also receive private material, so owners should inspect it before sharing an archive.</p>
-          <p>TOHSENO itself does not send creation input to a TOHSENO service. A coding agent selected by the owner can read that input to build the app; its provider is a separate trust boundary with its own account, privacy, and retention terms.</p>
+          <h2>After TAKE A SHOT</h2>
+          <p>The browser freezes a transfer snapshot, packages the exact prompt and ordered references, and encrypts the complete package with a fresh AES-256-GCM key and nonce before upload. The <strong>Pending Relay Intention</strong> is bounded opaque ciphertext. The relay never receives the decryption key and cannot see the plaintext prompt, reference bytes, filenames, or a canonical Shot identity. It does no classification, indexing, model inference, or content analytics.</p>
+          <p>The relay operator may see unavoidable transport information: request IP, creation time, ciphertext size, chunk count, expiry, state, response status, and duration. Incomplete uploads expire after one hour. Ready ciphertext is held for at most seven days and is deleted synchronously after the Mac confirms a durable import, or deleted on expiry. Short-lived metadata-only tombstones let the browser observe the terminal state. Infrastructure snapshots or operator failure can retain ciphertext longer, but it remains encrypted without the separately held key.</p>
+          <p>The copied command contains a high-entropy, single-use bearer token. Anyone who obtains it before claim can import the intention. The command can remain in shell history unless the shell is configured otherwise; after successful import or expiry its capability no longer works.</p>
+        </section>
+
+        <section>
+          <h2>On the Mac</h2>
+          <p>The verified CLI claims, downloads, verifies, and decrypts locally. It imports a <strong>Local Pending Intention</strong> into durable private machine state before acknowledging deletion. That record is still not a Shot. TOHSENO Studio binds to <code>127.0.0.1</code>, keeps the intention safe through onboarding and restarts, and uses the existing local engine only after the person reviews the plan and boundaries. The engine then creates the canonical <strong>Shot</strong>; later immutable continuations are <strong>Evolutions</strong>.</p>
+          <p>The installed factory sends no TOHSENO telemetry. A selected coding harness can read the intention and references only after local approval to do the requested work; its provider is a separate trust boundary with its own account, privacy, and retention settings.</p>
+        </section>
+
+        <section>
+          <h2>The downloaded private package</h2>
+          <p><code>.tohseno-intent</code> is generated entirely in the browser and contains the readable prompt and original reference bytes. It is private but <strong>not encrypted</strong>. Store and share it as carefully as the original files, then import it locally with <code>tohseno intent open &lt;file&gt;</code>.</p>
         </section>
 
         <section>
           <h2>Apps built on these rails</h2>
-          <p>Apps start from a neutral kernel with local, account-free defaults and no backend, analytics, writing, or identity assumption. Their manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations; an accepted app may therefore declare an owner-controlled or third-party service. TOHSENO itself operates no centralized content backend for generated apps and has no path for their users' content. Every app builds and runs without TOHSENO credentials.</p>
+          <p>Apps start from a local, account-free baseline. Their accepted manifest declares data, storage, network, identity, integrations, entitlements, and irreversible operations. TOHSENO operates no centralized content backend for generated apps and receives none of their users’ runtime content.</p>
         </section>
 
         <section>

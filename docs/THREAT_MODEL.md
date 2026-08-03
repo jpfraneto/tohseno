@@ -20,6 +20,7 @@ Protected assets:
 
 Principal boundaries:
 
+- browser draft ↔ encrypted relay ↔ local claim CLI;
 - human owner ↔ local CLI or Studio;
 - local engine ↔ coding agent, templates, dependencies, Xcode, and build tools;
 - generated repository ↔ public export;
@@ -41,6 +42,89 @@ is sincere, that generated source is universally safe, that unavailable data
 exists, or that an authorized owner made a wise decision.
 
 ## Threats and controls
+
+### Encrypted web-to-local intention handoff
+
+Threat: script injection at the public origin steals the Browser Draft,
+AES-GCM key, or bearer capabilities before claim.
+
+Controls: no external scripts, no inline-script dependency, strict same-origin
+CSP, no analytics or service worker, text-only DOM construction, and no
+private values in URLs or server-rendered markup. This reduces exposure but
+cannot protect a browser already compromised by XSS or an extension.
+
+Threat: a copied `ti1` token is stolen, retained in shell history, replayed,
+or sent to a substituted relay.
+
+Controls: three independent random capabilities, single-use claim leasing,
+short lifetimes, verifier-only relay storage, no arbitrary origin in the
+token, a fixed official HTTPS CLI origin, a debug-only loopback override, and
+idempotent local import. Anyone with the token before the legitimate claim can
+still import it. The original command may remain in shell history after the
+token is expired or consumed.
+
+Threat: chunks are corrupted, swapped, truncated, duplicated, or delivered
+across a server restart or expired lease.
+
+Controls: ordered indexes, declared lengths/counts, per-chunk SHA-256,
+complete ciphertext SHA-256, authenticated AES-GCM associated data,
+idempotent identical-chunk retries, conflicting retry rejection, durable
+metadata, and lease expiry back to ready. Browser closure leaves the immutable
+transfer state in IndexedDB for retry; the active draft remains the safety
+copy. Browser storage can still be cleared by the person or browser.
+
+Threat: a malicious package uses oversized lengths, gaps, overlaps, trailing
+bytes, unsafe filenames, path traversal, symlinks, unsupported image bytes,
+extension/signature disagreement, or duplicate content.
+
+Controls: both browser construction and the shared Rust parser enforce the
+framed schema and conservative web limits; Rust treats every declared length
+as untrusted, requires exact contiguous offsets and digests, reuses engine
+image-byte validation, and atomically imports only into an opaque private
+directory beneath the canonical data root. Roots and records reject symlinks.
+The engine's broader local image limit remains unchanged; an oversized web
+reference is directed to the local Studio path.
+
+Threat: disk exhaustion, request abuse, cross-origin mutation, path probing,
+or arbitrary-origin/SSRF attempts exhaust or redirect the relay and claimant.
+
+Controls: deterministic record/chunk/request bounds, configurable global and
+per-source rates, capacity limits, opaque server-generated IDs, no
+user-controlled paths, exact browser Origin and Fetch Metadata checks, no
+CORS, strict content types, HTTPS production origin, bounded CLI responses,
+and opportunistic plus independently runnable cleanup. These controls are not
+an abuse-proofing claim; upstream connection and volumetric limits remain an
+operator responsibility.
+
+Threat: the relay operator observes private content, deletion fails, or the
+server stops during upload/claim.
+
+Controls: the relay receives ciphertext but never the AES key, prompt,
+references, filenames, or canonical Shot identity. It may see transport IP,
+time, ciphertext size, chunk count, expiry, and state. Completion deletes the
+ciphertext synchronously before returning success; expiry also deletes it and
+leaves a short-lived metadata tombstone. Infrastructure snapshots or a
+malicious operator can retain ciphertext, although it remains undecryptable
+without the separately held key. Durable records and recoverable leases
+survive ordinary process restarts.
+
+Threat: local disk persistence fails after decryption, a completion response
+is lost, or the local machine is compromised.
+
+Controls: the engine validates before writing, uses private permissions,
+fsync plus atomic rename, deduplicates by complete package digest, retains the
+local package if relay acknowledgement fails, and completes the relay only
+after durable import. A compromised local account can read local plaintext;
+TOHSENO cannot protect content from the machine authorized to use it.
+
+Threat: the website becomes ready before the public installer release can
+claim packages.
+
+Controls: production availability requires explicit relay storage,
+`INTENT_RELAY_ENABLED`, HTTPS canonical origin, and the separate
+`CLAIM_INSTALLER_READY` assertion. Release ordering is mandatory and public
+installer pins are tested. Until activation the browser offers only the
+honestly described private file and generic installer paths.
 
 ### Forged lineage actions
 

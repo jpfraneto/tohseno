@@ -2,6 +2,7 @@ mod bankr_launch;
 mod identity_commands;
 mod installation_commands;
 mod intake;
+mod intent_commands;
 mod protocol_commands;
 mod renderer;
 mod shot_commands;
@@ -126,6 +127,14 @@ enum Command {
         /// Loopback port. Use 0 to ask macOS for any available port.
         #[arg(long, default_value_t = DEFAULT_STUDIO_PORT)]
         port: u16,
+        /// Open one already-imported local pending intention.
+        #[arg(long, value_name = "LOCAL_PENDING_ID")]
+        pending: Option<String>,
+    },
+    /// Import a private browser or portable intention into local pending state.
+    Intent {
+        #[command(subcommand)]
+        command: IntentCommand,
     },
     /// Check local prerequisites.
     Doctor {
@@ -233,6 +242,32 @@ enum Command {
     Shot {
         #[command(subcommand)]
         command: ShotExecutionCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum IntentCommand {
+    /// Claim one encrypted pending relay intention and open it in Studio.
+    Claim {
+        #[arg(
+            value_name = "TOKEN",
+            required_unless_present = "stdin",
+            conflicts_with = "stdin"
+        )]
+        token: Option<String>,
+        /// Read the one-time claim token from standard input.
+        #[arg(long)]
+        stdin: bool,
+        /// Import durably without opening Studio.
+        #[arg(long)]
+        no_open: bool,
+    },
+    /// Import a private .tohseno-intent file and open it in Studio.
+    Open {
+        path: PathBuf,
+        /// Import durably without opening Studio.
+        #[arg(long)]
+        no_open: bool,
     },
 }
 
@@ -584,9 +619,27 @@ async fn dispatch(
                 .retire(&app_name, local)
                 .await?;
         }
-        Command::Studio { port } => {
-            studio_server::serve(port, bus.clone()).await?;
-        }
+        Command::Studio { port, pending } => match pending {
+            Some(id) => studio_server::open_or_serve_pending(port, &id, bus.clone()).await?,
+            None => studio_server::serve(port, bus.clone()).await?,
+        },
+        Command::Intent { command } => match command {
+            IntentCommand::Claim {
+                token,
+                stdin,
+                no_open,
+            } => {
+                let token = if stdin {
+                    intent_commands::read_claim_token_from_stdin()?
+                } else {
+                    token.expect("clap requires a token unless --stdin is used")
+                };
+                intent_commands::claim(token, no_open, bus).await?;
+            }
+            IntentCommand::Open { path, no_open } => {
+                intent_commands::open_package(&path, no_open, bus).await?;
+            }
+        },
         Command::Shot { command } => match command {
             ShotExecutionCommand::Harnesses => {
                 let engine = Engine::discover(bus.clone())?;
@@ -1019,12 +1072,19 @@ mod tests {
         assert!(matches!(
             parsed.command,
             Command::Studio {
-                port: DEFAULT_STUDIO_PORT
+                port: DEFAULT_STUDIO_PORT,
+                pending: None,
             }
         ));
 
         let ephemeral = Cli::try_parse_from(["tohseno", "studio", "--port", "0"]).unwrap();
-        assert!(matches!(ephemeral.command, Command::Studio { port: 0 }));
+        assert!(matches!(
+            ephemeral.command,
+            Command::Studio {
+                port: 0,
+                pending: None,
+            }
+        ));
     }
 
     #[test]

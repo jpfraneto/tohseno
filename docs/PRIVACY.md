@@ -4,6 +4,24 @@ TOHSENO is local and private by default. Publication is an explicit,
 Builder-authorized transition; a private/local Shot does not enter the public
 Builder graph merely because it exists.
 
+The optional web-to-local handoff is a transport boundary, not publication.
+Before **TAKE A SHOT**, the Browser Draft remains in browser memory and
+IndexedDB. After that explicit action, the browser sends only AES-256-GCM
+ciphertext to the temporary relay. The relay never receives the key or
+decryptable prompt/reference bytes, and it never creates a Shot. The Mac
+decrypts and validates the package into durable local pending state before the
+relay deletes its ciphertext. The canonical Shot remains local and is created
+only by the engine after local approval.
+
+The operator may unavoidably observe request IP, timing, ciphertext byte size,
+chunk count, expiry, and relay state. Incomplete uploads expire after one hour;
+ready ciphertext expires after at most seven days and is deleted after durable
+import. The copied command contains a high-entropy, single-use bearer token;
+anyone possessing it before claim can import the package, and the original
+pasted command may remain in shell history after expiry. A downloaded
+`.tohseno-intent` package is readable private material, not encrypted. There
+are no site accounts, analytics, or model-inference calls during this handoff.
+
 ## Never on-chain
 
 No contract action or registry head may be constructed from:
