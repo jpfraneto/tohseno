@@ -124,6 +124,28 @@ test("browser package reaches durable local pending state and Studio without a p
     }) });
     expect(stopped.status).toBe(422);
     expect(readdirSync(join(dataRoot, "pending-intentions/records"))).toContain(pendingId);
+
+    studio.kill();
+    await studio.exited;
+    studio = Bun.spawn([join(repository, "target/debug/tohseno"), "studio", "--port", String(studioPort), "--pending", pendingId], {
+      cwd: repository, env: {
+        ...process.env, TOHSENO_DATA_ROOT: dataRoot, TOHSENO_HOME: join(root, "shots"),
+        TOHSENO_STUDIO_NO_OPEN: "1", TOHSENO_IDENTITY_BACKEND: "software-test",
+        TOHSENO_APPLE_IDENTITY_HELPER: identityHelper,
+        TOHSENO_TEST_NONLAUNCHING_HARNESS: "1",
+      }, stdout: "pipe", stderr: "pipe",
+    });
+    let restarted = false;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        const pending = await fetch(`http://127.0.0.1:${studioPort}/api/pending-intentions/${pendingId}`);
+        if (pending.ok) { restarted = true; break; }
+      } catch { /* restarting */ }
+      await Bun.sleep(100);
+    }
+    expect(restarted).toBe(true);
+    expect(readdirSync(join(dataRoot, "pending-intentions/records"))).toContain(pendingId);
+
     const prepared = await fetch(`http://127.0.0.1:${studioPort}/shots`, { method: "POST", headers: studioHeaders, body: JSON.stringify({
       mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId, accept_genome: true,
       selected_feedback_actions: [], harness: "tohseno-test-nonlaunching", model: "fixture", route: "no-inference",
