@@ -72,6 +72,9 @@ const ui = {
   imageInput: document.querySelector("#images"),
   dropZone: document.querySelector("#drop-zone"),
   attachments: document.querySelector("#attachments"),
+  pendingSafe: document.querySelector("#pending-safe"),
+  onboardingPendingSafe: document.querySelector("#onboarding-pending-safe"),
+  onboardingFirstShotForm: document.querySelector("#onboarding-first-shot-form"),
   harness: document.querySelector("#harness"),
   model: document.querySelector("#model"),
   route: document.querySelector("#route"),
@@ -206,6 +209,7 @@ let selectedShot = null;
 let composerMode = "create";
 let composerAppName = null;
 let reviewedInitialPlan = null;
+let activePendingIntention = null;
 let files = [];
 let screenshotTimer = null;
 let pendingShot = null;
@@ -1202,7 +1206,7 @@ const applyPreferredHarness = () => {
 const updateSubmitState = () => {
   const validName = composerMode === "evolve" || (ui.appName.validity.valid && ui.appName.value.length > 0);
   const ready = validName
-    && ui.prompt.value.trim().length > 0
+    && (activePendingIntention || ui.prompt.value.trim().length > 0)
     && selectedHarness()?.installed
     && selectedRoute()?.available
     && !pressActive
@@ -1212,8 +1216,8 @@ const updateSubmitState = () => {
 
 const restingSubmitLabel = () => (
   composerMode === "create" && !reviewedInitialPlan
-    ? "REVIEW SHOT PLAN"
-    : `PREPARE SHOT (${costLabel()})`
+    ? "REVIEW PLAN"
+    : `APPROVE & OPEN TERMINAL (${costLabel()})`
 );
 
 const setComposerBusy = (busy, busyLabel = "Preparing Shot…") => {
@@ -1252,8 +1256,9 @@ const renderInitialPlanReview = (plan, appName, prompt) => {
   ui.planReview.hidden = false;
 };
 
-const openComposer = (mode) => {
+const openComposer = (mode, pending = null) => {
   composerMode = mode;
+  activePendingIntention = pending;
   composerAppName = mode === "evolve" ? selectedApp.name : null;
   files = [];
   shotCompleted = false;
@@ -1269,6 +1274,13 @@ const openComposer = (mode) => {
     ui.appNameLabel.hidden = false;
     ui.appName.required = true;
     ui.promptLabel.textContent = "Make the intention exact";
+    if (pending) {
+      ui.composerKicker.textContent = "IMPORTED INTENTION";
+      ui.composerTitle.textContent = "Review locally";
+      ui.composerSupport.textContent = "The website received it. This Mac gives it a body.";
+      ui.appName.value = pending.suggested_app_name;
+      ui.prompt.value = pending.prompt;
+    }
   } else {
     const selectionKey = `${composerAppName}:${selectedApp.latest_evolution}`;
     const selectedCount = selectedFeedbackActions.get(selectionKey)?.size || 0;
@@ -1282,6 +1294,12 @@ const openComposer = (mode) => {
     ui.appName.value = composerAppName;
     ui.promptLabel.textContent = "What should change?";
   }
+
+  ui.pendingSafe.hidden = !pending;
+  ui.prompt.readOnly = Boolean(pending);
+  ui.dropZone.hidden = Boolean(pending);
+  ui.imageInput.disabled = Boolean(pending);
+  renderFiles();
 
   ui.composer.hidden = false;
   ui.composerSplitter.hidden = false;
@@ -1337,7 +1355,8 @@ const onboardingStepReady = () => {
     return onboardingFacts?.xcode.ready && onboardingFacts?.apple_signing.ready;
   }
   if (onboardingStep === 3) return onboardingFacts?.harness_ready === true;
-  return onboardingFacts?.ready_for_first_shot === true && firstShotComplete();
+  return onboardingFacts?.ready_for_first_shot === true
+    && (activePendingIntention !== null || firstShotComplete());
 };
 
 const renderOnboarding = () => {
@@ -1352,10 +1371,14 @@ const renderOnboarding = () => {
   });
   ui.onboardingBack.hidden = onboardingStep === 1;
   ui.onboardingPosition.textContent = `Step ${onboardingStep} of 4`;
-  ui.onboardingNext.textContent = onboardingStep === 4 ? "BEGIN FIRST SHOT" : "Continue";
+  ui.onboardingNext.textContent = onboardingStep === 4
+    ? (activePendingIntention ? "CONTINUE TO SAVED INTENTION" : "BEGIN FIRST SHOT")
+    : "Continue";
   ui.onboardingNext.disabled = !onboardingStepReady();
 
   if (!onboardingFacts) return;
+  ui.onboardingPendingSafe.hidden = !activePendingIntention;
+  ui.onboardingFirstShotForm.hidden = Boolean(activePendingIntention);
   ui.onboardingXcode.dataset.status = onboardingFacts.xcode.ready ? "ready" : "action";
   ui.onboardingXcodeDetail.textContent = onboardingFacts.xcode.detail;
   ui.onboardingSigning.dataset.status = onboardingFacts.apple_signing.ready ? "ready" : "action";
@@ -1374,6 +1397,9 @@ const renderOnboarding = () => {
     ui.onboardingReady.dataset.status = "action";
     ui.onboardingReady.textContent =
       "Finish the Apple and harness steps before taking the first Shot.";
+  } else if (activePendingIntention) {
+    ui.onboardingReady.dataset.status = "ready";
+    ui.onboardingReady.textContent = "This Mac is ready to review the safely imported intention.";
   } else if (!firstShotComplete()) {
     ui.onboardingReady.dataset.status = "ready";
     ui.onboardingReady.textContent =
@@ -1441,6 +1467,11 @@ const beginFirstShot = () => {
   localStorage.setItem(onboardingCompletionKey, "1");
   localStorage.removeItem(onboardingStepKey);
   hideOnboarding();
+  if (activePendingIntention) {
+    openComposer("create", activePendingIntention);
+    updateSubmitState();
+    return;
+  }
   openComposer("create");
   ui.appName.value = ui.onboardingAppName.value;
   ui.prompt.value = ui.onboardingIntention.value;
@@ -1576,10 +1607,11 @@ for (const field of [ui.onboardingAppName, ui.onboardingIntention]) {
 }
 
 const renderFiles = () => {
-  ui.attachments.replaceChildren(...files.map((file) => {
+  const imported = activePendingIntention?.references || [];
+  ui.attachments.replaceChildren(...[...imported, ...files].map((file) => {
     const chip = document.createElement("span");
     chip.className = "attachment";
-    chip.textContent = file.name;
+    chip.textContent = file.display_filename || file.name;
     return chip;
   }));
 };
@@ -1663,7 +1695,9 @@ ui.form.addEventListener("submit", async (event) => {
       const response = await fetch("/api/plan", {
         method: "POST",
         headers: studioJsonHeaders,
-        body: JSON.stringify({ app_name: appName, prompt }),
+        body: JSON.stringify(activePendingIntention
+          ? { app_name: appName, pending_intention_id: activePendingIntention.id }
+          : { app_name: appName, prompt }),
       });
       if (!response.ok) throw new Error(await response.text());
       renderInitialPlanReview(await response.json(), appName, prompt);
@@ -1690,19 +1724,21 @@ ui.form.addEventListener("submit", async (event) => {
     const selected = composerMode === "evolve"
       ? [...(selectedFeedbackActions.get(selectionKey) || [])].sort()
       : [];
+    const source = activePendingIntention
+      ? { pending_intention_id: activePendingIntention.id }
+      : { prompt, images: await Promise.all(files.map(filePayload)) };
     const response = await fetch("/shots", {
       method: "POST",
       headers: studioJsonHeaders,
       body: JSON.stringify({
         mode: composerMode,
         app_name: appName,
-        prompt,
+        ...source,
         harness: ui.harness.value,
         model: ui.model.value,
         route: ui.route.value,
         accept_genome: composerMode === "create",
         selected_feedback_actions: selected,
-        images: await Promise.all(files.map(filePayload)),
       }),
     });
     if (!response.ok) throw new Error(await response.text());
@@ -2261,6 +2297,19 @@ Promise.all([
   loadProtocolOverview(),
   loadNodeStatus(),
   loadBankrStatus(),
-]).catch((error) => {
+]).then(async () => {
+  const pendingId = new URLSearchParams(window.location.search).get("pending");
+  if (!pendingId) return;
+  if (!/^[a-f0-9]{32}$/.test(pendingId)) throw new Error("local pending intention ID is malformed");
+  const response = await fetch(`/api/pending-intentions/${pendingId}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(await response.text());
+  activePendingIntention = await response.json();
+  renderOnboarding();
+  if (onboardingFacts?.ready_for_first_shot) {
+    if (ui.onboarding.hidden) openComposer("create", activePendingIntention);
+  } else if (ui.onboarding.hidden) {
+    showOnboarding();
+  }
+}).catch((error) => {
   appendEvent("status", `studio data unavailable: ${error.message}`);
 });

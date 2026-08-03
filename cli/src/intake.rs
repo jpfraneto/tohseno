@@ -347,7 +347,7 @@ impl<W: Write> Composer<W> {
         let model = &harness.models[self.model_index];
         let controls = format!("↑↓ {} · ←→ {}", harness.label, model.label);
         let action = "Enter runs Shot preview";
-        let control_lines = if action.chars().count() + controls.chars().count() + 1 <= inner {
+        let control_lines = if action.chars().count() + controls.chars().count() < inner {
             vec![framed(&left_right(action, &controls, inner), inner)]
         } else {
             vec![

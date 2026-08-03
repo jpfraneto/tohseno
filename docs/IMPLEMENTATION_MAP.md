@@ -218,3 +218,29 @@ Before ontology edits:
 Seven tracked SwiftPM build-cache files under `fascia/apple/.build` were dirty
 before this work. They are not part of the ontology change and must not be
 silently reverted.
+
+## 2026-08-03 additive web-to-local transport map
+
+This appendix describes current implementation boundaries; the historical
+baseline above remains preserved for migration context.
+
+- `website/apps/site/public/modules/` builds and encrypts the private package,
+  persists Browser Draft and immutable transfer state in IndexedDB, and drives
+  bounded relay retries. `public/app.js` is only the UI controller.
+- `website/apps/site/src/relay-storage.ts` owns the filesystem state machine;
+  `relay-routes.ts` owns strict HTTP schemas, origins, capabilities, bounds,
+  and no-store responses. `config.ts` owns the fail-closed release gate.
+- `oneshot/oneshot.sh` is the claim-capable canonical installer source. The
+  public copies remain on the published release until activation.
+- `cli/src/intent_commands.rs` owns strict claim transport and invokes the
+  engine's shared package/import code. It does not create a Shot.
+- `engine/src/intent_package.rs` owns the nonprotocol package parser;
+  `pending_intention.rs` owns atomic durable local state; `shot_layout.rs`
+  remains authoritative for reference-image byte validation.
+- `cli/src/studio_server.rs` exposes bounded localhost pending-intention reads
+  and selects either an inline or local-pending source before calling the one
+  existing planning/preparation path. `studio/` renders that state.
+
+The package and relay schemas are versioned defensive transport contracts, not
+additions to `protocol/`. They carry no app name, Shot ID, controller, wallet,
+credential, or protocol action.

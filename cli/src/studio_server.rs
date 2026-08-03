@@ -24,7 +24,8 @@ use tohseno_engine::gates::toolchain::ToolchainState;
 use tohseno_engine::protocol_lifecycle::reference_fascia_root;
 use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
 use tohseno_engine::{
-    Engine, Event, EventBus, InitialExpressionPlan, Ledger, ShotLayout, ShotRequest,
+    Engine, Event, EventBus, InitialExpressionPlan, Ledger, PendingIntentionStore, ShotLayout,
+    ShotRequest,
 };
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
 use tohseno_protocol::digest::{Address20, Bytes32};
@@ -98,10 +99,14 @@ struct ExistingTokenAssociationOutcome {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ShotSubmission {
     mode: ShotMode,
     app_name: String,
+    #[serde(default)]
     prompt: String,
+    #[serde(default)]
+    pending_intention_id: Option<String>,
     #[serde(default)]
     accept_genome: bool,
     #[serde(default)]
@@ -117,7 +122,30 @@ struct ShotSubmission {
 #[serde(deny_unknown_fields)]
 struct InitialPlanRequest {
     app_name: String,
+    #[serde(default)]
     prompt: String,
+    #[serde(default)]
+    pending_intention_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct PendingIntentionResponse {
+    schema: &'static str,
+    id: String,
+    prompt: String,
+    suggested_app_name: String,
+    references: Vec<PendingReferenceResponse>,
+    safe_on_this_mac: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct PendingReferenceResponse {
+    ordinal: usize,
+    display_filename: String,
+    media_type: String,
+    byte_length: u64,
+    sha256: String,
+    content_url: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -393,11 +421,74 @@ struct VerificationFacts {
 }
 
 pub async fn serve(port: u16, events: EventBus) -> Result<(), Box<dyn std::error::Error>> {
+    serve_inner(port, events, None).await
+}
+
+pub async fn open_or_serve_pending(
+    port: u16,
+    pending_id: &str,
+    events: EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ledger = Ledger::discover()?;
+    PendingIntentionStore::for_ledger(&ledger).load(pending_id)?;
+    if port != 0 {
+        let base = format!("http://127.0.0.1:{port}");
+        let verified = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(500))
+            .build()?
+            .get(format!("{base}/api/studio-instance"))
+            .send()
+            .await
+            .ok()
+            .filter(|response| {
+                response.status().is_success()
+                    && response
+                        .content_length()
+                        .is_some_and(|length| length <= 256)
+            });
+        let verified = match verified {
+            Some(response) => response
+                .bytes()
+                .await
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                .is_some_and(|value| {
+                    value
+                        == serde_json::json!({
+                            "schema": "tohseno.studio-instance/1",
+                            "local": true
+                        })
+                }),
+            None => false,
+        };
+        if verified {
+            let url = format!("{base}/?pending={pending_id}");
+            events.emit(Event::status(
+                "connected to the running local TOHSENO Studio.",
+            ));
+            let _ = std::process::Command::new("open").arg(url).spawn();
+            return Ok(());
+        }
+    }
+    serve_inner(port, events, Some(pending_id.to_owned())).await
+}
+
+async fn serve_inner(
+    port: u16,
+    events: EventBus,
+    pending_id: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(("127.0.0.1", port)).await?;
     let address = listener.local_addr()?;
     let url = format!("http://127.0.0.1:{}", address.port());
     events.emit(Event::status(format!("studio is ready at {url}.")));
-    let _ = std::process::Command::new("open").arg(&url).spawn();
+    let open_url = pending_id
+        .as_deref()
+        .map(|id| format!("{url}/?pending={id}"))
+        .unwrap_or_else(|| url.clone());
+    if std::env::var("TOHSENO_STUDIO_NO_OPEN").as_deref() != Ok("1") {
+        let _ = std::process::Command::new("open").arg(&open_url).spawn();
+    }
     let state = State {
         events,
         press: Arc::new(Mutex::new(())),
@@ -456,6 +547,19 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
     }
     if request.method == "GET" && request.path == "/api/apps" {
         return serve_library(&mut socket).await;
+    }
+    if request.method == "GET" && request.path == "/api/studio-instance" {
+        return respond(
+            &mut socket,
+            200,
+            "application/json; charset=utf-8",
+            r#"{"schema":"tohseno.studio-instance/1","local":true}"#,
+        )
+        .await
+        .map_err(Into::into);
+    }
+    if request.method == "GET" && request.path.starts_with("/api/pending-intentions/") {
+        return serve_pending_intention(&mut socket, &request.path).await;
     }
     if request.method == "GET" && request.path == "/api/harnesses" {
         return serve_harnesses(&mut socket, &state).await;
@@ -594,18 +698,67 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                 return Ok(());
             }
             let staging = tempfile::tempdir()?;
-            let image_paths = match stage_images(staging.path(), submission.images).await {
-                Ok(paths) => paths,
-                Err(error) => {
+            let pending_id = submission.pending_intention_id.clone();
+            let (prompt, image_paths) = if let Some(id) = pending_id.as_deref() {
+                if !matches!(submission.mode, ShotMode::Create)
+                    || !submission.prompt.is_empty()
+                    || !submission.images.is_empty()
+                {
                     respond(
                         &mut socket,
-                        422,
+                        400,
                         "text/plain; charset=utf-8",
-                        &format!("reference images were rejected: {error}"),
+                        "a local pending source cannot be combined with inline prompt or image content",
                     )
                     .await?;
                     return Ok(());
                 }
+                let ledger = Ledger::discover()?;
+                let store = PendingIntentionStore::for_ledger(&ledger);
+                let pending = match store.load(id) {
+                    Ok(pending) => pending,
+                    Err(error) => {
+                        respond(
+                            &mut socket,
+                            422,
+                            "text/plain; charset=utf-8",
+                            &format!("local pending intention was rejected: {error}"),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                };
+                let image_paths = match store
+                    .materialize_references(id, &staging.path().join("pending-references"))
+                {
+                    Ok(paths) => paths,
+                    Err(error) => {
+                        respond(
+                            &mut socket,
+                            422,
+                            "text/plain; charset=utf-8",
+                            &format!("local pending references were rejected: {error}"),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                };
+                (pending.prompt, image_paths)
+            } else {
+                let paths = match stage_images(staging.path(), submission.images).await {
+                    Ok(paths) => paths,
+                    Err(error) => {
+                        respond(
+                            &mut socket,
+                            422,
+                            "text/plain; charset=utf-8",
+                            &format!("reference images were rejected: {error}"),
+                        )
+                        .await?;
+                        return Ok(());
+                    }
+                };
+                (submission.prompt, paths)
             };
             let events = state.events.clone();
             let press = state.press.clone();
@@ -613,7 +766,7 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
             let _guard = press.lock().await;
             let request = ShotRequest {
                 app_name: submission.app_name,
-                intent: Intent::parse(&submission.prompt).with_images(image_paths),
+                intent: Intent::parse(&prompt).with_images(image_paths),
                 selected_feedback_actions: submission.selected_feedback_actions,
             };
             let outcome: Result<tohseno_engine::PreparedExecution, String> =
@@ -653,7 +806,7 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                                 &creation,
                                 &request.app_name,
                                 &selected,
-                                true,
+                                !test_nonlaunching_harness(&selected.harness),
                                 &events,
                             )
                             .map_err(|error| error.to_string())
@@ -669,7 +822,7 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                                     &creation,
                                     &request.app_name,
                                     &selected,
-                                    true,
+                                    !test_nonlaunching_harness(&selected.harness),
                                     &events,
                                 )
                                 .map_err(|error| error.to_string())
@@ -682,6 +835,16 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                 .await;
             match outcome {
                 Ok(execution) => {
+                    if let Some(id) = pending_id.as_deref() {
+                        let ledger = Ledger::discover()?;
+                        if let Err(error) = PendingIntentionStore::for_ledger(&ledger).consume(id) {
+                            events.emit(Event::status(format!(
+                                "Shot preparation succeeded but pending-state cleanup stopped: {error}"
+                            )));
+                            respond(&mut socket, 500, "text/plain; charset=utf-8", "Shot was prepared, but the local pending receipt could not be committed").await?;
+                            return Ok(());
+                        }
+                    }
                     let body = serde_json::to_string(&execution)?;
                     respond(&mut socket, 201, "application/json; charset=utf-8", &body).await?;
                 }
@@ -700,6 +863,12 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         _ => respond(&mut socket, 404, "text/plain; charset=utf-8", "not found").await?,
     }
     Ok(())
+}
+
+fn test_nonlaunching_harness(harness: &str) -> bool {
+    cfg!(debug_assertions)
+        && harness == "tohseno-test-nonlaunching"
+        && std::env::var("TOHSENO_TEST_NONLAUNCHING_HARNESS").as_deref() == Ok("1")
 }
 
 async fn serve_bankr_launch_status(
@@ -1078,9 +1247,38 @@ async fn serve_initial_plan(
             return Ok(());
         }
     };
+    if request.pending_intention_id.is_some() && !request.prompt.is_empty() {
+        respond(
+            socket,
+            400,
+            "text/plain; charset=utf-8",
+            "a plan request cannot combine inline and local pending intention sources",
+        )
+        .await?;
+        return Ok(());
+    }
+    let prompt = match request.pending_intention_id.as_deref() {
+        Some(id) => {
+            let ledger = Ledger::discover()?;
+            match PendingIntentionStore::for_ledger(&ledger).load(id) {
+                Ok(pending) => pending.prompt,
+                Err(error) => {
+                    respond(
+                        socket,
+                        422,
+                        "text/plain; charset=utf-8",
+                        &format!("local pending intention was rejected: {error}"),
+                    )
+                    .await?;
+                    return Ok(());
+                }
+            }
+        }
+        None => request.prompt,
+    };
     let request = ShotRequest {
         app_name: request.app_name,
-        intent: Intent::parse(&request.prompt),
+        intent: Intent::parse(&prompt),
         selected_feedback_actions: Vec::new(),
     };
     let genome = match Engine::propose_initial_genome(&request) {
@@ -1104,6 +1302,116 @@ async fn serve_initial_plan(
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
+}
+
+async fn serve_pending_intention(
+    socket: &mut TcpStream,
+    request_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let remainder = request_path.trim_start_matches("/api/pending-intentions/");
+    let parts = remainder.split('/').collect::<Vec<_>>();
+    let id = parts.first().copied().unwrap_or_default();
+    let ledger = Ledger::discover()?;
+    let store = PendingIntentionStore::for_ledger(&ledger);
+    let pending = match store.load(id) {
+        Ok(pending) => pending,
+        Err(_) => {
+            respond(
+                socket,
+                404,
+                "text/plain; charset=utf-8",
+                "local pending intention not found",
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    if parts.len() == 1 {
+        let references = pending
+            .references
+            .iter()
+            .map(|reference| PendingReferenceResponse {
+                ordinal: reference.ordinal,
+                display_filename: reference.display_filename.clone(),
+                media_type: reference.media_type.clone(),
+                byte_length: reference.byte_length,
+                sha256: reference.sha256.clone(),
+                content_url: format!(
+                    "/api/pending-intentions/{id}/references/{}",
+                    reference.ordinal
+                ),
+            })
+            .collect();
+        let response = PendingIntentionResponse {
+            schema: "tohseno.local-pending-intention-view/1",
+            id: pending.id,
+            prompt: pending.prompt.clone(),
+            suggested_app_name: suggest_app_name(&pending.prompt, &ledger)?,
+            references,
+            safe_on_this_mac: true,
+        };
+        respond(
+            socket,
+            200,
+            "application/json; charset=utf-8",
+            &serde_json::to_string(&response)?,
+        )
+        .await?;
+        return Ok(());
+    }
+    if parts.len() == 3 && parts[1] == "references" {
+        let ordinal = match parts[2].parse::<usize>() {
+            Ok(ordinal) if ordinal < pending.references.len() => ordinal,
+            _ => {
+                respond(
+                    socket,
+                    404,
+                    "text/plain; charset=utf-8",
+                    "local pending reference not found",
+                )
+                .await?;
+                return Ok(());
+            }
+        };
+        let bytes = store.read_reference(id, ordinal)?;
+        return respond_bytes(socket, 200, &pending.references[ordinal].media_type, &bytes)
+            .await
+            .map_err(Into::into);
+    }
+    respond(socket, 404, "text/plain; charset=utf-8", "not found").await?;
+    Ok(())
+}
+
+fn suggest_app_name(prompt: &str, ledger: &Ledger) -> Result<String, Box<dyn std::error::Error>> {
+    const STOP: &[&str] = &[
+        "a", "an", "the", "app", "that", "for", "to", "and", "of", "my", "with", "only", "every",
+    ];
+    let mut words = prompt
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .map(str::to_ascii_lowercase)
+        .filter(|word| word.len() >= 2 && !STOP.contains(&word.as_str()))
+        .take(3)
+        .collect::<Vec<_>>();
+    if words.is_empty() {
+        words.push("new-intention".into());
+    }
+    let mut base = words.join("-");
+    base.truncate(48);
+    base = base.trim_matches('-').to_owned();
+    if base.is_empty() || !base.as_bytes()[0].is_ascii_alphanumeric() {
+        base = "new-intention".into();
+    }
+    let existing = ledger
+        .list_apps()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|app| app.name)
+        .collect::<std::collections::BTreeSet<_>>();
+    if !existing.contains(&base) {
+        return Ok(base);
+    }
+    let suffix = tohseno_protocol::digest::sha256(prompt.as_bytes()).to_hex();
+    Ok(format!("{}-{}", base.trim_end_matches('-'), &suffix[2..8]))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -2586,6 +2894,19 @@ mod tests {
             &duplicate_host,
             "127.0.0.1:7331"
         ));
+    }
+
+    #[test]
+    fn local_pending_name_suggestion_is_deterministic_and_safe() {
+        let temporary = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(temporary.path().join("data"));
+        ledger.initialize().unwrap();
+        let prompt = "An app that remembers every tree I plant";
+        let first = suggest_app_name(prompt, &ledger).unwrap();
+        let second = suggest_app_name(prompt, &ledger).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first, "remembers-tree-plant");
+        assert!(tohseno_engine::ledger::validate_app_name(&first).is_ok());
     }
 
     #[test]

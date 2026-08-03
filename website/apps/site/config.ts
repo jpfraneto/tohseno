@@ -32,6 +32,17 @@ export interface AppConfig {
   port: number;
   baseUrl: string;
   trustProxy: boolean;
+  relay: RelayConfig;
+}
+
+export interface RelayConfig {
+  enabled: boolean;
+  claimInstallerReady: boolean;
+  root?: string;
+  maxRecords: number;
+  maxBytes: number;
+  globalRequestsPerMinute: number;
+  sourceRequestsPerMinute: number;
 }
 
 type Environment = Record<string, string | undefined>;
@@ -100,12 +111,51 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     throw new Error("TRUST_PROXY must be true or false");
   }
 
+  const relayEnabled = parseBoolean("INTENT_RELAY_ENABLED", env.INTENT_RELAY_ENABLED, false);
+  const claimInstallerReady = parseBoolean(
+    "CLAIM_INSTALLER_READY",
+    env.CLAIM_INSTALLER_READY,
+    false,
+  );
+  const relayRoot = env.INTENT_RELAY_ROOT;
+  if (relayEnabled) {
+    if (!relayRoot || !relayRoot.startsWith("/")) {
+      throw new Error("INTENT_RELAY_ROOT must be an explicit absolute path when the relay is enabled");
+    }
+    if (nodeEnv === "production" && !claimInstallerReady) {
+      throw new Error("CLAIM_INSTALLER_READY must be true before the production relay can be enabled");
+    }
+  }
+
   return {
     nodeEnv,
     port,
     baseUrl: parsedBase.origin,
     trustProxy: env.TRUST_PROXY === "true",
+    relay: {
+      enabled: relayEnabled,
+      claimInstallerReady,
+      root: relayRoot,
+      maxRecords: parsePositiveInteger("INTENT_RELAY_MAX_RECORDS", env.INTENT_RELAY_MAX_RECORDS, 1_000),
+      maxBytes: parsePositiveInteger("INTENT_RELAY_MAX_BYTES", env.INTENT_RELAY_MAX_BYTES, 10 * 1024 * 1024 * 1024),
+      globalRequestsPerMinute: parsePositiveInteger("INTENT_RELAY_GLOBAL_RATE", env.INTENT_RELAY_GLOBAL_RATE, 1_200),
+      sourceRequestsPerMinute: parsePositiveInteger("INTENT_RELAY_SOURCE_RATE", env.INTENT_RELAY_SOURCE_RATE, 120),
+    },
   };
+}
+
+function parseBoolean(name: string, value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  if (value !== "true" && value !== "false") throw new Error(`${name} must be true or false`);
+  return value === "true";
+}
+
+function parsePositiveInteger(name: string, value: string | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error(`${name} must be a positive whole number`);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive whole number`);
+  return parsed;
 }
 
 export function safeStartupSummary(
@@ -117,5 +167,7 @@ export function safeStartupSummary(
     port: config.port,
     baseUrl: config.baseUrl,
     trustProxy: config.trustProxy,
+    relayEnabled: config.relay.enabled,
+    claimInstallerReady: config.relay.claimInstallerReady,
   };
 }

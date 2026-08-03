@@ -3,8 +3,12 @@ import Security
 import Testing
 @testable import TohsenoAppleIdentity
 
+private let identityStoreTestLock = NSLock()
+
 @Test
 func softwareTestBackendPersistsSignsAndDeletesWithoutPrivateExport() throws {
+    identityStoreTestLock.lock()
+    defer { identityStoreTestLock.unlock() }
     let store = AppleIdentityStore()
     let tag = "org.tohseno.test.\(UUID().uuidString)"
     defer { _ = try? store.delete(tag: tag) }
@@ -90,6 +94,8 @@ func softwareTestBackendPersistsSignsAndDeletesWithoutPrivateExport() throws {
 
 @Test
 func refusesDuplicateTagsAcrossBackends() throws {
+    identityStoreTestLock.lock()
+    defer { identityStoreTestLock.unlock() }
     let store = AppleIdentityStore()
     let tag = "org.tohseno.test.\(UUID().uuidString)"
     defer { _ = try? store.delete(tag: tag) }

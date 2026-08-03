@@ -19,6 +19,18 @@ pub fn selection(
     model: Option<&str>,
     route: Option<&str>,
 ) -> Result<HarnessSelection, Box<dyn std::error::Error>> {
+    if cfg!(debug_assertions)
+        && std::env::var("TOHSENO_TEST_NONLAUNCHING_HARNESS").as_deref() == Ok("1")
+        && harness == Some("tohseno-test-nonlaunching")
+        && model == Some("fixture")
+        && route == Some("no-inference")
+    {
+        return Ok(HarnessSelection {
+            harness: "tohseno-test-nonlaunching".into(),
+            model: "fixture".into(),
+            route: "no-inference".into(),
+        });
+    }
     let harnesses = engine.harnesses();
     let selected = match harness {
         Some(id) => harnesses.iter().find(|candidate| {

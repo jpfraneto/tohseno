@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-02. This is the plain-language
+Written 2026-07-30, amended through 2026-08-03. This is the plain-language
 answer to "what is going on here" for someone returning after time away. When
 something below stops being true, update this file in the same change that
 makes it untrue.
@@ -33,6 +33,28 @@ its origin, and verify, export, and import the whole signed history offline.
 The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
+
+## Web-to-local intention handoff prepared on main
+
+Main now contains an additive first-surface flow: a Browser Draft is retained
+in IndexedDB, frozen into the noncanonical `tohseno.intent-package/1`,
+encrypted in the browser, temporarily relayed as bounded ciphertext, imported
+into durable local pending state, and opened in the existing Studio. Neither
+the browser nor relay creates a Shot. The existing engine creates the Shot
+only after local onboarding, plan and Genome review, and explicit preparation.
+
+This source capability is **not active in production yet**. The public
+installer remains the published 0.8.2 installer and does not advertise
+`--claim`. The website relay defaults off and production startup rejects an
+enabled relay unless the canonical origin is HTTPS, durable storage is
+configured, and the operator explicitly asserts that a matching immutable
+claim-capable installer is ready. Until the ordered activation in
+`release/WEB_INTENTION_HANDOFF_ACTIVATION.md`, only the browser composer and
+private `.tohseno-intent` download are safe to expose.
+
+Local pending intentions live under the same machine data root as identities
+and installed state (`~/.tohseno` unless `TOHSENO_DATA_ROOT` is set), outside
+the installer-owned release directories. Update and uninstall preserve them.
 
 ## The contracts, their deployment, and their activation
 

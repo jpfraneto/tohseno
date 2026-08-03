@@ -2686,7 +2686,7 @@ fn validate_pending_evolution_selection(
     Ok(())
 }
 
-fn validate_reference_name(name: &str) -> Result<(), ShotLayoutError> {
+pub fn validate_reference_name(name: &str) -> Result<(), ShotLayoutError> {
     let bytes = name.as_bytes();
     if bytes.is_empty()
         || bytes.len() > 255
@@ -2755,6 +2755,40 @@ fn validate_image_bytes(extension: &str, bytes: &[u8]) -> Result<(), &'static st
     valid
         .then_some(())
         .ok_or("file bytes do not match the declared supported image format")
+}
+
+/// Apply the Apple factory's authoritative private-reference checks to bytes
+/// that did not originate as a local path (for example, an imported private
+/// intention package). Transport layers may impose smaller limits, but must
+/// not substitute a weaker image validator.
+pub fn validate_private_reference_bytes(
+    name: &str,
+    media_type: &str,
+    bytes: &[u8],
+) -> Result<(), ShotLayoutError> {
+    validate_reference_name(name)?;
+    if bytes.len() > MAX_ATTACHMENT_BYTES {
+        return Err(ShotLayoutError::Limit(
+            "private reference exceeds 64 MiB".into(),
+        ));
+    }
+    let extension = Path::new(name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|extension| IMAGE_REFERENCE_EXTENSIONS.contains(&extension.as_str()))
+        .ok_or_else(|| {
+            ShotLayoutError::Invalid(format!(
+                "{name} is not a supported PNG, JPEG, HEIC, or WebP image"
+            ))
+        })?;
+    if media_type_for_extension(Some(&extension)) != media_type {
+        return Err(ShotLayoutError::Invalid(
+            "private reference media type disagrees with its safe original name".into(),
+        ));
+    }
+    validate_image_bytes(&extension, bytes)
+        .map_err(|reason| ShotLayoutError::Invalid(format!("{name}: {reason}")))
 }
 
 fn media_type_for_extension(extension: Option<&str>) -> &'static str {

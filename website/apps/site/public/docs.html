@@ -21,7 +21,7 @@
     <title>Docs — {{BRAND}}</title>
     <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/styles.css">
-    <script src="/app.js" defer></script>
+    <script src="/modules/obsolete-worker-cleanup.js" type="module"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -38,12 +38,12 @@
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
           <h1>Take another one.</h1>
-          <p class="document-intro">TOHSENO is in beta and evolves quickly. Install the local factory, turn an intention into an independent iOS Shot, open it, use it, and keep moving.</p>
+          <p class="document-intro">TOHSENO is in beta. Begin with the intention, carry it privately to your Mac, approve the local plan, and evolve the independent iOS Shot.</p>
         </header>
 
         <nav class="docs-index" aria-label="On this page">
           <span>ON THIS PAGE</span>
-          <a href="#first-shot">Install</a>
+          <a href="#install">Begin and install</a>
           <a href="#onboarding">Onboarding</a>
           <a href="#take-shot">Take a Shot</a>
           <a href="#follow">Follow and review</a>
@@ -53,10 +53,19 @@
           <a href="#legacy">Migration</a>
         </nav>
 
-        <section id="first-shot">
-          <h2>Make the idea exist</h2>
+        <section id="install">
+          <h2>Begin with the intention</h2>
+          <ol>
+            <li>Visit the home page and write or paste the intention.</li>
+            <li>Add zero to eight reference images and press <strong>TAKE A SHOT</strong>.</li>
+            <li>Run the one command shown on the Mac.</li>
+            <li>Continue in local Studio with the exact prompt and ordered references already present.</li>
+          </ol>
+          <p>The browser preserves the editable draft in IndexedDB. When encrypted handoff is available, it sends only temporary client-encrypted ciphertext. The Mac decrypts and validates locally. The website and relay do not create a Shot; the local engine does that after plan review.</p>
+          <p>If encrypted handoff is unavailable, download the private <code>.tohseno-intent</code> file, install normally, and run <code>tohseno intent open &lt;file&gt;</code>. The downloaded file is private and readable, not encrypted.</p>
+          <h3>Generic installer alternative</h3>
           <pre><code>{{INSTALL_COMMAND}}</code></pre>
-          <p><strong>TOHSENO 0.8.2</strong> supports macOS 13 or newer. The one-line installer detects Apple Silicon or Intel, downloads the matching immutable GitHub release, verifies every checksum, installs transactionally under <code>~/.tohseno</code>, adds <code>tohseno</code> to your shell path, and opens Studio.</p>
+          <p><strong>TOHSENO 0.8.2</strong> supports macOS 13 or newer. The generic one-line installer detects Apple Silicon or Intel, downloads the matching immutable GitHub release, verifies every checksum, installs transactionally under <code>~/.tohseno</code>, adds <code>tohseno</code> to your shell path, and opens Studio.</p>
           <p>You do not need a TOHSENO account. Xcode is required to build and install the native Apple expression. A local Codex or Claude Code installation and its own authenticated subscription are required when you take a real Shot.</p>
           <div class="command-block">
             <code class="command-line" id="install-command" data-install-command data-copy-value="{{INSTALL_COMMAND}}">{{INSTALL_COMMAND}}</code>
@@ -83,10 +92,9 @@ tohseno uninstall</code></pre>
         <section id="take-shot">
           <h2>Take one deliberately small Shot</h2>
           <ol>
-            <li>Name the app and write one exact intention.</li>
-            <li>Add up to eight reference images.</li>
+            <li>For an imported intention, review the exact prompt, ordered references, and editable local name suggestion. Inline creation can still start here.</li>
             <li>Choose Codex or Claude Code, its model, and the subscription route showing <code>$0.00</code>.</li>
-            <li>Review the accepted Genome and press <strong>PREPARE SHOT</strong>.</li>
+            <li>Review the proposed plan and Genome, then press <strong>APPROVE &amp; OPEN TERMINAL</strong>.</li>
             <li>Watch Terminal or iTerm open with the exact command visibly preloaded.</li>
             <li>Press Enter yourself. TOHSENO never bypasses this human boundary.</li>
           </ol>
@@ -110,9 +118,9 @@ tohseno evolve &lt;app-name&gt;</code></pre>
         </section>
 
         <section id="local-data">
-          <h2>Your intentions stay on your Mac</h2>
-          <p>Visible Shot folders live under <code>~/Desktop/Tohseno</code>. Private intentions, feedback, reference copies, execution events, and completion records stay in gitignored <code>.tohseno</code> folders. Machine identity and installed release state live under <code>~/.tohseno</code>.</p>
-          <p>Studio does not upload Shot data to TOHSENO. The selected coding harness can read the intention and references to do the requested work and handles them under that provider’s own privacy, retention, and account settings.</p>
+          <h2>Your canonical Shot stays on your Mac</h2>
+          <p>Browser Drafts stay in IndexedDB. Explicit handoff temporarily sends only opaque ciphertext. Imported Local Pending Intentions, machine identity, and installed release state live under <code>~/.tohseno</code>; uninstall preserves them. Visible Shot folders live under <code>~/Desktop/Tohseno</code>, with private intention, feedback, reference, and execution material in gitignored <code>.tohseno</code> folders.</p>
+          <p>The relay cannot decrypt the handoff and deletes ciphertext after durable local import or seven-day expiry. Studio does not upload canonical Shot data. The selected coding harness can read the local intention and references after approval and handles them under that provider’s privacy, retention, and account settings.</p>
           <p>Every Shot remains an independent Git repository. Removing the TOHSENO command does not remove its source or history.</p>
         </section>
 
