@@ -85,11 +85,18 @@ test("browser package reaches durable local pending state and Studio without a p
     const [portableExit, portableOut, portableError] = await Promise.all([portable.exited, new Response(portable.stdout).text(), new Response(portable.stderr).text()]);
     expect(portableExit).toBe(0); expect(`${portableOut}${portableError}`).not.toContain(prompt); expect(`${portableOut}${portableError}`).not.toContain("tree-one.png");
     expect(readdirSync(join(portableRoot, "pending-intentions/records"))).toHaveLength(1);
+    const helper = Bun.spawn(["swift", "build", "--package-path", join(repository, "apple-identity")], {
+      cwd: repository, stdout: "pipe", stderr: "pipe",
+    });
+    const [helperExit, helperOut, helperError] = await Promise.all([helper.exited, new Response(helper.stdout).text(), new Response(helper.stderr).text()]);
+    expect(`${helperExit}: ${helperOut}${helperError}`).toStartWith("0:");
+    const identityHelper = join(repository, "apple-identity/.build/debug/tohseno-apple-identity");
     const studioPort = await unusedPort();
     studio = Bun.spawn([join(repository, "target/debug/tohseno"), "studio", "--port", String(studioPort), "--pending", pendingId], {
       cwd: repository, env: {
         ...process.env, TOHSENO_DATA_ROOT: dataRoot, TOHSENO_HOME: join(root, "shots"),
         TOHSENO_STUDIO_NO_OPEN: "1", TOHSENO_IDENTITY_BACKEND: "software-test",
+        TOHSENO_APPLE_IDENTITY_HELPER: identityHelper,
         TOHSENO_TEST_NONLAUNCHING_HARNESS: "1",
       }, stdout: "pipe", stderr: "pipe",
     });
