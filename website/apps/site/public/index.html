@@ -3,119 +3,146 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Give every idea a Shot. Begin with the intention; continue privately on your Mac.">
-  <meta name="theme-color" content="#11100e">
+  <meta name="theme-color" content="#0c0b0a">
+  <meta name="description" content="An MVP factory for iOS apps. Free on your Mac. $88 to hold it in your hand. One app per day.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="Tohseno — Give Every Idea a Shot">
-  <meta property="og:description" content="Give every idea a Shot. Begin with the intention; continue privately on your Mac.">
+  <meta property="og:title" content="TOHSENO — One App Per Day">
+  <meta property="og:description" content="Run TOHSENO free on your Mac, or book one day and have your iOS app built for you.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="TOHSENO — Give every idea a shot.">
+  <meta property="og:image:alt" content="TOHSENO — One app per day. Yours.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
   <link rel="icon" href="/favicon.png" type="image/png">
-  <title>Tohseno — Give Every Idea a Shot</title>
   <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/landing.css?v=ceb9509c392f">
+  <link rel="stylesheet" href="/landing.css?v=ce00089f2f1b">
   <script src="/app.js" type="module"></script>
+  <title>TOHSENO — One App Per Day</title>
 </head>
 <body>
-  <main id="main-content">
-    <header class="mast">
-      <p class="wordmark"><img src="/logo.svg" alt="" width="26" height="26"><span>TOHSENO</span><span class="beta-tag">BETA</span></p>
-      <h1>GIVE EVERY IDEA A <span class="accent">SHOT.</span></h1>
-      <p class="hero-subtitle">TOHSENO runs on your Mac. This page preserves your intention and carries it there.</p>
-      <div class="hero-installer" aria-label="Install TOHSENO on a Mac">
-        <p class="hero-installer-label">INSTALL TOHSENO ON MAC</p>
-        <div class="installer-command">
-          <code id="installer-command" tabindex="0">curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
-          <button id="copy-installer" type="button" aria-label="Copy the TOHSENO Mac installer command">COPY</button>
-        </div>
-        <p class="hero-installer-note">Install now, or write below first to get a private one-time command that carries this intention into Studio.</p>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <div class="wrap">
+    <nav class="top-nav" aria-label="Primary navigation">
+      <svg class="enso" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle></svg>
+      <a class="wordmark" href="/">TOHSENO</a>
+      <span class="beta">BETA</span>
+      <div class="nav-links">
+        <a href="/docs">DOCS</a>
+        <a href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
+        <a class="nav-cta" href="#book">BOOK A DAY →</a>
       </div>
-    </header>
-
-    <section id="composer" class="composer" aria-labelledby="composer-heading">
-      <h2 id="composer-heading" class="visually-hidden">Describe your intention</h2>
-      <div id="draft-view">
-        <label class="prompt-field">
-          <span class="visually-hidden">Intention</span>
-          <textarea id="prompt" maxlength="1048576" placeholder="Paste your MASTER_PROMPT.md or just write here"></textarea>
-        </label>
-        <div class="prompt-tools">
-          <button id="pick-prompt" type="button">Add .md or .txt file</button>
-          <input id="prompt-picker" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
-        </div>
-        <div id="prompt-import-choice" class="inline-choice" hidden>
-          <span id="prompt-import-label"></span>
-          <button type="button" data-prompt-action="replace">Replace</button>
-          <button type="button" data-prompt-action="append">Append</button>
-          <button type="button" data-prompt-action="cancel">Cancel</button>
-        </div>
-
-        <section id="reference-zone" class="reference-zone" tabindex="0" role="button" aria-label="Add up to eight reference images">
-          <div class="reference-heading">
-            <div><strong>REFERENCE IMAGES</strong><span>PNG · JPEG · HEIC · WEBP</span></div>
-            <output id="reference-count">0 / 8</output>
-          </div>
-          <p>Drop images here or <button id="pick-images" type="button">choose files</button></p>
-          <input id="image-picker" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
-        </section>
-        <ol id="reference-list" class="reference-list" aria-label="Ordered reference images"></ol>
-        <p id="validation" class="validation" role="alert" hidden></p>
-
-        <div class="examples" aria-label="Example intentions">
-          <button type="button" data-example>An app that remembers every tree I plant</button>
-          <button type="button" data-example>A private scoreboard for one lifelong rivalry</button>
-          <button type="button" data-example>A bedtime soundboard that only works after sunset</button>
-        </div>
-
-        <button id="take-shot" class="take-shot" type="button" disabled>TAKE A SHOT</button>
-        <div class="draft-foot">
-          <span id="persistence-status" role="status">Saving…</span>
-          <button id="download-package" type="button">Download private intent package</button>
-        </div>
-        <p class="private-download-note">The downloaded <code>.tohseno-intent</code> file is private but not encrypted. It contains your readable prompt and reference bytes.</p>
-      </div>
-
-      <div id="transfer-view" class="transfer" hidden>
-        <p id="transfer-stage" class="transfer-kicker" role="status">Preparing package…</p>
-        <h2 id="transfer-title">Your intention is ready.</h2>
-        <div id="claim-command-block" class="claim-command" hidden>
-          <code id="claim-command"></code>
-          <button id="copy-command" type="button">COPY</button>
-        </div>
-        <p id="transfer-privacy" class="transfer-privacy">Encrypted · held for 7 days · deleted after import</p>
-        <p id="transfer-waiting" class="transfer-waiting">Waiting for TOHSENO…</p>
-        <div class="transfer-actions">
-          <button id="transfer-download" type="button">Download private intent package</button>
-          <button id="cancel-transfer" type="button">Cancel handoff</button>
-          <button id="retry-transfer" type="button" hidden>Retry encrypted handoff</button>
-          <button id="another" type="button" hidden>Take another one</button>
-        </div>
-      </div>
-
-      <aside id="unavailable" class="unavailable" hidden>
-        <p id="unavailable-reason"></p>
-        <p>Install TOHSENO normally, then import your downloaded file:</p>
-        <code>curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
-        <code>tohseno intent open &lt;file.tohseno-intent&gt;</code>
-        <a href="/docs#install">Manual installation</a>
-      </aside>
-    </section>
-  </main>
-
-  <footer class="site-links">
-    <nav aria-label="More about TOHSENO">
-      <a href="{{REPOSITORY_URL}}" rel="noopener">GitHub</a>
-      <a href="/docs">Docs</a>
-      <a href="/whitepaper.pdf">Whitepaper</a>
-      <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community</a>
-      <a href="/privacy">Privacy</a>
     </nav>
-  </footer>
+
+    <main id="main-content">
+      <header class="hero">
+        <p class="eyebrow">AN MVP FACTORY FOR iOS APPS</p>
+        <h1>One app<br>per day. <span>Yours.</span></h1>
+        <p class="hero-subtitle">
+          TOHSENO turns an intention—a name, a prompt, up to eight images—into a complete, buildable iOS app. <strong>Run it free on your Mac,</strong> or book a day and I build it for you. 88 minutes. On camera. Shipped.
+        </p>
+
+        <div class="quiver" aria-label="A rolling 30-day booking window">
+          <div class="quiver-head">
+            <span id="quiver-range">THE NEXT 30 DAYS</span>
+            <a href="https://cal.com/jpfraneto/day">LIVE AVAILABILITY ↗</a>
+          </div>
+          <div class="arrows" id="arrows" aria-hidden="true"></div>
+          <p class="quiver-foot">
+            One arrow per day. A new day enters the window every morning—
+            <span id="release-countdown" class="release">next arrow in —</span>
+          </p>
+        </div>
+      </header>
+
+      <section class="tiers" aria-label="Ways to use TOHSENO">
+        <article class="tier">
+          <p class="tier-tag">LOCAL</p>
+          <h2>Run it<br>yourself</h2>
+          <p class="price">FREE · OPEN SOURCE</p>
+          <p>TOHSENO runs on your Mac on top of the coding harness you already use—<strong>Codex or Claude Code</strong>. Your machine, your inference, your apps.</p>
+          <div class="command">
+            <code id="installer-command">curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
+            <button id="copy-installer" type="button" aria-label="Copy the TOHSENO installer command">COPY</button>
+          </div>
+          <ul>
+            <li><strong>Everything is local.</strong> The filesystem is the database.</li>
+            <li><strong>Source-first.</strong> Inspect it, change it, and keep it.</li>
+            <li>Build in Simulator, then put it on your iPhone when you are ready.</li>
+          </ul>
+        </article>
+
+        <article class="tier book" id="book">
+          <p class="tier-tag">BOOK A DAY</p>
+          <h2>I build it<br>for you</h2>
+          <p class="price">$88 FLAT · ONE PER DAY · 30 DAYS OPEN AT A TIME</p>
+          <p>You hand me the intention. I give it <strong>88 minutes of full craft</strong>—live on stream—and your app ships that day.</p>
+          <ul>
+            <li><strong>Complete source</strong> and a step-by-step build recipe. It is yours.</li>
+            <li><strong>A 90-second launch video.</strong> One take, shipped with the app.</li>
+            <li><strong>Built in public.</strong> The build is streamed and posted.</li>
+            <li><strong>The vow:</strong> if the day's draw does not land it, it rolls into my next open slot until it does.</li>
+          </ul>
+          <a class="fat-button" href="https://cal.com/jpfraneto/day">
+            Book your day — $88
+            <small>PICK A DATE · HAND OVER THE INTENTION</small>
+          </a>
+          <p class="pay-note">Card through Cal.com · USDC by arrangement</p>
+        </article>
+
+        <article class="tier sojourn">
+          <p class="tier-tag">EXTREMELY PRO</p>
+          <h2>Summon<br>a sojourn</h2>
+          <p class="price">$22,222 · 96 DAYS · ONE AT A TIME</p>
+          <p>Not an app. A world. For 96 days I become the creativity engine of your idea—the app, the brand, the content, the everything. Full presence. Sync whenever you need it.</p>
+          <ul>
+            <li>96 days. Whatever it takes.</li>
+            <li>One holder at a time.</li>
+          </ul>
+          <a class="quiet-link" href="mailto:jp@tohseno.com?subject=TOHSENO%20Sojourn">BEGIN THE CONVERSATION</a>
+        </article>
+      </section>
+
+      <section class="forge">
+        <div class="forge-copy">
+          <p class="section-kicker">THE WORKBENCH — PUERTO VARAS, CHILE</p>
+          <h2>A real person builds your app on a real day.</h2>
+          <p>This is not a launch window. It is an ongoing vow: one app, every day, and every app forces one iteration on the engine—the instructions sharpen, the gates tighten, the next arrow flies truer. <strong>Your app makes TOHSENO better. That is the deal underneath the deal.</strong></p>
+        </div>
+      </section>
+
+      <section class="how">
+        <p class="section-kicker">HOW A DAY WORKS</p>
+        <div class="steps">
+          <article class="step"><p class="step-name">AIM</p><h3>Book a date</h3><p>Pick an open date on Cal.com and pay $88.</p></article>
+          <article class="step"><p class="step-name">NOCK</p><h3>Hand over the intention</h3><p>App name, your prompt, and up to eight reference images. That is the whole briefing.</p></article>
+          <article class="step"><p class="step-name">LOOSE</p><h3>88 minutes, live</h3><p>I build it on stream. You do not attend—you receive. The shot log is yours afterward.</p></article>
+          <article class="step"><p class="step-name">LAND</p><h3>Receive the app</h3><p>Source, build recipe, and the 90-second launch video, published the same day.</p></article>
+        </div>
+      </section>
+
+      <section class="vow">
+        <p class="section-kicker">THE VOW</p>
+        <blockquote>Your app ships. If the day's 88 minutes do not land it, <strong>the draw continues into my next open slot until it does.</strong></blockquote>
+        <p>One shot means one shot: the app that ships is the intention as submitted. A new aim is a new arrow—book another day. Builds are public by default; the stream and launch video are part of what you are buying.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span>TOHSENO © 2026</span>
+      <span aria-hidden="true">·</span>
+      <a href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
+      <span aria-hidden="true">·</span>
+      <a href="/docs">DOCS</a>
+      <span aria-hidden="true">·</span>
+      <a href="/privacy">PRIVACY</a>
+      <span aria-hidden="true">·</span>
+      <a href="https://community.tohseno.com" rel="noopener noreferrer">COMMUNITY</a>
+      <span class="footer-place">MADE IN ONE TAKE — PUERTO VARAS, CHILE</span>
+    </footer>
+  </div>
 </body>
 </html>

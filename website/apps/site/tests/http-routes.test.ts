@@ -39,16 +39,13 @@ const shotIconDirectory = fileURLToPath(
 const browserScriptPath = fileURLToPath(
   new URL("../public/app.js", import.meta.url),
 );
-const workerCleanupPath = fileURLToPath(
-  new URL("../public/modules/obsolete-worker-cleanup.js", import.meta.url),
-);
 const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("serves the intention-first landing page", async () => {
+  test("serves the pricing landing page", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -60,38 +57,30 @@ describe("public pages", () => {
       .slice(0, 12);
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    expect(body).toContain('placeholder="Paste your MASTER_PROMPT.md or just write here"');
-    expect(body).toContain('id="reference-count">0 / 8');
-    expect(body.match(/data-example/g)).toHaveLength(3);
-    expect(body).toContain(">TAKE A SHOT</button>");
-    expect(body).toMatch(/id="take-shot"[^>]*disabled/);
-    expect(body).not.toContain('class="terminal"');
-    expect(body).toContain("TOHSENO runs on your Mac");
-    expect(body.indexOf(INSTALL_COMMAND)).toBeLessThan(body.indexOf("TAKE A SHOT"));
+    expect(body).toContain("One app<br>per day.");
+    expect(body).toContain("FREE · OPEN SOURCE");
+    expect(body).toContain("$88 FLAT · ONE PER DAY · 30 DAYS OPEN AT A TIME");
+    expect(body).toContain("$22,222 · 96 DAYS · ONE AT A TIME");
+    expect(body).toContain('href="https://cal.com/jpfraneto/day"');
+    expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
+    expect(body).toContain("Book your day — $88");
+    expect(body).toContain("Codex or Claude Code");
+    expect(body).toContain(INSTALL_COMMAND);
     expect(body).toContain('id="copy-installer"');
-    expect(body).toContain("private one-time command that carries this intention into Studio");
-    expect(body).toContain("GIVE EVERY IDEA A");
-    expect(body).toContain('<span class="beta-tag">BETA</span>');
-    expect(body).toContain("Download private intent package");
+    expect(body).toContain('<span class="beta">BETA</span>');
     expect(body).not.toContain("bun run tohseno");
-    expect(body).not.toContain('class="mobile-home"');
-    expect(body).toContain("Encrypted · held for 7 days · deleted after import");
-    expect(body).not.toContain("/shot-icons/");
-    expect(body).not.toContain('rel="manifest"');
     expect(body).not.toContain('href="/intake"');
+    expect(body).not.toContain('href="#"');
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
-    expect(body).toContain('href="/whitepaper.pdf"');
     expect(body).toContain('href="/docs"');
     expect(body).toContain('href="/privacy"');
-    expect(body).toContain('src="/logo.svg"');
-    expect(body).toContain(">Community</a>");
+    expect(body).toContain(">COMMUNITY</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
-    expect(body).toContain('target="_blank"');
     expect(body).toContain('rel="noopener noreferrer"');
-    expect(body).toContain("<title>Tohseno — Give Every Idea a Shot</title>");
+    expect(body).toContain("<title>TOHSENO — One App Per Day</title>");
     expect(body).toContain(
-      'content="Give every idea a Shot. Begin with the intention; continue privately on your Mac."',
+      'content="An MVP factory for iOS apps. Free on your Mac. $88 to hold it in your hand. One app per day."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -178,17 +167,15 @@ describe("public pages", () => {
     expect(body).not.toContain('href="#"');
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(");
-    expect(browserScript).toContain("ui.copyInstaller.addEventListener");
-    expect(browserScript).toContain("openDraftStore");
-    expect(browserScript).toContain("createEncryptedEnvelope");
+    expect(browserScript).toContain('copyInstaller.addEventListener("click"');
+    expect(browserScript).toContain("renderQuiver");
+    expect(browserScript).toContain("replaceChildren");
     expect(browserScript).not.toContain("innerHTML");
-    expect(browserScript).toContain("obsolete-worker-cleanup.js");
-    expect(readFileSync(workerCleanupPath, "utf8")).toContain("registration.unregister()");
     expect(browserScript).not.toContain("serviceWorker.register");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(landingStyle).toContain(".composer");
+    expect(landingStyle).toContain(".tiers");
   });
 
   test("serves the health check", async () => {
