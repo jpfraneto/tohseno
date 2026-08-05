@@ -11,6 +11,64 @@ pub struct SimulatorSession {
     pub device_id: String,
 }
 
+/// Build one verified workshop source tree locally, then install and launch
+/// that local build. No publisher binary or ownership state is imported.
+pub async fn launch_workshop(
+    source: &Path,
+    events: &EventBus,
+    app_name: &str,
+    bundle_id: &str,
+    version_ordinal: u64,
+) -> Result<SimulatorSession, SimulatorError> {
+    let shot_number = u32::try_from(version_ordinal)
+        .map_err(|_| SimulatorError::InvalidVersion(version_ordinal))?;
+    let device = choose_device().await?;
+    boot(&device).await?;
+    let _ = std::process::Command::new("open")
+        .args(["-g", "-a", "Simulator", "--args", "-CurrentDeviceUDID"])
+        .arg(&device.udid)
+        .spawn();
+    events.emit(Event::status(format!(
+        "building verified workshop version {version_ordinal} of {app_name} locally…"
+    )));
+    let build_directory = tempfile::tempdir()?;
+    let app_bundle = build(
+        source,
+        app_name,
+        shot_number,
+        &device.udid,
+        &build_directory,
+    )
+    .await?;
+    checked(
+        "xcrun",
+        [
+            "simctl".into(),
+            "install".into(),
+            device.udid.clone().into(),
+            app_bundle.into_os_string(),
+        ],
+    )
+    .await?;
+    checked(
+        "xcrun",
+        [
+            "simctl".into(),
+            "launch".into(),
+            "--terminate-running-process".into(),
+            device.udid.clone().into(),
+            bundle_id.into(),
+        ],
+    )
+    .await?;
+    events.emit(Event::result(format!(
+        "workshop version {version_ordinal} of {app_name} is running in Simulator."
+    )));
+    Ok(SimulatorSession {
+        device_id: device.udid,
+    })
+}
+
 pub async fn launch(
     ledger: &Ledger,
     events: &EventBus,
@@ -267,6 +325,7 @@ pub enum SimulatorError {
     ProjectMissing,
     ArtifactMissing,
     IncompleteShot(u32),
+    InvalidVersion(u64),
 }
 
 impl std::fmt::Display for SimulatorError {
@@ -281,6 +340,12 @@ impl std::fmt::Display for SimulatorError {
             Self::ProjectMissing => write!(f, "the shot has no Xcode project"),
             Self::ArtifactMissing => write!(f, "the Simulator app was not produced"),
             Self::IncompleteShot(number) => write!(f, "shot {number} is incomplete"),
+            Self::InvalidVersion(number) => {
+                write!(
+                    f,
+                    "workshop version {number} does not fit Apple build numbering"
+                )
+            }
         }
     }
 }

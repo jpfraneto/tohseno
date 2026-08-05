@@ -7,6 +7,17 @@
 - Set `CURRENT_PROJECT_VERSION` to the literal token `__TOHSENO_SHOT__`; TOHSENO replaces it before building.
 - Set `MARKETING_VERSION = 1.0`, `SWIFT_VERSION = 5.0`, and target iPhone.
 - Include `CFBundleDisplayName`, a launch screen declaration, and required usage-description keys for every protected API used.
+- When the app uses networking, private CloudKit, a protected Apple capability,
+  or an explicit entitlement, add `TOHSENO/capabilities.json` as a source
+  declaration. Use the closed schema `tohseno.apple-capabilities/1` with
+  `capabilities`, `storage`, and `network` arrays. A capability entry contains
+  `capability`, `purpose`, and `entitlement` (`null` except for
+  `other_apple_entitlement`). An additional storage entry contains `kind` and
+  `purpose`. A network entry contains `endpoint`, `purpose`, and a nonempty
+  `data_categories` array. Remote endpoints use their stable origin or base
+  URL; local discovery uses `bonjour:<service-type>` and includes matching
+  `NSLocalNetworkUsageDescription` and `NSBonjourServices` declarations.
+  Declare only capabilities and transports the built source actually uses.
 - Add all five `TohsenoFascia/*.swift` reference files to the application target
   and prepare `InstallationIdentity.shared` during first launch.
 - Include the engine-produced `TOHSENO/embedded-provenance.json` as a bundled

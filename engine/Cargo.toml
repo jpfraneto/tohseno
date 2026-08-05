@@ -9,6 +9,7 @@ rust-version.workspace = true
 [dependencies]
 aes-gcm = "=0.10.3"
 argon2 = { version = "=0.5.3", default-features = false, features = ["alloc"] }
+base64.workspace = true
 # Pin crypto-format helpers to the versions exercised by this candidate.
 base64ct = "=1.6.0"
 bip32 = { version = "=0.5.3", default-features = false, features = ["secp256k1", "std"] }

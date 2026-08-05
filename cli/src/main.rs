@@ -141,40 +141,57 @@ enum Command {
         #[arg(long, hide = true)]
         background: bool,
     },
-    /// Verify one local Shot or app deterministically without an LLM.
+    /// Verify the current local app, or an explicit local name/path, without an LLM.
     Verify {
-        target: String,
+        target: Option<String>,
         /// Require an activated public witness; fails closed before RPC while none exists.
         #[arg(long)]
         public: bool,
     },
     /// Show exact local protocol facts for one app or Shot path.
     Inspect { target: String },
-    /// Attach private experience to one exact accepted expression version.
+    /// Record owned feedback or exchange exact-version workshop feedback.
     Feedback {
         app_name: Option<String>,
         /// Exact accepted version ordinal, such as 1 for version 0001.
         #[arg(long, value_name = "N")]
-        version: u64,
+        version: Option<u64>,
         /// Feedback text. Use --file for longer material.
-        #[arg(
-            long,
-            value_name = "TEXT",
-            conflicts_with = "file",
-            required_unless_present = "file"
-        )]
+        #[arg(long, value_name = "TEXT", conflicts_with = "file")]
         text: Option<String>,
         /// Read feedback from a bounded UTF-8 regular file.
-        #[arg(
-            long,
-            value_name = "PATH",
-            conflicts_with = "text",
-            required_unless_present = "text"
-        )]
+        #[arg(long, value_name = "PATH", conflicts_with = "text")]
         file: Option<PathBuf>,
         /// Copy one private attachment by digest. Repeat for multiple files.
         #[arg(long = "attachment", value_name = "PATH")]
         attachments: Vec<PathBuf>,
+        /// Create a feedback packet for a materialized workshop instead of an owned Shot.
+        #[arg(long, value_name = "DIRECTORY")]
+        workshop: Option<PathBuf>,
+        /// Admit one received workshop feedback packet to an owned Shot after review.
+        #[arg(long, value_name = "FILE")]
+        packet: Option<PathBuf>,
+        /// Self-declared display name stored in a workshop feedback packet.
+        #[arg(long, value_name = "NAME")]
+        author: Option<String>,
+        /// Destination for a newly created workshop feedback packet.
+        #[arg(long, value_name = "FILE")]
+        output: Option<PathBuf>,
+    },
+    /// Package one accepted open-source Version for source-first community testing.
+    Share {
+        app_name: Option<String>,
+        #[arg(long, value_name = "FILE")]
+        output: PathBuf,
+    },
+    /// Verify workshop source, build it locally, and run it in Simulator.
+    Try {
+        capsule: PathBuf,
+        #[arg(long, value_name = "DIRECTORY")]
+        output: PathBuf,
+        /// Verify and materialize source without building or launching it.
+        #[arg(long)]
+        no_launch: bool,
     },
     /// Export verified Shot records as a portable bundle, not a source archive.
     Export {
@@ -727,6 +744,10 @@ async fn dispatch(
             )?,
         },
         Command::Verify { target, public } => {
+            let target = match target {
+                Some(target) => target,
+                None => std::env::current_dir()?.display().to_string(),
+            };
             protocol_commands::verify_target(&target, public, json, bus)?;
         }
         Command::Inspect { target } => protocol_commands::inspect_target(&target, json, bus)?,
@@ -736,26 +757,78 @@ async fn dispatch(
             text,
             file,
             attachments,
+            workshop,
+            packet,
+            author,
+            output,
         } => {
+            if let Some(packet) = packet {
+                if version.is_some()
+                    || text.is_some()
+                    || file.is_some()
+                    || !attachments.is_empty()
+                    || workshop.is_some()
+                    || author.is_some()
+                    || output.is_some()
+                {
+                    return Err("--packet accepts only an owned app name".into());
+                }
+                let (engine, name) = engine_for(app_name, bus)?;
+                shot_commands::import_workshop_feedback(&engine, &name, &packet, json, bus)?;
+            } else {
+                let feedback = match (text, file) {
+                    (Some(text), None) => text,
+                    (None, Some(path)) => strip_one_terminal_line_ending(read_bounded_utf8(
+                        &path,
+                        MAX_FEEDBACK_FILE_BYTES,
+                        "feedback file",
+                    )?),
+                    _ => return Err("provide exactly one of --text or --file".into()),
+                };
+                if let Some(workshop) = workshop {
+                    if app_name.is_some() || version.is_some() || !attachments.is_empty() {
+                        return Err(
+                            "--workshop feedback does not take an app name, --version, or attachments"
+                                .into(),
+                        );
+                    }
+                    let output = output.ok_or("--workshop feedback requires --output")?;
+                    shot_commands::write_workshop_feedback(
+                        &workshop,
+                        &feedback,
+                        author.as_deref(),
+                        &output,
+                        json,
+                        bus,
+                    )?;
+                } else {
+                    if author.is_some() || output.is_some() {
+                        return Err("--author and --output are only for --workshop feedback".into());
+                    }
+                    let version = version.ok_or("owned feedback requires --version")?;
+                    let (engine, name) = engine_for(app_name, bus)?;
+                    shot_commands::record_feedback(
+                        &engine,
+                        &name,
+                        version,
+                        &feedback,
+                        &attachments,
+                        json,
+                        bus,
+                    )?;
+                }
+            }
+        }
+        Command::Share { app_name, output } => {
             let (engine, name) = engine_for(app_name, bus)?;
-            let feedback = match (text, file) {
-                (Some(text), None) => text,
-                (None, Some(path)) => strip_one_terminal_line_ending(read_bounded_utf8(
-                    &path,
-                    MAX_FEEDBACK_FILE_BYTES,
-                    "feedback file",
-                )?),
-                _ => unreachable!("clap requires exactly one feedback text source"),
-            };
-            shot_commands::record_feedback(
-                &engine,
-                &name,
-                version,
-                &feedback,
-                &attachments,
-                json,
-                bus,
-            )?;
+            shot_commands::share_for_workshop(&engine, &name, &output, json, bus)?;
+        }
+        Command::Try {
+            capsule,
+            output,
+            no_launch,
+        } => {
+            shot_commands::try_workshop(&capsule, &output, no_launch, json, bus).await?;
         }
         Command::Export {
             app_name,
@@ -1084,6 +1157,27 @@ mod tests {
                 port: 0,
                 pending: None,
             }
+        ));
+    }
+
+    #[test]
+    fn verify_defaults_to_the_current_local_app_without_repeating_its_name() {
+        let local = Cli::try_parse_from(["tohseno", "verify"]).unwrap();
+        assert!(matches!(
+            local.command,
+            Command::Verify {
+                target: None,
+                public: false,
+            }
+        ));
+
+        let explicit = Cli::try_parse_from(["tohseno", "verify", "field-notebook"]).unwrap();
+        assert!(matches!(
+            explicit.command,
+            Command::Verify {
+                target: Some(target),
+                public: false,
+            } if target == "field-notebook"
         ));
     }
 
@@ -1445,10 +1539,11 @@ mod tests {
             feedback.command,
             Command::Feedback {
                 app_name: Some(app_name),
-                version: 2,
+                version: Some(2),
                 text: Some(text),
                 file: None,
                 attachments,
+                ..
             } if app_name == "field-notebook"
                 && text == "The save state was unclear."
                 && attachments == [PathBuf::from("/tmp/screenshot.png")]
@@ -1464,6 +1559,89 @@ mod tests {
             "/tmp/two",
         ])
         .is_err());
+
+        let share = Cli::try_parse_from([
+            "tohseno",
+            "share",
+            "field-notebook",
+            "--output",
+            "/tmp/field-notebook.tohseno-workshop",
+        ])
+        .unwrap();
+        assert!(matches!(
+            share.command,
+            Command::Share {
+                app_name: Some(app_name),
+                output,
+            } if app_name == "field-notebook"
+                && output == PathBuf::from("/tmp/field-notebook.tohseno-workshop")
+        ));
+
+        let try_workshop = Cli::try_parse_from([
+            "tohseno",
+            "try",
+            "/tmp/field-notebook.tohseno-workshop",
+            "--output",
+            "/tmp/field-notebook-workshop",
+            "--no-launch",
+        ])
+        .unwrap();
+        assert!(matches!(
+            try_workshop.command,
+            Command::Try {
+                capsule,
+                output,
+                no_launch: true,
+            } if capsule == PathBuf::from("/tmp/field-notebook.tohseno-workshop")
+                && output == PathBuf::from("/tmp/field-notebook-workshop")
+        ));
+
+        let workshop_feedback = Cli::try_parse_from([
+            "tohseno",
+            "feedback",
+            "--workshop",
+            "/tmp/field-notebook-workshop",
+            "--text",
+            "The save gesture was clear.",
+            "--author",
+            "Maya",
+            "--output",
+            "/tmp/maya.tohseno-feedback",
+        ])
+        .unwrap();
+        assert!(matches!(
+            workshop_feedback.command,
+            Command::Feedback {
+                app_name: None,
+                version: None,
+                text: Some(text),
+                workshop: Some(workshop),
+                author: Some(author),
+                output: Some(output),
+                ..
+            } if text == "The save gesture was clear."
+                && workshop == PathBuf::from("/tmp/field-notebook-workshop")
+                && author == "Maya"
+                && output == PathBuf::from("/tmp/maya.tohseno-feedback")
+        ));
+
+        let imported_feedback = Cli::try_parse_from([
+            "tohseno",
+            "feedback",
+            "field-notebook",
+            "--packet",
+            "/tmp/maya.tohseno-feedback",
+        ])
+        .unwrap();
+        assert!(matches!(
+            imported_feedback.command,
+            Command::Feedback {
+                app_name: Some(app_name),
+                packet: Some(packet),
+                ..
+            } if app_name == "field-notebook"
+                && packet == PathBuf::from("/tmp/maya.tohseno-feedback")
+        ));
 
         let export = Cli::try_parse_from([
             "tohseno",

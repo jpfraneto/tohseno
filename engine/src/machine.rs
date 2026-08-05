@@ -14,6 +14,7 @@ use crate::shot_layout::{
     describe_feedback_attachment, ImportedShot, PortableShotManifest, PortableVisibility,
     ShotBodyVerification, ShotLayout, ShotLayoutError, StoredFeedback, StoredReference,
 };
+use crate::workshop::WorkshopFeedbackPacket;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -655,6 +656,105 @@ impl Engine {
         let signed = sign_lineage_action(&manager, &builder, action)?;
         layout
             .record_feedback_action(shot_id, &version, &feedback, &signed, attachments)
+            .map_err(EngineError::from)
+    }
+
+    /// Accept one reviewed workshop feedback packet into the Builder's private
+    /// lineage. The packet binds an exact public Version but is not itself an
+    /// authority signature; the current Builder decides whether to admit it.
+    pub fn record_workshop_feedback(
+        &self,
+        app_name: &str,
+        packet: &WorkshopFeedbackPacket,
+    ) -> Result<StoredFeedback, EngineError> {
+        packet
+            .validate()
+            .map_err(|error| EngineError::ProtocolBodyIncomplete(error.to_string()))?;
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let app = self.ledger.load_app(app_name)?;
+        let shot_id = app
+            .shot_id
+            .ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+        let expected_builder = app
+            .builder_id
+            .ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+        let expression_id = app.expression_id.ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete(format!("{app_name} has no stable ExpressionID"))
+        })?;
+        if packet.shot_id != shot_id || packet.expression_id != expression_id {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "workshop feedback names a different Shot or Expression".into(),
+            ));
+        }
+
+        let manager = BuilderIdentityManager::for_ledger(&self.ledger);
+        let builder = manager.ensure()?;
+        if builder.builder_id != expected_builder {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let lineage = layout.read_lineage()?;
+        let state = tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+        if state.shot_id != shot_id
+            || state.controller != builder.builder_id
+            || state.controller_key != builder.device.public_key
+        {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        let version = state
+            .expression(expression_id)
+            .and_then(|expression| {
+                expression
+                    .versions
+                    .iter()
+                    .find(|version| version.ordinal == packet.version_ordinal)
+            })
+            .cloned()
+            .ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(format!(
+                    "{app_name} has no accepted version {:04} for this workshop feedback",
+                    packet.version_ordinal
+                ))
+            })?;
+        if version.version_id != packet.version_id {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "workshop feedback VersionID does not match the accepted ordinal".into(),
+            ));
+        }
+
+        let action_timestamp = canonical_now_at_least(&state.last_timestamp)?;
+        let feedback = Feedback {
+            schema: FEEDBACK_SCHEMA.into(),
+            expression_id,
+            version_id: version.version_id,
+            build_identity: version.build_identity.clone(),
+            author: Some(FeedbackAuthor {
+                identity: "workshop:self-declared".into(),
+                display_name: packet.author_display_name.clone(),
+            }),
+            visibility: Visibility::Private,
+            text: Some(packet.text.clone()),
+            observations: Vec::new(),
+            attachments: Vec::new(),
+            observed_at: packet.observed_at.clone(),
+        };
+        feedback.validate().map_err(ShotLayoutError::from)?;
+        let action = LineageAction::new(
+            state.sequence.checked_add(1).ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete("lineage sequence overflowed".into())
+            })?,
+            Some(state.head),
+            shot_id,
+            builder.builder_id,
+            action_timestamp,
+            AvailabilityStatus::IntentionallyPrivate,
+            LineagePayload::Feedback(feedback.clone()),
+        )
+        .map_err(ShotLayoutError::from)?;
+        let signed = sign_lineage_action(&manager, &builder, action)?;
+        layout
+            .record_feedback_action(shot_id, &version, &feedback, &signed, &[])
             .map_err(EngineError::from)
     }
 

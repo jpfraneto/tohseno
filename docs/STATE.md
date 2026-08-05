@@ -138,31 +138,38 @@ in the repository and at the v0.7.1 tag for exactly that purpose.
 
 ## Capability policy for generated apps
 
-Generated apps are local-first by construction, and the engine scans their
-source to prove it. Local notifications are now the one supported protected
-Apple capability: an app that uses the UserNotifications framework gets an
-exact declaration of that use in its signed record instead of being rejected.
-Everything else still fails the gates — camera, microphone, location,
-contacts, health, Bluetooth, StoreKit, explicit entitlement files, any network
-use, cloud storage or sync, tracking and analytics, and any storage runtime
-other than the small declared set (files, user defaults, keychain, Secure
-Enclave, SwiftData). A source using notifications plus a forbidden capability
-is rejected with a diagnostic naming only the forbidden part. One helper
-function in `engine/src/protocol_lifecycle.rs` decides what is supported, and
-the record creation path, the local conformance check, and the independent
-verifier all derive from it, so they cannot drift apart; the derived
-declaration is deterministic regardless of where in the source the capability
-appears.
+The installed 0.8.2 release retains the old notification-only generated-app
+gate. Source on main now corrects that policy: a Shot may use the native Apple
+capabilities its intention requires, including camera, microphone, location,
+contacts, HealthKit, Bluetooth, StoreKit, private CloudKit, authentication,
+explicit entitlements, and declared networking. Native Core Data is no longer
+misclassified as an unsupported runtime.
+
+Sensitive use is explicit rather than globally prohibited. Generated source
+adds a closed `TOHSENO/capabilities.json` declaration that names each
+capability and purpose, additional storage, and each remote endpoint or local
+Bonjour service with its purpose and transmitted data categories. The engine
+cross-checks this declaration against inspectable source, required usage
+descriptions, entitlement keys, and literal remote endpoints, then projects it
+into the signed concrete Fascia and embedded metadata. Missing, stale,
+duplicated, malformed, or under-scoped declarations fail closed. Existing
+notification-only histories remain verifiable through their deterministic
+legacy declaration.
+
+This is intention-led capability freedom, not permission to add speculative
+surface area. Third-party runtimes remain outside the Apple-only harness;
+tracking, advertising identifiers, analytics, telemetry, Builder secrets, and
+silent installation linkage still fail. Authentication is no longer
+misclassified as tracking, but the Apple Fascia still requires a useful first
+screen without a mandatory account wall.
 
 ## Deliberately deferred
 
 Public activation and everything downstream of it (durable public BuilderIDs,
 the public witness registry, publication receipts) wait on the remaining audit,
-canary, and activation chain described above. Network-capable generated apps
-wait until exact endpoint
-declarations can be proven rather than trusted. The other protected Apple
-capabilities wait until each has a declaration and policy as tight as the one
-notifications got. Device-key replacement for the frozen v0.7 identities is
+canary, and activation chain described above. The intention-led Apple
+capability policy on main still needs an immutable CLI release before generated
+Shots receive it. Device-key replacement for the frozen v0.7 identities is
 closed — the successor generation's recovery design (ADR 0006) is the answer,
 and no signed identity-supersession flow will be built until a real migration
 needs one.
@@ -194,9 +201,10 @@ release operator to the already-published external v0.7 release notes; the
 repository cannot do that itself. The branch
 `archive/codex-0.8-cutover-pre-remediation` (now also on origin) preserves an
 abandoned pre-remediation draft of the 0.8 cutover for the record only — it
-must not be merged. Engine test coverage rejects a representative forbidden
-capability (camera) through the shared gate rather than testing every
-forbidden capability by name; the gate itself is a single code path. The
-sealed Apple Fascia artifact still labels itself candidate 0.7.0 by design —
+must not be merged. Engine regression coverage now exercises declared camera,
+microphone, location, contacts, HealthKit, Bluetooth, StoreKit, CloudKit,
+local Bonjour pairing, remote endpoint scoping, Apple authentication, native
+Core Data, and the continuing tracking prohibition through the shared source
+policy path. The sealed Apple Fascia artifact still labels itself candidate 0.7.0 by design —
 sealed artifacts are never edited in place; its next accepted revision is
 expected to add generation-scoped publication-receipt verification.

@@ -200,7 +200,11 @@ Portable export/import is a verified record projection, not a source clone,
 ownership transfer, or trusted materialization. Public export does not relabel
 private intention or feedback as public. The candidate bundle inventory commits
 every included payload file, while source and retained build artifacts remain
-explicit omissions.
+explicit omissions. Source-first community testing is a separate, noncanonical
+transport: a `.tohseno-workshop` capsule carries one accepted source snapshot,
+its reviewed license, and the public records needed to verify it, but never the
+Builder's private `.tohseno/` ledger or retained binary. See
+[`docs/WORKSHOP.md`](docs/WORKSHOP.md).
 
 Local creation and verification do not require a TOHSENO server. Publication
 is a separate, currently inactive boundary. The versioned
@@ -265,8 +269,9 @@ tohseno protocol vectors
 tohseno --json identity show
 tohseno identity devices
 tohseno inspect my-app
-tohseno verify my-app
-tohseno --json verify my-app
+cd ~/Desktop/Tohseno/my-app
+tohseno verify
+tohseno --json verify
 ```
 
 Strict local verification does not call an LLM.
@@ -320,7 +325,8 @@ tohseno evolve field-notebook \
 
 # After applying the proposed source change:
 tohseno evolve field-notebook
-tohseno verify field-notebook
+cd ~/Desktop/Tohseno/field-notebook
+tohseno verify
 ```
 
 The local authentic-harness flow is:
@@ -395,8 +401,16 @@ Legacy apps keep their existing ledger. Their first protocol record is
 an explicit N+1 adoption root; TOHSENO does not invent cryptographic history:
 
 ```sh
-tohseno adopt my-legacy-app
+cd /path/to/my-legacy-app
+tohseno adopt
 ```
+
+For an ordinary existing iOS repository, normalize its folder, project,
+scheme, target, and product to one TOHSENO-safe slug; add the exact pinned
+Apple Fascia and capability declarations; then run `tohseno adopt` from the
+repository root. Adoption creates `.tohseno/` and the first verified Evolution.
+It does not make incompatible dependencies or capabilities conformant. The
+complete adoption and workshop flow is in [`docs/WORKSHOP.md`](docs/WORKSHOP.md).
 
 A deterministic private static page can be prepared without publishing it:
 
@@ -474,7 +488,8 @@ deployment coordinates.
 | Solidity factory, delayed-recovery account, and narrowed checkpoint registry | Implemented and locally tested; two independent AI reviews complete, independent human audit still pending |
 | Bounded lineage-evidence node | Implements legacy-action preservation and explicit static-peer synchronization; active-generation authority stays unresolved, and checkpoint receipt inventory is deferred |
 | Neutral Token Association | Implemented as private signed v2 lineage; mixed-ancestry public outbox retired, and no token existence or chain anchor claimed |
-| Portable Shot bundle | Implemented as a verified record projection; source materialization intentionally unavailable |
+| Portable Shot bundle | Implemented as a verified record projection; it still omits source and does not transfer ownership |
+| Source-first workshop capsule | Implemented as a separate noncanonical, licensed source transport with local rebuild and exact-version feedback |
 | Robinhood Chain P256VERIFY read-only probe | Complete positive/negative/infinity and 6,900-gas observation preserved in [`contracts/audits/`](contracts/audits/); re-verified as a fresh gate in the 2026-08-01 deployment ceremony |
 | Successor contracts | Immutable `0.8.0` generation deployed on Robinhood Chain mainnet as an inactive, untrusted candidate (see [On-chain status](#on-chain-status)); no signed activation or client trust root, and activation stays gated behind independent review, the canary, and the threshold ceremony |
 | Frozen legacy publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at its immutable release tag |

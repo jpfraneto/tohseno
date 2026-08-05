@@ -24,6 +24,7 @@ pub mod recovery;
 pub mod shot_execution;
 pub mod shot_layout;
 pub mod verifier;
+pub mod workshop;
 
 pub use config::Config;
 pub use events::{Event, EventBus};
@@ -55,4 +56,9 @@ pub use shot_layout::{
     AcceptedMaterialization, DerivedExpressionHead, DerivedShotSnapshot, ImportedShot,
     PortableFile, PortableShotManifest, PortableVisibility, PreparedIntentPackage,
     PreparedIntentReference, ShotBodyVerification, ShotLayout, ShotLayoutError, StoredFeedback,
+};
+pub use workshop::{
+    create_workshop_feedback, materialize_workshop, read_workshop_feedback, read_workshop_receipt,
+    share_workshop, WorkshopFeedbackPacket, WorkshopMaterialization, WorkshopReceipt,
+    WorkshopShare, WORKSHOP_CAPSULE_EXTENSION, WORKSHOP_FEEDBACK_EXTENSION,
 };

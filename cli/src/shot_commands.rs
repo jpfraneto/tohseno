@@ -1,8 +1,9 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tohseno_engine::{
-    Engine, Event, EventBus, ImportedShot, PortableShotManifest, PortableVisibility, ShotLayout,
-    StoredFeedback,
+    create_workshop_feedback, materialize_workshop, read_workshop_feedback, share_workshop, Engine,
+    Event, EventBus, ImportedShot, PortableShotManifest, PortableVisibility, ShotLayout,
+    StoredFeedback, WorkshopFeedbackPacket,
 };
 use tohseno_protocol::digest::{Address20, Bytes32};
 use tohseno_protocol::ontology::{
@@ -96,6 +97,133 @@ pub fn import_shot(
         bus.emit(Event::handoff(
             "The import follows verified lineage only. It did not acquire ownership, clone source, or materialize an expression.",
         ));
+    }
+    Ok(())
+}
+
+pub fn share_for_workshop(
+    engine: &Engine,
+    app_name: &str,
+    destination: &Path,
+    json: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = engine.ledger().lock_app(app_name)?;
+    let destination = absolute(destination)?;
+    let shared = share_workshop(engine.ledger(), app_name, &destination)?;
+    if json {
+        print_json(&shared)?;
+    } else {
+        bus.emit(Event::result(format!(
+            "workshop source capsule created at {}.",
+            shared.capsule.display()
+        )));
+        bus.emit(Event::status(format!(
+            "Version {} · {} source files · license {} · capsule {}.",
+            shared.version_id, shared.source_files, shared.license_path, shared.capsule_sha256
+        )));
+        bus.emit(Event::handoff(
+            "Share this one capsule. It contains reviewed source and public verification records, never your private `.tohseno` ledger or a publisher binary.",
+        ));
+    }
+    Ok(())
+}
+
+pub async fn try_workshop(
+    capsule: &Path,
+    destination: &Path,
+    no_launch: bool,
+    json: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let capsule = absolute(capsule)?;
+    let destination = absolute(destination)?;
+    let materialized = materialize_workshop(&capsule, &destination)?;
+    let launched = if no_launch {
+        false
+    } else {
+        crate::simulator::launch_workshop(
+            &materialized.source,
+            bus,
+            &materialized.receipt.app_name,
+            &materialized.receipt.bundle_id,
+            materialized.receipt.version_ordinal,
+        )
+        .await?;
+        true
+    };
+    let output = WorkshopTryOutput {
+        destination: materialized.root.display().to_string(),
+        source: materialized.source.display().to_string(),
+        receipt: materialized.receipt,
+        locally_built_and_launched: launched,
+        ownership_acquired: false,
+    };
+    if json {
+        print_json(&output)?;
+    } else if no_launch {
+        bus.emit(Event::result(format!(
+            "verified workshop source materialized at {}.",
+            output.source
+        )));
+        bus.emit(Event::handoff(
+            "No publisher binary ran and no ownership was acquired. Open this verified source in Xcode, or materialize a fresh copy later without `--no-launch` to build and launch it locally.",
+        ));
+    }
+    Ok(())
+}
+
+pub fn write_workshop_feedback(
+    workshop: &Path,
+    text: &str,
+    author: Option<&str>,
+    destination: &Path,
+    json: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let workshop = absolute(workshop)?;
+    let destination = absolute(destination)?;
+    let packet = create_workshop_feedback(&workshop, text, author, &destination)?;
+    let output = WorkshopFeedbackOutput {
+        destination: destination.display().to_string(),
+        packet,
+    };
+    if json {
+        print_json(&output)?;
+    } else {
+        bus.emit(Event::result(format!(
+            "feedback for exact Version {} written to {}.",
+            output.packet.version_id, output.destination
+        )));
+        bus.emit(Event::handoff(
+            "Send this small feedback packet to the Builder. Its author name is self-declared; the Builder reviews it before admitting it to private Shot history.",
+        ));
+    }
+    Ok(())
+}
+
+pub fn import_workshop_feedback(
+    engine: &Engine,
+    app_name: &str,
+    packet_path: &Path,
+    json: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let packet_path = absolute(packet_path)?;
+    let packet = read_workshop_feedback(&packet_path)?;
+    let stored = engine.record_workshop_feedback(app_name, &packet)?;
+    let output = FeedbackOutput::new(packet.version_ordinal, &stored);
+    if json {
+        print_json(&output)?;
+    } else {
+        bus.emit(Event::result(format!(
+            "reviewed workshop feedback {} was admitted for exact Version {}.",
+            output.feedback_id, packet.version_id
+        )));
+        bus.emit(Event::status(format!(
+            "signed Builder action {} · remote authorship remains explicitly self-declared.",
+            output.action_commitment
+        )));
     }
     Ok(())
 }
@@ -421,6 +549,21 @@ struct ImportOutput {
     visibility: PortableVisibility,
     ownership_acquired: bool,
     source_materialized: bool,
+}
+
+#[derive(Serialize)]
+struct WorkshopTryOutput {
+    destination: String,
+    source: String,
+    receipt: tohseno_engine::WorkshopReceipt,
+    locally_built_and_launched: bool,
+    ownership_acquired: bool,
+}
+
+#[derive(Serialize)]
+struct WorkshopFeedbackOutput {
+    destination: String,
+    packet: WorkshopFeedbackPacket,
 }
 
 impl ImportOutput {

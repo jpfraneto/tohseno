@@ -2299,6 +2299,7 @@ version = "0.8.3"
 dependencies = [
  "aes-gcm",
  "argon2",
+ "base64",
  "base64ct",
  "bip32",
  "bip39",

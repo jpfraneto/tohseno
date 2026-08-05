@@ -517,5 +517,10 @@ mod tests {
         assert!(task.contains("Make a quiet notebook."));
         assert!(task.contains("__TOHSENO_SHOT__"));
         assert!(task.contains("complete buildable project"));
+        assert!(task.contains("Let each Shot use the native Apple frameworks"));
+        assert!(task.contains("TOHSENO/capabilities.json"));
+        assert!(!task.contains(
+            "Work offline first; add no accounts, sign-in screens, tracking, analytics, or network services."
+        ));
     }
 }
