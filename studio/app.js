@@ -203,7 +203,13 @@ const ui = {
   bankrResultJson: document.querySelector("#bankr-result-json"),
 };
 
-let library = { apps: [], iphone_slots_used: 0, iphone_slot_limit: 3 };
+let library = {
+  apps: [],
+  iphone_slots_used: null,
+  iphone_slot_limit: null,
+  iphone_slot_policy: "unknown",
+  iphone_slot_detail: "Provisioning tier unavailable",
+};
 let selectedApp = null;
 let selectedShot = null;
 let composerMode = "create";
@@ -1000,10 +1006,12 @@ const renderLibrary = () => {
 };
 
 const renderSlots = () => {
-  ui.slotLabel.textContent = `${library.iphone_slots_used} of ${library.iphone_slot_limit} installed`;
-  ui.slotDots.replaceChildren(...Array.from({ length: library.iphone_slot_limit }, (_, index) => {
+  const used = library.iphone_slots_used;
+  const limit = library.iphone_slot_limit;
+  ui.slotLabel.textContent = library.iphone_slot_detail;
+  ui.slotDots.replaceChildren(...Array.from({ length: Number.isInteger(limit) ? limit : 0 }, (_, index) => {
     const dot = document.createElement("span");
-    dot.className = `slot-dot${index < library.iphone_slots_used ? " used" : ""}`;
+    dot.className = `slot-dot${Number.isInteger(used) && index < used ? " used" : ""}`;
     return dot;
   }));
 };
@@ -1022,7 +1030,11 @@ const renderSelection = () => {
   ui.detailTitle.textContent = selectedApp.name;
   ui.selectedIcon.replaceChildren(...icon(selectedApp, selectedShot, "selected-icon").childNodes);
   ui.selectedName.textContent = selectedApp.name;
-  ui.selectedLocation.textContent = selectedApp.retired ? "Local library" : "Installed on iPhone";
+  ui.selectedLocation.textContent = selectedApp.installed_on_connected_iphone === true
+    ? "Installed on connected iPhone"
+    : selectedApp.installed_on_connected_iphone === false
+      ? (selectedApp.retired ? "Local library" : "Active Shot · not on connected iPhone")
+      : (selectedApp.retired ? "Local library" : "Active Shot · iPhone status unavailable");
   ui.shotPosition.textContent = `Evolution ${selectedShot} of ${selectedApp.latest_evolution}`;
   ui.workingState.hidden = !selectedApp.unrecorded_changes;
   const days = selectedApp.expires_in_days;

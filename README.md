@@ -13,13 +13,13 @@ A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-**TOHSENO 0.8.4** ships for macOS. The system is in beta and evolving
+**TOHSENO 0.8.5** ships for macOS. The system is in beta and evolving
 quickly: stable releases ship continuously. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol or public
 infrastructure. The 0.8.0 contract generation is an inactive, untrusted
 candidate; no release reads from or writes to it.
 
-The immutable `v0.8.4` release is published and the public installer is pinned
+The immutable `v0.8.5` release is published and the public installer is pinned
 byte-for-byte to its claim-capable installer. The production ciphertext relay
 is active at the canonical HTTPS origin on an owner-controlled durable volume;
 its release and capability gates remain fail-closed by default in source.
@@ -37,7 +37,7 @@ no release reads from or writes to those contracts.
 > not an address in the deployed generation. Local Shots, identities, and
 > signed history remain valid and verifiable offline.
 
-## Birth model in 0.8.4
+## Birth model in 0.8.5
 
 The exact Intention remains the human source of truth. An intelligence reads it
 with its references and the locally discovered Apple Capability Profile, then
@@ -55,7 +55,7 @@ accepted Version is complete within its bounded intention. Evolution starts
 from that complete living app after contact with life. A conformant build alone
 does not prove that the product promise was fulfilled.
 
-These rules govern new births in 0.8.4. They do not retroactively alter an
+These rules govern new births in 0.8.5. They do not retroactively alter an
 older installed CLI or any accepted lineage.
 
 ## The ordinary loop
@@ -107,7 +107,7 @@ The installed CLI checks the stable release channel at most once per day. When
 a newer release exists, interactive commands show one short instruction:
 
 ```text
-TOHSENO 0.8.4 is available. Run `tohseno update`.
+TOHSENO 0.8.5 is available. Run `tohseno update`.
 ```
 
 Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).
@@ -188,9 +188,12 @@ write permission remains scoped to the publish job.
 TOHSENO requires macOS 13 or later and Xcode. A physical install or trial
 requires a paired iPhone reachable through Apple’s device tooling (USB or a
 supported local-network connection) and a usable Apple
-signing identity. A free Apple ID is the default development path; paid Apple
-Developer membership is only needed for longer-lived signing or App Store
-distribution.
+signing identity. When more than one certified Xcode team is available,
+TOHSENO prefers a paid team. A free Personal Team remains a supported
+development path; its three-app check is evaluated only at physical install
+time from TOHSENO bundles actually observed on that connected iPhone. Local
+Shots, Simulator builds, and accepted lineage history are never counted as
+iPhone slots. Paid teams are not subjected to the free-team wall.
 
 ## Protocol candidate
 

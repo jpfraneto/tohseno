@@ -177,7 +177,6 @@ impl Engine {
             ));
         }
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
-        self.check_slot_limit()?;
         // Prove every reference source stages cleanly BEFORE the folder or
         // identity exists; a failed creation must not strand a partial Shot.
         crate::shot_layout::preflight_private_references(&request.intent.images)?;
@@ -2418,8 +2417,6 @@ impl Engine {
                     return Ok(previous.clone());
                 }
             }
-        } else {
-            self.check_slot_limit()?;
         }
         let is_initial_birth = previous.is_none() && origin.is_none();
         if is_initial_birth {
@@ -2624,9 +2621,6 @@ impl Engine {
         self.wait_for_apple_prerequisites().await?;
         let apps = if let Some(app_name) = app_name {
             let app = self.ledger.load_app(app_name)?;
-            if app.retired {
-                self.check_slot_limit()?;
-            }
             vec![app]
         } else {
             self.ledger
@@ -2644,15 +2638,15 @@ impl Engine {
             if app.latest_evolution.is_none() {
                 continue;
             }
-            if app.retired {
-                self.check_slot_limit()?;
-            }
             let shot = self.ledger.latest_evolution(&app.name)?.unwrap();
             protocol_lifecycle::verify_completed_evolution(&shot)?;
             let recorded_artifact = shot
                 .artifact_path()
                 .join(format!("{}.app", app.target_name()));
-            if sign::days_until_expiry(&recorded_artifact).is_some_and(|days| days <= 0) {
+            if sign::days_until_expiry(&recorded_artifact).is_some_and(|days| days <= 0)
+                && sign::development_team_profile()
+                    .is_ok_and(|team| team.provisioning == sign::ProvisioningKind::Free)
+            {
                 self.emit_upsell_once(
                     "expiry",
                     "A paid Apple Developer membership removes weekly expiry: developer.apple.com.",
@@ -2731,9 +2725,19 @@ impl Engine {
         // Recording waits on Apple Development signing; say so now instead
         // of letting the first evolve poll silently.
         match apple_signing::check() {
-            AppleSigningState::Ready { .. } => {
-                self.events
-                    .emit(Event::status("Apple Development signing is ready."));
+            AppleSigningState::Ready {
+                team_name,
+                provisioning,
+                ..
+            } => {
+                self.events.emit(Event::status(format!(
+                    "Apple Development signing is ready with the {} team {}.",
+                    provisioning.as_str(),
+                    team_name
+                        .as_deref()
+                        .unwrap_or("selected in Xcode")
+                        .trim_end_matches('.')
+                )));
             }
             AppleSigningState::Missing => {
                 ready = false;
@@ -2781,27 +2785,6 @@ impl Engine {
             self.events
                 .emit(Event::status("starting the Apple toolchain installation…"));
         }
-    }
-
-    fn check_slot_limit(&self) -> Result<(), EngineError> {
-        let active = self
-            .ledger
-            .list_apps()?
-            .into_iter()
-            .filter(|app| !app.retired && app.latest_evolution.is_some())
-            .collect::<Vec<_>>();
-        if active.len() >= 3 {
-            let candidate = &active[0].name;
-            self.emit_upsell_once(
-                "slots",
-                "A paid Apple Developer membership raises this limit: developer.apple.com.",
-            )?;
-            self.events.emit(Event::handoff(format!(
-                "Run `tohseno retire {candidate}` to free one iPhone slot (add --local when no iPhone is connected)."
-            )));
-            return Err(EngineError::SlotLimit);
-        }
-        Ok(())
     }
 
     fn emit_upsell_once(&self, wall: &str, message: &str) -> Result<(), EngineError> {
@@ -2992,8 +2975,31 @@ impl DevicePipeline {
     ) -> Result<(), EngineError> {
         install::require_candidate_namespace(bundle_id).map_err(EngineError::Install)?;
         let device = self.wait_for_device().await?;
-        self.events
-            .emit(Event::status(format!("signing evolution {shot_number}…")));
+        let team = sign::development_team_profile().map_err(EngineError::Sign)?;
+        if team.provisioning == sign::ProvisioningKind::Free {
+            let installed =
+                install::installed_candidate_apps(&device).map_err(EngineError::Install)?;
+            if let Some(blocker) = install::free_team_slot_blocker(&installed, bundle_id) {
+                let candidate = blocker
+                    .bundle_id
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(&blocker.bundle_id);
+                self.events.emit(Event::status(
+                    "Xcode selected a free Personal Team, whose connected-iPhone development profile is limited to three TOHSENO app bundles.",
+                ));
+                self.events.emit(Event::handoff(format!(
+                    "The connected iPhone actually contains {} TOHSENO apps. Run `tohseno retire {candidate}` to remove one before installing this new bundle, or select a paid Apple team in Xcode.",
+                    installed.len()
+                )));
+                return Err(EngineError::SlotLimit);
+            }
+        }
+        self.events.emit(Event::status(format!(
+            "signing evolution {shot_number} with {} Apple team {}…",
+            team.provisioning.as_str(),
+            team.team_name.as_deref().unwrap_or(&team.team_id)
+        )));
         let app = sign::build_signed(sign::SignRequest {
             source,
             artifact_directory,
@@ -3001,6 +3007,7 @@ impl DevicePipeline {
             bundle_id,
             shot_number,
             device: &device,
+            team_id: &team.team_id,
         })
         .map_err(EngineError::Sign)?;
         self.events.emit(Event::status(format!(
@@ -3495,7 +3502,10 @@ impl std::fmt::Display for EngineError {
                     "the iOS device build passed but the Simulator artifact failed:\n{tail}"
                 )
             }
-            Self::SlotLimit => write!(f, "the free Apple ID app limit is full"),
+            Self::SlotLimit => write!(
+                f,
+                "the connected iPhone's free-team TOHSENO app limit is full"
+            ),
             Self::IdentityName => write!(f, "could not determine the local username"),
             Self::BuilderIdentity(error) => write!(f, "{error}"),
             Self::ProtocolLifecycle(error) => write!(f, "{error}"),

@@ -111,6 +111,15 @@ test("first-run onboarding uses authoritative Mac and harness readiness", () => 
   assert.doesNotMatch(script, /localStorage\.setItem\([^)]*(?:xcode|signing|harness_ready)/);
 });
 
+test("iPhone installation status comes from provisioning and device evidence", () => {
+  assert.match(html, /iPhone development installation status/);
+  assert.match(script, /library\.iphone_slot_detail/);
+  assert.match(script, /installed_on_connected_iphone === true/);
+  assert.match(script, /Active Shot · not on connected iPhone/);
+  assert.doesNotMatch(script, /iphone_slot_limit: 3/);
+  assert.doesNotMatch(script, /selectedApp\.retired \? "Local library" : "Installed on iPhone"/);
+});
+
 test("node participation is optional and cannot block local Studio startup", () => {
   assert.match(script, /response\.status === 404/);
   assert.match(script, /configured: false/);

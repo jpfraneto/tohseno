@@ -217,6 +217,11 @@ with no in-product recovery; P2 misleads or strands state; P3 cosmetic.
   apps and speaks entirely in iPhone terms to a user who never plugged one
   in. Revisit whether simulator-only apps consume "iPhone slots"; at minimum
   the wall should say what the limit is for.
+- Resolved for 0.8.5: accepted Shot records no longer participate in slot
+  accounting. TOHSENO prefers a usable paid Xcode team. Only a positively
+  identified free Personal Team can trigger the wall, immediately before a
+  physical install, from the connected iPhone's structured app inventory;
+  reinstalling the same bundle remains allowed.
 
 ### F-007 · P2 · Protocol/Engine — harness-local state is sealed into the signed source world
 - `.claude/settings.json` (and whatever `settings.local.json` a real user's

@@ -19,7 +19,10 @@ use tohseno_engine::contract_generation::{
     resolve_current_contract_generation, ResolvedContractGeneration,
 };
 use tohseno_engine::gates::apple_signing::AppleSigningState;
+use tohseno_engine::gates::device::{self, DeviceState};
+use tohseno_engine::gates::install;
 use tohseno_engine::gates::intent::Intent;
+use tohseno_engine::gates::sign::ProvisioningKind;
 use tohseno_engine::gates::toolchain::ToolchainState;
 use tohseno_engine::protocol_lifecycle::reference_fascia_root;
 use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
@@ -197,8 +200,10 @@ struct FeedbackSaved {
 #[derive(Debug, Serialize)]
 struct LibraryResponse {
     apps: Vec<LibraryApp>,
-    iphone_slots_used: usize,
-    iphone_slot_limit: usize,
+    iphone_slots_used: Option<usize>,
+    iphone_slot_limit: Option<usize>,
+    iphone_slot_policy: &'static str,
+    iphone_slot_detail: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -212,6 +217,7 @@ struct LibraryApp {
     unrecorded_changes: bool,
     memory: Option<String>,
     expires_in_days: Option<i64>,
+    installed_on_connected_iphone: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1837,10 +1843,40 @@ fn contract_definition_facts(resolved: &ResolvedContractGeneration) -> ContractD
 async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>> {
     let ledger = Ledger::discover()?;
     let records = ledger.list_apps()?;
-    let iphone_slots_used = records
-        .iter()
-        .filter(|app| !app.retired && app.latest_evolution.is_some())
-        .count();
+    let signing = tohseno_engine::gates::sign::development_team_profile().ok();
+    let installed = match device::check() {
+        Ok(DeviceState::Ready(device)) => install::installed_candidate_apps(&device).ok(),
+        _ => None,
+    };
+    let installed_bundle_ids = installed.as_ref().map(|apps| {
+        apps.iter()
+            .map(|app| app.bundle_id.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+    });
+    let iphone_slots_used = installed.as_ref().map(Vec::len);
+    let provisioning = signing
+        .as_ref()
+        .map(|team| team.provisioning)
+        .unwrap_or(ProvisioningKind::Unknown);
+    let iphone_slot_limit =
+        (provisioning == ProvisioningKind::Free).then_some(install::FREE_PROVISIONING_APP_LIMIT);
+    let iphone_slot_policy = provisioning.as_str();
+    let iphone_slot_detail = match (provisioning, iphone_slots_used) {
+        (ProvisioningKind::Paid, Some(count)) => {
+            format!("Paid Apple team · {count} TOHSENO apps installed")
+        }
+        (ProvisioningKind::Paid, None) => "Paid Apple team · no free-team app wall".into(),
+        (ProvisioningKind::Free, Some(count)) => format!(
+            "{count} of {} TOHSENO apps installed with a free Apple team",
+            install::FREE_PROVISIONING_APP_LIMIT
+        ),
+        (ProvisioningKind::Free, None) => {
+            "Connect an iPhone to inspect its free-team app slots".into()
+        }
+        (ProvisioningKind::Unknown, _) => {
+            "Provisioning tier unavailable · no free-team limit inferred".into()
+        }
+    };
     let mut apps = Vec::new();
     for app in records {
         let Some(latest_evolution) = app.latest_evolution else {
@@ -1881,6 +1917,9 @@ async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error:
             unrecorded_changes,
             memory,
             expires_in_days,
+            installed_on_connected_iphone: installed_bundle_ids
+                .as_ref()
+                .map(|bundle_ids| bundle_ids.contains(app.bundle_id.as_str())),
             name: app.name,
             latest_evolution,
             shots,
@@ -1890,7 +1929,9 @@ async fn serve_library(socket: &mut TcpStream) -> Result<(), Box<dyn std::error:
     let body = serde_json::to_string(&LibraryResponse {
         apps,
         iphone_slots_used,
-        iphone_slot_limit: 3,
+        iphone_slot_limit,
+        iphone_slot_policy,
+        iphone_slot_detail,
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())
@@ -1931,12 +1972,21 @@ async fn serve_onboarding(
         },
     };
     let apple_signing = match tohseno_engine::gates::apple_signing::check() {
-        AppleSigningState::Ready { .. } => OnboardingCheck {
+        AppleSigningState::Ready {
+            team_name,
+            provisioning,
+            ..
+        } => OnboardingCheck {
             ready: true,
             status: "ready",
-            detail:
-                "Xcode has an Apple Development identity associated with one of its signed-in teams."
-                    .into(),
+            detail: format!(
+                "Xcode will use the {} Apple team {} for development signing.",
+                provisioning.as_str(),
+                team_name
+                    .as_deref()
+                    .unwrap_or("selected in Xcode")
+                    .trim_end_matches('.')
+            ),
         },
         AppleSigningState::Missing => OnboardingCheck {
             ready: false,

@@ -2,7 +2,7 @@
 set -eu
 
 repository="https://github.com/jpfraneto/tohseno"
-version="v0.8.4"
+version="v0.8.5"
 start_studio="${TOHSENO_START_STUDIO:-}"
 claim_token=""
 claim_requested=0
@@ -131,7 +131,7 @@ case "$macos_major" in
   '' | *[!0-9]*) fail "Could not parse the macOS version." ;;
 esac
 if [ "$macos_major" -lt 13 ]; then
-  fail "TOHSENO 0.8.4 requires macOS 13 or later."
+  fail "TOHSENO 0.8.5 requires macOS 13 or later."
 fi
 
 case "$(uname -m)" in
@@ -471,13 +471,13 @@ verify_artifact "$materials_name"
 
   installed_version="$("$release_stage/bin/tohseno" --version 2>/dev/null)" ||
     fail "The TOHSENO executable did not start from its private stage."
-  if [ "$installed_version" != "tohseno 0.8.4" ]; then
-    fail "The downloaded executable is not the pinned 0.8.4 release."
+  if [ "$installed_version" != "tohseno 0.8.5" ]; then
+    fail "The downloaded executable is not the pinned 0.8.5 release."
   fi
   helper_version="$("$release_stage/bin/tohseno-apple-identity" --version 2>/dev/null)" ||
     fail "The Apple identity helper did not start from its private stage."
-  if [ "$helper_version" != "tohseno-apple-identity 0.8.4" ]; then
-    fail "The downloaded Apple identity helper is not the pinned 0.8.4 release."
+  if [ "$helper_version" != "tohseno-apple-identity 0.8.5" ]; then
+    fail "The downloaded Apple identity helper is not the pinned 0.8.5 release."
   fi
 
   release_name="${version#v}-$target-$(date +%s)-$$"

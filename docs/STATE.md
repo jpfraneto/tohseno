@@ -7,7 +7,7 @@ makes it untrue.
 
 ## What ships today
 
-TOHSENO 0.8.4 ships for macOS. A person runs one install command
+TOHSENO 0.8.5 ships for macOS. A person runs one install command
 (`curl -fsSL https://tohseno.com/oneshot.sh | bash`), which verifies a
 pinned, immutable release archive, installs the `tohseno` command-line tool
 and its Apple identity helper transactionally, and starts Studio, a
@@ -73,7 +73,7 @@ the browser nor relay creates a Shot. The existing engine creates the Shot
 only after local onboarding, plan and Genome review, and explicit preparation.
 
 This capability is active in production. The public installer is
-byte-identical to the immutable, claim-capable `v0.8.4` release, and the Bun
+byte-identical to the immutable, claim-capable `v0.8.5` release, and the Bun
 relay uses the owner-controlled durable volume at the canonical HTTPS origin.
 The relay still defaults off in source, and production startup rejects an
 enabled relay unless durable storage, HTTPS, and the matching installer gate
@@ -226,12 +226,13 @@ builder work), feedback-to-evolution continuity (a successful seal now
 mirrors its engine substitutions back into the living folder, and evolve
 proves the feedback selection before any recording side effect), honest
 handling of a Terminal window that cannot open, and `tohseno retire --local`
-so the slot wall has an exit that needs no phone. `tohseno doctor` now
+so an explicitly local retirement needs no phone. `tohseno doctor` now
 checks signing, harness, and identity state, and Shot inputs are validated
-before any folder exists. `docs/DOGFOOD_REPORT.md` carries the full
-findings, including open P2/P3 items (harness-local files inside sealed
-sources, phone-centric copy in the phone-free loop, simulator-only apps
-counting against iPhone slots).
+before any folder exists. The 0.8.5 signing correction prefers a usable paid
+Xcode team and derives any free-team three-app wall only from TOHSENO bundles
+actually present on the connected iPhone. Simulator-only apps and accepted
+local Shot history do not consume device slots. `docs/DOGFOOD_REPORT.md`
+carries the original findings and their resolution status.
 
 ## Half-finished or worth knowing
 

@@ -14,6 +14,39 @@ pub struct SignRequest<'a> {
     pub bundle_id: &'a str,
     pub shot_number: u32,
     pub device: &'a Device,
+    pub team_id: &'a str,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProvisioningKind {
+    Paid,
+    Free,
+    Unknown,
+}
+
+impl ProvisioningKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Paid => "paid",
+            Self::Free => "free",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    fn selection_priority(self) -> u8 {
+        match self {
+            Self::Paid => 0,
+            Self::Unknown => 1,
+            Self::Free => 2,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DevelopmentTeam {
+    pub team_id: String,
+    pub team_name: Option<String>,
+    pub provisioning: ProvisioningKind,
 }
 
 #[derive(Debug)]
@@ -40,6 +73,10 @@ impl std::fmt::Display for SignError {
 impl std::error::Error for SignError {}
 
 pub fn development_team() -> Result<String, SignError> {
+    development_team_profile().map(|team| team.team_id)
+}
+
+pub fn development_team_profile() -> Result<DevelopmentTeam, SignError> {
     let output = run_checked(
         "security",
         ["find-identity", "-v", "-p", "codesigning"],
@@ -72,11 +109,10 @@ pub fn development_team() -> Result<String, SignError> {
         None,
     )
     .map_err(|_| SignError::IdentityMissing)?;
-    let xcode_teams = parse_xcode_team_ids(&String::from_utf8_lossy(&defaults.stdout));
-    certificate_teams
-        .into_iter()
-        .find(|team| xcode_teams.contains(team))
-        .ok_or(SignError::IdentityMissing)
+    certificate_teams.sort();
+    certificate_teams.dedup();
+    let xcode_teams = parse_xcode_teams(&String::from_utf8_lossy(&defaults.stdout));
+    select_development_team(&certificate_teams, &xcode_teams).ok_or(SignError::IdentityMissing)
 }
 
 /// Team IDs (subject OU) of every local Apple Development signing certificate.
@@ -122,7 +158,6 @@ fn certificate_team_ids() -> Result<Vec<String>, SignError> {
 }
 
 pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
-    let team = development_team()?;
     let project = find_project(request.source)
         .map_err(SignError::Io)?
         .ok_or(SignError::ProjectMissing)?;
@@ -149,7 +184,7 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
         "-allowProvisioningUpdates".into(),
         "ENABLE_USER_SCRIPT_SANDBOXING=YES".into(),
         "CODE_SIGN_STYLE=Automatic".into(),
-        format!("DEVELOPMENT_TEAM={team}").into(),
+        format!("DEVELOPMENT_TEAM={}", request.team_id).into(),
         format!("PRODUCT_BUNDLE_IDENTIFIER={}", request.bundle_id).into(),
         format!("CURRENT_PROJECT_VERSION={}", request.shot_number).into(),
         "MARKETING_VERSION=1.0".into(),
@@ -273,19 +308,51 @@ fn copy_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Every team Xcode can automatically provision for, personal or paid.
-/// Restricting this to free personal teams locked out builders whose only
-/// membership is a company team.
-fn parse_xcode_team_ids(defaults: &str) -> Vec<String> {
+/// Every team Xcode can automatically provision for, including its declared
+/// free/paid class. That class is needed both to select the strongest usable
+/// team and to avoid inventing free-account restrictions for paid builders.
+fn parse_xcode_teams(defaults: &str) -> Vec<DevelopmentTeam> {
     defaults
-        .lines()
-        .filter_map(|line| {
-            line.trim()
-                .strip_prefix("teamID = ")
-                .and_then(|value| value.strip_suffix(';'))
-                .map(ToOwned::to_owned)
+        .split('{')
+        .filter_map(|section| {
+            let record = section
+                .split_once('}')
+                .map_or(section, |(record, _)| record);
+            let team_id = openstep_field(record, "teamID")?;
+            let team_name = openstep_field(record, "teamName");
+            let provisioning = match openstep_field(record, "isFreeProvisioningTeam").as_deref() {
+                Some("0") => ProvisioningKind::Paid,
+                Some("1") => ProvisioningKind::Free,
+                _ => ProvisioningKind::Unknown,
+            };
+            Some(DevelopmentTeam {
+                team_id,
+                team_name,
+                provisioning,
+            })
         })
         .collect()
+}
+
+fn openstep_field(record: &str, key: &str) -> Option<String> {
+    let prefix = format!("{key} = ");
+    record.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix(&prefix)
+            .and_then(|value| value.strip_suffix(';'))
+            .map(|value| value.trim().trim_matches('"').to_owned())
+    })
+}
+
+fn select_development_team(
+    certificate_teams: &[String],
+    xcode_teams: &[DevelopmentTeam],
+) -> Option<DevelopmentTeam> {
+    xcode_teams
+        .iter()
+        .filter(|team| certificate_teams.contains(&team.team_id))
+        .min_by_key(|team| (team.provisioning.selection_priority(), &team.team_id))
+        .cloned()
 }
 
 #[cfg(test)]
@@ -311,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn reads_personal_and_company_team_ids_from_xcode_account_defaults() {
+    fn reads_personal_and_company_teams_from_xcode_account_defaults() {
         let defaults = r#"{
             teamID = R8G2NH6ZA9;
             teamName = "Personal Team";
@@ -319,8 +386,77 @@ mod tests {
         },
         {
             teamID = PAIDTEAM01;
+            teamName = "Company Team";
             isFreeProvisioningTeam = 0;
         }"#;
-        assert_eq!(parse_xcode_team_ids(defaults), ["R8G2NH6ZA9", "PAIDTEAM01"]);
+        assert_eq!(
+            parse_xcode_teams(defaults),
+            [
+                DevelopmentTeam {
+                    team_id: "R8G2NH6ZA9".into(),
+                    team_name: Some("Personal Team".into()),
+                    provisioning: ProvisioningKind::Free,
+                },
+                DevelopmentTeam {
+                    team_id: "PAIDTEAM01".into(),
+                    team_name: Some("Company Team".into()),
+                    provisioning: ProvisioningKind::Paid,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn paid_team_is_preferred_regardless_of_account_or_certificate_order() {
+        let certificates = vec!["FREETEAM01".into(), "PAIDTEAM01".into()];
+        let teams = vec![
+            DevelopmentTeam {
+                team_id: "FREETEAM01".into(),
+                team_name: Some("Personal Team".into()),
+                provisioning: ProvisioningKind::Free,
+            },
+            DevelopmentTeam {
+                team_id: "PAIDTEAM01".into(),
+                team_name: Some("Company".into()),
+                provisioning: ProvisioningKind::Paid,
+            },
+        ];
+        let selected = select_development_team(&certificates, &teams).unwrap();
+        assert_eq!(selected.team_id, "PAIDTEAM01");
+        assert_eq!(selected.provisioning, ProvisioningKind::Paid);
+    }
+
+    #[test]
+    fn free_team_is_used_when_it_is_the_only_certified_xcode_team() {
+        let certificates = vec!["FREETEAM01".into()];
+        let teams = vec![
+            DevelopmentTeam {
+                team_id: "PAIDTEAM01".into(),
+                team_name: Some("Company".into()),
+                provisioning: ProvisioningKind::Paid,
+            },
+            DevelopmentTeam {
+                team_id: "FREETEAM01".into(),
+                team_name: Some("Personal Team".into()),
+                provisioning: ProvisioningKind::Free,
+            },
+        ];
+        assert_eq!(
+            select_development_team(&certificates, &teams)
+                .unwrap()
+                .provisioning,
+            ProvisioningKind::Free
+        );
+    }
+
+    #[test]
+    fn missing_xcode_tier_is_preserved_as_unknown() {
+        let parsed = parse_xcode_teams(
+            r#"{
+                teamID = TEAMUNKNOWN;
+                teamName = Example;
+            }"#,
+        );
+        assert_eq!(parsed[0].provisioning, ProvisioningKind::Unknown);
     }
 }
