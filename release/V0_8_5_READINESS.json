@@ -26,16 +26,16 @@
     "studio_install_state_truth_verified": true,
     "historical_lineage_compatibility_verified": true,
     "claim_capable_installer": true,
-    "public_installer_repointed": false,
+    "public_installer_repointed": true,
     "production_relay_enabled": true,
-    "release_workflow_run": null
+    "release_workflow_run": "https://github.com/jpfraneto/tohseno/actions/runs/31045895169"
   },
   "publication": {
-    "tag": null,
-    "release_url": null,
-    "release_immutable": false,
+    "tag": "v0.8.5",
+    "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v0.8.5",
+    "release_immutable": true,
     "production_url": "https://tohseno.com",
-    "tohseno_com_installer_verified": false,
-    "installer_byte_identical_to_repository": false
+    "tohseno_com_installer_verified": true,
+    "installer_byte_identical_to_repository": true
   }
 }
