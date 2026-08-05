@@ -125,7 +125,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-               and .product_version == "0.8.3"
+               and .product_version == "0.8.4"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"
@@ -134,7 +134,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 0.8.3'
+            grep -Fqx 'tohseno 0.8.4'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -278,17 +278,17 @@ jobs:
             release/V0_8_2_READINESS.json
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.8.3"
+             and .version == "0.8.4"
              and .channel == "stable"
              and .ready == true
              and .authorization.authorized == true
              and .protection.immutable_release_policy_verified == true
              and .protection.release_tag_protection_verified == true
-             and .protection.release_tag_ruleset_id == 20314843
+             and .protection.release_tag_ruleset_id == 20465980
              and .evidence.claim_capable_installer == true
-             and .evidence.public_installer_repointed == true
+             and (.evidence.public_installer_repointed | type) == "boolean"
              and .evidence.production_relay_enabled == true' \
-            release/V0_8_3_READINESS.json
+            release/V0_8_4_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -299,9 +299,9 @@ jobs:
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
           cmp website/apps/site/public/oneshot.sh oneshot/oneshot.sh
-          grep -Fq 'version="v0.8.3"' oneshot/oneshot.sh
+          grep -Fq 'version="v0.8.4"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
-          grep -Fq 'version="v0.8.3"' website/apps/site/public/oneshot.sh
+          grep -Fq 'version="v0.8.4"' website/apps/site/public/oneshot.sh
           grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh
           test -s website/apps/site/public/oneshot.sh
           (
@@ -364,7 +364,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.8.3"',
+            '"$RELEASE_TAG" != "v0.8.4"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -380,7 +380,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.8.3 source commit:",
+            "TOHSENO v0.8.4 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

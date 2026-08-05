@@ -137,6 +137,12 @@ mod tests {
             identifier: "must-not-be-used".into(),
             udid: None,
             name: "fixture".into(),
+            product_type: None,
+            marketing_name: None,
+            os_version: None,
+            os_build: None,
+            physical: true,
+            transport: "fixture".into(),
         };
         for result in [
             install(

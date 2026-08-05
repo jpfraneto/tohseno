@@ -1,16 +1,20 @@
 use std::fs;
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
-use tohseno_engine::harness::{build_interactive_command, HarnessSelection};
+use tohseno_engine::harness::{
+    build_conception_command, build_interactive_command, build_materialization_command,
+    HarnessSelection,
+};
 use tohseno_engine::protocol_lifecycle::verify_completed_evolution;
 use tohseno_engine::shot_execution::{
     complete_execution, execution_directory, has_workspace_changed, load_completion,
     load_execution, prepare_execution, read_events, update_phase,
 };
 use tohseno_engine::{
-    CompletionRecord, ConductedCreation, Engine, Event, EventBus, ExecutionPhase,
-    ExecutionPreparation, ExecutionReference, PreparedExecution, ShotLayout,
+    CompletionRecord, ConductedCreation, ConductionPhase, Engine, Event, EventBus, ExecutionMode,
+    ExecutionPhase, ExecutionPreparation, ExecutionReference, PreparedExecution, ShotLayout,
 };
 
 pub fn selection(
@@ -79,6 +83,7 @@ pub fn prepare(
     creation: &ConductedCreation,
     app_name: &str,
     selection: &HarnessSelection,
+    auto_accept_genome: bool,
     open_terminal_window: bool,
     events: &EventBus,
 ) -> Result<PreparedExecution, Box<dyn std::error::Error>> {
@@ -113,6 +118,14 @@ pub fn prepare(
             intent_path: package.document_relative_path,
             intention_digest: package.intention_digest,
             references,
+            mode: match creation.phase {
+                ConductionPhase::Conception => ExecutionMode::Conception,
+                ConductionPhase::BirthMaterialization => ExecutionMode::BirthMaterialization,
+                ConductionPhase::EvolutionMaterialization => {
+                    ExecutionMode::EvolutionMaterialization
+                }
+            },
+            auto_accept_genome,
         },
     )?;
     if open_terminal_window {
@@ -288,20 +301,180 @@ pub async fn run(
         model: execution.model.clone(),
         route: execution.route.clone(),
     };
-    let harness = build_interactive_command(
-        &selection,
-        Path::new(&execution.intent_path),
-        &images
-            .iter()
-            .map(|path| path.strip_prefix(&repository).unwrap_or(path).to_path_buf())
-            .collect::<Vec<_>>(),
-    )
+    let started = Instant::now();
+    let mut changed_reported = false;
+    let relative_images = images
+        .iter()
+        .map(|path| path.strip_prefix(&repository).unwrap_or(path).to_path_buf())
+        .collect::<Vec<_>>();
+    let first_command = match execution.mode {
+        ExecutionMode::Conception => build_conception_command(
+            &selection,
+            Path::new(".tohseno/CONCEPTION.md"),
+            &relative_images,
+        ),
+        ExecutionMode::BirthMaterialization => build_materialization_command(
+            &selection,
+            Path::new(".tohseno/TASK.md"),
+            &relative_images,
+            None,
+        ),
+        ExecutionMode::EvolutionMaterialization => build_interactive_command(
+            &selection,
+            Path::new(&execution.intent_path),
+            &relative_images,
+        ),
+    }
     .map_err(|error| format!("harness adapter rejected execution: {error}"))?;
+    let (mut status, mut cancelled) = execute_harness(
+        first_command,
+        &repository,
+        &mut execution,
+        &mut changed_reported,
+        events,
+    )
+    .await?;
+
+    let mut validation_diagnostic = None;
+    if status.success() && !cancelled && execution.mode == ExecutionMode::Conception {
+        let (proposal, expression) = engine.pending_conception(app_name)?;
+        present_conception_review(&proposal, &expression, events);
+        let accepted = execution.auto_accept_genome
+            || (io::stdin().is_terminal()
+                && io::stdout().is_terminal()
+                && confirm_conception_review()?);
+        if accepted {
+            engine.accept_pending_conception(app_name)?;
+            execution.mode = ExecutionMode::BirthMaterialization;
+            update_phase(
+                &mut execution,
+                ExecutionPhase::ContextLoaded,
+                "The app-specific Genome, Birth Plan, organs, and Experience Contract passed deterministic validation and were accepted for materialization.",
+            )?;
+            let command = build_materialization_command(
+                &selection,
+                Path::new(".tohseno/TASK.md"),
+                &relative_images,
+                None,
+            )
+            .map_err(|error| format!("harness adapter rejected materialization: {error}"))?;
+            (status, cancelled) = execute_harness(
+                command,
+                &repository,
+                &mut execution,
+                &mut changed_reported,
+                events,
+            )
+            .await?;
+        } else {
+            validation_diagnostic = Some(format!(
+                "The app-specific proposal remains unaccepted. Review it under {}/.tohseno/private/planning and rerun create with --accept-genome.",
+                repository.display()
+            ));
+        }
+    }
+
+    if status.success()
+        && !cancelled
+        && validation_diagnostic.is_none()
+        && matches!(
+            execution.mode,
+            ExecutionMode::BirthMaterialization | ExecutionMode::EvolutionMaterialization
+        )
+    {
+        let maximum_repairs = std::env::var("TOHSENO_MAX_REPAIR_PASSES")
+            .or_else(|_| std::env::var("TOHSENO_MAX_BIRTH_REPAIR_PASSES"))
+            .ok()
+            .and_then(|value| value.parse::<u8>().ok())
+            .unwrap_or(3)
+            .min(8);
+        for pass in 0..=maximum_repairs {
+            update_phase(
+                &mut execution,
+                ExecutionPhase::ValidationStarted,
+                "The engine is independently evaluating protocol conformance, intent fidelity, and target-user experience evidence.",
+            )?;
+            match engine.record(app_name, None).await {
+                Ok(_) => {
+                    validation_diagnostic = None;
+                    break;
+                }
+                Err(error) => {
+                    let diagnostic = error.to_string();
+                    validation_diagnostic = Some(diagnostic.clone());
+                    let externally_blocked = diagnostic
+                        .contains("acceptance_pending_physical_experience")
+                        || diagnostic.contains("acceptance_pending_simulator_environment")
+                        || diagnostic.contains("factory identity changed")
+                        || diagnostic.contains("Developer Mode")
+                        || diagnostic.contains("Trust This Computer");
+                    if pass == maximum_repairs || externally_blocked {
+                        break;
+                    }
+                    let repair_kind = match execution.mode {
+                        ExecutionMode::BirthMaterialization => "BIRTH REPAIR",
+                        ExecutionMode::EvolutionMaterialization => "EVOLUTION CANDIDATE REPAIR",
+                        ExecutionMode::Conception => {
+                            unreachable!("conception is not materialization")
+                        }
+                    };
+                    events.emit(Event::status(format!(
+                        "{repair_kind} {}/{} · {diagnostic}",
+                        pass + 1,
+                        maximum_repairs
+                    )));
+                    let command = build_materialization_command(
+                        &selection,
+                        Path::new(".tohseno/TASK.md"),
+                        &relative_images,
+                        Some(&diagnostic),
+                    )
+                    .map_err(|adapter| format!("harness adapter rejected repair: {adapter}"))?;
+                    (status, cancelled) = execute_harness(
+                        command,
+                        &repository,
+                        &mut execution,
+                        &mut changed_reported,
+                        events,
+                    )
+                    .await?;
+                    if !status.success() || cancelled {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let (accepted, validation_passed, accepted_evidence) =
+        accepted_validation(engine.ledger(), app_name, execution.version_ordinal)?;
+    let validation_evidence = accepted_evidence.or(validation_diagnostic);
+    let completion = complete_execution(
+        &mut execution,
+        started_at,
+        started.elapsed().as_secs(),
+        status.code(),
+        cancelled,
+        accepted,
+        validation_passed,
+        validation_evidence,
+    )?;
+    present_completion(&completion, json, events)?;
+    Ok(())
+}
+
+async fn execute_harness(
+    harness: tohseno_engine::HarnessCommand,
+    repository: &Path,
+    execution: &mut PreparedExecution,
+    changed_reported: &mut bool,
+    events: &EventBus,
+) -> Result<(std::process::ExitStatus, bool), Box<dyn std::error::Error>> {
     let mut command = tokio::process::Command::new(&harness.program);
     command
         .args(&harness.arguments)
         .envs(harness.environment)
-        .current_dir(&repository)
+        .current_dir(repository)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -312,18 +485,15 @@ pub async fn run(
     let mut child = command.spawn()?;
     let child_id = child.id();
     execution.process_id = child_id;
-    let harness_report = format!(
-        "{} is running in its native interactive terminal interface.",
-        execution.harness_display_name
-    );
     update_phase(
-        &mut execution,
+        execution,
         ExecutionPhase::HarnessRunning,
-        harness_report,
+        format!(
+            "{} is running {:?} in its native interactive terminal interface.",
+            execution.harness_display_name, execution.mode
+        ),
     )?;
     events.emit(Event::status("SHOT IN FLIGHT"));
-    let started = Instant::now();
-    let mut changed_reported = false;
     let mut cancelled = false;
     let status;
     {
@@ -337,13 +507,13 @@ pub async fn run(
                     break;
                 }
                 _ = interval.tick() => {
-                    if !changed_reported && has_workspace_changed(&execution)? {
+                    if !*changed_reported && has_workspace_changed(execution)? {
                         update_phase(
-                            &mut execution,
+                            execution,
                             ExecutionPhase::WorkspaceChanged,
                             "The Shot repository changed after the prepared boundary.",
                         )?;
-                        changed_reported = true;
+                        *changed_reported = true;
                     }
                 }
                 signal = tokio::signal::ctrl_c() => {
@@ -351,29 +521,55 @@ pub async fn run(
                     cancelled = true;
                     #[cfg(unix)]
                     if let Some(pid) = child_id {
-                        // Forward the terminal cancellation to the authentic
-                        // harness without taking over its input/output.
                         unsafe { libc::kill(pid as i32, libc::SIGINT); }
                     }
                 }
             }
         }
     }
+    execution.process_id = None;
+    Ok((status, cancelled))
+}
 
-    let (accepted, validation_passed, validation_evidence) =
-        accepted_validation(engine.ledger(), app_name, execution.version_ordinal)?;
-    let completion = complete_execution(
-        &mut execution,
-        started_at,
-        started.elapsed().as_secs(),
-        status.code(),
-        cancelled,
-        accepted,
-        validation_passed,
-        validation_evidence,
-    )?;
-    present_completion(&completion, json, events)?;
-    Ok(())
+fn present_conception_review(
+    output: &tohseno_engine::ConceptionOutput,
+    expression: &tohseno_engine::BirthExpressionPlan,
+    events: &EventBus,
+) {
+    let actors = output
+        .birth_plan
+        .target_users
+        .iter()
+        .map(|actor| actor.role.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let capabilities = output
+        .birth_plan
+        .capabilities
+        .iter()
+        .map(|capability| capability.identifier.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let product_organs = expression
+        .organs
+        .iter()
+        .filter(|organ| organ.kind == tohseno_engine::OrganKind::AppSpecific)
+        .map(|organ| organ.organ_id.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    events.emit(Event::status(format!(
+        "APP-SPECIFIC CONCEPTION\nPromise: {}\nTarget users: {actors}\nApple capabilities: {capabilities}\nProduct organs: {product_organs}\nRequired journeys: {}",
+        output.birth_plan.promise,
+        output.birth_plan.completion_contract.required_scenario_ids.join(", ")
+    )));
+}
+
+fn confirm_conception_review() -> Result<bool, std::io::Error> {
+    print!("Accept this app-specific Genome and materialize the birth? [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    Ok(matches!(answer.trim(), "y" | "Y" | "yes" | "YES"))
 }
 
 pub async fn follow(
@@ -470,13 +666,21 @@ fn present_completion(
         return Ok(());
     }
     if completion.landed {
+        let (label, acceptance) = if completion.mode == Some(ExecutionMode::BirthMaterialization) {
+            (
+                "BIRTH ACCEPTED",
+                "protocol conformance, intent fidelity, and experience verification passed",
+            )
+        } else {
+            ("VERSION RECORDED", "all declared Version gates passed")
+        };
         events.emit(Event::result(format!(
-            "SHOT LANDED · {} file(s) changed · validation passed.",
-            completion.files_changed.len()
+            "{label} · {} file(s) changed · {acceptance}.",
+            completion.files_changed.len(),
         )));
     } else {
         events.emit(Event::result(format!(
-            "SHOT NOT LANDED · {:?} · {} file(s) changed.",
+            "CANDIDATE UNSEALED · {:?} · {} file(s) changed.",
             completion.outcome,
             completion.files_changed.len()
         )));

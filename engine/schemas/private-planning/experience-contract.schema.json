@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/private-planning/experience-contract.schema.json",
+  "title": "TOHSENO target-user Experience Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "intent_digest", "birth_plan_digest", "scenarios"],
+  "properties": {
+    "schema": {"const": "tohseno.experience-contract/1"},
+    "intent_digest": {"$ref": "#/$defs/digest"},
+    "birth_plan_digest": {"$ref": "#/$defs/digest"},
+    "scenarios": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scenario"}}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^0x[0-9a-f]{64}$"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "texts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_kind": {"enum": ["xcui_test", "xc_test", "screenshot", "video", "log", "persisted_state", "release_build", "physical_device_trial", "intelligent_review"]},
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "target_actor", "initial_state", "environment", "steps_or_gestures", "expected_states", "requirement_ids", "capability_ids", "completion_condition", "evidence_required", "physical_device_required"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "target_actor": {"$ref": "#/$defs/id"},
+        "initial_state": {"type": "string", "minLength": 1}, "environment": {"$ref": "#/$defs/texts"},
+        "steps_or_gestures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "expected_states": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "capability_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "completion_condition": {"type": "string", "minLength": 1},
+        "evidence_required": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence_kind"}},
+        "physical_device_required": {"type": "boolean"}
+      }
+    }
+  }
+}

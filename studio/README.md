@@ -19,9 +19,14 @@ never put in the URL. If readiness is incomplete, Studio shows the actual
 onboarding gates and keeps the intention visibly safe. Once ready, it opens
 the existing creation surface with exact prompt and reference order, a local
 deterministic editable name suggestion, harness/model controls, cost route,
-Genome review, and the existing human-confirmed terminal boundary.
+a review of the pre-conception boundary, and the existing human-confirmed
+terminal boundary. Studio never displays a generic Genome as though it were
+an app-specific interpretation: no Genome exists until the selected
+intelligence has read the exact intention and Apple capability context.
 
-`POST /api/plan` and `POST /shots` accept exactly one source: the existing
+`POST /api/plan` is a compatibility-named preflight endpoint: it returns
+factory identity and Apple-profile digests, not a product plan. `POST /shots`
+and that endpoint accept exactly one source: the existing
 inline composer fields or `pending_intention_id`. The server resolves pending
 content and executes the same planning and preparation path. Ambiguous mixed
 input is rejected. The record is consumed only after successful preparation;
@@ -38,8 +43,11 @@ start inference.
 Preparation persists the private intent package, records a Git tree boundary,
 creates a durable local execution identity, and opens a native terminal with a
 `tohseno shot run` command in the editable zsh line buffer. The user presses
-Enter in that terminal. Codex or Claude Code then runs with inherited terminal
-input and output; Studio never renders or proxies the harness conversation.
+Enter in that terminal. Codex or Claude Code first returns strict conception
+artifacts. After deterministic validation and the selected review or
+auto-accept policy, it receives the accepted app-specific plan for
+materialization and target-user trials. The engine, not the harness, owns final
+acceptance. Studio never renders or proxies the harness conversation.
 
 Studio follows:
 

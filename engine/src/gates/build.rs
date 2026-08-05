@@ -145,9 +145,10 @@ pub fn compile(
 
 /// Builds the retained conformance artifact without a device or signing.
 ///
-/// A Shot completes on the Mac; the phone is a destination, not a birth
-/// requirement. The Simulator-SDK bundle carries the same Info.plist,
-/// provenance resource, and runtime boundary the conformance gate inspects.
+/// Builds the retained Simulator conformance artifact. Hardware-critical
+/// births additionally require a device build and physical trial; this bundle
+/// carries the Info.plist, provenance resource, and runtime boundary inspected
+/// by deterministic conformance.
 pub fn materialize_artifact(
     ledger: &Ledger,
     shot: &Evolution,
@@ -208,6 +209,59 @@ pub fn materialize_artifact(
     }
     copy_bundle(&built, &destination)?;
     Ok(Ok(destination))
+}
+
+/// Independently reruns the generated scheme's tests in Release against the
+/// exact booted Simulator selected by the engine. The harness trial remains a
+/// separate input: this command supplies mechanical proof that its checked-in
+/// XCTest/XCUITest suite actually passes for the candidate snapshot.
+pub fn test_simulator(
+    ledger: &Ledger,
+    shot: &Evolution,
+    app_name: &str,
+    simulator_udid: &str,
+) -> Result<Result<(), BuildFailure>, BuildError> {
+    let project = sign::find_project(&shot.source_path())?.ok_or(BuildError::ProjectMissing)?;
+    let derived_data = temporary_path("test");
+    let output = Command::new("xcodebuild")
+        .current_dir(shot.source_path())
+        .args([
+            OsString::from("-project"),
+            project.into_os_string(),
+            OsString::from("-scheme"),
+            OsString::from(app_name),
+            OsString::from("-configuration"),
+            OsString::from("Release"),
+            OsString::from("-sdk"),
+            OsString::from("iphonesimulator"),
+            OsString::from("-destination"),
+            OsString::from(format!("id={simulator_udid}")),
+            OsString::from("-derivedDataPath"),
+            derived_data.into_os_string(),
+            OsString::from("-disableAutomaticPackageResolution"),
+            OsString::from("-onlyUsePackageVersionsFromResolvedFile"),
+            OsString::from("CODE_SIGNING_ALLOWED=NO"),
+            OsString::from("ENABLE_USER_SCRIPT_SANDBOXING=YES"),
+            OsString::from(format!("CURRENT_PROJECT_VERSION={}", shot.number)),
+            OsString::from("test"),
+        ])
+        .output()?;
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    ledger.append_evolution_log(
+        shot,
+        "test.log",
+        format!("\n===== engine Simulator test pass =====\n{combined}\n===== end engine Simulator test pass =====\n")
+            .as_bytes(),
+    )?;
+    if output.status.success() {
+        Ok(Ok(()))
+    } else {
+        Ok(Err(BuildFailure { output: combined }))
+    }
 }
 
 fn copy_bundle(source: &Path, destination: &Path) -> std::io::Result<()> {
@@ -305,7 +359,7 @@ pub fn validate_complete_source(source: &Path) -> Result<(), BuildError> {
             .extension()
             .is_some_and(|extension| extension == "swift")
         {
-            let text = swift_code_without_comments_or_literals(&fs::read_to_string(path)?);
+            let text = crate::swift_source::lex(&fs::read_to_string(path)?).code;
             if text.contains("InstallationIdentity.shared.prepare(")
                 || text.contains("InstallationIdentity.shared.descriptor(")
             {
@@ -408,104 +462,6 @@ fn find_named_file_inner(
         }
     }
     Ok(())
-}
-
-fn swift_code_without_comments_or_literals(source: &str) -> String {
-    #[derive(Clone, Copy)]
-    enum State {
-        Code,
-        LineComment,
-        BlockComment(u32),
-        String { escaped: bool },
-        MultilineString,
-    }
-
-    let bytes = source.as_bytes();
-    let mut output = String::with_capacity(bytes.len());
-    let mut state = State::Code;
-    let mut index = 0;
-    while index < bytes.len() {
-        let remaining = &bytes[index..];
-        match state {
-            State::Code if remaining.starts_with(b"//") => {
-                output.push_str("  ");
-                state = State::LineComment;
-                index += 2;
-            }
-            State::Code if remaining.starts_with(b"/*") => {
-                output.push_str("  ");
-                state = State::BlockComment(1);
-                index += 2;
-            }
-            State::Code if remaining.starts_with(b"\"\"\"") => {
-                output.push_str("   ");
-                state = State::MultilineString;
-                index += 3;
-            }
-            State::Code if bytes[index] == b'"' => {
-                output.push(' ');
-                state = State::String { escaped: false };
-                index += 1;
-            }
-            State::Code => {
-                output.push(char::from(bytes[index]));
-                index += 1;
-            }
-            State::LineComment if bytes[index] == b'\n' => {
-                output.push('\n');
-                state = State::Code;
-                index += 1;
-            }
-            State::LineComment => {
-                output.push(' ');
-                index += 1;
-            }
-            State::BlockComment(depth) if remaining.starts_with(b"/*") => {
-                output.push_str("  ");
-                state = State::BlockComment(depth.saturating_add(1));
-                index += 2;
-            }
-            State::BlockComment(depth) if remaining.starts_with(b"*/") => {
-                output.push_str("  ");
-                state = if depth == 1 {
-                    State::Code
-                } else {
-                    State::BlockComment(depth - 1)
-                };
-                index += 2;
-            }
-            State::BlockComment(depth) => {
-                output.push(if bytes[index] == b'\n' { '\n' } else { ' ' });
-                state = State::BlockComment(depth);
-                index += 1;
-            }
-            State::String { escaped: false } if bytes[index] == b'\\' => {
-                output.push(' ');
-                state = State::String { escaped: true };
-                index += 1;
-            }
-            State::String { escaped: false } if bytes[index] == b'"' => {
-                output.push(' ');
-                state = State::Code;
-                index += 1;
-            }
-            State::String { .. } => {
-                output.push(if bytes[index] == b'\n' { '\n' } else { ' ' });
-                state = State::String { escaped: false };
-                index += 1;
-            }
-            State::MultilineString if remaining.starts_with(b"\"\"\"") => {
-                output.push_str("   ");
-                state = State::Code;
-                index += 3;
-            }
-            State::MultilineString => {
-                output.push(if bytes[index] == b'\n' { '\n' } else { ' ' });
-                index += 1;
-            }
-        }
-    }
-    output
 }
 
 fn contains_extension(directory: &Path, extension: &str) -> std::io::Result<bool> {
@@ -741,7 +697,7 @@ let decoy = "InstallationIdentity.shared.descriptor()"
 /* InstallationIdentity.shared.prepare() */
 try await InstallationIdentity.shared.prepare()
 "#;
-        let code = swift_code_without_comments_or_literals(source);
+        let code = crate::swift_source::lex(source).code;
         assert_eq!(
             code.matches("InstallationIdentity.shared.prepare(").count(),
             1

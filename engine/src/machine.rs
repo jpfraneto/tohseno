@@ -1,6 +1,14 @@
+use crate::apple_capabilities::{AppleCapabilityProfile, CapabilityProfileError};
+use crate::birth_plan::{BirthExpressionPlan, BirthOrganPlan, BirthPlanError};
 use crate::builder_identity::{BuilderIdentity, BuilderIdentityError, BuilderIdentityManager};
+use crate::conception::{ConceptionError, ConceptionInput, ConceptionOutput};
 use crate::config::{Config, ConfigError};
 use crate::events::{Event, EventBus};
+use crate::experience::{
+    evaluate_birth, BirthEvaluationEvidence, BirthReceipt, CriterionResult, EvidenceKind,
+    EvidenceReference, ExperienceContract, ExperienceError, ExperienceTrial,
+    IncompletenessCategory,
+};
 use crate::gates::apple_signing::{self, AppleSigningState};
 use crate::gates::device::{self, DeviceState};
 use crate::gates::intent::{Intent, IntentError};
@@ -15,7 +23,6 @@ use crate::shot_layout::{
     ShotBodyVerification, ShotLayout, ShotLayoutError, StoredFeedback, StoredReference,
 };
 use crate::workshop::WorkshopFeedbackPacket;
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -33,8 +40,7 @@ use tohseno_protocol::ontology::{
     OriginalMaterial, ShotCommitment, TokenAssociation, TokenAssociationOperation,
     VerificationGate, VerificationResult, VersionRecord, Visibility, ARTIFACT_AVAILABILITY_SCHEMA,
     EVOLUTIONARY_INTENT_SCHEMA, EVOLUTION_SCHEMA, EXPRESSION_SCHEMA, FEEDBACK_SCHEMA,
-    GENOME_ACCEPTANCE_SCHEMA, GENOME_PROPOSAL_SCHEMA, GENOME_SCHEMA, ORGAN_SCHEMA,
-    VERIFICATION_RESULT_SCHEMA, VERSION_SCHEMA,
+    GENOME_ACCEPTANCE_SCHEMA, GENOME_PROPOSAL_SCHEMA, VERIFICATION_RESULT_SCHEMA, VERSION_SCHEMA,
 };
 use tohseno_protocol::record::CanonicalTimestamp;
 use tohseno_protocol::record::ShotOrigin;
@@ -69,6 +75,14 @@ pub struct ConductedCreation {
     pub folder: PathBuf,
     pub agent_command: Option<String>,
     pub instruction: String,
+    pub phase: ConductionPhase,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConductionPhase {
+    Conception,
+    BirthMaterialization,
+    EvolutionMaterialization,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -87,32 +101,8 @@ pub struct TokenAssociationReceipt {
     pub outbox_path: Option<PathBuf>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct InitialExpressionPlan {
-    pub schema: String,
-    pub kind: String,
-    pub name: String,
-    pub platforms: Vec<String>,
-    pub genome_revision: u64,
-    pub genome_digest: tohseno_protocol::digest::Bytes32,
-    pub organs: Vec<InitialOrganPlan>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct InitialOrganPlan {
-    pub organ_id: String,
-    pub provides: Vec<String>,
-    pub owns_state: Vec<String>,
-    pub permissions: Vec<String>,
-    pub dependencies: Vec<String>,
-    pub emits: Vec<String>,
-    pub consumes: Vec<String>,
-    pub satisfies_genome_constraints: Vec<String>,
-    pub acceptance_tests: Vec<String>,
-    pub platforms: Vec<String>,
-}
+pub type InitialExpressionPlan = BirthExpressionPlan;
+pub type InitialOrganPlan = BirthOrganPlan;
 
 #[derive(Clone, Debug)]
 struct MaterializationLineageInput {
@@ -131,6 +121,14 @@ struct MaterializationLineageInput {
     evolutionary_intent_action: Option<Bytes32>,
     genome_acceptance_action: Option<Bytes32>,
     preserved_invariants: Vec<String>,
+}
+
+struct BirthContext {
+    plan: crate::birth_plan::BirthPlan,
+    expression: BirthExpressionPlan,
+    contract: ExperienceContract,
+    trial: ExperienceTrial,
+    factory_identity: crate::factory_identity::FactoryIdentity,
 }
 
 impl Engine {
@@ -163,116 +161,9 @@ impl Engine {
         discover_harnesses(&self.config.harness)
     }
 
-    /// Produce the conservative, deterministic revision-1 Genome presented
-    /// for review. The exact human source remains separately preserved and
-    /// signed; this proposal never replaces it and is not accepted here.
-    pub fn propose_initial_genome(
-        request: &ShotRequest,
-    ) -> Result<tohseno_protocol::Genome, EngineError> {
-        crate::ledger::validate_app_name(&request.app_name)?;
-        let excerpt = intention_excerpt(&request.intent.prompt, 3000);
-        if excerpt.is_empty() {
-            return Err(EngineError::ProtocolBodyIncomplete(
-                "a Genome proposal requires a nonempty coherent intention".into(),
-            ));
-        }
-        let genome = tohseno_protocol::Genome {
-            schema: GENOME_SCHEMA.into(),
-            revision: 1,
-            purpose: format!(
-                "Bring the owner's preserved coherent intention into a useful native Apple expression: {excerpt}"
-            ),
-            intended_for: vec![
-                "The owner and the people identified by the preserved intention.".into(),
-            ],
-            essential_experience: vec![
-                "The expression makes the preserved intention tangible without setup ceremony."
-                    .into(),
-                "The core experience remains useful on the device when offline.".into(),
-            ],
-            behavioral_invariants: vec![
-                "Preserve Shot identity and signed continuity across every accepted version."
-                    .into(),
-                "Keep owner-created state available locally and fail without inventing data."
-                    .into(),
-            ],
-            interaction_laws: vec![
-                "Prefer direct native interaction over explanatory or administrative screens."
-                    .into(),
-            ],
-            aesthetic_principles: vec![
-                "Use legible, calm, platform-native presentation unless the owner accepts a different principle."
-                    .into(),
-            ],
-            privacy_principles: vec![
-                "Keep intention, feedback, and owner data private by default.".into(),
-                "Do not add telemetry, tracking, or silent identity linkage.".into(),
-            ],
-            ownership_principles: vec![
-                "Only the recognized Shot controller accepts continuity-changing actions.".into(),
-            ],
-            platform_commitments: vec![
-                "The first expression is a native iPhone application.".into(),
-            ],
-            boundaries: vec![
-                "The software expression does not redefine the Shot, its owner, or its original intention."
-                    .into(),
-            ],
-            non_goals: vec![
-                "A token, repository, deployment, or bundle identifier is never treated as the Shot identity."
-                    .into(),
-            ],
-            required_capabilities: vec![
-                "embedded_shot_identity".into(),
-                "local_persistence".into(),
-                "native_navigation".into(),
-                "exact_version_feedback".into(),
-            ],
-            forbidden_transformations: vec![
-                "Do not discard or silently rewrite the original intention.".into(),
-                "Do not publish private intention, feedback, or working memory by default.".into(),
-                "Do not silently mutate an accepted Genome during implementation evolution."
-                    .into(),
-            ],
-            acceptance_principles: vec![
-                "A deterministic Release build and the declared privacy and identity gates pass."
-                    .into(),
-                "Embedded identity binds the exact Shot, expression, Genome revision, and Version."
-                    .into(),
-            ],
-            freely_changeable: vec![
-                "Implementation details, typography, layout, and internal structure may evolve when invariants remain true."
-                    .into(),
-            ],
-        };
-        genome.validate().map_err(ShotLayoutError::from)?;
-        Ok(genome)
-    }
-
-    /// Produce the reviewable first Apple-expression/capability plan for an
-    /// accepted or proposed Genome. No lineage action is written here.
-    pub fn propose_initial_expression_plan(
-        request: &ShotRequest,
-        genome: &tohseno_protocol::Genome,
-    ) -> Result<InitialExpressionPlan, EngineError> {
-        crate::ledger::validate_app_name(&request.app_name)?;
-        genome.validate().map_err(ShotLayoutError::from)?;
-        let plan = InitialExpressionPlan {
-            schema: "tohseno.initial-expression-plan/1".into(),
-            kind: "native_apple_application".into(),
-            name: request.app_name.clone(),
-            platforms: vec!["iphone".into()],
-            genome_revision: genome.revision,
-            genome_digest: genome.digest().map_err(ShotLayoutError::from)?,
-            organs: default_initial_organs(),
-        };
-        validate_initial_expression_plan(&plan, genome)?;
-        Ok(plan)
-    }
-
-    /// Takes the Shot: creates the visible folder, writes the briefing and
-    /// standing orders, and hands the builder's own agent the work. The
-    /// agent records evolution 1 itself with `tohseno evolve`.
+    /// Preserve the exact intention and prepare the selected intelligence for
+    /// conception. No app-specific Genome exists or can be accepted before
+    /// the structured conception output passes deterministic validation.
     pub fn create(&self, request: &ShotRequest) -> Result<ConductedCreation, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
         if request.intent.images.len() > crate::gates::intent::MAX_IMAGES {
@@ -324,7 +215,7 @@ impl Engine {
         layout.initialize_directories()?;
         layout.preserve_exact_intention(request.intent.prompt.as_bytes())?;
         let reference_sources = self.validated_reference_sources(&request.intent);
-        let (_, source_references) =
+        let (prepared_intention, source_references) =
             layout.prepare_intent_package(request.intent.prompt.as_bytes(), &reference_sources)?;
         let source_materials = source_references
             .iter()
@@ -345,15 +236,126 @@ impl Engine {
             &request.intent,
             &source_references,
         )?;
-        self.genome.write_standing_orders(
+        let conception_input_path = self
+            .ledger
+            .briefing_dir(&request.app_name)
+            .join("private/planning")
+            .join(crate::conception::CONCEPTION_INPUT_FILE);
+        let conception_input = if conception_input_path.is_file() {
+            let existing = ConceptionInput::read(&layout)?;
+            if existing.intent_digest != prepared_intention.intention_digest {
+                return Err(EngineError::ProtocolBodyIncomplete(
+                    "the pending conception is bound to a different exact intention".into(),
+                ));
+            }
+            existing
+        } else {
+            let capability_profile = AppleCapabilityProfile::discover(&self.ledger)?;
+            let input =
+                ConceptionInput::new(&request.app_name, &prepared_intention, capability_profile)?;
+            input.write(&layout)?;
+            input
+        };
+        crate::conception::write_conception_task(
             &self.ledger.working_tree(&request.app_name),
-            &request.app_name,
+            &conception_input,
         )?;
         Ok(ConductedCreation {
             folder: self.ledger.working_tree(&request.app_name),
-            agent_command: None,
-            instruction: "Review and explicitly accept the proposed Genome and first expression plan before materialization.".into(),
+            agent_command: self.preferred_agent_command(),
+            instruction: "Read .tohseno/CONCEPTION.md and produce the strict app-specific conception output. No Genome is accepted and no app is materialized before that output validates.".into(),
+            phase: ConductionPhase::Conception,
         })
+    }
+
+    pub fn conception_input(&self, app_name: &str) -> Result<ConceptionInput, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        self.ledger.load_app(app_name)?;
+        ConceptionInput::read(&ShotLayout::at(self.ledger.working_tree(app_name)))
+            .map_err(EngineError::from)
+    }
+
+    pub fn stage_conception_output(
+        &self,
+        app_name: &str,
+        output: &ConceptionOutput,
+    ) -> Result<(), EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let input = self.conception_input(app_name)?;
+        output.validate(&input)?;
+        validate_conception_source_traceability(
+            &ShotLayout::at(self.ledger.working_tree(app_name)),
+            &input,
+            output,
+        )?;
+        let mut bytes = tohseno_protocol::canonical::to_vec(output)
+            .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+        bytes.push(b'\n');
+        ShotLayout::at(self.ledger.working_tree(app_name))
+            .preserve_private_planning_file(crate::conception::CONCEPTION_OUTPUT_FILE, &bytes)?;
+        Ok(())
+    }
+
+    pub fn pending_conception(
+        &self,
+        app_name: &str,
+    ) -> Result<(ConceptionOutput, BirthExpressionPlan), EngineError> {
+        let input = self.conception_input(app_name)?;
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let (output, expression) = ConceptionOutput::read_and_validate(&layout, &input)?;
+        validate_conception_source_traceability(&layout, &input, &output)?;
+        Ok((output, expression))
+    }
+
+    /// Accept the actual app-specific proposal returned by the selected
+    /// intelligence, declare its app-specific organs, and prepare
+    /// materialization. This is the only initial Genome acceptance path.
+    pub fn accept_pending_conception(
+        &self,
+        app_name: &str,
+    ) -> Result<ConductedCreation, EngineError> {
+        let input = self.conception_input(app_name)?;
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let (output, expression) = ConceptionOutput::read_and_validate(&layout, &input)?;
+        validate_conception_source_traceability(&layout, &input, &output)?;
+        self.accept_genome_from_validated_conception(
+            app_name,
+            &output.birth_plan.genome,
+            &output.rationale,
+        )?;
+        self.declare_initial_expression(app_name, &expression)?;
+        output.preserve_accepted_artifacts(&layout)?;
+        let genome_digest = output
+            .birth_plan
+            .genome
+            .digest()
+            .map_err(ShotLayoutError::from)?;
+        let factory = crate::factory_identity::FactoryIdentity::current(
+            Some(genome_digest),
+            input.apple_capability_profile.digest()?,
+        );
+        factory
+            .validate()
+            .map_err(EngineError::ProtocolBodyIncomplete)?;
+        let mut factory_bytes = tohseno_protocol::canonical::to_vec(&factory)
+            .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+        factory_bytes.push(b'\n');
+        layout.preserve_private_planning_file(
+            "materialization-factory-identity.json",
+            &factory_bytes,
+        )?;
+        let app = self.ledger.load_app(app_name)?;
+        self.genome.write_birth_task(
+            &self.ledger.working_tree(app_name),
+            app_name,
+            &app.bundle_id,
+            &output,
+            &expression,
+            &factory,
+        )?;
+        self.genome
+            .write_standing_orders(&self.ledger.working_tree(app_name), app_name)?;
+        self.conduct_accepted_creation(app_name)
     }
 
     /// Hand the accepted initial expression to the configured builder agent.
@@ -383,7 +385,8 @@ impl Engine {
         Ok(ConductedCreation {
             folder: self.ledger.working_tree(app_name),
             agent_command: self.preferred_agent_command(),
-            instruction: "Read INTENTION.md, GENOME.md, AGENTS.md, and .tohseno/TASK.md, then materialize the accepted first expression. When it builds and is whole, record it with: tohseno evolve".into(),
+            instruction: "Read AGENTS.md and .tohseno/TASK.md, materialize the accepted Birth Plan, execute every required target-user scenario, and return a strict Experience Trial. Do not call tohseno evolve; the engine owns acceptance and sealing.".into(),
+            phase: ConductionPhase::BirthMaterialization,
         })
     }
 
@@ -770,6 +773,26 @@ impl Engine {
         rationale: &str,
         mutation_summary: &[String],
     ) -> Result<AcceptedGenomeRevision, EngineError> {
+        self.accept_genome_with_source(app_name, proposed, rationale, mutation_summary, false)
+    }
+
+    fn accept_genome_from_validated_conception(
+        &self,
+        app_name: &str,
+        proposed: &tohseno_protocol::Genome,
+        rationale: &str,
+    ) -> Result<AcceptedGenomeRevision, EngineError> {
+        self.accept_genome_with_source(app_name, proposed, rationale, &[], true)
+    }
+
+    fn accept_genome_with_source(
+        &self,
+        app_name: &str,
+        proposed: &tohseno_protocol::Genome,
+        rationale: &str,
+        mutation_summary: &[String],
+        validated_initial_conception: bool,
+    ) -> Result<AcceptedGenomeRevision, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         proposed.validate().map_err(ShotLayoutError::from)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
@@ -808,6 +831,12 @@ impl Engine {
 
         let proposal = match &state.accepted_genome {
             None => {
+                if !validated_initial_conception {
+                    return Err(EngineError::ProtocolBodyIncomplete(
+                        "revision 1 can be accepted only from the strict app-specific conception output produced after the intelligence reads the exact intention and Apple capability profile"
+                            .into(),
+                    ));
+                }
                 if proposed.revision != 1 || !mutation_summary.is_empty() {
                     return Err(EngineError::ProtocolBodyIncomplete(
                         "the initial Genome must be revision 1 without mutation claims".into(),
@@ -894,7 +923,7 @@ impl Engine {
         let expression_id = app.expression_id.ok_or_else(|| {
             EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
         })?;
-        if plan.schema != "tohseno.initial-expression-plan/1"
+        if plan.schema != crate::birth_plan::BIRTH_EXPRESSION_PLAN_SCHEMA
             || plan.kind != "native_apple_application"
             || plan.name != app.target_name()
             || plan.platforms.is_empty()
@@ -930,11 +959,11 @@ impl Engine {
                 "expression plan does not bind the current accepted Genome".into(),
             ));
         }
-        validate_initial_expression_plan(plan, &accepted.genome)?;
+        plan.validate(&accepted.genome)?;
 
         let plan_bytes = tohseno_protocol::canonical::to_vec(plan)
             .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
-        layout.preserve_private_planning_file("expression-plan.json", &plan_bytes)?;
+        layout.preserve_private_planning_file("birth-expression-plan.json", &plan_bytes)?;
         let expression = Expression {
             schema: EXPRESSION_SCHEMA.into(),
             expression_id,
@@ -953,31 +982,14 @@ impl Engine {
                             "expression plan length overflowed".into(),
                         )
                     })?,
-                    name: Some("expression-plan.json".into()),
+                    name: Some("birth-expression-plan.json".into()),
                 },
                 status: AvailabilityStatus::LocallyAvailable,
                 locations: Vec::new(),
             },
         };
         expression.validate().map_err(ShotLayoutError::from)?;
-        let organs = plan
-            .organs
-            .iter()
-            .map(|organ| Organ {
-                schema: ORGAN_SCHEMA.into(),
-                expression_id,
-                organ_id: organ.organ_id.clone(),
-                provides: organ.provides.clone(),
-                owns_state: organ.owns_state.clone(),
-                permissions: organ.permissions.clone(),
-                dependencies: organ.dependencies.clone(),
-                emits: organ.emits.clone(),
-                consumes: organ.consumes.clone(),
-                satisfies_genome_constraints: organ.satisfies_genome_constraints.clone(),
-                acceptance_tests: organ.acceptance_tests.clone(),
-                platforms: organ.platforms.clone(),
-            })
-            .collect::<Vec<_>>();
+        let organs = plan.protocol_organs(expression_id);
         for organ in &organs {
             organ.validate().map_err(ShotLayoutError::from)?;
         }
@@ -1303,13 +1315,14 @@ impl Engine {
             genome_mutation,
         ))?;
         let instruction = format!(
-            "Read AGENTS.md and MEMORY.md. The builder asks: {}\nEvolve the app in this folder accordingly. When it builds and is whole, record it yourself by running: tohseno evolve",
+            "Read AGENTS.md, .tohseno/TASK.md, and the staged evolutionary intention. The builder asks: {}\nReturn a complete candidate and independently inspectable experience evidence. Do not call tohseno evolve; the engine owns final acceptance and sealing.",
             request.intent.prompt.trim()
         );
         Ok(Evolved::Conducted(ConductedCreation {
             folder: self.ledger.working_tree(&request.app_name),
             agent_command: self.preferred_agent_command(),
             instruction,
+            phase: ConductionPhase::EvolutionMaterialization,
         }))
     }
 
@@ -1686,10 +1699,52 @@ impl Engine {
         })
     }
 
-    /// The shared birth of every Evolution: protocol record, Simulator
-    /// artifact, signature, conformance, finalization, working-tree
-    /// checkout, then a non-blocking phone offer. The Mac is enough; the
-    /// phone is a destination resumed through `tohseno refresh`.
+    fn load_birth_context(&self, app_name: &str) -> Result<BirthContext, EngineError> {
+        let root = self.ledger.working_tree(app_name);
+        let layout = ShotLayout::at(&root);
+        let plan: crate::birth_plan::BirthPlan =
+            read_private_planning_json(&layout, crate::conception::BIRTH_PLAN_FILE)?;
+        let expression: BirthExpressionPlan =
+            read_private_planning_json(&layout, "birth-expression-plan.json")?;
+        let contract: ExperienceContract =
+            read_private_planning_json(&layout, crate::conception::EXPERIENCE_CONTRACT_FILE)?;
+        let trial: ExperienceTrial =
+            read_private_planning_json(&layout, crate::conception::EXPERIENCE_TRIAL_FILE)?;
+        let factory_identity: crate::factory_identity::FactoryIdentity =
+            read_private_planning_json(&layout, "materialization-factory-identity.json")?;
+        plan.validate()?;
+        expression.validate(&plan.genome)?;
+        contract.validate(&plan)?;
+        trial.validate(&plan, &expression, &contract)?;
+        let current_factory = crate::factory_identity::FactoryIdentity::current(
+            Some(plan.genome.digest().map_err(ShotLayoutError::from)?),
+            factory_identity.apple_capability_profile_digest,
+        );
+        if current_factory != factory_identity {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "factory identity changed after conception: task used engine {} at commit {} with Constitution digest {}, but this engine is {} at commit {} with digest {}; regenerate the materialization task before acceptance",
+                factory_identity.engine_version,
+                factory_identity.source_commit,
+                factory_identity.static_constitution_digest,
+                current_factory.engine_version,
+                current_factory.source_commit,
+                current_factory.static_constitution_digest,
+            )));
+        }
+        validate_trial_evidence_files(&root, &trial)?;
+        Ok(BirthContext {
+            plan,
+            expression,
+            contract,
+            trial,
+            factory_identity,
+        })
+    }
+
+    /// The shared recording path for a candidate Version. Initial birth adds
+    /// independent intent and experience acceptance, including a required
+    /// physical-device build and trial for hardware-critical completion
+    /// contracts. Later Evolutions retain the historical recording semantics.
     #[allow(clippy::too_many_arguments)]
     async fn finish_evolution(
         &self,
@@ -1702,6 +1757,7 @@ impl Engine {
         bundle_id: &str,
         working_digest_at_start: Option<tohseno_protocol::digest::Bytes32>,
     ) -> Result<Evolution, EngineError> {
+        let requires_birth_acceptance = shot.number == 1 && origin.is_none();
         self.events.emit(Event::status(format!(
             "committing evolution {}…",
             shot.number
@@ -1748,15 +1804,63 @@ impl Engine {
             "looking at evolution {}…",
             shot.number
         )));
-        let mut known_incompleteness = Vec::new();
         if let Err(reason) = preview::capture(&artifact, bundle_id, &shot.path.join("preview.png"))
         {
             self.events
-                .emit(Event::status(format!("no preview: {reason}")));
-            known_incompleteness.push(format!(
-                "Preview capture was unavailable: {}",
-                intention_excerpt(&reason, 1800)
+                .emit(Event::status(preview::failure_diagnostic(&reason)));
+        }
+        let birth_context = requires_birth_acceptance
+            .then(|| self.load_birth_context(app_name))
+            .transpose()?;
+        let mut engine_experience_criteria = Vec::new();
+        if birth_context.is_some() {
+            self.events.emit(Event::status(
+                "running the birth test suite independently in Release on Simulator…",
             ));
+            let simulator_udid = preview::ensure_iphone_simulator().map_err(|reason| {
+                EngineError::ProtocolBodyIncomplete(format!(
+                    "experience_verification_gap · external_environment_constraint · acceptance_pending_simulator_environment · {reason}"
+                ))
+            })?;
+            if let Err(failure) =
+                build::test_simulator(&self.ledger, shot, app.target_name(), &simulator_udid)?
+            {
+                let tail = failure
+                    .output
+                    .lines()
+                    .filter(|line| {
+                        line.contains("error:")
+                            || line.contains("failed")
+                            || line.contains("Test Suite")
+                    })
+                    .rev()
+                    .take(12)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .rev()
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                return Err(EngineError::ProtocolBodyIncomplete(format!(
+                    "experience_verification_gap · engine Simulator tests failed; repair the app or its target-user tests and rerun; evidence=.tohseno/evolutions/{:04}/test.log\n{tail}",
+                    shot.number
+                )));
+            }
+            let test_log = shot.path.join("test.log");
+            engine_experience_criteria.push(CriterionResult {
+                id: "engine_simulator_test_execution".into(),
+                passed: true,
+                deterministic: true,
+                evidence: vec![evidence_reference_for_file(
+                    &self.ledger.working_tree(app_name),
+                    &test_log,
+                    EvidenceKind::XcuiTest,
+                    "text/plain",
+                )?],
+                observation: Some(
+                    "the engine independently reran the checked-in Release XCTest/XCUITest action"
+                        .into(),
+                ),
+            });
         }
         self.events.emit(Event::status(format!(
             "verifying evolution {}…",
@@ -1770,6 +1874,160 @@ impl Engine {
             ));
         }
 
+        if let Some(context) = &birth_context {
+            if !context
+                .plan
+                .completion_contract
+                .physical_verification_capabilities
+                .is_empty()
+            {
+                match device::check()? {
+                    DeviceState::Ready(device) => {
+                        let declared_device = context.trial.physical_device.as_ref().ok_or_else(|| {
+                            EngineError::ProtocolBodyIncomplete(
+                                "physical_device_experience · acceptance_pending_physical_experience · the trial contains no physical-device evidence"
+                                    .into(),
+                            )
+                        })?;
+                        let detected_product_type = device.product_type.as_deref().ok_or_else(|| {
+                            EngineError::ProtocolBodyIncomplete(
+                                "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose a product type"
+                                    .into(),
+                            )
+                        })?;
+                        let detected_os = device.os_version.as_deref().ok_or_else(|| {
+                            EngineError::ProtocolBodyIncomplete(
+                                "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose an OS version"
+                                    .into(),
+                            )
+                        })?;
+                        if detected_product_type != declared_device.product_type
+                            || detected_os != declared_device.os_version
+                            || declared_device
+                                .os_build
+                                .as_deref()
+                                .is_some_and(|build| device.os_build.as_deref() != Some(build))
+                        {
+                            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                                "physical_device_experience · acceptance_pending_physical_experience · current sanitized device facts ({detected_product_type}, iOS {detected_os}) do not match the target-user trial evidence ({}, iOS {})",
+                                declared_device.product_type, declared_device.os_version
+                            )));
+                        }
+                        let artifact_directory = temporary_path("birth-device-verification");
+                        DevicePipeline::new(self.events.clone())
+                            .build_install(
+                                shot.number,
+                                app.target_name(),
+                                bundle_id,
+                                &shot.source_path(),
+                                &artifact_directory,
+                            )
+                            .await?;
+                        let evidence_value = serde_json::json!({
+                            "schema": "tohseno.engine-physical-verification/1",
+                            "source_digest": completed.record.source_tree_sha256,
+                            "product_type": detected_product_type,
+                            "os_version": detected_os,
+                            "os_build": device.os_build,
+                            "transport": device.transport,
+                            "exercised_capabilities": context
+                                .plan
+                                .completion_contract
+                                .physical_verification_capabilities,
+                            "build_install_launch_passed": true
+                        });
+                        let mut evidence_bytes = serde_json::to_vec_pretty(&evidence_value)
+                            .map_err(|error| {
+                                EngineError::ProtocolBodyIncomplete(format!(
+                                    "physical verification evidence encoding failed: {error}"
+                                ))
+                            })?;
+                        evidence_bytes.push(b'\n');
+                        self.ledger.write_evolution_file(
+                            shot,
+                            "physical-verification.json",
+                            &evidence_bytes,
+                        )?;
+                        engine_experience_criteria.push(CriterionResult {
+                            id: "engine_physical_build_install_launch".into(),
+                            passed: true,
+                            deterministic: true,
+                            evidence: vec![evidence_reference_for_file(
+                                &self.ledger.working_tree(app_name),
+                                &shot.path.join("physical-verification.json"),
+                                EvidenceKind::PhysicalDeviceTrial,
+                                "application/json",
+                            )?],
+                            observation: Some(
+                                "the engine rebuilt, installed, and launched the exact candidate snapshot on the device whose sanitized facts match the harness trial"
+                                    .into(),
+                            ),
+                        });
+                    }
+                    state => {
+                        return Err(EngineError::ProtocolBodyIncomplete(format!(
+                            "physical_device_experience · acceptance_pending_physical_experience · {state:?}"
+                        )));
+                    }
+                }
+            }
+        }
+
+        let conformance_path = shot.path.join("TOHSENO/conformance.json");
+        let conformance_evidence = evidence_reference_for_file(
+            &self.ledger.working_tree(app_name),
+            &conformance_path,
+            EvidenceKind::Log,
+            "application/json",
+        )?;
+        let protocol_criteria = completed
+            .conformance
+            .checks
+            .iter()
+            .map(|check| CriterionResult {
+                id: format!("protocol.{}", check.id),
+                passed: check.status == CheckStatus::Pass,
+                deterministic: true,
+                evidence: (check.status == CheckStatus::Pass)
+                    .then(|| conformance_evidence.clone())
+                    .into_iter()
+                    .collect(),
+                observation: Some(format!(
+                    "expected {}; observed {}",
+                    check.expected, check.observed
+                )),
+            })
+            .collect::<Vec<_>>();
+        let birth_receipt = if let Some(context) = &birth_context {
+            let receipt = evaluate_birth(
+                &context.plan,
+                &context.expression,
+                &context.contract,
+                &context.trial,
+                BirthEvaluationEvidence {
+                    source_digest: completed.record.source_tree_sha256,
+                    factory_identity: context.factory_identity.clone(),
+                    protocol_criteria,
+                    engine_experience_criteria,
+                },
+            )?;
+            let bytes = tohseno_protocol::canonical::to_vec(&receipt)
+                .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+            self.ledger
+                .write_evolution_file(shot, "TOHSENO/birth-receipt.json", &bytes)?;
+            if !receipt.accepted {
+                return Err(EngineError::ProtocolBodyIncomplete(format!(
+                    "birth candidate remains unsealed: protocol_conformance={}, intent_fidelity={}, experience_verification={}; repair the failed independent criteria and rerun",
+                    receipt.protocol_conformance.passed,
+                    receipt.intent_fidelity.passed,
+                    receipt.experience_verification.passed,
+                )));
+            }
+            Some(receipt)
+        } else {
+            None
+        };
+
         let manager = BuilderIdentityManager::for_ledger(&self.ledger);
         let accepted_at = canonical_now_at_least(&lineage_input.last_timestamp)?;
         let mut gates = completed
@@ -1780,7 +2038,7 @@ impl Engine {
                 name: check.id.clone(),
                 passed: check.status == CheckStatus::Pass,
                 deterministic: true,
-                evidence: None,
+                evidence: Some(conformance_evidence.availability()),
             })
             .collect::<Vec<_>>();
         let capability_graph_bytes =
@@ -1801,15 +2059,80 @@ impl Engine {
         };
         for organ in &lineage_input.capability_graph {
             for index in 0..organ.acceptance_tests.len() {
+                let independent = birth_context.as_ref().and_then(|context| {
+                    let planned = context
+                        .expression
+                        .organs
+                        .iter()
+                        .find(|planned| planned.organ_id == organ.organ_id)?;
+                    let criterion = planned.acceptance_criteria.get(index)?;
+                    context
+                        .trial
+                        .organ_results
+                        .iter()
+                        .find(|result| result.organ_id == organ.organ_id)?
+                        .criteria
+                        .iter()
+                        .find(|result| result.id == criterion.id)
+                });
                 gates.push(VerificationGate {
                     name: organ_acceptance_gate_name(organ, index)
                         .map_err(ShotLayoutError::from)?,
-                    passed: completed.conformance.conformant,
-                    deterministic: true,
-                    evidence: Some(capability_graph_evidence.clone()),
+                    passed: independent
+                        .map(|criterion| criterion.passed)
+                        .unwrap_or(completed.conformance.conformant),
+                    deterministic: independent
+                        .map(|criterion| criterion.deterministic)
+                        .unwrap_or(true),
+                    evidence: independent
+                        .and_then(|criterion| criterion.evidence.first())
+                        .map(EvidenceReference::availability)
+                        .or_else(|| Some(capability_graph_evidence.clone())),
                 });
             }
         }
+        let receipt_evidence = birth_receipt
+            .as_ref()
+            .map(birth_receipt_availability)
+            .transpose()?;
+        if let (Some(receipt), Some(evidence)) = (&birth_receipt, &receipt_evidence) {
+            gates.extend([
+                VerificationGate {
+                    name: "acceptance.protocol_conformance".into(),
+                    passed: receipt.protocol_conformance.passed,
+                    deterministic: true,
+                    evidence: Some(evidence.clone()),
+                },
+                VerificationGate {
+                    name: "acceptance.intent_fidelity".into(),
+                    passed: receipt.intent_fidelity.passed,
+                    deterministic: false,
+                    evidence: Some(evidence.clone()),
+                },
+                VerificationGate {
+                    name: "acceptance.experience_verification".into(),
+                    passed: receipt.experience_verification.passed,
+                    deterministic: false,
+                    evidence: Some(evidence.clone()),
+                },
+            ]);
+        }
+        let known_incompleteness = birth_receipt
+            .as_ref()
+            .into_iter()
+            .flat_map(|receipt| receipt.incompleteness.iter())
+            .filter(|gap| {
+                gap.category == IncompletenessCategory::ExternalEnvironmentConstraint
+                    && !gap.blocks_completion
+            })
+            .map(|gap| {
+                format!(
+                    "external_environment_constraint:{}:{}",
+                    gap.id, gap.description
+                )
+            })
+            .collect::<Vec<_>>();
+        let verification_passed = gates.iter().all(|gate| gate.passed);
         let verification = VerificationResult {
             schema: VERIFICATION_RESULT_SCHEMA.into(),
             expression_id: lineage_input.expression_id,
@@ -1819,7 +2142,7 @@ impl Engine {
             source_digest: completed.record.source_tree_sha256,
             capability_graph_digest: lineage_input.capability_graph_digest,
             gates,
-            passed: completed.conformance.conformant,
+            passed: verification_passed,
             known_incompleteness: known_incompleteness.clone(),
             verified_at: accepted_at.clone(),
         };
@@ -1938,6 +2261,9 @@ impl Engine {
             &signed_version,
             signed_evolution.as_ref(),
         )?;
+        if let Some(receipt) = &birth_receipt {
+            layout.write_metadata_json("birth-receipt.json", receipt, false)?;
+        }
         self.ledger.finalize_evolution(shot)?;
         protocol_lifecycle::verify_completed_evolution(shot)?;
         self.ledger.set_retired(app_name, false)?;
@@ -1948,16 +2274,68 @@ impl Engine {
                 "the folder changed while recording; your newer edits stay in place for the next evolution.",
             ));
         }
-        self.events.emit(Event::result(format!(
-            "evolution {} of {} is complete and verified on this Mac.",
-            shot.number, app_name
-        )));
+        if let (Some(context), Some(receipt)) = (&birth_context, &birth_receipt) {
+            let target_users = context
+                .plan
+                .target_users
+                .iter()
+                .map(|actor| actor.role.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let journeys = context
+                .plan
+                .completion_contract
+                .required_scenario_ids
+                .join(", ");
+            let capabilities = context
+                .plan
+                .capabilities
+                .iter()
+                .filter(|capability| capability.primary)
+                .map(|capability| capability.identifier.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let physical = if context
+                .plan
+                .completion_contract
+                .physical_verification_capabilities
+                .is_empty()
+            {
+                "not required"
+            } else {
+                "passed"
+            };
+            self.events.emit(Event::result(format!(
+                "Birth accepted: {app_name}\nTarget users: {target_users}\nProduct promise: {}\nPrimary journeys verified: {journeys}\nNative capabilities exercised: {capabilities}\nPhysical device verification: {physical}\nProtocol conformance: {}\nIntent fidelity: {}\nExperience verification: {}\nKnown product incompleteness: none",
+                context.plan.promise,
+                if receipt.protocol_conformance.passed { "passed" } else { "failed" },
+                if receipt.intent_fidelity.passed { "passed" } else { "failed" },
+                if receipt.experience_verification.passed { "passed" } else { "failed" },
+            )));
+        } else {
+            self.events.emit(Event::result(format!(
+                "Version {} of {} was recorded after its declared verification gates passed; this result alone does not claim renewed intent or target-user review.",
+                shot.number, app_name
+            )));
+        }
         self.events.emit(Event::status(format!(
             "folder: {}",
             self.ledger.working_tree(app_name).display()
         )));
 
+        let physical_was_required = birth_context.as_ref().is_some_and(|context| {
+            !context
+                .plan
+                .completion_contract
+                .physical_verification_capabilities
+                .is_empty()
+        });
         match device::check() {
+            Ok(DeviceState::Ready(_)) if physical_was_required => {
+                self.events.emit(Event::result(format!(
+                    "accepted birth of {app_name} is on the verified iPhone."
+                )));
+            }
             Ok(DeviceState::Ready(_)) => {
                 let artifact_directory = temporary_path("install");
                 DevicePipeline::new(self.events.clone())
@@ -1970,7 +2348,7 @@ impl Engine {
                     )
                     .await?;
                 self.events.emit(Event::result(format!(
-                    "evolution {} of {} is on your phone.",
+                    "Version {} of {} is on your phone.",
                     shot.number, app_name
                 )));
             }
@@ -2042,6 +2420,20 @@ impl Engine {
             }
         } else {
             self.check_slot_limit()?;
+        }
+        let is_initial_birth = previous.is_none() && origin.is_none();
+        if is_initial_birth {
+            // Fail before reserving or building when the harness returned only
+            // a build, a generic plan, or incomplete target-user evidence.
+            let birth = self.load_birth_context(app_name)?;
+            let blockers = birth_candidate_blockers(&birth);
+            if !blockers.is_empty() {
+                return Err(EngineError::ProtocolBodyIncomplete(format!(
+                    "birth candidate remains unsealed before recording: {}",
+                    blockers.join("; ")
+                )));
+            }
+            protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
         }
         self.wait_for_apple_prerequisites().await?;
         let working_digest_at_start = self.working_digest(app_name);
@@ -2459,6 +2851,96 @@ impl Engine {
     }
 }
 
+fn birth_candidate_blockers(context: &BirthContext) -> Vec<String> {
+    let mut blockers = Vec::new();
+    if context.plan.completion_contract.release_build_required
+        && !context.trial.release_build_passed
+    {
+        blockers.push("release_build: failed or absent".into());
+    }
+    if !context.trial.automated_tests_passed {
+        blockers.push("automated_tests: failed or absent".into());
+    }
+    if !context.trial.simulator_trial_passed {
+        blockers.push("simulator_target_user_trial: failed or absent".into());
+    }
+    for scenario_id in &context.plan.completion_contract.required_scenario_ids {
+        if let Some(result) = context
+            .trial
+            .scenario_results
+            .iter()
+            .find(|result| &result.scenario_id == scenario_id)
+        {
+            if !result.passed {
+                blockers.push(format!("experience_scenario.{scenario_id}: failed"));
+            }
+        }
+    }
+    for organ in &context.trial.organ_results {
+        for criterion in &organ.criteria {
+            if !criterion.passed {
+                blockers.push(format!(
+                    "organ.{}/{}: failed independently",
+                    organ.organ_id, criterion.id
+                ));
+            }
+        }
+    }
+    for substitution in &context.trial.forbidden_substitution_results {
+        if !substitution.passed {
+            blockers.push(format!(
+                "forbidden_substitution.{}: observed",
+                substitution.id
+            ));
+        }
+    }
+    if !context.trial.intent_review.passed {
+        blockers.push("intent_fidelity.intelligent_review: failed".into());
+    }
+    for gap in &context.trial.incompleteness {
+        if gap.blocks_completion || gap.category == IncompletenessCategory::ProductGap {
+            blockers.push(format!("incompleteness.{}: {}", gap.id, gap.description));
+        } else if matches!(
+            gap.category,
+            IncompletenessCategory::FutureOpportunity | IncompletenessCategory::ExplicitNonGoal
+        ) {
+            blockers.push(format!(
+                "incompleteness.{}: {:?} belongs in the Birth Plan or product memory, not an accepted Version's incompleteness",
+                gap.id, gap.category
+            ));
+        }
+    }
+    let required_physical = &context
+        .plan
+        .completion_contract
+        .physical_verification_capabilities;
+    if !required_physical.is_empty() {
+        match &context.trial.physical_device {
+            None => blockers.push(
+                "physical_device_experience: implementation_complete; acceptance_pending_physical_experience"
+                    .into(),
+            ),
+            Some(device) if !device.passed => {
+                blockers.push("physical_device_experience: failed".into())
+            }
+            Some(device) => {
+                let missing = required_physical
+                    .iter()
+                    .filter(|required| !device.exercised_capabilities.contains(required))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if !missing.is_empty() {
+                    blockers.push(format!(
+                        "physical_device_experience: missing required capabilities {}",
+                        missing.join(", ")
+                    ));
+                }
+            }
+        }
+    }
+    blockers
+}
+
 /// Gates 6–8, reusable by create/evolve and refresh.
 pub struct DevicePipeline {
     events: EventBus,
@@ -2536,7 +3018,7 @@ impl DevicePipeline {
             let (handoff, ready) = match state {
                 DeviceState::Ready(device) => (None, Some(device)),
                 DeviceState::CableMissing => {
-                    (Some("Plug in your iPhone with a cable."), None)
+                    (Some("Connect a paired iPhone by cable or local network."), None)
                 }
                 DeviceState::TrustRequired => (Some("Tap Trust on your iPhone."), None),
                 DeviceState::DeveloperModeRequired => (
@@ -2545,8 +3027,10 @@ impl DevicePipeline {
                 ),
             };
             if let Some(device) = ready {
-                self.events
-                    .emit(Event::status(format!("found {} over USB.", device.name)));
+                self.events.emit(Event::status(format!(
+                    "found {} over {}.",
+                    device.name, device.transport
+                )));
                 return Ok(device);
             }
             if handoff != last_handoff {
@@ -2678,181 +3162,161 @@ fn render_pending_evolution_document(
     document
 }
 
-fn default_initial_organs() -> Vec<InitialOrganPlan> {
-    vec![
-        InitialOrganPlan {
-            organ_id: "installation_identity".into(),
-            provides: vec![
-                "embedded_shot_identity".into(),
-                "app_scoped_installation_identity".into(),
-            ],
-            owns_state: vec!["installation_key_reference".into()],
-            permissions: Vec::new(),
-            dependencies: Vec::new(),
-            emits: vec!["identity_ready".into()],
-            consumes: Vec::new(),
-            satisfies_genome_constraints: vec![
-                "Preserve Shot identity and signed continuity across every accepted version."
-                    .into(),
-            ],
-            acceptance_tests: vec![
-                "Embedded metadata matches the accepted Shot, Expression, Version, and Genome facts."
-                    .into(),
-                "Fascia declares app-scoped installation identity without substituting it for ownership."
-                    .into(),
-            ],
-            platforms: vec!["iphone".into()],
-        },
-        InitialOrganPlan {
-            organ_id: "local_memory".into(),
-            provides: vec!["local_persistence".into()],
-            owns_state: vec!["owner_created_application_state".into()],
-            permissions: Vec::new(),
-            dependencies: vec!["installation_identity".into()],
-            emits: vec!["state_changed".into()],
-            consumes: vec!["identity_ready".into()],
-            satisfies_genome_constraints: vec![
-                "Keep owner-created state available locally and fail without inventing data."
-                    .into(),
-            ],
-            acceptance_tests: vec![
-                "Fascia declares local-first storage with no cloud default.".into(),
-            ],
-            platforms: vec!["iphone".into()],
-        },
-        InitialOrganPlan {
-            organ_id: "native_navigation".into(),
-            provides: vec!["native_navigation".into()],
-            owns_state: vec!["navigation_path".into()],
-            permissions: Vec::new(),
-            dependencies: Vec::new(),
-            emits: vec!["destination_changed".into()],
-            consumes: Vec::new(),
-            satisfies_genome_constraints: vec![
-                "The expression makes the preserved intention tangible without setup ceremony."
-                    .into(),
-            ],
-            acceptance_tests: vec![
-                "The native Apple source anatomy builds into the retained application artifact."
-                    .into(),
-            ],
-            platforms: vec!["iphone".into()],
-        },
-        InitialOrganPlan {
-            organ_id: "version_feedback".into(),
-            provides: vec!["exact_version_feedback".into()],
-            owns_state: vec!["private_feedback_records".into()],
-            permissions: Vec::new(),
-            dependencies: vec!["installation_identity".into()],
-            emits: vec!["feedback_recorded".into()],
-            consumes: vec!["identity_ready".into()],
-            satisfies_genome_constraints: vec![
-                "Keep intention, feedback, and owner data private by default.".into(),
-            ],
-            acceptance_tests: vec![
-                "Embedded metadata supplies the exact ExpressionID, VersionID, and build identity needed for feedback binding."
-                    .into(),
-            ],
-            platforms: vec!["iphone".into()],
-        },
-    ]
+fn read_private_planning_json<T>(layout: &ShotLayout, filename: &str) -> Result<T, EngineError>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let bytes = layout
+        .read_private_planning_file(filename)
+        .map_err(|error| {
+            EngineError::ProtocolBodyIncomplete(format!(
+                "required structured birth artifact `{filename}` is unavailable: {error}"
+            ))
+        })?;
+    serde_json::from_slice(&bytes).map_err(|error| {
+        EngineError::ProtocolBodyIncomplete(format!(
+            "required structured birth artifact `{filename}` is invalid: {error}"
+        ))
+    })
 }
 
-fn validate_initial_expression_plan(
-    plan: &InitialExpressionPlan,
-    genome: &tohseno_protocol::Genome,
+fn validate_conception_source_traceability(
+    layout: &ShotLayout,
+    input: &ConceptionInput,
+    output: &ConceptionOutput,
 ) -> Result<(), EngineError> {
-    if plan.schema != "tohseno.initial-expression-plan/1"
-        || plan.kind != "native_apple_application"
-        || plan.platforms.as_slice() != ["iphone"]
-        || plan.organs.is_empty()
+    let path = layout.root().join(&input.intention_document_path);
+    let metadata = fs::symlink_metadata(&path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 4 * 1024 * 1024
     {
-        return Err(EngineError::ProtocolBodyIncomplete(
-            "the first factory resolves exactly one native iPhone expression".into(),
-        ));
-    }
-    if plan.genome_revision != genome.revision
-        || plan.genome_digest != genome.digest().map_err(ShotLayoutError::from)?
-    {
-        return Err(EngineError::ProtocolBodyIncomplete(
-            "the initial Expression plan does not bind the reviewed Genome".into(),
-        ));
-    }
-
-    let incompatible_platforms = genome
-        .platform_commitments
-        .iter()
-        .filter(|commitment| !native_iphone_satisfies_platform_commitment(commitment))
-        .cloned()
-        .collect::<Vec<_>>();
-    if !incompatible_platforms.is_empty() {
         return Err(EngineError::ProtocolBodyIncomplete(format!(
-            "the native iPhone factory cannot satisfy Genome platform commitment(s): {}",
-            incompatible_platforms.join("; ")
+            "preserved conception document is not a bounded regular file: {}",
+            path.display()
         )));
     }
+    output.validate_source_traceability(input, &fs::read(path)?)?;
+    Ok(())
+}
 
-    let mut declared_organs = BTreeSet::new();
-    let mut provided_capabilities = BTreeSet::new();
-    for organ in &plan.organs {
-        if organ.organ_id.trim().is_empty() || declared_organs.contains(organ.organ_id.as_str()) {
-            return Err(EngineError::ProtocolBodyIncomplete(
-                "the initial Organ graph contains an empty or duplicate organ ID".into(),
-            ));
-        }
-        if organ
-            .dependencies
-            .iter()
-            .any(|dependency| !declared_organs.contains(dependency.as_str()))
-        {
-            return Err(EngineError::ProtocolBodyIncomplete(format!(
-                "Organ {} depends on an undeclared or later Organ",
-                organ.organ_id
-            )));
-        }
-        declared_organs.insert(organ.organ_id.as_str());
-        if !plan
-            .platforms
-            .iter()
-            .all(|platform| organ.platforms.contains(platform))
-        {
-            return Err(EngineError::ProtocolBodyIncomplete(format!(
-                "Organ {} does not support every Expression platform",
-                organ.organ_id
-            )));
-        }
-        provided_capabilities.extend(organ.provides.iter().map(String::as_str));
+fn validate_trial_evidence_files(
+    repository: &Path,
+    trial: &ExperienceTrial,
+) -> Result<(), EngineError> {
+    let mut references = Vec::new();
+    references.extend(trial.intent_review.evidence.iter());
+    for result in &trial.forbidden_substitution_results {
+        references.extend(result.evidence.iter());
     }
-
-    let missing = genome
-        .required_capabilities
-        .iter()
-        .filter(|capability| !provided_capabilities.contains(capability.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    if !missing.is_empty() {
-        return Err(EngineError::ProtocolBodyIncomplete(format!(
-            "the resolved Organ graph does not provide required Genome capability(s): {}",
-            missing.join(", ")
-        )));
+    for result in &trial.scenario_results {
+        references.extend(result.evidence.iter());
+        for assertion in &result.assertions {
+            references.extend(assertion.evidence.iter());
+        }
+    }
+    for result in &trial.organ_results {
+        for criterion in &result.criteria {
+            references.extend(criterion.evidence.iter());
+        }
+    }
+    if let Some(device) = &trial.physical_device {
+        references.extend(device.evidence.iter());
+    }
+    let canonical_root = fs::canonicalize(repository)?;
+    for reference in references {
+        let path = repository.join(&reference.relative_path);
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            EngineError::ProtocolBodyIncomplete(format!(
+                "experience evidence `{}` is unavailable: {error}",
+                reference.relative_path
+            ))
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "experience evidence `{}` must be a regular file",
+                reference.relative_path
+            )));
+        }
+        let canonical = fs::canonicalize(&path)?;
+        if !canonical.starts_with(&canonical_root) {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "experience evidence `{}` escapes the Shot repository",
+                reference.relative_path
+            )));
+        }
+        if metadata.len() != reference.artifact.byte_length {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "experience evidence `{}` length differs from its declaration",
+                reference.relative_path
+            )));
+        }
+        let bytes = fs::read(&canonical)?;
+        if tohseno_protocol::digest::sha256(&bytes) != reference.artifact.digest {
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "experience evidence `{}` digest differs from its declaration",
+                reference.relative_path
+            )));
+        }
     }
     Ok(())
 }
 
-fn native_iphone_satisfies_platform_commitment(commitment: &str) -> bool {
-    let words = commitment
-        .split(|character: char| !character.is_ascii_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(str::to_ascii_lowercase)
-        .collect::<BTreeSet<_>>();
-    let incompatible_words = [
-        "android", "browser", "ipad", "ipados", "linux", "mac", "macos", "server", "tvos",
-        "visionos", "watchos", "web", "website", "windows",
-    ];
-    !(incompatible_words.iter().any(|word| words.contains(*word))
-        || words.contains("apple") && words.contains("watch")
-        || words.contains("apple") && words.contains("vision")
-        || words.contains("apple") && words.contains("tv"))
+fn evidence_reference_for_file(
+    repository: &Path,
+    path: &Path,
+    kind: EvidenceKind,
+    media_type: &str,
+) -> Result<EvidenceReference, EngineError> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(EngineError::ProtocolBodyIncomplete(format!(
+            "engine evidence `{}` is not a regular file",
+            path.display()
+        )));
+    }
+    let relative_path = path
+        .strip_prefix(repository)
+        .map_err(|_| {
+            EngineError::ProtocolBodyIncomplete(format!(
+                "engine evidence `{}` is outside the Shot repository",
+                path.display()
+            ))
+        })?
+        .to_string_lossy()
+        .into_owned();
+    let bytes = fs::read(path)?;
+    Ok(EvidenceReference {
+        kind,
+        artifact: ArtifactDescriptor {
+            digest: tohseno_protocol::digest::sha256(&bytes),
+            media_type: media_type.into(),
+            byte_length: u64::try_from(bytes.len()).map_err(|_| {
+                EngineError::ProtocolBodyIncomplete("evidence length overflowed".into())
+            })?,
+            name: path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned),
+        },
+        relative_path,
+    })
+}
+
+fn birth_receipt_availability(receipt: &BirthReceipt) -> Result<ArtifactAvailability, EngineError> {
+    let bytes = tohseno_protocol::canonical::to_vec(receipt)
+        .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+    Ok(ArtifactAvailability {
+        schema: ARTIFACT_AVAILABILITY_SCHEMA.into(),
+        artifact: ArtifactDescriptor {
+            digest: tohseno_protocol::digest::sha256(&bytes),
+            media_type: "application/vnd.tohseno.birth-receipt+json".into(),
+            byte_length: u64::try_from(bytes.len()).map_err(|_| {
+                EngineError::ProtocolBodyIncomplete("birth receipt length overflowed".into())
+            })?,
+            name: Some("birth-receipt.json".into()),
+        },
+        status: AvailabilityStatus::LocallyAvailable,
+        locations: Vec::new(),
+    })
 }
 
 fn bundle_id(app_name: &str) -> Result<String, EngineError> {
@@ -2947,6 +3411,10 @@ pub enum EngineError {
     Ledger(LedgerError),
     Intent(IntentError),
     Genome(GenomeError),
+    Conception(ConceptionError),
+    CapabilityProfile(CapabilityProfileError),
+    BirthPlan(BirthPlanError),
+    Experience(ExperienceError),
     Build(build::BuildError),
     Device(device::DeviceError),
     Sign(sign::SignError),
@@ -2977,6 +3445,10 @@ impl std::fmt::Display for EngineError {
             Self::Ledger(error) => write!(f, "{error}"),
             Self::Intent(error) => write!(f, "{error}"),
             Self::Genome(error) => write!(f, "{error}"),
+            Self::Conception(error) => write!(f, "{error}"),
+            Self::CapabilityProfile(error) => write!(f, "{error}"),
+            Self::BirthPlan(error) => write!(f, "{error}"),
+            Self::Experience(error) => write!(f, "{error}"),
             Self::Build(error) => write!(f, "{error}"),
             Self::Device(error) => write!(f, "{error}"),
             Self::Sign(error) => write!(f, "{error}"),
@@ -3080,9 +3552,39 @@ impl From<GenomeError> for EngineError {
     }
 }
 
+impl From<ConceptionError> for EngineError {
+    fn from(value: ConceptionError) -> Self {
+        Self::Conception(value)
+    }
+}
+
+impl From<CapabilityProfileError> for EngineError {
+    fn from(value: CapabilityProfileError) -> Self {
+        Self::CapabilityProfile(value)
+    }
+}
+
+impl From<BirthPlanError> for EngineError {
+    fn from(value: BirthPlanError) -> Self {
+        Self::BirthPlan(value)
+    }
+}
+
+impl From<ExperienceError> for EngineError {
+    fn from(value: ExperienceError) -> Self {
+        Self::Experience(value)
+    }
+}
+
 impl From<build::BuildError> for EngineError {
     fn from(value: build::BuildError) -> Self {
         Self::Build(value)
+    }
+}
+
+impl From<device::DeviceError> for EngineError {
+    fn from(value: device::DeviceError) -> Self {
+        Self::Device(value)
     }
 }
 
@@ -3114,37 +3616,6 @@ impl From<EngineError> for std::io::Error {
 mod tests {
     use super::*;
 
-    fn quiet_press_request() -> ShotRequest {
-        ShotRequest {
-            app_name: "quiet-press".into(),
-            intent: Intent {
-                prompt: "A quiet place\n\nfor one honest sentence.".into(),
-                images: Vec::new(),
-            },
-            selected_feedback_actions: Vec::new(),
-        }
-    }
-
-    fn resolved_organs(plan: &InitialExpressionPlan, expression_id: ExpressionId) -> Vec<Organ> {
-        plan.organs
-            .iter()
-            .map(|organ| Organ {
-                schema: ORGAN_SCHEMA.into(),
-                expression_id,
-                organ_id: organ.organ_id.clone(),
-                provides: organ.provides.clone(),
-                owns_state: organ.owns_state.clone(),
-                permissions: organ.permissions.clone(),
-                dependencies: organ.dependencies.clone(),
-                emits: organ.emits.clone(),
-                consumes: organ.consumes.clone(),
-                satisfies_genome_constraints: organ.satisfies_genome_constraints.clone(),
-                acceptance_tests: organ.acceptance_tests.clone(),
-                platforms: organ.platforms.clone(),
-            })
-            .collect()
-    }
-
     #[test]
     fn generated_bundle_identity_uses_the_candidate_device_namespace() {
         let bundle_id = candidate_bundle_id("Alice Example", "quiet-press");
@@ -3158,90 +3629,6 @@ mod tests {
             candidate_bundle_id("---", "press"),
             "org.tohseno.genesis.user.press"
         );
-    }
-
-    #[test]
-    fn initial_genome_and_expression_plan_are_deterministic_unaccepted_views() {
-        let request = quiet_press_request();
-        let first = Engine::propose_initial_genome(&request).unwrap();
-        let second = Engine::propose_initial_genome(&request).unwrap();
-        assert_eq!(first, second);
-        first.validate().unwrap();
-        assert!(first
-            .purpose
-            .contains("A quiet place for one honest sentence."));
-        let plan = Engine::propose_initial_expression_plan(&request, &first).unwrap();
-        assert_eq!(plan.genome_digest, first.digest().unwrap());
-        assert_eq!(plan.kind, "native_apple_application");
-        assert_eq!(plan.organs.len(), 4);
-        assert!(plan
-            .organs
-            .iter()
-            .any(|organ| organ.organ_id == "version_feedback"));
-
-        let expression_id = ExpressionId::from_bytes([0x45; 32]);
-        let organs = resolved_organs(&plan, expression_id);
-        let graph_digest = capability_graph_digest(&organs).unwrap();
-        let mut reversed = organs;
-        reversed.reverse();
-        assert_eq!(
-            graph_digest,
-            capability_graph_digest(&reversed).unwrap(),
-            "the capability lock must not depend on input iteration order"
-        );
-        let provided = plan
-            .organs
-            .iter()
-            .flat_map(|organ| organ.provides.iter())
-            .collect::<BTreeSet<_>>();
-        assert!(first
-            .required_capabilities
-            .iter()
-            .all(|capability| provided.contains(capability)));
-    }
-
-    #[test]
-    fn initial_expression_plan_rejects_unsatisfied_genome_capabilities() {
-        let request = quiet_press_request();
-        let mut genome = Engine::propose_initial_genome(&request).unwrap();
-        genome
-            .required_capabilities
-            .push("cloud_synchronization".into());
-
-        let error = Engine::propose_initial_expression_plan(&request, &genome).unwrap_err();
-        assert!(error.to_string().contains("cloud_synchronization"));
-    }
-
-    #[test]
-    fn initial_expression_plan_rejects_non_iphone_genome_commitments() {
-        let request = quiet_press_request();
-        let mut genome = Engine::propose_initial_genome(&request).unwrap();
-        genome.platform_commitments = vec!["The first expression is a native macOS app.".into()];
-
-        let error = Engine::propose_initial_expression_plan(&request, &genome).unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("cannot satisfy Genome platform commitment"));
-    }
-
-    #[test]
-    fn initial_expression_plan_rejects_unsupported_or_invalid_organ_graphs() {
-        let request = quiet_press_request();
-        let genome = Engine::propose_initial_genome(&request).unwrap();
-        let mut plan = Engine::propose_initial_expression_plan(&request, &genome).unwrap();
-        plan.organs[0].platforms = vec!["macos".into()];
-        assert!(validate_initial_expression_plan(&plan, &genome)
-            .unwrap_err()
-            .to_string()
-            .contains("does not support every Expression platform"));
-
-        let mut self_dependent =
-            Engine::propose_initial_expression_plan(&request, &genome).unwrap();
-        self_dependent.organs[0].dependencies = vec!["installation_identity".into()];
-        assert!(validate_initial_expression_plan(&self_dependent, &genome)
-            .unwrap_err()
-            .to_string()
-            .contains("undeclared or later Organ"));
     }
 
     #[test]

@@ -11,7 +11,10 @@ use tohseno_engine::protocol_lifecycle;
 use tohseno_engine::verifier::{
     self, LineageVerificationReport, ShotVerificationReport, VerificationCheck, VerificationStatus,
 };
-use tohseno_engine::{Event, EventBus, Evolution, Ledger, ShotBodyVerification, ShotLayout};
+use tohseno_engine::{
+    BirthReceipt, Event, EventBus, Evolution, FactoryIdentity, Ledger, ShotBodyVerification,
+    ShotLayout,
+};
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
@@ -140,6 +143,10 @@ pub fn inspect_target(
             shot.path.join("TOHSENO/conformance.json"),
         )?)?;
     conformance.validate()?;
+    let birth_receipt = read_birth_receipt(&shot.path)?;
+    let factory_identity = birth_receipt
+        .as_ref()
+        .map(|receipt| receipt.factory_identity.clone());
     let view = Inspection {
         app_name: shot.app_name,
         shot_directory: shot.path.display().to_string(),
@@ -154,6 +161,8 @@ pub fn inspect_target(
         conformant: conformance.conformant,
         public_state: "private",
         shot_body,
+        factory_identity,
+        birth_receipt,
     };
     if json {
         print_json(&view)?;
@@ -166,8 +175,39 @@ pub fn inspect_target(
             "{} · {}",
             view.shot_id, view.builder_id
         )));
+        if let Some(factory) = &view.factory_identity {
+            bus.emit(Event::status(format!(
+                "factory {} · commit {} · Constitution {} · Genome {} · Apple profile {}",
+                factory.engine_version,
+                factory.source_commit,
+                factory.static_constitution_digest,
+                factory
+                    .accepted_shot_genome_digest
+                    .map(|digest| digest.to_string())
+                    .unwrap_or_else(|| "not accepted".into()),
+                factory.apple_capability_profile_digest,
+            )));
+        }
     }
     Ok(())
+}
+
+fn read_birth_receipt(
+    shot_directory: &Path,
+) -> Result<Option<BirthReceipt>, Box<dyn std::error::Error>> {
+    let path = shot_directory.join("TOHSENO/birth-receipt.json");
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 4 * 1024 * 1024
+    {
+        return Err("Birth Receipt must be a bounded regular file".into());
+    }
+    let receipt: BirthReceipt = serde_json::from_slice(&fs::read(path)?)?;
+    receipt.validate()?;
+    Ok(Some(receipt))
 }
 
 pub fn verify_target(
@@ -374,7 +414,11 @@ fn verified_local_head(
 struct UnfinishedAttempt {
     schema: &'static str,
     app_name: String,
-    attempt_directory: String,
+    working_directory: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    attempt_directory: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    factory_identity: Option<FactoryIdentity>,
     stages: Vec<UnfinishedStage>,
 }
 
@@ -400,7 +444,9 @@ fn report_unfinished_app(
     if ledger.load_app(target).is_err() || !ledger.list_evolutions(target)?.is_empty() {
         return Ok(false);
     }
-    let app_dir = ledger.root().join(target).join(".tohseno");
+    let working = ledger.root().join(target);
+    let app_dir = working.join(".tohseno");
+    let factory_identity = read_pending_factory_identity(&working)?;
     let mut attempts: Vec<PathBuf> = Vec::new();
     for parent in [app_dir.join("evolutions"), app_dir.join("incomplete")] {
         let Ok(entries) = fs::read_dir(parent) else {
@@ -413,10 +459,14 @@ fn report_unfinished_app(
         }
     }
     attempts.sort();
-    let Some(attempt) = attempts.last() else {
+    let attempt = attempts.last();
+    if attempt.is_none() && factory_identity.is_none() {
         return Ok(false);
-    };
-    let has_project = fs::read_dir(attempt.join("src"))
+    }
+    let source = attempt
+        .map(|path| path.join("src"))
+        .unwrap_or_else(|| working.clone());
+    let has_project = fs::read_dir(&source)
         .map(|entries| {
             entries.flatten().any(|entry| {
                 entry
@@ -426,7 +476,8 @@ fn report_unfinished_app(
             })
         })
         .unwrap_or(false);
-    let has_artifact = fs::read_dir(attempt.join("artifact"))
+    let has_artifact = attempt
+        .and_then(|attempt| fs::read_dir(attempt.join("artifact")).ok())
         .map(|entries| {
             entries.flatten().any(|entry| {
                 entry
@@ -436,19 +487,49 @@ fn report_unfinished_app(
             })
         })
         .unwrap_or(false);
+    let attempt_file =
+        |relative: &str| attempt.is_some_and(|attempt| attempt.join(relative).is_file());
     let stage = |done: bool| if done { "pass" } else { "pending" };
     let stages = vec![
         UnfinishedStage {
             id: "intention.recorded",
-            status: stage(attempt.join("prompt.md").is_file()),
+            status: stage(working.join("INTENTION.md").is_file()),
         },
         UnfinishedStage {
-            id: "world.generated",
+            id: "conception.context",
+            status: stage(
+                app_dir
+                    .join("private/planning/conception-input.json")
+                    .is_file(),
+            ),
+        },
+        UnfinishedStage {
+            id: "conception.proposal",
+            status: stage(
+                app_dir
+                    .join("private/planning/conception-output.json")
+                    .is_file(),
+            ),
+        },
+        UnfinishedStage {
+            id: "birth-plan.accepted",
+            status: stage(
+                app_dir
+                    .join("private/planning/accepted-conception-output.json")
+                    .is_file(),
+            ),
+        },
+        UnfinishedStage {
+            id: "product.materialized",
             status: stage(has_project),
         },
         UnfinishedStage {
-            id: "world.memory",
-            status: stage(attempt.join("src/MEMORY.md").is_file()),
+            id: "experience.trial",
+            status: stage(
+                app_dir
+                    .join("private/planning/experience-trial.json")
+                    .is_file(),
+            ),
         },
         UnfinishedStage {
             id: "artifact.materialized",
@@ -456,42 +537,83 @@ fn report_unfinished_app(
         },
         UnfinishedStage {
             id: "record.prepared",
-            status: stage(attempt.join("TOHSENO/shot.json").is_file()),
+            status: stage(attempt_file("TOHSENO/shot.json")),
         },
         UnfinishedStage {
             id: "record.signed",
-            status: stage(attempt.join("TOHSENO/signature.json").is_file()),
+            status: stage(attempt_file("TOHSENO/signature.json")),
         },
         UnfinishedStage {
             id: "conformance.receipt",
-            status: stage(attempt.join("TOHSENO/conformance.json").is_file()),
+            status: stage(attempt_file("TOHSENO/conformance.json")),
         },
         UnfinishedStage {
             id: "evolution.finalized",
-            status: stage(attempt.join(".complete").is_file()),
+            status: stage(attempt_file(".complete")),
         },
     ];
     let view = UnfinishedAttempt {
-        schema: "tohseno.cli-unfinished-attempt/1",
+        schema: "tohseno.cli-unsealed-birth/1",
         app_name: target.into(),
-        attempt_directory: attempt.display().to_string(),
+        working_directory: working.display().to_string(),
+        attempt_directory: attempt.map(|path| path.display().to_string()),
+        factory_identity,
         stages,
     };
     if json {
         print_json(&view)?;
     } else {
-        bus.emit(Event::status(format!(
-            "{target} · newest unfinished attempt"
-        )));
+        bus.emit(Event::status(format!("{target} · unsealed birth state")));
         for stage in &view.stages {
             let marker = if stage.status == "pass" { "✓" } else { "–" };
             bus.emit(Event::status(format!("{marker} {}", stage.id)));
         }
+        if let Some(factory) = &view.factory_identity {
+            bus.emit(Event::status(format!(
+                "factory {} · commit {} · Constitution {} · Genome {} · Apple profile {}",
+                factory.engine_version,
+                factory.source_commit,
+                factory.static_constitution_digest,
+                factory
+                    .accepted_shot_genome_digest
+                    .map(|digest| digest.to_string())
+                    .unwrap_or_else(|| "not accepted".into()),
+                factory.apple_capability_profile_digest,
+            )));
+        }
         bus.emit(Event::status(format!(
-            "next: `tohseno create {target}` — this attempt archives automatically."
+            "next: continue the prepared conception/materialization execution or rerun `tohseno create {target}` with the same exact intention."
         )));
     }
     Ok(true)
+}
+
+fn read_pending_factory_identity(
+    working: &Path,
+) -> Result<Option<FactoryIdentity>, Box<dyn std::error::Error>> {
+    for filename in [
+        "materialization-factory-identity.json",
+        "factory-identity.json",
+    ] {
+        let path = working.join(".tohseno/private/planning").join(filename);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 1024 * 1024
+        {
+            return Err(format!(
+                "factory identity is not a bounded regular file: {}",
+                path.display()
+            )
+            .into());
+        }
+        let identity: FactoryIdentity = serde_json::from_slice(&fs::read(path)?)?;
+        identity.validate()?;
+        return Ok(Some(identity));
+    }
+    Ok(None)
 }
 
 fn resolve_verification(
@@ -915,6 +1037,10 @@ struct Inspection {
     public_state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     shot_body: Option<ShotBodyVerification>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    factory_identity: Option<FactoryIdentity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    birth_receipt: Option<BirthReceipt>,
 }
 
 #[derive(Serialize)]

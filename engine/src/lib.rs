@@ -3,13 +3,20 @@
 //! This crate owns state and orchestration. It deliberately contains no terminal
 //! rendering or HTTP code; frontends subscribe to [`events::Event`] values.
 
+#[cfg(test)]
+mod anky_fixture;
 mod app_metadata_policy;
+pub mod apple_capabilities;
 pub mod apple_identity;
+pub mod birth_plan;
 pub mod builder_identity;
+pub mod conception;
 pub mod config;
 pub mod contract_generation;
 pub mod enclave;
 pub mod events;
+pub mod experience;
+pub mod factory_identity;
 pub mod gates;
 pub mod genome;
 pub mod harness;
@@ -23,11 +30,31 @@ pub mod protocol_lifecycle;
 pub mod recovery;
 pub mod shot_execution;
 pub mod shot_layout;
+mod swift_source;
 pub mod verifier;
 pub mod workshop;
 
+pub use apple_capabilities::{
+    AppleCapabilityCatalog, AppleCapabilityProfile, AppleDeviceProfile, CapabilityProfileError,
+    CapabilityState, APPLE_CAPABILITY_CATALOG_SCHEMA, APPLE_CAPABILITY_PROFILE_SCHEMA,
+};
+pub use birth_plan::{
+    protocol_substrate_organs, BirthExpressionPlan, BirthOrganPlan, BirthPlan, BirthPlanError,
+    OrganKind, BIRTH_EXPRESSION_PLAN_SCHEMA, BIRTH_PLAN_SCHEMA,
+};
+pub use conception::{
+    render_conception_task, ConceptionError, ConceptionHarness, ConceptionInput, ConceptionOutput,
+    FakeConceptionHarness, JsonFileConceptionHarness, CONCEPTION_INPUT_SCHEMA,
+    CONCEPTION_OUTPUT_SCHEMA,
+};
 pub use config::Config;
 pub use events::{Event, EventBus};
+pub use experience::{
+    evaluate_birth, BirthReceipt, ExperienceContract, ExperienceError, ExperienceTrial,
+    IncompletenessCategory, BIRTH_RECEIPT_SCHEMA, EXPERIENCE_CONTRACT_SCHEMA,
+    EXPERIENCE_TRIAL_SCHEMA,
+};
+pub use factory_identity::{FactoryIdentity, FACTORY_IDENTITY_SCHEMA};
 pub use harness::{
     AttachmentBehavior, AuthenticationStatus, HarnessCommand, HarnessModel, HarnessOption,
     HarnessRoute, HarnessSelection,
@@ -39,17 +66,17 @@ pub use intent_package::{
 };
 pub use ledger::{AppRecord, Evolution, Ledger, LedgerError};
 pub use machine::{
-    AcceptedGenomeRevision, ConductedCreation, DevicePipeline, Engine, EngineError,
-    InitialExpressionPlan, InitialOrganPlan, ShotRequest, TokenAssociationReceipt,
+    AcceptedGenomeRevision, ConductedCreation, ConductionPhase, DevicePipeline, Engine,
+    EngineError, InitialExpressionPlan, InitialOrganPlan, ShotRequest, TokenAssociationReceipt,
 };
 pub use pending_intention::{
     LocalPendingIntention, LocalPendingReference, PendingIntentionError, PendingIntentionSource,
     PendingIntentionState, PendingIntentionStore,
 };
 pub use shot_execution::{
-    ChangedFile, CompletionRecord, ExecutionOutcome, ExecutionPhase, ExecutionPreparation,
-    ExecutionReference, PreparedExecution, ShotExecutionError, ShotExecutionEvent,
-    ValidationObservation,
+    ChangedFile, CompletionRecord, ExecutionMode, ExecutionOutcome, ExecutionPhase,
+    ExecutionPreparation, ExecutionReference, PreparedExecution, ShotExecutionError,
+    ShotExecutionEvent, ValidationObservation,
 };
 pub use shot_layout::{
     describe_feedback_attachment, hash_expression_working_tree, render_genome_document,

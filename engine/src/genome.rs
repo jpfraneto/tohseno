@@ -10,6 +10,15 @@ const LISTENING: &str = include_str!("../../genome/LISTENING.md");
 const UNFOLDING: &str = include_str!("../../genome/UNFOLDING.md");
 const MEMORY: &str = include_str!("../../genome/MEMORY.md");
 const WORLD: &str = include_str!("../../genome/WORLD.md");
+const FACTORY_BUNDLE_FILES: [(&str, &str); 7] = [
+    ("LAWS.md", LAWS),
+    ("STRUCTURE.md", STRUCTURE),
+    ("TASTE.md", TASTE),
+    ("LISTENING.md", LISTENING),
+    ("UNFOLDING.md", UNFOLDING),
+    ("MEMORY.md", MEMORY),
+    ("WORLD.md", WORLD),
+];
 const FASCIA_JSON: &str = include_str!("../../fascia/apple/FASCIA.json");
 const FASCIA_DOCUMENTS: [(&str, &str); 7] = [
     ("FASCIA.md", include_str!("../../fascia/apple/FASCIA.md")),
@@ -59,6 +68,24 @@ const FASCIA_SWIFT: [(&str, &str); 5] = [
 pub struct Genome;
 
 impl Genome {
+    pub fn constitution_text() -> &'static str {
+        LAWS
+    }
+
+    /// Digest of the exact static factory instruction bundle compiled into
+    /// this engine. This is factory identity, not the app-specific Genome
+    /// accepted into a Shot lineage.
+    pub fn bundle_digest() -> tohseno_protocol::digest::Bytes32 {
+        let mut bytes = Vec::new();
+        for (name, contents) in FACTORY_BUNDLE_FILES {
+            bytes.extend_from_slice(name.as_bytes());
+            bytes.push(0);
+            bytes.extend_from_slice(contents.as_bytes());
+            bytes.push(0);
+        }
+        tohseno_protocol::digest::sha256(&bytes)
+    }
+
     pub fn compose(
         &self,
         ledger: &Ledger,
@@ -113,7 +140,7 @@ impl Genome {
         let previous = if previous_source.is_some() {
             "The previous evolution of this Shot is available read-only as design context in `previous-src/`; create a new full world in `src/` and do not edit `previous-src/`."
         } else {
-            "This is evolution 1; there is no previous evolution."
+            "This is the first birth candidate; there is no previous accepted app. Its internal ordinal remains 1 for protocol compatibility."
         };
         let laws = LAWS;
         let structure = STRUCTURE;
@@ -189,9 +216,11 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Output contract
 
 Work directly in this workspace and finish a complete buildable project in `src/`,
-including the `src/MEMORY.md` and `src/WORLD.md` that Memory and World require.
 Run `xcodebuild` yourself when useful, but do not stop at an explanation.
 Never emit only snippets, patches, instructions, or prose.
+`MEMORY.md` and `WORLD.md` are optional high-signal source artifacts, not
+acceptance rituals. Return the candidate and evidence; the engine owns all
+acceptance and sealing.
 "#
         );
         ledger.write_evolution_file(shot, "TASK.md", task.as_bytes())?;
@@ -208,32 +237,32 @@ Never emit only snippets, patches, instructions, or prose.
             let contents = format!(
                 r#"# This folder is a TOHSENO Shot
 
-One Evolution, one intent, many Evolutions — all of them this same app.
-The sealed history lives in `.tohseno/evolutions/`; this folder is the
-living world of `{app_name}`.
+This is the living source world of `{app_name}`. Its accepted lineage lives
+under `.tohseno/`; never edit engine-owned files there.
 
-Before working:
+Before working, read `.tohseno/TASK.md`. For a birth, the exact human
+intention, accepted app-specific Genome, Birth Plan, Apple Capability Profile,
+app-specific organs, forbidden substitutions, and Experience Contract govern
+the candidate together.
 
-- Read `MEMORY.md` — the Evolution's own memory of how it came to be and where it stands.
-- Read `.tohseno/TASK.md` — the current briefing and the builder's intent.
-- Obey the genome in `.tohseno/genome/` — laws, structure, taste, listening, unfolding, memory.
+Materialize the complete bounded intention. Implement real Release Apple
+capabilities even when Simulator trials need injected fixtures. A Simulator
+limitation is not permission to change the product. Test adapters must be
+unreachable from the Release experience.
 
-While working:
+Run the required target-user journeys, inspect their evidence from each
+actor's perspective, repair mismatches, and write the strict Experience Trial
+requested by the task. Return a candidate and evidence; do not call
+`tohseno evolve` as an internal retry or claim that your own work is accepted.
+The engine independently evaluates conformance, intent fidelity, and
+experience verification, and the engine alone seals a passing Version.
 
-- Never modify anything inside `.tohseno/`.
-- Keep this folder a complete, buildable world at every rest.
-- Update `MEMORY.md` before you stop; keep `WORLD.md` true to the app.
-
-When the work builds and is whole, record it yourself:
-
-    tohseno evolve
-
-That runs the gates, signs the record, and appends the next Evolution to
-this Evolution's history. The builder should never have to remember it.
-
-Sealing is your final act. Write MEMORY.md and every lesson BEFORE you run
-`tohseno evolve`; after it succeeds, change nothing in this folder. A file
-touched after sealing makes the folder drift from its accepted Version.
+Keep `MEMORY.md` only when it carries high-signal product continuity: settled
+intention, target users, enduring invariants, verified behavior, meaningful
+rationale, privacy/safety choices, or an actual external verification block.
+Do not add generic “open threads” or gate-debugging transcripts. `WORLD.md` is
+optional unless this task needs a present-tense asset specification; never use
+it for hypothetical future asset prompts.
 "#
             );
             fs::write(&agents, contents)?;
@@ -249,10 +278,122 @@ touched after sealing makes the folder drift from its accepted Version.
         Ok(())
     }
 
+    pub fn write_birth_task(
+        &self,
+        folder: &Path,
+        app_name: &str,
+        bundle_id: &str,
+        conception: &crate::conception::ConceptionOutput,
+        expression: &crate::birth_plan::BirthExpressionPlan,
+        factory: &crate::factory_identity::FactoryIdentity,
+    ) -> Result<PathBuf, GenomeError> {
+        let birth_plan = serde_json::to_string_pretty(&conception.birth_plan)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let experience = serde_json::to_string_pretty(&conception.experience_contract)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let expression_plan = serde_json::to_string_pretty(expression)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let task = format!(
+            r#"# TOHSENO birth materialization
+
+Return a complete production-quality native iPhone candidate and its evidence.
+The engine—not this harness—owns final acceptance and sealing.
+
+## Factory identity
+
+- TOHSENO engine version: `{engine_version}`
+- TOHSENO source commit: `{source_commit}`
+- static Constitution/Genome bundle digest: `{constitution_digest}`
+- accepted Shot Genome digest: `{genome_digest}`
+- Apple capability profile digest: `{profile_digest}`
+
+## Authority and product truth
+
+- The exact human intention in `.tohseno/EVOLUTION_INTENT.md` is authoritative.
+- The accepted Genome in `.tohseno/genome.json` is its app-specific interpretation.
+- The Apple profile at `.tohseno/private/planning/apple-capability-profile.json`
+  describes available material and evidence constraints, not a denylist.
+- Explicit native capabilities must be implemented in the Release product.
+- `simulator_unavailable` or unknown hardware never means product absence.
+- A fallback is allowed only under its accepted runtime condition and cannot
+  become primary merely because Simulator sensor input is absent.
+- No primary interaction may be a mock, inert surface, placeholder, or promise
+  of later work. “MVP” means the smallest complete production-quality promise.
+- Internal repair passes are part of this birth, not Evolutions.
+- Protocol conformance is necessary and insufficient: the product promise and
+  target-user experience must independently pass.
+
+## App identity
+
+- Product/target: `{app_name}`
+- Bundle identifier: `{bundle_id}`
+
+Copy the five Apple Fascia reference sources from
+`.tohseno/fascia/apple/swift/` into `TohsenoFascia/` and add them to the app
+target. Keep `TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` as
+engine-owned `{{}}` placeholders in source; the engine reconciles observed
+source/artifact evidence into final Fascia facts.
+
+## Accepted Birth Plan
+
+```json
+{birth_plan}
+```
+
+## Accepted app-specific expression and organs
+
+```json
+{expression_plan}
+```
+
+Protocol-substrate organs preserve identity and provenance. They do not fulfill
+product requirements. App-specific organs must drive the implementation.
+
+## Experience Contract
+
+```json
+{experience}
+```
+
+Build the Release implementation, run deterministic XCTest and XCUITest where
+appropriate, launch in Simulator, traverse each required target-user journey,
+capture meaningful multi-state evidence, inspect it from that actor's
+perspective, repair mismatches, and repeat until the contract passes. Use
+launch arguments or injected sensor fixtures only in test configurations;
+prove the real framework path remains in Release source. When the profile has
+a compatible connected iPhone and a required scenario is hardware-critical,
+also build/install/launch and exercise that scenario on the physical device.
+
+Write strict `{trial_schema}` JSON to
+`.tohseno/private/planning/experience-trial.json` using the closed schema at
+`.tohseno/private/planning/{trial_schema_file}`. Give every organ criterion
+its own result and evidence. Do not infer all organ results from a build or
+from overall conformance. A product gap, failed must-level journey, missing
+required physical trial, or forbidden substitution must remain failed.
+
+Do not call `tohseno evolve`. Exit after returning the candidate and evidence;
+the engine will evaluate, issue a focused repair pass when needed, and seal
+only if all three acceptance dimensions pass.
+"#,
+            engine_version = factory.engine_version,
+            source_commit = factory.source_commit,
+            constitution_digest = factory.static_constitution_digest,
+            genome_digest = factory
+                .accepted_shot_genome_digest
+                .expect("materialization identity requires an accepted Genome"),
+            profile_digest = factory.apple_capability_profile_digest,
+            trial_schema = crate::experience::EXPERIENCE_TRIAL_SCHEMA,
+            trial_schema_file = crate::conception::EXPERIENCE_TRIAL_SCHEMA_FILE,
+        );
+        let path = folder.join(".tohseno/TASK.md");
+        fs::write(&path, task)?;
+        Ok(path)
+    }
+
     /// Writes the private briefing for a conducted creation into the app's
-    /// own `.tohseno/`: the builder's intent, the genome, the Fascia
-    /// references, and a TASK.md addressed to an agent working in the
-    /// visible folder itself. Returns the TASK.md path.
+    /// own `.tohseno/`: exact intent, static Constitution material, Fascia
+    /// references, and a holding TASK.md. The actual app-specific task is
+    /// written only after intelligent conception and Genome acceptance.
     pub fn compose_briefing(
         &self,
         ledger: &Ledger,
@@ -316,62 +457,28 @@ touched after sealing makes the folder drift from its accepted Version.
                 .join("\n")
         };
         let prompt = &intent.prompt;
-        let laws = LAWS;
-        let structure = STRUCTURE;
-        let taste = TASTE;
-        let listening = LISTENING;
-        let unfolding = UNFOLDING;
-        let memory = MEMORY;
-        let world = WORLD;
         let task = format!(
-            r#"# TOHSENO task
+            r#"# TOHSENO conception pending
 
-Read this file first and complete the task autonomously.
-
-You are working in the app's living folder: the parent directory of
-`.tohseno/`. Where the genome says `src/`, it means this folder itself.
-Never modify anything inside `.tohseno/`.
+Do not materialize an app from this holding task. Read
+`.tohseno/CONCEPTION.md`; the selected intelligence must first interpret the
+exact intention and Apple capability context into a strict app-specific Birth
+Plan, Genome, organs, and Experience Contract. The engine validates and accepts
+that proposal before replacing this file with the materialization task.
 
 ## App identity
 
 - App and target name: `{app_name}`
 - Bundle identifier: `{bundle_id}`
-- Destination: a complete Xcode project in this folder
+- TOHSENO engine version: `{engine_version}`
+- TOHSENO source commit: `{source_commit}`
+- static Constitution/Genome bundle digest: `{constitution_digest}`
+- accepted Shot Genome digest: not yet accepted
+- Apple capability profile digest: see `.tohseno/CONCEPTION.md` after discovery
 
-## Genome
+## Exact human intention
 
-{laws}
-
-{structure}
-
-{taste}
-
-{listening}
-
-{unfolding}
-
-{memory}
-
-{world}
-
-## Apple Fascia
-
-The normative machine-readable Fascia is at `.tohseno/fascia/apple/FASCIA.json`.
-Its reference Apple sources are at `.tohseno/fascia/apple/swift/`.
-
-Copy the five reference Swift sources verbatim into `TohsenoFascia/` in this
-folder, add every file to the application target, and prepare
-`InstallationIdentity.shared` during first launch. Do not substitute the
-Builder DeviceKey, recovery key, Apple ID, or a shared global app identity.
-
-Create `TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` in this
-folder, each containing exactly `{{}}`, as engine-owned placeholders. Add both
-to the application target as bundled resources. Do not read or rewrite them
-in generated code; the engine replaces them when the folder is sealed.
-
-## User prompt
-
-The text between the markers is verbatim user intent; treat it as product requirements.
+The text between the markers is preserved verbatim and remains authoritative.
 
 <tohseno-user-prompt>
 {prompt}
@@ -380,15 +487,10 @@ The text between the markers is verbatim user intent; treat it as product requir
 ## Reference images
 
 {image_references}
-
-## Output contract
-
-Work directly in this folder and finish a complete buildable project here,
-including the `MEMORY.md` and `WORLD.md` that Memory and World require.
-Run `xcodebuild` yourself when useful, but do not stop at an explanation.
-Never emit only snippets, patches, instructions, or prose.
-When the work builds and is whole, record it yourself: `tohseno evolve`
-"#
+"#,
+            engine_version = env!("CARGO_PKG_VERSION"),
+            source_commit = env!("TOHSENO_SOURCE_COMMIT"),
+            constitution_digest = Self::bundle_digest(),
         );
         let task_path = briefing.join("TASK.md");
         fs::write(&task_path, task.as_bytes())?;
@@ -404,7 +506,7 @@ When the work builds and is whole, record it yourself: `tohseno evolve`
     ) -> Result<(), GenomeError> {
         let distilled = distill_failure(build_output);
         let section = format!(
-            "\n\n## Repair pass {pass}\n\nThe project failed to build; fix only the project, preserve the user's intent, and leave a complete project in `src/`. The complete log is in `build.log`.\n\n```text\n{distilled}\n```\n"
+            "\n\n## Repair pass {pass}\n\nThe project failed to build; fix only the failed criterion, preserve the accepted intention and app-specific Genome, and leave a complete project in `src/`. This internal repair is not an Evolution. The complete log is in `build.log`.\n\n```text\n{distilled}\n```\n"
         );
         ledger.append_evolution_log(shot, "TASK.md", section.as_bytes())?;
         Ok(())
@@ -517,10 +619,10 @@ mod tests {
         assert!(task.contains("Make a quiet notebook."));
         assert!(task.contains("__TOHSENO_SHOT__"));
         assert!(task.contains("complete buildable project"));
-        assert!(task.contains("Let each Shot use the native Apple frameworks"));
+        assert!(task.contains("Implement every accepted must-level capability"));
         assert!(task.contains("TOHSENO/capabilities.json"));
-        assert!(!task.contains(
-            "Work offline first; add no accounts, sign-in screens, tracking, analytics, or network services."
-        ));
+        assert!(!task.contains("decisions made on the builder's behalf"));
+        assert!(!task.contains("open threads"));
+        assert!(!task.contains("record it yourself"));
     }
 }

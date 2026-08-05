@@ -280,6 +280,59 @@ pub fn build_interactive_command(
     intent_path: &Path,
     image_paths: &[PathBuf],
 ) -> Result<HarnessCommand, String> {
+    build_command(
+        selection,
+        image_paths,
+        format!(
+            "Read `{}` and follow it as the authoritative TOHSENO evolutionary intention package. Inspect every labeled reference image. Return a complete candidate and evidence through the task contract; do not call `tohseno evolve`, because the engine owns acceptance and sealing.",
+            intent_path.display()
+        ),
+    )
+}
+
+pub fn build_conception_command(
+    selection: &HarnessSelection,
+    task_path: &Path,
+    image_paths: &[PathBuf],
+) -> Result<HarnessCommand, String> {
+    build_command(
+        selection,
+        image_paths,
+        format!(
+            "Read `{}` and execute only its structured TOHSENO conception phase. Inspect every labeled reference image. Do not implement the app, accept a Genome, or call `tohseno evolve`; write the exact requested machine-readable proposal and exit.",
+            task_path.display()
+        ),
+    )
+}
+
+pub fn build_materialization_command(
+    selection: &HarnessSelection,
+    task_path: &Path,
+    image_paths: &[PathBuf],
+    repair_diagnostic: Option<&str>,
+) -> Result<HarnessCommand, String> {
+    let repair = repair_diagnostic
+        .map(|diagnostic| {
+            format!(
+                " This is a focused pre-acceptance repair pass. Repair the candidate and evidence for this engine diagnostic, without changing the accepted promise: {diagnostic}"
+            )
+        })
+        .unwrap_or_default();
+    build_command(
+        selection,
+        image_paths,
+        format!(
+            "Read `{}` and materialize the accepted TOHSENO Birth Plan. Build, traverse and inspect every required target-user scenario, then write the strict Experience Trial. Return a candidate and evidence; do not call `tohseno evolve`, because the engine owns acceptance and sealing.{repair}",
+            task_path.display()
+        ),
+    )
+}
+
+fn build_command(
+    selection: &HarnessSelection,
+    image_paths: &[PathBuf],
+    instruction: String,
+) -> Result<HarnessCommand, String> {
     let (option, mut command) = resolve_selection(selection)?;
     if selection.model != "default" {
         command.arguments.push("--model".into());
@@ -291,13 +344,7 @@ pub fn build_interactive_command(
             command.arguments.push(image.as_os_str().to_owned());
         }
     }
-    command.arguments.push(
-        format!(
-            "Read `{}` and follow it as the authoritative TOHSENO intention package. Inspect every labeled reference image before implementing. Work through your normal interactive interface, including its native questions and plans; permissions are pre-granted for this run, so execute without pausing for approval.",
-            intent_path.display()
-        )
-        .into(),
-    );
+    command.arguments.push(instruction.into());
     Ok(command)
 }
 

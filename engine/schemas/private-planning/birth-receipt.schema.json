@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/private-planning/birth-receipt.schema.json",
+  "title": "TOHSENO Birth Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "birth_plan_digest", "experience_contract_digest", "experience_trial_digest", "source_digest", "factory_identity", "protocol_conformance", "intent_fidelity", "experience_verification", "incompleteness", "accepted"],
+  "properties": {
+    "schema": {"const": "tohseno.birth-receipt/1"},
+    "birth_plan_digest": {"$ref": "#/$defs/digest"},
+    "experience_contract_digest": {"$ref": "#/$defs/digest"},
+    "experience_trial_digest": {"$ref": "#/$defs/digest"},
+    "source_digest": {"$ref": "#/$defs/digest"},
+    "factory_identity": {"$ref": "#/$defs/factory"},
+    "protocol_conformance": {"$ref": "#/$defs/dimension"},
+    "intent_fidelity": {"$ref": "#/$defs/dimension"},
+    "experience_verification": {"$ref": "#/$defs/dimension"},
+    "incompleteness": {"type": "array", "items": {"$ref": "experience-trial.schema.json#/$defs/gap"}},
+    "accepted": {"type": "boolean"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^0x[0-9a-f]{64}$"},
+    "factory": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "engine_version", "source_commit", "source_dirty", "static_constitution_digest", "accepted_shot_genome_digest", "apple_capability_profile_digest"],
+      "properties": {
+        "schema": {"const": "tohseno.factory-identity/1"}, "engine_version": {"type": "string", "minLength": 1},
+        "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "source_dirty": {"type": "boolean"},
+        "static_constitution_digest": {"$ref": "#/$defs/digest"}, "accepted_shot_genome_digest": {"$ref": "#/$defs/digest"},
+        "apple_capability_profile_digest": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "dimension": {
+      "type": "object", "additionalProperties": false,
+      "required": ["passed", "criteria"],
+      "properties": {"passed": {"type": "boolean"}, "criteria": {"type": "array", "minItems": 1, "items": {"$ref": "experience-trial.schema.json#/$defs/criterion"}}}
+    }
+  }
+}

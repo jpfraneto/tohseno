@@ -1,13 +1,13 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-03. This is the plain-language
+Written 2026-07-30, amended through 2026-08-05. This is the plain-language
 answer to "what is going on here" for someone returning after time away. When
 something below stops being true, update this file in the same change that
 makes it untrue.
 
 ## What ships today
 
-TOHSENO 0.8.3 ships for macOS. A person runs one install command
+TOHSENO 0.8.4 ships for macOS. A person runs one install command
 (`curl -fsSL https://tohseno.com/oneshot.sh | bash`), which verifies a
 pinned, immutable release archive, installs the `tohseno` command-line tool
 and its Apple identity helper transactionally, and starts Studio, a
@@ -34,6 +34,35 @@ The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
 
+## App birth in the current release
+
+Source on `main` now interprets a Shot before accepting its first Genome. A
+create execution preserves exact Intention material, discovers the local Xcode,
+SDK, Simulator, connected-iPhone, and last-known-device capability context,
+then invokes the selected harness in conception mode. The harness must return
+strict `tohseno.conception-output/1` containing an app-specific Birth Plan,
+Genome, product organs, target actors, stable requirement ledger, forbidden
+substitutions, and Experience Contract. `--accept-genome` accepts that validated
+proposal; it no longer accepts a deterministic generic factory template.
+
+Materialization begins only after acceptance of that app-specific proposal.
+The harness builds and tests the Release product, traverses the required
+target-user journeys, writes evidence-bound `tohseno.experience-trial/1`, and
+receives focused repair tasks until the independent criteria pass or the
+bounded repair limit is reached. The engine owns sealing. A first accepted
+Version requires protocol conformance, intent fidelity, and experience
+verification; product gaps, missing must-level journeys, forbidden
+substitutions, or missing required physical-device evidence leave an unsealed
+candidate. Evolution retains its public meaning: a new intention applied to an
+already accepted app.
+
+The static Constitution is now distinct from the app-specific Genome. Generic
+identity and continuity organs are protocol substrate and cannot satisfy
+product requirements. The Apple Fascia remains deterministic truth about the
+built artifact; it does not author camera, AR, network, navigation, or other
+product choices. These source changes do not alter old commitments, signatures,
+accepted directories, or historical verifier semantics.
+
 ## Web-to-local intention handoff active in production
 
 Main now contains an additive first-surface flow: a Browser Draft is retained
@@ -44,7 +73,7 @@ the browser nor relay creates a Shot. The existing engine creates the Shot
 only after local onboarding, plan and Genome review, and explicit preparation.
 
 This capability is active in production. The public installer is
-byte-identical to the immutable, claim-capable `v0.8.3` release, and the Bun
+byte-identical to the immutable, claim-capable `v0.8.4` release, and the Bun
 relay uses the owner-controlled durable volume at the canonical HTTPS origin.
 The relay still defaults off in source, and production startup rejects an
 enabled relay unless durable storage, HTTPS, and the matching installer gate
@@ -138,30 +167,41 @@ in the repository and at the v0.7.1 tag for exactly that purpose.
 
 ## Capability policy for generated apps
 
-The installed 0.8.2 release retains the old notification-only generated-app
-gate. Source on main now corrects that policy: a Shot may use the native Apple
-capabilities its intention requires, including camera, microphone, location,
-contacts, HealthKit, Bluetooth, StoreKit, private CloudKit, authentication,
-explicit entitlements, and declared networking. Native Core Data is no longer
-misclassified as an unsupported runtime.
+The installed older release involved in the Anky dogfood run carried a
+notification-only embedded Genome bundle. Repository HEAD replaces that model
+with a data-driven Apple capability catalog and explicit states:
+`supported`, `supported_with_permission`, `supported_with_entitlement`,
+`hardware_specific`, `simulator_unavailable`,
+`unknown_until_physical_device`, `unsupported_by_current_sdk`, and
+`unsupported_by_factory`. Simulator absence and unknown hardware are not
+product prohibitions. A true unsupported must capability is reported before
+substantial materialization as a visible factory capability gap.
 
-Sensitive use is explicit rather than globally prohibited. Generated source
-adds a closed `TOHSENO/capabilities.json` declaration that names each
-capability and purpose, additional storage, and each remote endpoint or local
-Bonjour service with its purpose and transmitted data categories. The engine
-cross-checks this declaration against inspectable source, required usage
-descriptions, entitlement keys, and literal remote endpoints, then projects it
-into the signed concrete Fascia and embedded metadata. Missing, stale,
-duplicated, malformed, or under-scoped declarations fail closed. Existing
-notification-only histories remain verifiable through their deterministic
-legacy declaration.
+Only a paired device with an active `devicectl` tunnel is current connected
+hardware. A paired but disconnected network device is local last-known
+context, not live trial evidence; stored profiles contain product type and OS
+facts but no UDID or private device identifier.
 
-This is intention-led capability freedom, not permission to add speculative
-surface area. Third-party runtimes remain outside the Apple-only harness;
-tracking, advertising identifiers, analytics, telemetry, Builder secrets, and
-silent installation linkage still fail. Authentication is no longer
-misclassified as tracking, but the Apple Fascia still requires a useful first
-screen without a mandatory account wall.
+The Birth Plan supplies intent-level purpose. The scanner obtains structural
+evidence from tokenized executable Swift, structured Info.plist, entitlements,
+and Xcode settings. The engine reconciles both into the exact mechanical
+`TOHSENO/capabilities.json` and final signed Fascia. Comments, documentation,
+arbitrary asset text, XML namespace URLs, `eyeSocket`, `violetCurls`, and
+`AVAudioEngine.connect` no longer claim network access; real `NWConnection`,
+`URLSession`, camera, ARKit, microphone, and speech pipelines remain detected
+and protected. Missing usage descriptions, undeclared sensitive behavior,
+stale declarations, and under-scoped endpoints still fail closed with the
+gate, category, file, token or structural fact, expected declaration, reason,
+and app-versus-factory classification.
+
+The catalog includes camera, microphone, speech, AR and RealityKit, spatial
+audio, motion, haptics, Vision, persistence, notifications, App Intents,
+widgets, NFC, Nearby Interaction, peer connectivity, Family Controls,
+location, HealthKit, Bluetooth, HomeKit, CloudKit, StoreKit, network, and
+secure storage materials. Native Apple frameworks are the current default.
+Uninspected external runtime dependencies remain an explicit factory
+capability gap; privacy, tracking, Builder-secret, and silent-identity
+boundaries remain fail-closed.
 
 ## Deliberately deferred
 

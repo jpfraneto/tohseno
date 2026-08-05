@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/private-planning/birth-plan.schema.json",
+  "title": "TOHSENO app-specific Birth Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "intent_digest", "product_name", "promise", "target_users", "contexts", "requirements", "capabilities", "journeys", "embodiment", "completion_contract", "explicit_non_goals", "forbidden_substitutions", "genome"],
+  "properties": {
+    "schema": {"const": "tohseno.birth-plan/1"},
+    "intent_digest": {"$ref": "#/$defs/digest"},
+    "product_name": {"type": "string", "minLength": 1},
+    "promise": {"type": "string", "minLength": 1},
+    "target_users": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/actor"}},
+    "contexts": {"$ref": "#/$defs/texts"},
+    "requirements": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/requirement"}},
+    "capabilities": {"type": "array", "items": {"$ref": "#/$defs/capability"}},
+    "journeys": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/journey"}},
+    "embodiment": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/organ"}},
+    "completion_contract": {"$ref": "#/$defs/completion"},
+    "explicit_non_goals": {"$ref": "#/$defs/texts"},
+    "forbidden_substitutions": {"type": "array", "items": {"$ref": "#/$defs/substitution"}},
+    "genome": {"type": "object"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^0x[0-9a-f]{64}$"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "texts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "actor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "role", "environment", "goals", "constraints", "understands_without_explanation"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "role": {"type": "string", "minLength": 1},
+        "ability_or_age_context": {"type": "string", "minLength": 1},
+        "environment": {"$ref": "#/$defs/texts"}, "goals": {"$ref": "#/$defs/texts"},
+        "constraints": {"$ref": "#/$defs/texts"},
+        "understands_without_explanation": {"$ref": "#/$defs/texts"}
+      }
+    },
+    "requirement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "statement", "level", "origin"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "statement": {"type": "string", "minLength": 1},
+        "level": {"enum": ["must", "should"]},
+        "origin": {"enum": ["explicit_intention", "reference_image", "inferred_to_complete_intent", "apple_platform_required", "protocol_required"]},
+        "source_excerpt": {"type": "string", "minLength": 1},
+        "source_location": {"type": "string", "minLength": 1}
+      }
+    },
+    "capability": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identifier", "purpose", "requirement_ids", "primary"],
+      "properties": {
+        "identifier": {"$ref": "#/$defs/id"}, "purpose": {"type": "string", "minLength": 1},
+        "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "primary": {"type": "boolean"}, "runtime_fallback": {"type": "string", "minLength": 1}
+      }
+    },
+    "journey": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "target_actor", "promise", "requirement_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "target_actor": {"$ref": "#/$defs/id"},
+        "promise": {"type": "string", "minLength": 1},
+        "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}}
+      }
+    },
+    "criterion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "assertion", "deterministic"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "assertion": {"type": "string", "minLength": 1}, "deterministic": {"type": "boolean"}}
+    },
+    "organ": {
+      "type": "object", "additionalProperties": false,
+      "required": ["organ_id", "kind", "provides", "owns_state", "permissions", "dependencies", "emits", "consumes", "genome_invariants", "requirement_ids", "capability_ids", "journey_ids", "acceptance_criteria", "platforms"],
+      "properties": {
+        "organ_id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["protocol_substrate", "app_specific"]},
+        "provides": {"$ref": "#/$defs/texts"}, "owns_state": {"$ref": "#/$defs/texts"},
+        "permissions": {"$ref": "#/$defs/texts"}, "dependencies": {"$ref": "#/$defs/texts"},
+        "emits": {"$ref": "#/$defs/texts"}, "consumes": {"$ref": "#/$defs/texts"},
+        "genome_invariants": {"$ref": "#/$defs/texts"},
+        "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "capability_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "journey_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/criterion"}},
+        "platforms": {"$ref": "#/$defs/texts"}
+      }
+    },
+    "completion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["must_requirement_ids", "required_scenario_ids", "physical_verification_capabilities", "release_build_required", "zero_product_gaps_required"],
+      "properties": {
+        "must_requirement_ids": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/id"}},
+        "required_scenario_ids": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/id"}},
+        "physical_verification_capabilities": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "release_build_required": {"type": "boolean"}, "zero_product_gaps_required": {"type": "boolean"}
+      }
+    },
+    "substitution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "requested_experience", "forbidden_replacement", "requirement_ids"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "requested_experience": {"type": "string", "minLength": 1},
+        "forbidden_replacement": {"type": "string", "minLength": 1},
+        "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
+        "allowed_runtime_condition": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

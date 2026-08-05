@@ -24,8 +24,8 @@ use tohseno_engine::gates::toolchain::ToolchainState;
 use tohseno_engine::protocol_lifecycle::reference_fascia_root;
 use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
 use tohseno_engine::{
-    Engine, Event, EventBus, InitialExpressionPlan, Ledger, PendingIntentionStore, ShotLayout,
-    ShotRequest,
+    AppleCapabilityProfile, Engine, Event, EventBus, FactoryIdentity, Ledger,
+    PendingIntentionStore, ShotLayout, ShotRequest,
 };
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
 use tohseno_protocol::digest::{Address20, Bytes32};
@@ -150,9 +150,13 @@ struct PendingReferenceResponse {
 
 #[derive(Debug, Serialize)]
 struct InitialPlanResponse {
-    genome: tohseno_protocol::Genome,
-    genome_markdown: String,
-    expression_plan: InitialExpressionPlan,
+    schema: &'static str,
+    conception_required: bool,
+    review_policy: &'static str,
+    engine_version: String,
+    source_commit: String,
+    static_constitution_digest: Bytes32,
+    apple_capability_profile_digest: Bytes32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -680,7 +684,7 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                     &mut socket,
                     422,
                     "text/plain; charset=utf-8",
-                    "the initial Genome and Apple expression plan must be reviewed and explicitly accepted",
+                    "Studio needs approval to auto-accept the app-specific Genome after intelligent conception",
                 )
                 .await?;
                 return Ok(());
@@ -769,70 +773,54 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                 intent: Intent::parse(&prompt).with_images(image_paths),
                 selected_feedback_actions: submission.selected_feedback_actions,
             };
-            let outcome: Result<tohseno_engine::PreparedExecution, String> =
-                async {
-                    let engine =
-                        Engine::discover(events.clone()).map_err(|error| error.to_string())?;
-                    let selected = shot_execution_commands::selection(
-                        &engine,
-                        Some(&submission.harness),
-                        Some(&submission.model),
-                        Some(&submission.route),
-                    )
-                    .map_err(|error| error.to_string())?;
-                    match submission.mode {
-                        ShotMode::Create => {
-                            let genome = Engine::propose_initial_genome(&request)
-                                .map_err(|error| error.to_string())?;
-                            let plan =
-                                Engine::propose_initial_expression_plan(&request, &genome)
-                                    .map_err(|error| error.to_string())?;
+            let outcome: Result<tohseno_engine::PreparedExecution, String> = async {
+                let engine = Engine::discover(events.clone()).map_err(|error| error.to_string())?;
+                let selected = shot_execution_commands::selection(
+                    &engine,
+                    Some(&submission.harness),
+                    Some(&submission.model),
+                    Some(&submission.route),
+                )
+                .map_err(|error| error.to_string())?;
+                match submission.mode {
+                    ShotMode::Create => {
+                        let creation =
                             engine.create(&request).map_err(|error| error.to_string())?;
-                            engine.accept_genome(
-                                &request.app_name,
-                                &genome,
-                                "Owner reviewed and accepted the initial operational Genome in Studio.",
-                                &[],
-                            )
-                            .map_err(|error| error.to_string())?;
-                            engine
-                                .declare_initial_expression(&request.app_name, &plan)
-                                .map_err(|error| error.to_string())?;
-                            let creation =
-                                engine.conduct_accepted_creation(&request.app_name)
-                                    .map_err(|error| error.to_string())?;
+                        shot_execution_commands::prepare(
+                            &engine,
+                            &creation,
+                            &request.app_name,
+                            &selected,
+                            submission.accept_genome,
+                            !test_nonlaunching_harness(&selected.harness),
+                            &events,
+                        )
+                        .map_err(|error| error.to_string())
+                    }
+                    ShotMode::Evolve => match engine
+                        .evolve(&request)
+                        .await
+                        .map_err(|error| error.to_string())?
+                    {
+                        tohseno_engine::machine::Evolved::Conducted(creation) => {
                             shot_execution_commands::prepare(
                                 &engine,
                                 &creation,
                                 &request.app_name,
                                 &selected,
+                                false,
                                 !test_nonlaunching_harness(&selected.harness),
                                 &events,
                             )
                             .map_err(|error| error.to_string())
                         }
-                        ShotMode::Evolve => match engine
-                            .evolve(&request)
-                            .await
-                            .map_err(|error| error.to_string())?
-                        {
-                            tohseno_engine::machine::Evolved::Conducted(creation) => {
-                                shot_execution_commands::prepare(
-                                    &engine,
-                                    &creation,
-                                    &request.app_name,
-                                    &selected,
-                                    !test_nonlaunching_harness(&selected.harness),
-                                    &events,
-                                )
-                                .map_err(|error| error.to_string())
-                            }
-                            _ => Err("the requested intention did not produce a prepared execution"
-                                .into()),
-                        },
-                    }
+                        _ => Err(
+                            "the requested intention did not produce a prepared execution".into(),
+                        ),
+                    },
                 }
-                .await;
+            }
+            .await;
             match outcome {
                 Ok(execution) => {
                     if let Some(id) = pending_id.as_deref() {
@@ -1241,7 +1229,7 @@ async fn serve_initial_plan(
                 socket,
                 400,
                 "text/plain; charset=utf-8",
-                &format!("invalid plan request: {error}"),
+                &format!("invalid conception review request: {error}"),
             )
             .await?;
             return Ok(());
@@ -1252,7 +1240,7 @@ async fn serve_initial_plan(
             socket,
             400,
             "text/plain; charset=utf-8",
-            "a plan request cannot combine inline and local pending intention sources",
+            "a conception review cannot combine inline and local pending intention sources",
         )
         .await?;
         return Ok(());
@@ -1276,29 +1264,20 @@ async fn serve_initial_plan(
         }
         None => request.prompt,
     };
-    let request = ShotRequest {
-        app_name: request.app_name,
-        intent: Intent::parse(&prompt),
-        selected_feedback_actions: Vec::new(),
-    };
-    let genome = match Engine::propose_initial_genome(&request) {
-        Ok(genome) => genome,
-        Err(error) => {
-            respond(
-                socket,
-                422,
-                "text/plain; charset=utf-8",
-                &format!("plan could not be produced: {error}"),
-            )
-            .await?;
-            return Ok(());
-        }
-    };
-    let expression_plan = Engine::propose_initial_expression_plan(&request, &genome)?;
+    tohseno_engine::ledger::validate_app_name(&request.app_name)?;
+    let _intent = Intent::parse(&prompt);
+    let ledger = Ledger::discover()?;
+    ledger.initialize()?;
+    let profile = AppleCapabilityProfile::discover(&ledger)?;
+    let identity = FactoryIdentity::current(None, profile.digest()?);
     let body = serde_json::to_string(&InitialPlanResponse {
-        genome_markdown: tohseno_engine::render_genome_document(&genome)?,
-        genome,
-        expression_plan,
+        schema: "tohseno.studio-conception-review/1",
+        conception_required: true,
+        review_policy: "The selected intelligence reads the exact intention and Apple capability profile first; Studio then auto-accepts only the validated app-specific proposal.",
+        engine_version: identity.engine_version,
+        source_commit: identity.source_commit,
+        static_constitution_digest: identity.static_constitution_digest,
+        apple_capability_profile_digest: identity.apple_capability_profile_digest,
     })?;
     respond(socket, 200, "application/json; charset=utf-8", &body).await?;
     Ok(())

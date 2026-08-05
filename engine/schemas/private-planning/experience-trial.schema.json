@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tohseno.com/schemas/private-planning/experience-trial.schema.json",
+  "title": "TOHSENO target-user Experience Trial",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "birth_plan_digest", "experience_contract_digest", "release_build_passed", "automated_tests_passed", "simulator_trial_passed", "scenario_results", "organ_results", "forbidden_substitution_results", "intent_review", "incompleteness"],
+  "properties": {
+    "schema": {"const": "tohseno.experience-trial/1"},
+    "birth_plan_digest": {"$ref": "#/$defs/digest"},
+    "experience_contract_digest": {"$ref": "#/$defs/digest"},
+    "release_build_passed": {"type": "boolean"},
+    "automated_tests_passed": {"type": "boolean"},
+    "simulator_trial_passed": {"type": "boolean"},
+    "scenario_results": {"type": "array", "items": {"$ref": "#/$defs/scenario_result"}},
+    "organ_results": {"type": "array", "items": {"$ref": "#/$defs/organ_result"}},
+    "forbidden_substitution_results": {"type": "array", "items": {"$ref": "#/$defs/criterion"}},
+    "intent_review": {"$ref": "#/$defs/criterion"},
+    "physical_device": {"$ref": "#/$defs/physical"},
+    "incompleteness": {"type": "array", "items": {"$ref": "#/$defs/gap"}}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^0x[0-9a-f]{64}$"},
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.-]*$"},
+    "evidence_kind": {"enum": ["xcui_test", "xc_test", "screenshot", "video", "log", "persisted_state", "release_build", "physical_device_trial", "intelligent_review"]},
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["digest", "media_type", "byte_length"],
+      "properties": {"digest": {"$ref": "#/$defs/digest"}, "media_type": {"type": "string", "minLength": 1}, "byte_length": {"type": "integer", "minimum": 1}, "name": {"type": "string"}}
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "artifact", "relative_path"],
+      "properties": {"kind": {"$ref": "#/$defs/evidence_kind"}, "artifact": {"$ref": "#/$defs/artifact"}, "relative_path": {"type": "string", "minLength": 1}}
+    },
+    "criterion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "passed", "deterministic", "evidence"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "passed": {"type": "boolean"}, "deterministic": {"type": "boolean"}, "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}, "observation": {"type": "string"}}
+    },
+    "scenario_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scenario_id", "passed", "assertions", "evidence"],
+      "properties": {"scenario_id": {"$ref": "#/$defs/id"}, "passed": {"type": "boolean"}, "assertions": {"type": "array", "items": {"$ref": "#/$defs/criterion"}}, "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}}
+    },
+    "organ_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["organ_id", "criteria"],
+      "properties": {"organ_id": {"$ref": "#/$defs/id"}, "criteria": {"type": "array", "items": {"$ref": "#/$defs/criterion"}}}
+    },
+    "physical": {
+      "type": "object", "additionalProperties": false,
+      "required": ["product_type", "os_version", "exercised_capabilities", "passed", "evidence"],
+      "properties": {"product_type": {"type": "string", "minLength": 1}, "os_version": {"type": "string", "minLength": 1}, "os_build": {"type": "string"}, "exercised_capabilities": {"type": "array", "items": {"$ref": "#/$defs/id"}}, "passed": {"type": "boolean"}, "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}}
+    },
+    "gap": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "category", "description", "requirement_ids", "blocks_completion"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "category": {"enum": ["product_gap", "experience_verification_gap", "external_environment_constraint", "future_opportunity", "explicit_non_goal"]}, "description": {"type": "string", "minLength": 1}, "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}}, "blocks_completion": {"type": "boolean"}}
+    }
+  }
+}

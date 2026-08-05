@@ -46,9 +46,11 @@ sh "$materializer" \
 
 for path in \
   "$world/TemplateApp.swift" \
+  "$world/FixtureWorldUITests/TemplateUITests.swift" \
   "$world/MEMORY.md" \
   "$world/WORLD.md" \
   "$world/FixtureWorld.xcodeproj/project.pbxproj" \
+  "$world/FixtureWorld.xcodeproj/xcshareddata/xcschemes/FixtureWorld.xcscheme" \
   "$world/TOHSENO/fascia.json" \
   "$world/TOHSENO/embedded-provenance.json" \
   "$world/TohsenoFascia/InstallationIdentity.swift" \
@@ -124,6 +126,7 @@ build_log="$temporary_root/xcodebuild.log"
 if ! xcodebuild \
   -project "$world/FixtureWorld.xcodeproj" \
   -scheme FixtureWorld \
+  -configuration Release \
   -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$derived_data" \
@@ -136,7 +139,7 @@ if ! xcodebuild \
   exit 1
 fi
 
-application="$derived_data/Build/Products/Debug-iphonesimulator/FixtureWorld.app"
+application="$derived_data/Build/Products/Release-iphonesimulator/FixtureWorld.app"
 if [ ! -d "$application" ] || [ -L "$application" ]; then
   printf '%s\n' \
     "test-materialize.sh: Simulator application was not produced." >&2

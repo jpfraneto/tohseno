@@ -510,9 +510,22 @@ pub(crate) fn inspect_fascia(
     let scan = SourceScan::inspect(source)?;
     let declared = AppCapabilityUse::load(source)?;
     if scan.third_party_dependency {
-        return Err(ProtocolLifecycleError::InvalidState(
-            "third-party runtime dependencies are unsupported by this candidate".into(),
-        ));
+        let evidence = scan
+            .third_party_dependency_evidence
+            .as_ref()
+            .cloned()
+            .unwrap_or(ScanEvidence {
+                file: "src".into(),
+                fact: "unclassified package or runtime binary".into(),
+            });
+        return Err(ProtocolLifecycleError::InvalidState(gate_diagnostic(
+            "apple.dependencies",
+            "factory_capability_gap",
+            &evidence,
+            "native source or a dependency supported by a future inspected-runtime profile",
+            "the frozen Apple Fascia cannot yet verify third-party runtime dependencies honestly",
+            "factory_limitation",
+        )));
     }
     if scan.tracking {
         return Err(ProtocolLifecycleError::InvalidState(
@@ -524,15 +537,47 @@ pub(crate) fn inspect_fascia(
             "generated source contains Builder recovery or valid BIP-39 mnemonic material".into(),
         ));
     }
-    let missing_usage_descriptions = scan
+    let mut missing_usage = Vec::new();
+    for (key, evidence) in &scan.required_usage_keys {
+        if !scan.usage_description_keys.contains(key) {
+            missing_usage.push(gate_diagnostic(
+                "apple.privacy_usage_description",
+                "apple_platform_requirement",
+                evidence,
+                &format!("structured Info.plist or INFOPLIST_KEY_{key} declaration"),
+                &format!(
+                    "protected Apple API use is missing required usage descriptions; the observed API requires {key}"
+                ),
+                "app_problem",
+            ));
+        }
+    }
+    for capability in scan
         .apple_api_capabilities
         .difference(&scan.usage_description_capabilities)
         .copied()
-        .collect::<BTreeSet<_>>();
-    if !missing_usage_descriptions.is_empty() {
-        return Err(ProtocolLifecycleError::InvalidState(format!(
-            "protected Apple API use is missing required Info.plist usage descriptions for {missing_usage_descriptions:?}"
-        )));
+    {
+        if matches!(capability, Capability::Camera | Capability::Microphone) {
+            continue;
+        }
+        let fallback = ScanEvidence {
+            file: "src".into(),
+            fact: format!("protected {capability:?} API"),
+        };
+        let evidence = scan.evidence_for(capability).unwrap_or(&fallback);
+        missing_usage.push(gate_diagnostic(
+            "apple.privacy_usage_description",
+            "apple_platform_requirement",
+            evidence,
+            &format!("the applicable structured Info.plist usage description for {capability:?}"),
+            "Apple requires an honest permission explanation before protected API access",
+            "app_problem",
+        ));
+    }
+    if !missing_usage.is_empty() {
+        return Err(ProtocolLifecycleError::InvalidState(
+            missing_usage.join("; "),
+        ));
     }
     let mut capabilities = vec![CapabilityDeclaration {
         capability: Capability::LocalStorage,
@@ -559,28 +604,13 @@ pub(crate) fn inspect_fascia(
         }
     }
 
-    let mut required_capabilities = scan.apple_capabilities.clone();
-    if scan.network {
-        required_capabilities.insert(Capability::NetworkAccess);
-    }
-    if scan.cloud {
-        required_capabilities.insert(Capability::PrivateCloudkitSync);
-    }
-    for entitlement in &scan.entitlement_keys {
-        if let Some(capability) = known_entitlement_capability(entitlement) {
-            required_capabilities.insert(capability);
-        }
-    }
+    let required_capabilities = required_source_capabilities(&scan);
     let unknown_entitlements = scan
         .entitlement_keys
         .iter()
         .filter(|entitlement| known_entitlement_capability(entitlement).is_none())
         .cloned()
         .collect::<BTreeSet<_>>();
-    if !unknown_entitlements.is_empty() {
-        required_capabilities.insert(Capability::OtherAppleEntitlement);
-    }
-
     // Local notifications were the one capability supported before source
     // declarations existed. Preserve verification of those sealed histories.
     if required_capabilities.contains(&Capability::Notifications)
@@ -598,13 +628,16 @@ pub(crate) fn inspect_fascia(
         .copied()
         .collect::<BTreeSet<_>>();
     if !missing.is_empty() {
-        let evidence = scan
-            .cloud_evidence
-            .as_deref()
-            .map(|value| format!("; observed {value}"))
-            .unwrap_or_default();
+        let evidence = missing
+            .iter()
+            .filter_map(|capability| scan.evidence_for(*capability))
+            .map(|evidence| format!("{} ({})", evidence.file, evidence.fact))
+            .collect::<Vec<_>>()
+            .join(", ");
         return Err(ProtocolLifecycleError::InvalidState(format!(
-            "generated source uses {missing:?} but {APP_CAPABILITIES_PATH} does not declare every capability{evidence}"
+            "gate=fascia.capability_reconciliation category=protocol_integrity file={} evidence={} declaration_file={APP_CAPABILITIES_PATH} expected=an intent-level purpose for every observed capability why=an undeclared sensitive or data-moving capability cannot enter the final Fascia declaration classification=app_problem missing={missing:?}",
+            if evidence.is_empty() { "src" } else { &evidence },
+            if evidence.is_empty() { "observed source API" } else { &evidence },
         )));
     }
     let stale = declared_capabilities
@@ -614,7 +647,7 @@ pub(crate) fn inspect_fascia(
         .collect::<BTreeSet<_>>();
     if !stale.is_empty() {
         return Err(ProtocolLifecycleError::InvalidState(format!(
-            "{APP_CAPABILITIES_PATH} declares capabilities not evidenced by built source: {stale:?}"
+            "gate=fascia.capability_reconciliation category=protocol_integrity file={APP_CAPABILITIES_PATH} evidence=declared {stale:?} expected=declarations reconciled to executable source or built metadata why=stale or contradictory declarations make the Fascia untruthful classification=app_problem"
         )));
     }
 
@@ -888,11 +921,22 @@ fn local_checks(
 
     let scan = SourceScan::inspect(&shot.source_path())?;
     checks.push(if scan.third_party_dependency {
+        let evidence = scan
+            .third_party_dependency_evidence
+            .as_ref()
+            .cloned()
+            .unwrap_or(ScanEvidence {
+                file: "src".into(),
+                fact: "unclassified runtime dependency".into(),
+            });
         fail(
             "apple.dependencies",
-            "no undeclared third-party runtime package",
-            "XCRemoteSwiftPackageReference found",
-            Some("src"),
+            "current frozen Fascia supports no uninspected third-party runtime dependency",
+            &format!(
+                "factory_capability_gap: {} ({})",
+                evidence.fact, evidence.file
+            ),
+            Some(&evidence.file),
         )
     } else {
         pass(
@@ -1332,13 +1376,186 @@ const APP_CAPABILITIES_PATH: &str = "TOHSENO/capabilities.json";
 const APP_CAPABILITIES_SCHEMA: &str = "tohseno.apple-capabilities/1";
 const MAX_APP_CAPABILITIES_BYTES: usize = 256 * 1024;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct AppCapabilityUse {
     schema: String,
     capabilities: Vec<CapabilityDeclaration>,
     storage: Vec<StorageDeclaration>,
     network: Vec<NetworkDeclaration>,
+}
+
+/// Reconcile the intelligence's intent-level purposes with structural source
+/// and build evidence, then write the exact mechanical declaration consumed
+/// by the Fascia gate. The coding harness does not have to mirror camera,
+/// microphone, ARKit, or entitlement observations by hand. Network endpoints
+/// and transmitted data categories remain explicit because source analysis
+/// cannot infer their human meaning safely.
+pub fn reconcile_birth_capability_declaration(
+    source: &Path,
+    plan: &crate::birth_plan::BirthPlan,
+) -> Result<(), ProtocolLifecycleError> {
+    plan.validate()
+        .map_err(|error| ProtocolLifecycleError::InvalidState(error.to_string()))?;
+    let scan = SourceScan::inspect(source)?;
+    let catalog = crate::apple_capabilities::AppleCapabilityCatalog::embedded()
+        .map_err(|error| ProtocolLifecycleError::InvalidState(error.to_string()))?;
+    let existing = AppCapabilityUse::load(source)?.unwrap_or(AppCapabilityUse {
+        schema: APP_CAPABILITIES_SCHEMA.into(),
+        capabilities: Vec::new(),
+        storage: Vec::new(),
+        network: Vec::new(),
+    });
+    let mut existing_capabilities = BTreeMap::new();
+    for declaration in &existing.capabilities {
+        if existing_capabilities
+            .insert(declaration.capability, declaration)
+            .is_some()
+        {
+            return Err(ProtocolLifecycleError::InvalidState(format!(
+                "gate=fascia.intent_declaration category=protocol_integrity file={APP_CAPABILITIES_PATH} evidence=repeated {:?} expected=one intent-level declaration per capability why=contradictory intent declarations cannot be reconciled classification=app_problem",
+                declaration.capability
+            )));
+        }
+    }
+
+    let required = required_source_capabilities(&scan);
+    let mut purposes = BTreeMap::<Capability, Vec<&str>>::new();
+    for planned in &plan.capabilities {
+        let definition = catalog.get(&planned.identifier).ok_or_else(|| {
+            ProtocolLifecycleError::InvalidState(format!(
+                "gate=conception.apple_capability category=factory_capability_gap file=.tohseno/private/planning/birth-plan.json evidence={} expected=a capability in the current catalog why=the factory cannot resolve an unknown material classification=factory_limitation",
+                planned.identifier
+            ))
+        })?;
+        for fascia_name in &definition.fascia_capabilities {
+            let capability = fascia_capability_from_name(fascia_name)?;
+            if capability != Capability::LocalStorage {
+                purposes
+                    .entry(capability)
+                    .or_default()
+                    .push(planned.purpose.as_str());
+            }
+        }
+        if planned.primary
+            && requires_structural_release_evidence(&planned.identifier)
+            && !scan
+                .observed_planning_capabilities
+                .contains(&planned.identifier)
+        {
+            return Err(ProtocolLifecycleError::InvalidState(format!(
+                "gate=intent.capability_implementation category=intent_fidelity file=src evidence=no structural API evidence for {} expected=the real Release implementation required by the accepted Birth Plan why=a must-level native experience cannot be replaced by a Simulator fixture or omitted classification=app_problem",
+                planned.identifier
+            )));
+        }
+    }
+
+    for capability in existing_capabilities.keys() {
+        if *capability != Capability::LocalStorage && !required.contains(capability) {
+            return Err(ProtocolLifecycleError::InvalidState(format!(
+                "gate=fascia.capability_reconciliation category=protocol_integrity file={APP_CAPABILITIES_PATH} evidence=declared {capability:?} expected=declarations backed by executable source or built metadata why=the declaration is stale or contradictory classification=app_problem"
+            )));
+        }
+    }
+
+    let unknown_entitlements = scan
+        .entitlement_keys
+        .iter()
+        .filter(|entitlement| known_entitlement_capability(entitlement).is_none())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    if unknown_entitlements.len() > 1 {
+        return Err(ProtocolLifecycleError::InvalidState(format!(
+            "gate=fascia.entitlement_reconciliation category=factory_capability_gap file=*.entitlements evidence={unknown_entitlements:?} expected=one representable unclassified entitlement why=the current public Fascia vocabulary cannot name multiple unclassified entitlements honestly classification=factory_limitation"
+        )));
+    }
+
+    let mut capabilities = Vec::new();
+    for capability in required.iter().copied() {
+        if capability == Capability::LocalStorage {
+            continue;
+        }
+        let purpose = purposes
+            .get(&capability)
+            .filter(|values| !values.is_empty())
+            .map(|values| values.join("; "))
+            .ok_or_else(|| {
+                let fallback = ScanEvidence {
+                    file: "src".into(),
+                    fact: format!("observed {capability:?}"),
+                };
+                let evidence = scan.evidence_for(capability).unwrap_or(&fallback);
+                ProtocolLifecycleError::InvalidState(gate_diagnostic(
+                    "fascia.planned_observed_reconciliation",
+                    "intent_fidelity",
+                    evidence,
+                    "an accepted Birth Plan capability with a human purpose",
+                    "observed sensitive behavior must be justified by the accepted intention",
+                    "app_problem",
+                ))
+            })?;
+        let entitlement = if capability == Capability::OtherAppleEntitlement {
+            unknown_entitlements.first().cloned()
+        } else {
+            None
+        };
+        capabilities.push(CapabilityDeclaration {
+            capability,
+            purpose,
+            entitlement,
+        });
+    }
+    let reconciled = AppCapabilityUse {
+        schema: APP_CAPABILITIES_SCHEMA.into(),
+        capabilities,
+        storage: existing.storage,
+        network: existing.network,
+    };
+    let bytes = serde_json::to_vec_pretty(&reconciled)?;
+    let path = source.join(APP_CAPABILITIES_PATH);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temporary = path.with_extension("json.tohseno-reconcile");
+    fs::write(&temporary, bytes)?;
+    fs::rename(temporary, path)?;
+    Ok(())
+}
+
+fn requires_structural_release_evidence(identifier: &str) -> bool {
+    matches!(
+        identifier,
+        "camera_capture"
+            | "microphone_input"
+            | "speech_recognition"
+            | "spatial_audio"
+            | "ar_world_tracking"
+            | "plane_detection"
+            | "scene_reconstruction"
+            | "lidar"
+            | "depth"
+            | "realitykit_rendering"
+            | "motion_orientation"
+            | "haptics"
+            | "vision"
+            | "local_persistence"
+            | "notifications"
+            | "peer_to_peer_connectivity"
+            | "location"
+            | "healthkit"
+            | "bluetooth"
+            | "cloudkit"
+            | "storekit"
+            | "network_access"
+    )
+}
+
+fn fascia_capability_from_name(name: &str) -> Result<Capability, ProtocolLifecycleError> {
+    serde_json::from_value(serde_json::Value::String(name.into())).map_err(|_| {
+        ProtocolLifecycleError::InvalidState(format!(
+            "Apple capability catalog names unknown public Fascia capability `{name}`"
+        ))
+    })
 }
 
 impl AppCapabilityUse {
@@ -1368,6 +1585,12 @@ impl AppCapabilityUse {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ScanEvidence {
+    file: String,
+    fact: String,
+}
+
 #[derive(Default)]
 struct SourceScan {
     network: bool,
@@ -1376,22 +1599,31 @@ struct SourceScan {
     bonjour_services_key: bool,
     bonjour_services: BTreeSet<String>,
     cloud: bool,
-    cloud_evidence: Option<String>,
     tracking: bool,
     entitlement_keys: BTreeSet<String>,
     swift_data: bool,
     ipad: bool,
     third_party_dependency: bool,
+    third_party_dependency_evidence: Option<ScanEvidence>,
     forbidden_secret_marker: bool,
     apple_capabilities: BTreeSet<Capability>,
     apple_api_capabilities: BTreeSet<Capability>,
     usage_description_capabilities: BTreeSet<Capability>,
+    usage_description_keys: BTreeSet<String>,
+    required_usage_keys: BTreeMap<String, ScanEvidence>,
+    capability_evidence: BTreeMap<Capability, Vec<ScanEvidence>>,
+    runtime_endpoint_candidates: BTreeSet<String>,
+    observed_planning_capabilities: BTreeSet<String>,
 }
 
 impl SourceScan {
     fn inspect(root: &Path) -> Result<Self, ProtocolLifecycleError> {
         let mut scan = Self::default();
         scan.visit(root, root)?;
+        if scan.network {
+            scan.network_endpoints
+                .append(&mut scan.runtime_endpoint_candidates);
+        }
         Ok(scan)
     }
 
@@ -1406,10 +1638,26 @@ impl SourceScan {
                 )));
             }
             if file_type.is_dir() {
+                if matches!(
+                    entry.file_name().to_str(),
+                    Some(".tohseno" | ".git" | "versions" | "feedback")
+                ) {
+                    continue;
+                }
                 if entry.path().extension().is_some_and(|extension| {
                     matches!(extension.to_str(), Some("framework" | "xcframework"))
                 }) {
                     self.third_party_dependency = true;
+                    self.third_party_dependency_evidence
+                        .get_or_insert_with(|| ScanEvidence {
+                            file: entry
+                                .path()
+                                .strip_prefix(root)
+                                .unwrap_or(&entry.path())
+                                .display()
+                                .to_string(),
+                            fact: "embedded framework directory".into(),
+                        });
                 }
                 self.visit(root, &entry.path())?;
                 continue;
@@ -1421,15 +1669,33 @@ impl SourceScan {
                 )));
             }
             let bytes = fs::read(entry.path())?;
-            if entry.path().extension().is_some_and(|extension| {
+            let binary_dependency = entry.path().extension().is_some_and(|extension| {
                 matches!(
                     extension.to_str(),
                     Some("a" | "dylib" | "so" | "framework" | "xcframework")
                 )
-            }) || entry.file_name() == "Package.swift"
-                || is_mach_o(&bytes)
-            {
+            });
+            let package_manifest = entry.file_name() == "Package.swift";
+            let mach_o = is_mach_o(&bytes);
+            if binary_dependency || package_manifest || mach_o {
                 self.third_party_dependency = true;
+                self.third_party_dependency_evidence
+                    .get_or_insert_with(|| ScanEvidence {
+                        file: entry
+                            .path()
+                            .strip_prefix(root)
+                            .unwrap_or(&entry.path())
+                            .display()
+                            .to_string(),
+                        fact: if package_manifest {
+                            "Package.swift runtime dependency surface"
+                        } else if mach_o {
+                            "Mach-O runtime binary"
+                        } else {
+                            "runtime library or framework file"
+                        }
+                        .into(),
+                    });
             }
             let Ok(text) = std::str::from_utf8(&bytes) else {
                 continue;
@@ -1437,14 +1703,6 @@ impl SourceScan {
             let entry_path = entry.path();
             let relative = entry_path.strip_prefix(root).unwrap_or(&entry_path);
             let is_capability_declaration = relative == Path::new(APP_CAPABILITIES_PATH);
-            if entry
-                .path()
-                .extension()
-                .is_some_and(|extension| extension == "entitlements")
-            {
-                let keys = extract_plist_keys(text);
-                self.entitlement_keys.extend(keys);
-            }
             self.forbidden_secret_marker |= [
                 "recovery.json.enc",
                 "BIP39",
@@ -1456,128 +1714,477 @@ impl SourceScan {
             .any(|marker| text.contains(marker));
             self.forbidden_secret_marker |= contains_valid_bip39_mnemonic(text);
 
-            // Capability gates inspect files that can participate in the app
-            // or its build. Retained prose remains part of the committed
-            // source tree, but words such as "iCloud" in a whitepaper do not
-            // make the compiled application cloud-capable.
-            if !is_documentation_text(&entry.path()) && !is_capability_declaration {
-                let executable_network_marker = [
-                    "URLSession",
-                    "NSURLSession",
-                    "NWConnection",
-                    "import Network",
-                    "WebSocket",
-                    "WKWebView",
-                    "SFSafariViewController",
-                    "CFStream",
-                    "socket(",
-                    "connect(",
-                    "curl ",
-                    "Network.framework",
-                ]
-                .iter()
-                .any(|marker| text.contains(marker));
-                let endpoints = extract_network_endpoints(text);
-                self.network |= executable_network_marker || !endpoints.is_empty();
-                self.network_endpoints.extend(endpoints);
-                self.local_network_usage_description |=
-                    text.contains("NSLocalNetworkUsageDescription");
-                self.bonjour_services_key |= text.contains("NSBonjourServices");
-                self.bonjour_services.extend(extract_bonjour_services(text));
-                if let Some(marker) = [
-                    "import CloudKit",
-                    "CKContainer",
-                    "NSPersistentCloudKitContainer",
-                    "NSUbiquitous",
-                    "url(forUbiquityContainerIdentifier:",
-                    "ubiquityIdentityToken",
-                    "setUbiquitous(",
-                    "startDownloadingUbiquitousItem",
-                    "cloudKitDatabase",
-                    "com.apple.developer.icloud",
-                    "Firebase",
-                    "Supabase",
-                ]
-                .into_iter()
-                .find(|marker| text.contains(marker))
-                {
-                    self.cloud = true;
-                    if self.cloud_evidence.is_none() {
-                        let path = entry
-                            .path()
-                            .strip_prefix(root)
-                            .unwrap_or(&entry.path())
-                            .display()
-                            .to_string();
-                        self.cloud_evidence =
-                            Some(format!("{path} contains the marker {marker:?}"));
-                    }
+            // Capability gates inspect executable Swift and structured build
+            // metadata. Documentation, assets, XML namespace URLs, comments,
+            // and prose strings are never executable capability evidence.
+            if is_capability_declaration || is_documentation_text(&entry.path()) {
+                continue;
+            }
+            let extension = entry_path
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default();
+            match extension {
+                "swift" if !is_apple_test_source(relative) => self.scan_swift(relative, text),
+                "swift" => {}
+                "plist" | "entitlements" => {
+                    self.scan_plist(relative, text, extension == "entitlements")
                 }
-                self.tracking |= [
-                    "AppTrackingTransparency",
-                    "ATTrackingManager",
-                    "Analytics",
-                    "Telemetry",
-                    "advertisingIdentifier",
-                ]
-                .iter()
-                .any(|marker| text.contains(marker));
-                self.swift_data |= text.contains("import SwiftData") || text.contains("@Model");
-                self.third_party_dependency |= text.contains("import RealmSwift");
-                self.ipad |= text.contains("TARGETED_DEVICE_FAMILY = \"1,2\"")
-                    || text.contains("TARGETED_DEVICE_FAMILY = 1,2");
-                self.third_party_dependency |= [
-                    "XCRemoteSwiftPackageReference",
-                    "XCLocalSwiftPackageReference",
-                    "packageProductDependencies",
-                    "CocoaPods",
-                    "Carthage",
-                ]
-                .iter()
-                .any(|marker| text.contains(marker));
-                for (marker, capability) in [
-                    ("NSCameraUsageDescription", Capability::Camera),
-                    ("NSMicrophoneUsageDescription", Capability::Microphone),
-                    ("NSLocation", Capability::Location),
-                    ("NSContactsUsageDescription", Capability::Contacts),
-                    ("NSHealth", Capability::Health),
-                    ("NSBluetooth", Capability::Bluetooth),
-                ] {
-                    if text.contains(marker) {
-                        self.apple_capabilities.insert(capability);
-                        self.usage_description_capabilities.insert(capability);
-                    }
-                }
-                for (marker, capability) in [
-                    ("AVCaptureMetadataOutput", Capability::Camera),
-                    ("AVCapturePhotoOutput", Capability::Camera),
-                    ("AVCaptureVideoDataOutput", Capability::Camera),
-                    ("DataScannerViewController", Capability::Camera),
-                    ("AVAudioRecorder", Capability::Microphone),
-                    ("CLLocationManager", Capability::Location),
-                    ("CNContactStore", Capability::Contacts),
-                    ("HKHealthStore", Capability::Health),
-                    ("CBCentralManager", Capability::Bluetooth),
-                    ("CBPeripheralManager", Capability::Bluetooth),
-                ] {
-                    if text.contains(marker) {
-                        self.apple_capabilities.insert(capability);
-                        self.apple_api_capabilities.insert(capability);
-                    }
-                }
-                for (marker, capability) in [
-                    ("UNUserNotificationCenter", Capability::Notifications),
-                    ("import UserNotifications", Capability::Notifications),
-                    ("import StoreKit", Capability::Storekit),
-                ] {
-                    if text.contains(marker) {
-                        self.apple_capabilities.insert(capability);
-                    }
-                }
+                "pbxproj" | "xcconfig" => self.scan_xcode_settings(relative, text),
+                _ => {}
             }
         }
         Ok(())
     }
+
+    fn scan_swift(&mut self, relative: &Path, text: &str) {
+        let lexed = crate::swift_source::lex(text);
+        let identifiers = crate::swift_source::identifiers(&lexed.code);
+        let names = identifiers
+            .iter()
+            .map(|identifier| identifier.text.as_str())
+            .collect::<BTreeSet<_>>();
+        let path = relative.display().to_string();
+        let evidence_for = |name: &str| {
+            identifiers
+                .iter()
+                .find(|identifier| identifier.text == name)
+                .map(|identifier| ScanEvidence {
+                    file: path.clone(),
+                    fact: format!(
+                        "Swift identifier {name} at line {}, column {}",
+                        identifier.line, identifier.column
+                    ),
+                })
+        };
+
+        let network_name = [
+            "URLSession",
+            "NSURLSession",
+            "NWConnection",
+            "NWListener",
+            "NWBrowser",
+            "URLSessionWebSocketTask",
+            "WKWebView",
+            "SFSafariViewController",
+            "CFStream",
+            "MCSession",
+            "MCNearbyServiceAdvertiser",
+            "MCNearbyServiceBrowser",
+        ]
+        .into_iter()
+        .find(|name| names.contains(name));
+        let socket_call = identifiers
+            .iter()
+            .find(|identifier| identifier.text == "socket" && identifier.followed_by_call);
+        if let Some(name) = network_name {
+            self.network = true;
+            self.observed_planning_capabilities
+                .insert("network_access".into());
+            self.record_capability(
+                Capability::NetworkAccess,
+                evidence_for(name).expect("identified network token has evidence"),
+                false,
+            );
+        } else if let Some(identifier) = socket_call {
+            self.network = true;
+            self.observed_planning_capabilities
+                .insert("network_access".into());
+            self.record_capability(
+                Capability::NetworkAccess,
+                ScanEvidence {
+                    file: path.clone(),
+                    fact: format!(
+                        "C socket() call at line {}, column {}",
+                        identifier.line, identifier.column
+                    ),
+                },
+                false,
+            );
+        }
+        for literal in &lexed.string_literals {
+            self.runtime_endpoint_candidates
+                .extend(extract_network_endpoints(literal));
+        }
+
+        if let Some(name) = [
+            "CKContainer",
+            "NSPersistentCloudKitContainer",
+            "NSUbiquitousKeyValueStore",
+            "ubiquityIdentityToken",
+            "cloudKitDatabase",
+        ]
+        .into_iter()
+        .find(|name| names.contains(name))
+        {
+            self.cloud = true;
+            self.observed_planning_capabilities
+                .insert("cloudkit".into());
+            let evidence = evidence_for(name).expect("identified cloud token has evidence");
+            self.record_capability(Capability::PrivateCloudkitSync, evidence, false);
+        }
+        self.tracking |= [
+            "AppTrackingTransparency",
+            "ATTrackingManager",
+            "advertisingIdentifier",
+        ]
+        .into_iter()
+        .any(|name| names.contains(name));
+        self.swift_data |= names.contains("SwiftData") || names.contains("ModelContext");
+        if self.swift_data {
+            self.observed_planning_capabilities
+                .insert("local_persistence".into());
+        }
+        if names.contains("RealmSwift") {
+            self.third_party_dependency = true;
+            self.third_party_dependency_evidence
+                .get_or_insert_with(|| evidence_for("RealmSwift").expect("RealmSwift evidence"));
+        }
+
+        for (name, capability, usage_key) in [
+            (
+                "AVCaptureSession",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "AVCaptureDevice",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "AVCaptureMetadataOutput",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "AVCapturePhotoOutput",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "AVCaptureVideoDataOutput",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "DataScannerViewController",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "ARSession",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "ARWorldTrackingConfiguration",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "ARView",
+                Capability::Camera,
+                Some("NSCameraUsageDescription"),
+            ),
+            (
+                "AVAudioRecorder",
+                Capability::Microphone,
+                Some("NSMicrophoneUsageDescription"),
+            ),
+            ("CLLocationManager", Capability::Location, None),
+            ("CNContactStore", Capability::Contacts, None),
+            ("HKHealthStore", Capability::Health, None),
+            ("CBCentralManager", Capability::Bluetooth, None),
+            ("CBPeripheralManager", Capability::Bluetooth, None),
+        ] {
+            if let Some(evidence) = evidence_for(name) {
+                if let Some(key) = usage_key {
+                    self.required_usage_keys
+                        .entry(key.into())
+                        .or_insert_with(|| evidence.clone());
+                }
+                self.record_capability(capability, evidence, true);
+                if capability == Capability::Camera {
+                    self.observed_planning_capabilities
+                        .insert("camera_capture".into());
+                }
+                let planning = match name {
+                    "ARSession" | "ARWorldTrackingConfiguration" => Some("ar_world_tracking"),
+                    "ARView" => Some("realitykit_rendering"),
+                    name if name.starts_with("AVCapture")
+                        || name == "DataScannerViewController" =>
+                    {
+                        Some("camera_capture")
+                    }
+                    "AVAudioRecorder" => Some("microphone_input"),
+                    "CLLocationManager" => Some("location"),
+                    "HKHealthStore" => Some("healthkit"),
+                    "CBCentralManager" | "CBPeripheralManager" => Some("bluetooth"),
+                    _ => None,
+                };
+                if let Some(planning) = planning {
+                    self.observed_planning_capabilities.insert(planning.into());
+                }
+            }
+        }
+        let audio_engine_input = names.contains("AVAudioEngine")
+            && (names.contains("inputNode") || names.contains("installTap"));
+        if audio_engine_input {
+            let evidence =
+                evidence_for("AVAudioEngine").expect("identified AVAudioEngine token has evidence");
+            self.required_usage_keys
+                .entry("NSMicrophoneUsageDescription".into())
+                .or_insert_with(|| evidence.clone());
+            self.record_capability(Capability::Microphone, evidence, true);
+            self.observed_planning_capabilities
+                .insert("microphone_input".into());
+        }
+        if let Some(name) = [
+            "SFSpeechRecognizer",
+            "SFSpeechAudioBufferRecognitionRequest",
+            "SFSpeechRecognitionTask",
+        ]
+        .into_iter()
+        .find(|name| names.contains(name))
+        {
+            let evidence = evidence_for(name).expect("identified speech token has evidence");
+            self.required_usage_keys
+                .entry("NSSpeechRecognitionUsageDescription".into())
+                .or_insert_with(|| evidence.clone());
+            self.record_capability(Capability::Microphone, evidence, true);
+            self.observed_planning_capabilities
+                .insert("speech_recognition".into());
+        }
+        for (name, capability) in [
+            ("UNUserNotificationCenter", Capability::Notifications),
+            ("UserNotifications", Capability::Notifications),
+            ("StoreKit", Capability::Storekit),
+        ] {
+            if let Some(evidence) = evidence_for(name) {
+                self.record_capability(capability, evidence, false);
+                self.observed_planning_capabilities.insert(
+                    if capability == Capability::Notifications {
+                        "notifications"
+                    } else {
+                        "storekit"
+                    }
+                    .into(),
+                );
+            }
+        }
+        for (identifier, api_names) in [
+            ("realitykit_rendering", &["ARView", "RealityView"][..]),
+            ("plane_detection", &["ARPlaneAnchor", "planeDetection"][..]),
+            (
+                "scene_reconstruction",
+                &[
+                    "ARMeshAnchor",
+                    "supportsSceneReconstruction",
+                    "sceneReconstruction",
+                ][..],
+            ),
+            (
+                "lidar",
+                &["supportsSceneReconstruction", "ARMeshAnchor", "sceneDepth"],
+            ),
+            (
+                "depth",
+                &["sceneDepth", "smoothedSceneDepth", "AVDepthData"],
+            ),
+            ("motion_orientation", &["CMMotionManager", "CMDeviceMotion"]),
+            (
+                "haptics",
+                &[
+                    "CHHapticEngine",
+                    "UIImpactFeedbackGenerator",
+                    "UINotificationFeedbackGenerator",
+                ],
+            ),
+            ("spatial_audio", &["AVAudioEnvironmentNode", "PHASEEngine"]),
+            ("vision", &["VNRequest", "VNImageRequestHandler"]),
+            ("nfc", &["NFCNDEFReaderSession", "NFCTagReaderSession"]),
+            ("nearby_interaction", &["NISession", "NINearbyObject"]),
+            (
+                "peer_to_peer_connectivity",
+                &[
+                    "MCSession",
+                    "MCNearbyServiceAdvertiser",
+                    "MCNearbyServiceBrowser",
+                ],
+            ),
+        ] {
+            if api_names.iter().any(|name| names.contains(name)) {
+                self.observed_planning_capabilities
+                    .insert(identifier.into());
+            }
+        }
+        if self.swift_data {
+            self.observed_planning_capabilities
+                .insert("local_persistence".into());
+        }
+    }
+
+    fn scan_plist(&mut self, relative: &Path, text: &str, entitlements: bool) {
+        let keys = extract_plist_keys(text);
+        if entitlements {
+            self.entitlement_keys.extend(keys.iter().cloned());
+        }
+        self.record_usage_descriptions(&keys);
+        self.local_network_usage_description |= keys.contains("NSLocalNetworkUsageDescription");
+        self.bonjour_services_key |= keys.contains("NSBonjourServices");
+        self.bonjour_services
+            .extend(extract_plist_string_array(text, "NSBonjourServices"));
+        if keys
+            .iter()
+            .any(|key| key.starts_with("com.apple.developer.icloud"))
+        {
+            self.cloud = true;
+            let _ = relative;
+        }
+    }
+
+    fn scan_xcode_settings(&mut self, relative: &Path, text: &str) {
+        let dependency_marker = text.lines().find_map(|line| {
+            let line = line.trim();
+            if line == "isa = XCRemoteSwiftPackageReference;" {
+                Some("XCRemoteSwiftPackageReference object")
+            } else if line == "isa = XCLocalSwiftPackageReference;" {
+                Some("XCLocalSwiftPackageReference object")
+            } else if line.starts_with("packageProductDependencies = (") {
+                Some("packageProductDependencies assignment")
+            } else if line.starts_with("path = Pods/")
+                || line.starts_with("path = \"Pods/")
+                || line.starts_with("baseConfigurationReference =") && line.contains("Pods-")
+            {
+                Some("CocoaPods project path")
+            } else if (line.starts_with("path = ") || line.starts_with("name = "))
+                && line.contains("Carthage/Build/")
+            {
+                Some("Carthage build-product path")
+            } else {
+                None
+            }
+        });
+        if let Some(marker) = dependency_marker {
+            self.third_party_dependency = true;
+            self.third_party_dependency_evidence
+                .get_or_insert_with(|| ScanEvidence {
+                    file: relative.display().to_string(),
+                    fact: format!("Xcode project token {marker}"),
+                });
+        }
+        self.ipad |= text.lines().any(|line| {
+            line.trim()
+                .strip_prefix("TARGETED_DEVICE_FAMILY =")
+                .is_some_and(|value| {
+                    value
+                        .trim_matches([' ', ';', '\"'])
+                        .split(',')
+                        .any(|item| item.trim() == "2")
+                })
+        });
+        let keys = text
+            .lines()
+            .filter_map(|line| {
+                line.trim()
+                    .strip_prefix("INFOPLIST_KEY_")
+                    .and_then(|value| value.split_once('=').map(|(key, _)| key.trim().to_owned()))
+            })
+            .collect::<BTreeSet<_>>();
+        self.record_usage_descriptions(&keys);
+        self.local_network_usage_description |= keys.contains("NSLocalNetworkUsageDescription");
+        if keys.contains("NSBonjourServices") {
+            self.bonjour_services_key = true;
+        }
+    }
+
+    fn record_usage_descriptions(&mut self, keys: &BTreeSet<String>) {
+        self.usage_description_keys.extend(keys.iter().cloned());
+        for (capability, present) in [
+            (
+                Capability::Camera,
+                keys.contains("NSCameraUsageDescription"),
+            ),
+            (
+                Capability::Microphone,
+                keys.contains("NSMicrophoneUsageDescription")
+                    || keys.contains("NSSpeechRecognitionUsageDescription"),
+            ),
+            (
+                Capability::Location,
+                keys.iter().any(|key| key.starts_with("NSLocation")),
+            ),
+            (
+                Capability::Contacts,
+                keys.contains("NSContactsUsageDescription"),
+            ),
+            (
+                Capability::Health,
+                keys.iter().any(|key| key.starts_with("NSHealth")),
+            ),
+            (
+                Capability::Bluetooth,
+                keys.iter().any(|key| key.starts_with("NSBluetooth")),
+            ),
+        ] {
+            if present {
+                self.usage_description_capabilities.insert(capability);
+            }
+        }
+    }
+
+    fn record_capability(
+        &mut self,
+        capability: Capability,
+        evidence: ScanEvidence,
+        protected_api: bool,
+    ) {
+        self.apple_capabilities.insert(capability);
+        if protected_api {
+            self.apple_api_capabilities.insert(capability);
+        }
+        self.capability_evidence
+            .entry(capability)
+            .or_default()
+            .push(evidence);
+    }
+
+    fn evidence_for(&self, capability: Capability) -> Option<&ScanEvidence> {
+        self.capability_evidence
+            .get(&capability)
+            .and_then(|evidence| evidence.first())
+    }
+}
+
+fn is_apple_test_source(relative: &Path) -> bool {
+    relative.components().any(|component| {
+        let name = component.as_os_str().to_string_lossy();
+        name.ends_with("Tests") || name.ends_with("UITests") || name.ends_with(".xctest")
+    })
+}
+
+fn required_source_capabilities(scan: &SourceScan) -> BTreeSet<Capability> {
+    let mut required = scan.apple_capabilities.clone();
+    if scan.network {
+        required.insert(Capability::NetworkAccess);
+    }
+    if scan.cloud {
+        required.insert(Capability::PrivateCloudkitSync);
+    }
+    for entitlement in &scan.entitlement_keys {
+        if let Some(capability) = known_entitlement_capability(entitlement) {
+            required.insert(capability);
+        }
+    }
+    if scan
+        .entitlement_keys
+        .iter()
+        .any(|entitlement| known_entitlement_capability(entitlement).is_none())
+    {
+        required.insert(Capability::OtherAppleEntitlement);
+    }
+    required
 }
 
 fn extract_plist_keys(text: &str) -> BTreeSet<String> {
@@ -1595,6 +2202,46 @@ fn extract_plist_keys(text: &str) -> BTreeSet<String> {
         remaining = &remaining[end + "</key>".len()..];
     }
     keys
+}
+
+/// Read the string members of one XML plist array. This deliberately accepts
+/// only the structural `<key>…</key><array><string>…` shape; arbitrary XML,
+/// asset text, and namespace attributes never become application evidence.
+fn extract_plist_string_array(text: &str, wanted_key: &str) -> BTreeSet<String> {
+    let mut values = BTreeSet::new();
+    let mut remaining = text;
+    while let Some(key_start) = remaining.find("<key>") {
+        remaining = &remaining[key_start + "<key>".len()..];
+        let Some(key_end) = remaining.find("</key>") else {
+            break;
+        };
+        let key = remaining[..key_end].trim();
+        remaining = &remaining[key_end + "</key>".len()..];
+        if key != wanted_key {
+            continue;
+        }
+        let Some(array_start) = remaining.find("<array>") else {
+            break;
+        };
+        let after_array = &remaining[array_start + "<array>".len()..];
+        let Some(array_end) = after_array.find("</array>") else {
+            break;
+        };
+        let mut array = &after_array[..array_end];
+        while let Some(string_start) = array.find("<string>") {
+            array = &array[string_start + "<string>".len()..];
+            let Some(string_end) = array.find("</string>") else {
+                break;
+            };
+            let value = array[..string_end].trim();
+            if !value.is_empty() {
+                values.insert(value.to_owned());
+            }
+            array = &array[string_end + "</string>".len()..];
+        }
+        remaining = &after_array[array_end + "</array>".len()..];
+    }
+    values
 }
 
 fn extract_network_endpoints(text: &str) -> BTreeSet<String> {
@@ -1617,25 +2264,24 @@ fn extract_network_endpoints(text: &str) -> BTreeSet<String> {
     endpoints
 }
 
-fn extract_bonjour_services(text: &str) -> BTreeSet<String> {
-    text.split(|character: char| {
-        character.is_whitespace()
-            || matches!(
-                character,
-                '"' | '\'' | '<' | '>' | '(' | ')' | '[' | ']' | '{' | '}' | '=' | ';' | ','
-            )
-    })
-    .filter(|token| {
-        token.starts_with('_') && (token.ends_with("._tcp") || token.ends_with("._udp"))
-    })
-    .map(str::to_owned)
-    .collect()
-}
-
 fn is_non_runtime_namespace_url(endpoint: &str) -> bool {
     endpoint.starts_with("http://www.apple.com/DTDs/PropertyList-")
         || endpoint.starts_with("http://www.w3.org/")
         || endpoint.starts_with("https://www.w3.org/")
+}
+
+fn gate_diagnostic(
+    gate: &str,
+    category: &str,
+    evidence: &ScanEvidence,
+    expected: &str,
+    why: &str,
+    classification: &str,
+) -> String {
+    format!(
+        "gate={gate} category={category} file={} evidence={} expected={expected} why={why} classification={classification}",
+        evidence.file, evidence.fact
+    )
 }
 
 fn is_documentation_text(path: &Path) -> bool {
@@ -1786,6 +2432,18 @@ mod tests {
             .collect()
     }
 
+    fn info_plist(keys: &[&str]) -> String {
+        let entries = keys
+            .iter()
+            .map(|key| {
+                format!(
+                    "<key>{key}</key><string>Required for the accepted product purpose.</string>"
+                )
+            })
+            .collect::<String>();
+        format!("<?xml version=\"1.0\"?><plist><dict>{entries}</dict></plist>")
+    }
+
     #[test]
     fn source_scan_maps_notification_center_use_to_the_notifications_capability() {
         let directory = tempfile::tempdir().unwrap();
@@ -1805,6 +2463,68 @@ mod tests {
     }
 
     #[test]
+    fn swift_identifier_false_positives_do_not_claim_network_access() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("Anatomy.swift"),
+            r#"
+struct EyeSocket {}
+let violetCurls = true
+let curledPose = Pose.tucked
+audioEngine.connect(sourceNode, to: mixerNode, format: format)
+"#,
+        )
+        .unwrap();
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(!scan.network);
+        assert!(!scan.apple_capabilities.contains(&Capability::NetworkAccess));
+    }
+
+    #[test]
+    fn real_network_framework_and_urlsession_calls_remain_detected() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("NetworkClient.swift"),
+            r#"
+import Network
+let connection = NWConnection(host: "local.example", port: 443, using: .tls)
+let result = try await URLSession.shared.data(from: URL(string: "https://api.example.test/v1")!)
+"#,
+        )
+        .unwrap();
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(scan.network);
+        assert!(scan
+            .network_endpoints
+            .contains("https://api.example.test/v1"));
+        assert!(scan
+            .observed_planning_capabilities
+            .contains("network_access"));
+    }
+
+    #[test]
+    fn unsupported_dependency_reports_an_exact_factory_gap() {
+        let (_directory, source) = candidate_source(&[(
+            "Package.swift",
+            "// swift-tools-version: 6.0\nimport PackageDescription\n",
+        )]);
+        let error = inspect_fascia(&source, "com.example.dependencies", 1)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("gate=apple.dependencies"), "{error}");
+        assert!(error.contains("category=factory_capability_gap"), "{error}");
+        assert!(error.contains("file=Package.swift"), "{error}");
+        assert!(
+            error.contains("Package.swift runtime dependency surface"),
+            "{error}"
+        );
+        assert!(
+            error.contains("classification=factory_limitation"),
+            "{error}"
+        );
+    }
+
+    #[test]
     fn documentation_vocabulary_does_not_claim_runtime_cloud_capability() {
         let (_directory, source) = candidate_source(&[
             (
@@ -1821,6 +2541,20 @@ mod tests {
             declared_capabilities(&manifest),
             vec![Capability::LocalStorage]
         );
+    }
+
+    #[test]
+    fn private_shot_metadata_is_not_scanned_as_release_source() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join(".tohseno/private")).unwrap();
+        fs::write(
+            directory.path().join(".tohseno/private/Prompt.swift"),
+            "The human mentioned URLSession and NWConnection in private context.",
+        )
+        .unwrap();
+        fs::write(directory.path().join("App.swift"), "import SwiftUI\n").unwrap();
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(!scan.network);
     }
 
     #[test]
@@ -1855,7 +2589,7 @@ mod tests {
         assert!(message.contains("PrivateCloudkitSync"), "{message}");
         assert!(message.contains(APP_CAPABILITIES_PATH), "{message}");
         assert!(message.contains("App.swift"), "{message}");
-        assert!(message.contains("import CloudKit"), "{message}");
+        assert!(message.contains("CKContainer"), "{message}");
     }
 
     #[test]
@@ -1863,8 +2597,9 @@ mod tests {
         let (_directory, source) = candidate_source(&[
             (
                 "Scanner.swift",
-                "import AVFoundation\nlet usage = \"NSCameraUsageDescription\"\nlet session = AVCaptureSession()\n",
+                "import AVFoundation\nlet session = AVCaptureSession()\n",
             ),
+            ("Info.plist", &info_plist(&["NSCameraUsageDescription"])),
             (
                 APP_CAPABILITIES_PATH,
                 r#"{
@@ -1923,29 +2658,203 @@ mod tests {
     }
 
     #[test]
+    fn arkit_and_realitykit_camera_use_reconcile_to_public_camera_truth() {
+        let (_directory, source) = candidate_source(&[
+            (
+                "World.swift",
+                "import ARKit\nimport RealityKit\nlet session = ARSession()\nlet configuration = ARWorldTrackingConfiguration()\nlet view: ARView? = nil\n",
+            ),
+            ("Info.plist", &info_plist(&["NSCameraUsageDescription"])),
+            (
+                APP_CAPABILITIES_PATH,
+                r#"{
+  "schema": "tohseno.apple-capabilities/1",
+  "capabilities": [{"capability":"camera","purpose":"Place the intended experience in the real environment","entitlement":null}],
+  "storage": [],
+  "network": []
+}"#,
+            ),
+        ]);
+        let scan = SourceScan::inspect(&source).unwrap();
+        assert!(scan
+            .observed_planning_capabilities
+            .contains("ar_world_tracking"));
+        assert!(scan
+            .observed_planning_capabilities
+            .contains("realitykit_rendering"));
+        let manifest = inspect_fascia(&source, "com.example.world", 1).unwrap();
+        assert!(manifest
+            .capabilities
+            .iter()
+            .any(|declaration| declaration.capability == Capability::Camera));
+    }
+
+    #[test]
+    fn live_audio_and_speech_pipeline_requires_both_structured_privacy_keys() {
+        let declaration = r#"{
+  "schema": "tohseno.apple-capabilities/1",
+  "capabilities": [{"capability":"microphone","purpose":"Hear the target user's intended speech","entitlement":null}],
+  "storage": [],
+  "network": []
+}"#;
+        let source_text = "import AVFoundation\nimport Speech\nlet engine = AVAudioEngine()\nlet input = engine.inputNode\nlet recognizer: SFSpeechRecognizer? = nil\n";
+        let (_directory, missing_source) = candidate_source(&[
+            ("Voice.swift", source_text),
+            ("Info.plist", &info_plist(&["NSMicrophoneUsageDescription"])),
+            (APP_CAPABILITIES_PATH, declaration),
+        ]);
+        let error = inspect_fascia(&missing_source, "com.example.voice", 1)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("NSSpeechRecognitionUsageDescription"),
+            "{error}"
+        );
+
+        let (_directory, complete_source) = candidate_source(&[
+            ("Voice.swift", source_text),
+            (
+                "Info.plist",
+                &info_plist(&[
+                    "NSMicrophoneUsageDescription",
+                    "NSSpeechRecognitionUsageDescription",
+                ]),
+            ),
+            (APP_CAPABILITIES_PATH, declaration),
+        ]);
+        inspect_fascia(&complete_source, "com.example.voice", 1).unwrap();
+    }
+
+    #[test]
+    fn stale_capability_declaration_reports_exact_reconciliation_gate() {
+        let (_directory, source) = candidate_source(&[(
+            APP_CAPABILITIES_PATH,
+            r#"{
+  "schema": "tohseno.apple-capabilities/1",
+  "capabilities": [{"capability":"camera","purpose":"stale","entitlement":null}],
+  "storage": [],
+  "network": []
+}"#,
+        )]);
+        let error = inspect_fascia(&source, "com.example.stale", 1)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("gate=fascia.capability_reconciliation"),
+            "{error}"
+        );
+        assert!(error.contains(APP_CAPABILITIES_PATH), "{error}");
+        assert!(error.contains("stale or contradictory"), "{error}");
+    }
+
+    #[test]
+    fn birth_plan_purpose_and_observed_apis_produce_the_final_fascia_declaration() {
+        let plan = crate::anky_fixture::output().birth_plan;
+        let (_directory, source) = candidate_source(&[
+            (
+                "Anky/World.swift",
+                "import ARKit\nimport RealityKit\nimport AVFoundation\nimport Speech\nimport CoreMotion\nimport CoreHaptics\nimport SwiftData\nlet session = ARSession()\nlet config = ARWorldTrackingConfiguration()\nlet view: ARView? = nil\nlet motion = CMMotionManager()\nlet haptics: CHHapticEngine? = nil\nlet environment: AVAudioEnvironmentNode? = nil\nlet context: ModelContext? = nil\nlet audio = AVAudioEngine()\nlet input = audio.inputNode\nlet speech: SFSpeechRecognizer? = nil\n",
+            ),
+            (
+                "AnkyTests/SensorFixture.swift",
+                "protocol SpatialSensorAdapter {}\nstruct ControlledRoomFixture: SpatialSensorAdapter {}\n",
+            ),
+            (
+                "Info.plist",
+                &info_plist(&[
+                    "NSCameraUsageDescription",
+                    "NSMicrophoneUsageDescription",
+                    "NSSpeechRecognitionUsageDescription",
+                ]),
+            ),
+        ]);
+        reconcile_birth_capability_declaration(&source, &plan).unwrap();
+        let declaration = AppCapabilityUse::load(&source).unwrap().unwrap();
+        assert_eq!(
+            declaration
+                .capabilities
+                .iter()
+                .map(|item| item.capability)
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([Capability::Camera, Capability::Microphone])
+        );
+        assert!(declaration.capabilities.iter().any(|item| {
+            item.capability == Capability::Camera
+                && item.purpose.contains("rear-camera environment")
+                && item.purpose.contains("real home")
+        }));
+        let fascia = inspect_fascia(&source, "com.example.anky", 1).unwrap();
+        assert!(fascia
+            .capabilities
+            .iter()
+            .any(|item| item.capability == Capability::Camera));
+        assert!(fascia
+            .capabilities
+            .iter()
+            .any(|item| item.capability == Capability::Microphone));
+    }
+
+    #[test]
+    fn simulator_fixture_cannot_replace_the_real_release_capability_path() {
+        let plan = crate::anky_fixture::output().birth_plan;
+        let (_directory, source) = candidate_source(&[(
+            "AnkyTests/SensorFixture.swift",
+            "import ARKit\nprotocol SpatialSensorAdapter {}\nstruct ControlledRoomFixture: SpatialSensorAdapter { let decoy = ARSession() }\n",
+        )]);
+        let error = reconcile_birth_capability_declaration(&source, &plan)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("camera_capture"), "{error}");
+        assert!(error.contains("real Release implementation"), "{error}");
+    }
+
+    #[test]
+    fn xcode_project_comments_do_not_become_dependency_evidence() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("App.xcodeproj");
+        fs::create_dir(&project).unwrap();
+        fs::write(
+            project.join("project.pbxproj"),
+            "// The product is named Carthage and documents XCRemoteSwiftPackageReference.\nTARGETED_DEVICE_FAMILY = 1;\n",
+        )
+        .unwrap();
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(!scan.third_party_dependency);
+    }
+
+    #[test]
     fn declared_native_apple_capability_vocabulary_is_available_to_shots() {
-        for (capability, source_text) in [
+        for (capability, source_text, usage_key) in [
             (
                 "microphone",
-                "let usage = \"NSMicrophoneUsageDescription\"\nlet recorder: AVAudioRecorder? = nil\n",
+                "let recorder: AVAudioRecorder? = nil\n",
+                Some("NSMicrophoneUsageDescription"),
             ),
             (
                 "location",
-                "let usage = \"NSLocationWhenInUseUsageDescription\"\nlet manager = CLLocationManager()\n",
+                "let manager = CLLocationManager()\n",
+                Some("NSLocationWhenInUseUsageDescription"),
             ),
             (
                 "contacts",
-                "let usage = \"NSContactsUsageDescription\"\nlet store = CNContactStore()\n",
+                "let store = CNContactStore()\n",
+                Some("NSContactsUsageDescription"),
             ),
             (
                 "health",
-                "let usage = \"NSHealthShareUsageDescription\"\nlet store = HKHealthStore()\n",
+                "let store = HKHealthStore()\n",
+                Some("NSHealthShareUsageDescription"),
             ),
             (
                 "bluetooth",
-                "let usage = \"NSBluetoothAlwaysUsageDescription\"\nlet manager: CBCentralManager? = nil\n",
+                "let manager: CBCentralManager? = nil\n",
+                Some("NSBluetoothAlwaysUsageDescription"),
             ),
-            ("storekit", "import StoreKit\nlet product: Product? = nil\n"),
+            (
+                "storekit",
+                "import StoreKit\nlet product: Product? = nil\n",
+                None,
+            ),
         ] {
             let declaration = format!(
                 r#"{{
@@ -1961,8 +2870,10 @@ mod tests {
   "network": []
 }}"#
             );
+            let plist = info_plist(&usage_key.into_iter().collect::<Vec<_>>());
             let (_directory, source) = candidate_source(&[
                 ("Native.swift", source_text),
+                ("Info.plist", &plist),
                 (APP_CAPABILITIES_PATH, &declaration),
             ]);
             let manifest = inspect_fascia(&source, "com.example.native", 1)
@@ -1993,7 +2904,11 @@ mod tests {
         let (_directory, source) = candidate_source(&[
             (
                 "Pairing.swift",
-                "import Network\nlet usage = \"NSLocalNetworkUsageDescription\"\nlet services = \"NSBonjourServices _tohseno._tcp\"\nlet connection: NWConnection? = nil\n",
+                "import Network\nlet connection: NWConnection? = nil\n",
+            ),
+            (
+                "Info.plist",
+                "<plist><dict><key>NSLocalNetworkUsageDescription</key><string>Pair with Studio</string><key>NSBonjourServices</key><array><string>_tohseno._tcp</string></array></dict></plist>",
             ),
             (
                 APP_CAPABILITIES_PATH,
@@ -2240,16 +3155,16 @@ mod tests {
     }
 
     #[test]
-    fn notification_source_with_protected_capability_rejects_only_the_unsupported_subset() {
+    fn innocent_privacy_key_string_does_not_claim_a_capability() {
         let (_directory, source) = candidate_source(&[(
             "Alarm.swift",
             "import UserNotifications\nlet keys = [\"NSCameraUsageDescription\"]\nlet center = UNUserNotificationCenter.current()\n",
         )]);
-        let message = inspect_fascia(&source, "com.example.alarm", 1)
-            .unwrap_err()
-            .to_string();
-        assert!(message.contains("Camera"), "{message}");
-        assert!(!message.contains("Notifications"), "{message}");
+        let manifest = inspect_fascia(&source, "com.example.alarm", 1).unwrap();
+        assert_eq!(
+            declared_capabilities(&manifest),
+            vec![Capability::LocalStorage, Capability::Notifications]
+        );
     }
 
     #[test]

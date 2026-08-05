@@ -1216,8 +1216,10 @@ const updateSubmitState = () => {
 
 const restingSubmitLabel = () => (
   composerMode === "create" && !reviewedInitialPlan
-    ? "REVIEW PLAN"
-    : `APPROVE & OPEN TERMINAL (${costLabel()})`
+    ? "REVIEW CONCEPTION"
+    : composerMode === "create"
+      ? `AUTHORIZE CONCEPTION & OPEN TERMINAL (${costLabel()})`
+      : `APPROVE & OPEN TERMINAL (${costLabel()})`
 );
 
 const setComposerBusy = (busy, busyLabel = "Preparing Shot…") => {
@@ -1244,15 +1246,13 @@ const clearInitialPlanReview = () => {
 };
 
 const renderInitialPlanReview = (plan, appName, prompt) => {
-  const expression = plan.expression_plan;
   reviewedInitialPlan = { appName, prompt, plan };
-  ui.planGenomeRevision.textContent = `Revision ${plan.genome.revision}`;
-  ui.planGenome.textContent = plan.genome_markdown;
+  ui.planGenomeRevision.textContent = "Intelligent conception required";
+  ui.planGenome.textContent = plan.review_policy;
   ui.planExpression.textContent =
-    `${expression.name} · ${expression.kind.replaceAll("_", " ")} · ${expression.platforms.join(", ")}`;
-  ui.planCapabilities.textContent = expression.organs
-    .map((organ) => `${organ.organ_id}: ${organ.provides.join(", ")}`)
-    .join(" · ");
+    `Engine ${plan.engine_version} · source ${plan.source_commit.slice(0, 12)} · Constitution ${plan.static_constitution_digest}`;
+  ui.planCapabilities.textContent =
+    `Apple capability profile ${plan.apple_capability_profile_digest} · Simulator availability is not a product denylist.`;
   ui.planReview.hidden = false;
 };
 
@@ -1690,7 +1690,7 @@ ui.form.addEventListener("submit", async (event) => {
   const appName = composerMode === "create" ? ui.appName.value : composerAppName;
   const prompt = ui.prompt.value;
   if (composerMode === "create" && !reviewedInitialPlan) {
-    setComposerBusy(true, "Preparing review…");
+    setComposerBusy(true, "Preparing conception review…");
     try {
       const response = await fetch("/api/plan", {
         method: "POST",
@@ -1704,7 +1704,7 @@ ui.form.addEventListener("submit", async (event) => {
       setComposerBusy(false);
       ui.planReview.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch (error) {
-      appendEvent("status", `plan rejected: ${error.message}`);
+      appendEvent("status", `conception review rejected: ${error.message}`);
       clearInitialPlanReview();
       setComposerBusy(false);
     }
@@ -1713,7 +1713,7 @@ ui.form.addEventListener("submit", async (event) => {
   if (composerMode === "create"
     && (reviewedInitialPlan.appName !== appName || reviewedInitialPlan.prompt !== prompt)) {
     clearInitialPlanReview();
-    appendEvent("status", "The intention changed; review the regenerated Genome before committing.");
+    appendEvent("status", "The intention changed; review the conception boundary again before authorizing it.");
     updateSubmitState();
     return;
   }
@@ -1779,7 +1779,7 @@ const appendEvent = (kind, message) => {
     recordingEvolution
     && kind === "result"
     && (
-      /^evolution \d+ of .+ is complete and verified on this Mac\.$/.test(message)
+      /^Version \d+ of .+ was recorded after its declared verification gates passed;/.test(message)
       || message.startsWith("nothing new —")
     )
   ) {
@@ -1801,14 +1801,17 @@ const finishExecution = (completion) => {
   ui.model.disabled = false;
   ui.route.disabled = false;
   ui.dropZone.setAttribute("aria-disabled", "false");
-  ui.submit.textContent = completion.landed ? "SHOT LANDED" : "SHOT NOT LANDED";
+  const acceptedLabel = completion.mode === "birth_materialization"
+    ? "BIRTH ACCEPTED"
+    : "VERSION RECORDED";
+  ui.submit.textContent = completion.landed ? acceptedLabel : "CANDIDATE UNSEALED";
   ui.submit.disabled = true;
   const validation = completion.validation_results
     .map((result) => `${result.command}: ${result.status}`)
     .join(" · ");
   appendEvent(
     "result",
-    `${completion.landed ? "SHOT LANDED" : "SHOT NOT LANDED"}\n\n${completion.files_changed.length} files changed\n${validation}\nAdditional cost: ${typeof completion.actual_additional_cost_usd === "number" ? `$${completion.actual_additional_cost_usd.toFixed(2)}` : (typeof completion.estimated_additional_cost_usd === "number" ? `$${completion.estimated_additional_cost_usd.toFixed(2)} estimated` : "unavailable")}\n\n${completion.authoritative_next_action}`
+    `${completion.landed ? acceptedLabel : "CANDIDATE UNSEALED"}\n\n${completion.files_changed.length} files changed\n${validation}\nAdditional cost: ${typeof completion.actual_additional_cost_usd === "number" ? `$${completion.actual_additional_cost_usd.toFixed(2)}` : (typeof completion.estimated_additional_cost_usd === "number" ? `$${completion.estimated_additional_cost_usd.toFixed(2)} estimated` : "unavailable")}\n\n${completion.authoritative_next_action}`
   );
   if (completed) {
     loadLibrary().then(() => {

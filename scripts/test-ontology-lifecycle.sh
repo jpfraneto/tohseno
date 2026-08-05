@@ -221,6 +221,7 @@ for required_command in \
   jq \
   mktemp \
   openssl \
+  python3 \
   security \
   sed \
   shasum \
@@ -242,22 +243,26 @@ node_bin=$(resolve_regular_executable "$node_input" "TOHSENO_NODE_BIN")
 
 candidate_version=$("$candidate_bin" --version 2>/dev/null) ||
   fail "the candidate executable did not start"
-if [ "$candidate_version" != "tohseno 0.8.3" ]; then
-  fail "candidate reported '$candidate_version', expected 'tohseno 0.8.3'"
+if [ "$candidate_version" != "tohseno 0.8.4" ]; then
+  fail "candidate reported '$candidate_version', expected 'tohseno 0.8.4'"
 fi
 helper_version=$("$identity_helper" --version 2>/dev/null) ||
   fail "the Apple identity helper did not start"
-if [ "$helper_version" != "tohseno-apple-identity 0.8.3" ]; then
-  fail "identity helper reported '$helper_version', expected 'tohseno-apple-identity 0.8.3'"
+if [ "$helper_version" != "tohseno-apple-identity 0.8.4" ]; then
+  fail "identity helper reported '$helper_version', expected 'tohseno-apple-identity 0.8.4'"
 fi
 node_version=$("$node_bin" --version 2>/dev/null) ||
   fail "the node executable did not start"
-if [ "$node_version" != "tohseno-node 0.8.3" ]; then
-  fail "node reported '$node_version', expected 'tohseno-node 0.8.3'"
+if [ "$node_version" != "tohseno-node 0.8.4" ]; then
+  fail "node reported '$node_version', expected 'tohseno-node 0.8.4'"
 fi
 
 fixture_materializer="$repository_root/engine/fixtures/apple-expression/materialize.sh"
 require_regular_executable "$fixture_materializer" "Apple expression fixture materializer"
+fixture_conceptor="$repository_root/engine/fixtures/apple-expression/prepare-birth-fixture.py"
+require_regular_executable "$fixture_conceptor" "deterministic conception fixture"
+fixture_exerciser="$repository_root/engine/fixtures/apple-expression/exercise-birth.sh"
+require_regular_executable "$fixture_exerciser" "Apple expression experience fixture"
 
 temp_input=${TMPDIR:-/tmp}
 case "$temp_input" in
@@ -408,15 +413,28 @@ intention_file="$control_root/intention.md"
 printf '%s\n' \
   "# Coherent Intention" \
   "" \
-  "Create a quiet native iPhone expression that lets one person keep a small, private continuity note." \
-  "It must preserve the original words, work locally, and make its exact Shot and version identity inspectable." \
+  "Show a complete, quiet native iPhone expression with a clear visible identity." \
+  "The primary screen must state that it is a TOHSENO expression and that the Apple materialization gates passed." \
   >"$intention_file"
 
 run_logged \
-  "capture intention, commit the Shot, accept its Genome, and declare its Apple expression" \
+  "capture the exact intention and prepare intelligent conception" \
+  "$candidate_bin" create "$app_name" \
+  --prompt-file "$intention_file" \
+  --no-launch
+
+conception_output="$control_root/conception-output.json"
+run_logged \
+  "derive the deterministic app-specific conception fixture" \
+  "$fixture_conceptor" conception \
+  "$shot_root/.tohseno/private/planning/conception-input.json" \
+  "$conception_output"
+run_logged \
+  "validate and accept the intelligence-shaped Genome, Birth Plan, and Experience Contract" \
   "$candidate_bin" create "$app_name" \
   --prompt-file "$intention_file" \
   --accept-genome \
+  --conception-file "$conception_output" \
   --no-launch
 
 builder_file="$TOHSENO_DATA_ROOT/identity/builder.json"
@@ -494,6 +512,9 @@ fi
 run_logged \
   "materialize the deterministic native Apple fixture" \
   "$fixture_materializer" "$shot_root" "$app_name" "$bundle_id"
+run_logged \
+  "exercise the bounded target-user journey and bind its evidence" \
+  "$fixture_exerciser" "$shot_root" "$app_name"
 
 printf '%s\n' "→ accept and record immutable version 0001"
 if "$candidate_bin" evolve "$app_name" </dev/null >>"$lifecycle_log" 2>&1; then
@@ -866,7 +887,8 @@ fi
 
 printf '%s\n' \
   "ontology lifecycle smoke passed:" \
-  "  intention → Shot → accepted Genome → Apple expression → version 0001" \
+  "  intention → app-specific conception → accepted Birth Plan and Genome" \
+  "  → Apple expression → XCUITest journey → accepted birth/version 0001" \
   "  → exact-version private feedback → evolutionary intent → version 0002" \
   "  → private Base Token Association → mixed-ancestry public export rejected" \
   "  → reconstructed lineage → private export/import → imported verification"

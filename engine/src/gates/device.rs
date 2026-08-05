@@ -10,6 +10,12 @@ pub struct Device {
     pub identifier: String,
     pub udid: Option<String>,
     pub name: String,
+    pub product_type: Option<String>,
+    pub marketing_name: Option<String>,
+    pub os_version: Option<String>,
+    pub os_build: Option<String>,
+    pub physical: bool,
+    pub transport: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,8 +80,8 @@ fn parse(json: &str) -> Result<DeviceState, DeviceError> {
 
 fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState, DeviceError> {
     let response: Response = serde_json::from_str(json).map_err(DeviceError::Json)?;
-    let mut saw_wired_untrusted = false;
-    let mut saw_wired_without_developer_mode = false;
+    let mut saw_reachable_untrusted = false;
+    let mut saw_reachable_without_developer_mode = false;
 
     for entry in response.result.devices {
         if entry.hardware_properties.reality.as_deref() != Some("physical")
@@ -88,16 +94,19 @@ fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState
             .udid
             .as_deref()
             .is_some_and(|udid| usb_registry.contains(udid));
-        if !is_wired(entry.connection_properties.transport_type.as_deref()) && !registry_has_udid {
-            // A paired Wi-Fi device must never satisfy the cable-only invariant.
+        if !is_reachable(
+            entry.connection_properties.transport_type.as_deref(),
+            entry.connection_properties.tunnel_state.as_deref(),
+        ) && !registry_has_udid
+        {
             continue;
         }
         if entry.connection_properties.pairing_state.as_deref() != Some("paired") {
-            saw_wired_untrusted = true;
+            saw_reachable_untrusted = true;
             continue;
         }
         if entry.device_properties.developer_mode_status.as_deref() != Some("enabled") {
-            saw_wired_without_developer_mode = true;
+            saw_reachable_without_developer_mode = true;
             continue;
         }
         return Ok(DeviceState::Ready(Device {
@@ -107,12 +116,21 @@ fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState
                 .device_properties
                 .name
                 .unwrap_or_else(|| "iPhone".into()),
+            product_type: entry.hardware_properties.product_type,
+            marketing_name: entry.hardware_properties.marketing_name,
+            os_version: entry.device_properties.os_version_number,
+            os_build: entry.device_properties.os_build_update,
+            physical: true,
+            transport: entry
+                .connection_properties
+                .transport_type
+                .unwrap_or_else(|| "unknown".into()),
         }));
     }
 
-    if saw_wired_untrusted {
+    if saw_reachable_untrusted {
         Ok(DeviceState::TrustRequired)
-    } else if saw_wired_without_developer_mode {
+    } else if saw_reachable_without_developer_mode {
         Ok(DeviceState::DeveloperModeRequired)
     } else if usb_registry.contains("iPhone") || usb_registry.contains("Apple Mobile Device") {
         // USB sees the phone but CoreDevice does not yet know it, which is the
@@ -123,12 +141,20 @@ fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState
     }
 }
 
-fn is_wired(transport: Option<&str>) -> bool {
+fn is_reachable(transport: Option<&str>, tunnel_state: Option<&str>) -> bool {
+    let active_tunnel = tunnel_state.is_some_and(|value| value.eq_ignore_ascii_case("connected"));
     transport.is_some_and(|value| {
         let normalized = value.to_ascii_lowercase();
-        ["usb", "wired", "cable", "direct"]
+        if ["localnetwork", "network"]
             .iter()
             .any(|candidate| normalized.contains(candidate))
+        {
+            active_tunnel
+        } else {
+            ["usb", "wired", "cable", "direct"]
+                .iter()
+                .any(|candidate| normalized.contains(candidate))
+        }
     })
 }
 
@@ -171,6 +197,7 @@ struct DeviceEntry {
 struct ConnectionProperties {
     transport_type: Option<String>,
     pairing_state: Option<String>,
+    tunnel_state: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -178,6 +205,8 @@ struct ConnectionProperties {
 struct DeviceProperties {
     name: Option<String>,
     developer_mode_status: Option<String>,
+    os_version_number: Option<String>,
+    os_build_update: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -186,13 +215,20 @@ struct HardwareProperties {
     platform: Option<String>,
     reality: Option<String>,
     udid: Option<String>,
+    product_type: Option<String>,
+    marketing_name: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn response(transport: &str, pairing: &str, developer_mode: &str) -> String {
+    fn response(
+        transport: &str,
+        tunnel_state: &str,
+        pairing: &str,
+        developer_mode: &str,
+    ) -> String {
         format!(
             r#"{{
               "result": {{
@@ -200,16 +236,21 @@ mod tests {
                   "identifier": "core-device-id",
                   "connectionProperties": {{
                     "transportType": "{transport}",
-                    "pairingState": "{pairing}"
+                    "pairingState": "{pairing}",
+                    "tunnelState": "{tunnel_state}"
                   }},
                   "deviceProperties": {{
                     "name": "Test iPhone",
-                    "developerModeStatus": "{developer_mode}"
+                    "developerModeStatus": "{developer_mode}",
+                    "osVersionNumber": "26.5",
+                    "osBuildUpdate": "23F84"
                   }},
                   "hardwareProperties": {{
                     "platform": "iOS",
                     "reality": "physical",
-                    "udid": "device-udid"
+                    "udid": "device-udid",
+                    "productType": "iPhone15,4",
+                    "marketingName": "iPhone 15"
                   }}
                 }}]
               }}
@@ -218,9 +259,28 @@ mod tests {
     }
 
     #[test]
-    fn wifi_never_satisfies_the_cable_gate() {
+    fn paired_network_device_is_a_real_connected_verification_target() {
+        let DeviceState::Ready(device) =
+            parse(&response("localNetwork", "connected", "paired", "enabled")).unwrap()
+        else {
+            panic!("paired local-network iPhone was not ready");
+        };
+        assert_eq!(device.product_type.as_deref(), Some("iPhone15,4"));
+        assert_eq!(device.os_version.as_deref(), Some("26.5"));
+        assert_eq!(device.os_build.as_deref(), Some("23F84"));
+        assert_eq!(device.transport, "localNetwork");
+    }
+
+    #[test]
+    fn paired_but_disconnected_network_device_is_not_a_live_target() {
         assert_eq!(
-            parse(&response("localNetwork", "paired", "enabled")).unwrap(),
+            parse(&response(
+                "localNetwork",
+                "disconnected",
+                "paired",
+                "enabled"
+            ))
+            .unwrap(),
             DeviceState::CableMissing
         );
     }
@@ -228,15 +288,15 @@ mod tests {
     #[test]
     fn wired_device_advances_one_handoff_at_a_time() {
         assert_eq!(
-            parse(&response("usb", "unpaired", "enabled")).unwrap(),
+            parse(&response("usb", "disconnected", "unpaired", "enabled")).unwrap(),
             DeviceState::TrustRequired
         );
         assert_eq!(
-            parse(&response("wired", "paired", "disabled")).unwrap(),
+            parse(&response("wired", "disconnected", "paired", "disabled")).unwrap(),
             DeviceState::DeveloperModeRequired
         );
         assert!(matches!(
-            parse(&response("usb", "paired", "enabled")).unwrap(),
+            parse(&response("usb", "disconnected", "paired", "enabled")).unwrap(),
             DeviceState::Ready(_)
         ));
     }

@@ -1,10 +1,13 @@
 # Taste
 
-- Find the one gesture that is the app; give it the room, and let everything else recede.
-- Use system fonts, semantic system colors, and SF Symbols.
-- Respect light and dark mode without separate user setup.
-- Prefer generous whitespace, clear hierarchy, and direct manipulation.
-- Use no hamburger menus and no onboarding carousels.
-- Keep motion restrained and honor Reduce Motion.
-- Never let changing text ride a long animation; words switch quickly even when shapes move slowly.
+- Let the accepted app-specific aesthetic and experiential invariants lead.
+- Native Apple typography, semantic colors, symbols, navigation, and controls
+  are useful defaults when the intention is silent; they are not prohibitions
+  against an app-specific visual language or interaction model.
+- Give the essential interaction enough clarity and space for its target user.
+- Use setup or onboarding when the intended actor needs consent, safety,
+  permission context, calibration, or understanding. Do not add it by habit.
+- Honor accessibility settings such as Reduce Motion without erasing an
+  essential interaction; provide an intention-faithful accessible path.
+- Keep changing words legible through motion and state transitions.
 - Match the register of the intention: an app asked for in a whisper should not shout.

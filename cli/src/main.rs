@@ -13,16 +13,17 @@ mod studio_server;
 use clap::{Parser, Subcommand};
 use renderer::Renderer;
 use std::fs;
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use tohseno_engine::gates::intent::Intent;
 use tohseno_engine::machine::Evolved;
-use tohseno_engine::{ConductedCreation, Config, Engine, Event, EventBus, Ledger, ShotRequest};
+use tohseno_engine::{
+    ConceptionOutput, ConductedCreation, Config, Engine, Event, EventBus, Ledger, ShotRequest,
+};
 
 const MAX_PROMPT_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_FEEDBACK_FILE_BYTES: u64 = 100_000;
 const DEFAULT_STUDIO_PORT: u16 = 8888;
-const INITIAL_REVIEW_QUESTION: &str = "Create this Shot? [y/N] ";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -65,12 +66,12 @@ enum Command {
         /// Subscription, API, or configured inference route.
         #[arg(long, value_name = "ROUTE")]
         route: Option<String>,
-        /// Explicitly accept the reviewed initial Genome and Apple expression plan.
+        /// Accept the app-specific Genome proposed by the selected intelligence.
         #[arg(long)]
         accept_genome: bool,
-        /// Accept this schema-validated Genome instead of the deterministic proposal.
+        /// Use this strict intelligence-produced conception output.
         #[arg(long, value_name = "PATH", requires = "accept_genome")]
-        genome_file: Option<PathBuf>,
+        conception_file: Option<PathBuf>,
         /// Prepare the Shot folder without opening a terminal execution.
         #[arg(long)]
         no_launch: bool,
@@ -213,7 +214,7 @@ enum Command {
     /// Copy preserved v0.6 apps into visible folders, then project their
     /// frozen signed history without changing the old ledger.
     MigrateLegacy { app_name: Option<String> },
-    /// Inspect or explicitly accept a Shot Genome revision.
+    /// Inspect or explicitly accept a post-birth Shot Genome mutation.
     Genome {
         #[command(subcommand)]
         command: GenomeCommand,
@@ -333,7 +334,7 @@ enum ProtocolCommand {
 enum GenomeCommand {
     /// Show the current accepted machine Genome after drift verification.
     Show { app_name: Option<String> },
-    /// Sign a reviewed initial Genome or explicit mutation.
+    /// Sign a reviewed mutation of an already accepted app-specific Genome.
     Accept {
         app_name: Option<String>,
         #[arg(long, value_name = "PATH")]
@@ -476,7 +477,7 @@ async fn dispatch(
             model,
             route,
             accept_genome,
-            genome_file,
+            conception_file,
             no_launch,
         } => {
             let app_name = normalize_cli_app_name(&app_name)?;
@@ -527,48 +528,55 @@ async fn dispatch(
                 intent: Intent::parse(&prompt).with_images(images),
                 selected_feedback_actions: Vec::new(),
             };
-            let default_genome = Engine::propose_initial_genome(&request)?;
-            let proposed_genome = match genome_file.as_deref() {
-                Some(path) => read_genome_file(path)?,
-                None => default_genome,
-            };
-            let expression_plan =
-                Engine::propose_initial_expression_plan(&request, &proposed_genome)?;
             let creation = engine.create(&request)?;
-            preserve_initial_review(&creation, &proposed_genome, &expression_plan)?;
-            present_initial_review(&expression_plan, bus);
-            let accepted = accept_genome
-                || (io::stdin().is_terminal()
-                    && io::stdout().is_terminal()
-                    && confirm_initial_review()?);
-            if !accepted {
-                bus.emit(Event::handoff(format!(
-                    "Review the exact proposal under {}/.tohseno/private/planning, then rerun `tohseno create {} --accept-genome{}`.",
-                    creation.folder.display(),
-                    request.app_name,
-                    if no_launch { " --no-launch" } else { "" }
-                )));
-                return Ok(());
-            }
-            engine.accept_genome(
-                &request.app_name,
-                &proposed_genome,
-                "Owner reviewed and accepted the initial operational Genome.",
-                &[],
-            )?;
-            engine.declare_initial_expression(&request.app_name, &expression_plan)?;
-            let creation = engine.conduct_accepted_creation(&request.app_name)?;
-            match selection {
-                None => handoff_without_launch(&creation, bus),
-                Some(selection) => {
-                    shot_execution_commands::prepare(
-                        &engine,
-                        &creation,
-                        &request.app_name,
-                        &selection,
-                        true,
-                        bus,
-                    )?;
+            if let Some(path) = conception_file.as_deref() {
+                let output = read_conception_file(path)?;
+                engine.stage_conception_output(&request.app_name, &output)?;
+                let materialization = engine.accept_pending_conception(&request.app_name)?;
+                match selection {
+                    None => handoff_without_launch(&materialization, bus),
+                    Some(selection) => {
+                        shot_execution_commands::prepare(
+                            &engine,
+                            &materialization,
+                            &request.app_name,
+                            &selection,
+                            true,
+                            true,
+                            bus,
+                        )?;
+                    }
+                }
+            } else if accept_genome && engine.pending_conception(&request.app_name).is_ok() {
+                let materialization = engine.accept_pending_conception(&request.app_name)?;
+                match selection {
+                    None => handoff_without_launch(&materialization, bus),
+                    Some(selection) => {
+                        shot_execution_commands::prepare(
+                            &engine,
+                            &materialization,
+                            &request.app_name,
+                            &selection,
+                            true,
+                            true,
+                            bus,
+                        )?;
+                    }
+                }
+            } else {
+                match selection {
+                    None => handoff_without_launch(&creation, bus),
+                    Some(selection) => {
+                        shot_execution_commands::prepare(
+                            &engine,
+                            &creation,
+                            &request.app_name,
+                            &selection,
+                            accept_genome,
+                            true,
+                            bus,
+                        )?;
+                    }
                 }
             }
         }
@@ -619,7 +627,7 @@ async fn dispatch(
                             route.as_deref(),
                         )?;
                         shot_execution_commands::prepare(
-                            &engine, &creation, &name, &selection, true, bus,
+                            &engine, &creation, &name, &selection, false, true, bus,
                         )?;
                     }
                     Evolved::Recorded(_) | Evolved::NothingNew(_) => {}
@@ -984,34 +992,11 @@ fn read_genome_file(
     Ok(genome)
 }
 
-fn preserve_initial_review(
-    creation: &ConductedCreation,
-    genome: &tohseno_protocol::Genome,
-    plan: &tohseno_engine::InitialExpressionPlan,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let layout = tohseno_engine::ShotLayout::at(&creation.folder);
-    let genome_json = tohseno_protocol::canonical::to_vec(genome)?;
-    let genome_markdown = tohseno_engine::render_genome_document(genome)?;
-    let expression_json = tohseno_protocol::canonical::to_vec(plan)?;
-    layout.preserve_private_planning_file("genome-proposal.json", &genome_json)?;
-    layout.preserve_private_planning_file("GENOME.proposed.md", genome_markdown.as_bytes())?;
-    layout.preserve_private_planning_file("expression-plan.proposed.json", &expression_json)?;
-    Ok(())
-}
-
-fn present_initial_review(plan: &tohseno_engine::InitialExpressionPlan, bus: &EventBus) {
-    bus.emit(Event::status(format!(
-        "Shot preview · {} · native iPhone app",
-        plan.name
-    )));
-}
-
-fn confirm_initial_review() -> Result<bool, std::io::Error> {
-    print!("{INITIAL_REVIEW_QUESTION}");
-    io::stdout().flush()?;
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer)?;
-    Ok(matches!(answer.trim(), "y" | "Y" | "yes" | "YES"))
+fn read_conception_file(
+    path: &std::path::Path,
+) -> Result<ConceptionOutput, Box<dyn std::error::Error>> {
+    let text = read_bounded_utf8(path, MAX_PROMPT_FILE_BYTES, "conception file")?;
+    Ok(serde_json::from_str(&text)?)
 }
 
 /// Resolves the engine and app name, git-style: an explicit name uses the
@@ -1082,31 +1067,6 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn initial_review_is_one_lightweight_preview_and_one_direct_question() {
-        let bus = EventBus::default();
-        let mut events = bus.subscribe();
-        let plan = tohseno_engine::InitialExpressionPlan {
-            schema: "tohseno.initial-expression-plan/1".into(),
-            kind: "native_apple_application".into(),
-            name: "new-app-idea".into(),
-            platforms: vec!["iphone".into()],
-            genome_revision: 1,
-            genome_digest: tohseno_protocol::digest::Bytes32::ZERO,
-            organs: Vec::new(),
-        };
-
-        present_initial_review(&plan, &bus);
-
-        assert!(matches!(
-            events.try_recv().unwrap(),
-            Event::Status(message)
-                if message == "Shot preview · new-app-idea · native iPhone app"
-        ));
-        assert!(events.try_recv().is_err());
-        assert_eq!(INITIAL_REVIEW_QUESTION, "Create this Shot? [y/N] ");
-    }
 
     #[test]
     fn cli_app_names_are_case_insensitive_without_sanitizing_unsafe_names() {
@@ -1325,7 +1285,7 @@ mod tests {
                 app_name,
                 prompt_file: Some(path),
                 accept_genome: false,
-                genome_file: None,
+                conception_file: None,
                 no_launch: true,
                 ..
             } if app_name == "field-notebook" && path == PathBuf::from("/tmp/intention.md")
@@ -1361,8 +1321,8 @@ mod tests {
             "--prompt-file",
             "/tmp/intention.md",
             "--accept-genome",
-            "--genome-file",
-            "/tmp/reviewed-genome.json",
+            "--conception-file",
+            "/tmp/reviewed-conception.json",
             "--no-launch",
         ])
         .unwrap();
@@ -1370,15 +1330,15 @@ mod tests {
             accepted.command,
             Command::Create {
                 accept_genome: true,
-                genome_file: Some(path),
+                conception_file: Some(path),
                 ..
-            } if path == PathBuf::from("/tmp/reviewed-genome.json")
+            } if path == PathBuf::from("/tmp/reviewed-conception.json")
         ));
         assert!(Cli::try_parse_from([
             "tohseno",
             "create",
             "field-notebook",
-            "--genome-file",
+            "--conception-file",
             "/tmp/unaccepted.json",
         ])
         .is_err());

@@ -56,19 +56,23 @@ test("feedback is private and bound to one exact version ordinal", () => {
   assert.match(script, /"x-tohseno-studio": "1"/);
 });
 
-test("creation reviews the exact proposed Genome before an explicit acceptance", () => {
+test("creation reviews the conception boundary before app-specific acceptance", () => {
   assert.match(script, /fetch\("\/api\/plan"/);
-  assert.match(script, /plan\.genome_markdown/);
+  assert.match(script, /plan\.review_policy/);
+  assert.match(script, /plan\.static_constitution_digest/);
+  assert.match(script, /plan\.apple_capability_profile_digest/);
   assert.match(script, /accept_genome: composerMode === "create"/);
   assert.match(script, /reviewedInitialPlan\.prompt !== prompt/);
-  assert.match(html, /PROPOSED · NOT COMMITTED/);
-  assert.match(html, /Accepting it establishes\s+the first Genome/);
+  assert.match(html, /INTENTION PRESERVED · CONCEPTION PENDING/);
+  assert.match(html, /No Genome or product plan exists yet/);
+  assert.match(html, /auto-accepts only its\s+deterministically validated app-specific proposal/);
 });
 
 test("Shot preparation selects a native harness and follows durable execution events", () => {
   assert.match(html, /Coding harness/);
   assert.match(html, /Inference \/ payment route/);
-  assert.match(html, /REVIEW PLAN/);
+  assert.match(html, /REVIEW CONCEPTION/);
+  assert.match(script, /AUTHORIZE CONCEPTION & OPEN TERMINAL/);
   assert.match(script, /APPROVE & OPEN TERMINAL/);
   assert.match(script, /fetch\("\/api\/harnesses"/);
   assert.match(script, /harness: ui\.harness\.value/);
@@ -76,7 +80,9 @@ test("Shot preparation selects a native harness and follows durable execution ev
   assert.match(script, /route: ui\.route\.value/);
   assert.match(script, /\/api\/executions\//);
   assert.match(script, /SHOT IN FLIGHT/);
-  assert.match(script, /SHOT LANDED/);
+  assert.match(script, /BIRTH ACCEPTED/);
+  assert.match(script, /VERSION RECORDED/);
+  assert.match(script, /CANDIDATE UNSEALED/);
   assert.doesNotMatch(script, /WebSocket|stream-json|output-format/);
 });
 
@@ -173,7 +179,7 @@ test("record evolution remains single-flight until the engine finishes", () => {
   assert.match(script, /let recordingEvolution = false/);
   assert.match(script, /setRecordingEvolution\(true\)/);
   assert.match(script, /if \(!response\.ok\) throw new Error\(await response\.text\(\)\)/);
-  assert.match(script, /is complete and verified on this Mac/);
+  assert.match(script, /Version \\d\+ of \.\+ was recorded after its declared verification gates passed/);
   const handler = script.match(
     /ui\.recordEvolution\.addEventListener\("click",[\s\S]*?\n\}\);/,
   )?.[0] || "";

@@ -398,8 +398,12 @@ privacy gates, run one dedicated production canary app through:
 
 1. secure hardware-backed Builder identity creation and BuilderAccount
    deployment;
-2. coherent intention, accepted Genome, Apple expression, build, signature,
-   installation and accepted Version;
+2. coherent intention, intelligent app-specific conception, local Apple
+   capability resolution, accepted Genome and Birth Plan, complete Apple
+   expression, Release build, target-user Simulator and applicable physical
+   trials, independent protocol-conformance / intent-fidelity /
+   experience-verification acceptance, signature, installation and accepted
+   birth;
 3. exact-version private feedback, selected evolutionary intent, evolution,
    verification and second accepted Version;
 4. explicit publication opt-in using only the ancestry-free public checkpoint;

@@ -31,10 +31,10 @@ if grep -Fq 'intent claim "$claim_token"' "$installer"; then
   printf '%s\n' "installer passes the claim token in a nested process argument" >&2
   exit 1
 fi
-grep -Fq 'version="v0.8.3"' "$installer"
+grep -Fq 'version="v0.8.4"' "$installer"
 cmp "$installer" "$repository_root/website/apps/site/public/oneshot.sh"
 cmp "$installer" "$repository_root/website/apps/site/public/install.sh"
-grep -Fq 'version="v0.8.3"' "$repository_root/website/apps/site/public/oneshot.sh"
+grep -Fq 'version="v0.8.4"' "$repository_root/website/apps/site/public/oneshot.sh"
 grep -Fq -- '--claim)' "$repository_root/website/apps/site/public/oneshot.sh"
 
 printf '%s\n' "Claim installer argument and published-pin gates passed."

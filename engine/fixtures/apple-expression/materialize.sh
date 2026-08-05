@@ -41,6 +41,7 @@ project_destination="$destination/$app_name.xcodeproj"
 
 for path in \
   "$destination/TemplateApp.swift" \
+  "$destination/${app_name}UITests" \
   "$destination/TohsenoFascia" \
   "$destination/TOHSENO" \
   "$destination/MEMORY.md" \
@@ -54,6 +55,8 @@ do
 done
 
 mkdir "$project_destination"
+mkdir -p "$project_destination/xcshareddata/xcschemes"
+mkdir "$destination/${app_name}UITests"
 mkdir "$destination/TohsenoFascia"
 mkdir "$destination/TOHSENO"
 
@@ -63,7 +66,15 @@ sed \
   "$fixture_directory/Template.xcodeproj/project.pbxproj" \
   >"$project_destination/project.pbxproj"
 
+sed \
+  -e "s|__APP_NAME__|$app_name|g" \
+  "$fixture_directory/Template.xcodeproj/xcshareddata/xcschemes/Template.xcscheme" \
+  >"$project_destination/xcshareddata/xcschemes/$app_name.xcscheme"
+
 install -m 0644 "$fixture_directory/TemplateApp.swift" "$destination/TemplateApp.swift"
+install -m 0644 \
+  "$fixture_directory/TemplateUITests.swift" \
+  "$destination/${app_name}UITests/TemplateUITests.swift"
 install -m 0644 "$fixture_directory/MEMORY.md" "$destination/MEMORY.md"
 install -m 0644 "$fixture_directory/WORLD.md" "$destination/WORLD.md"
 

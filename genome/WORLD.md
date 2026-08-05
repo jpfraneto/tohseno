@@ -1,6 +1,11 @@
 # World
 
-- Every Shot casts a world beyond its code: write `WORLD.md` at the project root, part of the signed world.
-- It carries three things: the app's story in one short paragraph, in the builder's language and register; the design system the world settled on — its named colors, its type, its one gesture; and ready-to-run prompts for the assets this Shot may someday want — icon, App Store screenshots, a poster, a landing page.
-- Write it so a stranger could present this app without asking a single question.
-- Marketing is not bolted on; it grows from the same seed as the code. Evolve `WORLD.md` as the app evolves.
+- `WORLD.md` is optional present-tense product context, not a prerequisite for
+  building or accepting an app.
+- When useful, it may summarize the product story and the design system that
+  the implemented world actually uses.
+- Core assets required by the accepted intention belong in the app now. Create
+  final procedural or authored assets as appropriate; never label a placeholder
+  production-ready and never defer a core asset into a hypothetical prompt.
+- Marketing artifacts may share the same intention, but possible future
+  screenshots, posters, sites, or campaigns are not birth acceptance evidence.

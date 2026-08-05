@@ -1,4 +1,6 @@
-//! The press's eyes: one Simulator screenshot per recorded Evolution.
+//! Best-effort preview capture. Birth acceptance uses the structured
+//! Experience Contract and trial evidence; this decorative first-frame
+//! capture is never allowed to masquerade as product verification.
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -24,6 +26,43 @@ struct DeviceListing {
 /// Best-effort by design: any failure returns a short reason and the
 /// Evolution completes without a face.
 pub fn capture(artifact_app: &Path, bundle_id: &str, output: &Path) -> Result<(), String> {
+    let udid = ensure_iphone_simulator()?;
+    checked(
+        "xcrun",
+        &["simctl", "install", &udid, &artifact_app.to_string_lossy()],
+    )?;
+    checked(
+        "xcrun",
+        &[
+            "simctl",
+            "launch",
+            "--terminate-running-process",
+            &udid,
+            bundle_id,
+        ],
+    )?;
+    std::thread::sleep(Duration::from_millis(2500));
+    checked(
+        "xcrun",
+        &[
+            "simctl",
+            "io",
+            &udid,
+            "screenshot",
+            "--type=png",
+            &output.to_string_lossy(),
+        ],
+    )?;
+    let _ = Command::new("xcrun")
+        .args(["simctl", "terminate", &udid, bundle_id])
+        .output();
+    Ok(())
+}
+
+/// Returns a booted iPhone Simulator without treating its capabilities as the
+/// definition of the Release product. Birth acceptance uses this destination
+/// to rerun deterministic tests and controlled target-user adapters.
+pub(crate) fn ensure_iphone_simulator() -> Result<String, String> {
     let listing = checked("xcrun", &["simctl", "list", "devices", "available", "-j"])?;
     let listing: DeviceListing =
         serde_json::from_slice(&listing).map_err(|error| error.to_string())?;
@@ -44,41 +83,11 @@ pub fn capture(artifact_app: &Path, bundle_id: &str, output: &Path) -> Result<()
         checked("xcrun", &["simctl", "boot", &device.udid])?;
     }
     checked("xcrun", &["simctl", "bootstatus", &device.udid, "-b"])?;
-    checked(
-        "xcrun",
-        &[
-            "simctl",
-            "install",
-            &device.udid,
-            &artifact_app.to_string_lossy(),
-        ],
-    )?;
-    checked(
-        "xcrun",
-        &[
-            "simctl",
-            "launch",
-            "--terminate-running-process",
-            &device.udid,
-            bundle_id,
-        ],
-    )?;
-    std::thread::sleep(Duration::from_millis(2500));
-    checked(
-        "xcrun",
-        &[
-            "simctl",
-            "io",
-            &device.udid,
-            "screenshot",
-            "--type=png",
-            &output.to_string_lossy(),
-        ],
-    )?;
-    let _ = Command::new("xcrun")
-        .args(["simctl", "terminate", &device.udid, bundle_id])
-        .output();
-    Ok(())
+    Ok(device.udid)
+}
+
+pub fn failure_diagnostic(reason: &str) -> String {
+    format!("preview.capture · external_environment_constraint · non_product_gap · {reason}")
 }
 
 fn checked(program: &str, arguments: &[&str]) -> Result<Vec<u8>, String> {
@@ -94,5 +103,18 @@ fn checked(program: &str, arguments: &[&str]) -> Result<Vec<u8>, String> {
             .next()
             .unwrap_or("simulator command failed")
             .to_owned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preview_failure_is_not_classified_as_product_incompleteness() {
+        let diagnostic = failure_diagnostic("Simulator service unavailable");
+        assert!(diagnostic.contains("external_environment_constraint"));
+        assert!(diagnostic.contains("non_product_gap"));
+        assert!(!diagnostic.contains("· product_gap ·"));
     }
 }

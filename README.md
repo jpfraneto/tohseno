@@ -4,22 +4,22 @@ TOHSENO is a protocol for giving coherent human intentions persistent
 computational identity and allowing them to become, remain, and evolve as
 verifiable expressions.
 
-The first factory is concrete: declare one coherent intention, let the Apple
-factory and your coding agent materialize a native application, experience an
-immutable version, attach feedback to that exact state, and evolve it without
-losing origin or ownership continuity.
+The first factory is concrete: TOHSENO transforms a coherent human intention
+into a complete native app by interpreting the intention, resolving the
+relevant powers of the iPhone, materializing the product, experiencing it as
+its target user, and only then accepting it into an evolving lineage.
 
 A Shot is the durable identity created by committing the intention. The app,
 folder, repository, current source, deployment, and optional token are
 expressions or relationships of that Shot—not the Shot itself.
 
-**TOHSENO 0.8.3** ships for macOS. The system is in beta and evolving
+**TOHSENO 0.8.4** ships for macOS. The system is in beta and evolving
 quickly: stable releases ship continuously. It ships the local GENESIS
 protocol implementation without claiming a canonical 1.0 protocol or public
 infrastructure. The 0.8.0 contract generation is an inactive, untrusted
 candidate; no release reads from or writes to it.
 
-The immutable `v0.8.3` release is published and the public installer is pinned
+The immutable `v0.8.4` release is published and the public installer is pinned
 byte-for-byte to its claim-capable installer. The production ciphertext relay
 is active at the canonical HTTPS origin on an owner-controlled durable volume;
 its release and capability gates remain fail-closed by default in source.
@@ -37,6 +37,27 @@ no release reads from or writes to those contracts.
 > not an address in the deployed generation. Local Shots, identities, and
 > signed history remain valid and verifiable offline.
 
+## Birth model in 0.8.4
+
+The exact Intention remains the human source of truth. An intelligence reads it
+with its references and the locally discovered Apple Capability Profile, then
+proposes a generative, app-specific Genome: what must remain true for this
+particular product to become itself. The static factory Constitution contains
+only cross-Shot integrity, privacy, safety, provenance, and honesty rules.
+
+The Apple Fascia is not a product author or capability denylist. It
+deterministically reports what the built app uses, requests, stores, transmits,
+and embeds. A live `devicectl` tunnel identifies a connected iPhone; a paired
+but disconnected device contributes only sanitized last-known context. Neither
+profile contains a UDID or private device identifier. The Release app still
+feature-detects optional hardware at runtime. The first
+accepted Version is complete within its bounded intention. Evolution starts
+from that complete living app after contact with life. A conformant build alone
+does not prove that the product promise was fulfilled.
+
+These rules govern new births in 0.8.4. They do not retroactively alter an
+older installed CLI or any accepted lineage.
+
 ## The ordinary loop
 
 The public journey now starts with the intention:
@@ -45,7 +66,9 @@ The public journey now starts with the intention:
 2. write or paste the intention and add up to eight reference images;
 3. press **TAKE A SHOT**;
 4. run the one copied command on the Mac;
-5. finish the real local readiness checks and review the plan;
+5. let the selected intelligence propose the app-specific Genome, capability
+   plan, target users, journeys, and completion contract, then review that
+   actual proposal;
 6. approve the terminal handoff without entering the intention again.
 
 The Browser Draft stays in IndexedDB. When encrypted handoff is available,
@@ -84,7 +107,7 @@ The installed CLI checks the stable release channel at most once per day. When
 a newer release exists, interactive commands show one short instruction:
 
 ```text
-TOHSENO 0.8.3 is available. Run `tohseno update`.
+TOHSENO 0.8.4 is available. Run `tohseno update`.
 ```
 
 Update transactionally with `tohseno update` (`tohseno upgrade` is an alias).
@@ -108,23 +131,35 @@ Shots are visible folders under `~/Desktop/Tohseno/`
 (override with `TOHSENO_HOME`). Each carries its local protocol body in
 `.tohseno/`, exact intention and genome surfaces, an evolutionary-intent
 working file, immutable version worlds, and version-bound feedback. The first
-expression is one native Apple app. Edit that expression with anything—your
-coding agent, Xcode, or an editor—and accept its next state through:
+expression is one complete native Apple app within the accepted intention's
+scope. A buildable skeleton is not accepted. Once that living app has been
+accepted, change it through a new intention with:
 
 ```sh
 cd ~/Desktop/Tohseno/my-app
 tohseno evolve
 ```
 
-An engine-written `AGENTS.md` tells any entering agent to obey both the factory
-constitution and the accepted Shot genome, maintain the expression's
-`MEMORY.md`, and run the recording command only when its work is whole.
+An engine-written `AGENTS.md` tells any entering agent to obey both the static
+factory Constitution and the accepted app-specific Genome. Product memory is
+optional and high-signal; it does not carry generic factory-debugging prose or
+ritual unfinished-work sections. The harness returns a candidate and evidence;
+the engine alone decides whether to accept and seal it.
 
-An Evolution completes on the Mac: once the world builds, the engine
-materializes a Simulator artifact, captures a `preview.png` of the running
-first screen, signs the record, and verifies it — no iPhone required.
-`tohseno refresh my-app` installs the latest Evolution on a phone
-whenever one is cabled. An intent-bearing `create` or `evolve` prepares a
+Birth acceptance has three independent dimensions: protocol conformance,
+intent fidelity, and experience verification. The harness builds Release,
+runs tests, traverses target-user scenarios in Simulator with controlled
+fixtures where appropriate, captures multi-state evidence, reviews the result,
+and repairs mismatches before the engine seals anything. The engine also boots
+its own Simulator and independently reruns the checked-in Release
+XCTest/XCUITest action; the resulting log is a separate Birth Receipt
+criterion. Simulator is a test environment, not the definition of an iPhone.
+If a must-level experience needs physical sensors, the real framework path
+remains in Release and a compatible connected iPhone is required for the
+physical trial; without it the candidate remains
+`implementation_complete; acceptance_pending_physical_experience`.
+`tohseno refresh my-app` installs an accepted Version on a paired phone.
+An intent-bearing `create` or `evolve` prepares a
 private execution boundary and opens a native terminal with
 `tohseno shot run …` visible but unexecuted. The person presses Enter to start
 the selected Codex or Claude Code interface. TOHSENO observes durable lifecycle
@@ -150,8 +185,9 @@ after a lost publish response accepts only the exact immutable release after
 the same asset and tag verification. The checkout remains credential-free, and
 write permission remains scoped to the publish job.
 
-TOHSENO requires macOS 13 or later and Xcode. A physical install
-requires an iPhone connected through Apple’s device tooling and a usable Apple
+TOHSENO requires macOS 13 or later and Xcode. A physical install or trial
+requires a paired iPhone reachable through Apple’s device tooling (USB or a
+supported local-network connection) and a usable Apple
 signing identity. A free Apple ID is the default development path; paid Apple
 Developer membership is only needed for longer-lived signing or App Store
 distribution.
@@ -164,9 +200,15 @@ The canonical v2 model is additive around the frozen v1 Apple records:
   bundle identifiers, tokens, and controllers;
 - a signed Commitment and exact original Intention;
 - an explicitly proposed and accepted Shot Genome;
+- a private structured Birth Plan that binds target users, stable requirements,
+  Apple materials, forbidden substitutions, and app-specific organs to the
+  exact intention;
 - stable Expression IDs and content-bound immutable Version IDs;
-- declared capability organs, with the Apple Fascia as the first concrete
-  substrate;
+- universal protocol-substrate organs separated from product-specific organs,
+  with the Apple Fascia as a deterministic membrane of platform, privacy,
+  capability, data-movement, identity, and provenance truth;
+- target-user Experience Contracts and local Birth Receipts whose digests make
+  protocol conformance, intent fidelity, and experience verification explicit;
 - Feedback bound to an exact expression Version;
 - authorized Evolutionary Intents and verified Evolution transitions;
 - signed append-only lineage actions with honest artifact availability;
@@ -305,10 +347,17 @@ The candidate's complete local Shot lifecycle is explicit and automation-safe:
 ```sh
 tohseno create field-notebook \
   --prompt-file intention.md \
-  --accept-genome \
   --no-launch
 
-# After the accepted Apple expression has been materialized:
+# An external/private conception runner reads .tohseno/CONCEPTION.md and emits
+# strict conception-output.json. Validate and accept that actual proposal:
+tohseno create field-notebook \
+  --prompt-file intention.md \
+  --accept-genome \
+  --conception-file conception-output.json \
+  --no-launch
+
+# After the complete candidate and Experience Trial have been materialized:
 tohseno evolve field-notebook
 
 feedback_action="$(
@@ -450,12 +499,14 @@ scripts/tests/test-probe-p256.sh
 scripts/build-contract-abi.sh --check
 ```
 
-The ontology lifecycle smoke uses a unique software-test identity and an
-isolated temporary data root. It performs real Apple Simulator builds for
-versions `0001` and `0002`, binds selected feedback by signed action
-commitment, reconstructs lineage, and verifies a private record-only
-export/import. It requires macOS, Xcode, a matching development identity, and
-the source-built CLI and Apple identity helper.
+The ontology lifecycle smoke uses a unique software-test identity, an isolated
+temporary data root, and a deterministic conception harness fixture. It
+validates an app-specific Birth Plan, runs a real XCUITest target-user journey,
+accepts version `0001` through all three birth dimensions, performs real Apple
+Simulator builds for versions `0001` and `0002`, binds selected feedback by
+signed action commitment, reconstructs lineage, and verifies a private
+record-only export/import. It requires macOS, Xcode, a matching development
+identity, and the source-built CLI, node, and Apple identity helper.
 
 To use a source-built Apple identity helper:
 

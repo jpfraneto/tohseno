@@ -18,6 +18,15 @@ pub const EXECUTION_RECORD_SCHEMA: &str = "tohseno.local-shot-execution/1";
 pub const EXECUTION_EVENT_SCHEMA: &str = "tohseno.local-shot-execution-event/1";
 pub const COMPLETION_RECORD_SCHEMA: &str = "tohseno.local-shot-completion/1";
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecutionMode {
+    Conception,
+    BirthMaterialization,
+    #[default]
+    EvolutionMaterialization,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionPhase {
@@ -71,6 +80,8 @@ pub struct ExecutionPreparation {
     pub intent_path: String,
     pub intention_digest: Bytes32,
     pub references: Vec<ExecutionReference>,
+    pub mode: ExecutionMode,
+    pub auto_accept_genome: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -99,6 +110,10 @@ pub struct PreparedExecution {
     pub intention_digest: Bytes32,
     pub intent_path: String,
     pub references: Vec<ExecutionReference>,
+    #[serde(default)]
+    pub mode: ExecutionMode,
+    #[serde(default)]
+    pub auto_accept_genome: bool,
     pub baseline: GitBoundary,
     pub prepared_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -154,6 +169,8 @@ pub struct CompletionRecord {
     pub execution_id: String,
     pub shot_id: ShotId,
     pub version_ordinal: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ExecutionMode>,
     pub outcome: ExecutionOutcome,
     pub landed: bool,
     pub harness: String,
@@ -247,6 +264,8 @@ pub fn prepare_execution(
         intention_digest: preparation.intention_digest,
         intent_path: preparation.intent_path,
         references: preparation.references,
+        mode: preparation.mode,
+        auto_accept_genome: preparation.auto_accept_genome,
         baseline,
         prepared_at: now()?,
         process_id: None,
@@ -358,9 +377,14 @@ pub fn complete_execution(
         ExecutionPhase::ValidationStarted,
         "Checking the accepted-version and repository evidence.",
     )?;
+    let validation_command = if execution.mode == ExecutionMode::BirthMaterialization {
+        "engine birth acceptance: protocol_conformance + intent_fidelity + experience_verification"
+    } else {
+        "engine Version recording: declared verification gates"
+    };
     let validation = if accepted_version {
         ValidationObservation {
-            command: "tohseno evolve".into(),
+            command: validation_command.into(),
             status: if validation_passed {
                 "passed"
             } else {
@@ -371,20 +395,22 @@ pub fn complete_execution(
         }
     } else {
         ValidationObservation {
-            command: "tohseno evolve".into(),
-            status: "not_observed".into(),
-            evidence: None,
+            command: validation_command.into(),
+            status: "not_accepted".into(),
+            evidence: validation_evidence,
         }
     };
     update_phase(
         execution,
         ExecutionPhase::ValidationCompleted,
-        if validation_passed {
-            "The accepted Evolution passed independent verification."
+        if validation_passed && execution.mode == ExecutionMode::BirthMaterialization {
+            "The accepted birth passed all three independent dimensions."
+        } else if validation_passed {
+            "The recorded Version passed every gate declared for that Version."
         } else if accepted_version {
-            "An accepted Evolution exists, but independent verification failed."
+            "An accepted Version exists, but independent verification failed."
         } else {
-            "No accepted Evolution was observed; the result remains unlanded."
+            "The candidate remains unsealed because engine acceptance did not pass."
         },
     )?;
     let outcome = if cancelled {
@@ -395,8 +421,8 @@ pub fn complete_execution(
         ExecutionOutcome::Failed
     };
     // Canonical acceptance outranks the wrapper's exit code. A harness can
-    // fail after `tohseno evolve` durably accepted and verified the Version;
-    // that failure remains the process outcome, but cannot un-land history.
+    // fail after the engine durably accepted and verified the Version; that
+    // failure remains the process outcome, but cannot un-land history.
     let landed = accepted_version && validation_passed;
     let git_diff_summary = git_output(
         &execution.repository,
@@ -405,9 +431,9 @@ pub fn complete_execution(
     .trim()
     .to_owned();
     let authoritative_next_action = if landed {
-        "Review the evolution.".into()
+        "Experience the accepted app.".into()
     } else if !files_changed.is_empty() {
-        "Review the unaccepted changes in the Shot repository, then return to the terminal and run `tohseno evolve` when they are valid.".into()
+        "Review the engine diagnostic and unaccepted candidate evidence; repair the failed criteria without changing the accepted intention.".into()
     } else {
         "Return to the terminal and continue or retry the prepared Shot.".into()
     };
@@ -416,6 +442,7 @@ pub fn complete_execution(
         execution_id: execution.execution_id.clone(),
         shot_id: execution.shot_id,
         version_ordinal: execution.version_ordinal,
+        mode: Some(execution.mode),
         outcome: outcome.clone(),
         landed,
         harness: execution.harness.clone(),
@@ -437,7 +464,11 @@ pub fn complete_execution(
         final_tree: final_tree.clone(),
         pre_existing_worktree_status: execution.baseline.pre_existing_status.clone(),
         validation_commands_executed: if accepted_version {
-            vec!["tohseno evolve".into()]
+            vec![if execution.mode == ExecutionMode::BirthMaterialization {
+                "engine three-dimensional birth acceptance".into()
+            } else {
+                "engine declared Version gates".into()
+            }]
         } else {
             Vec::new()
         },
@@ -465,9 +496,13 @@ pub fn complete_execution(
         execution,
         final_phase,
         if landed {
-            "The Shot landed as a verified accepted Evolution."
+            if execution.mode == ExecutionMode::BirthMaterialization {
+                "The complete birth passed all three dimensions and was accepted."
+            } else {
+                "The candidate became a verified accepted Version."
+            }
         } else {
-            "The harness ended without a verified landed Evolution."
+            "The harness ended with an unsealed candidate; no incomplete Version was accepted."
         },
     )?;
     Ok(completion)
@@ -875,6 +910,8 @@ mod tests {
                     byte_length: image_bytes.len() as u64,
                     media_type: "image/png".into(),
                 }],
+                mode: ExecutionMode::BirthMaterialization,
+                auto_accept_genome: true,
             },
         )
         .unwrap();

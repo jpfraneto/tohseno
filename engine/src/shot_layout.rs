@@ -820,6 +820,18 @@ impl ShotLayout {
         Ok(sha256(bytes))
     }
 
+    pub fn read_private_planning_file(&self, filename: &str) -> Result<Vec<u8>, ShotLayoutError> {
+        validate_metadata_filename(filename)?;
+        read_regular_limited(
+            &self
+                .metadata_root()
+                .join("private")
+                .join("planning")
+                .join(filename),
+            MAX_JSON_BYTES,
+        )
+    }
+
     fn pending_evolution_selection_path(&self) -> PathBuf {
         self.metadata_root()
             .join("private")

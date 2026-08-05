@@ -14,7 +14,18 @@
 		B10000010000000000000006 /* TohsenoMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000007 /* TohsenoMetadata.swift */; };
 		B10000010000000000000007 /* fascia.json in Resources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000008 /* fascia.json */; };
 		B10000010000000000000008 /* embedded-provenance.json in Resources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000009 /* embedded-provenance.json */; };
+		B10000010000000000000009 /* TemplateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000010000000000000010 /* TemplateUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B20000010000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F10000010000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F10000010000000000000001;
+			remoteInfo = __APP_NAME__;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		C10000010000000000000001 /* TemplateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateApp.swift; sourceTree = "<group>"; };
@@ -26,10 +37,18 @@
 		C10000010000000000000007 /* TohsenoMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TohsenoMetadata.swift; sourceTree = "<group>"; };
 		C10000010000000000000008 /* fascia.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = fascia.json; sourceTree = "<group>"; };
 		C10000010000000000000009 /* embedded-provenance.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "embedded-provenance.json"; sourceTree = "<group>"; };
+		C10000010000000000000010 /* TemplateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemplateUITests.swift; sourceTree = "<group>"; };
+		C10000010000000000000011 /* __APP_NAME__UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "__APP_NAME__UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D10000010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D10000010000000000000004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = ();
@@ -42,6 +61,7 @@
 			isa = PBXGroup;
 			children = (
 				C10000010000000000000001 /* TemplateApp.swift */,
+				E10000010000000000000005 /* __APP_NAME__UITests */,
 				E10000010000000000000003 /* TohsenoFascia */,
 				E10000010000000000000004 /* TOHSENO */,
 				E10000010000000000000002 /* Products */,
@@ -52,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				C10000010000000000000002 /* __APP_NAME__.app */,
+				C10000010000000000000011 /* __APP_NAME__UITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +98,14 @@
 			path = TOHSENO;
 			sourceTree = "<group>";
 		};
+		E10000010000000000000005 /* __APP_NAME__UITests */ = {
+			isa = PBXGroup;
+			children = (
+				C10000010000000000000010 /* TemplateUITests.swift */,
+			);
+			path = __APP_NAME__UITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -95,6 +124,22 @@
 			productReference = C10000010000000000000002 /* __APP_NAME__.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F10000010000000000000003 /* __APP_NAME__UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A20000010000000000000003 /* Build configuration list for PBXNativeTarget "__APP_NAME__UITests" */;
+			buildPhases = (
+				D10000010000000000000005 /* Sources */,
+				D10000010000000000000004 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				B20000010000000000000002 /* PBXTargetDependency */,
+			);
+			name = __APP_NAME__UITests;
+			productName = __APP_NAME__UITests;
+			productReference = C10000010000000000000011 /* __APP_NAME__UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -107,6 +152,10 @@
 				TargetAttributes = {
 					F10000010000000000000001 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					F10000010000000000000003 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = F10000010000000000000001;
 					};
 				};
 			};
@@ -122,8 +171,9 @@
 			productRefGroup = E10000010000000000000002 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (
-				F10000010000000000000001 /* __APP_NAME__ */,
+				targets = (
+					F10000010000000000000001 /* __APP_NAME__ */,
+					F10000010000000000000003 /* __APP_NAME__UITests */,
 			);
 		};
 /* End PBXProject section */
@@ -154,7 +204,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D10000010000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000009 /* TemplateUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B20000010000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F10000010000000000000001 /* __APP_NAME__ */;
+			targetProxy = B20000010000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A10000010000000000000001 /* Debug */ = {
@@ -216,6 +282,38 @@
 			};
 			name = Release;
 		};
+		A10000010000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = __BUNDLE_ID__.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = __APP_NAME__;
+			};
+			name = Debug;
+		};
+		A10000010000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = __BUNDLE_ID__.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = __APP_NAME__;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -233,6 +331,15 @@
 			buildConfigurations = (
 				A10000010000000000000003 /* Debug */,
 				A10000010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A20000010000000000000003 /* Build configuration list for PBXNativeTarget "__APP_NAME__UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000010000000000000005 /* Debug */,
+				A10000010000000000000006 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
