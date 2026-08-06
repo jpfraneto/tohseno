@@ -56,30 +56,43 @@ test("feedback is private and bound to one exact version ordinal", () => {
   assert.match(script, /"x-tohseno-studio": "1"/);
 });
 
-test("creation reviews the conception boundary before app-specific acceptance", () => {
-  assert.match(script, /fetch\("\/api\/plan"/);
-  assert.match(script, /plan\.review_policy/);
-  assert.match(script, /plan\.static_constitution_digest/);
-  assert.match(script, /plan\.apple_capability_profile_digest/);
-  assert.match(script, /accept_genome: composerMode === "create"/);
-  assert.match(script, /reviewedInitialPlan\.prompt !== prompt/);
-  assert.match(html, /INTENTION PRESERVED · CONCEPTION PENDING/);
-  assert.match(html, /No Genome or product plan exists yet/);
-  assert.match(html, /auto-accepts only its\s+deterministically validated app-specific proposal/);
+test("creation is one unattended Shot with internal validated acceptance", () => {
+  assert.doesNotMatch(script, /fetch\("\/api\/plan"/);
+  assert.doesNotMatch(script, /accept_genome/);
+  assert.doesNotMatch(script, /reviewedInitialPlan/);
+  assert.doesNotMatch(html, /CONCEPTION PENDING|Review the conception boundary/);
+  assert.match(html, /TAKE THE SHOT/);
+  assert.match(html, /Conception, building, repair, and verification continue unattended/);
+  assert.match(html, /run completes after the accepted app is installed and launched/);
+});
+
+test("new-Shot composition is intention-first and accepts rich local context", () => {
+  assert.match(html, /Give the app one exact intention/);
+  assert.match(html, /id="import-intention"[^>]*>[\s\S]*Import \.md/);
+  assert.match(html, /id="intention-file"[^>]*accept="\.md,\.markdown,\.txt,text\/markdown,text\/plain"/);
+  assert.match(html, /Drop or paste a \.md \/ \.txt file/);
+  assert.match(html, /id="reference-count"[^>]*>0 \/ 8</);
+  assert.match(html, /id="reference-slots"/);
+  assert.match(html, /Choose reference images/);
+  assert.match(script, /Array\.from\(\{ length: 8 \}/);
+  assert.match(script, /ui\.prompt\.addEventListener\("paste"/);
+  assert.match(script, /readComposerIntentionFile/);
+  assert.match(script, /ui\.studio\.classList\.toggle\("composer-create"/);
+  assert.match(script, /normalizeAppSlug/);
 });
 
 test("Shot preparation selects a native harness and follows durable execution events", () => {
   assert.match(html, /Coding harness/);
   assert.match(html, /Inference \/ payment route/);
-  assert.match(html, /REVIEW CONCEPTION/);
-  assert.match(script, /AUTHORIZE CONCEPTION & OPEN TERMINAL/);
-  assert.match(script, /APPROVE & OPEN TERMINAL/);
+  assert.match(script, /TAKE THE SHOT/);
+  assert.match(script, /EVOLVE & INSTALL/);
   assert.match(script, /fetch\("\/api\/harnesses"/);
   assert.match(script, /harness: ui\.harness\.value/);
   assert.match(script, /model: ui\.model\.value/);
   assert.match(script, /route: ui\.route\.value/);
   assert.match(script, /\/api\/executions\//);
   assert.match(script, /SHOT IN FLIGHT/);
+  assert.match(script, /You can walk away/);
   assert.match(script, /BIRTH ACCEPTED/);
   assert.match(script, /VERSION RECORDED/);
   assert.match(script, /CANDIDATE UNSEALED/);
@@ -91,7 +104,7 @@ test("imported intentions stay local and reuse the creation path", () => {
   assert.match(script, /\/api\/pending-intentions\//);
   assert.match(script, /pending_intention_id: activePendingIntention\.id/);
   assert.match(script, /ui\.prompt\.readOnly = Boolean\(pending\)/);
-  assert.match(script, /ui\.dropZone\.hidden = Boolean\(pending\)/);
+  assert.match(script, /ui\.addReferences\.hidden = Boolean\(pending\)/);
   assert.match(script, /openComposer\("create", activePendingIntention\)/);
   assert.doesNotMatch(script, /activePendingIntention[\s\S]{0,200}(?:Codex|Claude).*run/);
 });

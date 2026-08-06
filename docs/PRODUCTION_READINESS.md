@@ -4,6 +4,11 @@
 > Current shipped and inactive state is in `docs/STATE.md`. The encrypted
 > web-to-local handoff added on 2026-08-03 was activated later that day through
 > the ordered record in `release/WEB_INTENTION_HANDOFF_ACTIVATION.md`.
+>
+> Post-report correction: ADR 0013 supersedes this report's plan-review,
+> Terminal Enter, and separate `--accept-genome` workflow in current source.
+> Those passages remain below only as evidence of what the 2026-07-31 session
+> actually tested; they are not current operating instructions.
 
 Assessed 2026-07-31 at the end of the first complete dogfooding cycle
 (`docs/DOGFOOD_REPORT.md`), after the Phase-8 repairs, against a second

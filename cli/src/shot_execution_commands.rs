@@ -1,10 +1,9 @@
-use std::fs;
-use std::io::{self, IsTerminal, Write};
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use tohseno_engine::harness::{
-    build_conception_command, build_interactive_command, build_materialization_command,
+    build_conception_command, build_evolution_command, build_materialization_command,
     HarnessSelection,
 };
 use tohseno_engine::protocol_lifecycle::verify_completed_evolution;
@@ -14,7 +13,8 @@ use tohseno_engine::shot_execution::{
 };
 use tohseno_engine::{
     CompletionRecord, ConductedCreation, ConductionPhase, Engine, Event, EventBus, ExecutionMode,
-    ExecutionPhase, ExecutionPreparation, ExecutionReference, PreparedExecution, ShotLayout,
+    ExecutionOutcome, ExecutionPhase, ExecutionPreparation, ExecutionReference, PreparedExecution,
+    ShotLayout,
 };
 
 pub fn selection(
@@ -83,8 +83,7 @@ pub fn prepare(
     creation: &ConductedCreation,
     app_name: &str,
     selection: &HarnessSelection,
-    auto_accept_genome: bool,
-    open_terminal_window: bool,
+    start_runner: bool,
     events: &EventBus,
 ) -> Result<PreparedExecution, Box<dyn std::error::Error>> {
     // No anonymous Shots: the execution must land attributed to the local
@@ -125,23 +124,18 @@ pub fn prepare(
                     ExecutionMode::EvolutionMaterialization
                 }
             },
-            auto_accept_genome,
         },
     )?;
-    if open_terminal_window {
-        // The Shot and its execution are durably prepared either way; a
-        // Terminal that cannot open must not be reported as an unprepared
-        // Shot. The error text already carries the exact manual command.
-        match open_terminal(&mut execution) {
-            Ok(()) => events.emit(Event::handoff(format!(
-                "SHOT PREPARED · {} · {} · waiting for confirmation in Terminal…",
-                execution.harness_display_name, execution.model
-            ))),
-            Err(error) => events.emit(Event::handoff(format!(
-                "SHOT PREPARED · {} · {} · the Terminal window could not open — {error}",
-                execution.harness_display_name, execution.model
-            ))),
-        }
+    if start_runner {
+        // The durable execution exists before its detached runner. The exact
+        // recovery command is carried by any spawn error, while callers still
+        // receive failure and therefore do not consume imported intention
+        // state as though the one-shot run had begun.
+        start_background_runner(&mut execution)?;
+        events.emit(Event::handoff(format!(
+            "SHOT IN FLIGHT · {} · {} · conception, materialization, verification, and phone delivery are running unattended.",
+            execution.harness_display_name, execution.model
+        )));
     } else {
         events.emit(Event::handoff(format!(
             "SHOT PREPARED · run `tohseno shot run --app {} --execution {}` from {}.",
@@ -153,82 +147,91 @@ pub fn prepare(
     Ok(execution)
 }
 
-pub fn open_terminal(execution: &mut PreparedExecution) -> Result<(), Box<dyn std::error::Error>> {
-    if std::env::consts::OS != "macos" {
-        return Err("native terminal preparation currently supports macOS only".into());
-    }
+fn start_background_runner(
+    execution: &mut PreparedExecution,
+) -> Result<(), Box<dyn std::error::Error>> {
     let executable = std::env::current_exe()?;
-    let terminal_environment = [
-        "TOHSENO_DATA_ROOT",
-        "TOHSENO_HOME",
-        "TOHSENO_IDENTITY_BACKEND",
-        "TOHSENO_APPLE_IDENTITY_HELPER",
-    ]
-    .into_iter()
-    .filter_map(|name| std::env::var_os(name).map(|value| (name, value)))
-    .collect::<Vec<_>>();
-    let preloaded = build_preloaded_command(
-        &executable,
-        &execution.app_name,
-        &execution.execution_id,
-        &terminal_environment,
-    );
-    let terminal_directory =
-        execution_directory(&execution.repository, &execution.execution_id).join("terminal");
-    fs::create_dir_all(&terminal_directory)?;
-    let user_zdotdir = std::env::var_os("ZDOTDIR")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
-        .ok_or("HOME is unavailable; cannot prepare the user's zsh session")?;
-    let user_rc = user_zdotdir.join(".zshrc");
-    let rc = format!(
-        "typeset -g TOHSENO_PENDING_LINE=\"$TOHSENO_PRELOAD\"\nunset TOHSENO_PRELOAD\nif [[ -r {} ]]; then\n  source {}\nfi\nprint -z -- \"$TOHSENO_PENDING_LINE\"\nunset TOHSENO_PENDING_LINE\n",
-        shell_quote(&user_rc.to_string_lossy()),
-        shell_quote(&user_rc.to_string_lossy())
-    );
-    fs::write(terminal_directory.join(".zshrc"), rc)?;
-    let bootstrap = format!(
-        "cd {} && TOHSENO_PRELOAD={} ZDOTDIR={} exec /bin/zsh -l",
-        shell_quote(&execution.repository.to_string_lossy()),
-        shell_quote(&preloaded),
-        shell_quote(&terminal_directory.to_string_lossy())
-    );
-    let (application, script) = match std::env::var("TERM_PROGRAM").as_deref() {
-        Ok("iTerm.app") | Ok("iTerm2") => (
-            "iTerm",
-            format!(
-                "tell application \"iTerm\"\nactivate\ncreate window with default profile command \"{}\"\nend tell",
-                applescript_string(&bootstrap)
-            ),
-        ),
-        _ => (
-            "Terminal",
-            format!(
-                "tell application \"Terminal\"\nactivate\ndo script \"{}\"\nend tell",
-                applescript_string(&bootstrap)
-            ),
-        ),
-    };
-    let output = std::process::Command::new("osascript")
-        .args(["-e", &script])
-        .output()?;
-    if !output.status.success() {
-        return Err(format!(
-            "Terminal could not be prepared: {}. Run this command manually in {}: {}",
-            String::from_utf8_lossy(&output.stderr).trim(),
-            execution.repository.display(),
-            preloaded
-        )
-        .into());
-    }
+    let directory = execution_directory(&execution.repository, &execution.execution_id);
+    let log_path = directory.join("harness.log");
+    let stdout = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
+    let stderr = stdout.try_clone()?;
     update_phase(
         execution,
-        ExecutionPhase::TerminalOpened,
+        ExecutionPhase::RunnerStarted,
         format!(
-            "A native {application} window opened with the launch command preloaded and unexecuted."
+            "The unattended Shot runner started; private harness output is retained at {}.",
+            log_path.display()
         ),
     )?;
+    let mut command = if Path::new("/usr/bin/nohup").is_file() {
+        let mut command = Command::new("/usr/bin/nohup");
+        command.arg(&executable);
+        command
+    } else {
+        Command::new(&executable)
+    };
+    command
+        .args(runner_arguments(execution))
+        .current_dir(&execution.repository)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(stderr));
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().map_err(|error| {
+        let _ = update_phase(
+            execution,
+            ExecutionPhase::Prepared,
+            format!("The unattended runner did not start: {error}"),
+        );
+        format!(
+            "{error}. Run `tohseno shot run --app {} --execution {}` from {}",
+            execution.app_name,
+            execution.execution_id,
+            execution.repository.display()
+        )
+    })?;
+    let runner_pid = child.id();
+    if let Err(error) = fs::write(runner_pid_path(execution), format!("{runner_pid}\n")) {
+        #[cfg(unix)]
+        unsafe {
+            libc::kill(-(runner_pid as i32), libc::SIGTERM);
+        }
+        #[cfg(not(unix))]
+        let _ = child.kill();
+        let _ = child.wait();
+        update_phase(
+            execution,
+            ExecutionPhase::Prepared,
+            format!("The unattended runner was stopped because its PID record failed: {error}"),
+        )?;
+        return Err(format!("the unattended runner PID could not be persisted: {error}").into());
+    }
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
     Ok(())
+}
+
+fn runner_arguments(execution: &PreparedExecution) -> Vec<String> {
+    vec![
+        "shot".into(),
+        "run".into(),
+        "--app".into(),
+        execution.app_name.clone(),
+        "--execution".into(),
+        execution.execution_id.clone(),
+    ]
+}
+
+fn runner_pid_path(execution: &PreparedExecution) -> PathBuf {
+    execution_directory(&execution.repository, &execution.execution_id).join("runner.pid")
 }
 
 pub async fn run(
@@ -237,6 +240,30 @@ pub async fn run(
     json: bool,
     events: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // The builder sent the one Shot and walked away; the ending is announced
+    // whether the run sealed, stayed unsealed, or stalled before completion.
+    match run_shot(app_name, execution_id, json, events).await {
+        Ok(completion) => {
+            let (headline, message) = completion_notification(app_name, &completion);
+            notify_builder(&headline, &message);
+            Ok(())
+        }
+        Err(error) => {
+            notify_builder(
+                &format!("SHOT STALLED · {app_name}"),
+                &format!("{error}. Inspect the execution events and retry the prepared Shot."),
+            );
+            Err(error)
+        }
+    }
+}
+
+async fn run_shot(
+    app_name: &str,
+    execution_id: &str,
+    json: bool,
+    events: &EventBus,
+) -> Result<CompletionRecord, Box<dyn std::error::Error>> {
     let engine = Engine::discover(events.clone())?;
     let repository = engine.ledger().working_tree(app_name);
     let mut execution = load_execution(&repository, execution_id)?;
@@ -259,7 +286,7 @@ pub async fn run(
             | ExecutionPhase::ExecutionFailed
             | ExecutionPhase::ExecutionCancelled
     ) {
-        return Err("this execution already has a terminal outcome".into());
+        return Err("this execution already has a final outcome".into());
     }
 
     let intent_path = repository.join(&execution.intent_path);
@@ -279,13 +306,13 @@ pub async fn run(
         }
     }
     // Re-proven here because `run` is a separate process: identity state may
-    // have changed between the prepared Terminal window and this launch.
+    // have changed between durable preparation and runner launch.
     engine.verify_builder_binding(app_name)?;
 
     update_phase(
         &mut execution,
         ExecutionPhase::ExecutionStarted,
-        "The user confirmed the prepared Shot in Terminal.",
+        "The unattended runner claimed the prepared Shot.",
     )?;
     let started_at = read_events(&repository, execution_id)?
         .last()
@@ -319,7 +346,7 @@ pub async fn run(
             &relative_images,
             None,
         ),
-        ExecutionMode::EvolutionMaterialization => build_interactive_command(
+        ExecutionMode::EvolutionMaterialization => build_evolution_command(
             &selection,
             Path::new(&execution.intent_path),
             &relative_images,
@@ -338,40 +365,29 @@ pub async fn run(
     let mut validation_diagnostic = None;
     if status.success() && !cancelled && execution.mode == ExecutionMode::Conception {
         let (proposal, expression) = engine.pending_conception(app_name)?;
-        present_conception_review(&proposal, &expression, events);
-        let accepted = execution.auto_accept_genome
-            || (io::stdin().is_terminal()
-                && io::stdout().is_terminal()
-                && confirm_conception_review()?);
-        if accepted {
-            engine.accept_pending_conception(app_name)?;
-            execution.mode = ExecutionMode::BirthMaterialization;
-            update_phase(
-                &mut execution,
-                ExecutionPhase::ContextLoaded,
-                "The app-specific Genome, Birth Plan, organs, and Experience Contract passed deterministic validation and were accepted for materialization.",
-            )?;
-            let command = build_materialization_command(
-                &selection,
-                Path::new(".tohseno/TASK.md"),
-                &relative_images,
-                None,
-            )
-            .map_err(|error| format!("harness adapter rejected materialization: {error}"))?;
-            (status, cancelled) = execute_harness(
-                command,
-                &repository,
-                &mut execution,
-                &mut changed_reported,
-                events,
-            )
-            .await?;
-        } else {
-            validation_diagnostic = Some(format!(
-                "The app-specific proposal remains unaccepted. Review it under {}/.tohseno/private/planning and rerun create with --accept-genome.",
-                repository.display()
-            ));
-        }
+        present_conception_summary(&proposal, &expression, events);
+        engine.accept_pending_conception(app_name)?;
+        execution.mode = ExecutionMode::BirthMaterialization;
+        update_phase(
+            &mut execution,
+            ExecutionPhase::ContextLoaded,
+            "The app-specific Genome, Birth Plan, organs, and Experience Contract passed deterministic validation and were accepted internally for materialization.",
+        )?;
+        let command = build_materialization_command(
+            &selection,
+            Path::new(".tohseno/TASK.md"),
+            &relative_images,
+            None,
+        )
+        .map_err(|error| format!("harness adapter rejected materialization: {error}"))?;
+        (status, cancelled) = execute_harness(
+            command,
+            &repository,
+            &mut execution,
+            &mut changed_reported,
+            events,
+        )
+        .await?;
     }
 
     if status.success()
@@ -394,7 +410,7 @@ pub async fn run(
                 ExecutionPhase::ValidationStarted,
                 "The engine is independently evaluating protocol conformance, intent fidelity, and target-user experience evidence.",
             )?;
-            match engine.record(app_name, None).await {
+            match engine.record_and_deliver(app_name, None).await {
                 Ok(_) => {
                     validation_diagnostic = None;
                     break;
@@ -459,8 +475,9 @@ pub async fn run(
         validation_passed,
         validation_evidence,
     )?;
+    let _ = fs::remove_file(runner_pid_path(&execution));
     present_completion(&completion, json, events)?;
-    Ok(())
+    Ok(completion)
 }
 
 async fn execute_harness(
@@ -475,7 +492,7 @@ async fn execute_harness(
         .args(&harness.arguments)
         .envs(harness.environment)
         .current_dir(repository)
-        .stdin(Stdio::inherit())
+        .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .kill_on_drop(false);
@@ -489,7 +506,7 @@ async fn execute_harness(
         execution,
         ExecutionPhase::HarnessRunning,
         format!(
-            "{} is running {:?} in its native interactive terminal interface.",
+            "{} is running {:?} as an unattended one-shot process.",
             execution.harness_display_name, execution.mode
         ),
     )?;
@@ -531,7 +548,7 @@ async fn execute_harness(
     Ok((status, cancelled))
 }
 
-fn present_conception_review(
+fn present_conception_summary(
     output: &tohseno_engine::ConceptionOutput,
     expression: &tohseno_engine::BirthExpressionPlan,
     events: &EventBus,
@@ -562,14 +579,6 @@ fn present_conception_review(
         output.birth_plan.promise,
         output.birth_plan.completion_contract.required_scenario_ids.join(", ")
     )));
-}
-
-fn confirm_conception_review() -> Result<bool, std::io::Error> {
-    print!("Accept this app-specific Genome and materialize the birth? [y/N] ");
-    io::stdout().flush()?;
-    let mut answer = String::new();
-    io::stdin().read_line(&mut answer)?;
-    Ok(matches!(answer.trim(), "y" | "Y" | "yes" | "YES"))
 }
 
 pub async fn follow(
@@ -628,17 +637,80 @@ pub fn cancel(
     let repository = ledger.working_tree(app_name);
     let mut execution = load_execution(&repository, execution_id)?;
     if load_completion(&repository, execution_id)?.is_some() {
-        return Err("the execution already has a terminal completion record".into());
+        return Err("the execution already has a final completion record".into());
     }
+    #[cfg(unix)]
+    if let Some(runner_pid) = read_runner_pid(&execution)? {
+        let running = unsafe { libc::kill(runner_pid as i32, 0) } == 0;
+        if running {
+            verify_runner_process(runner_pid, app_name, execution_id)?;
+            let process_group = unsafe { libc::getpgid(runner_pid as i32) };
+            let target = if process_group == runner_pid as i32 {
+                -(runner_pid as i32)
+            } else {
+                runner_pid as i32
+            };
+            if unsafe { libc::kill(target, libc::SIGTERM) } != 0 {
+                return Err("the unattended runner stopped before cancellation reached it".into());
+            }
+            for _ in 0..40 {
+                if unsafe { libc::kill(runner_pid as i32, 0) } != 0 {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            if unsafe { libc::kill(runner_pid as i32, 0) } == 0 {
+                return Err("the unattended runner did not stop after cancellation".into());
+            }
+            execution = load_execution(&repository, execution_id)?;
+            if let Some(completion) = load_completion(&repository, execution_id)? {
+                return present_completion(&completion, json, events);
+            }
+            let (accepted, validation_passed, evidence) =
+                accepted_validation(&ledger, app_name, execution.version_ordinal)?;
+            let prepared_at = execution.prepared_at.clone();
+            let completion = complete_execution(
+                &mut execution,
+                prepared_at,
+                0,
+                None,
+                true,
+                accepted,
+                validation_passed,
+                evidence,
+            )?;
+            let _ = fs::remove_file(runner_pid_path(&execution));
+            return present_completion(&completion, json, events);
+        }
+        let _ = fs::remove_file(runner_pid_path(&execution));
+    }
+    let mut dead_recorded_child = false;
     #[cfg(unix)]
     if let Some(pid) = execution.process_id {
         let running = unsafe { libc::kill(pid as i32, 0) } == 0;
         if running {
             return Err(
-                "the harness process is still running; cancel it in its authentic terminal with Control-C"
+                "a legacy/manual harness process is still running; stop that process before finalizing cancellation"
                     .into(),
             );
         }
+        dead_recorded_child = true;
+        execution.process_id = None;
+    }
+    if matches!(
+        execution.phase,
+        ExecutionPhase::RunnerStarted
+            | ExecutionPhase::ExecutionStarted
+            | ExecutionPhase::ContextLoaded
+            | ExecutionPhase::HarnessRunning
+            | ExecutionPhase::WorkspaceChanged
+            | ExecutionPhase::ValidationStarted
+    ) && !dead_recorded_child
+    {
+        return Err(
+            "the unattended runner is between cancellable harness phases; wait for the next event and retry"
+                .into(),
+        );
     }
     let (accepted, validation_passed, evidence) =
         accepted_validation(&ledger, app_name, execution.version_ordinal)?;
@@ -654,6 +726,45 @@ pub fn cancel(
         evidence,
     )?;
     present_completion(&completion, json, events)
+}
+
+fn read_runner_pid(execution: &PreparedExecution) -> Result<Option<u32>, std::io::Error> {
+    let path = runner_pid_path(execution);
+    let body = match fs::read_to_string(path) {
+        Ok(body) => body,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    let pid = body.trim().parse::<u32>().map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "the unattended runner PID record is malformed",
+        )
+    })?;
+    if pid <= 1 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "the unattended runner PID is unsafe",
+        ));
+    }
+    Ok(Some(pid))
+}
+
+#[cfg(unix)]
+fn verify_runner_process(
+    pid: u32,
+    app_name: &str,
+    execution_id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .output()?;
+    let command = String::from_utf8_lossy(&output.stdout);
+    let expected = format!("shot run --app {app_name} --execution {execution_id}");
+    if !output.status.success() || !command.contains(&expected) {
+        return Err("the stored runner PID no longer identifies this exact Shot execution".into());
+    }
+    Ok(())
 }
 
 fn present_completion(
@@ -689,6 +800,50 @@ fn present_completion(
     Ok(())
 }
 
+fn completion_notification(app_name: &str, completion: &CompletionRecord) -> (String, String) {
+    let headline = if completion.landed {
+        if completion.mode == Some(ExecutionMode::BirthMaterialization) {
+            format!("BIRTH ACCEPTED · {app_name}")
+        } else {
+            format!("VERSION RECORDED · {app_name}")
+        }
+    } else if completion.outcome == ExecutionOutcome::Cancelled {
+        format!("SHOT CANCELLED · {app_name}")
+    } else {
+        format!("CANDIDATE UNSEALED · {app_name}")
+    };
+    (headline, completion.authoritative_next_action.clone())
+}
+
+/// Announce the ending of unattended work on the builder's own machine. The
+/// notification is a courtesy signal, never part of the record: it must not
+/// alter the Shot outcome, so every failure to display it is absorbed.
+fn notify_builder(headline: &str, message: &str) {
+    if std::env::consts::OS != "macos" {
+        return;
+    }
+    let script = format!(
+        "display notification \"{}\" with title \"TOHSENO\" subtitle \"{}\" sound name \"Glass\"",
+        applescript_text(message),
+        applescript_text(headline),
+    );
+    let _ = Command::new("osascript")
+        .args(["-e", &script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+fn applescript_text(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+}
+
 fn accepted_validation(
     ledger: &tohseno_engine::Ledger,
     app_name: &str,
@@ -718,67 +873,149 @@ fn accepted_validation(
     ))
 }
 
-fn shell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', r"'\''"))
-}
-
-fn applescript_string(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\r', "")
-        .replace('\n', "\\n")
-}
-
-fn build_preloaded_command(
-    executable: &Path,
-    app_name: &str,
-    execution_id: &str,
-    environment: &[(&str, std::ffi::OsString)],
-) -> String {
-    let environment = environment
-        .iter()
-        .map(|(name, value)| shell_quote(&format!("{name}={}", value.to_string_lossy())))
-        .collect::<Vec<_>>();
-    let prefix = if environment.is_empty() {
-        String::new()
-    } else {
-        format!("/usr/bin/env {} ", environment.join(" "))
-    };
-    format!(
-        "{prefix}{} shot run --app {} --execution {}",
-        shell_quote(&executable.to_string_lossy()),
-        shell_quote(app_name),
-        shell_quote(execution_id)
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use tohseno_engine::shot_execution::GitBoundary;
 
     #[test]
-    fn shell_and_applescript_quoting_keep_metacharacters_literal() {
-        assert_eq!(shell_quote("a b'c"), "'a b'\\''c'");
-        assert_eq!(applescript_string("a\"b\\c"), "a\\\"b\\\\c");
+    fn background_runner_names_only_the_durable_execution() {
+        let execution = PreparedExecution {
+            schema: "fixture".into(),
+            execution_id: "0123456789abcdef0123456789abcdef".into(),
+            shot_id: tohseno_protocol::digest::ShotId::from_bytes([0x42; 32]),
+            version_ordinal: 1,
+            app_name: "field-notebook".into(),
+            repository: PathBuf::from("/tmp/Shot Root"),
+            harness: "codex".into(),
+            harness_display_name: "Codex".into(),
+            model: "default".into(),
+            route: "chatgpt-subscription".into(),
+            route_billing: "subscription".into(),
+            estimated_additional_cost_usd: Some(0.0),
+            intention_digest: tohseno_protocol::digest::sha256(b"fixture"),
+            intent_path: ".tohseno/EVOLUTION_INTENT.md".into(),
+            references: Vec::new(),
+            mode: ExecutionMode::Conception,
+            auto_accept_genome: false,
+            baseline: GitBoundary {
+                tree: "0".repeat(40),
+                head: None,
+                pre_existing_status: Vec::new(),
+            },
+            prepared_at: "2026-08-05T00:00:00Z".into(),
+            process_id: None,
+            phase: ExecutionPhase::Prepared,
+        };
+        assert_eq!(
+            runner_arguments(&execution),
+            [
+                "shot",
+                "run",
+                "--app",
+                "field-notebook",
+                "--execution",
+                "0123456789abcdef0123456789abcdef"
+            ]
+        );
+    }
+
+    fn completion_fixture(
+        mode: ExecutionMode,
+        outcome: ExecutionOutcome,
+        landed: bool,
+        next_action: &str,
+    ) -> CompletionRecord {
+        CompletionRecord {
+            schema: "fixture".into(),
+            execution_id: "0123456789abcdef0123456789abcdef".into(),
+            shot_id: tohseno_protocol::digest::ShotId::from_bytes([0x42; 32]),
+            version_ordinal: 1,
+            mode: Some(mode),
+            outcome,
+            landed,
+            harness: "claude-code".into(),
+            model: "default".into(),
+            route: "claude-subscription".into(),
+            intention_digest: tohseno_protocol::digest::sha256(b"fixture"),
+            reference_digests: Vec::new(),
+            started_at: "2026-08-05T00:00:00Z".into(),
+            ended_at: "2026-08-05T01:00:00Z".into(),
+            duration_seconds: 3600,
+            exit_code: Some(0),
+            files_changed: Vec::new(),
+            git_diff_summary: String::new(),
+            baseline_tree: "0".repeat(40),
+            final_tree: "0".repeat(40),
+            pre_existing_worktree_status: Vec::new(),
+            validation_commands_executed: Vec::new(),
+            validation_results: Vec::new(),
+            harness_provided_final_summary: None,
+            independently_computed_repository_state: String::new(),
+            estimated_additional_cost_usd: Some(0.0),
+            actual_additional_cost_usd: None,
+            authoritative_next_action: next_action.into(),
+        }
     }
 
     #[test]
-    fn preloaded_command_names_the_durable_execution_only() {
-        let executable = Path::new("/Applications/TOHSENO App/tohseno");
-        let command = build_preloaded_command(
-            executable,
+    fn completion_notification_announces_every_final_outcome() {
+        let (headline, message) = completion_notification(
             "field-notebook",
-            "0123456789abcdef0123456789abcdef",
-            &[(
-                "TOHSENO_DATA_ROOT",
-                std::ffi::OsString::from("/tmp/Shot Root"),
-            )],
+            &completion_fixture(
+                ExecutionMode::BirthMaterialization,
+                ExecutionOutcome::Completed,
+                true,
+                "Experience the accepted app now running on the paired iPhone.",
+            ),
         );
-        assert!(command.starts_with(
-            "/usr/bin/env 'TOHSENO_DATA_ROOT=/tmp/Shot Root' '/Applications/TOHSENO App/tohseno'"
-        ));
-        assert!(!command.contains("EVOLUTION_INTENT"));
-        assert!(!command.contains("API_KEY"));
+        assert_eq!(headline, "BIRTH ACCEPTED · field-notebook");
+        assert_eq!(
+            message,
+            "Experience the accepted app now running on the paired iPhone."
+        );
+
+        let (headline, _) = completion_notification(
+            "field-notebook",
+            &completion_fixture(
+                ExecutionMode::EvolutionMaterialization,
+                ExecutionOutcome::Completed,
+                true,
+                "Experience the accepted app.",
+            ),
+        );
+        assert_eq!(headline, "VERSION RECORDED · field-notebook");
+
+        let (headline, _) = completion_notification(
+            "field-notebook",
+            &completion_fixture(
+                ExecutionMode::BirthMaterialization,
+                ExecutionOutcome::Failed,
+                false,
+                "Inspect the execution events and retry the prepared Shot.",
+            ),
+        );
+        assert_eq!(headline, "CANDIDATE UNSEALED · field-notebook");
+
+        let (headline, _) = completion_notification(
+            "field-notebook",
+            &completion_fixture(
+                ExecutionMode::BirthMaterialization,
+                ExecutionOutcome::Cancelled,
+                false,
+                "Inspect the execution events and retry the prepared Shot.",
+            ),
+        );
+        assert_eq!(headline, "SHOT CANCELLED · field-notebook");
+    }
+
+    #[test]
+    fn notification_text_stays_inside_one_applescript_string() {
+        assert_eq!(
+            applescript_text("engine said \"no\"\nacross\ttwo lines"),
+            "engine said \\\"no\\\" across two lines"
+        );
+        assert_eq!(applescript_text("back\\slash"), "back\\\\slash");
     }
 }

@@ -49,9 +49,9 @@
               and harness conversations are not available to the relay.
             </p>
             <div class="onboarding-principles">
-              <div><strong>You direct it.</strong><span>The agent remains an authentic Codex or Claude Code session.</span></div>
-              <div><strong>You confirm it.</strong><span>No inference starts until you press Enter in Terminal.</span></div>
-              <div><strong>You can verify it.</strong><span>Every landed Evolution is bound to exact files and lineage.</span></div>
+              <div><strong>You direct it.</strong><span>Your exact intention is the Shot.</span></div>
+              <div><strong>TOHSENO runs it.</strong><span>Conception, building, repair, and verification continue unattended.</span></div>
+              <div><strong>Your phone receives it.</strong><span>The run completes after the accepted app is installed and launched.</span></div>
             </div>
           </article>
 
@@ -162,7 +162,8 @@
               Write the exact intention for a real app you care about — or drop a
               <code>.md</code> brief straight onto the field. The intention and up to
               eight reference images land in the app folder TOHSENO creates and are
-              handed to your harness.
+              handed to your harness. Keep a paired iPhone reachable; TOHSENO waits
+              for it before completing the Shot.
             </p>
             <section id="onboarding-pending-safe" class="pending-safe" hidden>
               <strong>Your intention is safe on this Mac</strong>
@@ -480,16 +481,17 @@
         <form id="shot-form">
           <header class="composer-head">
             <div>
-              <span id="composer-kicker">CREATE</span>
-              <h2 id="composer-title">New Shot</h2>
-              <p id="composer-support">Make the app no company would.</p>
+              <span id="composer-kicker">ONE SHOT</span>
+              <h2 id="composer-title">Give the app one exact intention.</h2>
+              <p id="composer-support">Write it, show it, then leave TOHSENO to make it real.</p>
             </div>
             <button id="close-composer" type="button" aria-label="Close intention">×</button>
           </header>
 
-          <label id="app-name-label">
-            <span>App name</span>
-            <input id="app-name" name="app_name" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="replyguy-trencher" autocomplete="off">
+          <label id="app-name-label" class="app-name-field">
+            <span>APP NAME</span>
+            <input id="app-name" name="app_name" pattern="[a-z0-9][a-z0-9-]{0,62}" placeholder="yaptok" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <small>Lowercase letters, numbers, and hyphens. We clean it up while you type.</small>
           </label>
 
           <section id="pending-safe" class="pending-safe" hidden>
@@ -497,66 +499,106 @@
             <span>The exact imported prompt and ordered references remain local until Shot preparation succeeds.</span>
           </section>
 
-          <label>
-            <span id="prompt-label">Make the intention exact</span>
-            <textarea id="prompt" name="prompt" required placeholder="A native iPhone app that…"></textarea>
-          </label>
-
-          <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Attach up to eight reference images">
-            <input id="images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
-            <strong>Drop reference images</strong>
-            <span>Up to 8</span>
-          </div>
-          <div id="attachments" class="attachments" aria-live="polite"></div>
-
-          <div class="harness-grid">
-            <label>
-              <span>Coding harness</span>
-              <select id="harness" required></select>
-            </label>
-            <label>
-              <span>Model</span>
-              <select id="model" required></select>
-            </label>
-          </div>
-          <label>
-            <span>Inference / payment route</span>
-            <select id="route" required></select>
-          </label>
-          <p id="harness-status" role="status">Detecting local coding harnesses…</p>
-
-          <section id="plan-review" class="plan-review" aria-labelledby="plan-review-title" hidden>
-            <header>
-              <div>
-                <span>INTENTION PRESERVED · CONCEPTION PENDING</span>
-                <h3 id="plan-review-title">Review the conception boundary</h3>
+          <div class="creation-canvas">
+            <section id="intention-block" class="intention-block" aria-labelledby="prompt-label">
+              <header class="composer-field-head">
+                <div>
+                  <span id="prompt-label">THE INTENTION</span>
+                  <strong>What should this app make possible?</strong>
+                </div>
+                <button id="import-intention" class="import-intention" type="button">
+                  <span aria-hidden="true">↥</span>
+                  Import .md
+                </button>
+                <input id="intention-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+              </header>
+              <div id="intention-drop" class="intention-drop">
+                <textarea
+                  id="prompt"
+                  name="prompt"
+                  required
+                  aria-labelledby="prompt-label"
+                  placeholder="Write it here. Paste it. Or drop a Markdown brief."
+                ></textarea>
+                <footer>
+                  <span>Plain text or Markdown</span>
+                  <span id="intention-import-note" role="status">Drop or paste a .md / .txt file</span>
+                </footer>
               </div>
-              <strong id="plan-genome-revision">Revision 1</strong>
-            </header>
-            <p>
-              No Genome or product plan exists yet. Continuing authorizes the selected intelligence
-              to read the exact intention and local Apple context, then auto-accepts only its
-              deterministically validated app-specific proposal. Your original words remain unchanged.
-            </p>
-            <pre id="plan-genome"></pre>
-            <div class="expression-plan">
-              <span>FACTORY IDENTITY</span>
-              <strong id="plan-expression"></strong>
-              <p id="plan-capabilities"></p>
+            </section>
+
+            <section
+              id="drop-zone"
+              class="reference-picker"
+              tabindex="0"
+              role="group"
+              aria-labelledby="references-title"
+              aria-describedby="reference-note"
+            >
+              <input id="images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
+              <header class="composer-field-head reference-head">
+                <div>
+                  <span>VISUAL REFERENCES</span>
+                  <strong id="references-title">Show the world you mean.</strong>
+                </div>
+                <strong id="reference-count" class="reference-count">0 / 8</strong>
+              </header>
+              <button id="add-references" class="add-references" type="button">
+                <span class="add-reference-mark" aria-hidden="true">+</span>
+                <span>
+                  <strong>Choose reference images</strong>
+                  <small>or drop / paste them anywhere in this card</small>
+                </span>
+              </button>
+              <div id="reference-slots" class="reference-slots" aria-label="Eight reference image slots"></div>
+              <div id="attachments" class="attachments" aria-live="polite"></div>
+              <p id="reference-note" class="reference-note" role="status">PNG, JPEG, HEIC, or WebP · each image joins this same Shot.</p>
+            </section>
+          </div>
+
+          <details class="build-settings">
+            <summary>
+              <span>BUILD ENGINE</span>
+              <strong id="build-summary">Detecting your local harness…</strong>
+              <small>Change</small>
+            </summary>
+            <div class="build-settings-body">
+              <div class="harness-grid">
+                <label>
+                  <span>Coding harness</span>
+                  <select id="harness" required></select>
+                </label>
+                <label>
+                  <span>Model</span>
+                  <select id="model" required></select>
+                </label>
+              </div>
+              <label>
+                <span>Inference / payment route</span>
+                <select id="route" required></select>
+              </label>
+              <p id="harness-status" role="status">Detecting local coding harnesses…</p>
             </div>
-          </section>
+          </details>
 
-          <button id="submit" class="submit-shot" type="submit" disabled>REVIEW CONCEPTION</button>
+          <div class="shot-launch">
+            <button id="submit" class="submit-shot" type="submit" disabled>TAKE THE SHOT</button>
+            <p>One press. TOHSENO builds, verifies, installs, and opens it on your iPhone.</p>
+          </div>
 
-          <section class="press">
-            <div class="press-heading">
+          <details id="press" class="press">
+            <summary class="press-heading">
               <span>Live press</span>
+              <span id="press-state">Waiting</span>
+            </summary>
+            <div class="press-toolbar">
+              <span>Unattended execution log</span>
               <button id="clear" type="button">Clear</button>
             </div>
             <div id="events" class="events" role="log" aria-live="polite">
               <p class="empty">The press is waiting.</p>
             </div>
-          </section>
+          </details>
         </form>
       </section>
 
@@ -566,8 +608,8 @@
         role="separator"
         aria-label="Resize intention"
         aria-orientation="vertical"
-        aria-valuemin="320"
-        aria-valuemax="640"
+        aria-valuemin="440"
+        aria-valuemax="760"
         tabindex="0"
         hidden
       ><span></span></div>

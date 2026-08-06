@@ -69,8 +69,16 @@ const ui = {
   appName: document.querySelector("#app-name"),
   promptLabel: document.querySelector("#prompt-label"),
   prompt: document.querySelector("#prompt"),
+  intentionDrop: document.querySelector("#intention-drop"),
+  importIntention: document.querySelector("#import-intention"),
+  intentionFile: document.querySelector("#intention-file"),
+  intentionImportNote: document.querySelector("#intention-import-note"),
   imageInput: document.querySelector("#images"),
   dropZone: document.querySelector("#drop-zone"),
+  addReferences: document.querySelector("#add-references"),
+  referenceSlots: document.querySelector("#reference-slots"),
+  referenceCount: document.querySelector("#reference-count"),
+  referenceNote: document.querySelector("#reference-note"),
   attachments: document.querySelector("#attachments"),
   pendingSafe: document.querySelector("#pending-safe"),
   onboardingPendingSafe: document.querySelector("#onboarding-pending-safe"),
@@ -79,12 +87,10 @@ const ui = {
   model: document.querySelector("#model"),
   route: document.querySelector("#route"),
   harnessStatus: document.querySelector("#harness-status"),
-  planReview: document.querySelector("#plan-review"),
-  planGenomeRevision: document.querySelector("#plan-genome-revision"),
-  planGenome: document.querySelector("#plan-genome"),
-  planExpression: document.querySelector("#plan-expression"),
-  planCapabilities: document.querySelector("#plan-capabilities"),
+  buildSummary: document.querySelector("#build-summary"),
   submit: document.querySelector("#submit"),
+  press: document.querySelector("#press"),
+  pressState: document.querySelector("#press-state"),
   librarySplitter: document.querySelector("#library-splitter"),
   protocolReadiness: document.querySelector("#protocol-readiness"),
   identityStatus: document.querySelector("#identity-status"),
@@ -214,9 +220,9 @@ let selectedApp = null;
 let selectedShot = null;
 let composerMode = "create";
 let composerAppName = null;
-let reviewedInitialPlan = null;
 let activePendingIntention = null;
 let files = [];
+let referencePreviewUrls = [];
 let screenshotTimer = null;
 let pendingShot = null;
 let pressActive = false;
@@ -1151,11 +1157,21 @@ ui.openSimulator.addEventListener("click", async () => {
 });
 
 const selectedHarness = () => harnesses.find((item) => item.id === ui.harness.value);
+const selectedModel = () => selectedHarness()?.models.find((item) => item.id === ui.model.value);
 const selectedRoute = () => selectedHarness()?.routes.find((item) => item.id === ui.route.value);
 
 const costLabel = () => {
   const estimate = selectedRoute()?.estimated_additional_cost_usd;
   return typeof estimate === "number" ? `$${estimate.toFixed(2)}` : "USAGE-BASED";
+};
+
+const renderBuildSummary = () => {
+  const harness = selectedHarness();
+  const model = selectedModel();
+  const route = selectedRoute();
+  ui.buildSummary.textContent = harness && route
+    ? `${harness.label} · ${model?.label || "default model"} · ${costLabel()} additional`
+    : "No ready local build route";
 };
 
 const renderRoutes = () => {
@@ -1176,6 +1192,7 @@ const renderRoutes = () => {
   ui.harnessStatus.textContent = route
     ? `${harness.label} · ${harness.authentication.replaceAll("_", " ")} · ${route.billing} billing`
     : `${harness?.label || "Harness"} has no authenticated route on this machine.`;
+  renderBuildSummary();
   updateSubmitState();
 };
 
@@ -1226,46 +1243,27 @@ const updateSubmitState = () => {
   ui.submit.disabled = !ready;
 };
 
-const restingSubmitLabel = () => (
-  composerMode === "create" && !reviewedInitialPlan
-    ? "REVIEW CONCEPTION"
-    : composerMode === "create"
-      ? `AUTHORIZE CONCEPTION & OPEN TERMINAL (${costLabel()})`
-      : `APPROVE & OPEN TERMINAL (${costLabel()})`
+const restingSubmitLabel = () => (composerMode === "create"
+  ? `TAKE THE SHOT (${costLabel()})`
+  : `EVOLVE & INSTALL (${costLabel()})`
 );
 
 const setComposerBusy = (busy, busyLabel = "Preparing Shot…") => {
   pressActive = busy;
+  const attachmentLocked = busy || Boolean(activePendingIntention);
   ui.form.setAttribute("aria-busy", String(busy));
   ui.appName.disabled = busy;
   ui.prompt.disabled = busy;
-  ui.imageInput.disabled = busy;
+  ui.importIntention.disabled = attachmentLocked;
+  ui.intentionFile.disabled = attachmentLocked;
+  ui.imageInput.disabled = attachmentLocked;
+  ui.addReferences.disabled = attachmentLocked;
   ui.harness.disabled = busy;
   ui.model.disabled = busy;
   ui.route.disabled = busy;
-  ui.dropZone.setAttribute("aria-disabled", String(busy));
+  ui.dropZone.setAttribute("aria-disabled", String(attachmentLocked));
   ui.submit.textContent = busy ? busyLabel : restingSubmitLabel();
   updateSubmitState();
-};
-
-const clearInitialPlanReview = () => {
-  reviewedInitialPlan = null;
-  ui.planReview.hidden = true;
-  ui.planGenome.textContent = "";
-  ui.planExpression.textContent = "";
-  ui.planCapabilities.textContent = "";
-  if (!pressActive && !shotCompleted) ui.submit.textContent = restingSubmitLabel();
-};
-
-const renderInitialPlanReview = (plan, appName, prompt) => {
-  reviewedInitialPlan = { appName, prompt, plan };
-  ui.planGenomeRevision.textContent = "Intelligent conception required";
-  ui.planGenome.textContent = plan.review_policy;
-  ui.planExpression.textContent =
-    `Engine ${plan.engine_version} · source ${plan.source_commit.slice(0, 12)} · Constitution ${plan.static_constitution_digest}`;
-  ui.planCapabilities.textContent =
-    `Apple capability profile ${plan.apple_capability_profile_digest} · Simulator availability is not a product denylist.`;
-  ui.planReview.hidden = false;
 };
 
 const openComposer = (mode, pending = null) => {
@@ -1274,18 +1272,18 @@ const openComposer = (mode, pending = null) => {
   composerAppName = mode === "evolve" ? selectedApp.name : null;
   files = [];
   shotCompleted = false;
-  clearInitialPlanReview();
-  renderFiles();
   ui.form.reset();
+  ui.intentionImportNote.textContent = "Drop or paste a .md / .txt file";
+  ui.referenceNote.textContent = "PNG, JPEG, HEIC, or WebP · each image joins this same Shot.";
   applyPreferredHarness();
 
   if (mode === "create") {
-    ui.composerKicker.textContent = "CREATE";
-    ui.composerTitle.textContent = "New Shot";
-    ui.composerSupport.textContent = "Make the app no company would.";
+    ui.composerKicker.textContent = "ONE SHOT";
+    ui.composerTitle.textContent = "Give the app one exact intention.";
+    ui.composerSupport.textContent = "Write it, show it, then leave TOHSENO to make it real.";
     ui.appNameLabel.hidden = false;
     ui.appName.required = true;
-    ui.promptLabel.textContent = "Make the intention exact";
+    ui.promptLabel.textContent = "THE INTENTION";
     if (pending) {
       ui.composerKicker.textContent = "IMPORTED INTENTION";
       ui.composerTitle.textContent = "Review locally";
@@ -1304,18 +1302,25 @@ const openComposer = (mode, pending = null) => {
     ui.appNameLabel.hidden = true;
     ui.appName.required = false;
     ui.appName.value = composerAppName;
-    ui.promptLabel.textContent = "What should change?";
+    ui.promptLabel.textContent = "THE NEXT INTENTION";
   }
 
   ui.pendingSafe.hidden = !pending;
   ui.prompt.readOnly = Boolean(pending);
-  ui.dropZone.hidden = Boolean(pending);
+  ui.importIntention.hidden = Boolean(pending);
+  ui.addReferences.hidden = Boolean(pending);
   ui.imageInput.disabled = Boolean(pending);
+  if (pending) {
+    ui.intentionImportNote.textContent = "Imported exactly as received";
+    ui.referenceNote.textContent = "Imported references are shown in their original order.";
+  }
   renderFiles();
 
   ui.composer.hidden = false;
-  ui.composerSplitter.hidden = false;
+  ui.composerSplitter.hidden = mode === "create";
   ui.studio.classList.add("composer-open");
+  ui.studio.classList.toggle("composer-create", mode === "create");
+  ui.studio.classList.toggle("composer-evolve", mode === "evolve");
   setComposerBusy(false);
   setTimeout(() => (mode === "create" ? ui.appName : ui.prompt).focus(), 0);
 };
@@ -1323,7 +1328,7 @@ const openComposer = (mode, pending = null) => {
 const closeComposer = () => {
   ui.composer.hidden = true;
   ui.composerSplitter.hidden = true;
-  ui.studio.classList.remove("composer-open");
+  ui.studio.classList.remove("composer-open", "composer-create", "composer-evolve");
 };
 
 ui.newShot.addEventListener("click", () => openComposer("create"));
@@ -1419,7 +1424,7 @@ const renderOnboarding = () => {
   } else {
     ui.onboardingReady.dataset.status = "ready";
     ui.onboardingReady.textContent =
-      "BEGIN FIRST SHOT creates the app folder, hands this intention and its images to your harness, and opens the Genome review. The first protocol action creates your local Builder identity (private to this Mac).";
+      "BEGIN FIRST SHOT creates the app folder and starts the unattended birth. TOHSENO conceives, builds, verifies, installs, and launches it; the first protocol action creates your local Builder identity (private to this Mac).";
   }
 };
 
@@ -1614,62 +1619,187 @@ ui.onboardingIntention.addEventListener("drop", (event) => {
   event.preventDefault();
   acceptFirstShotFiles(event.dataTransfer.files);
 });
-for (const field of [ui.onboardingAppName, ui.onboardingIntention]) {
-  field.addEventListener("input", renderOnboarding);
-}
+const normalizeAppSlug = (value) => value
+  .normalize("NFKD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+/, "")
+  .slice(0, 63);
+
+ui.onboardingAppName.addEventListener("input", () => {
+  ui.onboardingAppName.value = normalizeAppSlug(ui.onboardingAppName.value);
+  renderOnboarding();
+});
+ui.onboardingIntention.addEventListener("input", renderOnboarding);
+
+const referenceLabel = (reference) => (
+  typeof reference === "string"
+    ? reference
+    : reference.display_filename || reference.name || "Imported reference"
+);
 
 const renderFiles = () => {
+  for (const previewUrl of referencePreviewUrls) URL.revokeObjectURL(previewUrl);
+  referencePreviewUrls = [];
+
   const imported = activePendingIntention?.references || [];
-  ui.attachments.replaceChildren(...[...imported, ...files].map((file) => {
+  const references = [...imported, ...files];
+  ui.referenceCount.textContent = `${references.length} / 8`;
+  ui.referenceCount.dataset.full = String(references.length === 8);
+
+  const slots = Array.from({ length: 8 }, (_, index) => {
+    const reference = references[index];
+    const slot = document.createElement("button");
+    slot.type = "button";
+    slot.className = "reference-slot";
+    slot.dataset.filled = String(Boolean(reference));
+
+    const number = document.createElement("span");
+    number.className = "reference-slot-index";
+    number.textContent = String(index + 1).padStart(2, "0");
+    slot.append(number);
+
+    if (!reference) {
+      slot.setAttribute("aria-label", `Add reference image ${index + 1} of 8`);
+      slot.disabled = Boolean(activePendingIntention) || pressActive;
+      slot.addEventListener("click", () => ui.imageInput.click());
+      return slot;
+    }
+
+    const label = referenceLabel(reference);
+    if (typeof File !== "undefined" && reference instanceof File) {
+      const previewUrl = URL.createObjectURL(reference);
+      referencePreviewUrls.push(previewUrl);
+      const image = document.createElement("img");
+      image.src = previewUrl;
+      image.alt = "";
+      slot.append(image);
+    }
+
+    const name = document.createElement("span");
+    name.className = "reference-slot-name";
+    name.textContent = label;
+    slot.append(name);
+
+    if (index < imported.length) {
+      slot.disabled = true;
+      slot.setAttribute("aria-label", `${label}, imported reference ${index + 1} of 8`);
+      return slot;
+    }
+
+    const remove = document.createElement("span");
+    remove.className = "reference-slot-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-hidden", "true");
+    slot.append(remove);
+    slot.setAttribute("aria-label", `Remove ${label}`);
+    slot.addEventListener("click", () => {
+      if (pressActive) return;
+      files.splice(index - imported.length, 1);
+      renderFiles();
+    });
+    return slot;
+  });
+  ui.referenceSlots.replaceChildren(...slots);
+
+  ui.attachments.replaceChildren(...references.map((reference) => {
     const chip = document.createElement("span");
     chip.className = "attachment";
-    chip.textContent = file.display_filename || file.name;
+    chip.textContent = referenceLabel(reference);
     return chip;
   }));
+
+  ui.referenceNote.textContent = activePendingIntention
+    ? "Imported references are shown in their original order."
+    : references.length > 0
+      ? `${references.length} reference${references.length === 1 ? "" : "s"} attached · select a filled slot to remove it.`
+      : "PNG, JPEG, HEIC, or WebP · each image joins this same Shot.";
+};
+
+const readComposerIntentionFile = (file) => {
+  if (pressActive || activePendingIntention || !file) return;
+  const reader = new FileReader();
+  reader.onerror = () => {
+    ui.intentionImportNote.textContent = `${file.name} could not be read`;
+  };
+  reader.onload = () => {
+    const importedText = String(reader.result).trim();
+    const current = ui.prompt.value.trim();
+    ui.prompt.value = current ? `${current}\n\n${importedText}` : importedText;
+    ui.intentionImportNote.textContent = `${file.name} imported`;
+    shotCompleted = false;
+    updateSubmitState();
+  };
+  reader.readAsText(file);
 };
 
 const acceptFiles = (incoming) => {
-  if (pressActive) return;
-  const supported = /\.(png|jpe?g|heic|webp)$/i;
+  if (pressActive || activePendingIntention) return;
   const incomingFiles = Array.from(incoming);
-  const accepted = incomingFiles.filter((file) => supported.test(file.name));
-  const rejected = incomingFiles.filter((file) => !supported.test(file.name));
-  if (rejected.length > 0) {
-    appendEvent(
-      "status",
-      `${rejected.length} attachment${rejected.length === 1 ? "" : "s"} rejected: use PNG, JPEG, HEIC, or WebP.`
-    );
-  }
+  const intention = incomingFiles.find((file) => intentionFilePattern.test(file.name));
+  if (intention) readComposerIntentionFile(intention);
+
+  const images = incomingFiles.filter((file) => referenceImagePattern.test(file.name));
+  const rejected = incomingFiles.filter((file) => (
+    !referenceImagePattern.test(file.name) && !intentionFilePattern.test(file.name)
+  ));
+  const existing = new Set(files.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+  const uniqueImages = images.filter((file) => !existing.has(`${file.name}:${file.size}:${file.lastModified}`));
   const available = 8 - files.length;
-  files = [...files, ...accepted.slice(0, available)];
-  if (accepted.length > available) {
-    appendEvent("status", "Eight reference images are attached; additional files were not attached.");
-  }
+  files = [...files, ...uniqueImages.slice(0, available)];
   renderFiles();
+
+  const notes = [];
+  if (rejected.length > 0) {
+    notes.push(`${rejected.length} file${rejected.length === 1 ? "" : "s"} skipped: use an image or a Markdown brief.`);
+  }
+  if (uniqueImages.length > available) {
+    notes.push("All eight reference slots are full; extra images were not attached.");
+  }
+  if (notes.length > 0) ui.referenceNote.textContent = notes.join(" ");
 };
 
-ui.dropZone.addEventListener("click", () => {
-  if (!pressActive) ui.imageInput.click();
+ui.importIntention.addEventListener("click", () => ui.intentionFile.click());
+ui.intentionFile.addEventListener("change", () => {
+  readComposerIntentionFile(ui.intentionFile.files[0]);
+  ui.intentionFile.value = "";
+});
+ui.addReferences.addEventListener("click", () => {
+  if (!pressActive && !activePendingIntention) ui.imageInput.click();
 });
 ui.dropZone.addEventListener("keydown", (event) => {
-  if (!pressActive && (event.key === "Enter" || event.key === " ")) ui.imageInput.click();
+  if (event.target === ui.dropZone
+    && !pressActive
+    && !activePendingIntention
+    && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    ui.imageInput.click();
+  }
 });
-ui.imageInput.addEventListener("change", () => acceptFiles(ui.imageInput.files));
+ui.imageInput.addEventListener("change", () => {
+  acceptFiles(ui.imageInput.files);
+  ui.imageInput.value = "";
+});
 ui.harness.addEventListener("change", renderModels);
-ui.model.addEventListener("change", updateSubmitState);
+ui.model.addEventListener("change", () => {
+  renderBuildSummary();
+  updateSubmitState();
+});
 ui.route.addEventListener("change", () => {
   const harness = selectedHarness();
   const route = selectedRoute();
   ui.harnessStatus.textContent = route
     ? `${harness.label} · ${harness.authentication.replaceAll("_", " ")} · ${route.billing} billing`
     : `${harness?.label || "Harness"} has no authenticated route on this machine.`;
+  renderBuildSummary();
   ui.submit.textContent = restingSubmitLabel();
   updateSubmitState();
 });
 for (const name of ["dragenter", "dragover"]) {
   ui.dropZone.addEventListener(name, (event) => {
     event.preventDefault();
-    if (!pressActive) ui.dropZone.classList.add("dragging");
+    if (!pressActive && !activePendingIntention) ui.dropZone.classList.add("dragging");
   });
 }
 for (const name of ["dragleave", "drop"]) {
@@ -1679,14 +1809,40 @@ for (const name of ["dragleave", "drop"]) {
   });
 }
 ui.dropZone.addEventListener("drop", (event) => acceptFiles(event.dataTransfer.files));
+ui.dropZone.addEventListener("paste", (event) => {
+  if ((event.clipboardData?.files?.length || 0) === 0) return;
+  event.preventDefault();
+  acceptFiles(event.clipboardData.files);
+});
 
-for (const field of [ui.appName, ui.prompt]) {
-  field.addEventListener("input", () => {
-    shotCompleted = false;
-    clearInitialPlanReview();
-    updateSubmitState();
+for (const name of ["dragenter", "dragover"]) {
+  ui.intentionDrop.addEventListener(name, (event) => {
+    event.preventDefault();
+    if (!pressActive && !activePendingIntention) ui.intentionDrop.classList.add("dragging");
   });
 }
+for (const name of ["dragleave", "drop"]) {
+  ui.intentionDrop.addEventListener(name, (event) => {
+    event.preventDefault();
+    ui.intentionDrop.classList.remove("dragging");
+  });
+}
+ui.intentionDrop.addEventListener("drop", (event) => acceptFiles(event.dataTransfer.files));
+ui.prompt.addEventListener("paste", (event) => {
+  if ((event.clipboardData?.files?.length || 0) === 0) return;
+  event.preventDefault();
+  acceptFiles(event.clipboardData.files);
+});
+
+ui.appName.addEventListener("input", () => {
+  ui.appName.value = normalizeAppSlug(ui.appName.value);
+  shotCompleted = false;
+  updateSubmitState();
+});
+ui.prompt.addEventListener("input", () => {
+  shotCompleted = false;
+  updateSubmitState();
+});
 
 const filePayload = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -1701,34 +1857,6 @@ ui.form.addEventListener("submit", async (event) => {
 
   const appName = composerMode === "create" ? ui.appName.value : composerAppName;
   const prompt = ui.prompt.value;
-  if (composerMode === "create" && !reviewedInitialPlan) {
-    setComposerBusy(true, "Preparing conception review…");
-    try {
-      const response = await fetch("/api/plan", {
-        method: "POST",
-        headers: studioJsonHeaders,
-        body: JSON.stringify(activePendingIntention
-          ? { app_name: appName, pending_intention_id: activePendingIntention.id }
-          : { app_name: appName, prompt }),
-      });
-      if (!response.ok) throw new Error(await response.text());
-      renderInitialPlanReview(await response.json(), appName, prompt);
-      setComposerBusy(false);
-      ui.planReview.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    } catch (error) {
-      appendEvent("status", `conception review rejected: ${error.message}`);
-      clearInitialPlanReview();
-      setComposerBusy(false);
-    }
-    return;
-  }
-  if (composerMode === "create"
-    && (reviewedInitialPlan.appName !== appName || reviewedInitialPlan.prompt !== prompt)) {
-    clearInitialPlanReview();
-    appendEvent("status", "The intention changed; review the conception boundary again before authorizing it.");
-    updateSubmitState();
-    return;
-  }
   pendingShot = { mode: composerMode, appName };
   setComposerBusy(true);
   try {
@@ -1749,7 +1877,6 @@ ui.form.addEventListener("submit", async (event) => {
         harness: ui.harness.value,
         model: ui.model.value,
         route: ui.route.value,
-        accept_genome: composerMode === "create",
         selected_feedback_actions: selected,
       }),
     });
@@ -1759,9 +1886,9 @@ ui.form.addEventListener("submit", async (event) => {
     observedExecutionEvents = 0;
     appendEvent(
       "handoff",
-      `SHOT PREPARED\n\nHarness: ${execution.harness_display_name}\nModel: ${execution.model}\nAdditional cost: ${typeof execution.estimated_additional_cost_usd === "number" ? `$${execution.estimated_additional_cost_usd.toFixed(2)}` : "usage-based"}\n\nWaiting for confirmation in Terminal…`
+      `SHOT IN FLIGHT\n\nHarness: ${execution.harness_display_name}\nModel: ${execution.model}\nAdditional cost: ${typeof execution.estimated_additional_cost_usd === "number" ? `$${execution.estimated_additional_cost_usd.toFixed(2)}` : "usage-based"}\n\nTOHSENO is conceiving, building, verifying, and installing the app. You can walk away.`
     );
-    ui.submit.textContent = "SHOT PREPARED";
+    ui.submit.textContent = "SHOT IN FLIGHT";
     void followExecution(appName, execution.execution_id);
   } catch (error) {
     appendEvent("status", `intake rejected: ${error.message}`);
@@ -1773,6 +1900,10 @@ ui.form.addEventListener("submit", async (event) => {
 const appendEvent = (kind, message) => {
   ui.latestEvent.textContent = message;
   ui.eventLog.querySelector(".empty")?.remove();
+  if (!ui.composer.hidden) {
+    ui.press.open = true;
+    ui.pressState.textContent = kind === "result" ? "Complete" : "Running";
+  }
 
   const line = document.createElement("p");
   line.className = kind;
@@ -1808,11 +1939,14 @@ const finishExecution = (completion) => {
   ui.form.setAttribute("aria-busy", "false");
   ui.appName.disabled = false;
   ui.prompt.disabled = false;
-  ui.imageInput.disabled = false;
+  ui.importIntention.disabled = Boolean(activePendingIntention);
+  ui.intentionFile.disabled = Boolean(activePendingIntention);
+  ui.imageInput.disabled = Boolean(activePendingIntention);
+  ui.addReferences.disabled = Boolean(activePendingIntention);
   ui.harness.disabled = false;
   ui.model.disabled = false;
   ui.route.disabled = false;
-  ui.dropZone.setAttribute("aria-disabled", "false");
+  ui.dropZone.setAttribute("aria-disabled", String(Boolean(activePendingIntention)));
   const acceptedLabel = completion.mode === "birth_materialization"
     ? "BIRTH ACCEPTED"
     : "VERSION RECORDED";
@@ -1860,7 +1994,11 @@ const followExecution = async (appName, executionId) => {
 
 document.querySelector("#clear").addEventListener("click", () => {
   ui.eventLog.replaceChildren();
-  appendEvent("status", "The display is clear.");
+  const empty = document.createElement("p");
+  empty.className = "empty";
+  empty.textContent = "The press is waiting.";
+  ui.eventLog.append(empty);
+  ui.pressState.textContent = "Waiting";
 });
 
 const clamp = (value, minimum, maximum) => Math.min(Math.max(value, minimum), maximum);
@@ -1908,7 +2046,7 @@ const configureSplitter = (splitter, property, minimum, maximum, storageKey) => 
 };
 
 configureSplitter(ui.librarySplitter, "--library-width", 240, 520, "tohseno-library-width");
-configureSplitter(ui.composerSplitter, "--composer-width", 320, 640, "tohseno-composer-width");
+configureSplitter(ui.composerSplitter, "--composer-width", 440, 760, "tohseno-composer-width-v2");
 
 // Mirrors the engine's Appcoin derivation so the modal previews exactly what
 // the server will commit and broadcast.

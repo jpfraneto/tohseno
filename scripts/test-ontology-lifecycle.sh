@@ -430,10 +430,9 @@ run_logged \
   "$shot_root/.tohseno/private/planning/conception-input.json" \
   "$conception_output"
 run_logged \
-  "validate and accept the intelligence-shaped Genome, Birth Plan, and Experience Contract" \
+  "validate and internally accept the intelligence-shaped Genome, Birth Plan, and Experience Contract" \
   "$candidate_bin" create "$app_name" \
   --prompt-file "$intention_file" \
-  --accept-genome \
   --conception-file "$conception_output" \
   --no-launch
 

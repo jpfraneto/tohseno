@@ -110,16 +110,14 @@ test("browser package reaches durable local pending state and Studio without a p
     const onboarding = await (await fetch(`http://127.0.0.1:${studioPort}/api/onboarding`)).json();
     expect(typeof onboarding.ready_for_first_shot).toBe("boolean");
     const studioHeaders = { Origin: `http://127.0.0.1:${studioPort}`, "Content-Type": "application/json", "X-TOHSENO-STUDIO": "1" };
-    const plan = await fetch(`http://127.0.0.1:${studioPort}/api/plan`, { method: "POST", headers: studioHeaders, body: JSON.stringify({ app_name: view.suggested_app_name, pending_intention_id: pendingId }) });
-    expect(plan.status).toBe(200);
     const ambiguous = await fetch(`http://127.0.0.1:${studioPort}/shots`, { method: "POST", headers: studioHeaders, body: JSON.stringify({
-      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId, prompt: "different", accept_genome: true,
+      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId, prompt: "different",
       selected_feedback_actions: [], harness: "tohseno-test-nonlaunching", model: "fixture", route: "no-inference",
     }) });
     expect(ambiguous.status).toBe(400);
     expect(readdirSync(join(dataRoot, "pending-intentions/records"))).toContain(pendingId);
     const stopped = await fetch(`http://127.0.0.1:${studioPort}/shots`, { method: "POST", headers: studioHeaders, body: JSON.stringify({
-      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId, accept_genome: true,
+      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId,
       selected_feedback_actions: [], harness: "unsupported", model: "default", route: "none",
     }) });
     expect(stopped.status).toBe(422);
@@ -147,7 +145,7 @@ test("browser package reaches durable local pending state and Studio without a p
     expect(readdirSync(join(dataRoot, "pending-intentions/records"))).toContain(pendingId);
 
     const prepared = await fetch(`http://127.0.0.1:${studioPort}/shots`, { method: "POST", headers: studioHeaders, body: JSON.stringify({
-      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId, accept_genome: true,
+      mode: "create", app_name: view.suggested_app_name, pending_intention_id: pendingId,
       selected_feedback_actions: [], harness: "tohseno-test-nonlaunching", model: "fixture", route: "no-inference",
     }) });
     const preparedBody = await prepared.text();

@@ -1,10 +1,11 @@
 //! Native coding-harness adapters.
 //!
-//! TOHSENO prepares and observes work, but the selected harness remains an
-//! ordinary interactive child process with inherited terminal input/output.
-//! Adapter commands stay interactive; each first-class harness additionally
-//! carries its own permission-bypass flag so an unattended Shot never stalls
-//! on an approval prompt nobody is present to grant.
+//! A Shot is an unattended factory run. The selected harness keeps its own
+//! authentication and inference route, while every phase uses that harness's
+//! supported one-shot command so the engine always regains control for
+//! validation, repair, sealing, and device installation. Each first-class
+//! harness additionally carries its own permission-bypass mode so the run
+//! never stalls on an approval nobody is present to grant.
 
 use crate::config::HarnessConfig;
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,12 @@ struct KnownHarness {
     /// unattended inside the repository sandbox, so the harness must never
     /// stall waiting for an approval nobody is present to grant.
     bypass_arguments: &'static [&'static str],
+    /// Arguments placed before model and attachment options to select the
+    /// harness's supported non-interactive agent loop.
+    unattended_arguments: &'static [&'static str],
+    /// Arguments placed immediately before the prompt. Some CLIs model their
+    /// one-shot prompt as an option value rather than a positional argument.
+    unattended_prompt_arguments: &'static [&'static str],
 }
 
 static KNOWN_HARNESSES: [KnownHarness; 5] = [
@@ -103,6 +110,8 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         default_route: "chatgpt-subscription",
         attachment_behavior: AttachmentBehavior::NativeImageArguments,
         bypass_arguments: &["--yolo"],
+        unattended_arguments: &["exec"],
+        unattended_prompt_arguments: &[],
     },
     KnownHarness {
         id: "claude-code",
@@ -118,6 +127,8 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         default_route: "claude-subscription",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
         bypass_arguments: &["--dangerously-skip-permissions"],
+        unattended_arguments: &["--print"],
+        unattended_prompt_arguments: &[],
     },
     KnownHarness {
         id: "opencode",
@@ -129,6 +140,8 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
         bypass_arguments: &[],
+        unattended_arguments: &["run", "--auto"],
+        unattended_prompt_arguments: &[],
     },
     KnownHarness {
         id: "grok-build",
@@ -139,7 +152,9 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
-        bypass_arguments: &[],
+        bypass_arguments: &["--always-approve"],
+        unattended_arguments: &[],
+        unattended_prompt_arguments: &["--single"],
     },
     KnownHarness {
         id: "hermes",
@@ -150,7 +165,9 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         models: &[("default", "Configured default")],
         default_route: "configured",
         attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
-        bypass_arguments: &[],
+        bypass_arguments: &["--yolo"],
+        unattended_arguments: &["chat"],
+        unattended_prompt_arguments: &["--quiet", "--query"],
     },
 ];
 
@@ -275,7 +292,7 @@ pub fn resolve_selection(
     ))
 }
 
-pub fn build_interactive_command(
+pub fn build_evolution_command(
     selection: &HarnessSelection,
     intent_path: &Path,
     image_paths: &[PathBuf],
@@ -334,6 +351,11 @@ fn build_command(
     instruction: String,
 ) -> Result<HarnessCommand, String> {
     let (option, mut command) = resolve_selection(selection)?;
+    if let Some(known) = known_harness(&option.id) {
+        command
+            .arguments
+            .extend(known.unattended_arguments.iter().map(OsString::from));
+    }
     if selection.model != "default" {
         command.arguments.push("--model".into());
         command.arguments.push(selection.model.clone().into());
@@ -343,6 +365,11 @@ fn build_command(
             command.arguments.push("--image".into());
             command.arguments.push(image.as_os_str().to_owned());
         }
+    }
+    if let Some(known) = known_harness(&option.id) {
+        command
+            .arguments
+            .extend(known.unattended_prompt_arguments.iter().map(OsString::from));
     }
     command.arguments.push(instruction.into());
     Ok(command)
@@ -396,7 +423,7 @@ fn describe_harness(known: &KnownHarness, selected: bool) -> HarnessOption {
         },
         routes,
         attachment_behavior: known.attachment_behavior,
-        completion_detection: "native process exit plus independent workspace state".into(),
+        completion_detection: "unattended process exit plus independent workspace state".into(),
     }
 }
 
@@ -618,8 +645,19 @@ mod tests {
     fn first_class_adapters_always_bypass_permission_prompts() {
         let codex = known_harness("codex").unwrap();
         assert_eq!(codex.bypass_arguments, &["--yolo"]);
+        assert_eq!(codex.unattended_arguments, &["exec"]);
         let claude = known_harness("claude-code").unwrap();
         assert_eq!(claude.bypass_arguments, &["--dangerously-skip-permissions"]);
+        assert_eq!(claude.unattended_arguments, &["--print"]);
+        let opencode = known_harness("opencode").unwrap();
+        assert_eq!(opencode.unattended_arguments, &["run", "--auto"]);
+        let grok = known_harness("grok-build").unwrap();
+        assert_eq!(grok.bypass_arguments, &["--always-approve"]);
+        assert_eq!(grok.unattended_prompt_arguments, &["--single"]);
+        let hermes = known_harness("hermes").unwrap();
+        assert_eq!(hermes.bypass_arguments, &["--yolo"]);
+        assert_eq!(hermes.unattended_arguments, &["chat"]);
+        assert_eq!(hermes.unattended_prompt_arguments, &["--quiet", "--query"]);
     }
 
     #[test]

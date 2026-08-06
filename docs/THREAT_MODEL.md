@@ -366,12 +366,23 @@ Controls:
 - generic iOS compilation, retained artifact inspection, and conformance;
 - received Shots must be verified before any supported materialization.
 
-Prepared Shot execution launches the selected harness only after the person
-presses Enter in its authentic terminal interface. TOHSENO adds no
-permission-bypass flag: the harness retains its native questions, approvals,
-and permission controls. The harness can still receive broad local authority
-when the person grants it, so builders should use isolated workspaces for
-untrusted intentions or references.
+Taking a Shot starts the selected harness immediately in its supported
+non-interactive mode and deliberately supplies that adapter's permission-bypass
+flag. There is no Terminal Enter or per-tool approval boundary. This grants the
+harness broad local execution authority and is a material risk of the
+unattended product contract. Controls are the visible isolated Shot folder,
+exact Intention and reference digests, Builder binding, durable execution
+records and private logs, structural dependency/capability/anatomy gates,
+independent Release tests, protocol verification, bounded repairs, and
+delivery of the exact candidate before Version acceptance. Those controls
+constrain what TOHSENO will accept; they do not make arbitrary agent execution
+safe. Builders should not take Shots from untrusted intentions or references
+on a machine containing sensitive material the selected harness could reach.
+
+This unattended authority is local and does not authorize publication,
+contract deployment, payments, token creation, recovery administration, or
+other irreversible external actions. Their existing explicit confirmation and
+fail-closed boundaries remain independent.
 
 ### Dependency and organ substitution
 

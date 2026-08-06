@@ -71,15 +71,22 @@ factory genome, the Apple Fascia, and immutable completed directories at
 
 `tohseno create` captures raw text and references, resolves the existing
 Builder identity, creates the stable Shot ID, writes the local binding and
-briefing, and opens the builder's coding agent. It does not yet sign the
-initial commitment or create version `0001`.
+briefing, and starts one detached unattended runner. The runner performs
+intelligent conception, validates and internally accepts the app-specific
+proposal, materializes and repairs the Release candidate, and asks the engine
+to record and deliver it. Preparation alone does not sign the initial
+commitment or create version `0001`.
 
-`tohseno evolve` snapshots the living tree, checks the Apple project and fixed
-Fascia, builds an unsigned Simulator artifact, attempts a preview, creates and
-signs the v1 record, runs conformance and offline verification, writes the
-crash-safe `.complete` marker, advances derived state, and optionally installs
-on a connected device. Failed attempts are archived under
-`.tohseno/incomplete` and never consume a canonical sequence.
+The recording engine snapshots the living tree, checks the Apple project and
+fixed Fascia, builds a Release artifact, attempts a preview, runs conformance,
+birth experience checks, and offline verification, signs the Version record,
+writes the crash-safe `.complete` marker, and advances derived state. Its
+low-level `record` API retains best-effort connected-device installation after
+acceptance. The unattended Create/Evolve runner instead uses
+`record_and_deliver`: it waits for a paired iPhone and installs and launches
+the exact verified candidate before signing Version acceptance. Failed
+attempts are archived under `.tohseno/incomplete` and never consume a
+canonical sequence.
 
 The static engine `Genome` is the factory constitution: Laws, Structure,
 Taste, Listening, Unfolding, Memory, and World. It is not the accepted,

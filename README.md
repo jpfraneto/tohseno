@@ -23,6 +23,9 @@ The immutable `v0.8.5` release is published and the public installer is pinned
 byte-for-byte to its claim-capable installer. The production ciphertext relay
 is active at the canonical HTTPS origin on an owner-controlled durable volume;
 its release and capability gates remain fail-closed by default in source.
+Source on `main` includes ADR 0013's one-action unattended Shot correction;
+that correction requires a new immutable release before the public installer
+can deliver it.
 
 Contract generation `0.8.0` is deployed on Robinhood Chain mainnet
 (`eip155:4663`) as an **inactive, untrusted candidate** — see
@@ -37,7 +40,7 @@ no release reads from or writes to those contracts.
 > not an address in the deployed generation. Local Shots, identities, and
 > signed history remain valid and verifiable offline.
 
-## Birth model in 0.8.5
+## Birth model in current source
 
 The exact Intention remains the human source of truth. An intelligence reads it
 with its references and the locally discovered Apple Capability Profile, then
@@ -55,8 +58,8 @@ accepted Version is complete within its bounded intention. Evolution starts
 from that complete living app after contact with life. A conformant build alone
 does not prove that the product promise was fulfilled.
 
-These rules govern new births in 0.8.5. They do not retroactively alter an
-older installed CLI or any accepted lineage.
+These rules govern new births in current source. They do not retroactively
+alter the immutable 0.8.5 CLI or any accepted lineage.
 
 ## The ordinary loop
 
@@ -64,18 +67,19 @@ The public journey now starts with the intention:
 
 1. visit `tohseno.com`;
 2. write or paste the intention and add up to eight reference images;
-3. press **TAKE A SHOT**;
+3. press **TAKE A SHOT** to freeze the encrypted transfer package;
 4. run the one copied command on the Mac;
-5. let the selected intelligence propose the app-specific Genome, capability
-   plan, target users, journeys, and completion contract, then review that
-   actual proposal;
-6. approve the terminal handoff without entering the intention again.
+5. after local onboarding, press **TAKE THE SHOT** once in Studio;
+6. walk away while TOHSENO conceives, materializes, repairs, verifies, waits
+   for the paired iPhone, installs, and launches the app;
+7. return when the Mac's completion notification arrives; the finished app is
+   already open on the phone.
 
 The Browser Draft stays in IndexedDB. When encrypted handoff is available,
 the browser uploads only a temporary AES-256-GCM ciphertext package; the Mac
 decrypts it into a durable Local Pending Intention. The website and relay do
 not create or identify a Shot. A Shot still begins only through the existing
-local engine after the person approves the plan and boundaries. The active
+local engine after the person's one TAKE THE SHOT action. The active
 production handoff now presents the one claim command after encryption and
 finalization. The private `.tohseno-intent` download and generic installer
 remain available as local fallbacks.
@@ -158,13 +162,15 @@ If a must-level experience needs physical sensors, the real framework path
 remains in Release and a compatible connected iPhone is required for the
 physical trial; without it the candidate remains
 `implementation_complete; acceptance_pending_physical_experience`.
-`tohseno refresh my-app` installs an accepted Version on a paired phone.
-An intent-bearing `create` or `evolve` prepares a
-private execution boundary and opens a native terminal with
-`tohseno shot run …` visible but unexecuted. The person presses Enter to start
-the selected Codex or Claude Code interface. TOHSENO observes durable lifecycle
-and repository evidence without proxying the conversation or bypassing the
-harness's native permissions (ADR 0005).
+An intent-bearing `create` or `evolve` is one unattended Shot: it prepares a
+private execution boundary, starts the selected harness in native one-shot
+mode, validates and internally accepts the intelligence-shaped Genome,
+materializes and repairs the candidate, waits for a paired iPhone, and installs
+and launches the exact verified build before accepting the Version. There is no
+Terminal Enter step or separate Genome authorization. TOHSENO observes durable
+lifecycle and repository evidence without proxying the harness output; private
+output stays in the ignored execution directory. `tohseno refresh my-app`
+remains available to reinstall an already accepted Version later (ADR 0013).
 
 Upgrading preserves any older hidden ledger at
 `~/.tohseno/apps`. Run `tohseno migrate-legacy` after installation to copy
@@ -345,23 +351,14 @@ the contract-design question in
 [ADR 0001](docs/adr/0001-device-key-replacement-deferred.md); an off-chain
 proof format and owner UX remain future work and are not fabricated here.
 
-The candidate's complete local Shot lifecycle is explicit and automation-safe:
+The candidate's complete local Shot lifecycle is one action:
 
 ```sh
 tohseno create field-notebook \
-  --prompt-file intention.md \
-  --no-launch
-
-# An external/private conception runner reads .tohseno/CONCEPTION.md and emits
-# strict conception-output.json. Validate and accept that actual proposal:
-tohseno create field-notebook \
-  --prompt-file intention.md \
-  --accept-genome \
-  --conception-file conception-output.json \
-  --no-launch
-
-# After the complete candidate and Experience Trial have been materialized:
-tohseno evolve field-notebook
+  --prompt-file intention.md
+# It reports SHOT IN FLIGHT and returns. Walk away; a native macOS
+# notification announces the ending, and a completed result means the
+# verified app has already been installed and launched.
 
 feedback_action="$(
   tohseno --json feedback field-notebook \
@@ -372,14 +369,17 @@ feedback_action="$(
 
 tohseno evolve field-notebook \
   --prompt-file EVOLUTIONARY_INTENT.md \
-  --feedback-action "$feedback_action" \
-  --no-launch
+  --feedback-action "$feedback_action"
+# The evolved Version is not accepted until install and launch succeed.
 
-# After applying the proposed source change:
-tohseno evolve field-notebook
 cd ~/Desktop/Tohseno/field-notebook
 tohseno verify
 ```
+
+For deterministic fixtures or manual recovery, `--no-launch` stages the
+durable execution without starting inference, and `--conception-file` supplies
+a strict precomputed proposal. Validated conception is accepted internally;
+neither path adds a Genome authorization step.
 
 The local authentic-harness flow is:
 
@@ -390,14 +390,12 @@ tohseno create field-notebook \
   --prompt-file intention.md \
   --image reference-one.png \
   --image reference-two.jpg \
-  --accept-genome \
   --harness claude-code \
   --model opus \
   --route claude-subscription
 
-# Terminal opens in the Shot repository with this line visible but unexecuted:
-# tohseno shot run --app field-notebook --execution <execution-id>
-# Press Enter there to start Claude Code's native interface.
+# The command returns after starting the durable unattended runner.
+# Follow it from any shell if desired; no interaction is required.
 
 tohseno shot follow --app field-notebook --execution <execution-id>
 tohseno shot result --app field-notebook --execution <execution-id>
@@ -405,9 +403,10 @@ tohseno shot result --app field-notebook --execution <execution-id>
 
 Use `--harness codex --model default --route chatgpt-subscription` for Codex.
 `create` and an intent-bearing `evolve` both prepare the same durable local
-execution state. `--no-launch` preserves the existing automation-safe staging
-behavior. Preparation never starts inference, commits a result, publishes,
-deploys, tags, or releases anything.
+execution state and start it by default. `--no-launch` preserves an
+automation-safe staging-only behavior. Taking a Shot starts local inference and
+waits to install and launch on the paired iPhone before acceptance; it never
+publishes, deploys contracts, tags, or releases anything.
 
 `feedback_id` identifies the canonical Feedback payload.
 `action_commitment` identifies its signed lineage action; only the latter is a
@@ -548,7 +547,7 @@ deployment coordinates.
 | Successor contracts | Immutable `0.8.0` generation deployed on Robinhood Chain mainnet as an inactive, untrusted candidate (see [On-chain status](#on-chain-status)); no signed activation or client trust root, and activation stays gated behind independent review, the canary, and the threshold ceremony |
 | Frozen legacy publish, handle, and appcoin contract flow | Retired and fail-closed on main; retained only at its immutable release tag |
 | BuilderAccount, Shot #1, and public checkpoints | Not completed on mainnet |
-| Physical iPhone build, install, and launch | Not completed |
+| Physical iPhone build, install, and launch | Required by the unattended Shot path before Version acceptance; live-device release dogfood remains to be recorded |
 | Stable 0.8.1 release and installer-from-release test | Recorded in `release/V0_8_1_READINESS.json`; every earlier stable tag remains immutable |
 | Canonical release or Arweave publication | Deliberately not completed |
 

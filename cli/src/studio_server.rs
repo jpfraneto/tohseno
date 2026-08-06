@@ -27,8 +27,7 @@ use tohseno_engine::gates::toolchain::ToolchainState;
 use tohseno_engine::protocol_lifecycle::reference_fascia_root;
 use tohseno_engine::verifier::{verify_shot_directory, VerificationStatus};
 use tohseno_engine::{
-    AppleCapabilityProfile, Engine, Event, EventBus, FactoryIdentity, Ledger,
-    PendingIntentionStore, ShotLayout, ShotRequest,
+    Engine, Event, EventBus, Ledger, PendingIntentionStore, ShotLayout, ShotRequest,
 };
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
 use tohseno_protocol::digest::{Address20, Bytes32};
@@ -111,24 +110,12 @@ struct ShotSubmission {
     #[serde(default)]
     pending_intention_id: Option<String>,
     #[serde(default)]
-    accept_genome: bool,
-    #[serde(default)]
     selected_feedback_actions: Vec<Bytes32>,
     harness: String,
     model: String,
     route: String,
     #[serde(default)]
     images: Vec<UploadedImage>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InitialPlanRequest {
-    app_name: String,
-    #[serde(default)]
-    prompt: String,
-    #[serde(default)]
-    pending_intention_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -149,17 +136,6 @@ struct PendingReferenceResponse {
     byte_length: u64,
     sha256: String,
     content_url: String,
-}
-
-#[derive(Debug, Serialize)]
-struct InitialPlanResponse {
-    schema: &'static str,
-    conception_required: bool,
-    review_policy: &'static str,
-    engine_version: String,
-    source_commit: String,
-    static_constitution_digest: Bytes32,
-    apple_capability_profile_digest: Bytes32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -621,9 +597,6 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
         .await?;
         return Ok(());
     }
-    if request.method == "POST" && request.path == "/api/plan" {
-        return serve_initial_plan(&mut socket, &request.body).await;
-    }
     if request.method == "POST" && request.path == "/api/open" {
         return open_folder(&mut socket, &request.body).await;
     }
@@ -685,16 +658,6 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                     return Ok(());
                 }
             };
-            if matches!(submission.mode, ShotMode::Create) && !submission.accept_genome {
-                respond(
-                    &mut socket,
-                    422,
-                    "text/plain; charset=utf-8",
-                    "Studio needs approval to auto-accept the app-specific Genome after intelligent conception",
-                )
-                .await?;
-                return Ok(());
-            }
             if matches!(submission.mode, ShotMode::Create)
                 && !submission.selected_feedback_actions.is_empty()
             {
@@ -797,7 +760,6 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                             &creation,
                             &request.app_name,
                             &selected,
-                            submission.accept_genome,
                             !test_nonlaunching_harness(&selected.harness),
                             &events,
                         )
@@ -814,7 +776,6 @@ async fn handle(mut socket: TcpStream, state: State) -> Result<(), Box<dyn std::
                                 &creation,
                                 &request.app_name,
                                 &selected,
-                                false,
                                 !test_nonlaunching_harness(&selected.harness),
                                 &events,
                             )
@@ -1222,71 +1183,6 @@ fn parse_studio_token_address(value: &str) -> Result<Address20, String> {
     let normalized = value.to_ascii_lowercase();
     serde_json::from_value::<Address20>(serde_json::Value::String(normalized))
         .map_err(|error| error.to_string())
-}
-
-async fn serve_initial_plan(
-    socket: &mut TcpStream,
-    body: &[u8],
-) -> Result<(), Box<dyn std::error::Error>> {
-    let request: InitialPlanRequest = match serde_json::from_slice(body) {
-        Ok(request) => request,
-        Err(error) => {
-            respond(
-                socket,
-                400,
-                "text/plain; charset=utf-8",
-                &format!("invalid conception review request: {error}"),
-            )
-            .await?;
-            return Ok(());
-        }
-    };
-    if request.pending_intention_id.is_some() && !request.prompt.is_empty() {
-        respond(
-            socket,
-            400,
-            "text/plain; charset=utf-8",
-            "a conception review cannot combine inline and local pending intention sources",
-        )
-        .await?;
-        return Ok(());
-    }
-    let prompt = match request.pending_intention_id.as_deref() {
-        Some(id) => {
-            let ledger = Ledger::discover()?;
-            match PendingIntentionStore::for_ledger(&ledger).load(id) {
-                Ok(pending) => pending.prompt,
-                Err(error) => {
-                    respond(
-                        socket,
-                        422,
-                        "text/plain; charset=utf-8",
-                        &format!("local pending intention was rejected: {error}"),
-                    )
-                    .await?;
-                    return Ok(());
-                }
-            }
-        }
-        None => request.prompt,
-    };
-    tohseno_engine::ledger::validate_app_name(&request.app_name)?;
-    let _intent = Intent::parse(&prompt);
-    let ledger = Ledger::discover()?;
-    ledger.initialize()?;
-    let profile = AppleCapabilityProfile::discover(&ledger)?;
-    let identity = FactoryIdentity::current(None, profile.digest()?);
-    let body = serde_json::to_string(&InitialPlanResponse {
-        schema: "tohseno.studio-conception-review/1",
-        conception_required: true,
-        review_policy: "The selected intelligence reads the exact intention and Apple capability profile first; Studio then auto-accepts only the validated app-specific proposal.",
-        engine_version: identity.engine_version,
-        source_commit: identity.source_commit,
-        static_constitution_digest: identity.static_constitution_digest,
-        apple_capability_profile_digest: identity.apple_capability_profile_digest,
-    })?;
-    respond(socket, 200, "application/json; charset=utf-8", &body).await?;
-    Ok(())
 }
 
 async fn serve_pending_intention(

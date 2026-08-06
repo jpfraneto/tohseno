@@ -114,15 +114,17 @@ describe("public pages", () => {
         );
         expect(body).toContain("tohseno shot follow &lt;execution-id&gt;");
         expect(body).toContain("tohseno shot result &lt;execution-id&gt;");
-        expect(body).toContain("<strong>SHOT LANDED</strong>");
+        expect(body).toContain("<strong>BIRTH ACCEPTED</strong>");
         expect(body).toContain("tohseno migrate-legacy");
         expect(body).toContain("<code>~/Desktop/Tohseno</code>");
         expect(body).toContain(
           "Studio does not upload canonical Shot data",
         );
-        expect(body).toContain(
-          "TOHSENO never bypasses this human boundary",
-        );
+        expect(body).toContain("<strong>TAKE THE SHOT</strong>");
+        expect(body).toContain("continue unattended");
+        // The interactive approve-and-press-Enter ceremony is retired.
+        expect(body).not.toContain("APPROVE &amp; OPEN TERMINAL");
+        expect(body).not.toContain("TOHSENO never bypasses this human boundary");
         expect(body).toContain("Robinhood Chain mainnet (chain ID 4663)");
         expect(body).toContain("inactive, untrusted candidate");
         expect(body).toContain("0xb1bd208cd2af98e701f43d06aaa889d3a594df65");

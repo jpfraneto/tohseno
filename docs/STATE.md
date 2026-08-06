@@ -5,6 +5,12 @@ answer to "what is going on here" for someone returning after time away. When
 something below stops being true, update this file in the same change that
 makes it untrue.
 
+Source on `main` now contains the post-0.8.5 one-shot correction in ADR 0013.
+It is not in the immutable `v0.8.5` archive or public installer yet; those
+remain byte-identical to the published release. A new pinned immutable release
+is required before installed users receive the behavior described under “App
+birth in current source” below.
+
 ## What ships today
 
 TOHSENO 0.8.5 ships for macOS. A person runs one install command
@@ -20,8 +26,11 @@ unattended Shot never stalls on an approval nobody is present to grant, and
 running a Shot is identity-bound — prepare and run both refuse, before any
 side effect, an app whose recorded Builder is missing or is not the local
 identity, so no execution can land anonymously or under someone else's
-Builder. Studio opens an evolution by installing its retained Simulator
-artifact directly, so reopening an app is seconds, not a rebuild.
+Builder. When the unattended runner reaches its final outcome — accepted,
+unsealed, cancelled, or stalled — it announces the ending with a native macOS
+notification, a courtesy signal that never alters the durable record. Studio
+opens an evolution by installing its retained Simulator artifact directly, so
+reopening an app is seconds, not a rebuild.
 
 What the user then gets is a local loop that needs no phone, no account, and
 no TOHSENO server: they declare one intention in plain words, their own coding
@@ -34,7 +43,7 @@ The folder on disk is the product: the app's identity and history live in
 files inside it. The full end-to-end flow was re-verified on 2026-07-30 by
 `scripts/test-ontology-lifecycle.sh` against real Xcode builds.
 
-## App birth in the current release
+## App birth in current source
 
 Source on `main` now interprets a Shot before accepting its first Genome. A
 create execution preserves exact Intention material, discovers the local Xcode,
@@ -42,10 +51,15 @@ SDK, Simulator, connected-iPhone, and last-known-device capability context,
 then invokes the selected harness in conception mode. The harness must return
 strict `tohseno.conception-output/1` containing an app-specific Birth Plan,
 Genome, product organs, target actors, stable requirement ledger, forbidden
-substitutions, and Experience Contract. `--accept-genome` accepts that validated
-proposal; it no longer accepts a deterministic generic factory template.
+substitutions, and Experience Contract. The engine deterministically validates
+and internally accepts that exact proposal as the next phase of the same Shot;
+there is no `--accept-genome` ceremony and no deterministic generic factory
+template.
 
-Materialization begins only after acceptance of that app-specific proposal.
+Taking the Shot starts a detached local runner immediately; no Terminal window,
+Enter press, or macOS Terminal-automation consent is part of the default path.
+Materialization begins immediately after internal acceptance of the
+app-specific proposal.
 The harness builds and tests the Release product, traverses the required
 target-user journeys, writes evidence-bound `tohseno.experience-trial/1`, and
 receives focused repair tasks until the independent criteria pass or the
@@ -53,8 +67,11 @@ bounded repair limit is reached. The engine owns sealing. A first accepted
 Version requires protocol conformance, intent fidelity, and experience
 verification; product gaps, missing must-level journeys, forbidden
 substitutions, or missing required physical-device evidence leave an unsealed
-candidate. Evolution retains its public meaning: a new intention applied to an
-already accepted app.
+candidate. The delivery-required recording path waits for a paired iPhone and
+installs and launches the exact verified candidate before signing Version
+acceptance. A missing phone leaves the Shot in flight; install or launch failure
+leaves it unaccepted. Evolution retains its public meaning: a new intention
+applied to an already accepted app.
 
 The static Constitution is now distinct from the app-specific Genome. Generic
 identity and continuity organs are protocol substrate and cannot satisfy
@@ -70,7 +87,9 @@ in IndexedDB, frozen into the noncanonical `tohseno.intent-package/1`,
 encrypted in the browser, temporarily relayed as bounded ciphertext, imported
 into durable local pending state, and opened in the existing Studio. Neither
 the browser nor relay creates a Shot. The existing engine creates the Shot
-only after local onboarding, plan and Genome review, and explicit preparation.
+only after local onboarding and the person's single explicit TAKE THE SHOT
+action. Conception and Genome acceptance are internal phases of that local
+run, not additional relay or web authority.
 
 This capability is active in production. The public installer is
 byte-identical to the immutable, claim-capable `v0.8.5` release, and the Bun
@@ -207,9 +226,10 @@ boundaries remain fail-closed.
 
 Public activation and everything downstream of it (durable public BuilderIDs,
 the public witness registry, publication receipts) wait on the remaining audit,
-canary, and activation chain described above. The intention-led Apple
-capability policy on main still needs an immutable CLI release before generated
-Shots receive it. Device-key replacement for the frozen v0.7 identities is
+canary, and activation chain described above. The ADR 0013 unattended
+one-action birth and required phone-delivery correction on main still needs a
+new immutable CLI release before installed users receive it. Device-key
+replacement for the frozen v0.7 identities is
 closed — the successor generation's recovery design (ADR 0006) is the answer,
 and no signed identity-supersession flow will be built until a real migration
 needs one.

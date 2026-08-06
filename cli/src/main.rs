@@ -47,8 +47,7 @@ enum Command {
     Update,
     /// Remove TOHSENO program files while preserving every Shot and identity.
     Uninstall,
-    /// Prepare a visible Shot folder, intention package, and native harness
-    /// command. The harness starts only after Enter in the opened terminal.
+    /// Take one Shot: conceive, build, verify, install, and launch the app.
     Create {
         app_name: String,
         /// Read the exact intention from a bounded UTF-8 text file.
@@ -66,13 +65,13 @@ enum Command {
         /// Subscription, API, or configured inference route.
         #[arg(long, value_name = "ROUTE")]
         route: Option<String>,
-        /// Accept the app-specific Genome proposed by the selected intelligence.
-        #[arg(long)]
+        /// Deprecated compatibility flag. Validated conception is accepted internally.
+        #[arg(long, hide = true)]
         accept_genome: bool,
         /// Use this strict intelligence-produced conception output.
-        #[arg(long, value_name = "PATH", requires = "accept_genome")]
+        #[arg(long, value_name = "PATH")]
         conception_file: Option<PathBuf>,
-        /// Prepare the Shot folder without opening a terminal execution.
+        /// Prepare the Shot folder without starting its unattended runner.
         #[arg(long)]
         no_launch: bool,
     },
@@ -108,7 +107,7 @@ enum Command {
         /// Subscription, API, or configured inference route.
         #[arg(long, value_name = "ROUTE")]
         route: Option<String>,
-        /// Stage the intention without opening a new terminal execution.
+        /// Stage the intention without starting its unattended runner.
         #[arg(long)]
         no_launch: bool,
     },
@@ -400,7 +399,7 @@ enum TokenCommand {
 enum ShotExecutionCommand {
     /// List installed adapters, models, routes, authentication, and cost facts.
     Harnesses,
-    /// Run one prepared execution in this authentic terminal session.
+    /// Run one prepared execution in the current process (recovery/debugging).
     Run {
         #[arg(long)]
         app: String,
@@ -476,7 +475,7 @@ async fn dispatch(
             harness,
             model,
             route,
-            accept_genome,
+            accept_genome: _,
             conception_file,
             no_launch,
         } => {
@@ -542,12 +541,19 @@ async fn dispatch(
                             &request.app_name,
                             &selection,
                             true,
-                            true,
                             bus,
                         )?;
                     }
                 }
-            } else if accept_genome && engine.pending_conception(&request.app_name).is_ok() {
+            } else if creation
+                .folder
+                .join(".tohseno/private/planning/conception-output.json")
+                .is_file()
+            {
+                // A previous unattended conception may have completed before
+                // its runner was interrupted. Resume it directly: validation
+                // and acceptance remain engine-owned and require no ceremony.
+                engine.pending_conception(&request.app_name)?;
                 let materialization = engine.accept_pending_conception(&request.app_name)?;
                 match selection {
                     None => handoff_without_launch(&materialization, bus),
@@ -557,7 +563,6 @@ async fn dispatch(
                             &materialization,
                             &request.app_name,
                             &selection,
-                            true,
                             true,
                             bus,
                         )?;
@@ -572,7 +577,6 @@ async fn dispatch(
                             &creation,
                             &request.app_name,
                             &selection,
-                            accept_genome,
                             true,
                             bus,
                         )?;
@@ -627,7 +631,7 @@ async fn dispatch(
                             route.as_deref(),
                         )?;
                         shot_execution_commands::prepare(
-                            &engine, &creation, &name, &selection, false, true, bus,
+                            &engine, &creation, &name, &selection, true, bus,
                         )?;
                     }
                     Evolved::Recorded(_) | Evolved::NothingNew(_) => {}
@@ -1270,6 +1274,12 @@ mod tests {
 
     #[test]
     fn create_and_evolve_accept_automation_safe_prompt_files() {
+        let create_help = Cli::try_parse_from(["tohseno", "create", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(create_help.contains("Take one Shot"));
+        assert!(!create_help.contains("accept-genome"));
+
         let create = Cli::try_parse_from([
             "tohseno",
             "create",
@@ -1334,14 +1344,22 @@ mod tests {
                 ..
             } if path == PathBuf::from("/tmp/reviewed-conception.json")
         ));
-        assert!(Cli::try_parse_from([
+        let conception = Cli::try_parse_from([
             "tohseno",
             "create",
             "field-notebook",
             "--conception-file",
             "/tmp/unaccepted.json",
         ])
-        .is_err());
+        .unwrap();
+        assert!(matches!(
+            conception.command,
+            Command::Create {
+                accept_genome: false,
+                conception_file: Some(path),
+                ..
+            } if path == PathBuf::from("/tmp/unaccepted.json")
+        ));
     }
 
     #[test]

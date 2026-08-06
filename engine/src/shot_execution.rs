@@ -31,6 +31,8 @@ pub enum ExecutionMode {
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionPhase {
     Prepared,
+    RunnerStarted,
+    // Kept so private records made by releases through 0.8.5 remain readable.
     TerminalOpened,
     ExecutionStarted,
     ContextLoaded,
@@ -47,6 +49,7 @@ impl ExecutionPhase {
     pub fn event_name(self) -> &'static str {
         match self {
             Self::Prepared => "shot.prepared",
+            Self::RunnerStarted => "runner.started",
             Self::TerminalOpened => "terminal.opened",
             Self::ExecutionStarted => "execution.started",
             Self::ContextLoaded => "context.loaded",
@@ -81,7 +84,6 @@ pub struct ExecutionPreparation {
     pub intention_digest: Bytes32,
     pub references: Vec<ExecutionReference>,
     pub mode: ExecutionMode,
-    pub auto_accept_genome: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -112,7 +114,9 @@ pub struct PreparedExecution {
     pub references: Vec<ExecutionReference>,
     #[serde(default)]
     pub mode: ExecutionMode,
-    #[serde(default)]
+    /// Read-only compatibility for execution records written through 0.8.5.
+    /// New records omit this obsolete user-approval policy field.
+    #[serde(default, skip_serializing)]
     pub auto_accept_genome: bool,
     pub baseline: GitBoundary,
     pub prepared_at: String,
@@ -265,7 +269,7 @@ pub fn prepare_execution(
         intent_path: preparation.intent_path,
         references: preparation.references,
         mode: preparation.mode,
-        auto_accept_genome: preparation.auto_accept_genome,
+        auto_accept_genome: false,
         baseline,
         prepared_at: now()?,
         process_id: None,
@@ -431,11 +435,11 @@ pub fn complete_execution(
     .trim()
     .to_owned();
     let authoritative_next_action = if landed {
-        "Experience the accepted app.".into()
+        "Experience the accepted app now running on the paired iPhone.".into()
     } else if !files_changed.is_empty() {
         "Review the engine diagnostic and unaccepted candidate evidence; repair the failed criteria without changing the accepted intention.".into()
     } else {
-        "Return to the terminal and continue or retry the prepared Shot.".into()
+        "Inspect the execution events and retry the prepared Shot.".into()
     };
     let completion = CompletionRecord {
         schema: COMPLETION_RECORD_SCHEMA.into(),
@@ -809,7 +813,7 @@ fn command_output(mut command: Command, operation: &str) -> Result<String, ShotE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::harness::{build_interactive_command, HarnessSelection};
+    use crate::harness::{build_evolution_command, HarnessSelection};
     use std::sync::{Mutex, OnceLock};
 
     #[test]
@@ -911,7 +915,6 @@ mod tests {
                     media_type: "image/png".into(),
                 }],
                 mode: ExecutionMode::BirthMaterialization,
-                auto_accept_genome: true,
             },
         )
         .unwrap();
@@ -933,7 +936,7 @@ mod tests {
             "Fixture context loaded.",
         )
         .unwrap();
-        let command = build_interactive_command(
+        let command = build_evolution_command(
             &selection,
             Path::new(".tohseno/EVOLUTION_INTENT.md"),
             &[PathBuf::from(".tohseno/references/image_1.png")],

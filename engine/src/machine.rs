@@ -1199,13 +1199,13 @@ impl Engine {
                     None
                 } else {
                     Some(
-                        self.record_locked(&request.app_name, &app, &builder, None, None)
+                        self.record_locked(&request.app_name, &app, &builder, None, None, false)
                             .await?,
                     )
                 }
             }
             None if self.working_tree_has_content(&request.app_name)? => Some(
-                self.record_locked(&request.app_name, &app, &builder, None, None)
+                self.record_locked(&request.app_name, &app, &builder, None, None, false)
                     .await?,
             ),
             None => return Err(EngineError::NoCompleteShot(request.app_name.clone())),
@@ -1387,6 +1387,7 @@ impl Engine {
             &builder,
             Some("adopted: this folder becomes a Shot without changing its purpose."),
             origin,
+            false,
         )
         .await
     }
@@ -1755,6 +1756,7 @@ impl Engine {
         app_name: &str,
         bundle_id: &str,
         working_digest_at_start: Option<tohseno_protocol::digest::Bytes32>,
+        require_device_delivery: bool,
     ) -> Result<Evolution, EngineError> {
         let requires_birth_acceptance = shot.number == 1 && origin.is_none();
         self.events.emit(Event::status(format!(
@@ -1811,6 +1813,13 @@ impl Engine {
         let birth_context = requires_birth_acceptance
             .then(|| self.load_birth_context(app_name))
             .transpose()?;
+        let physical_was_required = birth_context.as_ref().is_some_and(|context| {
+            !context
+                .plan
+                .completion_contract
+                .physical_verification_capabilities
+                .is_empty()
+        });
         let mut engine_experience_criteria = Vec::new();
         if birth_context.is_some() {
             self.events.emit(Event::status(
@@ -1880,95 +1889,100 @@ impl Engine {
                 .physical_verification_capabilities
                 .is_empty()
             {
-                match device::check()? {
-                    DeviceState::Ready(device) => {
-                        let declared_device = context.trial.physical_device.as_ref().ok_or_else(|| {
-                            EngineError::ProtocolBodyIncomplete(
-                                "physical_device_experience · acceptance_pending_physical_experience · the trial contains no physical-device evidence"
-                                    .into(),
-                            )
-                        })?;
-                        let detected_product_type = device.product_type.as_deref().ok_or_else(|| {
-                            EngineError::ProtocolBodyIncomplete(
-                                "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose a product type"
-                                    .into(),
-                            )
-                        })?;
-                        let detected_os = device.os_version.as_deref().ok_or_else(|| {
-                            EngineError::ProtocolBodyIncomplete(
-                                "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose an OS version"
-                                    .into(),
-                            )
-                        })?;
-                        if detected_product_type != declared_device.product_type
-                            || detected_os != declared_device.os_version
-                            || declared_device
-                                .os_build
-                                .as_deref()
-                                .is_some_and(|build| device.os_build.as_deref() != Some(build))
-                        {
+                let device = if require_device_delivery {
+                    DevicePipeline::new(self.events.clone())
+                        .wait_for_device()
+                        .await?
+                } else {
+                    match device::check()? {
+                        DeviceState::Ready(device) => device,
+                        state => {
                             return Err(EngineError::ProtocolBodyIncomplete(format!(
-                                "physical_device_experience · acceptance_pending_physical_experience · current sanitized device facts ({detected_product_type}, iOS {detected_os}) do not match the target-user trial evidence ({}, iOS {})",
-                                declared_device.product_type, declared_device.os_version
+                                "physical_device_experience · acceptance_pending_physical_experience · {state:?}"
                             )));
                         }
-                        let artifact_directory = temporary_path("birth-device-verification");
-                        DevicePipeline::new(self.events.clone())
-                            .build_install(
-                                shot.number,
-                                app.target_name(),
-                                bundle_id,
-                                &shot.source_path(),
-                                &artifact_directory,
-                            )
-                            .await?;
-                        let evidence_value = serde_json::json!({
-                            "schema": "tohseno.engine-physical-verification/1",
-                            "source_digest": completed.record.source_tree_sha256,
-                            "product_type": detected_product_type,
-                            "os_version": detected_os,
-                            "os_build": device.os_build,
-                            "transport": device.transport,
-                            "exercised_capabilities": context
-                                .plan
-                                .completion_contract
-                                .physical_verification_capabilities,
-                            "build_install_launch_passed": true
-                        });
-                        let mut evidence_bytes = serde_json::to_vec_pretty(&evidence_value)
-                            .map_err(|error| {
-                                EngineError::ProtocolBodyIncomplete(format!(
-                                    "physical verification evidence encoding failed: {error}"
-                                ))
-                            })?;
-                        evidence_bytes.push(b'\n');
-                        self.ledger.write_evolution_file(
-                            shot,
-                            "physical-verification.json",
-                            &evidence_bytes,
-                        )?;
-                        engine_experience_criteria.push(CriterionResult {
-                            id: "engine_physical_build_install_launch".into(),
-                            passed: true,
-                            deterministic: true,
-                            evidence: vec![evidence_reference_for_file(
-                                &self.ledger.working_tree(app_name),
-                                &shot.path.join("physical-verification.json"),
-                                EvidenceKind::PhysicalDeviceTrial,
-                                "application/json",
-                            )?],
-                            observation: Some(
-                                "the engine rebuilt, installed, and launched the exact candidate snapshot on the device whose sanitized facts match the harness trial"
-                                    .into(),
-                            ),
-                        });
                     }
-                    state => {
-                        return Err(EngineError::ProtocolBodyIncomplete(format!(
-                            "physical_device_experience · acceptance_pending_physical_experience · {state:?}"
-                        )));
-                    }
+                };
+                let declared_device = context.trial.physical_device.as_ref().ok_or_else(|| {
+                    EngineError::ProtocolBodyIncomplete(
+                        "physical_device_experience · acceptance_pending_physical_experience · the trial contains no physical-device evidence"
+                            .into(),
+                    )
+                })?;
+                let detected_product_type = device.product_type.as_deref().ok_or_else(|| {
+                    EngineError::ProtocolBodyIncomplete(
+                        "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose a product type"
+                            .into(),
+                    )
+                })?;
+                let detected_os = device.os_version.as_deref().ok_or_else(|| {
+                    EngineError::ProtocolBodyIncomplete(
+                        "physical_device_experience · acceptance_pending_physical_experience · devicectl did not expose an OS version"
+                            .into(),
+                    )
+                })?;
+                if detected_product_type != declared_device.product_type
+                    || detected_os != declared_device.os_version
+                    || declared_device
+                        .os_build
+                        .as_deref()
+                        .is_some_and(|build| device.os_build.as_deref() != Some(build))
+                {
+                    return Err(EngineError::ProtocolBodyIncomplete(format!(
+                        "physical_device_experience · acceptance_pending_physical_experience · current sanitized device facts ({detected_product_type}, iOS {detected_os}) do not match the target-user trial evidence ({}, iOS {})",
+                        declared_device.product_type, declared_device.os_version
+                    )));
                 }
+                let artifact_directory = temporary_path("birth-device-verification");
+                DevicePipeline::new(self.events.clone())
+                    .build_install(
+                        shot.number,
+                        app.target_name(),
+                        bundle_id,
+                        &shot.source_path(),
+                        &artifact_directory,
+                    )
+                    .await?;
+                let evidence_value = serde_json::json!({
+                    "schema": "tohseno.engine-physical-verification/1",
+                    "source_digest": completed.record.source_tree_sha256,
+                    "product_type": detected_product_type,
+                    "os_version": detected_os,
+                    "os_build": device.os_build,
+                    "transport": device.transport,
+                    "exercised_capabilities": context
+                        .plan
+                        .completion_contract
+                        .physical_verification_capabilities,
+                    "build_install_launch_passed": true
+                });
+                let mut evidence_bytes =
+                    serde_json::to_vec_pretty(&evidence_value).map_err(|error| {
+                        EngineError::ProtocolBodyIncomplete(format!(
+                            "physical verification evidence encoding failed: {error}"
+                        ))
+                    })?;
+                evidence_bytes.push(b'\n');
+                self.ledger.write_evolution_file(
+                    shot,
+                    "physical-verification.json",
+                    &evidence_bytes,
+                )?;
+                engine_experience_criteria.push(CriterionResult {
+                    id: "engine_physical_build_install_launch".into(),
+                    passed: true,
+                    deterministic: true,
+                    evidence: vec![evidence_reference_for_file(
+                        &self.ledger.working_tree(app_name),
+                        &shot.path.join("physical-verification.json"),
+                        EvidenceKind::PhysicalDeviceTrial,
+                        "application/json",
+                    )?],
+                    observation: Some(
+                        "the engine rebuilt, installed, and launched the exact candidate snapshot on the device whose sanitized facts match the harness trial"
+                            .into(),
+                    ),
+                });
             }
         }
 
@@ -2027,8 +2041,6 @@ impl Engine {
             None
         };
 
-        let manager = BuilderIdentityManager::for_ledger(&self.ledger);
-        let accepted_at = canonical_now_at_least(&lineage_input.last_timestamp)?;
         let mut gates = completed
             .conformance
             .checks
@@ -2132,6 +2144,37 @@ impl Engine {
             })
             .collect::<Vec<_>>();
         let verification_passed = gates.iter().all(|gate| gate.passed);
+        if require_device_delivery && !verification_passed {
+            let failed = gates
+                .iter()
+                .filter(|gate| !gate.passed)
+                .map(|gate| gate.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(EngineError::ProtocolBodyIncomplete(format!(
+                "candidate verification failed before device delivery: {failed}"
+            )));
+        }
+
+        // A one-shot factory run includes delivery. After every non-device
+        // gate passes, install and launch the exact candidate before signing
+        // any acceptance action. Hardware-critical births already performed
+        // this step above because build/install/launch is itself evidence.
+        if require_device_delivery && !physical_was_required {
+            let artifact_directory = temporary_path("shot-delivery");
+            DevicePipeline::new(self.events.clone())
+                .build_install(
+                    shot.number,
+                    app.target_name(),
+                    bundle_id,
+                    &shot.source_path(),
+                    &artifact_directory,
+                )
+                .await?;
+        }
+
+        let manager = BuilderIdentityManager::for_ledger(&self.ledger);
+        let accepted_at = canonical_now_at_least(&lineage_input.last_timestamp)?;
         let verification = VerificationResult {
             schema: VERIFICATION_RESULT_SCHEMA.into(),
             expression_id: lineage_input.expression_id,
@@ -2322,39 +2365,39 @@ impl Engine {
             self.ledger.working_tree(app_name).display()
         )));
 
-        let physical_was_required = birth_context.as_ref().is_some_and(|context| {
-            !context
-                .plan
-                .completion_contract
-                .physical_verification_capabilities
-                .is_empty()
-        });
-        match device::check() {
-            Ok(DeviceState::Ready(_)) if physical_was_required => {
-                self.events.emit(Event::result(format!(
-                    "accepted birth of {app_name} is on the verified iPhone."
-                )));
-            }
-            Ok(DeviceState::Ready(_)) => {
-                let artifact_directory = temporary_path("install");
-                DevicePipeline::new(self.events.clone())
-                    .build_install(
-                        shot.number,
-                        app.target_name(),
-                        bundle_id,
-                        &shot.source_path(),
-                        &artifact_directory,
-                    )
-                    .await?;
-                self.events.emit(Event::result(format!(
-                    "Version {} of {} is on your phone.",
-                    shot.number, app_name
-                )));
-            }
-            _ => {
-                self.events.emit(Event::handoff(format!(
-                    "Plug in your iPhone anytime, then run `tohseno refresh {app_name}`.",
-                )));
+        if require_device_delivery {
+            self.events.emit(Event::result(format!(
+                "Version {} of {} is installed and running on your iPhone.",
+                shot.number, app_name
+            )));
+        } else {
+            match device::check() {
+                Ok(DeviceState::Ready(_)) if physical_was_required => {
+                    self.events.emit(Event::result(format!(
+                        "accepted birth of {app_name} is on the verified iPhone."
+                    )));
+                }
+                Ok(DeviceState::Ready(_)) => {
+                    let artifact_directory = temporary_path("install");
+                    DevicePipeline::new(self.events.clone())
+                        .build_install(
+                            shot.number,
+                            app.target_name(),
+                            bundle_id,
+                            &shot.source_path(),
+                            &artifact_directory,
+                        )
+                        .await?;
+                    self.events.emit(Event::result(format!(
+                        "Version {} of {} is on your phone.",
+                        shot.number, app_name
+                    )));
+                }
+                _ => {
+                    self.events.emit(Event::handoff(format!(
+                        "Plug in your iPhone anytime, then run `tohseno refresh {app_name}`.",
+                    )));
+                }
             }
         }
         Ok(shot.clone())
@@ -2378,7 +2421,29 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(app_name.into()));
         }
-        self.record_locked(app_name, &app, &builder, note, None)
+        self.record_locked(app_name, &app, &builder, note, None, false)
+            .await
+    }
+
+    /// Records, installs, and launches one exact candidate as a single Shot.
+    /// Unlike the lower-level `record` operation, this waits for the paired
+    /// iPhone and does not sign acceptance until delivery succeeds.
+    pub async fn record_and_deliver(
+        &self,
+        app_name: &str,
+        note: Option<&str>,
+    ) -> Result<Evolution, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let app = self.ledger.load_app(app_name)?;
+        if app.shot_id.is_none() || app.builder_id.is_none() {
+            return Err(EngineError::LegacyRequiresAdoption(app_name.into()));
+        }
+        let builder = BuilderIdentityManager::for_ledger(&self.ledger).ensure()?;
+        if app.builder_id != Some(builder.builder_id) {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        self.record_locked(app_name, &app, &builder, note, None, true)
             .await
     }
 
@@ -2390,6 +2455,7 @@ impl Engine {
         builder: &BuilderIdentity,
         note: Option<&str>,
         origin: Option<ShotOrigin>,
+        require_device_delivery: bool,
     ) -> Result<Evolution, EngineError> {
         let working = self.ledger.working_tree(app_name);
         let has_project = fs::read_dir(&working)
@@ -2510,6 +2576,7 @@ impl Engine {
                 app_name,
                 &bundle_id,
                 working_digest_at_start,
+                require_device_delivery,
             )
             .await?;
         // Sealing substitutes engine-owned values into the SNAPSHOT (shot
