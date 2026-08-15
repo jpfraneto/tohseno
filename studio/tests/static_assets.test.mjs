@@ -96,6 +96,7 @@ test("Shot preparation selects a native harness and follows durable execution ev
   assert.match(script, /BIRTH ACCEPTED/);
   assert.match(script, /VERSION RECORDED/);
   assert.match(script, /CANDIDATE UNSEALED/);
+  assert.match(script, /display reconnecting · Shot continues locally/);
   assert.doesNotMatch(script, /WebSocket|stream-json|output-format/);
 });
 

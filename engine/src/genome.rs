@@ -291,6 +291,10 @@ it for hypothetical future asset prompts.
             .map_err(|error| std::io::Error::other(error.to_string()))?;
         let experience = serde_json::to_string_pretty(&conception.experience_contract)
             .map_err(|error| std::io::Error::other(error.to_string()))?;
+        let experience_digest = conception
+            .experience_contract
+            .digest()
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
         let expression_plan = serde_json::to_string_pretty(expression)
             .map_err(|error| std::io::Error::other(error.to_string()))?;
         let task = format!(
@@ -313,12 +317,25 @@ The engine—not this harness—owns final acceptance and sealing.
 - The accepted Genome in `.tohseno/genome.json` is its app-specific interpretation.
 - The Apple profile at `.tohseno/private/planning/apple-capability-profile.json`
   describes available material and evidence constraints, not a denylist.
+- When that profile contains `signing_team`, its exact `team_id` is the
+  engine-selected development team for physical evidence. Do not guess a team
+  from certificate display names or parenthetical labels; the engine still
+  owns the final signed delivery gate.
 - Explicit native capabilities must be implemented in the Release product.
 - `simulator_unavailable` or unknown hardware never means product absence.
 - A fallback is allowed only under its accepted runtime condition and cannot
   become primary merely because Simulator sensor input is absent.
 - No primary interaction may be a mock, inert surface, placeholder, or promise
   of later work. “MVP” means the smallest complete production-quality promise.
+- Release dependency construction must fail visibly when required durable
+  recovery state or the Fascia InstallationIdentity cannot initialize. Never
+  silently replace accepted persistence with an in-memory store or replace an
+  installation identity with a sentinel string merely to keep the UI moving.
+- When the exact intention requires a named live service or API contract,
+  successful contract retrieval and real-service journey evidence are part of
+  acceptance. Fixtures may test deterministic UI and failure states, but they
+  never satisfy the required live integration. An unavailable required service
+  remains a blocking product gap in the Experience Trial.
 - Internal repair passes are part of this birth, not Evolutions.
 - Protocol conformance is necessary and insufficient: the product promise and
   target-user experience must independently pass.
@@ -327,12 +344,26 @@ The engine—not this harness—owns final acceptance and sealing.
 
 - Product/target: `{app_name}`
 - Bundle identifier: `{bundle_id}`
+- The Shot repository root is the canonical source root. Put exactly one real
+  Xcode project at `./{app_name}.xcodeproj`; do not leave the only project
+  under `src/`, and do not create a second nested `.xcodeproj`. Application
+  source and resources may live in subordinate folders referenced by that
+  root project.
+- The shared Xcode scheme and built `.app` basename must both be exactly
+  `{app_name}`; use `CFBundleDisplayName` for differently cased user-facing
+  branding. The engine invokes `xcodebuild -scheme {app_name}` and looks for
+  `{app_name}.app`.
+- Do not disable signing in project settings. The engine disables signing for
+  generic compile/Simulator gates and explicitly enables automatic signing for
+  the paired-device delivery gate.
 
 Copy the five Apple Fascia reference sources from
-`.tohseno/fascia/apple/swift/` into `TohsenoFascia/` and add them to the app
-target. Keep `TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` as
-engine-owned `{{}}` placeholders in source; the engine reconciles observed
-source/artifact evidence into final Fascia facts.
+`.tohseno/fascia/apple/swift/` into the repository-root `TohsenoFascia/`
+directory and add them to the app target. Keep repository-root
+`TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` as engine-owned
+`{{}}` placeholders in source; do not put the only copies under another source
+folder. The engine reconciles observed source/artifact evidence into final
+Fascia facts.
 
 ## Accepted Birth Plan
 
@@ -351,6 +382,9 @@ product requirements. App-specific organs must drive the implementation.
 
 ## Experience Contract
 
+- Authoritative RFC 8785 canonical JSON SHA-256 digest:
+  `{experience_digest}`
+
 ```json
 {experience}
 ```
@@ -364,12 +398,33 @@ prove the real framework path remains in Release source. When the profile has
 a compatible connected iPhone and a required scenario is hardware-critical,
 also build/install/launch and exercise that scenario on the physical device.
 
+Every claimed final verification must exercise the exact final source tree.
+After the last source, test, fixture, or project-definition edit, regenerate
+the Xcode project when applicable, rebuild the affected products, and rerun the
+relevant suites. An in-flight run or `test-without-building` result from an
+older product is not evidence for newer files. Preserve the real exit status
+of `xcodebuild`; when filtering output, use `set -o pipefail` or capture and
+check the producer status so `grep`, `head`, or `tail` cannot turn a failing
+suite into shell success.
+
 Write strict `{trial_schema}` JSON to
 `.tohseno/private/planning/experience-trial.json` using the closed schema at
 `.tohseno/private/planning/{trial_schema_file}`. Give every organ criterion
 its own result and evidence. Do not infer all organ results from a build or
 from overall conformance. A product gap, failed must-level journey, missing
 required physical trial, or forbidden substitution must remain failed.
+Set `experience_contract_digest` to the authoritative digest printed above
+exactly; do not substitute a hash of the pretty-printed contract file. Set
+`birth_plan_digest` to the accepted Birth Plan's RFC 8785 canonical digest.
+Every evidence `relative_path` is relative to the Shot repository root, not to
+the trial file. Evidence kept beside the trial must therefore be named like
+`.tohseno/private/planning/evidence/...`, and the file, byte length, and raw
+SHA-256 digest must match that exact repository-root-relative declaration.
+A scenario's `passed` flag covers its complete environment, gestures, expected
+states, and completion condition. A DEBUG fixture may prove individual
+mechanics inside a failed scenario, but it never makes a named live-service or
+physical-device scenario pass; keep that scenario false and record the typed
+blocking constraint.
 
 Do not call `tohseno evolve`. Exit after returning the candidate and evidence;
 the engine will evaluate, issue a focused repair pass when needed, and seal
@@ -382,6 +437,7 @@ only if all three acceptance dimensions pass.
                 .accepted_shot_genome_digest
                 .expect("materialization identity requires an accepted Genome"),
             profile_digest = factory.apple_capability_profile_digest,
+            experience_digest = experience_digest,
             trial_schema = crate::experience::EXPERIENCE_TRIAL_SCHEMA,
             trial_schema_file = crate::conception::EXPERIENCE_TRIAL_SCHEMA_FILE,
         );

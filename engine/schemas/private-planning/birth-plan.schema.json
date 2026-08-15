@@ -76,14 +76,20 @@
       "properties": {
         "organ_id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["protocol_substrate", "app_specific"]},
         "provides": {"$ref": "#/$defs/texts"}, "owns_state": {"$ref": "#/$defs/texts"},
-        "permissions": {"$ref": "#/$defs/texts"}, "dependencies": {"$ref": "#/$defs/texts"},
+        "permissions": {"$ref": "#/$defs/texts"},
+        "dependencies": {"type": "array", "items": {"$ref": "#/$defs/id"}},
         "emits": {"$ref": "#/$defs/texts"}, "consumes": {"$ref": "#/$defs/texts"},
         "genome_invariants": {"$ref": "#/$defs/texts"},
         "requirement_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
         "capability_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
         "journey_ids": {"type": "array", "items": {"$ref": "#/$defs/id"}},
         "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/criterion"}},
-        "platforms": {"$ref": "#/$defs/texts"}
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"},
+          "contains": {"const": "iphone"}
+        }
       }
     },
     "completion": {

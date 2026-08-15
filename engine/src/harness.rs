@@ -111,7 +111,10 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         attachment_behavior: AttachmentBehavior::NativeImageArguments,
         bypass_arguments: &["--yolo"],
         unattended_arguments: &["exec"],
-        unattended_prompt_arguments: &[],
+        // Codex models `--image` as a variadic option (`<FILE>...`). Without
+        // an option terminator, the final image occurrence consumes the
+        // positional instruction and Codex falls back to reading null stdin.
+        unattended_prompt_arguments: &["--"],
     },
     KnownHarness {
         id: "claude-code",
@@ -301,7 +304,7 @@ pub fn build_evolution_command(
         selection,
         image_paths,
         format!(
-            "Read `{}` and follow it as the authoritative TOHSENO evolutionary intention package. Inspect every labeled reference image. Return a complete candidate and evidence through the task contract; do not call `tohseno evolve`, because the engine owns acceptance and sealing.",
+            "Read `{}` and follow it as the authoritative TOHSENO evolutionary intention package. Treat the current Shot repository and its prepared package as the only app-specific input boundary: do not inspect or reuse sibling Shot repositories, prior app candidates, or unrelated execution logs unless this exact intention explicitly supplies them. Inspect every labeled reference image. Extract non-proprietary composition, color, texture, density, and shape cues; do not copy recognizable third-party characters, logos, trade dress, or branded assets unless the exact intention explicitly authorizes them. Return a complete candidate and evidence through the task contract; do not call `tohseno evolve`, because the engine owns acceptance and sealing.",
             intent_path.display()
         ),
     )
@@ -311,14 +314,26 @@ pub fn build_conception_command(
     selection: &HarnessSelection,
     task_path: &Path,
     image_paths: &[PathBuf],
+    repair_diagnostic: Option<&str>,
 ) -> Result<HarnessCommand, String> {
     build_command(
         selection,
         image_paths,
-        format!(
-            "Read `{}` and execute only its structured TOHSENO conception phase. Inspect every labeled reference image. Do not implement the app, accept a Genome, or call `tohseno evolve`; write the exact requested machine-readable proposal and exit.",
-            task_path.display()
-        ),
+        conception_instruction(task_path, repair_diagnostic),
+    )
+}
+
+fn conception_instruction(task_path: &Path, repair_diagnostic: Option<&str>) -> String {
+    let repair = repair_diagnostic
+        .map(|diagnostic| {
+            format!(
+                " This is a focused Conception repair pass. Make the smallest change that resolves this engine diagnostic, inspect the resulting diff for unrelated mutations, and do not change the exact intention or implement the app: {diagnostic}"
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "Read `{}` and execute only its structured TOHSENO conception phase. Treat the current Shot repository and its prepared package as the only app-specific input boundary: do not inspect or reuse sibling Shot repositories, prior app candidates, or unrelated execution logs unless this exact intention explicitly supplies them. Open and visually inspect every labeled reference image; filesystem metadata or byte inspection is not visual inspection. Extract non-proprietary composition, color, texture, density, and shape cues; do not copy recognizable third-party characters, logos, trade dress, or branded assets unless the exact intention explicitly authorizes them. Do not implement the app, accept a Genome, or call `tohseno evolve`; write the exact requested machine-readable proposal and exit.{repair}",
+        task_path.display(),
     )
 }
 
@@ -328,20 +343,24 @@ pub fn build_materialization_command(
     image_paths: &[PathBuf],
     repair_diagnostic: Option<&str>,
 ) -> Result<HarnessCommand, String> {
-    let repair = repair_diagnostic
-        .map(|diagnostic| {
-            format!(
-                " This is a focused pre-acceptance repair pass. Repair the candidate and evidence for this engine diagnostic, without changing the accepted promise: {diagnostic}"
-            )
-        })
-        .unwrap_or_default();
     build_command(
         selection,
         image_paths,
-        format!(
-            "Read `{}` and materialize the accepted TOHSENO Birth Plan. Build, traverse and inspect every required target-user scenario, then write the strict Experience Trial. Return a candidate and evidence; do not call `tohseno evolve`, because the engine owns acceptance and sealing.{repair}",
-            task_path.display()
-        ),
+        materialization_instruction(task_path, repair_diagnostic),
+    )
+}
+
+fn materialization_instruction(task_path: &Path, repair_diagnostic: Option<&str>) -> String {
+    let repair = repair_diagnostic
+        .map(|diagnostic| {
+            format!(
+                " This is a focused pre-acceptance repair pass. Make the smallest change that resolves this engine diagnostic, inspect the resulting diff for unrelated source, evidence, or verdict mutations, and do not change the accepted promise: {diagnostic}"
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "Read `{}` and materialize the accepted TOHSENO Birth Plan. Treat the current Shot repository and its prepared package as the only app-specific input boundary: do not inspect or reuse sibling Shot repositories, prior app candidates, or unrelated execution logs unless this exact intention explicitly supplies them. Before choosing the visual system, open and visually inspect every labeled reference image named in `.tohseno/EVOLUTION_INTENT.md`; filesystem metadata or byte inspection is not visual inspection. Extract non-proprietary composition, color, texture, density, and shape cues; do not copy recognizable third-party characters, logos, trade dress, or branded assets unless the exact intention explicitly authorizes them. Build, traverse and inspect every required target-user scenario, then write the strict Experience Trial. Return a candidate and evidence; do not call `tohseno evolve`, because the engine owns acceptance and sealing.{repair}",
+        task_path.display()
     )
 }
 
@@ -646,6 +665,7 @@ mod tests {
         let codex = known_harness("codex").unwrap();
         assert_eq!(codex.bypass_arguments, &["--yolo"]);
         assert_eq!(codex.unattended_arguments, &["exec"]);
+        assert_eq!(codex.unattended_prompt_arguments, &["--"]);
         let claude = known_harness("claude-code").unwrap();
         assert_eq!(claude.bypass_arguments, &["--dangerously-skip-permissions"]);
         assert_eq!(claude.unattended_arguments, &["--print"]);
@@ -678,6 +698,39 @@ mod tests {
             vec![OsString::from("ANTHROPIC_API_KEY")]
         );
         assert!(removed_environment_for_route("openai-api").is_empty());
+    }
+
+    #[test]
+    fn conception_repair_instruction_carries_the_engine_diagnostic() {
+        let instruction = conception_instruction(
+            Path::new(".tohseno/CONCEPTION.md"),
+            Some("organ dependency has not been declared"),
+        );
+        assert!(instruction.contains("focused Conception repair pass"));
+        assert!(instruction.contains("Make the smallest change"));
+        assert!(instruction.contains("organ dependency has not been declared"));
+        assert!(instruction.contains("Do not implement the app"));
+        assert!(instruction.contains("Open and visually inspect every labeled reference image"));
+        assert!(instruction.contains("do not copy recognizable third-party characters"));
+        assert!(instruction.contains("do not inspect or reuse sibling Shot repositories"));
+    }
+
+    #[test]
+    fn materialization_requires_real_visual_reference_inspection() {
+        let instruction = materialization_instruction(Path::new(".tohseno/TASK.md"), None);
+        assert!(instruction.contains("open and visually inspect every labeled reference image"));
+        assert!(
+            instruction.contains("filesystem metadata or byte inspection is not visual inspection")
+        );
+        assert!(instruction.contains("do not copy recognizable third-party characters"));
+        assert!(instruction.contains("do not inspect or reuse sibling Shot repositories"));
+
+        let repair = materialization_instruction(
+            Path::new(".tohseno/TASK.md"),
+            Some("one trial field is invalid"),
+        );
+        assert!(repair.contains("Make the smallest change"));
+        assert!(repair.contains("inspect the resulting diff"));
     }
 
     #[test]

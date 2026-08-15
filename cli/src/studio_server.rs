@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 use tohseno_engine::builder_identity::{
     BuilderDeploymentStatus, BuilderIdentity, BuilderIdentityManager,
 };
@@ -55,6 +56,8 @@ const BANKR_SYMBOL: &[u8] = include_bytes!("../../brand/logos/bankr-symbol-full-
 const MAX_BODY: usize = 160 * 1024 * 1024;
 const MAX_HEADERS: usize = 32 * 1024;
 const MAX_PROTOCOL_JSON: u64 = 4 * 1024 * 1024;
+const SSE_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(15);
+const SSE_KEEPALIVE_FRAME: &[u8] = b": tohseno-studio-keepalive\n\n";
 
 #[derive(Clone)]
 struct State {
@@ -2571,27 +2574,42 @@ async fn stream_events(
     mut socket: TcpStream,
     events: EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut receiver = events.subscribe();
     socket
         .write_all(
             b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nContent-Security-Policy: default-src 'none'; connect-src 'self'; frame-ancestors 'none'\r\nReferrer-Policy: no-referrer\r\nConnection: keep-alive\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\n\r\n",
         )
         .await?;
-    let mut receiver = events.subscribe();
+    socket.write_all(b"retry: 1000\n: connected\n\n").await?;
+    let mut keepalive = tokio::time::interval(SSE_KEEPALIVE_INTERVAL);
+    keepalive.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // `interval` ticks immediately; consume that tick because the opening
+    // comment above already proves the stream is live.
+    keepalive.tick().await;
     loop {
-        let event = match receiver.recv().await {
-            Ok(event) => event,
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                Event::status("the studio display skipped earlier lines.")
+        tokio::select! {
+            received = receiver.recv() => {
+                let event = match received {
+                    Ok(event) => event,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        Event::status("the studio display skipped earlier lines.")
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
+                };
+                let encoded = serde_json::to_string(&event)?;
+                if socket
+                    .write_all(format!("data: {encoded}\n\n").as_bytes())
+                    .await
+                    .is_err()
+                {
+                    return Ok(());
+                }
             }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
-        };
-        let encoded = serde_json::to_string(&event)?;
-        if socket
-            .write_all(format!("data: {encoded}\n\n").as_bytes())
-            .await
-            .is_err()
-        {
-            return Ok(());
+            _ = keepalive.tick() => {
+                if socket.write_all(SSE_KEEPALIVE_FRAME).await.is_err() {
+                    return Ok(());
+                }
+            }
         }
     }
 }
@@ -2776,6 +2794,14 @@ mod tests {
             find_bytes(b"GET / HTTP/1.1\r\n\r\nbody", b"\r\n\r\n"),
             Some(14)
         );
+    }
+
+    #[test]
+    fn studio_event_keepalive_is_a_non_message_sse_comment() {
+        assert!(SSE_KEEPALIVE_INTERVAL <= Duration::from_secs(30));
+        assert!(SSE_KEEPALIVE_FRAME.starts_with(b":"));
+        assert!(SSE_KEEPALIVE_FRAME.ends_with(b"\n\n"));
+        assert!(!SSE_KEEPALIVE_FRAME.starts_with(b"data:"));
     }
 
     #[test]

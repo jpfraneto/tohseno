@@ -33,6 +33,7 @@ pub(crate) fn profile() -> AppleCapabilityProfile {
         simulator_runtimes: Vec::new(),
         connected_devices: Vec::new(),
         last_known_devices: Vec::new(),
+        signing_team: None,
         resolutions: catalog
             .capabilities
             .iter()
@@ -800,14 +801,29 @@ mod tests {
         assert!(task.contains(&factory.static_constitution_digest.to_string()));
         assert!(task.contains(&factory.accepted_shot_genome_digest.unwrap().to_string()));
         assert!(task.contains(&factory.apple_capability_profile_digest.to_string()));
+        assert!(task.contains(
+            &proposed
+                .experience_contract
+                .digest()
+                .expect("experience contract digest")
+                .to_string()
+        ));
         assert!(task.contains("not a denylist"));
+        assert!(task.contains("engine-selected development team"));
         assert!(task.contains("Simulator sensor input is absent"));
+        assert!(task.contains("silently replace accepted persistence"));
         assert!(task.contains("forbidden_substitutions"));
         assert!(task.contains("camera_to_dark_background"));
         assert!(task.contains("camera_capture"));
         assert!(task.contains("microphone_input"));
         assert!(task.contains("ar_world_tracking"));
         assert!(task.contains("realitykit_rendering"));
+        assert!(task.contains("A DEBUG fixture may prove individual"));
+        assert!(task.contains("relative to the Shot repository root"));
+        assert!(task.contains("Set `experience_contract_digest` to the authoritative digest"));
+        assert!(task.contains("exactly one real\n  Xcode project at `./Anky.xcodeproj`"));
+        assert!(task.contains("repository-root `TohsenoFascia/`"));
+        assert!(task.contains("repository-root\n`TOHSENO/fascia.json`"));
         assert!(task.contains("Do not call `tohseno evolve`"));
     }
 
@@ -868,6 +884,23 @@ mod tests {
         build_only.scenario_results.clear();
         assert!(build_only.validate(&plan, &expression, &contract).is_err());
 
+        let mut missing_class = trial(&plan, &contract, None, None, true, Vec::new());
+        let scenario_id = contract.scenarios[0].id.clone();
+        missing_class
+            .scenario_results
+            .iter_mut()
+            .find(|result| result.scenario_id == scenario_id)
+            .unwrap()
+            .evidence
+            .retain(|evidence| evidence.kind != EvidenceKind::XcuiTest);
+        let diagnostic = missing_class
+            .validate(&plan, &expression, &contract)
+            .unwrap_err()
+            .to_string();
+        assert!(diagnostic.contains(&format!(
+            "passing scenario `{scenario_id}` lacks required evidence classes: xcui_test"
+        )));
+
         let no_phone = trial(&plan, &contract, None, None, false, Vec::new());
         let receipt = evaluate_birth(
             &plan,
@@ -914,6 +947,35 @@ mod tests {
         assert!(receipt.intent_fidelity.passed);
         assert!(!receipt.experience_verification.passed);
         assert!(!receipt.accepted);
+    }
+
+    #[test]
+    fn verification_gap_diagnostic_names_the_gap_and_must_requirement() {
+        let plan = plan(sha256(INTENTION.as_bytes()));
+        let contract = contract(&plan);
+        let expression = BirthExpressionPlan::from_birth_plan(&plan).unwrap();
+        let must_requirement = plan
+            .requirements
+            .iter()
+            .find(|requirement| requirement.level == RequirementLevel::Must)
+            .unwrap()
+            .id
+            .clone();
+        let mut incomplete = trial(&plan, &contract, None, None, true, Vec::new());
+        incomplete.incompleteness.push(TypedIncompleteness {
+            id: "missing_visual_review".into(),
+            category: IncompletenessCategory::ExperienceVerificationGap,
+            description: "The final visual review has not run.".into(),
+            requirement_ids: vec![must_requirement.clone()],
+            blocks_completion: false,
+        });
+        let diagnostic = incomplete
+            .validate(&plan, &expression, &contract)
+            .unwrap_err()
+            .to_string();
+        assert!(diagnostic.contains(&format!(
+            "verification gap `missing_visual_review` touches must requirements [{must_requirement}] and must block completion"
+        )));
     }
 
     #[test]

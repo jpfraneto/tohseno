@@ -313,6 +313,17 @@ pub fn update_phase(
     append_event(execution, phase, report)
 }
 
+/// Append a durable, privacy-preserving liveness event while a native harness
+/// is still running. This deliberately does not replace the execution's
+/// current phase (for example, `workspace_changed`) or proxy private harness
+/// output into Studio.
+pub fn append_harness_heartbeat(
+    execution: &PreparedExecution,
+    report: impl Into<String>,
+) -> Result<(), ShotExecutionError> {
+    append_event(execution, ExecutionPhase::HarnessRunning, report)
+}
+
 pub fn read_events(
     repository: &Path,
     execution_id: &str,
@@ -436,11 +447,15 @@ pub fn complete_execution(
     .to_owned();
     let authoritative_next_action = if landed {
         "Experience the accepted app now running on the paired iPhone.".into()
+    } else if cancelled {
+        "The Shot was cancelled. Start a new execution only when you want to retry the preserved intention.".into()
     } else if !files_changed.is_empty() {
         "Review the engine diagnostic and unaccepted candidate evidence; repair the failed criteria without changing the accepted intention.".into()
     } else {
-        "Inspect the execution events and retry the prepared Shot.".into()
+        "Inspect the execution events, then start a new execution for the preserved exact intention; final execution records are immutable.".into()
     };
+    let ended_at = now()?;
+    let duration_seconds = duration_seconds.max(elapsed_seconds(&started_at, &ended_at));
     let completion = CompletionRecord {
         schema: COMPLETION_RECORD_SCHEMA.into(),
         execution_id: execution.execution_id.clone(),
@@ -459,7 +474,7 @@ pub fn complete_execution(
             .map(|reference| reference.digest)
             .collect(),
         started_at,
-        ended_at: now()?,
+        ended_at,
         duration_seconds,
         exit_code,
         files_changed,
@@ -553,6 +568,103 @@ pub fn capture_tree(
 pub fn has_workspace_changed(execution: &PreparedExecution) -> Result<bool, ShotExecutionError> {
     let directory = execution_directory(&execution.repository, &execution.execution_id);
     Ok(capture_tree(&execution.repository, &directory)? != execution.baseline.tree)
+}
+
+/// Summarize visible harness progress without exposing private prompt text,
+/// source filenames, logs, or model output. Standardized artifact classes are
+/// enough for Studio to distinguish planning, implementation, tests, and
+/// experience evidence while the detached process remains the source of
+/// truth for liveness.
+pub fn privacy_safe_workspace_progress(
+    execution: &PreparedExecution,
+) -> Result<String, ShotExecutionError> {
+    let directory = execution_directory(&execution.repository, &execution.execution_id);
+    let current_tree = capture_tree(&execution.repository, &directory)?;
+    let files = changed_files(
+        &execution.repository,
+        &execution.baseline.tree,
+        &current_tree,
+    )?;
+    Ok(workspace_progress_from_changes(
+        &execution.repository,
+        &files,
+    ))
+}
+
+fn workspace_progress_from_changes(repository: &Path, files: &[ChangedFile]) -> String {
+    let mut signals = std::collections::BTreeSet::new();
+    for file in files {
+        let lower = file.path.to_ascii_lowercase();
+        let components = lower.split('/').collect::<Vec<_>>();
+        if components
+            .iter()
+            .any(|component| component.ends_with(".xcodeproj"))
+            || lower == "project.yml"
+        {
+            signals.insert("Xcode project definition");
+        }
+        if lower.ends_with(".swift") {
+            signals.insert("Swift source");
+        }
+        if lower.contains("test") {
+            signals.insert("test source");
+        }
+        if lower.contains("assets.xcassets")
+            || lower.ends_with(".strings")
+            || lower.ends_with(".xcprivacy")
+        {
+            signals.insert("app resources");
+        }
+        if lower.starts_with("tohseno/") || lower.starts_with("tohsenofascia/") {
+            signals.insert("protocol integration");
+        }
+    }
+
+    for (relative, signal) in [
+        (
+            ".tohseno/private/planning/conception-output.json",
+            "conception proposal",
+        ),
+        (
+            ".tohseno/private/planning/accepted-conception-output.json",
+            "accepted conception",
+        ),
+        (
+            ".tohseno/private/planning/experience-trial.json",
+            "Experience Trial",
+        ),
+    ] {
+        if real_file(&repository.join(relative)) {
+            signals.insert(signal);
+        }
+    }
+    if real_directory(&repository.join(".tohseno/private/planning/evidence")) {
+        signals.insert("experience evidence");
+    }
+
+    let scope = if files.is_empty() {
+        "no source-tree file change is visible yet".to_owned()
+    } else {
+        format!("{} source-tree file(s) changed", files.len())
+    };
+    if signals.is_empty() {
+        format!("{scope}; no standardized candidate artifact is visible yet")
+    } else {
+        format!(
+            "{scope}; visible artifact classes: {}",
+            signals.into_iter().collect::<Vec<_>>().join(", ")
+        )
+    }
+}
+
+fn real_file(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
+}
+
+fn real_directory(path: &Path) -> bool {
+    fs::symlink_metadata(path)
+        .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
 }
 
 pub fn execution_directory(repository: &Path, execution_id: &str) -> PathBuf {
@@ -776,6 +888,16 @@ fn now() -> Result<String, ShotExecutionError> {
         .map_err(|error| ShotExecutionError::Invalid(error.to_string()))
 }
 
+fn elapsed_seconds(started_at: &str, ended_at: &str) -> u64 {
+    let Ok(started) = OffsetDateTime::parse(started_at, &Rfc3339) else {
+        return 0;
+    };
+    let Ok(ended) = OffsetDateTime::parse(ended_at, &Rfc3339) else {
+        return 0;
+    };
+    u64::try_from((ended - started).whole_seconds()).unwrap_or(0)
+}
+
 fn git_output(repository: &Path, arguments: &[&str]) -> Result<String, ShotExecutionError> {
     let mut command = Command::new("git");
     command.arg("-C").arg(repository).args(arguments);
@@ -843,6 +965,52 @@ mod tests {
         assert!(id.bytes().all(|byte| byte.is_ascii_hexdigit()));
         assert!(validate_execution_id(&id).is_ok());
         assert!(validate_execution_id("../escape").is_err());
+    }
+
+    #[test]
+    fn elapsed_duration_is_recovered_from_durable_timestamps() {
+        assert_eq!(
+            elapsed_seconds("2026-08-06T03:43:04Z", "2026-08-06T04:18:26Z"),
+            2_122
+        );
+        assert_eq!(elapsed_seconds("invalid", "2026-08-06T04:18:26Z"), 0);
+    }
+
+    #[test]
+    fn workspace_progress_exposes_artifact_classes_without_private_filenames() {
+        let temporary = tempfile::tempdir().unwrap();
+        let repository = temporary.path();
+        fs::create_dir_all(repository.join(".tohseno/private/planning/evidence")).unwrap();
+        fs::write(
+            repository.join(".tohseno/private/planning/experience-trial.json"),
+            b"{}\n",
+        )
+        .unwrap();
+        let files = vec![
+            ChangedFile {
+                status: "A".into(),
+                path: "SecretProductName/SecretFeature.swift".into(),
+                additions: Some(10),
+                deletions: Some(0),
+            },
+            ChangedFile {
+                status: "A".into(),
+                path: "secret.xcodeproj/project.pbxproj".into(),
+                additions: Some(10),
+                deletions: Some(0),
+            },
+        ];
+
+        let report = workspace_progress_from_changes(repository, &files);
+
+        assert!(report.contains("2 source-tree file(s) changed"));
+        assert!(report.contains("Xcode project definition"));
+        assert!(report.contains("Swift source"));
+        assert!(report.contains("Experience Trial"));
+        assert!(report.contains("experience evidence"));
+        assert!(!report.contains("SecretProductName"));
+        assert!(!report.contains("SecretFeature"));
+        assert!(!report.contains("secret.xcodeproj"));
     }
 
     #[test]
@@ -948,6 +1116,8 @@ mod tests {
             "Fixture adapter running.",
         )
         .unwrap();
+        append_harness_heartbeat(&execution, "Fixture adapter is still running.").unwrap();
+        assert_eq!(execution.phase, ExecutionPhase::HarnessRunning);
         let status = Command::new(command.program)
             .args(command.arguments)
             .current_dir(&repository)
@@ -980,6 +1150,7 @@ mod tests {
                 "shot.prepared",
                 "execution.started",
                 "context.loaded",
+                "harness.running",
                 "harness.running",
                 "workspace.changed",
                 "validation.started",

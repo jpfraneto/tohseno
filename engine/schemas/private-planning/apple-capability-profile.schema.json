@@ -14,6 +14,7 @@
     "simulator_runtimes": {"type": "array", "items": {"$ref": "#/$defs/runtime"}},
     "connected_devices": {"type": "array", "items": {"$ref": "#/$defs/device"}},
     "last_known_devices": {"type": "array", "items": {"$ref": "#/$defs/device"}},
+    "signing_team": {"$ref": "#/$defs/signing_team"},
     "resolutions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/resolution"}},
     "observed_at_unix": {"type": "integer", "minimum": 0}
   },
@@ -39,6 +40,15 @@
       "type": "object", "additionalProperties": false,
       "required": ["product_type", "state"],
       "properties": {"product_type": {"type": "string"}, "state": {"$ref": "#/$defs/state"}}
+    },
+    "signing_team": {
+      "type": "object", "additionalProperties": false,
+      "required": ["team_id", "provisioning"],
+      "properties": {
+        "team_id": {"type": "string", "pattern": "^[A-Z0-9]{10}$"},
+        "team_name": {"type": "string", "minLength": 1},
+        "provisioning": {"enum": ["paid", "free", "unknown"]}
+      }
     },
     "resolution": {
       "type": "object", "additionalProperties": false,

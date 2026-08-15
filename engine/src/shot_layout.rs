@@ -624,41 +624,7 @@ impl ShotLayout {
                 "prepared intention must not be empty".into(),
             ));
         }
-        if sources.len() > MAX_PRIVATE_REFERENCES {
-            return Err(ShotLayoutError::Limit(format!(
-                "a prepared Shot accepts at most {MAX_PRIVATE_REFERENCES} reference images"
-            )));
-        }
-        let mut prepared = Vec::with_capacity(sources.len());
-        let mut digests = BTreeSet::new();
-        for (index, source) in sources.iter().enumerate() {
-            let extension = source
-                .extension()
-                .and_then(|value| value.to_str())
-                .map(str::to_ascii_lowercase)
-                .filter(|extension| {
-                    ["png", "jpg", "jpeg", "heic", "webp"].contains(&extension.as_str())
-                })
-                .ok_or_else(|| {
-                    ShotLayoutError::Invalid(format!(
-                        "{} is not a supported PNG, JPEG, HEIC, or WebP image",
-                        source.display()
-                    ))
-                })?;
-            let attachment = read_private_attachment(source)?;
-            validate_image_bytes(&extension, &attachment.bytes).map_err(|reason| {
-                ShotLayoutError::Invalid(format!("{}: {reason}", source.display()))
-            })?;
-            if !digests.insert(attachment.digest) {
-                return Err(ShotLayoutError::Invalid(
-                    "reference images must not repeat content".into(),
-                ));
-            }
-            let label = format!("image_{}", index + 1);
-            let filename = format!("{label}.{extension}");
-            let availability = private_reference_availability(&attachment, filename.clone())?;
-            prepared.push((attachment, label, filename, availability));
-        }
+        let prepared = prepared_intent_references(sources)?;
 
         self.initialize_directories()?;
         let references_root = self.metadata_root().join("references");
@@ -725,6 +691,22 @@ impl ShotLayout {
             true,
         )?;
         Ok((package, stored))
+    }
+
+    /// Describe the exact deterministic reference materials that an initial
+    /// intention package would use without mutating aliases or other Shot
+    /// files. Callers use this to compare an existing origin before a retry
+    /// replaces any human-facing reference path.
+    pub fn describe_prepared_intent_references(
+        &self,
+        sources: &[PathBuf],
+    ) -> Result<Vec<ArtifactAvailability>, ShotLayoutError> {
+        prepared_intent_references(sources).map(|prepared| {
+            prepared
+                .into_iter()
+                .map(|(_, _, _, availability)| availability)
+                .collect()
+        })
     }
 
     pub fn prepared_intent_package(&self) -> Result<PreparedIntentPackage, ShotLayoutError> {
@@ -2769,6 +2751,13 @@ fn validate_image_bytes(extension: &str, bytes: &[u8]) -> Result<(), &'static st
         .ok_or("file bytes do not match the declared supported image format")
 }
 
+fn detect_image_extension(bytes: &[u8]) -> Option<String> {
+    ["png", "jpg", "heic", "webp"]
+        .into_iter()
+        .find(|extension| validate_image_bytes(extension, bytes).is_ok())
+        .map(str::to_owned)
+}
+
 /// Apply the Apple factory's authoritative private-reference checks to bytes
 /// that did not originate as a local path (for example, an imported private
 /// intention package). Transport layers may impose smaller limits, but must
@@ -2867,6 +2856,63 @@ fn validate_private_reference_availability(
         ));
     }
     Ok(())
+}
+
+/// Validate the ordered image inputs used by the harness-facing intention
+/// package and derive their stable `image_N.ext` descriptors without writing
+/// into the Shot. Content-addressed reference objects have no extension, so
+/// this path may infer a canonical image extension from validated magic bytes.
+fn prepared_intent_references(
+    sources: &[PathBuf],
+) -> Result<Vec<(PrivateAttachment, String, String, ArtifactAvailability)>, ShotLayoutError> {
+    if sources.len() > MAX_PRIVATE_REFERENCES {
+        return Err(ShotLayoutError::Limit(format!(
+            "a prepared Shot accepts at most {MAX_PRIVATE_REFERENCES} reference images"
+        )));
+    }
+    let mut prepared = Vec::with_capacity(sources.len());
+    let mut digests = BTreeSet::new();
+    for (index, source) in sources.iter().enumerate() {
+        let declared_extension = source
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(str::to_ascii_lowercase);
+        if declared_extension
+            .as_deref()
+            .is_some_and(|extension| !IMAGE_REFERENCE_EXTENSIONS.contains(&extension))
+        {
+            return Err(ShotLayoutError::Invalid(format!(
+                "{} is not a supported PNG, JPEG, HEIC, or WebP image",
+                source.display()
+            )));
+        }
+        let mut attachment = read_private_attachment(source)?;
+        let extension = match declared_extension {
+            Some(extension) => {
+                validate_image_bytes(&extension, &attachment.bytes).map_err(|reason| {
+                    ShotLayoutError::Invalid(format!("{}: {reason}", source.display()))
+                })?;
+                extension
+            }
+            None => detect_image_extension(&attachment.bytes).ok_or_else(|| {
+                ShotLayoutError::Invalid(format!(
+                    "{} has no supported image extension and its bytes are not PNG, JPEG, HEIC, or WebP",
+                    source.display()
+                ))
+            })?,
+        };
+        attachment.extension = Some(extension.clone());
+        if !digests.insert(attachment.digest) {
+            return Err(ShotLayoutError::Invalid(
+                "reference images must not repeat content".into(),
+            ));
+        }
+        let label = format!("image_{}", index + 1);
+        let filename = format!("{label}.{extension}");
+        let availability = private_reference_availability(&attachment, filename.clone())?;
+        prepared.push((attachment, label, filename, availability));
+    }
+    Ok(prepared)
 }
 
 /// Validates reference sources without touching the Shot folder: bounded
@@ -4741,6 +4787,44 @@ mod tests {
             .unwrap();
         assert!(without_images.references.is_empty());
         assert!(!root.join(".tohseno/references/image_1.png").exists());
+    }
+
+    #[test]
+    fn prepared_intent_accepts_extensionless_content_objects_without_mutating_on_describe() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("shot");
+        fs::create_dir(&root).unwrap();
+        let source = temporary
+            .path()
+            .join("6a4bd5d854d3892025f9a71a3adf95a91c2e");
+        let bytes = b"\x89PNG\r\n\x1a\nextensionless reference";
+        fs::write(&source, bytes).unwrap();
+        let layout = ShotLayout::at(&root);
+
+        let described = layout
+            .describe_prepared_intent_references(std::slice::from_ref(&source))
+            .unwrap();
+        assert_eq!(described.len(), 1);
+        assert_eq!(described[0].artifact.media_type, "image/png");
+        assert_eq!(described[0].artifact.name.as_deref(), Some("image_1.png"));
+        assert!(!root.join(".tohseno/references").exists());
+
+        let (package, stored) = layout
+            .prepare_intent_package(b"Use this exact image.", &[source])
+            .unwrap();
+        assert_eq!(stored[0].availability, described[0]);
+        assert_eq!(
+            package.references[0].relative_path,
+            ".tohseno/references/image_1.png"
+        );
+        assert_eq!(
+            fs::read(root.join(".tohseno/references/image_1.png")).unwrap(),
+            bytes
+        );
+
+        let none = layout.describe_prepared_intent_references(&[]).unwrap();
+        assert!(none.is_empty());
+        assert!(root.join(".tohseno/references/image_1.png").is_file());
     }
 
     #[test]

@@ -303,7 +303,6 @@ impl BirthPlan {
 
         let mut organ_ids = BTreeSet::new();
         let mut product_requirement_coverage = BTreeSet::new();
-        let mut seen_provides = BTreeSet::new();
         let genome_invariants = self
             .genome
             .behavioral_invariants
@@ -325,7 +324,6 @@ impl BirthPlan {
                 &capability_ids,
                 &journey_ids,
                 &organ_ids,
-                &seen_provides,
             )?;
             if organ.kind == OrganKind::ProtocolSubstrate {
                 require(
@@ -352,7 +350,6 @@ impl BirthPlan {
                     .extend(organ.requirement_ids.iter().map(String::as_str));
             }
             organ_ids.insert(organ.organ_id.as_str());
-            seen_provides.extend(organ.provides.iter().map(String::as_str));
         }
         require(
             app_specific_count > 0,
@@ -384,11 +381,6 @@ impl BirthPlan {
         require(
             must_ids.is_subset(&completion_must),
             "completion contract must contain every must-level requirement",
-        )?;
-        references_exist(
-            "completion scenario",
-            &self.completion_contract.required_scenario_ids,
-            &journey_ids,
         )?;
         references_exist(
             "physical verification capability",
@@ -576,7 +568,6 @@ fn validate_organ<'a>(
     capabilities: &BTreeSet<&str>,
     journeys: &BTreeSet<&str>,
     earlier_organs: &BTreeSet<&'a str>,
-    earlier_provides: &BTreeSet<&'a str>,
 ) -> Result<(), BirthPlanError> {
     require_id("organ", &organ.organ_id)?;
     require(
@@ -600,10 +591,9 @@ fn validate_organ<'a>(
     )?;
     for dependency in &organ.dependencies {
         require(
-            earlier_organs.contains(dependency.as_str())
-                || earlier_provides.contains(dependency.as_str()),
+            earlier_organs.contains(dependency.as_str()),
             format!(
-                "organ `{}` depends on undeclared or later organ/capability `{dependency}`",
+                "organ `{}` depends on undeclared or later organ `{dependency}`",
                 organ.organ_id
             ),
         )?;
@@ -681,3 +671,31 @@ impl fmt::Display for BirthPlanError {
 }
 
 impl std::error::Error for BirthPlanError {}
+
+#[cfg(test)]
+mod tests {
+    use tohseno_protocol::digest::sha256;
+
+    #[test]
+    fn completion_scenario_ids_are_owned_by_the_experience_contract() {
+        let mut plan = crate::anky_fixture::plan(sha256(b"scenario ownership"));
+        let mut contract = crate::anky_fixture::contract(&plan);
+        plan.completion_contract.required_scenario_ids = vec!["scenario_only".into()];
+        plan.validate().unwrap();
+
+        contract.birth_plan_digest = plan.digest().unwrap();
+        let error = contract.validate(&plan).unwrap_err().to_string();
+        assert!(error.contains("missing experience scenario"), "{error}");
+    }
+
+    #[test]
+    fn organ_dependencies_must_name_earlier_organs_not_provided_tokens() {
+        let mut plan = crate::anky_fixture::plan(sha256(b"organ dependency"));
+        let provided_token = plan.embodiment[0].provides[0].clone();
+        assert_ne!(provided_token, plan.embodiment[0].organ_id);
+        plan.embodiment[1].dependencies = vec![provided_token];
+
+        let error = plan.validate().unwrap_err().to_string();
+        assert!(error.contains("undeclared or later organ"), "{error}");
+    }
+}

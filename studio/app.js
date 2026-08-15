@@ -2435,7 +2435,9 @@ stream.onopen = () => {
   ui.connection.classList.add("online");
 };
 stream.onerror = () => {
-  ui.connection.textContent = "reconnecting";
+  ui.connection.textContent = pendingShot
+    ? "display reconnecting · Shot continues locally"
+    : "display reconnecting";
   ui.connection.classList.remove("online");
 };
 stream.onmessage = (event) => {

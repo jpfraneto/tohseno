@@ -183,6 +183,8 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
         "-onlyUsePackageVersionsFromResolvedFile".into(),
         "-allowProvisioningUpdates".into(),
         "ENABLE_USER_SCRIPT_SANDBOXING=YES".into(),
+        "CODE_SIGNING_ALLOWED=YES".into(),
+        "CODE_SIGNING_REQUIRED=YES".into(),
         "CODE_SIGN_STYLE=Automatic".into(),
         format!("DEVELOPMENT_TEAM={}", request.team_id).into(),
         format!("PRODUCT_BUNDLE_IDENTIFIER={}", request.bundle_id).into(),

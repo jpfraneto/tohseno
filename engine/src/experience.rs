@@ -35,6 +35,22 @@ pub enum EvidenceKind {
     IntelligentReview,
 }
 
+impl EvidenceKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::XcuiTest => "xcui_test",
+            Self::XcTest => "xc_test",
+            Self::Screenshot => "screenshot",
+            Self::Video => "video",
+            Self::Log => "log",
+            Self::PersistedState => "persisted_state",
+            Self::ReleaseBuild => "release_build",
+            Self::PhysicalDeviceTrial => "physical_device_trial",
+            Self::IntelligentReview => "intelligent_review",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExperienceScenario {
@@ -277,6 +293,18 @@ pub enum IncompletenessCategory {
     ExplicitNonGoal,
 }
 
+impl IncompletenessCategory {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::ProductGap => "product_gap",
+            Self::ExperienceVerificationGap => "experience_verification_gap",
+            Self::ExternalEnvironmentConstraint => "external_environment_constraint",
+            Self::FutureOpportunity => "future_opportunity",
+            Self::ExplicitNonGoal => "explicit_non_goal",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TypedIncompleteness {
@@ -323,9 +351,13 @@ impl ExperienceTrial {
                     .map_err(|error| ExperienceError(error.to_string()))?,
             "experience trial is bound to a different Birth Plan",
         )?;
+        let expected_contract_digest = contract.digest()?;
         ensure(
-            self.experience_contract_digest == contract.digest()?,
-            "experience trial is bound to a different Experience Contract",
+            self.experience_contract_digest == expected_contract_digest,
+            format!(
+                "experience trial is bound to a different Experience Contract: trial declares {}, expected canonical digest {}",
+                self.experience_contract_digest, expected_contract_digest
+            ),
         )?;
         self.intent_review.validate()?;
 
@@ -373,13 +405,19 @@ impl ExperienceTrial {
                 .iter()
                 .map(|evidence| evidence.kind)
                 .collect::<BTreeSet<_>>();
+            let missing_evidence = scenario
+                .evidence_required
+                .iter()
+                .filter(|kind| !evidence_kinds.contains(kind))
+                .map(|kind| kind.as_str())
+                .collect::<Vec<_>>();
             ensure(
-                !result.passed
-                    || scenario
-                        .evidence_required
-                        .iter()
-                        .all(|kind| evidence_kinds.contains(kind)),
-                format!("scenario `{}` lacks a required evidence class", scenario.id),
+                !result.passed || missing_evidence.is_empty(),
+                format!(
+                    "passing scenario `{}` lacks required evidence classes: {}",
+                    scenario.id,
+                    missing_evidence.join(", ")
+                ),
             )?;
         }
 
@@ -452,13 +490,22 @@ impl ExperienceTrial {
                     ensure(gap.blocks_completion, "a product gap must block completion")?
                 }
                 IncompletenessCategory::ExperienceVerificationGap => {
-                    let touches_must = plan.requirements.iter().any(|requirement| {
-                        requirement.level == RequirementLevel::Must
-                            && gap.requirement_ids.contains(&requirement.id)
-                    });
+                    let touched_must = plan
+                        .requirements
+                        .iter()
+                        .filter(|requirement| {
+                            requirement.level == RequirementLevel::Must
+                                && gap.requirement_ids.contains(&requirement.id)
+                        })
+                        .map(|requirement| requirement.id.as_str())
+                        .collect::<Vec<_>>();
                     ensure(
-                        !touches_must || gap.blocks_completion,
-                        "a verification gap touching a must requirement must block completion",
+                        touched_must.is_empty() || gap.blocks_completion,
+                        format!(
+                            "verification gap `{}` touches must requirements [{}] and must block completion",
+                            gap.id,
+                            touched_must.join(", ")
+                        ),
                     )?;
                 }
                 IncompletenessCategory::FutureOpportunity => ensure(

@@ -177,9 +177,13 @@ impl Engine {
             ));
         }
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
-        // Prove every reference source stages cleanly BEFORE the folder or
-        // identity exists; a failed creation must not strand a partial Shot.
-        crate::shot_layout::preflight_private_references(&request.intent.images)?;
+        // Prove every reference source and its deterministic `image_N` origin
+        // descriptor before the folder or identity exists. This description
+        // is read-only and lets a retry compare origin lineage before it
+        // replaces any prepared reference aliases.
+        let prospective_layout = ShotLayout::at(self.ledger.working_tree(&request.app_name));
+        let source_materials =
+            prospective_layout.describe_prepared_intent_references(&request.intent.images)?;
         self.emit_upsell_once(
             "welcome",
             "first shot: Xcode + Apple ID now · iPhone later · free Apple IDs refresh weekly.",
@@ -214,12 +218,6 @@ impl Engine {
         layout.initialize_directories()?;
         layout.preserve_exact_intention(request.intent.prompt.as_bytes())?;
         let reference_sources = self.validated_reference_sources(&request.intent);
-        let (prepared_intention, source_references) =
-            layout.prepare_intent_package(request.intent.prompt.as_bytes(), &reference_sources)?;
-        let source_materials = source_references
-            .iter()
-            .map(|reference| reference.availability.clone())
-            .collect::<Vec<_>>();
         self.ensure_origin_lineage(
             &layout,
             &app,
@@ -228,6 +226,18 @@ impl Engine {
             request.intent.prompt.as_bytes(),
             &source_materials,
         )?;
+        let (prepared_intention, source_references) =
+            layout.prepare_intent_package(request.intent.prompt.as_bytes(), &reference_sources)?;
+        if source_references
+            .iter()
+            .map(|reference| &reference.availability)
+            .ne(source_materials.iter())
+        {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "reference image bytes changed between origin preflight and intention staging"
+                    .into(),
+            ));
+        }
         self.genome.compose_briefing(
             &self.ledger,
             &request.app_name,
@@ -317,13 +327,15 @@ impl Engine {
         let layout = ShotLayout::at(self.ledger.working_tree(app_name));
         let (output, expression) = ConceptionOutput::read_and_validate(&layout, &input)?;
         validate_conception_source_traceability(&layout, &input, &output)?;
-        self.accept_genome_from_validated_conception(
-            app_name,
-            &output.birth_plan.genome,
-            &output.rationale,
-        )?;
-        self.declare_initial_expression(app_name, &expression)?;
+        let app = self.ledger.load_app(app_name)?;
+        let (expression_plan_bytes, _, _) =
+            prepare_initial_expression_parts(&app, &expression, &output.birth_plan.genome)?;
+        // Every deterministic artifact and protocol conversion that follows
+        // Genome acceptance must succeed first. A malformed app-specific
+        // Organ graph must never leave a Genome accepted on its own.
         output.preserve_accepted_artifacts(&layout)?;
+        layout
+            .preserve_private_planning_file("birth-expression-plan.json", &expression_plan_bytes)?;
         let genome_digest = output
             .birth_plan
             .genome
@@ -343,7 +355,12 @@ impl Engine {
             "materialization-factory-identity.json",
             &factory_bytes,
         )?;
-        let app = self.ledger.load_app(app_name)?;
+        self.accept_genome_from_validated_conception(
+            app_name,
+            &output.birth_plan.genome,
+            &output.rationale,
+        )?;
+        self.declare_initial_expression(app_name, &expression)?;
         self.genome.write_birth_task(
             &self.ledger.working_tree(app_name),
             app_name,
@@ -919,19 +936,6 @@ impl Engine {
         let expected_builder = app
             .builder_id
             .ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
-        let expression_id = app.expression_id.ok_or_else(|| {
-            EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
-        })?;
-        if plan.schema != crate::birth_plan::BIRTH_EXPRESSION_PLAN_SCHEMA
-            || plan.kind != "native_apple_application"
-            || plan.name != app.target_name()
-            || plan.platforms.is_empty()
-            || plan.organs.is_empty()
-        {
-            return Err(EngineError::ProtocolBodyIncomplete(
-                "initial expression plan is not the reviewed Apple plan for this Shot".into(),
-            ));
-        }
         let manager = BuilderIdentityManager::for_ledger(&self.ledger);
         let builder = manager.ensure()?;
         if builder.builder_id != expected_builder {
@@ -958,40 +962,10 @@ impl Engine {
                 "expression plan does not bind the current accepted Genome".into(),
             ));
         }
-        plan.validate(&accepted.genome)?;
-
-        let plan_bytes = tohseno_protocol::canonical::to_vec(plan)
-            .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+        let (plan_bytes, expression, organs) =
+            prepare_initial_expression_parts(&app, plan, &accepted.genome)?;
+        let expression_id = expression.expression_id;
         layout.preserve_private_planning_file("birth-expression-plan.json", &plan_bytes)?;
-        let expression = Expression {
-            schema: EXPRESSION_SCHEMA.into(),
-            expression_id,
-            kind: plan.kind.clone(),
-            name: plan.name.clone(),
-            platforms: plan.platforms.clone(),
-            genome_revision: plan.genome_revision,
-            genome_digest: plan.genome_digest,
-            definition: ArtifactAvailability {
-                schema: ARTIFACT_AVAILABILITY_SCHEMA.into(),
-                artifact: ArtifactDescriptor {
-                    digest: tohseno_protocol::digest::sha256(&plan_bytes),
-                    media_type: "application/json".into(),
-                    byte_length: u64::try_from(plan_bytes.len()).map_err(|_| {
-                        EngineError::ProtocolBodyIncomplete(
-                            "expression plan length overflowed".into(),
-                        )
-                    })?,
-                    name: Some("birth-expression-plan.json".into()),
-                },
-                status: AvailabilityStatus::LocallyAvailable,
-                locations: Vec::new(),
-            },
-        };
-        expression.validate().map_err(ShotLayoutError::from)?;
-        let organs = plan.protocol_organs(expression_id);
-        for organ in &organs {
-            organ.validate().map_err(ShotLayoutError::from)?;
-        }
         if let Some(existing) = state.expression(expression_id) {
             let exact_organs = existing.organs.len() == organs.len()
                 && organs.iter().all(|organ| {
@@ -1006,7 +980,11 @@ impl Engine {
                 ));
             }
             layout.write_metadata_json("expression.json", &expression, false)?;
-            layout.write_metadata_json("capabilities.lock", &organs, false)?;
+            layout.write_metadata_json(
+                "capabilities.lock",
+                &canonical_organ_view(&organs),
+                false,
+            )?;
             return Ok(expression);
         }
 
@@ -1036,7 +1014,7 @@ impl Engine {
         }
         layout.append_lineage_batch(&signed_actions)?;
         layout.write_metadata_json("expression.json", &expression, false)?;
-        layout.write_metadata_json("capabilities.lock", &organs, false)?;
+        layout.write_metadata_json("capabilities.lock", &canonical_organ_view(&organs), false)?;
         Ok(expression)
     }
 
@@ -2488,12 +2466,13 @@ impl Engine {
         if is_initial_birth {
             // Fail before reserving or building when the harness returned only
             // a build, a generic plan, or incomplete target-user evidence.
+            validate_canonical_birth_project_layout(&working, app_name)?;
             let birth = self.load_birth_context(app_name)?;
             let blockers = birth_candidate_blockers(&birth);
             if !blockers.is_empty() {
                 return Err(EngineError::ProtocolBodyIncomplete(format!(
                     "birth candidate remains unsealed before recording: {}",
-                    blockers.join("; ")
+                    summarize_birth_candidate_blockers(&blockers)
                 )));
             }
             protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
@@ -2901,6 +2880,72 @@ impl Engine {
     }
 }
 
+/// Birth has one canonical source root. A project copied under `src/` can look
+/// buildable to a harness while the engine later signs a separately repaired
+/// root project, leaving two divergent descriptions of the app. Inspect the
+/// source tree independently and reject that ambiguity before any Version is
+/// reserved. Private lineage and ordinary derived-data roots are not source.
+fn validate_canonical_birth_project_layout(root: &Path, app_name: &str) -> Result<(), EngineError> {
+    let expected = PathBuf::from(format!("{app_name}.xcodeproj"));
+    let mut projects = Vec::new();
+    let mut pending = vec![PathBuf::new()];
+
+    while let Some(relative_directory) = pending.pop() {
+        let directory = root.join(&relative_directory);
+        for entry in fs::read_dir(&directory)? {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
+            let relative = relative_directory.join(entry.file_name());
+            let is_project = entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "xcodeproj");
+
+            if file_type.is_symlink() {
+                if is_project {
+                    return Err(EngineError::ProtocolBodyIncomplete(format!(
+                        "birth source layout contains a symlinked Xcode project at `./{}`",
+                        relative.display()
+                    )));
+                }
+                continue;
+            }
+            if !file_type.is_dir() {
+                continue;
+            }
+            if is_project {
+                projects.push(relative);
+                continue;
+            }
+            if matches!(
+                entry.file_name().to_str(),
+                Some(".tohseno" | ".git" | ".build" | "build" | "DerivedData")
+            ) {
+                continue;
+            }
+            pending.push(relative);
+        }
+    }
+
+    projects.sort();
+    if projects.as_slice() != [expected.clone()] {
+        let observed = if projects.is_empty() {
+            "none".into()
+        } else {
+            projects
+                .iter()
+                .map(|path| format!("`./{}`", path.display()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        return Err(EngineError::ProtocolBodyIncomplete(format!(
+            "birth source layout must contain exactly one real Xcode project at `./{}` and no nested duplicate; observed {observed}",
+            expected.display()
+        )));
+    }
+    Ok(())
+}
+
 fn birth_candidate_blockers(context: &BirthContext) -> Vec<String> {
     let mut blockers = Vec::new();
     if context.plan.completion_contract.release_build_required
@@ -2949,7 +2994,12 @@ fn birth_candidate_blockers(context: &BirthContext) -> Vec<String> {
     }
     for gap in &context.trial.incompleteness {
         if gap.blocks_completion || gap.category == IncompletenessCategory::ProductGap {
-            blockers.push(format!("incompleteness.{}: {}", gap.id, gap.description));
+            blockers.push(format!(
+                "incompleteness.{} [{}]: {}",
+                gap.id,
+                gap.category.as_str(),
+                gap.description
+            ));
         } else if matches!(
             gap.category,
             IncompletenessCategory::FutureOpportunity | IncompletenessCategory::ExplicitNonGoal
@@ -2989,6 +3039,105 @@ fn birth_candidate_blockers(context: &BirthContext) -> Vec<String> {
         }
     }
     blockers
+}
+
+/// Keep the repair diagnostic actionable without repeating the same verdict
+/// phrase for every criterion. The strict Experience Trial remains the full
+/// evidence record; this summary groups stable semantic identifiers and keeps
+/// typed incompleteness visible so the runner can stop on external blocks.
+fn summarize_birth_candidate_blockers(blockers: &[String]) -> String {
+    let mut gates = Vec::new();
+    let mut scenarios = Vec::new();
+    let mut organs = Vec::new();
+    let mut substitutions = Vec::new();
+    let mut incompleteness = Vec::new();
+    let mut other = Vec::new();
+
+    for blocker in blockers {
+        if blocker.starts_with("release_build:")
+            || blocker.starts_with("automated_tests:")
+            || blocker.starts_with("simulator_target_user_trial:")
+        {
+            gates.push(blocker.clone());
+        } else if let Some(value) = blocker
+            .strip_prefix("experience_scenario.")
+            .and_then(|value| value.strip_suffix(": failed"))
+        {
+            scenarios.push(value.to_owned());
+        } else if let Some(value) = blocker
+            .strip_prefix("organ.")
+            .and_then(|value| value.strip_suffix(": failed independently"))
+        {
+            organs.push(value.to_owned());
+        } else if let Some(value) = blocker
+            .strip_prefix("forbidden_substitution.")
+            .and_then(|value| value.strip_suffix(": observed"))
+        {
+            substitutions.push(value.to_owned());
+        } else if blocker.starts_with("incompleteness.") {
+            incompleteness.push(compact_diagnostic(blocker, 280));
+        } else {
+            other.push(blocker.clone());
+        }
+    }
+
+    let mut groups = Vec::new();
+    if !gates.is_empty() {
+        groups.push(format!(
+            "failed gates ({})={}",
+            gates.len(),
+            gates.join(", ")
+        ));
+    }
+    if !scenarios.is_empty() {
+        groups.push(format!(
+            "failed scenarios ({})={}",
+            scenarios.len(),
+            scenarios.join(", ")
+        ));
+    }
+    if !organs.is_empty() {
+        groups.push(format!(
+            "failed organ criteria ({})={}",
+            organs.len(),
+            organs.join(", ")
+        ));
+    }
+    if !substitutions.is_empty() {
+        groups.push(format!(
+            "forbidden substitutions observed ({})={}",
+            substitutions.len(),
+            substitutions.join(", ")
+        ));
+    }
+    if !incompleteness.is_empty() {
+        groups.push(format!(
+            "blocking incompleteness ({})={}",
+            incompleteness.len(),
+            incompleteness.join(" | ")
+        ));
+    }
+    if !other.is_empty() {
+        groups.push(format!(
+            "other blockers ({})={}",
+            other.len(),
+            other.join(", ")
+        ));
+    }
+    groups.join("; ")
+}
+
+fn compact_diagnostic(value: &str, maximum_characters: usize) -> String {
+    let mut characters = value.chars();
+    let compact = characters
+        .by_ref()
+        .take(maximum_characters)
+        .collect::<String>();
+    if characters.next().is_some() {
+        format!("{compact}…")
+    } else {
+        compact
+    }
 }
 
 /// Gates 6–8, reusable by create/evolve and refresh.
@@ -3300,8 +3449,9 @@ fn validate_trial_evidence_files(
         let path = repository.join(&reference.relative_path);
         let metadata = fs::symlink_metadata(&path).map_err(|error| {
             EngineError::ProtocolBodyIncomplete(format!(
-                "experience evidence `{}` is unavailable: {error}",
-                reference.relative_path
+                "experience evidence repository-root-relative path `{}` is unavailable under `{}`: {error}",
+                reference.relative_path,
+                repository.display()
             ))
         })?;
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -3458,6 +3608,71 @@ fn sign_lineage_action(
         .map_err(EngineError::from)
 }
 
+/// Construct and validate every deterministic protocol object needed for the
+/// initial Expression before Genome acceptance mutates lineage. Birth-plan
+/// validation is intentionally not enough: protocol Organ token constraints
+/// are stricter than some agent-facing planning fields.
+fn prepare_initial_expression_parts(
+    app: &AppRecord,
+    plan: &InitialExpressionPlan,
+    genome: &tohseno_protocol::Genome,
+) -> Result<(Vec<u8>, Expression, Vec<Organ>), EngineError> {
+    let expression_id = app.expression_id.ok_or_else(|| {
+        EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
+    })?;
+    if plan.schema != crate::birth_plan::BIRTH_EXPRESSION_PLAN_SCHEMA
+        || plan.kind != "native_apple_application"
+        || plan.name != app.target_name()
+        || plan.platforms != ["iphone"]
+        || plan.organs.is_empty()
+    {
+        return Err(EngineError::ProtocolBodyIncomplete(
+            "initial expression plan is not the reviewed Apple plan for this Shot".into(),
+        ));
+    }
+    plan.validate(genome)?;
+    let plan_bytes = tohseno_protocol::canonical::to_vec(plan)
+        .map_err(|error| ShotLayoutError::Encoding(error.to_string()))?;
+    let expression = Expression {
+        schema: EXPRESSION_SCHEMA.into(),
+        expression_id,
+        kind: plan.kind.clone(),
+        name: plan.name.clone(),
+        platforms: plan.platforms.clone(),
+        genome_revision: plan.genome_revision,
+        genome_digest: plan.genome_digest,
+        definition: ArtifactAvailability {
+            schema: ARTIFACT_AVAILABILITY_SCHEMA.into(),
+            artifact: ArtifactDescriptor {
+                digest: tohseno_protocol::digest::sha256(&plan_bytes),
+                media_type: "application/json".into(),
+                byte_length: u64::try_from(plan_bytes.len()).map_err(|_| {
+                    EngineError::ProtocolBodyIncomplete("expression plan length overflowed".into())
+                })?,
+                name: Some("birth-expression-plan.json".into()),
+            },
+            status: AvailabilityStatus::LocallyAvailable,
+            locations: Vec::new(),
+        },
+    };
+    expression.validate().map_err(ShotLayoutError::from)?;
+    let organs = plan.protocol_organs(expression_id);
+    for organ in &organs {
+        organ.validate().map_err(ShotLayoutError::from)?;
+    }
+    canonical_capability_graph_bytes(&organs).map_err(ShotLayoutError::from)?;
+    Ok((plan_bytes, expression, organs))
+}
+
+/// The protocol reducer stores an Expression's organs in a `BTreeMap`, so
+/// every derived capability view must use organ-ID order rather than the
+/// Birth Plan's topological declaration order.
+fn canonical_organ_view(organs: &[Organ]) -> Vec<Organ> {
+    let mut canonical = organs.to_vec();
+    canonical.sort_by(|left, right| left.organ_id.cmp(&right.organ_id));
+    canonical
+}
+
 /// The recording law behind `Engine::verify_builder_binding`, kept pure so
 /// every refusal branch is provable without a Keychain: an app is runnable
 /// only when its recorded Shot and Builder bindings exist and the recorded
@@ -3545,7 +3760,7 @@ impl std::fmt::Display for EngineError {
             Self::NothingToSeal(app) => {
                 write!(
                     f,
-                    "no Xcode project in the {app} folder yet — build one, then `tohseno evolve {app}`"
+                    "no canonical root Xcode project exists in the {app} folder; put exactly one real project at `./{app}.xcodeproj` before engine recording"
                 )
             }
             Self::WorkingTreeIncomplete(detail) => {
@@ -3701,6 +3916,66 @@ mod tests {
     }
 
     #[test]
+    fn birth_blockers_are_grouped_without_losing_typed_external_constraints() {
+        let blockers = vec![
+            "experience_scenario.first_launch: failed".into(),
+            "experience_scenario.live_upload: failed".into(),
+            "organ.upload/resumes: failed independently".into(),
+            "organ.results/plays_outputs: failed independently".into(),
+            "intent_fidelity.intelligent_review: failed".into(),
+            "incompleteness.backend_dns [external_environment_constraint]: the required host did not resolve".into(),
+            "incompleteness.contract [product_gap]: the live contract was not inspected".into(),
+        ];
+
+        let diagnostic = summarize_birth_candidate_blockers(&blockers);
+
+        assert!(diagnostic.contains("failed scenarios (2)=first_launch, live_upload"));
+        assert!(
+            diagnostic.contains("failed organ criteria (2)=upload/resumes, results/plays_outputs")
+        );
+        assert!(diagnostic.contains("blocking incompleteness (2)="));
+        assert!(diagnostic.contains("external_environment_constraint"));
+        assert!(diagnostic.contains("product_gap"));
+        assert_eq!(diagnostic.matches("failed independently").count(), 0);
+    }
+
+    #[test]
+    fn missing_birth_project_diagnostic_names_the_canonical_root_without_contradicting_runner_ownership(
+    ) {
+        let diagnostic = EngineError::NothingToSeal("press".into()).to_string();
+        assert!(diagnostic.contains("`./press.xcodeproj`"));
+        assert!(!diagnostic.contains("tohseno evolve"));
+    }
+
+    #[test]
+    fn birth_project_layout_rejects_wrong_or_nested_duplicates() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(
+            directory
+                .path()
+                .join(".tohseno/evolutions/0001/src/archived.xcodeproj"),
+        )
+        .unwrap();
+
+        let missing = validate_canonical_birth_project_layout(directory.path(), "press")
+            .unwrap_err()
+            .to_string();
+        assert!(missing.contains("`./press.xcodeproj`"));
+        assert!(missing.contains("observed none"));
+
+        fs::create_dir_all(directory.path().join("press.xcodeproj")).unwrap();
+        validate_canonical_birth_project_layout(directory.path(), "press").unwrap();
+
+        fs::create_dir_all(directory.path().join("src/press.xcodeproj")).unwrap();
+        let duplicate = validate_canonical_birth_project_layout(directory.path(), "press")
+            .unwrap_err()
+            .to_string();
+        assert!(duplicate.contains("`./press.xcodeproj`"));
+        assert!(duplicate.contains("`./src/press.xcodeproj`"));
+        assert!(duplicate.contains("no nested duplicate"));
+    }
+
+    #[test]
     fn candidate_namespace_preserves_a_deterministic_fallback_identity() {
         assert_eq!(
             candidate_bundle_id("---", "press"),
@@ -3737,6 +4012,68 @@ mod tests {
         )
         .validate()
         .unwrap();
+    }
+
+    #[test]
+    fn derived_capability_view_uses_protocol_reducer_order() {
+        let expression_id = ExpressionId::random();
+        let mut organs = crate::birth_plan::protocol_substrate_organs()
+            .into_iter()
+            .map(|organ| organ.to_protocol_organ(expression_id))
+            .collect::<Vec<_>>();
+        organs.reverse();
+
+        let canonical = canonical_organ_view(&organs);
+
+        assert_eq!(
+            organs
+                .iter()
+                .map(|organ| organ.organ_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "substrate_signed_continuity",
+                "substrate_installation_identity"
+            ]
+        );
+        assert_eq!(
+            canonical
+                .iter()
+                .map(|organ| organ.organ_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "substrate_installation_identity",
+                "substrate_signed_continuity"
+            ]
+        );
+    }
+
+    #[test]
+    fn expression_protocol_conversion_is_validated_before_genome_acceptance() {
+        let plan = crate::anky_fixture::plan(tohseno_protocol::digest::sha256(b"atomic birth"));
+        let mut expression = BirthExpressionPlan::from_birth_plan(&plan).unwrap();
+        let app = AppRecord {
+            name: plan.product_name.clone(),
+            target_name: Some(plan.product_name.clone()),
+            bundle_id: "org.tohseno.genesis.test.atomic-birth".into(),
+            created_at_unix: 1,
+            latest_evolution: None,
+            shot_id: Some(ShotId::random()),
+            builder_id: None,
+            expression_id: Some(ExpressionId::random()),
+            retired: false,
+            parents: Default::default(),
+        };
+
+        prepare_initial_expression_parts(&app, &expression, &plan.genome).unwrap();
+
+        // The planning-level expression validator intentionally does not own
+        // every protocol token rule. The pre-acceptance conversion must catch
+        // this before any GenomeAcceptance action is appended.
+        expression.organs[0].owns_state = vec!["duplicate".into(), "duplicate".into()];
+        let error = prepare_initial_expression_parts(&app, &expression, &plan.genome)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("must not contain duplicates"), "{error}");
     }
 
     #[test]

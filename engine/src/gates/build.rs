@@ -257,11 +257,47 @@ pub fn test_simulator(
         format!("\n===== engine Simulator test pass =====\n{combined}\n===== end engine Simulator test pass =====\n")
             .as_bytes(),
     )?;
-    if output.status.success() {
+    let executed_tests = executed_test_count(&combined);
+    if output.status.success() && executed_tests > 0 {
         Ok(Ok(()))
     } else {
-        Ok(Err(BuildFailure { output: combined }))
+        let output = if output.status.success() {
+            format!(
+                "{combined}\nTOHSENO TEST GATE FAILED: xcodebuild reported success but executed zero discoverable XCTest/XCUITest tests.\n"
+            )
+        } else {
+            combined
+        };
+        Ok(Err(BuildFailure { output }))
     }
+}
+
+fn executed_test_count(output: &str) -> u64 {
+    output
+        .lines()
+        .filter_map(|line| {
+            let words = line.split_whitespace().collect::<Vec<_>>();
+            words
+                .windows(2)
+                .find_map(|pair| {
+                    (pair[0] == "Executed" && pair[1].chars().all(|c| c.is_ascii_digit()))
+                        .then(|| pair[1].parse::<u64>().ok())
+                        .flatten()
+                })
+                .or_else(|| {
+                    words.windows(5).find_map(|window| {
+                        (window[0] == "Test"
+                            && window[1] == "run"
+                            && window[2] == "with"
+                            && window[3].chars().all(|c| c.is_ascii_digit())
+                            && window[4].starts_with("test"))
+                        .then(|| window[3].parse::<u64>().ok())
+                        .flatten()
+                    })
+                })
+        })
+        .max()
+        .unwrap_or(0)
 }
 
 fn copy_bundle(source: &Path, destination: &Path) -> std::io::Result<()> {
@@ -656,6 +692,22 @@ impl From<LedgerError> for BuildError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_gate_counts_xctest_and_swift_testing_output_without_accepting_zero() {
+        let xctest = "Executed 43 tests, with 0 failures (0 unexpected) in 6.679 seconds\n\
+                      Executed 15 tests, with 0 failures (0 unexpected) in 254 seconds";
+        assert_eq!(executed_test_count(xctest), 43);
+        assert_eq!(
+            executed_test_count("Test run with 12 tests passed after 0.042 seconds."),
+            12
+        );
+        assert_eq!(
+            executed_test_count("** TEST EXECUTE SUCCEEDED **\nTest run with 0 tests passed"),
+            0
+        );
+        assert_eq!(executed_test_count("** TEST EXECUTE SUCCEEDED **"), 0);
+    }
 
     #[test]
     fn substitutes_the_engine_owned_shot_token() {

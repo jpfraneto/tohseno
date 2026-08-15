@@ -432,6 +432,19 @@ Produce exactly one strict JSON object at `.tohseno/private/planning/{output_fil
 
 The complete nested field definitions are in `{birth_schema_file}`, `{experience_schema_file}`, `{profile_schema_file}`, `{genome_schema_file}`, and `{ontology_schema_file}` in the same planning directory. Derive specific target actors, stable requirement IDs with origins, app-specific organs, forbidden substitutions, and target-user scenarios. Protocol substrate cannot count as product fulfillment.
 
+The engine enforces these cross-object rules in addition to the JSON Schemas. Audit every one before returning:
+
+- `birth_plan.product_name` is exactly `conception-input.json.app_name`, including case and punctuation.
+- Every `explicit_intention.source_excerpt` is a short byte-exact substring of the preserved intention. Do not flatten Markdown lists, code fences, punctuation, Unicode dashes, or backticks. Every `reference_image.source_location` is exactly one supplied artifact `name`; use separate requirements when distinct references supply distinct evidence.
+- Every must requirement is present in the completion contract and is covered by an app-specific organ, a target-user journey, and an Experience Contract scenario. Every `required_scenario_ids` entry names an Experience Contract scenario.
+- Every planned capability exists in the Apple catalog and in `genome.required_capabilities`. Every organ has a nonempty `provides` array. Across app-specific organs, `provides` contains every required capability identifier verbatim, in addition to human-readable promises.
+- A `protocol_substrate` organ claims no requirements, capabilities, or journeys. Product integration with protocol substrate is a separate `app_specific` organ.
+- Organs are in topological declaration order. Each dependency is only the exact `organ_id` of an earlier organ, never a capability or `provides` token. Every organ includes the exact platform token `iphone`.
+- Every organ has at least one `genome_invariants` entry. Every `app_specific.genome_invariants` entry is byte-for-byte one existing string from the proposed Genome's invariant/principle/law arrays; do not paraphrase it.
+- Every primary hardware capability whose catalog definition requires physical verification is named in `physical_verification_capabilities`. Every scenario exercising any such declared capability sets `physical_device_required` and includes `physical_device_trial` evidence.
+- A live external service or API contract explicitly required by the intention remains live-service acceptance work. Fixtures may be additional deterministic test evidence, but no scenario, journey, or completion criterion may treat a mock, inferred contract, or "contract-faithful test session" as a substitute for reaching and exercising that named service.
+- `experience_contract.birth_plan_digest` is SHA-256 over the Birth Plan's RFC 8785 JSON Canonicalization Scheme bytes. Preserve Unicode as UTF-8 rather than ASCII `\u` escapes; write the final object as canonical compact UTF-8 JSON followed by one newline.
+
 Before writing output, read:
 
 - `.tohseno/private/planning/{input_file}`
@@ -568,6 +581,7 @@ mod tests {
             simulator_runtimes: Vec::new(),
             connected_devices: Vec::new(),
             last_known_devices: Vec::new(),
+            signing_team: None,
             resolutions: catalog
                 .capabilities
                 .iter()
@@ -601,6 +615,8 @@ mod tests {
         assert!(task.contains(BIRTH_PLAN_SCHEMA_FILE));
         assert!(task.contains(EXPERIENCE_CONTRACT_SCHEMA_FILE));
         assert!(task.contains(APPLE_CAPABILITY_CATALOG_FILE));
+        assert!(task.contains("Every organ has a nonempty `provides` array"));
+        assert!(task.contains("Every organ has at least one `genome_invariants` entry"));
 
         let directory = tempfile::tempdir().unwrap();
         let layout = ShotLayout::at(directory.path());

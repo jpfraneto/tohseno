@@ -31,7 +31,7 @@
     "evidence": {
       "type": "object", "additionalProperties": false,
       "required": ["kind", "artifact", "relative_path"],
-      "properties": {"kind": {"$ref": "#/$defs/evidence_kind"}, "artifact": {"$ref": "#/$defs/artifact"}, "relative_path": {"type": "string", "minLength": 1}}
+      "properties": {"kind": {"$ref": "#/$defs/evidence_kind"}, "artifact": {"$ref": "#/$defs/artifact"}, "relative_path": {"type": "string", "minLength": 1, "description": "Path relative to the Shot repository root, never relative to this trial file."}}
     },
     "criterion": {
       "type": "object", "additionalProperties": false,

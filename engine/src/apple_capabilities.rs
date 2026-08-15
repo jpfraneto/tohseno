@@ -1,3 +1,4 @@
+use crate::gates::sign;
 use crate::ledger::Ledger;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -178,6 +179,15 @@ pub struct CapabilityResolution {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AppleSigningProfile {
+    pub team_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_name: Option<String>,
+    pub provisioning: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AppleCapabilityProfile {
     pub schema: String,
     pub catalog_digest: Bytes32,
@@ -187,6 +197,8 @@ pub struct AppleCapabilityProfile {
     pub simulator_runtimes: Vec<SimulatorRuntimeProfile>,
     pub connected_devices: Vec<AppleDeviceProfile>,
     pub last_known_devices: Vec<AppleDeviceProfile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signing_team: Option<AppleSigningProfile>,
     pub resolutions: Vec<CapabilityResolution>,
     pub observed_at_unix: u64,
 }
@@ -199,6 +211,13 @@ impl AppleCapabilityProfile {
             .unwrap_or_else(|| "unknown".into());
         let simulator_runtimes = simulator_runtimes();
         let connected_devices = connected_device_profiles();
+        let signing_team = sign::development_team_profile()
+            .ok()
+            .map(|team| AppleSigningProfile {
+                team_id: team.team_id,
+                team_name: team.team_name,
+                provisioning: team.provisioning.as_str().into(),
+            });
         let history_path = ledger
             .machine_root()
             .join("device-history")
@@ -233,6 +252,7 @@ impl AppleCapabilityProfile {
             simulator_runtimes,
             connected_devices,
             last_known_devices,
+            signing_team,
             resolutions,
             observed_at_unix: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -258,6 +278,21 @@ impl AppleCapabilityProfile {
                 && !self.iphoneos_sdk_version.is_empty(),
             "Apple capability profile omits toolchain facts",
         )?;
+        if let Some(signing) = &self.signing_team {
+            check(
+                signing.team_id.len() == 10
+                    && signing
+                        .team_id
+                        .bytes()
+                        .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+                    && matches!(signing.provisioning.as_str(), "paid" | "free" | "unknown")
+                    && signing
+                        .team_name
+                        .as_deref()
+                        .is_none_or(|name| !name.trim().is_empty()),
+                "Apple capability profile contains an invalid signing team",
+            )?;
+        }
         check(
             self.resolutions.len() == catalog.capabilities.len(),
             "Apple capability profile does not resolve the whole catalog",
@@ -482,6 +517,10 @@ fn connected_device_profiles() -> Vec<AppleDeviceProfile> {
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
         .unwrap_or_default();
+    device_profiles_from_devicectl(&value, &usb_registry)
+}
+
+fn device_profiles_from_devicectl(value: &Value, usb_registry: &str) -> Vec<AppleDeviceProfile> {
     value
         .pointer("/result/devices")
         .and_then(Value::as_array)
@@ -491,16 +530,28 @@ fn connected_device_profiles() -> Vec<AppleDeviceProfile> {
             let hardware = entry.get("hardwareProperties")?;
             let device = entry.get("deviceProperties")?;
             let connection = entry.get("connectionProperties")?;
-            let active_tunnel =
-                connection.get("tunnelState").and_then(Value::as_str) == Some("connected");
+            let transport = connection
+                .get("transportType")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let active_tunnel = connection
+                .get("tunnelState")
+                .and_then(Value::as_str)
+                .is_some_and(|state| state.eq_ignore_ascii_case("connected"));
+            let direct_transport = {
+                let normalized = transport.to_ascii_lowercase();
+                ["usb", "wired", "cable", "direct"]
+                    .iter()
+                    .any(|candidate| normalized.contains(candidate))
+            };
             let usb_connected = hardware
                 .get("udid")
                 .and_then(Value::as_str)
-                .is_some_and(|udid| usb_registry.contains(udid));
+                .is_some_and(|udid| usb_registry_contains_identifier(usb_registry, udid));
             if hardware.get("reality")?.as_str()? != "physical"
                 || hardware.get("platform")?.as_str()? != "iOS"
                 || connection.get("pairingState").and_then(Value::as_str) != Some("paired")
-                || (!active_tunnel && !usb_connected)
+                || (!active_tunnel && !direct_transport && !usb_connected)
             {
                 return None;
             }
@@ -522,14 +573,26 @@ fn connected_device_profiles() -> Vec<AppleDeviceProfile> {
                     .and_then(Value::as_str)
                     .map(str::to_owned),
                 physical: true,
-                connection_transport: connection
-                    .get("transportType")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_owned(),
+                connection_transport: transport.to_owned(),
             })
         })
         .collect()
+}
+
+fn usb_registry_contains_identifier(usb_registry: &str, identifier: &str) -> bool {
+    let normalized_identifier: String = identifier
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect();
+    !normalized_identifier.is_empty()
+        && usb_registry.lines().any(|line| {
+            line.chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .flat_map(char::to_lowercase)
+                .collect::<String>()
+                .contains(&normalized_identifier)
+        })
 }
 
 fn xcode_version() -> (String, String) {
@@ -712,6 +775,25 @@ mod tests {
     }
 
     #[test]
+    fn signing_profile_uses_one_valid_engine_selected_team() {
+        let catalog = AppleCapabilityCatalog::embedded().unwrap();
+        let mut profile = crate::anky_fixture::profile();
+        profile.signing_team = Some(AppleSigningProfile {
+            team_id: "AB12CD34EF".into(),
+            team_name: Some("Example Team".into()),
+            provisioning: "paid".into(),
+        });
+        profile.validate(&catalog).unwrap();
+
+        profile.signing_team.as_mut().unwrap().team_id = "certificate-label".into();
+        assert!(profile
+            .validate(&catalog)
+            .unwrap_err()
+            .to_string()
+            .contains("invalid signing team"));
+    }
+
+    #[test]
     fn simulator_absence_is_not_product_prohibition() {
         let capability = AppleCapabilityCatalog::embedded()
             .unwrap()
@@ -733,6 +815,45 @@ mod tests {
             resolution.simulator_state,
             CapabilityState::SimulatorUnavailable
         );
+    }
+
+    #[test]
+    fn paired_wired_device_is_present_without_a_coredevice_tunnel() {
+        let value = serde_json::json!({
+            "result": {
+                "devices": [{
+                    "connectionProperties": {
+                        "pairingState": "paired",
+                        "transportType": "wired",
+                        "tunnelState": "disconnected"
+                    },
+                    "deviceProperties": {
+                        "osVersionNumber": "26.5.2",
+                        "osBuildUpdate": "23F84"
+                    },
+                    "hardwareProperties": {
+                        "marketingName": "iPhone 15",
+                        "platform": "iOS",
+                        "productType": "iPhone15,4",
+                        "reality": "physical",
+                        "udid": "00008120-00062D311442601E"
+                    }
+                }]
+            }
+        });
+
+        let profiles = device_profiles_from_devicectl(&value, "");
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].product_type, "iPhone15,4");
+        assert_eq!(profiles[0].connection_transport, "wired");
+    }
+
+    #[test]
+    fn usb_registry_matches_hyphenated_coredevice_udid() {
+        assert!(usb_registry_contains_identifier(
+            r#"\"USB Serial Number\" = \"0000812000062D311442601E\""#,
+            "00008120-00062D311442601E"
+        ));
     }
 
     #[test]
