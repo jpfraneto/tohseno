@@ -12,8 +12,8 @@ use tohseno_engine::verifier::{
     self, LineageVerificationReport, ShotVerificationReport, VerificationCheck, VerificationStatus,
 };
 use tohseno_engine::{
-    BirthReceipt, Event, EventBus, Evolution, FactoryIdentity, Ledger, ShotBodyVerification,
-    ShotLayout,
+    BirthReceipt, Config, Engine, Event, EventBus, Evolution, FactoryIdentity, Ledger,
+    ShotBodyVerification, ShotLayout,
 };
 use tohseno_protocol::fascia::FasciaManifest;
 use tohseno_protocol::record::ShotRecord;
@@ -216,6 +216,9 @@ pub fn verify_target(
     json: bool,
     bus: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if verify_recording_target(target, public, json, bus)? {
+        return Ok(());
+    }
     if public {
         ensure_public_verification_available()?;
     }
@@ -239,6 +242,96 @@ pub fn verify_target(
         return Err("offline Shot verification failed".into());
     }
     Ok(())
+}
+
+fn verify_recording_target(
+    target: &str,
+    public: bool,
+    json: bool,
+    bus: &EventBus,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let Some((engine, app_name)) = recording_engine_for_target(target)? else {
+        return Ok(false);
+    };
+    if public {
+        return Err("recording-layer Versions are local and have no public witness".into());
+    }
+    let versions = engine.ledger().list_evolutions(&app_name)?;
+    let latest = versions.last().ok_or("app has no recorded Versions")?;
+    let digest = engine.verify_recorded_version(latest)?;
+    let result = RecordingVerification {
+        schema: "tohseno.recording-verification/1",
+        app_name,
+        versions_verified: versions.len(),
+        latest_version: latest.number,
+        tree_sha256: digest.to_string(),
+        conformant: true,
+    };
+    if json {
+        print_json(&result)?;
+    } else {
+        bus.emit(Event::result(format!(
+            "Verified {} Version{} of {}.",
+            result.versions_verified,
+            if result.versions_verified == 1 {
+                ""
+            } else {
+                "s"
+            },
+            result.app_name
+        )));
+        bus.emit(Event::status(format!(
+            "Version {} · {}",
+            result.latest_version, result.tree_sha256
+        )));
+    }
+    Ok(true)
+}
+
+fn recording_engine_for_target(
+    target: &str,
+) -> Result<Option<(Engine, String)>, Box<dyn std::error::Error>> {
+    let candidate = PathBuf::from(target);
+    if let Ok(metadata) = fs::symlink_metadata(&candidate) {
+        if metadata.file_type().is_symlink() {
+            return Err("recording target must not be a symbolic link".into());
+        }
+        let start = if metadata.is_file() {
+            candidate.parent().ok_or("recording target has no parent")?
+        } else {
+            candidate.as_path()
+        };
+        if let Some(folder) = start
+            .ancestors()
+            .find(|folder| fs::symlink_metadata(folder.join(".tohseno/recording-layer-v1")).is_ok())
+        {
+            let (ledger, app_name) = Ledger::for_app_folder(folder)?;
+            ledger.initialize()?;
+            return Ok(Some((
+                Engine::at(ledger, EventBus::default(), Config::default()),
+                app_name,
+            )));
+        }
+        return Ok(None);
+    }
+
+    if tohseno_engine::ledger::validate_app_name(target).is_err() {
+        return Ok(None);
+    }
+    let ledger = Ledger::discover()?;
+    if fs::symlink_metadata(
+        ledger
+            .working_tree(target)
+            .join(".tohseno/recording-layer-v1"),
+    )
+    .is_err()
+    {
+        return Ok(None);
+    }
+    Ok(Some((
+        Engine::at(ledger, EventBus::default(), Config::default()),
+        target.to_owned(),
+    )))
 }
 
 pub fn build_page(
@@ -1003,6 +1096,16 @@ struct VerificationOutput {
     schema: &'static str,
     conformant: bool,
     local: LocalVerification,
+}
+
+#[derive(Serialize)]
+struct RecordingVerification {
+    schema: &'static str,
+    app_name: String,
+    versions_verified: usize,
+    latest_version: u32,
+    tree_sha256: String,
+    conformant: bool,
 }
 
 #[derive(Serialize)]

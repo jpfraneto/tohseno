@@ -3,13 +3,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tempfile::TempDir;
-use tohseno_engine::{Event, EventBus, Ledger};
+use tohseno_engine::{Event, EventBus};
 use tokio::process::Command;
-
-#[derive(Clone, Debug)]
-pub struct SimulatorSession {
-    pub device_id: String,
-}
 
 /// Build one verified workshop source tree locally, then install and launch
 /// that local build. No publisher binary or ownership state is imported.
@@ -19,7 +14,7 @@ pub async fn launch_workshop(
     app_name: &str,
     bundle_id: &str,
     version_ordinal: u64,
-) -> Result<SimulatorSession, SimulatorError> {
+) -> Result<(), SimulatorError> {
     let shot_number = u32::try_from(version_ordinal)
         .map_err(|_| SimulatorError::InvalidVersion(version_ordinal))?;
     let device = choose_device().await?;
@@ -64,107 +59,7 @@ pub async fn launch_workshop(
     events.emit(Event::result(format!(
         "workshop version {version_ordinal} of {app_name} is running in Simulator."
     )));
-    Ok(SimulatorSession {
-        device_id: device.udid,
-    })
-}
-
-pub async fn launch(
-    ledger: &Ledger,
-    events: &EventBus,
-    app_name: &str,
-    shot_number: u32,
-) -> Result<SimulatorSession, SimulatorError> {
-    let app = ledger.load_app(app_name)?;
-    let shot = ledger.shot(app_name, shot_number)?;
-    if !ledger
-        .list_evolutions(app_name)?
-        .iter()
-        .any(|candidate| candidate.number == shot_number)
-    {
-        return Err(SimulatorError::IncompleteShot(shot_number));
-    }
-
-    let device = choose_device().await?;
-    boot(&device).await?;
-    let _ = std::process::Command::new("open")
-        .args(["-g", "-a", "Simulator", "--args", "-CurrentDeviceUDID"])
-        .arg(&device.udid)
-        .spawn();
-
-    events.emit(Event::status(format!(
-        "opening evolution {shot_number} of {app_name} in Simulator…"
-    )));
-    // Every completed Shot retains its conformance Simulator bundle at
-    // artifact/<app>.app; installing it directly is what makes reopening an
-    // evolution seamless. Building here is only a fallback for records that
-    // predate retained artifacts.
-    let retained = shot.artifact_path().join(format!("{app_name}.app"));
-    let (_build_directory, app_bundle) = if retained.is_dir() {
-        (None, retained)
-    } else {
-        events.emit(Event::status(format!(
-            "evolution {shot_number} of {app_name} has no retained artifact; building from source…"
-        )));
-        let build_directory = tempfile::tempdir()?;
-        let app_bundle = build(
-            &shot.source_path(),
-            app_name,
-            shot_number,
-            &device.udid,
-            &build_directory,
-        )
-        .await?;
-        (Some(build_directory), app_bundle)
-    };
-    checked(
-        "xcrun",
-        [
-            "simctl".into(),
-            "install".into(),
-            device.udid.clone().into(),
-            app_bundle.into_os_string(),
-        ],
-    )
-    .await?;
-    checked(
-        "xcrun",
-        [
-            "simctl".into(),
-            "launch".into(),
-            "--terminate-running-process".into(),
-            device.udid.clone().into(),
-            app.bundle_id.into(),
-        ],
-    )
-    .await?;
-    events.emit(Event::status(format!(
-        "evolution {shot_number} of {app_name} is running in Simulator."
-    )));
-    Ok(SimulatorSession {
-        device_id: device.udid,
-    })
-}
-
-pub async fn screenshot(session: &SimulatorSession) -> Result<Vec<u8>, SimulatorError> {
-    let output = Command::new("xcrun")
-        .args([
-            "simctl",
-            "io",
-            &session.device_id,
-            "screenshot",
-            "--type=png",
-            "--mask=ignored",
-            "-",
-        ])
-        .output()
-        .await?;
-    if !output.status.success() {
-        return Err(SimulatorError::Command(
-            String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-        ));
-    }
-    Ok(output.stdout)
+    Ok(())
 }
 
 async fn build(
@@ -318,13 +213,11 @@ struct DeviceListing {
 pub enum SimulatorError {
     Io(std::io::Error),
     Json(serde_json::Error),
-    Ledger(tohseno_engine::LedgerError),
     Command(String),
     Build(String),
     DeviceMissing,
     ProjectMissing,
     ArtifactMissing,
-    IncompleteShot(u32),
     InvalidVersion(u64),
 }
 
@@ -333,13 +226,11 @@ impl std::fmt::Display for SimulatorError {
         match self {
             Self::Io(error) => write!(f, "{error}"),
             Self::Json(error) => write!(f, "{error}"),
-            Self::Ledger(error) => write!(f, "{error}"),
             Self::Command(error) => write!(f, "{error}"),
             Self::Build(error) => write!(f, "Simulator build failed: {error}"),
             Self::DeviceMissing => write!(f, "no available iPhone Simulator was found"),
             Self::ProjectMissing => write!(f, "the shot has no Xcode project"),
             Self::ArtifactMissing => write!(f, "the Simulator app was not produced"),
-            Self::IncompleteShot(number) => write!(f, "shot {number} is incomplete"),
             Self::InvalidVersion(number) => {
                 write!(
                     f,
@@ -361,11 +252,5 @@ impl From<std::io::Error> for SimulatorError {
 impl From<serde_json::Error> for SimulatorError {
     fn from(value: serde_json::Error) -> Self {
         Self::Json(value)
-    }
-}
-
-impl From<tohseno_engine::LedgerError> for SimulatorError {
-    fn from(value: tohseno_engine::LedgerError) -> Self {
-        Self::Ledger(value)
     }
 }

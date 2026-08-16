@@ -23,6 +23,16 @@ impl Default for HarnessConfig {
 }
 
 impl Config {
+    /// Loads an existing legacy harness configuration without creating one.
+    /// The recording layer has no configuration ritual of its own.
+    pub fn load_or_default(root: &Path) -> Result<Self, ConfigError> {
+        let path = root.join("config.toml");
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        Ok(toml::from_str(&fs::read_to_string(path)?)?)
+    }
+
     pub fn load_or_create(root: &Path) -> Result<Self, ConfigError> {
         fs::create_dir_all(root)?;
         let path = root.join("config.toml");
@@ -103,5 +113,13 @@ mod tests {
 
         let loaded = Config::load_or_create(directory.path()).unwrap();
         assert_eq!(loaded.harness.command, "/usr/local/bin/codex");
+    }
+
+    #[test]
+    fn recording_load_does_not_create_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        let config = Config::load_or_default(directory.path()).unwrap();
+        assert_eq!(config.harness.command, "claude");
+        assert!(!directory.path().join("config.toml").exists());
     }
 }

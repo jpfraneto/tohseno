@@ -6,7 +6,7 @@ use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use tohseno_protocol::digest::{ExpressionId, ShotId};
+use tohseno_protocol::digest::{sha256, ExpressionId, ShotId};
 use tohseno_protocol::identity::BuilderId;
 use tohseno_protocol::lineage::AdaptedV1Lineage;
 use tohseno_protocol::record::ShotRecord;
@@ -458,6 +458,24 @@ impl Ledger {
         app_name: &str,
         parent: Option<u32>,
     ) -> Result<Evolution, LedgerError> {
+        self.reserve_with_directories(app_name, parent, &["images", "src", "artifact"])
+    }
+
+    /// Reserves one recording-layer Version without legacy build directories.
+    pub fn reserve_version(
+        &self,
+        app_name: &str,
+        parent: Option<u32>,
+    ) -> Result<Evolution, LedgerError> {
+        self.reserve_with_directories(app_name, parent, &["src"])
+    }
+
+    fn reserve_with_directories(
+        &self,
+        app_name: &str,
+        parent: Option<u32>,
+        children: &[&str],
+    ) -> Result<Evolution, LedgerError> {
         let mut record = self.load_app(app_name)?;
         let evolutions_dir = self.evolutions_dir(app_name);
         let number = next_sequence(&record)?;
@@ -466,7 +484,7 @@ impl Ledger {
             self.archive_incomplete_evolution(app_name, number, &path)?;
         }
         fs::create_dir(&path)?;
-        for child in ["images", "src", "artifact"] {
+        for child in children {
             fs::create_dir(path.join(child))?;
         }
         if let Some(parent_number) = parent {
@@ -1034,7 +1052,18 @@ impl Ledger {
         self.assert_writable(shot)?;
         let source = self.working_tree(&shot.app_name);
         require_real_directory(&source)?;
-        copy_working_entries(&source, &source, &shot.source_path())?;
+        copy_working_entries(&source, &source, &shot.source_path(), true)?;
+        Ok(())
+    }
+
+    /// Copies the ordinary app filesystem into a Version. Only the embedded
+    /// TOHSENO ledger and Git metadata are omitted; generated, temporary,
+    /// configuration, and log files remain ordinary app files.
+    pub fn snapshot_app_working_tree(&self, version: &Evolution) -> Result<(), LedgerError> {
+        self.assert_writable(version)?;
+        let source = self.working_tree(&version.app_name);
+        require_real_directory(&source)?;
+        copy_working_entries(&source, &source, &version.source_path(), false)?;
         Ok(())
     }
 
@@ -1133,6 +1162,7 @@ fn copy_working_entries(
     root: &Path,
     directory: &Path,
     destination: &Path,
+    exclude_shot_level: bool,
 ) -> Result<(), LedgerError> {
     fs::create_dir_all(destination)?;
     for entry in fs::read_dir(directory)? {
@@ -1151,9 +1181,15 @@ fn copy_working_entries(
         // carry unsigned bytes under those exact names. Names strict hashing
         // could not express (control characters, non-UTF-8) are left behind
         // rather than sealed.
-        if tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
-            || tohseno_protocol::tree_hash::exclusion_reason(&relative).is_some()
-            || crate::shot_layout::is_shot_level_path(&relative)
+        let first = relative.split('/').next().unwrap_or_default();
+        let excluded = if exclude_shot_level {
+            tohseno_protocol::tree_hash::forbidden_source_reason(&relative).is_some()
+                || tohseno_protocol::tree_hash::exclusion_reason(&relative).is_some()
+                || crate::shot_layout::is_shot_level_path(&relative)
+        } else {
+            matches!(first, ".tohseno" | ".git")
+        };
+        if excluded
             || relative.chars().any(char::is_control)
             || entry.file_name().to_str().is_none()
         {
@@ -1168,9 +1204,69 @@ fn copy_working_entries(
         }
         let target = destination.join(entry.file_name());
         if file_type.is_dir() {
-            copy_working_entries(root, &entry.path(), &target)?;
+            copy_working_entries(root, &entry.path(), &target, exclude_shot_level)?;
         } else if file_type.is_file() {
             fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
+/// Hashes exactly what the local recording layer snapshots: every ordinary
+/// file except the embedded ledger and Git's own metadata.
+pub fn hash_app_tree(
+    root: &Path,
+) -> Result<tohseno_protocol::tree_hash::SourceTreeCommitment, LedgerError> {
+    require_real_directory(root)?;
+    let mut entries = Vec::new();
+    collect_app_tree_entries(root, root, &mut entries)?;
+    entries.sort_by(|left, right| left.path.as_bytes().cmp(right.path.as_bytes()));
+    let digest = tohseno_protocol::tree_hash::hash_entries(&entries)
+        .map_err(|error| LedgerError::Corrupt(error.to_string()))?;
+    Ok(tohseno_protocol::tree_hash::SourceTreeCommitment { digest, entries })
+}
+
+fn collect_app_tree_entries(
+    root: &Path,
+    directory: &Path,
+    entries: &mut Vec<tohseno_protocol::tree_hash::SourceTreeEntry>,
+) -> Result<(), LedgerError> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| LedgerError::Corrupt("app tree walked outside itself".into()))?
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/");
+        let first = relative.split('/').next().unwrap_or_default();
+        if matches!(first, ".tohseno" | ".git") {
+            continue;
+        }
+        if relative.chars().any(char::is_control) || entry.file_name().to_str().is_none() {
+            return Err(LedgerError::Corrupt(format!(
+                "app path cannot be recorded safely: {}",
+                entry.path().display()
+            )));
+        }
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(LedgerError::Corrupt(format!(
+                "refusing symlink in the app working tree: {}",
+                entry.path().display()
+            )));
+        }
+        if file_type.is_dir() {
+            collect_app_tree_entries(root, &entry.path(), entries)?;
+        } else if file_type.is_file() {
+            let metadata = fs::symlink_metadata(entry.path())?;
+            let contents = read_unchanged_regular_file(&entry.path(), metadata.len(), &metadata)?;
+            entries.push(tohseno_protocol::tree_hash::SourceTreeEntry {
+                path: relative,
+                content_sha256: sha256(&contents),
+            });
         }
     }
     Ok(())
@@ -1404,6 +1500,13 @@ fn read_unchanged_regular_file(
         )));
     }
     Ok(bytes)
+}
+
+/// Reads an engine-owned control file without following symlinks and refuses
+/// files larger than the caller's explicit format limit.
+pub(crate) fn read_bounded_regular_file(path: &Path, limit: u64) -> Result<Vec<u8>, LedgerError> {
+    let metadata = fs::symlink_metadata(path)?;
+    read_unchanged_regular_file(path, limit, &metadata)
 }
 
 fn read_bounded_json<T: DeserializeOwned>(path: &Path) -> Result<T, LedgerError> {

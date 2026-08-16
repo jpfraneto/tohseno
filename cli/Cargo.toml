@@ -7,9 +7,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-base64.workspace = true
 clap.workspace = true
-crossterm.workspace = true
 libc = "=0.2.189"
 serde.workspace = true
 serde_json.workspace = true

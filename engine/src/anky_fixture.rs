@@ -812,12 +812,11 @@ mod tests {
         assert!(task.contains("engine-selected development team"));
         assert!(task.contains("Simulator sensor input is absent"));
         assert!(task.contains("silently replace accepted persistence"));
-        assert!(task.contains("forbidden_substitutions"));
-        assert!(task.contains("camera_to_dark_background"));
-        assert!(task.contains("camera_capture"));
-        assert!(task.contains("microphone_input"));
-        assert!(task.contains("ar_world_tracking"));
-        assert!(task.contains("realitykit_rendering"));
+        assert!(task.contains(".tohseno/private/planning/birth-plan.json"));
+        assert!(task.contains(".tohseno/private/planning/birth-expression-plan.json"));
+        assert!(task.contains(".tohseno/private/planning/experience-contract.json"));
+        assert!(!task.contains("\"forbidden_substitutions\""));
+        assert!(!task.contains("\"camera_to_dark_background\""));
         assert!(task.contains("A DEBUG fixture may prove individual"));
         assert!(task.contains("relative to the Shot repository root"));
         assert!(task.contains("Set `experience_contract_digest` to the authoritative digest"));

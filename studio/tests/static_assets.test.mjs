@@ -5,206 +5,31 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const tests = dirname(fileURLToPath(import.meta.url));
-const studio = resolve(tests, "..");
+const studio = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = resolve(studio, "app.js");
 const html = readFileSync(resolve(studio, "index.html"), "utf8");
 const script = readFileSync(scriptPath, "utf8");
 
 test("browser script is valid JavaScript", () => {
-  const checked = spawnSync(process.execPath, ["--check", scriptPath], {
-    encoding: "utf8",
-  });
+  const checked = spawnSync(process.execPath, ["--check", scriptPath], { encoding: "utf8" });
   assert.equal(checked.status, 0, checked.stderr);
 });
 
-test("every queried Studio element exists exactly once", () => {
-  const queried = [...script.matchAll(/querySelector\("#([^"]+)"\)/g)]
-    .map((match) => match[1]);
-  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
-  assert.equal(new Set(ids).size, ids.length, "HTML contains a duplicate id");
-  for (const id of queried) {
-    assert.equal(
-      ids.filter((candidate) => candidate === id).length,
-      1,
-      `#${id} must exist exactly once`,
-    );
-  }
+test("Studio contains only the recording loop", () => {
+  for (const phrase of ["Apps", "Versions", "Initialize app", "Open folder", "Record version"])
+    assert.match(html, new RegExp(phrase));
+  assert.match(script, /fetch\(path/);
+  assert.match(script, /\/api\/versions/);
+  assert.match(script, /\/api\/apps/);
 });
 
-test("ontology rendering is text-only and preserves absent legacy facts", () => {
-  assert.equal(script.includes(".innerHTML"), false);
-  assert.match(script, /exactIntentionText/);
-  assert.match(script, /does not contain the original coherent intention/);
-  assert.match(script, /does not contain an accepted Shot genome/);
-  assert.match(html, /Original intention/);
-  assert.match(html, /Accepted genome/);
-  assert.match(html, /Token association \(v2\)/);
-  assert.match(script, /relationship only; never Shot identity or ownership/);
+test("factory and delivery concepts are absent", () => {
+  for (const removed of [
+    "intention", "reference images", "harness", "model", "route", "preview", "simulator",
+    "install", "evolve app", "Bankr", "token", "protocol", "\/shots", "\/api\/executions",
+  ]) assert.doesNotMatch(html + script, new RegExp(removed, "i"));
 });
 
-test("feedback is private and bound to one exact version ordinal", () => {
-  assert.match(script, /fetch\("\/api\/feedback"/);
-  assert.match(script, /version_ordinal: binding\.ordinal/);
-  assert.match(script, /ordinal !== selectedShot/);
-  assert.match(script, /version\.expression_id !== expression\.expression_id/);
-  assert.match(html, /Save private feedback/);
-  assert.match(script, /will not accept floating Shot-level feedback/);
-  assert.match(script, /saved\.action_commitment/);
-  assert.match(script, /selected_feedback_actions: selected/);
-  assert.match(html, /Select this signed observation for the next evolution/);
+test("mutations carry the loopback Studio header", () => {
   assert.match(script, /"x-tohseno-studio": "1"/);
-});
-
-test("creation is one unattended Shot with internal validated acceptance", () => {
-  assert.doesNotMatch(script, /fetch\("\/api\/plan"/);
-  assert.doesNotMatch(script, /accept_genome/);
-  assert.doesNotMatch(script, /reviewedInitialPlan/);
-  assert.doesNotMatch(html, /CONCEPTION PENDING|Review the conception boundary/);
-  assert.match(html, /TAKE THE SHOT/);
-  assert.match(html, /Conception, building, repair, and verification continue unattended/);
-  assert.match(html, /run completes after the accepted app is installed and launched/);
-});
-
-test("new-Shot composition is intention-first and accepts rich local context", () => {
-  assert.match(html, /Give the app one exact intention/);
-  assert.match(html, /id="import-intention"[^>]*>[\s\S]*Import \.md/);
-  assert.match(html, /id="intention-file"[^>]*accept="\.md,\.markdown,\.txt,text\/markdown,text\/plain"/);
-  assert.match(html, /Drop or paste a \.md \/ \.txt file/);
-  assert.match(html, /id="reference-count"[^>]*>0 \/ 8</);
-  assert.match(html, /id="reference-slots"/);
-  assert.match(html, /Choose reference images/);
-  assert.match(script, /Array\.from\(\{ length: 8 \}/);
-  assert.match(script, /ui\.prompt\.addEventListener\("paste"/);
-  assert.match(script, /readComposerIntentionFile/);
-  assert.match(script, /ui\.studio\.classList\.toggle\("composer-create"/);
-  assert.match(script, /normalizeAppSlug/);
-});
-
-test("Shot preparation selects a native harness and follows durable execution events", () => {
-  assert.match(html, /Coding harness/);
-  assert.match(html, /Inference \/ payment route/);
-  assert.match(script, /TAKE THE SHOT/);
-  assert.match(script, /EVOLVE & INSTALL/);
-  assert.match(script, /fetch\("\/api\/harnesses"/);
-  assert.match(script, /harness: ui\.harness\.value/);
-  assert.match(script, /model: ui\.model\.value/);
-  assert.match(script, /route: ui\.route\.value/);
-  assert.match(script, /\/api\/executions\//);
-  assert.match(script, /SHOT IN FLIGHT/);
-  assert.match(script, /You can walk away/);
-  assert.match(script, /BIRTH ACCEPTED/);
-  assert.match(script, /VERSION RECORDED/);
-  assert.match(script, /CANDIDATE UNSEALED/);
-  assert.match(script, /display reconnecting · Shot continues locally/);
-  assert.doesNotMatch(script, /WebSocket|stream-json|output-format/);
-});
-
-test("imported intentions stay local and reuse the creation path", () => {
-  assert.match(html, /Your intention is safe on this Mac/);
-  assert.match(script, /\/api\/pending-intentions\//);
-  assert.match(script, /pending_intention_id: activePendingIntention\.id/);
-  assert.match(script, /ui\.prompt\.readOnly = Boolean\(pending\)/);
-  assert.match(script, /ui\.addReferences\.hidden = Boolean\(pending\)/);
-  assert.match(script, /openComposer\("create", activePendingIntention\)/);
-  assert.doesNotMatch(script, /activePendingIntention[\s\S]{0,200}(?:Codex|Claude).*run/);
-});
-
-test("first-run onboarding uses authoritative Mac and harness readiness", () => {
-  assert.match(html, /FIRST SHOT/);
-  assert.match(html, /Give the factory its Apple tools/);
-  assert.match(html, /https:\/\/chatgpt\.com\/codex\/install\.sh/);
-  assert.match(html, /https:\/\/claude\.ai\/install\.sh/);
-  assert.match(script, /BEGIN FIRST SHOT/);
-  assert.match(script, /fetch\("\/api\/onboarding"/);
-  assert.match(script, /onboardingFacts\.xcode\.ready/);
-  assert.match(script, /onboardingFacts\.apple_signing\.ready/);
-  assert.match(script, /onboardingFacts\?\.harness_ready/);
-  assert.match(script, /route\.billing === "subscription"/);
-  assert.match(script, /route\.estimated_additional_cost_usd === 0/);
-  assert.doesNotMatch(script, /localStorage\.setItem\([^)]*(?:xcode|signing|harness_ready)/);
-});
-
-test("iPhone installation status comes from provisioning and device evidence", () => {
-  assert.match(html, /iPhone development installation status/);
-  assert.match(script, /library\.iphone_slot_detail/);
-  assert.match(script, /installed_on_connected_iphone === true/);
-  assert.match(script, /Active Shot · not on connected iPhone/);
-  assert.doesNotMatch(script, /iphone_slot_limit: 3/);
-  assert.doesNotMatch(script, /selectedApp\.retired \? "Local library" : "Installed on iPhone"/);
-});
-
-test("node participation is optional and cannot block local Studio startup", () => {
-  assert.match(script, /response\.status === 404/);
-  assert.match(script, /configured: false/);
-  assert.match(script, /Studio remains fully local/);
-  assert.match(html, /Studio does not require a node/);
-});
-
-test("contract definition is visibly inactive and Studio has no retired public surface", () => {
-  assert.match(html, /Contract definition/);
-  assert.match(html, /id="generation-status"[^>]*>Inactive</);
-  assert.match(html, /Legacy local BuilderID prediction/);
-  assert.match(html, /eligible legacy\s+evidence/);
-  assert.match(script, /active_generation: activeGeneration/);
-  assert.match(script, /No public witness generation is active/);
-  assert.match(script, /eligible legacy evidence records/);
-  assert.match(script, /active_generation is null/);
-  assert.match(script, /no deployment or broadcast path/);
-  assert.doesNotMatch(script, /public Shot records|public records it possesses/);
-  assert.doesNotMatch(html, /ShotRelations|Pairing target|Experimental publish/);
-  assert.doesNotMatch(html, /id="(?:handle|appcoin|registry|published)-status"/);
-  assert.doesNotMatch(script, /pairing|claimHandle|attestAppStore|ShotRelations/);
-});
-
-test("existing-coin association and Bankr launch both belong to one selected Shot", () => {
-  const selection = html.match(/<section id="selection"[\s\S]*?<\/section>/)?.[0] || "";
-  const globalActions = html.slice(0, html.indexOf('<div class="library-scroll">'));
-  assert.match(selection, /id="associate-token"/);
-  assert.match(selection, /Associate an existing coin/);
-  assert.match(selection, /id="launch-token"/);
-  assert.match(selection, /Launch a new Appcoin via Bankr/);
-  assert.doesNotMatch(globalActions, /id="associate-token"/);
-  assert.doesNotMatch(globalActions, /id="launch-token"/);
-  assert.match(html, /id="token-association-dialog"/);
-  assert.match(html, /id="token-association-chain"/);
-  assert.match(html, /id="token-association-address"/);
-  assert.match(html, /private signed relationship only/);
-  assert.match(script, /fetch\("\/api\/token\/associate"/);
-  assert.match(script, /chain_id: Number\(ui\.tokenAssociationChain\.value\)/);
-  assert.match(script, /token_address: ui\.tokenAssociationAddress\.value\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(html, /id="bankr-shot-id"/);
-  assert.match(html, /id="bankr-api-key"/);
-  assert.match(html, /id="bankr-recipient-type"/);
-  assert.match(html, /id="bankr-recipient"/);
-  assert.match(html, /id="bankr-image-preview"/);
-  assert.match(html, /bankr-symbol-full-color\.svg/);
-  assert.match(script, /fetch\("\/api\/bankr\/launch\/simulate"/);
-  assert.match(script, /fetch\("\/api\/bankr\/launch\/deploy"/);
-  assert.match(script, /fetch\("\/api\/bankr\/launch\/cancel"/);
-  assert.match(script, /app_name: ui\.bankrDialog\.dataset\.appName/);
-  assert.match(script, /version_ordinal: Number\(ui\.bankrDialog\.dataset\.versionOrdinal\)/);
-  assert.match(script, /api_key: optionalBankrValue\(ui\.bankrApiKey\)/);
-  assert.match(script, /fee_recipient:/);
-  assert.match(script, /approval_id: approval\.approval_id/);
-  assert.match(script, /shot: approval\.shot/);
-  assert.match(script, /ui\.bankrConfirmation\.value === bankrApproval\.confirmation_phrase/);
-  assert.match(script, /token_association\?\.status === "associated"/);
-  assert.match(script, /Do not click deploy again/);
-  assert.match(html, /private Token Association is not a Shot\s+publication/);
-  assert.match(script, /private signed association recorded for Shot/);
-  assert.match(script, /no Shot registry transaction was sent/);
-  assert.doesNotMatch(html, /jpfraneto\.eth|0xed21735DC192dC4eeAFd71b4Dc023bC53fE4DF15/i);
-  assert.doesNotMatch(script, /localStorage\.(?:setItem|getItem)\([^)]*BANKR_API_KEY/);
-});
-
-test("record evolution remains single-flight until the engine finishes", () => {
-  assert.match(script, /let recordingEvolution = false/);
-  assert.match(script, /setRecordingEvolution\(true\)/);
-  assert.match(script, /if \(!response\.ok\) throw new Error\(await response\.text\(\)\)/);
-  assert.match(script, /Version \\d\+ of \.\+ was recorded after its declared verification gates passed/);
-  const handler = script.match(
-    /ui\.recordEvolution\.addEventListener\("click",[\s\S]*?\n\}\);/,
-  )?.[0] || "";
-  assert.doesNotMatch(handler, /setTimeout/);
 });

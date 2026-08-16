@@ -45,6 +45,10 @@ use tohseno_protocol::ontology::{
 use tohseno_protocol::record::CanonicalTimestamp;
 use tohseno_protocol::record::ShotOrigin;
 
+const RECORDING_LAYER_MARKER: &str = ".tohseno/recording-layer-v1";
+const RECORDING_LAYER_MARKER_BYTES: &[u8] = b"tohseno.recording-layer/1\n";
+const RECORDED_TREE_DIGEST_BYTES: u64 = 67;
+
 #[derive(Clone, Debug)]
 pub struct ShotRequest {
     pub app_name: String,
@@ -135,7 +139,7 @@ impl Engine {
     pub fn discover(events: EventBus) -> Result<Self, EngineError> {
         let ledger = Ledger::discover()?;
         ledger.initialize()?;
-        let config = Config::load_or_create(ledger.machine_root())?;
+        let config = Config::load_or_default(ledger.machine_root())?;
         Ok(Self {
             ledger,
             events,
@@ -161,6 +165,183 @@ impl Engine {
         discover_harnesses(&self.config.harness)
     }
 
+    /// Initializes the app's embedded recording ledger. The app folder is the
+    /// working tree; TOHSENO does not author or otherwise modify its contents.
+    pub fn initialize_app(&self, app_name: &str) -> Result<PathBuf, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let working = self.ledger.working_tree(app_name);
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        match self.ledger.load_app(app_name) {
+            Ok(_) => return Err(LedgerError::AppExists(app_name.into()).into()),
+            Err(LedgerError::AppMissing(_)) => {}
+            Err(error) => return Err(error.into()),
+        }
+        let bundle = format!("local.tohseno.{app_name}");
+        if working.is_dir() {
+            self.ledger.adopt_app(app_name, &bundle)?;
+        } else {
+            self.ledger.create_app(app_name, &bundle)?;
+        }
+        fs::write(
+            working.join(RECORDING_LAYER_MARKER),
+            RECORDING_LAYER_MARKER_BYTES,
+        )?;
+        self.events.emit(Event::result(format!(
+            "Initialized {app_name}. Its history lives in {}/.tohseno.",
+            working.display()
+        )));
+        Ok(working)
+    }
+
+    /// Records the current filesystem state as the next Version. No inference,
+    /// build, signing, installation, launch, or external service is involved.
+    pub fn record_version(
+        &self,
+        app_name: &str,
+        note: Option<&str>,
+    ) -> Result<Evolution, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let history = self.verify_recording_history(app_name)?;
+        let previous = history.last();
+        if let Some((previous, recorded_digest)) = previous {
+            let working = self.ledger.working_tree(app_name);
+            let working_digest = crate::ledger::hash_app_tree(&working)?.digest;
+            if working_digest == *recorded_digest {
+                self.events.emit(Event::result(format!(
+                    "Nothing to record. {app_name} already matches Version {}.",
+                    previous.number
+                )));
+                return Ok(previous.clone());
+            }
+        } else {
+            let working = self.ledger.working_tree(app_name);
+            let tree = crate::ledger::hash_app_tree(&working)?;
+            if tree.entries.is_empty() {
+                return Err(EngineError::ProtocolBodyIncomplete(
+                    "there are no app files to record".into(),
+                ));
+            }
+        }
+        let version = self
+            .ledger
+            .reserve_version(app_name, previous.map(|(version, _)| version.number))?;
+        let note = note.unwrap_or("Recorded from the app working tree.");
+        self.ledger
+            .write_evolution_file(&version, "note.md", note.as_bytes())?;
+        self.ledger.snapshot_app_working_tree(&version)?;
+        let tree = crate::ledger::hash_app_tree(&version.source_path())?;
+        self.ledger.write_evolution_file(
+            &version,
+            "tree.sha256",
+            format!("{}\n", tree.digest).as_bytes(),
+        )?;
+        self.ledger.finalize_evolution(&version)?;
+        self.events.emit(Event::result(format!(
+            "Recorded Version {} of {app_name}.",
+            version.number
+        )));
+        Ok(version)
+    }
+
+    /// Verifies one accepted recording-layer Version against the digest stored
+    /// beside it. Historical protocol Evolutions are deliberately outside this
+    /// format and continue through their existing verifier.
+    pub fn verify_recorded_version(&self, version: &Evolution) -> Result<Bytes32, EngineError> {
+        self.verify_recording_history(&version.app_name)?
+            .into_iter()
+            .find(|(accepted, _)| {
+                accepted.number == version.number && accepted.path == version.path
+            })
+            .map(|(_, digest)| digest)
+            .ok_or_else(|| {
+                LedgerError::Corrupt(format!(
+                    "Version {} of {} is not an accepted recording in its embedded history",
+                    version.number, version.app_name
+                ))
+            })
+            .map_err(EngineError::from)
+    }
+
+    fn verify_recording_history(
+        &self,
+        app_name: &str,
+    ) -> Result<Vec<(Evolution, Bytes32)>, EngineError> {
+        self.require_recording_layer(app_name)?;
+        let latest = self.ledger.latest_evolution(app_name)?;
+        let accepted = self.ledger.list_evolutions(app_name)?;
+        for (index, version) in accepted.iter().enumerate() {
+            if version.number as usize != index + 1 {
+                return Err(LedgerError::Corrupt(format!(
+                    "{app_name} recording history is not a contiguous Version sequence"
+                ))
+                .into());
+            }
+        }
+        match (latest.as_ref(), accepted.last()) {
+            (None, None) => {}
+            (Some(latest), Some(last))
+                if latest.number == last.number && latest.path == last.path => {}
+            _ => {
+                return Err(LedgerError::Corrupt(format!(
+                    "{app_name} app.toml does not match its accepted recording history"
+                ))
+                .into());
+            }
+        }
+
+        accepted
+            .into_iter()
+            .map(|version| {
+                let digest = self.verify_recorded_version_contents(&version)?;
+                Ok((version, digest))
+            })
+            .collect()
+    }
+
+    fn verify_recorded_version_contents(
+        &self,
+        version: &Evolution,
+    ) -> Result<Bytes32, EngineError> {
+        let digest_path = version.path.join("tree.sha256");
+        let encoded =
+            crate::ledger::read_bounded_regular_file(&digest_path, RECORDED_TREE_DIGEST_BYTES)
+                .map_err(|error| {
+                    LedgerError::Corrupt(format!(
+                        "Version {} of {} tree.sha256 cannot be read safely: {error}",
+                        version.number, version.app_name
+                    ))
+                })?;
+        if encoded.len() as u64 != RECORDED_TREE_DIGEST_BYTES || encoded.last() != Some(&b'\n') {
+            return Err(LedgerError::Corrupt(format!(
+                "Version {} of {} has an invalid tree.sha256",
+                version.number, version.app_name
+            ))
+            .into());
+        }
+        let encoded = std::str::from_utf8(&encoded[..encoded.len() - 1]).map_err(|_| {
+            LedgerError::Corrupt(format!(
+                "Version {} of {} has an invalid tree.sha256",
+                version.number, version.app_name
+            ))
+        })?;
+        let expected = Bytes32::from_hex("recording tree digest", encoded).map_err(|error| {
+            LedgerError::Corrupt(format!(
+                "Version {} of {} has an invalid tree.sha256: {error}",
+                version.number, version.app_name
+            ))
+        })?;
+        let observed = crate::ledger::hash_app_tree(&version.source_path())?.digest;
+        if observed != expected {
+            return Err(LedgerError::Corrupt(format!(
+                "Version {} of {} does not match its recorded tree.sha256",
+                version.number, version.app_name
+            ))
+            .into());
+        }
+        Ok(expected)
+    }
+
     /// Preserve the exact intention and prepare the selected intelligence for
     /// conception. No app-specific Genome exists or can be accepted before
     /// the structured conception output passes deterministic validation.
@@ -177,6 +358,11 @@ impl Engine {
             ));
         }
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
+        if self.has_recording_layer_marker(&request.app_name)? {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "a recording-layer app cannot enter the historical app-building pipeline".into(),
+            ));
+        }
         // Prove every reference source and its deterministic `image_N` origin
         // descriptor before the folder or identity exists. This description
         // is read-only and lets a retry compare origin lineage before it
@@ -1309,6 +1495,11 @@ impl Engine {
     pub async fn adopt(&self, app_name: &str) -> Result<Evolution, EngineError> {
         crate::ledger::validate_app_name(app_name)?;
         let _app_lock = self.ledger.lock_app(app_name)?;
+        if self.has_recording_layer_marker(app_name)? {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "a recording-layer app cannot enter the historical adoption pipeline".into(),
+            ));
+        }
         // Adoption must fail before any side effect: the folder needs an
         // Xcode project named after itself and the fascia anatomy in place.
         let working = self.ledger.working_tree(app_name);
@@ -2663,174 +2854,57 @@ impl Engine {
         Ok(working_hash.digest == sealed_hash.digest)
     }
 
-    pub async fn refresh(&self, app_name: Option<&str>) -> Result<(), EngineError> {
-        self.wait_for_apple_prerequisites().await?;
-        let apps = if let Some(app_name) = app_name {
-            let app = self.ledger.load_app(app_name)?;
-            vec![app]
-        } else {
-            self.ledger
-                .list_apps()?
-                .into_iter()
-                .filter(|app| !app.retired)
-                .collect()
-        };
-        for app in apps
-            .into_iter()
-            .filter(|app| app.latest_evolution.is_some())
+    fn require_recording_layer(&self, app_name: &str) -> Result<AppRecord, EngineError> {
+        let record = self.ledger.load_app(app_name)?;
+        if record.shot_id.is_some() || record.builder_id.is_some() || record.expression_id.is_some()
         {
-            let _app_lock = self.ledger.lock_app(&app.name)?;
-            let app = self.ledger.load_app(&app.name)?;
-            if app.latest_evolution.is_none() {
-                continue;
-            }
-            let shot = self.ledger.latest_evolution(&app.name)?.unwrap();
-            protocol_lifecycle::verify_completed_evolution(&shot)?;
-            let recorded_artifact = shot
-                .artifact_path()
-                .join(format!("{}.app", app.target_name()));
-            if sign::days_until_expiry(&recorded_artifact).is_some_and(|days| days <= 0)
-                && sign::development_team_profile()
-                    .is_ok_and(|team| team.provisioning == sign::ProvisioningKind::Free)
-            {
-                self.emit_upsell_once(
-                    "expiry",
-                    "A paid Apple Developer membership removes weekly expiry: developer.apple.com.",
-                )?;
-            }
-            let artifact_directory = temporary_path("refresh");
-            self.events.emit(Event::status(format!(
-                "refreshing evolution {} of {}…",
-                shot.number, app.name
-            )));
-            DevicePipeline::new(self.events.clone())
-                .build_install(
-                    shot.number,
-                    app.target_name(),
-                    &app.bundle_id,
-                    &shot.source_path(),
-                    &artifact_directory,
-                )
-                .await?;
-            self.ledger.set_retired(&app.name, false)?;
-            self.events.emit(Event::result(format!(
-                "evolution {} of {} is refreshed on your phone.",
-                shot.number, app.name
-            )));
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "this app has historical protocol identity and cannot be mixed with recording-layer Versions"
+                    .into(),
+            ));
         }
-        Ok(())
+
+        if !self.has_recording_layer_marker(app_name)? {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "this app has historical protocol history and cannot be mixed with recording-layer Versions"
+                    .into(),
+            ));
+        }
+        Ok(record)
     }
 
-    pub async fn retire(&self, app_name: &str, local: bool) -> Result<(), EngineError> {
-        crate::ledger::validate_app_name(app_name)?;
-        let _app_lock = self.ledger.lock_app(app_name)?;
-        let app = self.ledger.load_app(app_name)?;
-        install::require_candidate_namespace(&app.bundle_id).map_err(EngineError::Install)?;
-        if local {
-            self.ledger.set_retired(app_name, true)?;
-            self.events.emit(Event::result(format!(
-                "{app_name} is retired in your ledger. If it is installed on a phone, it stays there until you remove it."
-            )));
-            return Ok(());
+    fn has_recording_layer_marker(&self, app_name: &str) -> Result<bool, EngineError> {
+        let marker = self
+            .ledger
+            .working_tree(app_name)
+            .join(RECORDING_LAYER_MARKER);
+        let bytes = match crate::ledger::read_bounded_regular_file(
+            &marker,
+            RECORDING_LAYER_MARKER_BYTES.len() as u64,
+        ) {
+            Ok(bytes) => bytes,
+            Err(LedgerError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(false);
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if bytes != RECORDING_LAYER_MARKER_BYTES {
+            return Err(LedgerError::Corrupt(format!(
+                "{app_name} has an invalid recording-layer marker"
+            ))
+            .into());
         }
-        // One honest check instead of an endless wait: a loop that never
-        // touched a phone must not block forever on a cable.
-        if matches!(device::check(), Ok(DeviceState::CableMissing)) {
-            return Err(EngineError::ProtocolBodyIncomplete(format!(
-                "no iPhone is connected. Plug one in to remove {app_name} from it, or run `tohseno retire {app_name} --local` to retire without a phone."
-            )));
-        }
-        self.wait_for_apple_prerequisites().await?;
-        let device = DevicePipeline::new(self.events.clone())
-            .wait_for_device()
-            .await?;
-        self.events
-            .emit(Event::status(format!("retiring {app_name}…")));
-        install::retire(&device, &app.bundle_id).map_err(EngineError::Install)?;
-        self.ledger.set_retired(app_name, true)?;
-        self.events.emit(Event::result(format!(
-            "{app_name} is off your phone and remains in your ledger."
-        )));
-        Ok(())
+        Ok(true)
     }
 
     pub fn doctor_once(&self) -> Result<bool, EngineError> {
-        let mut ready = true;
-        match toolchain::check() {
-            ToolchainState::Ready => {
-                self.events.emit(Event::status("Xcode is ready."));
-            }
-            ToolchainState::Missing => {
-                ready = false;
-                let _ = toolchain::trigger_install();
-                self.events.emit(Event::handoff(
-                    "Install Xcode from the App Store, then open it once.",
-                ));
-            }
-        }
-        // Recording waits on Apple Development signing; say so now instead
-        // of letting the first evolve poll silently.
-        match apple_signing::check() {
-            AppleSigningState::Ready {
-                team_name,
-                provisioning,
-                ..
-            } => {
-                self.events.emit(Event::status(format!(
-                    "Apple Development signing is ready with the {} team {}.",
-                    provisioning.as_str(),
-                    team_name
-                        .as_deref()
-                        .unwrap_or("selected in Xcode")
-                        .trim_end_matches('.')
-                )));
-            }
-            AppleSigningState::Missing => {
-                ready = false;
-                self.events.emit(Event::handoff(
-                    "Add an Apple Development identity: Xcode → Settings → Accounts → Manage Certificates → + → Apple Development.",
-                ));
-            }
-        }
-        let harnesses = self.harnesses();
-        let usable = harnesses
-            .iter()
-            .filter(|harness| {
-                harness.installed && harness.routes.iter().any(|route| route.available)
-            })
-            .map(|harness| harness.label.as_str())
-            .collect::<Vec<_>>();
-        if usable.is_empty() {
-            ready = false;
-            self.events.emit(Event::handoff(
-                "Install and sign in to a coding harness (Codex or Claude Code); `tohseno shot harnesses` shows what this Mac detects.",
-            ));
-        } else {
-            self.events.emit(Event::status(format!(
-                "coding harness ready: {}.",
-                usable.join(", ")
-            )));
-        }
-        let identity_path = self.ledger.machine_root().join("identity/builder.json");
-        if identity_path.is_file() {
-            self.events
-                .emit(Event::status("local Builder identity is present."));
-        } else {
-            self.events.emit(Event::status(
-                "no local Builder identity yet — the first Shot creates a local, test-only one.",
-            ));
-        }
-        Ok(ready)
-    }
-
-    /// Starts Apple's installer before the user begins describing the app so
-    /// toolchain download time overlaps with the intent gate.
-    pub fn prime_toolchain(&self) {
-        if toolchain::check() == ToolchainState::Missing {
-            let _ = toolchain::trigger_install();
-            self.events
-                .emit(Event::status("starting the Apple toolchain installation…"));
-        }
+        self.ledger.initialize()?;
+        let root = self.ledger.root();
+        self.events.emit(Event::result(format!(
+            "Recording layer is ready at {}.",
+            root.display()
+        )));
+        Ok(true)
     }
 
     fn emit_upsell_once(&self, wall: &str, message: &str) -> Result<(), EngineError> {
@@ -4104,6 +4178,200 @@ mod tests {
 
         fs::write(working.join("Anything.swift"), "// builder work\n").unwrap();
         assert!(engine.working_tree_has_user_content("quiet-press").unwrap());
+    }
+
+    #[test]
+    fn recording_layer_initializes_and_snapshots_ordinary_files_only() {
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let engine = Engine::at(
+            Ledger::at_homes(&family, &machine),
+            EventBus::default(),
+            Config::default(),
+        );
+
+        let existing = family.join("notebook");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(existing.join("existing.txt"), b"leave me alone\n").unwrap();
+        let working = engine.initialize_app("notebook").unwrap();
+        assert_eq!(working, existing);
+        assert_eq!(
+            fs::read(working.join("existing.txt")).unwrap(),
+            b"leave me alone\n"
+        );
+        assert!(working.join(".tohseno/app.toml").is_file());
+        assert!(working.join(".tohseno/evolutions").is_dir());
+        assert!(!working.join("AGENTS.md").exists());
+        fs::write(working.join("README.md"), b"# Notebook\n").unwrap();
+        fs::write(working.join("notes.txt"), b"one\n").unwrap();
+        fs::write(working.join(".env"), b"LOCAL_SETTING=yes\n").unwrap();
+        fs::write(working.join("TASK.md"), b"ordinary app file\n").unwrap();
+        fs::create_dir_all(working.join("build")).unwrap();
+        fs::write(working.join("build/compiler.log"), b"kept\n").unwrap();
+        fs::create_dir_all(working.join(".git")).unwrap();
+        fs::write(working.join(".git/config"), b"not recorded\n").unwrap();
+
+        let first = engine
+            .record_version("notebook", Some("exact note\n"))
+            .unwrap();
+        assert_eq!(first.number, 1);
+        assert_eq!(
+            fs::read(first.path.join("note.md")).unwrap(),
+            b"exact note\n"
+        );
+        assert_eq!(
+            fs::read(first.source_path().join("README.md")).unwrap(),
+            b"# Notebook\n"
+        );
+        assert_eq!(
+            fs::read(first.source_path().join("notes.txt")).unwrap(),
+            b"one\n"
+        );
+        assert_eq!(
+            fs::read(first.source_path().join(".env")).unwrap(),
+            b"LOCAL_SETTING=yes\n"
+        );
+        assert_eq!(
+            fs::read(first.source_path().join("TASK.md")).unwrap(),
+            b"ordinary app file\n"
+        );
+        assert_eq!(
+            fs::read(first.source_path().join("build/compiler.log")).unwrap(),
+            b"kept\n"
+        );
+        assert!(!first.source_path().join(".tohseno").exists());
+        assert!(!first.source_path().join(".git").exists());
+        assert!(!first.path.join("images").exists());
+        assert!(!first.path.join("artifact").exists());
+        engine.verify_recorded_version(&first).unwrap();
+
+        let unchanged = engine
+            .record_version("notebook", Some("a note cannot create an empty Version"))
+            .unwrap();
+        assert_eq!(unchanged.number, 1);
+        assert_eq!(engine.ledger.list_evolutions("notebook").unwrap().len(), 1);
+        assert_eq!(
+            fs::read(first.path.join("note.md")).unwrap(),
+            b"exact note\n"
+        );
+
+        fs::write(working.join("notes.txt"), b"two\n").unwrap();
+        let second = engine.record_version("notebook", Some("")).unwrap();
+        assert_eq!(second.number, 2);
+        assert_eq!(
+            fs::read(second.source_path().join("notes.txt")).unwrap(),
+            b"two\n"
+        );
+        assert_eq!(fs::read(second.path.join("note.md")).unwrap(), b"");
+    }
+
+    #[test]
+    fn recording_layer_rejects_a_tampered_version_before_appending() {
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let engine = Engine::at(
+            Ledger::at_homes(&family, &machine),
+            EventBus::default(),
+            Config::default(),
+        );
+
+        let working = engine.initialize_app("notebook").unwrap();
+        fs::write(working.join("notes.txt"), b"original\n").unwrap();
+        let first = engine.record_version("notebook", Some("first\n")).unwrap();
+        fs::write(first.source_path().join("notes.txt"), b"tampered\n").unwrap();
+        fs::write(working.join("notes.txt"), b"next\n").unwrap();
+
+        let error = engine
+            .record_version("notebook", Some("second\n"))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("does not match its recorded tree.sha256"),
+            "{error}"
+        );
+        assert_eq!(engine.ledger.list_evolutions("notebook").unwrap().len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn recorded_digest_is_bounded_and_never_follows_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let engine = Engine::at(
+            Ledger::at_homes(&family, &machine),
+            EventBus::default(),
+            Config::default(),
+        );
+
+        let working = engine.initialize_app("notebook").unwrap();
+        fs::write(working.join("notes.txt"), b"original\n").unwrap();
+        let first = engine.record_version("notebook", None).unwrap();
+        let digest_path = first.path.join("tree.sha256");
+
+        fs::write(
+            &digest_path,
+            vec![b'x'; RECORDED_TREE_DIGEST_BYTES as usize + 1],
+        )
+        .unwrap();
+        let error = engine
+            .verify_recorded_version(&first)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("bounded regular file"), "{error}");
+
+        fs::remove_file(&digest_path).unwrap();
+        let outside = temporary.path().join("outside.sha256");
+        fs::write(
+            &outside,
+            b"0x0000000000000000000000000000000000000000000000000000000000000000\n",
+        )
+        .unwrap();
+        symlink(&outside, &digest_path).unwrap();
+        let error = engine
+            .verify_recorded_version(&first)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("bounded regular file"), "{error}");
+    }
+
+    #[test]
+    fn recording_layer_cannot_be_mixed_with_protocol_identity() {
+        let temporary = tempfile::tempdir().unwrap();
+        let family = temporary.path().join("family");
+        let machine = temporary.path().join("machine");
+        let ledger = Ledger::at_homes(&family, &machine);
+        let engine = Engine::at(ledger.clone(), EventBus::default(), Config::default());
+
+        let working = engine.initialize_app("notebook").unwrap();
+        fs::write(working.join("notes.txt"), b"one\n").unwrap();
+        let builder = tohseno_protocol::identity::BuilderId::parse(
+            "eip155:4663:0x1111111111111111111111111111111111111111",
+        )
+        .unwrap();
+        ledger
+            .bind_protocol_identity("notebook", ShotId::random(), builder)
+            .unwrap();
+
+        let error = engine
+            .record_version("notebook", None)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("historical protocol identity"), "{error}");
+        assert!(ledger.list_evolutions("notebook").unwrap().is_empty());
+
+        ledger.create_app("historical", "local.historical").unwrap();
+        fs::write(family.join("historical/file.txt"), b"untouched\n").unwrap();
+        let error = engine
+            .record_version("historical", None)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("historical protocol history"), "{error}");
+        assert!(ledger.list_evolutions("historical").unwrap().is_empty());
     }
 
     #[test]

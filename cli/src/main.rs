@@ -1,27 +1,19 @@
-mod bankr_launch;
 mod identity_commands;
 mod installation_commands;
-mod intake;
-mod intent_commands;
 mod protocol_commands;
 mod renderer;
 mod shot_commands;
-mod shot_execution_commands;
 mod simulator;
 mod studio_server;
 
 use clap::{Parser, Subcommand};
 use renderer::Renderer;
 use std::fs;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
-use tohseno_engine::gates::intent::Intent;
-use tohseno_engine::machine::Evolved;
-use tohseno_engine::{
-    ConceptionOutput, ConductedCreation, Config, Engine, Event, EventBus, Ledger, ShotRequest,
-};
+use tohseno_engine::{Config, Engine, Event, EventBus, Ledger};
 
-const MAX_PROMPT_FILE_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_TEXT_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_FEEDBACK_FILE_BYTES: u64 = 100_000;
 const DEFAULT_STUDIO_PORT: u16 = 8888;
 
@@ -29,7 +21,7 @@ const DEFAULT_STUDIO_PORT: u16 = 8888;
 #[command(
     name = "tohseno",
     version,
-    about = "Give one coherent intention persistent identity and a native Apple expression",
+    about = "Record versions of an app beside its filesystem",
     disable_help_subcommand = true
 )]
 struct Cli {
@@ -42,106 +34,55 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Install the latest stable TOHSENO release.
-    #[command(alias = "upgrade")]
-    Update,
-    /// Remove TOHSENO program files while preserving every Shot and identity.
-    Uninstall,
-    /// Take one Shot: conceive, build, verify, install, and launch the app.
-    Create {
-        app_name: String,
-        /// Read the exact intention from a bounded UTF-8 text file.
-        #[arg(long, value_name = "PATH")]
-        prompt_file: Option<PathBuf>,
-        /// Attach one reference image. Repeat up to eight times.
-        #[arg(long = "image", value_name = "PATH")]
-        images: Vec<PathBuf>,
-        /// Native coding harness adapter, such as codex or claude-code.
-        #[arg(long, value_name = "HARNESS")]
-        harness: Option<String>,
-        /// Harness model identifier or alias. Defaults to the harness configuration.
-        #[arg(long, value_name = "MODEL")]
-        model: Option<String>,
-        /// Subscription, API, or configured inference route.
-        #[arg(long, value_name = "ROUTE")]
-        route: Option<String>,
-        /// Deprecated compatibility flag. Validated conception is accepted internally.
-        #[arg(long, hide = true)]
-        accept_genome: bool,
-        /// Use this strict intelligence-produced conception output.
-        #[arg(long, value_name = "PATH")]
-        conception_file: Option<PathBuf>,
-        /// Prepare the Shot folder without starting its unattended runner.
-        #[arg(long)]
-        no_launch: bool,
-    },
-    /// Record the folder's current state as this Shot's next Evolution.
-    ///
-    /// However the folder got there — your own agent, Xcode, an editor —
-    /// `evolve` snapshots it, runs every gate, signs the record, and appends
-    /// it to the Shot's history. Run it inside the folder or pass the name.
-    /// Piped text hands your agent a new intent after recording.
+    /// Initialize an app folder with an embedded .tohseno history.
+    Create { app_name: String },
+    /// Record the app folder as its next Version.
     Evolve {
         app_name: Option<String>,
-        /// One line recorded as this Evolution's intention.
+        /// Optional note stored with the Version.
         #[arg(long, value_name = "TEXT")]
         note: Option<String>,
-        /// Read the evolutionary intention from a bounded UTF-8 text file.
-        #[arg(long, value_name = "PATH", conflicts_with = "note")]
-        prompt_file: Option<PathBuf>,
-        /// Select one signed Feedback action for this evolutionary intent.
-        ///
-        /// Use the `action_commitment` returned by `tohseno --json feedback`.
-        /// Repeat this option to select more than one exact-version observation.
-        #[arg(long = "feedback-action", value_name = "0xBYTES32")]
-        feedback_actions: Vec<String>,
-        /// Attach one reference image. Repeat up to eight times.
-        #[arg(long = "image", value_name = "PATH")]
-        images: Vec<PathBuf>,
-        /// Native coding harness adapter, such as codex or claude-code.
-        #[arg(long, value_name = "HARNESS")]
-        harness: Option<String>,
-        /// Harness model identifier or alias.
-        #[arg(long, value_name = "MODEL")]
-        model: Option<String>,
-        /// Subscription, API, or configured inference route.
-        #[arg(long, value_name = "ROUTE")]
-        route: Option<String>,
-        /// Stage the intention without starting its unattended runner.
-        #[arg(long)]
-        no_launch: bool,
+        /// Read the Version note from a bounded UTF-8 text file.
+        #[arg(
+            long,
+            value_name = "PATH",
+            conflicts_with = "note",
+            alias = "prompt-file"
+        )]
+        note_file: Option<PathBuf>,
     },
-    /// Re-sign and install the latest shot of one app or every app.
-    Refresh { app_name: Option<String> },
-    /// List local apps and their shots.
-    List,
-    /// Remove an app from the phone without touching its ledger.
-    Retire {
-        app_name: String,
-        /// Mark the app retired in the ledger without touching a phone.
-        #[arg(long)]
-        local: bool,
-    },
-    /// Open the local Studio intake.
+    /// Open local Studio.
     Studio {
         /// Loopback port. Use 0 to ask macOS for any available port.
         #[arg(long, default_value_t = DEFAULT_STUDIO_PORT)]
         port: u16,
-        /// Open one already-imported local pending intention.
-        #[arg(long, value_name = "LOCAL_PENDING_ID")]
-        pending: Option<String>,
     },
-    /// Import a private browser or portable intention into local pending state.
-    Intent {
-        #[command(subcommand)]
-        command: IntentCommand,
-    },
+    /// List local apps and versions.
+    List,
     /// Check local prerequisites.
     Doctor {
         #[arg(long, hide = true)]
         background: bool,
     },
+    /// Install the latest stable TOHSENO release.
+    #[command(alias = "upgrade")]
+    Update,
+    /// Remove TOHSENO program files while preserving every app and identity.
+    Uninstall,
+    /// Access recovery, inspection, sharing, and protocol tools.
+    #[command(
+        after_help = "Available commands: verify, inspect, feedback, share, try, export, import, migrate, migrate-legacy, genome, identity, protocol, page, network, registry, token\n\nRun `tohseno advanced <command> --help` for details."
+    )]
+    Advanced {
+        #[arg(
+            trailing_var_arg = true,
+            allow_hyphen_values = true,
+            value_name = "COMMAND"
+        )]
+        command: Vec<String>,
+    },
     /// Verify the current local app, or an explicit local name/path, without an LLM.
+    #[command(hide = true)]
     Verify {
         target: Option<String>,
         /// Require an activated public witness; fails closed before RPC while none exists.
@@ -149,8 +90,10 @@ enum Command {
         public: bool,
     },
     /// Show exact local protocol facts for one app or Shot path.
+    #[command(hide = true)]
     Inspect { target: String },
     /// Record owned feedback or exchange exact-version workshop feedback.
+    #[command(hide = true)]
     Feedback {
         app_name: Option<String>,
         /// Exact accepted version ordinal, such as 1 for version 0001.
@@ -179,12 +122,14 @@ enum Command {
         output: Option<PathBuf>,
     },
     /// Package one accepted open-source Version for source-first community testing.
+    #[command(hide = true)]
     Share {
         app_name: Option<String>,
         #[arg(long, value_name = "FILE")]
         output: PathBuf,
     },
     /// Verify workshop source, build it locally, and run it in Simulator.
+    #[command(hide = true)]
     Try {
         capsule: PathBuf,
         #[arg(long, value_name = "DIRECTORY")]
@@ -194,6 +139,7 @@ enum Command {
         no_launch: bool,
     },
     /// Export verified Shot records as a portable bundle, not a source archive.
+    #[command(hide = true)]
     Export {
         app_name: Option<String>,
         #[arg(long, value_name = "DIRECTORY")]
@@ -203,45 +149,51 @@ enum Command {
         include_private: bool,
     },
     /// Verify and receive a portable Shot record bundle without taking ownership.
+    #[command(hide = true)]
     Import {
         bundle: PathBuf,
         #[arg(long, value_name = "DIRECTORY")]
         output: PathBuf,
     },
     /// Project frozen v1 Evolutions into the neutral model without rewriting them.
+    #[command(hide = true)]
     Migrate { app_name: Option<String> },
     /// Copy preserved v0.6 apps into visible folders, then project their
     /// frozen signed history without changing the old ledger.
+    #[command(hide = true)]
     MigrateLegacy { app_name: Option<String> },
     /// Inspect or explicitly accept a post-birth Shot Genome mutation.
+    #[command(hide = true)]
     Genome {
         #[command(subcommand)]
         command: GenomeCommand,
     },
-    /// Turn the current folder into a Shot: it gains its ledger and its
-    /// first recorded Evolution, without changing the app itself.
-    Adopt,
     /// Inspect a frozen v0.7 local identity and DeviceKey; never public authority.
+    #[command(hide = true)]
     Identity {
         #[command(subcommand)]
         command: IdentityCommand,
     },
     /// Inspect protocol law and independently verify record files.
+    #[command(hide = true)]
     Protocol {
         #[command(subcommand)]
         command: ProtocolCommand,
     },
     /// Build a deterministic static page for a local Shot.
+    #[command(hide = true)]
     Page {
         #[command(subcommand)]
         command: PageCommand,
     },
     /// Inspect the committed contract definition and activation state offline.
+    #[command(hide = true)]
     Network {
         #[command(subcommand)]
         command: NetworkCommand,
     },
     /// Inspect a verified local Shot head and public-witness availability.
+    #[command(hide = true)]
     Registry {
         #[command(subcommand)]
         command: RegistryCommand,
@@ -251,40 +203,10 @@ enum Command {
     /// This neutral protocol action never changes Shot identity or ownership.
     /// The legacy `--public` flag fails closed until an ancestry-free public
     /// Token Association record is defined.
+    #[command(hide = true)]
     Token {
         #[command(subcommand)]
         command: TokenCommand,
-    },
-    /// Prepare, run, follow, and inspect authentic local harness executions.
-    Shot {
-        #[command(subcommand)]
-        command: ShotExecutionCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum IntentCommand {
-    /// Claim one encrypted pending relay intention and open it in Studio.
-    Claim {
-        #[arg(
-            value_name = "TOKEN",
-            required_unless_present = "stdin",
-            conflicts_with = "stdin"
-        )]
-        token: Option<String>,
-        /// Read the one-time claim token from standard input.
-        #[arg(long)]
-        stdin: bool,
-        /// Import durably without opening Studio.
-        #[arg(long)]
-        no_open: bool,
-    },
-    /// Import a private .tohseno-intent file and open it in Studio.
-    Open {
-        path: PathBuf,
-        /// Import durably without opening Studio.
-        #[arg(long)]
-        no_open: bool,
     },
 }
 
@@ -395,40 +317,6 @@ enum TokenCommand {
     },
 }
 
-#[derive(Debug, Subcommand)]
-enum ShotExecutionCommand {
-    /// List installed adapters, models, routes, authentication, and cost facts.
-    Harnesses,
-    /// Run one prepared execution in the current process (recovery/debugging).
-    Run {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        execution: String,
-    },
-    /// Follow durable structured events without requiring Studio.
-    Follow {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        execution: String,
-    },
-    /// Inspect the durable completion record.
-    Result {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        execution: String,
-    },
-    /// Mark a prepared or abandoned local execution cancelled.
-    Cancel {
-        #[arg(long)]
-        app: String,
-        #[arg(long)]
-        execution: String,
-    },
-}
-
 #[tokio::main]
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
@@ -468,273 +356,64 @@ async fn dispatch(
         Command::Update => installation_commands::update(bus).await?,
         Command::Uninstall => installation_commands::uninstall(bus)?,
         Command::List => list(bus)?,
-        Command::Create {
-            app_name,
-            prompt_file,
-            images,
-            harness,
-            model,
-            route,
-            accept_genome: _,
-            conception_file,
-            no_launch,
-        } => {
+        Command::Create { app_name } => {
             let app_name = normalize_cli_app_name(&app_name)?;
             let engine = Engine::discover(bus.clone())?;
-            engine.prime_toolchain();
-            // Resolve the harness before any intake or folder side effect: an
-            // uninstalled or unauthenticated harness must fail here, not after
-            // a Shot body already exists. Interactive create can then change
-            // that ready selection from the one-screen composer.
-            let initial_selection = if no_launch {
-                None
-            } else {
-                Some(shot_execution_commands::selection(
-                    &engine,
-                    harness.as_deref(),
-                    model.as_deref(),
-                    route.as_deref(),
-                )?)
-            };
-            let interactive_composer = prompt_file.is_none()
-                && !no_launch
-                && io::stdin().is_terminal()
-                && io::stdout().is_terminal();
-            let (prompt, images, selection) = if interactive_composer {
-                let intake = intake::collect_create(
-                    &engine.harnesses(),
-                    initial_selection
-                        .as_ref()
-                        .expect("interactive composer requires a harness"),
-                    images,
-                )?;
-                let selection = shot_execution_commands::selection(
-                    &engine,
-                    Some(&intake.harness),
-                    Some(&intake.model),
-                    route.as_deref(),
-                )?;
-                (intake.prompt, intake.images, Some(selection))
-            } else {
-                (
-                    collect_prompt(prompt_file.as_deref())?,
-                    images,
-                    initial_selection,
-                )
-            };
-            let request = ShotRequest {
-                app_name,
-                intent: Intent::parse(&prompt).with_images(images),
-                selected_feedback_actions: Vec::new(),
-            };
-            let creation = engine.create(&request)?;
-            if let Some(path) = conception_file.as_deref() {
-                let output = read_conception_file(path)?;
-                engine.stage_conception_output(&request.app_name, &output)?;
-                let materialization = engine.accept_pending_conception(&request.app_name)?;
-                match selection {
-                    None => handoff_without_launch(&materialization, bus),
-                    Some(selection) => {
-                        shot_execution_commands::prepare(
-                            &engine,
-                            &materialization,
-                            &request.app_name,
-                            &selection,
-                            true,
-                            bus,
-                        )?;
-                    }
-                }
-            } else if creation
-                .folder
-                .join(".tohseno/private/planning/conception-output.json")
-                .is_file()
-            {
-                // A previous unattended conception may have completed before
-                // its runner was interrupted. Resume it directly: validation
-                // and acceptance remain engine-owned and require no ceremony.
-                engine.pending_conception(&request.app_name)?;
-                let materialization = engine.accept_pending_conception(&request.app_name)?;
-                match selection {
-                    None => handoff_without_launch(&materialization, bus),
-                    Some(selection) => {
-                        shot_execution_commands::prepare(
-                            &engine,
-                            &materialization,
-                            &request.app_name,
-                            &selection,
-                            true,
-                            bus,
-                        )?;
-                    }
-                }
-            } else {
-                match selection {
-                    None => handoff_without_launch(&creation, bus),
-                    Some(selection) => {
-                        shot_execution_commands::prepare(
-                            &engine,
-                            &creation,
-                            &request.app_name,
-                            &selection,
-                            true,
-                            bus,
-                        )?;
-                    }
-                }
-            }
+            engine.initialize_app(&app_name)?;
         }
         Command::Evolve {
             app_name,
             note,
-            prompt_file,
-            feedback_actions,
-            images,
-            harness,
-            model,
-            route,
-            no_launch,
+            note_file,
         } => {
             let (engine, name) = engine_for(app_name, bus)?;
-            let selected_feedback_actions = parse_feedback_actions(&feedback_actions)?;
-            let prompt = if let Some(path) = prompt_file.as_deref() {
-                read_prompt_file(path)?
-            } else if io::stdin().is_terminal() {
-                String::new()
+            let file_note = note_file.as_deref().map(read_note_file).transpose()?;
+            let piped_note = if note.is_none() && file_note.is_none() && !io::stdin().is_terminal()
+            {
+                Some(read_stdin_note()?)
             } else {
-                intake::collect()?
+                None
             };
-            if prompt.trim().is_empty() && note.is_some() {
-                if !selected_feedback_actions.is_empty() || !images.is_empty() {
-                    return Err(
-                        "--feedback-action and --image require an evolutionary instruction, not --note".into(),
-                    );
-                }
-                engine.record(&name, note.as_deref()).await?;
-            } else {
-                match engine
-                    .evolve(&ShotRequest {
-                        app_name: name.clone(),
-                        intent: Intent::parse(&prompt).with_images(images),
-                        selected_feedback_actions,
-                    })
-                    .await?
+            let note = note
+                .as_deref()
+                .or(file_note.as_deref())
+                .or(piped_note.as_deref());
+            engine.record_version(&name, note)?;
+        }
+        Command::Advanced { command } => {
+            if command.is_empty() {
+                return Err(
+                    "Choose an advanced command, for example `tohseno advanced verify`.".into(),
+                );
+            }
+            let mut arguments = vec!["tohseno".to_owned()];
+            arguments.extend(command);
+            let parsed = match Cli::try_parse_from(arguments) {
+                Ok(parsed) => parsed,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        clap::error::ErrorKind::DisplayHelp
+                            | clap::error::ErrorKind::DisplayVersion
+                    ) =>
                 {
-                    Evolved::Conducted(creation) if no_launch => {
-                        handoff_without_launch(&creation, bus)
-                    }
-                    Evolved::Conducted(creation) => {
-                        let selection = shot_execution_commands::selection(
-                            &engine,
-                            harness.as_deref(),
-                            model.as_deref(),
-                            route.as_deref(),
-                        )?;
-                        shot_execution_commands::prepare(
-                            &engine, &creation, &name, &selection, true, bus,
-                        )?;
-                    }
-                    Evolved::Recorded(_) | Evolved::NothingNew(_) => {}
+                    error.print()?;
+                    return Ok(());
                 }
+                Err(error) => return Err(error.into()),
+            };
+            if matches!(parsed.command, Command::Advanced { .. }) {
+                return Err("nested `advanced` commands are not supported".into());
             }
+            Box::pin(dispatch(parsed.command, bus, json)).await?;
         }
-        Command::Refresh { app_name } => {
-            Engine::discover(bus.clone())?
-                .refresh(app_name.as_deref())
-                .await?;
-        }
-        Command::Retire { app_name, local } => {
-            Engine::discover(bus.clone())?
-                .retire(&app_name, local)
-                .await?;
-        }
-        Command::Studio { port, pending } => match pending {
-            Some(id) => studio_server::open_or_serve_pending(port, &id, bus.clone()).await?,
-            None => studio_server::serve(port, bus.clone()).await?,
-        },
-        Command::Intent { command } => match command {
-            IntentCommand::Claim {
-                token,
-                stdin,
-                no_open,
-            } => {
-                let token = if stdin {
-                    intent_commands::read_claim_token_from_stdin()?
-                } else {
-                    token.expect("clap requires a token unless --stdin is used")
-                };
-                intent_commands::claim(token, no_open, bus).await?;
-            }
-            IntentCommand::Open { path, no_open } => {
-                intent_commands::open_package(&path, no_open, bus).await?;
-            }
-        },
-        Command::Shot { command } => match command {
-            ShotExecutionCommand::Harnesses => {
-                let engine = Engine::discover(bus.clone())?;
-                let harnesses = engine.harnesses();
-                if json {
-                    println!("{}", serde_json::to_string_pretty(&harnesses)?);
-                } else {
-                    for harness in harnesses {
-                        let state = if harness.installed {
-                            "available"
-                        } else {
-                            "unavailable"
-                        };
-                        let routes = harness
-                            .routes
-                            .iter()
-                            .filter(|route| route.available)
-                            .map(|route| {
-                                let cost = route
-                                    .estimated_additional_cost_usd
-                                    .map(|cost| format!("${cost:.2}"))
-                                    .unwrap_or_else(|| "usage-based".into());
-                                format!("{} ({cost})", route.label)
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        bus.emit(Event::status(format!(
-                            "{} · {} · {}",
-                            harness.label,
-                            state,
-                            if routes.is_empty() {
-                                "no authenticated route".into()
-                            } else {
-                                routes
-                            }
-                        )));
-                    }
-                }
-            }
-            ShotExecutionCommand::Run { app, execution } => {
-                shot_execution_commands::run(&app, &execution, json, bus).await?;
-            }
-            ShotExecutionCommand::Follow { app, execution } => {
-                shot_execution_commands::follow(&app, &execution, json, bus).await?;
-            }
-            ShotExecutionCommand::Result { app, execution } => {
-                shot_execution_commands::result(&app, &execution, json, bus)?;
-            }
-            ShotExecutionCommand::Cancel { app, execution } => {
-                shot_execution_commands::cancel(&app, &execution, json, bus)?;
-            }
-        },
+        Command::Studio { port } => studio_server::serve(port, bus.clone()).await?,
         Command::Doctor { background } => {
             let engine = Engine::discover(bus.clone())?;
             if !background {
                 bus.emit(Event::status("checking this Mac…"));
             }
             engine.doctor_once()?;
-        }
-        Command::Adopt => {
-            let folder = std::env::current_dir()?;
-            let (ledger, name) = Ledger::for_app_folder(&folder)?;
-            ledger.initialize()?;
-            let config = Config::load_or_create(ledger.machine_root())?;
-            let engine = Engine::at(ledger, bus.clone(), config);
-            engine.adopt(&name).await?;
         }
         Command::Identity { command } => match command {
             IdentityCommand::Show => identity_commands::show(bus, json)?,
@@ -933,17 +612,14 @@ async fn dispatch(
     Ok(())
 }
 
-fn collect_prompt(
-    prompt_file: Option<&std::path::Path>,
-) -> Result<String, Box<dyn std::error::Error>> {
-    match prompt_file {
-        Some(path) => read_prompt_file(path),
-        None => Ok(intake::collect()?),
-    }
+fn read_note_file(path: &std::path::Path) -> Result<String, Box<dyn std::error::Error>> {
+    read_bounded_utf8(path, MAX_TEXT_FILE_BYTES, "note file")
 }
 
-fn read_prompt_file(path: &std::path::Path) -> Result<String, Box<dyn std::error::Error>> {
-    read_bounded_utf8(path, MAX_PROMPT_FILE_BYTES, "prompt file")
+fn read_stdin_note() -> io::Result<String> {
+    let mut note = String::new();
+    io::stdin().read_to_string(&mut note)?;
+    Ok(note)
 }
 
 fn strip_one_terminal_line_ending(mut text: String) -> String {
@@ -953,22 +629,6 @@ fn strip_one_terminal_line_ending(mut text: String) -> String {
         text.pop();
     }
     text
-}
-
-fn parse_feedback_actions(
-    values: &[String],
-) -> Result<Vec<tohseno_protocol::digest::Bytes32>, Box<dyn std::error::Error>> {
-    let mut actions = values
-        .iter()
-        .map(|value| {
-            tohseno_protocol::digest::Bytes32::from_hex("feedback action commitment", value)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    actions.sort_unstable();
-    if actions.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err("feedback action commitments must not repeat".into());
-    }
-    Ok(actions)
 }
 
 fn read_bounded_utf8(
@@ -990,17 +650,10 @@ fn read_bounded_utf8(
 fn read_genome_file(
     path: &std::path::Path,
 ) -> Result<tohseno_protocol::Genome, Box<dyn std::error::Error>> {
-    let text = read_bounded_utf8(path, MAX_PROMPT_FILE_BYTES, "genome file")?;
+    let text = read_bounded_utf8(path, MAX_TEXT_FILE_BYTES, "genome file")?;
     let genome = serde_json::from_str::<tohseno_protocol::Genome>(&text)?;
     genome.validate()?;
     Ok(genome)
-}
-
-fn read_conception_file(
-    path: &std::path::Path,
-) -> Result<ConceptionOutput, Box<dyn std::error::Error>> {
-    let text = read_bounded_utf8(path, MAX_PROMPT_FILE_BYTES, "conception file")?;
-    Ok(serde_json::from_str(&text)?)
 }
 
 /// Resolves the engine and app name, git-style: an explicit name uses the
@@ -1021,7 +674,7 @@ fn engine_for(
         if directory.join(".tohseno").join("app.toml").is_file() {
             let (ledger, name) = Ledger::for_app_folder(&directory)?;
             ledger.initialize()?;
-            let config = Config::load_or_create(ledger.machine_root())?;
+            let config = Config::load_or_default(ledger.machine_root())?;
             return Ok((Engine::at(ledger, bus.clone(), config), name));
         }
         if !directory.pop() {
@@ -1037,13 +690,6 @@ fn normalize_cli_app_name(name: &str) -> Result<String, tohseno_engine::ledger::
     Ok(normalized)
 }
 
-fn handoff_without_launch(creation: &ConductedCreation, bus: &EventBus) {
-    bus.emit(Event::handoff(format!(
-        "Shot body is ready at {}. Next: open that folder with your agent; AGENTS.md carries the exact recording handoff.",
-        creation.folder.display()
-    )));
-}
-
 fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
     let ledger = Ledger::discover()?;
     let apps = ledger.list_apps()?;
@@ -1052,17 +698,11 @@ fn list(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         for app in apps {
             let detail = if let Some(number) = app.latest_evolution {
-                let shot = ledger.shot(&app.name, number)?;
-                let artifact = shot.artifact_path().join(format!("{}.app", app.name));
-                let expiry = tohseno_engine::gates::sign::days_until_expiry(&artifact)
-                    .map(|days| format!("{days} days until expiry"))
-                    .unwrap_or_else(|| "signing profile unavailable".into());
-                format!("evolutions 1–{number} · {expiry}")
+                format!("Versions 1–{number}")
             } else {
-                "no complete evolutions".into()
+                "no Versions recorded".into()
             };
-            let retired = if app.retired { " · retired" } else { "" };
-            bus.emit(Event::status(format!("{} · {detail}{retired}", app.name)));
+            bus.emit(Event::status(format!("{} · {detail}", app.name)));
         }
     }
     Ok(())
@@ -1110,18 +750,11 @@ mod tests {
             parsed.command,
             Command::Studio {
                 port: DEFAULT_STUDIO_PORT,
-                pending: None,
             }
         ));
 
         let ephemeral = Cli::try_parse_from(["tohseno", "studio", "--port", "0"]).unwrap();
-        assert!(matches!(
-            ephemeral.command,
-            Command::Studio {
-                port: 0,
-                pending: None,
-            }
-        ));
+        assert!(matches!(ephemeral.command, Command::Studio { port: 0 }));
     }
 
     #[test]
@@ -1178,8 +811,9 @@ mod tests {
         let root_help = Cli::try_parse_from(["tohseno", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(root_help.contains("frozen v0.7 local identity"));
-        assert!(root_help.contains("never public authority"));
+        assert!(!root_help.contains("frozen v0.7 local identity"));
+        assert!(!root_help.contains("never public authority"));
+        assert!(root_help.contains("advanced"));
         assert!(!root_help.contains("durable BuilderID"));
 
         let identity_help = Cli::try_parse_from(["tohseno", "identity", "--help"])
@@ -1273,41 +907,26 @@ mod tests {
     }
 
     #[test]
-    fn create_and_evolve_accept_automation_safe_prompt_files() {
+    fn create_and_evolve_are_filesystem_recording_commands() {
         let create_help = Cli::try_parse_from(["tohseno", "create", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(create_help.contains("Take one Shot"));
-        assert!(!create_help.contains("accept-genome"));
-
-        let create = Cli::try_parse_from([
-            "tohseno",
-            "create",
-            "field-notebook",
-            "--prompt-file",
-            "/tmp/intention.md",
-            "--no-launch",
-        ])
-        .unwrap();
+        assert!(create_help.contains("embedded .tohseno history"));
+        for removed in ["prompt", "image", "harness", "model", "route", "launch"] {
+            assert!(!create_help.contains(removed), "create exposes {removed}");
+        }
+        let create = Cli::try_parse_from(["tohseno", "create", "field-notebook"]).unwrap();
         assert!(matches!(
             create.command,
-            Command::Create {
-                app_name,
-                prompt_file: Some(path),
-                accept_genome: false,
-                conception_file: None,
-                no_launch: true,
-                ..
-            } if app_name == "field-notebook" && path == PathBuf::from("/tmp/intention.md")
+            Command::Create { app_name } if app_name == "field-notebook"
         ));
 
         let evolve = Cli::try_parse_from([
             "tohseno",
             "evolve",
             "field-notebook",
-            "--prompt-file",
-            "/tmp/evolution.md",
-            "--no-launch",
+            "--note-file",
+            "/tmp/version-note.md",
         ])
         .unwrap();
         assert!(matches!(
@@ -1315,51 +934,64 @@ mod tests {
             Command::Evolve {
                 app_name: Some(app_name),
                 note: None,
-                prompt_file: Some(path),
-                feedback_actions,
-                no_launch: true,
-                ..
+                note_file: Some(path),
             } if app_name == "field-notebook"
-                && path == PathBuf::from("/tmp/evolution.md")
-                && feedback_actions.is_empty()
+                && path == PathBuf::from("/tmp/version-note.md")
         ));
-
-        let accepted = Cli::try_parse_from([
+        let evolve_help = Cli::try_parse_from(["tohseno", "evolve", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(evolve_help.contains("--note-file"));
+        assert!(!evolve_help.contains("prompt"));
+        assert!(Cli::try_parse_from([
             "tohseno",
-            "create",
+            "evolve",
             "field-notebook",
             "--prompt-file",
-            "/tmp/intention.md",
-            "--accept-genome",
-            "--conception-file",
-            "/tmp/reviewed-conception.json",
-            "--no-launch",
+            "/tmp/version-note.md",
         ])
-        .unwrap();
-        assert!(matches!(
-            accepted.command,
-            Command::Create {
-                accept_genome: true,
-                conception_file: Some(path),
-                ..
-            } if path == PathBuf::from("/tmp/reviewed-conception.json")
-        ));
-        let conception = Cli::try_parse_from([
-            "tohseno",
+        .is_ok());
+        assert!(Cli::try_parse_from(["tohseno", "create", "app", "--harness", "codex"]).is_err());
+        assert!(Cli::try_parse_from(["tohseno", "evolve", "app", "--image", "ref.png"]).is_err());
+    }
+    #[test]
+    fn ordinary_help_contains_only_the_product_loop() {
+        let help = Cli::try_parse_from(["tohseno", "--help"])
+            .unwrap_err()
+            .to_string();
+        for command in [
             "create",
-            "field-notebook",
-            "--conception-file",
-            "/tmp/unaccepted.json",
-        ])
-        .unwrap();
-        assert!(matches!(
-            conception.command,
-            Command::Create {
-                accept_genome: false,
-                conception_file: Some(path),
-                ..
-            } if path == PathBuf::from("/tmp/unaccepted.json")
-        ));
+            "evolve",
+            "studio",
+            "list",
+            "doctor",
+            "update",
+            "uninstall",
+            "advanced",
+        ] {
+            assert!(help.contains(&format!("  {command}")), "missing {command}");
+        }
+        for hidden in [
+            "verify", "feedback", "genome", "identity", "protocol", "token", "shot",
+        ] {
+            assert!(!help.contains(&format!("  {hidden}")), "exposed {hidden}");
+        }
+        assert!(!help.contains("  install"));
+        for removed in ["install", "refresh", "retire", "intent", "adopt", "shot"] {
+            assert!(
+                Cli::try_parse_from(["tohseno", removed]).is_err(),
+                "obsolete command remains parseable: {removed}"
+            );
+        }
+    }
+
+    #[test]
+    fn advanced_help_names_the_retained_compatibility_tools() {
+        let help = Cli::try_parse_from(["tohseno", "advanced", "--help"])
+            .unwrap_err()
+            .to_string();
+        assert!(help.contains("Available commands: verify, inspect, feedback"));
+        assert!(help.contains("tohseno advanced <command> --help"));
     }
 
     #[test]
@@ -1426,24 +1058,24 @@ mod tests {
     }
 
     #[test]
-    fn prompt_file_reader_rejects_symlinks_and_non_utf8() {
+    fn note_file_reader_rejects_symlinks_and_non_utf8() {
         let temporary = tempfile::tempdir().unwrap();
-        let prompt = temporary.path().join("intention.md");
-        fs::write(&prompt, "preserve these exact words\n").unwrap();
+        let note = temporary.path().join("version-note.md");
+        fs::write(&note, "preserve these exact words\n").unwrap();
         assert_eq!(
-            read_prompt_file(&prompt).unwrap(),
+            read_note_file(&note).unwrap(),
             "preserve these exact words\n"
         );
 
         let binary = temporary.path().join("binary.md");
         fs::write(&binary, [0xff, 0xfe]).unwrap();
-        assert!(read_prompt_file(&binary).is_err());
+        assert!(read_note_file(&binary).is_err());
 
         #[cfg(unix)]
         {
             let link = temporary.path().join("linked.md");
-            std::os::unix::fs::symlink(&prompt, &link).unwrap();
-            assert!(read_prompt_file(&link).is_err());
+            std::os::unix::fs::symlink(&note, &link).unwrap();
+            assert!(read_note_file(&link).is_err());
         }
     }
 
@@ -1461,42 +1093,6 @@ mod tests {
             strip_one_terminal_line_ending("two endings\n\n".into()),
             "two endings\n"
         );
-    }
-
-    #[test]
-    fn evolve_selects_exact_signed_feedback_action_commitments() {
-        let first = format!("0x{}", "11".repeat(32));
-        let second = format!("0x{}", "22".repeat(32));
-        let parsed = Cli::try_parse_from([
-            "tohseno",
-            "evolve",
-            "field-notebook",
-            "--prompt-file",
-            "/tmp/evolution.md",
-            "--feedback-action",
-            &second,
-            "--feedback-action",
-            &first,
-            "--no-launch",
-        ])
-        .unwrap();
-        let Command::Evolve {
-            feedback_actions, ..
-        } = parsed.command
-        else {
-            panic!("expected evolve");
-        };
-        assert_eq!(feedback_actions, [second, first]);
-        let commitments = parse_feedback_actions(&feedback_actions).unwrap();
-        assert_eq!(commitments[0].to_string(), format!("0x{}", "11".repeat(32)));
-        assert_eq!(commitments[1].to_string(), format!("0x{}", "22".repeat(32)));
-
-        assert!(parse_feedback_actions(&[
-            format!("0x{}", "11".repeat(32)),
-            format!("0x{}", "11".repeat(32)),
-        ])
-        .is_err());
-        assert!(parse_feedback_actions(&["0x11".into()]).is_err());
     }
 
     #[test]

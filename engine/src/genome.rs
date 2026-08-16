@@ -10,6 +10,15 @@ const LISTENING: &str = include_str!("../../genome/LISTENING.md");
 const UNFOLDING: &str = include_str!("../../genome/UNFOLDING.md");
 const MEMORY: &str = include_str!("../../genome/MEMORY.md");
 const WORLD: &str = include_str!("../../genome/WORLD.md");
+const BUILD_LAWS: &str = r#"# Build laws
+
+- Preserve the exact intention and reference bytes.
+- Produce a complete native iPhone app, not an explanation or mock.
+- Keep private material private and add no telemetry by default.
+- Implement real required capabilities; do not substitute placeholders.
+- Do not edit `.tohseno/` or `TOHSENO/` engine-owned files.
+- Build and test the final source and report real blockers honestly.
+"#;
 const FACTORY_BUNDLE_FILES: [(&str, &str); 7] = [
     ("LAWS.md", LAWS),
     ("STRUCTURE.md", STRUCTURE),
@@ -235,35 +244,7 @@ acceptance and sealing.
         let agents = folder.join("AGENTS.md");
         if !agents.exists() {
             let contents = format!(
-                r#"# This folder is a TOHSENO Shot
-
-This is the living source world of `{app_name}`. Its accepted lineage lives
-under `.tohseno/`; never edit engine-owned files there.
-
-Before working, read `.tohseno/TASK.md`. For a birth, the exact human
-intention, accepted app-specific Genome, Birth Plan, Apple Capability Profile,
-app-specific organs, forbidden substitutions, and Experience Contract govern
-the candidate together.
-
-Materialize the complete bounded intention. Implement real Release Apple
-capabilities even when Simulator trials need injected fixtures. A Simulator
-limitation is not permission to change the product. Test adapters must be
-unreachable from the Release experience.
-
-Run the required target-user journeys, inspect their evidence from each
-actor's perspective, repair mismatches, and write the strict Experience Trial
-requested by the task. Return a candidate and evidence; do not call
-`tohseno evolve` as an internal retry or claim that your own work is accepted.
-The engine independently evaluates conformance, intent fidelity, and
-experience verification, and the engine alone seals a passing Version.
-
-Keep `MEMORY.md` only when it carries high-signal product continuity: settled
-intention, target users, enduring invariants, verified behavior, meaningful
-rationale, privacy/safety choices, or an actual external verification block.
-Do not add generic “open threads” or gate-debugging transcripts. `WORLD.md` is
-optional unless this task needs a present-tense asset specification; never use
-it for hypothetical future asset prompts.
-"#
+                "# {app_name}\n\nRead `.tohseno/TASK.md`, follow `.tohseno/BUILD_LAWS.md`, and complete the app. Never edit engine-owned files under `.tohseno/` or `TOHSENO/`.\n"
             );
             fs::write(&agents, contents)?;
         }
@@ -284,18 +265,12 @@ it for hypothetical future asset prompts.
         app_name: &str,
         bundle_id: &str,
         conception: &crate::conception::ConceptionOutput,
-        expression: &crate::birth_plan::BirthExpressionPlan,
+        _expression: &crate::birth_plan::BirthExpressionPlan,
         factory: &crate::factory_identity::FactoryIdentity,
     ) -> Result<PathBuf, GenomeError> {
-        let birth_plan = serde_json::to_string_pretty(&conception.birth_plan)
-            .map_err(|error| std::io::Error::other(error.to_string()))?;
-        let experience = serde_json::to_string_pretty(&conception.experience_contract)
-            .map_err(|error| std::io::Error::other(error.to_string()))?;
         let experience_digest = conception
             .experience_contract
             .digest()
-            .map_err(|error| std::io::Error::other(error.to_string()))?;
-        let expression_plan = serde_json::to_string_pretty(expression)
             .map_err(|error| std::io::Error::other(error.to_string()))?;
         let task = format!(
             r#"# TOHSENO birth materialization
@@ -365,17 +340,12 @@ directory and add them to the app target. Keep repository-root
 folder. The engine reconciles observed source/artifact evidence into final
 Fascia facts.
 
-## Accepted Birth Plan
+## App plan
 
-```json
-{birth_plan}
-```
-
-## Accepted app-specific expression and organs
-
-```json
-{expression_plan}
-```
+Read the structured plan at `.tohseno/private/planning/birth-plan.json`, the
+accepted app rules at `.tohseno/genome.json`, and the implementation plan at
+`.tohseno/private/planning/birth-expression-plan.json`. These files are authoritative;
+do not reproduce them in this task.
 
 Protocol-substrate organs preserve identity and provenance. They do not fulfill
 product requirements. App-specific organs must drive the implementation.
@@ -385,9 +355,8 @@ product requirements. App-specific organs must drive the implementation.
 - Authoritative RFC 8785 canonical JSON SHA-256 digest:
   `{experience_digest}`
 
-```json
-{experience}
-```
+Read the structured contract at
+`.tohseno/private/planning/experience-contract.json`; do not reproduce it here.
 
 Build the Release implementation, run deterministic XCTest and XCUITest where
 appropriate, launch in Simulator, traverse each required target-user journey,
@@ -459,21 +428,10 @@ only if all three acceptance dimensions pass.
         references: &[StoredReference],
     ) -> Result<PathBuf, GenomeError> {
         let briefing = ledger.briefing_dir(app_name);
-        fs::create_dir_all(briefing.join("genome"))?;
         fs::create_dir_all(briefing.join("references"))?;
         fs::create_dir_all(briefing.join("fascia/apple/swift"))?;
         fs::write(briefing.join("intent.md"), intent.prompt.as_bytes())?;
-        for (name, contents) in [
-            ("LAWS.md", LAWS),
-            ("STRUCTURE.md", STRUCTURE),
-            ("TASTE.md", TASTE),
-            ("LISTENING.md", LISTENING),
-            ("UNFOLDING.md", UNFOLDING),
-            ("MEMORY.md", MEMORY),
-            ("WORLD.md", WORLD),
-        ] {
-            fs::write(briefing.join("genome").join(name), contents.as_bytes())?;
-        }
+        fs::write(briefing.join("BUILD_LAWS.md"), BUILD_LAWS.as_bytes())?;
         fs::write(
             briefing.join("fascia/apple/FASCIA.json"),
             FASCIA_JSON.as_bytes(),
