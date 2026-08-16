@@ -1,28 +1,12 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 2 ]; then
-  printf '%s\n' \
-    "usage: scripts/test-installer.sh PACKAGE_DIRECTORY GENESIS_ARCHIVE" >&2
+if [ "$#" -ne 0 ]; then
+  printf '%s\n' "usage: scripts/test-installer.sh" >&2
   exit 2
 fi
 
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
-package_directory="$(CDPATH= cd -- "$1" && pwd -P)"
-archive_directory="$(CDPATH= cd -- "$(dirname -- "$2")" && pwd -P)"
-archive="$archive_directory/$(basename -- "$2")"
-
-if [ -L "$package_directory/bin/tohseno" ] ||
-  [ -L "$package_directory/bin/tohseno-apple-identity" ] ||
-  [ ! -x "$package_directory/bin/tohseno" ] ||
-  [ ! -x "$package_directory/bin/tohseno-apple-identity" ] ||
-  [ ! -f "$archive" ] ||
-  [ -L "$archive" ]; then
-  printf '%s\n' \
-    "test-installer.sh: package or archive fixture is incomplete." >&2
-  exit 2
-fi
-
 temporary_parent="$(CDPATH= cd -- "${TMPDIR:-/tmp}" && pwd -P)"
 temporary_root="$(mktemp -d "$temporary_parent/tohseno-installer-test.XXXXXX")"
 
@@ -33,426 +17,417 @@ cleanup() {
         rm -rf "$temporary_root"
       fi
       ;;
-    *)
-      printf '%s\n' \
-        "test-installer.sh: refusing unsafe cleanup." >&2
-      ;;
+    *) printf '%s\n' "test-installer.sh: refusing unsafe cleanup." >&2 ;;
   esac
 }
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
-fixture="$temporary_root/fixture"
-fake_bin="$temporary_root/fake-bin"
-test_home="$temporary_root/home"
-installer_tmp="$temporary_root/tmp"
-mkdir -p "$fixture" "$fake_bin" "$test_home" "$installer_tmp"
-
 case "$(uname -m)" in
   arm64) target="aarch64-apple-darwin" ;;
   x86_64) target="x86_64-apple-darwin" ;;
-  *)
-    printf '%s\n' \
-      "test-installer.sh: unsupported test architecture." >&2
-    exit 2
-    ;;
+  *) printf '%s\n' "test-installer.sh: unsupported test architecture." >&2; exit 2 ;;
 esac
 
-binary_name="tohseno-$target"
-helper_name="tohseno-apple-identity-$target"
-materials_name="tohseno-genesis-materials.tar.gz"
-cp "$package_directory/bin/tohseno" "$fixture/$binary_name"
-cp "$package_directory/bin/tohseno-apple-identity" "$fixture/$helper_name"
-cp "$archive" "$fixture/$materials_name"
+fixture="$temporary_root/fixture"
+package="$temporary_root/package/$target"
+fake_bin="$temporary_root/fake-bin"
+test_home="$temporary_root/home"
+installer_tmp="$temporary_root/tmp"
+curl_log="$temporary_root/curl.log"
+service_log="$temporary_root/service.log"
+mkdir -p \
+  "$fixture" "$package/bin" "$package/share/studio" \
+  "$package/share/sdk/apple/TohsenoCompanionKit" \
+  "$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit" \
+  "$package/share/companion/test-vectors" "$package/share/protocol/schemas" \
+  "$package/share/fascia/apple" "$package/share/genesis" "$fake_bin" \
+  "$test_home" "$installer_tmp"
 
-refresh_outer_manifest() {
+write_cli() {
+  destination="$1"
+  behavior="$2"
+  cat >"$destination" <<'FAKE_TOHSENO'
+#!/bin/sh
+set -eu
+if [ "${1:-}" = "--version" ]; then
+  printf '%s\n' "tohseno 0.9.0"
+  exit 0
+fi
+if [ "${1:-}" = "--json" ]; then shift; fi
+case "${1:-}:${2:-}" in
+  service:install)
+    if grep -Fqx fail-health "$(dirname -- "$0")/service-behavior"; then
+      exit 23
+    fi
+    launch_agent="$HOME/Library/LaunchAgents/com.tohseno.workspace-service.plist"
+    if [ -L "$launch_agent" ] ||
+      { [ -e "$launch_agent" ] && [ ! -f "$launch_agent" ]; }; then
+      exit 24
+    fi
+    if [ -f "$launch_agent" ] &&
+      ! grep -Fq 'TOHSENO_WORKSPACE_SERVICE_PLIST_V1' "$launch_agent"; then
+      exit 25
+    fi
+    mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.tohseno/service/devices"
+    printf '%s\n' '<!-- TOHSENO_WORKSPACE_SERVICE_PLIST_V1 -->' \
+      >"$launch_agent"
+    printf '%s\n' '{"schema":"tohseno.local-workspace-runtime/1"}' \
+      >"$HOME/.tohseno/service/runtime.json"
+    printf '%s\n' install >>"${TOHSENO_TEST_SERVICE_LOG:?}"
+    printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"0.9.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+    ;;
+  service:status)
+    if grep -Fqx unhealthy-status "$(dirname -- "$0")/service-behavior"; then
+      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":false,"service_version":"0.9.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+    else
+      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"0.9.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+    fi
+    ;;
+  service:uninstall)
+    launch_agent="$HOME/Library/LaunchAgents/com.tohseno.workspace-service.plist"
+    if [ -L "$launch_agent" ] ||
+      { [ -e "$launch_agent" ] && [ ! -f "$launch_agent" ]; }; then
+      exit 24
+    fi
+    if [ -f "$launch_agent" ] &&
+      ! grep -Fq 'TOHSENO_WORKSPACE_SERVICE_PLIST_V1' "$launch_agent"; then
+      exit 25
+    fi
+    rm -f "$launch_agent"
+    printf '%s\n' uninstall >>"${TOHSENO_TEST_SERVICE_LOG:?}"
+    ;;
+  studio:)
+    printf '%s\n' studio >>"${TOHSENO_TEST_SERVICE_LOG:?}"
+    ;;
+  *) exit 2 ;;
+esac
+FAKE_TOHSENO
+  chmod 0755 "$destination"
+  printf '%s\n' "$behavior" >"$(dirname -- "$destination")/service-behavior"
+}
+
+write_helper() {
+  destination="$1"
+  cat >"$destination" <<'FAKE_HELPER'
+#!/bin/sh
+set -eu
+[ "${1:-}" = "--version" ] || exit 2
+printf '%s\n' "tohseno-apple-identity 0.9.0"
+FAKE_HELPER
+  chmod 0755 "$destination"
+}
+
+write_cli "$package/bin/tohseno" healthy
+write_helper "$package/bin/tohseno-apple-identity"
+printf '%s\n' '<html>Studio</html>' >"$package/share/studio/index.html"
+printf '%s\n' '// Studio' >"$package/share/studio/app.js"
+printf '%s\n' '/* Studio */' >"$package/share/studio/style.css"
+printf '%s\n' 'fixture pairing seal' >"$package/share/studio/pairing-seal.png"
+printf '%s\n' '// CompanionKit' \
+  >"$package/share/sdk/apple/TohsenoCompanionKit/Package.swift"
+printf '%s\n' '0.9.0' \
+  >"$package/share/sdk/apple/TohsenoCompanionKit/VERSION"
+printf '%s\n' 'license' \
+  >"$package/share/sdk/apple/TohsenoCompanionKit/LICENSE"
+printf '%s\n' '// CompanionKit client fixture' \
+  >"$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit/Client.swift"
+printf '%s\n' '{"schema":"tohseno.companion-test-vectors/1"}' \
+  >"$package/share/companion/test-vectors/companion-v1.json"
+printf '%s\n' '{}' >"$package/share/protocol/schemas/common.schema.json"
+printf '%s\n' '{}' >"$package/share/fascia/apple/FASCIA.json"
+printf '%s\n' '{}' >"$package/share/genesis/GENESIS.json"
+
+write_release_manifest() {
+  cat >"$package/RELEASE.json" <<EOF
+{
+  "schema": "tohseno.release/1",
+  "version": "0.9.0",
+  "codename": "COMPANION",
+  "target": "$target",
+  "source_commit": "1111111111111111111111111111111111111111",
+  "source_state_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "dirty": false,
+  "channel": "stable",
+  "prerelease": false
+}
+EOF
+}
+
+write_inner_manifest() {
+  rm -f "$package/CHECKSUMS.sha256"
   (
-    cd "$fixture"
-    shasum -a 256 \
-      "$binary_name" \
-      "$helper_name" \
-      "$materials_name" >SHA256SUMS
+    cd "$package"
+    find . -type f ! -name CHECKSUMS.sha256 -print |
+      sed 's#^\./##' |
+      LC_ALL=C sort |
+      while IFS= read -r file; do shasum -a 256 "$file"; done \
+        >CHECKSUMS.sha256
   )
 }
-refresh_outer_manifest
-if [ ! -f "$package_directory/CHECKSUMS.sha256" ] ||
-  [ -L "$package_directory/CHECKSUMS.sha256" ]; then
-  printf '%s\n' \
-    "test-installer.sh: package has no safe checksum manifest." >&2
-  exit 2
-fi
-(
-  cd "$package_directory"
-  shasum -a 256 -c CHECKSUMS.sha256 >/dev/null
-)
+
+package_name="tohseno-release-$target.tar.gz"
+refresh_outer_checksum() {
+  (
+    cd "$fixture"
+    shasum -a 256 "$package_name" >SHA256SUMS
+  )
+}
+
+publish_raw_fixture() {
+  rm -f "$fixture/$package_name" "$fixture/SHA256SUMS"
+  COPYFILE_DISABLE=1 tar -czf "$fixture/$package_name" \
+    -C "$(dirname -- "$package")" "$target"
+  refresh_outer_checksum
+}
+
+publish_fixture() {
+  rm -f "$fixture/$package_name" "$fixture/SHA256SUMS"
+  python3 "$repository_root/scripts/build-normalized-tar.py" \
+    --source "$package" \
+    --output "$fixture/$package_name" \
+    --root-name "$target" \
+    --mtime 1 \
+    --manifest-name CHECKSUMS.sha256
+  refresh_outer_checksum
+}
+
+write_release_manifest
+write_inner_manifest
+publish_fixture
 
 cat >"$fake_bin/curl" <<'FAKE_CURL'
 #!/bin/sh
 set -eu
-
 url=""
 destination=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -fsSL) shift ;;
-    -o)
-      [ "$#" -ge 2 ] || exit 2
-      destination="$2"
-      shift 2
-      ;;
-    http://* | https://*)
-      url="$1"
-      shift
-      ;;
+    --proto|--proto-redir|--max-filesize) shift 2 ;;
+    --tlsv1.2) shift ;;
+    -o) destination="$2"; shift 2 ;;
+    http://*|https://*) url="$1"; shift ;;
     *) exit 2 ;;
   esac
 done
 [ -n "$url" ] && [ -n "$destination" ] || exit 2
 artifact="${url##*/}"
 case "$artifact" in
-  tohseno-aarch64-apple-darwin|\
-    tohseno-x86_64-apple-darwin|\
-    tohseno-apple-identity-aarch64-apple-darwin|\
-    tohseno-apple-identity-x86_64-apple-darwin|\
-    tohseno-genesis-materials.tar.gz|\
-    SHA256SUMS) ;;
+  tohseno-release-aarch64-apple-darwin.tar.gz|\
+  tohseno-release-x86_64-apple-darwin.tar.gz|SHA256SUMS) ;;
   *) exit 2 ;;
 esac
-expected_url="https://github.com/jpfraneto/tohseno/releases/download/v0.8.5/$artifact"
-[ "$url" = "$expected_url" ] || exit 2
+[ "$url" = "https://github.com/jpfraneto/tohseno/releases/download/v0.9.0/$artifact" ] || exit 2
 printf '%s\n' "$url" >>"${TOHSENO_INSTALLER_CURL_LOG:?}"
 cp "${TOHSENO_INSTALLER_FIXTURE_DIR:?}/$artifact" "$destination"
 FAKE_CURL
 chmod 0755 "$fake_bin/curl"
 
-mkdir "$test_home/.tohseno"
-printf '%s\n' "stable-state-sentinel" >"$test_home/.tohseno/stable-state"
-printf '%s\n' "export EXISTING_SETTING=yes" >"$test_home/.zshrc"
-stable_digest="$(
-  shasum -a 256 "$test_home/.tohseno/stable-state" | awk '{print $1}'
-)"
-curl_log="$temporary_root/curl.log"
-expected_urls="$temporary_root/expected-urls"
-printf '%s\n' \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.5/$binary_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.5/$helper_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.5/$materials_name" \
-  "https://github.com/jpfraneto/tohseno/releases/download/v0.8.5/SHA256SUMS" |
-  LC_ALL=C sort >"$expected_urls"
+printf '%s\n' 'export EXISTING_SETTING=yes' >"$test_home/.zshrc"
+mkdir -p "$test_home/.tohseno" "$test_home/Desktop/Tohseno/fixture"
+printf '%s\n' preserve >"$test_home/.tohseno/preexisting-state"
+printf '%s\n' app-data >"$test_home/Desktop/Tohseno/fixture/source.txt"
 
-invalid_start_log="$temporary_root/invalid-start.log"
-if env \
-  HOME="$test_home" \
-  SHELL=/bin/zsh \
-  TMPDIR="$installer_tmp" \
-  PATH="$fake_bin:$PATH" \
-  TOHSENO_START_STUDIO=2 \
-  sh "$repository_root/oneshot/oneshot.sh" \
-  >"$invalid_start_log" 2>&1; then
-  printf '%s\n' \
-    "test-installer.sh: accepted an invalid Studio launch choice." >&2
-  exit 1
-fi
-grep -Fqx \
-  "TOHSENO installer: TOHSENO_START_STUDIO must be 0 or 1." \
-  "$invalid_start_log"
-test ! -e "$test_home/.tohseno/.tohseno-install-root"
-
-run_installer() {
+run_installer_for_home() {
+  requested_home="$1"
+  requested_start="$2"
   env \
-    HOME="$test_home" \
+    HOME="$requested_home" \
     SHELL=/bin/zsh \
     TMPDIR="$installer_tmp" \
     PATH="$fake_bin:$PATH" \
-    TOHSENO_START_STUDIO=0 \
+    TOHSENO_START_STUDIO="$requested_start" \
     TOHSENO_INSTALLER_FIXTURE_DIR="$fixture" \
     TOHSENO_INSTALLER_CURL_LOG="$curl_log" \
+    TOHSENO_TEST_SERVICE_LOG="$service_log" \
     sh "$repository_root/oneshot/oneshot.sh"
 }
 
+run_installer() {
+  run_installer_for_home "$test_home" "${1:-0}"
+}
+
+# Input and installation-root validation happens before any release state is
+# published or an installer-controlled service is touched.
+if run_installer_for_home "$test_home" 2 \
+  >"$temporary_root/invalid-start.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted an invalid Studio choice." >&2
+  exit 1
+fi
+grep -Fq "TOHSENO_START_STUDIO must be 0 or 1" \
+  "$temporary_root/invalid-start.log"
+unsafe_home="$temporary_root/unsafe-home"
+unsafe_install_target="$temporary_root/unsafe-install-target"
+mkdir "$unsafe_home" "$unsafe_install_target"
+printf '%s\n' sentinel >"$unsafe_install_target/sentinel"
+ln -s "$unsafe_install_target" "$unsafe_home/.tohseno"
+if run_installer_for_home "$unsafe_home" 0 \
+  >"$temporary_root/unsafe-root.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: followed a symlinked install root." >&2
+  exit 1
+fi
+grep -Fq "contains a symlinked path component" \
+  "$temporary_root/unsafe-root.log"
+grep -Fqx sentinel "$unsafe_install_target/sentinel"
+
+# Fresh install publishes a complete release, installs the service, and leaves
+# all pre-existing app/private state untouched.
 : >"$curl_log"
-run_installer >/dev/null
+: >"$service_log"
+run_installer 0 >/dev/null
 install_root="$test_home/.tohseno"
 first_current="$(readlink "$install_root/current")"
-case "$first_current" in
-  releases/*) first_release_name="${first_current#releases/}" ;;
-  *)
-    printf '%s\n' \
-      "test-installer.sh: current escaped the release directory." >&2
-    exit 1
-    ;;
-esac
-case "$first_release_name" in
-  "" | "." | ".." | */*)
-    printf '%s\n' \
-      "test-installer.sh: current has a non-canonical target." >&2
-    exit 1
-    ;;
-esac
-first_physical="$(CDPATH= cd -- "$install_root/current" && pwd -P)"
-case "$first_physical/" in
-  "$install_root"/releases/*/) ;;
-  *)
-    printf '%s\n' \
-      "test-installer.sh: current escaped its physical release root." >&2
-    exit 1
-    ;;
-esac
-"$install_root/bin/tohseno" --version |
-  grep -Fqx 'tohseno 0.8.5'
-"$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 0.8.5'
-test -f "$install_root/share/genesis/GENESIS.json"
-test -f "$install_root/share/genesis/FILES.sha256"
+case "$first_current" in releases/*) ;; *) exit 1 ;; esac
+first_release="$(CDPATH= cd -- "$install_root/current" && pwd -P)"
+test -x "$first_release/bin/tohseno"
+test -f "$first_release/share/studio/index.html"
+test -f "$first_release/share/sdk/apple/TohsenoCompanionKit/Package.swift"
+test -f "$first_release/share/companion/test-vectors/companion-v1.json"
+(
+  cd "$first_release"
+  shasum -a 256 -c CHECKSUMS.sha256 >/dev/null
+)
 test -L "$install_root/share/genesis"
 test "$(readlink "$install_root/share/genesis")" = "../current/share/genesis"
-test -f "$install_root/.tohseno-install-root"
-test ! -L "$install_root/.tohseno-install-root"
-test "$(cat "$install_root/.tohseno-install-root")" = "tohseno-stable-install-v2"
-test ! -L "$install_root/bin/tohseno"
-test ! -L "$install_root/bin/tohseno-apple-identity"
-cmp "$first_physical/bin/tohseno" "$package_directory/bin/tohseno"
-cmp \
-  "$first_physical/bin/tohseno-apple-identity" \
-  "$package_directory/bin/tohseno-apple-identity"
-if find "$first_physical" ! -type f ! -type d -print -quit | grep -q .; then
-  printf '%s\n' \
-    "test-installer.sh: physical release contains a special entry." >&2
-  exit 1
-fi
-if ! LC_ALL=C sort "$curl_log" | cmp -s - "$expected_urls"; then
-  printf '%s\n' \
-    "test-installer.sh: installer did not fetch the exact release set." >&2
-  exit 1
-fi
-reference_materials="$temporary_root/reference-materials"
-mkdir "$reference_materials"
-COPYFILE_DISABLE=1 tar -xzf "$archive" -C "$reference_materials"
-diff -qr "$reference_materials/genesis" "$first_physical/share/genesis" >/dev/null
+test -f "$test_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
+test -f "$test_home/.tohseno/service/runtime.json"
+grep -Fqx install "$service_log"
+grep -Fqx preserve "$test_home/.tohseno/preexisting-state"
+grep -Fqx app-data "$test_home/Desktop/Tohseno/fixture/source.txt"
 
-: >"$curl_log"
-run_installer >/dev/null
+# Reinstall switches current while retaining both immutable releases and
+# preserving command/pairing state.
+printf '%s\n' paired >"$test_home/.tohseno/service/devices/phone"
+run_installer 0 >/dev/null
 second_current="$(readlink "$install_root/current")"
-if [ "$first_current" = "$second_current" ]; then
-  printf '%s\n' \
-    "test-installer.sh: reinstall did not switch releases." >&2
-  exit 1
-fi
-test -d "$first_physical"
-second_physical="$(CDPATH= cd -- "$install_root/current" && pwd -P)"
-second_release_name="${second_current#releases/}"
-case "$second_current:$second_release_name" in
-  releases/*:?*) ;;
-  *)
-    printf '%s\n' \
-      "test-installer.sh: reinstalled current has an invalid target." >&2
-    exit 1
-    ;;
-esac
-case "$second_release_name" in
-  "." | ".." | */*)
-    printf '%s\n' \
-      "test-installer.sh: reinstalled current is non-canonical." >&2
-    exit 1
-    ;;
-esac
-case "$second_physical/" in
-  "$install_root"/releases/*/) ;;
-  *)
-    printf '%s\n' \
-      "test-installer.sh: reinstalled current escaped its release root." >&2
-    exit 1
-    ;;
-esac
-cmp "$second_physical/bin/tohseno" "$package_directory/bin/tohseno"
-cmp \
-  "$second_physical/bin/tohseno-apple-identity" \
-  "$package_directory/bin/tohseno-apple-identity"
-diff -qr "$reference_materials/genesis" "$second_physical/share/genesis" >/dev/null
-if find "$second_physical" ! -type f ! -type d -print -quit | grep -q .; then
-  printf '%s\n' \
-    "test-installer.sh: reinstalled release contains a special entry." >&2
-  exit 1
-fi
-if [ "$(
-  find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d |
-    wc -l | tr -d ' '
-)" -ne 2 ]; then
-  printf '%s\n' \
-    "test-installer.sh: reinstall leaked or omitted a release." >&2
-  exit 1
-fi
-if ! LC_ALL=C sort "$curl_log" | cmp -s - "$expected_urls"; then
-  printf '%s\n' \
-    "test-installer.sh: reinstall did not fetch the exact release set." >&2
-  exit 1
-fi
-first_hold="$first_physical.routing-check"
-mv "$first_physical" "$first_hold"
-"$install_root/bin/tohseno" --version |
-  grep -Fqx 'tohseno 0.8.5'
-"$install_root/bin/tohseno-apple-identity" --version |
-  grep -Fqx 'tohseno-apple-identity 0.8.5'
-mv "$first_hold" "$first_physical"
-if [ "$(
-  grep -Fxc 'export PATH="$HOME/.tohseno/bin:$PATH"' \
-    "$test_home/.zshrc"
-)" -ne 1 ]; then
-  printf '%s\n' \
-    "test-installer.sh: stable PATH entry is not idempotent." >&2
-  exit 1
-fi
-expected_zshrc="$temporary_root/expected.zshrc"
-printf '%s\n\n%s\n' \
-  "export EXISTING_SETTING=yes" \
-  'export PATH="$HOME/.tohseno/bin:$PATH"' >"$expected_zshrc"
-if ! cmp -s "$expected_zshrc" "$test_home/.zshrc"; then
-  printf '%s\n' \
-    "test-installer.sh: installation clobbered shell configuration." >&2
-  exit 1
-fi
+test "$second_current" != "$first_current"
+test -d "$first_release"
+test -f "$test_home/.tohseno/service/devices/phone"
+test "$(find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq 2
+test "$(grep -Fxc 'export PATH="$HOME/.tohseno/bin:$PATH"' "$test_home/.zshrc")" -eq 1
 
-installed_state() {
-  find "$install_root" -type d -print |
-    LC_ALL=C sort |
-    while IFS= read -r path; do
-      stat -f '%Lp %N' "$path"
-    done
-  find "$install_root" -type l -print |
-    LC_ALL=C sort |
-    while IFS= read -r path; do
-      printf '%s -> %s\n' "$path" "$(readlink "$path")"
-    done
-  find "$install_root" -type f -print |
-    LC_ALL=C sort |
-    while IFS= read -r path; do
-      stat -f '%Lp %N' "$path"
-      shasum -a 256 "$path"
-    done
-  stat -f '%Lp %N' "$test_home/.zshrc"
-  shasum -a 256 "$test_home/.zshrc"
-}
-state_before_failure="$(installed_state)"
+# Studio is a short-lived client invocation: the installer returns while the
+# service artifact remains installed.
+run_installer 1 >/dev/null
+grep -Fqx studio "$service_log"
+test -f "$test_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
 
-printf '%s\n' "corruption" >>"$fixture/$binary_name"
-outer_failure="$temporary_root/outer-failure.log"
-if run_installer >"$outer_failure" 2>&1; then
-  printf '%s\n' \
-    "test-installer.sh: accepted an outer checksum mismatch." >&2
-  exit 1
-fi
-expected_outer_failure="$temporary_root/expected-outer-failure.log"
-printf '%s\n' \
-  "installing TOHSENO v0.8.5 - https://github.com/jpfraneto/tohseno" \
-  "TOHSENO installer: Release checksum failed for $binary_name." \
-  >"$expected_outer_failure"
-if ! cmp -s "$expected_outer_failure" "$outer_failure"; then
-  printf '%s\n' \
-    "test-installer.sh: checksum test failed for an unrelated reason." >&2
-  exit 1
-fi
-if [ "$(installed_state)" != "$state_before_failure" ]; then
-  printf '%s\n' \
-    "test-installer.sh: checksum failure changed installed state." >&2
-  exit 1
-fi
+stable_current="$(readlink "$install_root/current")"
+stable_release_count="$(find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
 
-cp "$package_directory/bin/tohseno" "$fixture/$binary_name"
-invalid_materials="$temporary_root/invalid-materials"
-mkdir "$invalid_materials"
-tar -xzf "$archive" -C "$invalid_materials"
-printf '%s\n' "not covered by FILES.sha256" \
-  >"$invalid_materials/genesis/unmanifested.txt"
+# A corrupt outer package never changes installed state.
+printf '%s\n' corruption >>"$fixture/$package_name"
+if run_installer 0 >"$temporary_root/outer.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted an outer checksum mismatch." >&2
+  exit 1
+fi
+grep -Fq "Release checksum failed for $package_name" "$temporary_root/outer.log"
+test "$(readlink "$install_root/current")" = "$stable_current"
+publish_fixture
+
+# An extra unmanifested inner file is rejected before publication.
+printf '%s\n' extra >"$package/unmanifested"
+publish_raw_fixture
+if run_installer 0 >"$temporary_root/inner.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted an incomplete inner manifest." >&2
+  exit 1
+fi
+grep -Fq "CHECKSUMS.sha256 does not cover exactly" "$temporary_root/inner.log"
+test "$(readlink "$install_root/current")" = "$stable_current"
+rm -f "$package/unmanifested"
+write_inner_manifest
+
+# A package containing a symlink is rejected even when its outer checksum is
+# valid; no user-controlled archive link is ever extracted as release state.
+ln -s common.schema.json "$package/share/protocol/schemas/unsafe-link"
+publish_raw_fixture
+if run_installer 0 >"$temporary_root/symlink.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted a release archive symlink." >&2
+  exit 1
+fi
+grep -Fq "link or unsupported archive entry" "$temporary_root/symlink.log"
+rm -f "$package/share/protocol/schemas/unsafe-link"
+
+# Duplicate archive paths are rejected before extraction, even if the final
+# extracted tree would otherwise collapse them to one manifest-covered file.
+COPYFILE_DISABLE=1 tar -czf "$fixture/$package_name" \
+  -C "$(dirname -- "$package")" "$target" "$target"
 (
-  cd "$invalid_materials"
-  COPYFILE_DISABLE=1 tar -czf "$fixture/$materials_name" genesis
+  refresh_outer_checksum
 )
-refresh_outer_manifest
-inner_failure="$temporary_root/inner-failure.log"
-if run_installer >"$inner_failure" 2>&1; then
-  printf '%s\n' \
-    "test-installer.sh: accepted an incomplete inner manifest." >&2
+if run_installer 0 >"$temporary_root/duplicate.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted duplicate archive paths." >&2
   exit 1
 fi
-expected_inner_failure="$temporary_root/expected-inner-failure.log"
-printf '%s\n' \
-  "installing TOHSENO v0.8.5 - https://github.com/jpfraneto/tohseno" \
-  "TOHSENO installer: Genesis FILES.sha256 does not cover exactly the staged files." \
-  >"$expected_inner_failure"
-if ! cmp -s "$expected_inner_failure" "$inner_failure"; then
-  printf '%s\n' \
-    "test-installer.sh: inner-manifest test failed for an unrelated reason." >&2
-  exit 1
-fi
-if [ "$(installed_state)" != "$state_before_failure" ]; then
-  printf '%s\n' \
-    "test-installer.sh: inner-manifest failure changed installed state." >&2
-  exit 1
-fi
+grep -Fq "unsafe archive path" "$temporary_root/duplicate.log"
+publish_fixture
 
-cp "$archive" "$fixture/$materials_name"
-refresh_outer_manifest
-printf '%s\n' "unrecognized-marker" >"$install_root/.tohseno-install-root"
-late_state_before="$(installed_state)"
-late_failure="$temporary_root/late-failure.log"
-if run_installer >"$late_failure" 2>&1; then
-  printf '%s\n' \
-    "test-installer.sh: accepted an unrecognized late marker." >&2
+# A nested release pointer is non-canonical even when it still resolves under
+# the releases directory. The rejected update leaves no additional release.
+stable_release_name="${stable_current#releases/}"
+rm -f "$install_root/current"
+ln -s "releases/$stable_release_name/share" "$install_root/current"
+publish_fixture
+if run_installer 0 >"$temporary_root/nested-current.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted a nested release pointer." >&2
   exit 1
 fi
-if ! grep -Fqx \
-  "TOHSENO installer: Existing installation marker is unrecognized." \
-  "$late_failure"; then
-  printf '%s\n' \
-    "test-installer.sh: late rollback failed for an unrelated reason." >&2
-  exit 1
-fi
-if [ "$(installed_state)" != "$late_state_before" ]; then
-  printf '%s\n' \
-    "test-installer.sh: late failure did not roll back installed state." >&2
-  exit 1
-fi
-printf '%s\n' "tohseno-stable-install-v2" \
-  >"$install_root/.tohseno-install-root"
+grep -Fq "non-canonical target" "$temporary_root/nested-current.log"
+test "$(find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq "$stable_release_count"
+rm -f "$install_root/current"
+ln -s "$stable_current" "$install_root/current"
 
-observed_stable_digest="$(
-  shasum -a 256 "$test_home/.tohseno/stable-state" | awk '{print $1}'
-)"
-if [ "$observed_stable_digest" != "$stable_digest" ]; then
-  printf '%s\n' \
-    "test-installer.sh: installation changed pre-existing stable state." >&2
+# A symlinked LaunchAgent is never overwritten or removed during an update or
+# its rollback attempt.
+write_cli "$package/bin/tohseno" healthy
+write_inner_manifest
+publish_fixture
+launch_agent="$test_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
+launch_agent_target="$temporary_root/unowned-launch-agent"
+rm -f "$launch_agent"
+printf '%s\n' unowned >"$launch_agent_target"
+ln -s "$launch_agent_target" "$launch_agent"
+if run_installer 0 >"$temporary_root/launch-agent.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted a symlinked LaunchAgent." >&2
   exit 1
 fi
+test -L "$launch_agent"
+grep -Fqx unowned "$launch_agent_target"
+test "$(readlink "$install_root/current")" = "$stable_current"
+test "$(find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq "$stable_release_count"
+rm -f "$launch_agent"
+printf '%s\n' '<!-- TOHSENO_WORKSPACE_SERVICE_PLIST_V1 -->' >"$launch_agent"
 
-bootstrap_home="$temporary_root/bootstrap-home"
-bootstrap_log="$temporary_root/bootstrap.log"
-mkdir "$bootstrap_home"
-cat >"$fixture/$binary_name" <<'FAKE_TOHSENO'
-#!/bin/sh
-set -eu
-case "${1:-}" in
-  --version) printf '%s\n' "tohseno 0.8.5" ;;
-  studio) printf '%s\n' "studio" >>"${TOHSENO_BOOTSTRAP_LOG:?}" ;;
-  *) exit 2 ;;
-esac
-FAKE_TOHSENO
-cat >"$fixture/$helper_name" <<'FAKE_IDENTITY'
-#!/bin/sh
-set -eu
-[ "${1:-}" = "--version" ] || exit 2
-printf '%s\n' "tohseno-apple-identity 0.8.5"
-FAKE_IDENTITY
-chmod 0755 "$fixture/$binary_name" "$fixture/$helper_name"
-refresh_outer_manifest
-env \
-  HOME="$bootstrap_home" \
-  SHELL=/bin/zsh \
-  TMPDIR="$installer_tmp" \
-  PATH="$fake_bin:$PATH" \
-  TOHSENO_BOOTSTRAP_LOG="$bootstrap_log" \
-  TOHSENO_INSTALLER_FIXTURE_DIR="$fixture" \
-  TOHSENO_INSTALLER_CURL_LOG="$curl_log" \
-  sh "$repository_root/oneshot/oneshot.sh" >/dev/null
-grep -Fqx "studio" "$bootstrap_log"
+# Health failure after the pointer switch automatically restores the prior
+# release and starts its service. Pairing and app state survive the rollback.
+write_cli "$package/bin/tohseno" unhealthy-status
+write_inner_manifest
+publish_fixture
+if run_installer 0 >"$temporary_root/health.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted an unhealthy service update." >&2
+  exit 1
+fi
+grep -Fq "restored the previous release and service" "$temporary_root/health.log"
+test "$(readlink "$install_root/current")" = "$stable_current"
+test "$(find "$install_root/releases" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" -eq "$stable_release_count"
+test -f "$test_home/.tohseno/service/devices/phone"
+grep -Fqx app-data "$test_home/Desktop/Tohseno/fixture/source.txt"
+test -f "$test_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
 
-printf '%s\n' "Stable 0.8.5 installer regressions passed."
+# A failed first install removes program artifacts again while preserving
+# user app data. Service state remains available for a future healthy retry.
+failed_home="$temporary_root/failed-home"
+mkdir -p "$failed_home/Desktop/Tohseno/existing"
+printf '%s\n' app-data >"$failed_home/Desktop/Tohseno/existing/source.txt"
+if run_installer_for_home "$failed_home" 0 \
+  >"$temporary_root/fresh-health.log" 2>&1; then
+  printf '%s\n' "test-installer.sh: accepted an unhealthy fresh service." >&2
+  exit 1
+fi
+test ! -e "$failed_home/.tohseno/current"
+test ! -e "$failed_home/.tohseno/bin/tohseno"
+test ! -e "$failed_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
+grep -Fqx app-data "$failed_home/Desktop/Tohseno/existing/source.txt"
+
+printf '%s\n' "TOHSENO 0.9.0 installer lifecycle regressions passed."

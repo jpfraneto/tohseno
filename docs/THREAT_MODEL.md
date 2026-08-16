@@ -1,9 +1,11 @@
 # TOHSENO threat model
 
-This document applies to the coherent-intention lineage protocol, the local
+This document applies to the coherent-intention lineage protocol, the Local
+Workspace Service, Studio, the private Companion channel and relay, the local
 Apple factory, portable Shot bundles, protocol nodes, and the optional public
 contracts. It describes security claims the implementation can test. It does
-not treat an LLM, a node, a chain, or a signed artifact as inherently trusted.
+not treat an LLM, a device, a relay, a node, a chain, or a signed artifact as
+inherently trusted.
 
 ## Assets and trust boundaries
 
@@ -15,6 +17,9 @@ Protected assets:
 - expression source, artifacts, and immutable version records;
 - private feedback, attachments, plans, and agent material;
 - Builder and installation private keys;
+- Companion recovery words, device private keys, capability grants, mailbox
+  credentials, private command provenance, and durable outboxes;
+- availability and integrity of the Local Workspace Service command journal;
 - integrity and causal order of signed lineage and public-checkpoint evidence;
 - honest artifact availability and verification evidence.
 
@@ -22,6 +27,10 @@ Principal boundaries:
 
 - browser draft ↔ encrypted relay ↔ local claim CLI;
 - human owner ↔ local CLI or Studio;
+- browser page ↔ loopback-only Local Workspace Service;
+- iPhone Companion ↔ content-blind Companion Relay ↔ Local Workspace Service;
+- private companion authorization ↔ canonical Builder-authorized engine action;
+- immutable installed release ↔ stable launcher ↔ user LaunchAgent;
 - local engine ↔ coding agent, templates, dependencies, Xcode, and build tools;
 - generated repository ↔ public export;
 - local record store ↔ peer node;
@@ -125,6 +134,202 @@ Controls: production availability requires explicit relay storage,
 `CLAIM_INSTALLER_READY` assertion. Release ordering is mandatory and public
 installer pins are tested. Until activation the browser offers only the
 honestly described private file and generic installer paths.
+
+### Local Workspace Service and private Companion channel
+
+Threat: a malicious or altered QR selects an attacker relay, substitutes
+Studio keys, carries a bearer secret, or is replayed after the owner intended
+one device to pair.
+
+Controls: the URI and payload schemas are versioned and strictly decoded; the
+invitation is signed by the durable Studio identity; the relay is selected by
+an allowlisted identifier rather than scanned URL; public-key possession is
+proved on both sides; session identifiers are unguessable; invitations last
+120 seconds with only a documented bounded clock-skew allowance; and a session
+has atomic pending, completed, expired, or cancelled state. The first valid
+completion consumes it. The QR contains no recovery phrase, private key,
+Builder secret, source, path, permanent mailbox credential, or permanent
+bearer token. A standard QR and preserved quiet zone avoid reliance on custom
+visual decoding.
+
+Threat: the Companion Relay is compromised, malicious, subpoenaed, or backed
+up after deletion, and tries to read content, alter a command, forge a wake-up,
+or execute work.
+
+Controls: pairing grants and mailbox payloads are recipient-specific
+ChaCha20-Poly1305 ciphertext; senders sign canonical outer envelopes with
+Ed25519; X25519/HKDF key agreement binds explicit versioned domains; the Mac
+verifies the device key and current capability before command admission. The
+relay receives no content key, prompt, feedback, marketing text, Shot name,
+icon plaintext, source, filesystem path, recovery words, or harness output. It
+has no application-service, harness, build, or node credentials and exposes no
+code-execution route. A retained ciphertext backup remains traffic-analysis
+material, so the operator may still observe timing, approximate size, expiry,
+and minimum opaque routing identifiers.
+
+Threat: mailbox or pairing-session enumeration reveals stable identities or
+lets an attacker read, write, acknowledge, revoke, or register push tokens.
+
+Controls: IDs and independent 32-byte capabilities are opaque and unguessable;
+the relay stores capability verifiers rather than bearer values; read, write,
+acknowledgement, revocation, and push authority are separate; response shape
+does not disclose private record presence; requests and stored bytes are
+bounded by global, mailbox, and source rates. Logs abbreviate or omit stable
+identifiers and never combine a remote IP with a stable device identity.
+Upstream volumetric protection remains an operator duty.
+
+Threat: an old, reordered, duplicated, or cross-mailbox envelope causes a
+second feedback record, Shot, evolution, or execution.
+
+Controls: signatures bind the schema, envelope UUID, mailbox, sender and
+recipient device IDs, sender sequence, exact timestamps, ephemeral key, nonce,
+and ciphertext. Decryption binds the same canonical associated data. The
+receiver enforces per-sender monotonic replay windows, expiry, recipient, and
+mailbox; the relay rejects duplicate envelope IDs. More importantly, every
+decrypted command carries a stable command ID that is the durable local
+journal's idempotency key. Five deliveries therefore return one stable receipt
+and cause one semantic action. Delivery acknowledgement and command
+acknowledgement are distinct.
+
+Threat: cursor retention, a lost acknowledgement, reconnect, or an iOS
+background suspension leaves the phone permanently divergent or causes it to
+guess state.
+
+Controls: each mailbox has a cursor; events have stable IDs and sender
+sequences; both peers keep durable encrypted outboxes until acknowledgement.
+Before relay expiry, the phone reseals the same canonical signed command and
+reference chunks with fresh routing metadata; it does not reinterpret or
+re-sign owner intent. Commands older than the canonical thirty-day admission
+window remain encrypted locally for explicit resolution rather than being
+silently changed or discarded, while inbound acknowledgements and revocation
+still reconcile. Every launch reconciles; gaps or an expired retention range
+request a complete versioned snapshot instead of applying guessed deltas.
+Backoff is bounded and foreground/launch reconciliation remains functional
+without APNs. “Always
+synced” does not claim an indefinitely alive iOS WebSocket.
+
+Threat: a stolen phone or copied Companion phrase submits commands, while a
+restored or previously revoked phone silently regains access.
+
+Controls: the phone's signing and agreement secrets use the strongest
+practical Keychain accessibility and recovery words are revealed only by an
+explicit future UI action. Capabilities are workspace-scoped, device-bound,
+signed, and carry a revocation epoch. The Mac checks current device state and
+capability action before every command and event, not only during pairing.
+Revocation advances the epoch and stops new snapshots, commands, and event
+delivery. The BIP-39 phrase deterministically restores only Companion identity;
+it is not a Builder key, wallet, or authority over historical Shots and does
+not restore a capability. A restored or revoked phone must complete a new
+owner-created pairing session.
+
+Threat: a malicious website attacks Studio through cross-origin requests, DNS
+rebinding, permissive CORS, a guessed localhost port, or oversized HTTP input.
+
+Controls: the service binds only `127.0.0.1` and optionally `::1`, never
+`0.0.0.0`; validates expected Host and the exact issued loopback Origin;
+requires an unguessable anti-CSRF token for mutation; accepts bounded JSON
+bodies under exact content types; bounds headers; and emits no permissive CORS
+policy. Mutations are not simple cross-origin requests. The phone never calls
+this API, so relay availability does not justify weakening the loopback
+boundary. Local malware running as the user remains inside the trusted Mac
+account boundary and can attack local plaintext by other means.
+
+Threat: an unsafe app, service, journal, SDK-vendoring, icon, reference, or
+release path traverses a parent, follows a symlink, aliases another name, reads
+a device, or overwrites an unrelated file.
+
+Controls: roots are absolute and installer-owned; every user-controlled read
+is bounded and requires an unchanged regular file; path components, symlinks,
+special files, traversal, and Apple-case collisions are rejected; journal and
+note publication use create-new or atomic same-filesystem replacement; icon
+decoding and dimensions are bounded. SDK vendoring refuses a populated target
+or symlink and emits an exact SHA-256 inventory. Uninstall validates its
+LaunchAgent ownership marker and never recursively follows an app or service
+path.
+
+Threat: a service update is substituted, partially published, unhealthy, or
+rolled forward while preserving attacker-controlled launch configuration.
+
+Controls: the installer downloads only immutable versioned artifacts and a
+manifest, verifies checksums and reported versions before publication, stages
+under `~/.tohseno/releases`, atomically changes `current`, and uses the stable
+installer-owned launcher in a recognized user LaunchAgent. The installed
+updater accepts only an immutable, non-draft GitHub release, binds the
+installer and aggregate manifest to GitHub's SHA-256 asset metadata, verifies
+`oneshot.sh` through `SHA256SUMS`, and rejects redirects outside the exact
+GitHub release-asset host allowlist. It never assembles launchctl or shell
+arguments from user input. New service health and exact version are checked
+after restart; failure restores the prior pointer and restarts it. Service
+state, command journals, app folders, Builder identity, and pairing state are
+outside release payloads. The public installer pin cannot move until published
+bytes and checksums are independently verified.
+
+Threat: a crash occurs after a compound command records Feedback but before it
+starts Evolution, or after a semantic action but before its receipt is
+published.
+
+Controls: the command request is immutable and durable before validation or
+execution; state transitions publish atomically; per-operation markers record
+compound progress; deterministic IDs let recovery inspect existing canonical
+Feedback and execution records before performing a missing step. Recovery
+returns the same receipt and never adds a second Feedback or evolution. Raw
+filesystem state is not used as proof that an action completed.
+
+Threat: a mobile evolution or Feedback request was composed against an older
+Version and is admitted after the current Expression changes.
+
+Controls: private commands sign the Shot ID, exact Expression ID, Version ID,
+and ordinal. The application service revalidates that exact accepted base at
+admission. Feedback remains attached to the reviewed Version; an evolution is
+rejected as stale rather than silently rebased. Explicit “EVOLVE FROM THIS” on
+a currently capable device is sufficient authorization but cannot bypass the
+base check.
+
+Threat: an attacker uses oversized encrypted envelopes, reference descriptors,
+icons, command bodies, or a backlog to exhaust the relay, phone, or Mac.
+
+Controls: limits exist at the HTTP body, envelope, ciphertext, mailbox record,
+cursor page, snapshot, icon, reference, journal, retention, and global-storage
+layers; declared sizes are checked before allocation where practical; payload
+schemas reject unknown fields; and rate/capacity exhaustion fails closed. The
+relay cannot evade inner application limits because decryption is followed by
+the same bounded application-service validation used by CLI and Studio.
+
+Threat: APNs tokens or push payloads expose identity or private state, missing
+credentials silently disable production delivery, or a forged push is treated
+as a command.
+
+Controls: push tokens are stored only behind the relay's independent push
+capability and omitted from content logs. A push contains no content or Shot
+identifier; it only asks the app to reconcile its authenticated mailbox and
+therefore grants no command authority. Production startup fails when APNs is
+declared enabled but its team, key, topic, environment, or private-key path is
+missing or malformed. No-op and fake providers are explicit modes; CI and
+foreground reconciliation need no Apple credential.
+
+Threat: Studio or the Companion leaks raw prompts, source filenames, source
+code, credentials, model output, or harness transcripts through snapshots,
+events, JavaScript, relay records, logs, metrics, or crash reports.
+
+Controls: workspace snapshots are allowlisted projections containing stable
+Shot and accepted-Version identity, bounded encrypted icon material, supported
+actions, and privacy-safe execution summaries. Status events use phase names
+and structured receipts only. The service's operational logger omits prompts,
+unnecessary private paths, full relay IDs, tokens, ciphertext, non-public
+digests, source filenames, and harness output. Harness authentication remains
+on the Mac and never enters Studio JavaScript or companion payloads.
+
+Threat: a private companion command or marketing note is accepted by the
+Public Node or changes public authority.
+
+Controls: companion identity and Builder identity are separate. The Mac
+preserves private device provenance, verifies capability, then uses the
+existing Builder authority for any canonical engine action. Companion
+envelopes, capability grants, marketing notes, snapshots, and private command
+records are outside ordinary lineage; `tohseno-node` retains its closed
+eligible-action validation and rejects private actions. Pairing cannot rotate
+Builder identity, publish a checkpoint, deploy a contract, or perform a token
+action.
 
 ### Forged lineage actions
 
@@ -423,6 +628,15 @@ Controls:
 ## Operational guidance
 
 - Never store Builder, recovery, or installation private keys in a Shot.
+- Never log or export Companion recovery words, mailbox capabilities, APNs
+  tokens, ciphertext, or raw harness output.
+- Treat a Companion revocation as immediate local authorization state; do not
+  wait for relay or push confirmation before refusing the device.
+- Keep Studio loopback-only. Do not expose it through a tunnel, public proxy,
+  router port, permissive CORS rule, or arbitrary Host alias.
+- Keep the production Companion Relay disabled until durable storage, rate and
+  capacity bounds, cleanup, health monitoring, release availability, and
+  independently verified installer support are recorded.
 - Do not commit `.tohseno/private` or private feedback attachments.
 - Verify a portable Shot before inspecting artifacts or materializing source.
 - Treat absence and partial replication as normal, not as validation failure.
@@ -436,6 +650,10 @@ Controls:
 
 ## Deferred security work
 
+- independent review of the private companion canonicalization, pairing,
+  capability, envelope, relay, and Swift Keychain paths before broad rollout;
+- operational abuse and traffic-analysis review of the production Companion
+  Relay after a bounded canary, without adding content-bearing telemetry;
 - canonical offline BuilderAccount device/transfer/recovery proof reduction;
 - independent security audit of contracts and node transport;
 - authenticated/encrypted peer transport beyond bounded eligible-lineage

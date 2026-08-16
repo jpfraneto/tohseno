@@ -1,0 +1,243 @@
+//! Verified loopback client used by CLI administration and product commands.
+
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, ORIGIN};
+use reqwest::Client;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use serde_json::Value;
+use std::path::Path;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+
+use crate::service_commands::{self, ServicePaths, SystemLaunchctl};
+use crate::workspace_service::{load_runtime, RuntimeRecord};
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+#[derive(Clone)]
+pub struct ServiceClient {
+    http: Client,
+    runtime: RuntimeRecord,
+}
+
+impl ServiceClient {
+    pub async fn connect() -> Result<Self, BoxError> {
+        let paths = ServicePaths::discover().map_err(boxed)?;
+        Self::connect_at(&paths.service_state).await
+    }
+
+    pub async fn connect_at(service_root: &Path) -> Result<Self, BoxError> {
+        let runtime = load_runtime(service_root)?;
+        let http = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(10))
+            .build()?;
+        let client = Self { http, runtime };
+        client.verify_health().await?;
+        Ok(client)
+    }
+
+    pub async fn ensure_running() -> Result<Self, BoxError> {
+        if let Ok(client) = Self::connect().await {
+            return Ok(client);
+        }
+        let paths = ServicePaths::discover().map_err(boxed)?;
+        if std::env::var("TOHSENO_DEVELOPMENT_SERVICE").as_deref() == Ok("1") {
+            let executable = std::env::current_exe()?;
+            Command::new(executable)
+                .args(["service", "run"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?;
+        } else {
+            service_commands::start(&paths, &SystemLaunchctl).map_err(boxed)?;
+        }
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut last_error = String::from("service health did not become available");
+        while Instant::now() < deadline {
+            match Self::connect_at(&paths.service_state).await {
+                Ok(client) => return Ok(client),
+                Err(error) => last_error = error.to_string(),
+            }
+            tokio::time::sleep(Duration::from_millis(125)).await;
+        }
+        Err(format!("Local Workspace Service did not become healthy: {last_error}").into())
+    }
+
+    pub fn runtime(&self) -> &RuntimeRecord {
+        &self.runtime
+    }
+
+    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, BoxError> {
+        let response = self.http.get(self.url(path)?).send().await?;
+        decode(response).await
+    }
+
+    pub async fn post<T: Serialize, R: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &T,
+    ) -> Result<R, BoxError> {
+        let response = self
+            .http
+            .post(self.url(path)?)
+            .headers(self.mutation_headers()?)
+            .json(body)
+            .send()
+            .await?;
+        decode(response).await
+    }
+
+    pub async fn delete<R: DeserializeOwned>(&self, path: &str) -> Result<R, BoxError> {
+        let response = self
+            .http
+            .delete(self.url(path)?)
+            .headers(self.mutation_headers()?)
+            .body("{}")
+            .send()
+            .await?;
+        decode(response).await
+    }
+
+    pub async fn wait_for_execution(&self, execution_id: &str) -> Result<Value, BoxError> {
+        loop {
+            let value: Value = self
+                .get(&format!("/api/v1/executions/{execution_id}"))
+                .await?;
+            if value.get("complete").and_then(Value::as_bool) == Some(true) {
+                if value.get("accepted").and_then(Value::as_bool) == Some(true) {
+                    return Ok(value);
+                }
+                return Err(format!(
+                    "execution {execution_id} finished without an accepted Version"
+                )
+                .into());
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+
+    pub fn open_studio(&self, route: &str) -> Result<(), BoxError> {
+        let url = self.url(route)?;
+        let status = Command::new("/usr/bin/open")
+            .arg(url)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("macOS could not open TOHSENO Studio".into())
+        }
+    }
+
+    async fn verify_health(&self) -> Result<(), BoxError> {
+        let health: Value = self.get_unverified("/api/v1/health").await?;
+        let expected = [
+            ("schema", "tohseno.local-workspace-health/1"),
+            ("status", "healthy"),
+            ("workspace_id", self.runtime.workspace_id.as_str()),
+            ("studio_device_id", self.runtime.studio_device_id.as_str()),
+            ("origin", self.runtime.origin.as_str()),
+            ("instance_id", self.runtime.instance_id.as_str()),
+            ("service_version", env!("CARGO_PKG_VERSION")),
+        ];
+        if expected
+            .iter()
+            .any(|(field, value)| health.get(*field).and_then(Value::as_str) != Some(*value))
+        {
+            return Err("Local Workspace Service identity or version did not verify".into());
+        }
+        Ok(())
+    }
+
+    async fn get_unverified<T: DeserializeOwned>(&self, path: &str) -> Result<T, BoxError> {
+        let response = self.http.get(self.url(path)?).send().await?;
+        decode(response).await
+    }
+
+    fn mutation_headers(&self) -> Result<HeaderMap, BoxError> {
+        let mut headers = HeaderMap::new();
+        headers.insert(ORIGIN, HeaderValue::from_str(&self.runtime.origin)?);
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(
+            "x-tohseno-csrf",
+            HeaderValue::from_str(&self.runtime.csrf_token)?,
+        );
+        Ok(headers)
+    }
+
+    fn url(&self, path: &str) -> Result<String, BoxError> {
+        if !path.starts_with('/')
+            || path.starts_with("//")
+            || path.contains('\r')
+            || path.contains('\n')
+        {
+            return Err("invalid Local Workspace Service route".into());
+        }
+        Ok(format!("{}{}", self.runtime.origin, path))
+    }
+}
+
+async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, BoxError> {
+    if !response.status().is_success() {
+        return Err(response_error(response).await.into());
+    }
+    Ok(response.json().await?)
+}
+
+async fn response_error(response: reqwest::Response) -> String {
+    let status = response.status();
+    let body = response.json::<Value>().await.ok();
+    let message = body
+        .as_ref()
+        .and_then(|value| value.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("Local Workspace Service rejected the request");
+    format!("{message} ({status})")
+}
+
+fn boxed(error: Box<dyn std::error::Error>) -> BoxError {
+    std::io::Error::other(error.to_string()).into()
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiReference<'a> {
+    pub filename: &'a str,
+    pub media_type: &'a str,
+    pub origin: &'a str,
+    pub bytes_base64url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn routes_cannot_escape_the_verified_origin() {
+        let client = ServiceClient {
+            http: Client::new(),
+            runtime: RuntimeRecord {
+                schema: "tohseno.local-workspace-runtime/1".into(),
+                service_version: "0.9.0".into(),
+                workspace_id: "workspace_fixture".into(),
+                studio_device_id: "device_fixture".into(),
+                origin: "http://127.0.0.1:8888".into(),
+                port: 8888,
+                process_id: 1,
+                started_at: "2026-08-15T12:00:00Z".into(),
+                instance_id: "service_fixture".into(),
+                csrf_token: "x".repeat(32),
+            },
+        };
+        assert!(client.url("https://example.com").is_err());
+        assert!(client.url("//example.com").is_err());
+        assert_eq!(
+            client.url("/api/v1/health").unwrap(),
+            "http://127.0.0.1:8888/api/v1/health"
+        );
+    }
+}

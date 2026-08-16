@@ -8,7 +8,7 @@ use crate::ledger::{Ledger, LedgerError};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 const STORE_DIRECTORY: &str = "pending-intentions";
@@ -138,6 +138,7 @@ impl PendingIntentionStore {
         source: PendingIntentionSource,
     ) -> Result<LocalPendingIntention, PendingIntentionError> {
         self.initialize()?;
+        let _lock = self.acquire_lock()?;
         if let Some(existing) = self.find_by_digest(&package.package_sha256)? {
             return Ok(existing);
         }
@@ -228,16 +229,12 @@ impl PendingIntentionStore {
             .join(id)
             .join("references")
             .join(&reference.storage_file);
-        let metadata = fs::symlink_metadata(&path)?;
-        if metadata.file_type().is_symlink()
-            || !metadata.is_file()
-            || metadata.len() != reference.byte_length
-        {
+        let bytes = read_private_bounded(&path, reference.byte_length)?;
+        if bytes.len() as u64 != reference.byte_length {
             return Err(PendingIntentionError::Invalid(
                 "pending intention reference storage is unsafe or corrupt".into(),
             ));
         }
-        let bytes = fs::read(path)?;
         crate::shot_layout::validate_private_reference_bytes(
             &reference.display_filename,
             &reference.media_type,
@@ -278,6 +275,61 @@ impl PendingIntentionStore {
 
     pub fn consume(&self, id: &str) -> Result<(), PendingIntentionError> {
         let record = self.load(id)?;
+        self.consume_loaded(&record)
+    }
+
+    /// Consume an exact record idempotently after its factory command has been
+    /// durably admitted. Supplying the loaded record lets a concurrent retry
+    /// recognize the already-consumed receipt without re-reading deleted
+    /// private content.
+    pub fn consume_loaded(
+        &self,
+        expected: &LocalPendingIntention,
+    ) -> Result<(), PendingIntentionError> {
+        self.initialize()?;
+        validate_record(expected, &expected.id)?;
+        let _lock = self.acquire_lock()?;
+        let receipt_path = self
+            .root
+            .join("receipts")
+            .join(format!("{}.json", expected.package_sha256));
+        match fs::symlink_metadata(&receipt_path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                return Err(PendingIntentionError::Invalid(
+                    "pending intention receipt is unsafe".into(),
+                ));
+            }
+            Ok(_) => {
+                let receipt = read_private_json::<Receipt>(&receipt_path)?;
+                if receipt.schema == RECEIPT_SCHEMA
+                    && receipt.package_sha256 == expected.package_sha256
+                    && receipt.pending_id == expected.id
+                    && receipt.state == PendingIntentionState::Consumed
+                {
+                    let directory = self.root.join("records").join(&expected.id);
+                    if fs::symlink_metadata(&directory).is_ok() {
+                        require_real_directory(&directory)?;
+                        let current = self.load(&expected.id)?;
+                        if current != *expected {
+                            return Err(PendingIntentionError::Invalid(
+                                "pending intention changed before consumption".into(),
+                            ));
+                        }
+                        fs::remove_dir_all(&directory)?;
+                        File::open(self.root.join("records"))?.sync_all()?;
+                    }
+                    return Ok(());
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let record = self.load(&expected.id)?;
+        if record != *expected {
+            return Err(PendingIntentionError::Invalid(
+                "pending intention changed before consumption".into(),
+            ));
+        }
         let receipt = Receipt {
             schema: RECEIPT_SCHEMA.into(),
             package_sha256: record.package_sha256,
@@ -291,6 +343,29 @@ impl PendingIntentionStore {
         fs::remove_dir_all(&directory)?;
         File::open(self.root.join("records"))?.sync_all()?;
         Ok(())
+    }
+
+    fn acquire_lock(&self) -> Result<File, PendingIntentionError> {
+        let path = self.root.join("store.lock");
+        let mut options = OpenOptions::new();
+        options.create(true).read(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options
+                .mode(0o600)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+        }
+        let file = options.open(path)?;
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+            let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+            if result != 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+        }
+        Ok(file)
     }
 
     fn initialize(&self) -> Result<(), PendingIntentionError> {
@@ -489,7 +564,9 @@ fn write_private_new(path: &Path, bytes: &[u8]) -> Result<(), PendingIntentionEr
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
+        options
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
     }
     let mut file = options.open(path)?;
     file.write_all(bytes)?;
@@ -502,6 +579,16 @@ fn write_private_replace(path: &Path, bytes: &[u8]) -> Result<(), PendingIntenti
         .parent()
         .ok_or_else(|| PendingIntentionError::Invalid("pending receipt has no parent".into()))?;
     require_real_directory(parent)?;
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err(PendingIntentionError::Invalid(
+                "pending receipt target is unsafe".into(),
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
     let temporary = parent.join(format!(".receipt-{}", random_id()));
     write_private_new(&temporary, bytes)?;
     fs::rename(&temporary, path)?;
@@ -512,14 +599,42 @@ fn write_private_replace(path: &Path, bytes: &[u8]) -> Result<(), PendingIntenti
 fn read_private_json<T: for<'de> Deserialize<'de>>(
     path: &Path,
 ) -> Result<T, PendingIntentionError> {
+    Ok(serde_json::from_slice(&read_private_bounded(
+        path,
+        2 * 1024 * 1024,
+    )?)?)
+}
+
+fn read_private_bounded(path: &Path, maximum: u64) -> Result<Vec<u8>, PendingIntentionError> {
     let metadata = fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 2 * 1024 * 1024
-    {
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > maximum {
         return Err(PendingIntentionError::Invalid(
             "pending intention metadata is unsafe or too large".into(),
         ));
     }
-    Ok(serde_json::from_slice(&fs::read(path)?)?)
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    let file = options.open(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_file() || opened.len() != metadata.len() {
+        return Err(PendingIntentionError::Invalid(
+            "pending intention record changed while opening".into(),
+        ));
+    }
+    let mut bytes = Vec::with_capacity(usize::try_from(opened.len()).unwrap_or(0));
+    file.take(maximum.saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > maximum || bytes.len() as u64 != opened.len() {
+        return Err(PendingIntentionError::Invalid(
+            "pending intention record changed while reading".into(),
+        ));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -597,6 +712,20 @@ mod tests {
     }
 
     #[test]
+    fn consume_loaded_is_idempotent_for_concurrent_command_retries() {
+        let temporary = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(temporary.path().join("data"));
+        ledger.initialize().unwrap();
+        let store = PendingIntentionStore::for_ledger(&ledger);
+        let pending = store
+            .import_bytes(&package(), PendingIntentionSource::Relay)
+            .unwrap();
+        store.consume_loaded(&pending).unwrap();
+        store.consume_loaded(&pending).unwrap();
+        assert!(store.load(&pending.id).is_err());
+    }
+
+    #[test]
     fn rejects_a_locally_tampered_prompt_record() {
         let temporary = tempfile::tempdir().unwrap();
         let ledger = Ledger::at(temporary.path().join("data"));
@@ -631,5 +760,27 @@ mod tests {
         assert!(store
             .import_bytes(&package(), PendingIntentionSource::Relay)
             .is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlinked_reference_component() {
+        use std::os::unix::fs::symlink;
+        let temporary = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(temporary.path().join("data"));
+        ledger.initialize().unwrap();
+        let store = PendingIntentionStore::for_ledger(&ledger);
+        let pending = store
+            .import_bytes(&package(), PendingIntentionSource::Relay)
+            .unwrap();
+        let reference = temporary
+            .path()
+            .join("data/pending-intentions/records")
+            .join(&pending.id)
+            .join("references/000000");
+        let original = temporary.path().join("original.png");
+        fs::rename(&reference, &original).unwrap();
+        symlink(&original, &reference).unwrap();
+        assert!(store.read_reference(&pending.id, 0).is_err());
     }
 }

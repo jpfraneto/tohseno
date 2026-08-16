@@ -3,6 +3,7 @@
 use crate::apple_identity::{AppleDeviceIdentity, AppleIdentityBridge, AppleIdentityError};
 use crate::contract_generation::resolve_current_contract_generation;
 use crate::ledger::Ledger;
+use crate::safe_file::read_bounded_regular_file;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
@@ -18,6 +19,7 @@ use tohseno_protocol::signature::P256PublicKey;
 use tohseno_protocol::signature::{DetachedP256Signature, SignatureAlgorithm, SignatureSidecar};
 
 const BUILDER_SCHEMA: &str = "tohseno.builder/1";
+const MAX_BUILDER_IDENTITY_BYTES: u64 = 4 * 1024 * 1024;
 pub(crate) const LEGACY_V07_CANDIDATE_VERSION: &str = "0.7.0";
 pub(crate) const LEGACY_V07_FACTORY_IMPLEMENTATION: &str = "jpfraneto/tohseno";
 const KEY_TAG_DOMAIN: &[u8] = b"TOHSENO-LOCAL-KEY-TAG-V1\0";
@@ -142,7 +144,8 @@ impl BuilderIdentityManager {
     pub fn load(&self) -> Result<BuilderIdentity, BuilderIdentityError> {
         let path = self.path();
         reject_symlink(&path)?;
-        let identity = serde_json::from_slice::<BuilderIdentity>(&fs::read(&path)?)?;
+        let bytes = read_bounded_regular_file(&path, MAX_BUILDER_IDENTITY_BYTES)?;
+        let identity = serde_json::from_slice::<BuilderIdentity>(&bytes)?;
         identity.validate()?;
         Ok(identity)
     }

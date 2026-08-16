@@ -40,6 +40,7 @@ impl<W: Write> Renderer<W> {
             Event::Handoff(message) => (BOLD, RESET, "", message.as_str()),
             Event::Result(message) => (ACCENT, RESET, "", message.as_str()),
             Event::HarnessLine(message) => (DIM, RESET, "  ", message.as_str()),
+            Event::FactoryStage(stage) => (DIM, RESET, "", stage.label()),
         };
 
         // A harness line can contain embedded newlines. Rendering every physical

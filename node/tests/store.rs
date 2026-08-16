@@ -97,6 +97,31 @@ fn rejects_private_and_tampered_but_preserves_an_unanchored_public_record() {
 }
 
 #[test]
+fn rejects_private_companion_envelopes_and_commands_as_non_lineage_objects() {
+    let temporary = tempfile::tempdir().unwrap();
+    let store = NodeStore::open(temporary.path()).unwrap();
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(
+        "../../companion/test-vectors/companion-v1.json"
+    ))
+    .unwrap();
+
+    // These are real cross-language conformance objects, not synthetic JSON
+    // that merely resembles the private protocol.  Neither object is a public
+    // SignedLineageAction, so the public witness must reject both before any
+    // routing metadata or encrypted payload can enter its action store.
+    for private_object in [
+        &vectors["envelope"]["envelope"],
+        &vectors["command"]["command"],
+    ] {
+        let bytes = canonical::to_vec(private_object).unwrap();
+        assert!(matches!(store.ingest(&bytes), Err(NodeError::Protocol(_))));
+    }
+
+    assert_eq!(store.health().unwrap().stored_actions, 0);
+    assert!(store.shots().unwrap().is_empty());
+}
+
+#[test]
 fn partial_artifacts_and_multiple_observed_heads_are_honest() {
     let temporary = tempfile::tempdir().unwrap();
     let store = NodeStore::open(temporary.path()).unwrap();

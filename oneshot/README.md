@@ -1,19 +1,108 @@
-# Installer source and public pin
+# Installer source, service lifecycle, and public pin
 
 `oneshot/oneshot.sh` is the canonical installer source. The checked-in
-`website/apps/site/public/oneshot.sh` and `install.sh` are the currently
-published, immutable-release-pinned copies. They intentionally remain on the
-last published release until a release operator completes the activation
-sequence in `release/WEB_INTENTION_HANDOFF_ACTIVATION.md`.
+`website/apps/site/public/oneshot.sh` and `install.sh` are public,
+immutable-release-pinned copies. They intentionally remain pinned to the last
+published release, **0.8.5**, until an owner authorizes the ordered 0.9.0
+activation in `release/V0_9_0_OPERATOR_RUNBOOK.md`.
 
-The canonical source accepts `--claim TOKEN` and `--no-studio`. Generic
-installation without a claim keeps its existing behavior. A claim is
-shape-checked without being printed, and the verified installed CLI receives
-it on stdin rather than as a nested process argument. The installer clears its
-copy promptly and never enables shell tracing around it. The command a person
-pastes may still be retained by their shell history; the token is high
-entropy, single-use, and invalidated after import.
+Do not copy a 0.9.0 candidate into the public directory, change the live pin,
+or declare the Companion Relay ready before every immutable 0.9.0 artifact is
+published and independently verified. Repository source version and public
+installer pin are deliberately different during release preparation.
 
-Do not copy the canonical source into the public directory until the exact
-claim-capable CLI and helper artifacts have been published immutably and their
-checksums verified.
+## 0.9.0 installed layout
+
+The 0.9.0 release contract extends the transactional release layout without
+putting user app folders inside it:
+
+```text
+~/.tohseno/
+├── bin/                         stable launchers
+├── current -> releases/...      atomic release pointer
+├── releases/                    immutable verified release trees
+├── logs/                        bounded operational logs
+├── service/                     durable journals and pairing state
+└── share/                       installer-controlled released materials
+
+~/Library/LaunchAgents/
+└── com.tohseno.workspace-service.plist
+```
+
+The LaunchAgent is user-level, uses no `sudo`, has `RunAtLoad`, and invokes
+only:
+
+```text
+~/.tohseno/bin/tohseno service run
+```
+
+The stable launcher resolves `~/.tohseno/current` only after validating that
+it remains beneath the installer-owned release directory. The service binds
+Studio only to loopback and stores its private state outside every release
+tree, so an update cannot replace app data, journals, or pairing records.
+
+## 0.9.0 installation and update transaction
+
+After publication and pin activation, the golden flow is:
+
+```text
+download immutable manifest and target artifacts
+        ↓
+verify release identity and every checksum
+        ↓
+stage beneath ~/.tohseno/releases on the destination filesystem
+        ↓
+atomically publish the release and stable launchers
+        ↓
+install or validate the recognized LaunchAgent
+        ↓
+atomically switch ~/.tohseno/current
+        ↓
+start or restart the Local Workspace Service
+        ↓
+verify loopback health and exact service version
+        ↓
+open Studio and let the installer exit
+```
+
+For an update, the previous pointer is retained until new health succeeds. If
+health or version verification fails, the installer restores the previous
+pointer, restarts that service, verifies rollback health, and exits nonzero.
+It never deletes app folders, command journals, Builder identity, or pairing
+state.
+
+Tests use isolated homes and an injected/fake `launchctl`; ordinary repository
+tests must not load or remove the developer's real LaunchAgent.
+
+## Uninstall boundary
+
+Default `tohseno uninstall` stops and removes only a recognized,
+installer-owned LaunchAgent and installed program/release artifacts. It:
+
+- preserves every app folder;
+- preserves Builder identity;
+- preserves command journals and companion pairing records for reinstall or
+  explicit export;
+- refuses symlinked or unrecognized service artifacts; and
+- never follows an unsafe release or app-data path.
+
+Destructive identity or data removal is not implied by uninstall and requires
+a separately named and confirmed future operation.
+
+## Historical web-intention claim
+
+The published 0.8.5 installer accepts `--claim TOKEN` and `--no-studio` for
+ADR 0011's encrypted browser-intention handoff. A claim is shape-checked
+without being printed; the verified CLI receives it on stdin rather than as a
+nested process argument. A person's original pasted command may remain in
+shell history, so the token stays high entropy, short-lived, and single-use.
+
+This historical relay is not the persistent Companion Relay. Neither relay is
+protocol lineage, a Shot, or an execution service.
+
+## Activation gate
+
+The exact build, checksum, health, relay/APNs, installer-pin, and rollback
+sequence is recorded in `release/V0_9_0_OPERATOR_RUNBOOK.md`. Until its owner
+authorization and verification evidence exist, the correct public behavior is
+the immutable 0.8.5 installer—not an unpublished 0.9.0 URL.

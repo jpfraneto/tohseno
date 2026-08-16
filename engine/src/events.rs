@@ -1,7 +1,41 @@
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-/// The only four voices an engine subscriber can receive.
+/// A structured, privacy-safe factory stage. Unlike free-form status text,
+/// this can be projected to Studio and Companion without parsing prompts,
+/// paths, harness output, or model prose.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FactoryStage {
+    Planning,
+    Conception,
+    Materializing,
+    Building,
+    Testing,
+    Verifying,
+    Repairing,
+    Installing,
+    Launching,
+}
+
+impl FactoryStage {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Planning => "Planning",
+            Self::Conception => "Conception",
+            Self::Materializing => "Materializing",
+            Self::Building => "Building",
+            Self::Testing => "Testing",
+            Self::Verifying => "Verifying",
+            Self::Repairing => "Repairing",
+            Self::Installing => "Installing",
+            Self::Launching => "Launching",
+        }
+    }
+}
+
+/// The engine voices consumed by local frontends. `FactoryStage` is the only
+/// structured execution projection; harness lines remain private/local.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]
 pub enum Event {
@@ -9,6 +43,7 @@ pub enum Event {
     Handoff(String),
     Result(String),
     HarnessLine(String),
+    FactoryStage(FactoryStage),
 }
 
 impl Event {
@@ -26,6 +61,10 @@ impl Event {
 
     pub fn harness_line(line: impl Into<String>) -> Self {
         Self::HarnessLine(line.into())
+    }
+
+    pub fn factory_stage(stage: FactoryStage) -> Self {
+        Self::FactoryStage(stage)
     }
 }
 

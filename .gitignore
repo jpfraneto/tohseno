@@ -22,3 +22,7 @@ __pycache__/
 
 /ugc/
 /output/
+
+# JavaScript dependencies
+node_modules/
+**/node_modules/

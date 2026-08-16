@@ -1,5 +1,6 @@
 use super::sign;
 use crate::ledger::{Evolution, Ledger, LedgerError};
+use crate::safe_file::{read_bounded_regular_file, read_bounded_utf8};
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::fs;
@@ -8,6 +9,9 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SHOT_TOKEN: &str = "__TOHSENO_SHOT__";
+const MAX_INSPECTED_SOURCE_FILE_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_XCODE_PROJECT_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_XCODE_SCHEME_BYTES: u64 = 1024 * 1024;
 const REQUIRED_FASCIA: [(&str, &[u8]); 5] = [
     (
         "InstallationIdentity.swift",
@@ -39,7 +43,7 @@ pub struct BuildFailure {
 pub fn substitute_shot_number(source: &Path, shot_number: u32) -> Result<usize, BuildError> {
     let mut substitutions = 0;
     visit_files(source, &mut |path| {
-        let bytes = fs::read(path)?;
+        let bytes = read_bounded_regular_file(path, MAX_INSPECTED_SOURCE_FILE_BYTES)?;
         let Ok(text) = String::from_utf8(bytes) else {
             return Ok(());
         };
@@ -339,12 +343,15 @@ pub fn validate_complete_source(source: &Path) -> Result<(), BuildError> {
         let expected_path = source.join("TohsenoFascia").join(required);
         let observed = find_named_file(source, required)?
             .ok_or_else(|| BuildError::FasciaMissing(required.into()))?;
-        if observed != expected_path || fs::read(&observed)? != normative_bytes {
+        if observed != expected_path
+            || read_bounded_regular_file(&observed, MAX_INSPECTED_SOURCE_FILE_BYTES)?
+                != normative_bytes
+        {
             return Err(BuildError::FasciaModified(required.into()));
         }
     }
 
-    let project_text = fs::read_to_string(project_file)?;
+    let project_text = read_bounded_utf8(&project_file, MAX_XCODE_PROJECT_BYTES)?;
     if [
         "PBXShellScriptBuildPhase",
         "PBXLegacyTarget",
@@ -395,7 +402,11 @@ pub fn validate_complete_source(source: &Path) -> Result<(), BuildError> {
             .extension()
             .is_some_and(|extension| extension == "swift")
         {
-            let text = crate::swift_source::lex(&fs::read_to_string(path)?).code;
+            let text = crate::swift_source::lex(&read_bounded_utf8(
+                path,
+                MAX_INSPECTED_SOURCE_FILE_BYTES,
+            )?)
+            .code;
             if text.contains("InstallationIdentity.shared.prepare(")
                 || text.contains("InstallationIdentity.shared.descriptor(")
             {
@@ -564,14 +575,7 @@ fn reject_executable_schemes(source: &Path) -> Result<(), BuildError> {
             .extension()
             .is_some_and(|extension| extension == "xcscheme")
         {
-            let metadata = fs::symlink_metadata(path)?;
-            if metadata.len() > 1024 * 1024 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Xcode scheme exceeds the 1 MiB inspection limit",
-                ));
-            }
-            let text = fs::read_to_string(path)?;
+            let text = read_bounded_utf8(path, MAX_XCODE_SCHEME_BYTES)?;
             executable |= [
                 "<PreActions>",
                 "<PostActions>",
@@ -738,6 +742,25 @@ mod tests {
         assert!(matches!(
             reject_executable_schemes(directory.path()),
             Err(BuildError::ExecutableBuildPhase)
+        ));
+    }
+
+    #[test]
+    fn rejects_an_oversized_xcode_scheme_before_parsing() {
+        let directory = tempfile::tempdir().unwrap();
+        let schemes = directory
+            .path()
+            .join("App.xcodeproj/xcshareddata/xcschemes");
+        fs::create_dir_all(&schemes).unwrap();
+        fs::write(
+            schemes.join("App.xcscheme"),
+            vec![b' '; MAX_XCODE_SCHEME_BYTES as usize + 1],
+        )
+        .unwrap();
+
+        assert!(matches!(
+            reject_executable_schemes(directory.path()),
+            Err(BuildError::Io(error)) if error.kind() == std::io::ErrorKind::InvalidData
         ));
     }
 

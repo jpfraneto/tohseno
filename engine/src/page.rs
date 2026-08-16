@@ -9,11 +9,12 @@ use crate::contract_generation::{
     resolve_current_contract_generation, CURRENT_GENERATION_REPOSITORY_PATH,
 };
 use crate::ledger::{validate_app_name, AppRecord, Evolution, Ledger, LedgerError};
+use crate::safe_file::{read_bounded_regular_file, read_bounded_utf8};
 use crate::{protocol_lifecycle, verifier};
 use serde::Serialize;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use tohseno_protocol::canonical;
 use tohseno_protocol::conformance::{CheckStatus, ConformanceReport};
@@ -142,8 +143,12 @@ pub fn build(ledger: &Ledger, app_name: &str) -> Result<PageBuildReport, PageErr
     let verified = verify_sidecars(&app, &shot)?;
     let icon = select_icon(&shot.source_path())?;
     let contract_generation = contract_generation_audit()?;
-    let world = fs::read_to_string(shot.source_path().join("WORLD.md")).ok();
-    let preview = fs::read(shot.path.join("preview.png")).ok();
+    let world = read_bounded_utf8(
+        &shot.source_path().join("WORLD.md"),
+        MAX_PROTOCOL_FILE_BYTES,
+    )
+    .ok();
+    let preview = read_bounded_regular_file(&shot.path.join("preview.png"), MAX_ICON_BYTES).ok();
 
     let output_path = ledger
         .briefing_dir(app_name)
@@ -710,26 +715,7 @@ fn read_regular_file(path: &Path, limit: u64) -> Result<Vec<u8>, PageError> {
             limit
         )));
     }
-    let file = File::open(path)?;
-    let mut bytes = Vec::with_capacity(usize::try_from(length).unwrap_or(0));
-    file.take(limit + 1).read_to_end(&mut bytes)?;
-    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) != length {
-        return Err(PageError::InvalidState(format!(
-            "{} changed while it was read",
-            path.display()
-        )));
-    }
-    let observed = fs::symlink_metadata(path)?;
-    if observed.file_type().is_symlink()
-        || !observed.file_type().is_file()
-        || observed.len() != length
-    {
-        return Err(PageError::InvalidState(format!(
-            "{} changed while it was read",
-            path.display()
-        )));
-    }
-    Ok(bytes)
+    Ok(read_bounded_regular_file(path, limit)?)
 }
 
 fn validate_tree_without_symlinks(path: &Path) -> Result<(), PageError> {

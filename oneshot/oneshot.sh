@@ -2,7 +2,7 @@
 set -eu
 
 repository="https://github.com/jpfraneto/tohseno"
-version="v0.8.5"
+version="v0.9.0"
 start_studio="${TOHSENO_START_STUDIO:-}"
 claim_token=""
 claim_requested=0
@@ -131,7 +131,7 @@ case "$macos_major" in
   '' | *[!0-9]*) fail "Could not parse the macOS version." ;;
 esac
 if [ "$macos_major" -lt 13 ]; then
-  fail "TOHSENO 0.8.5 requires macOS 13 or later."
+  fail "TOHSENO 0.9.0 requires macOS 13 or later."
 fi
 
 case "$(uname -m)" in
@@ -196,6 +196,8 @@ marker_stage=""
 published_release=""
 current_path=""
 release_name=""
+previous_current_target=""
+current_changed=0
 previous_binary=""
 previous_helper=""
 previous_materials=""
@@ -258,7 +260,17 @@ cleanup() {
         ln -s "../current/share/genesis" "$install_root/share/genesis"
       fi
     fi
-    if [ "$fresh_current_created" -eq 1 ]; then
+    if [ "$current_changed" -eq 1 ] && [ -n "$previous_current_target" ]; then
+      if [ -L "$current_path" ] &&
+        [ "$(readlink "$current_path")" = "releases/$release_name" ]; then
+        rollback_stage="$install_root/.current.rollback.$$"
+        ln -s "$previous_current_target" "$rollback_stage"
+        replace_symlink_atomically "$rollback_stage" "$current_path"
+      elif [ -e "$current_path" ] || [ -L "$current_path" ]; then
+        printf '%s\n' \
+          "TOHSENO installer: refusing to restore a changed release pointer." >&2
+      fi
+    elif [ "$fresh_current_created" -eq 1 ]; then
       if [ -L "$current_path" ] &&
         [ "$(readlink "$current_path")" = "releases/$release_name" ]; then
         rm -f "$current_path"
@@ -310,14 +322,32 @@ trap 'exit 1' HUP INT TERM
 install_temporary="$(mktemp -d "$temporary_root/tohseno-install.XXXXXX")" ||
   fail "Could not create a private download directory."
 
-binary_name="tohseno-$target"
-helper_name="tohseno-apple-identity-$target"
-materials_name="tohseno-genesis-materials.tar.gz"
-for artifact in "$binary_name" "$helper_name" "$materials_name" SHA256SUMS; do
+package_name="tohseno-release-$target.tar.gz"
+for artifact in SHA256SUMS "$package_name"; do
+  case "$artifact" in
+    "$package_name") maximum_download_bytes=536870912 ;;
+    SHA256SUMS) maximum_download_bytes=1048576 ;;
+  esac
   if ! curl -fsSL \
+    --proto '=https' \
+    --proto-redir '=https' \
+    --tlsv1.2 \
+    --max-filesize "$maximum_download_bytes" \
     "$repository/releases/download/$version/$artifact" \
     -o "$install_temporary/$artifact"; then
     fail "Could not download release artifact $artifact."
+  fi
+  if [ -L "$install_temporary/$artifact" ] ||
+    [ ! -f "$install_temporary/$artifact" ]; then
+    fail "Downloaded release artifact $artifact is not a regular file."
+  fi
+  downloaded_bytes="$(wc -c <"$install_temporary/$artifact" | tr -d ' ')"
+  case "$downloaded_bytes" in
+    ''|*[!0-9]*) fail "Could not measure release artifact $artifact." ;;
+  esac
+  if [ "$downloaded_bytes" -eq 0 ] ||
+    [ "$downloaded_bytes" -gt "$maximum_download_bytes" ]; then
+    fail "Downloaded release artifact $artifact has an unsafe size."
   fi
 done
 
@@ -347,20 +377,19 @@ verify_artifact() {
     fi
 }
 
-verify_artifact "$binary_name"
-verify_artifact "$helper_name"
-verify_artifact "$materials_name"
+verify_artifact "$package_name"
 
-  archive="$install_temporary/$materials_name"
-  archive_list="$install_temporary/materials.list"
-  archive_verbose="$install_temporary/materials.verbose"
+  archive="$install_temporary/$package_name"
+  archive_list="$install_temporary/package.list"
+  archive_verbose="$install_temporary/package.verbose"
   tar -tzf "$archive" >"$archive_list" ||
-    fail "Genesis materials are not a readable gzip archive."
+    fail "The release package is not a readable gzip archive."
   tar -tvzf "$archive" >"$archive_verbose" ||
-    fail "Genesis materials metadata could not be inspected."
-  if ! awk -F/ '
-    /^genesis\/?$/ { next }
-    $1 != "genesis" { exit 1 }
+    fail "The release package metadata could not be inspected."
+  if ! awk -F/ -v root="$target" '
+    seen[$0]++ { exit 1 }
+    $0 == root || $0 == root "/" { next }
+    $1 != root { exit 1 }
     {
       for (part = 1; part <= NF; part += 1) {
         if ($part == "" && part == NF && substr($0, length($0), 1) == "/") {
@@ -373,12 +402,25 @@ verify_artifact "$materials_name"
     }
     END { if (NR == 0) exit 1 }
   ' "$archive_list"; then
-    fail "Genesis materials contain an unsafe archive path."
+    fail "The release package contains an unsafe archive path."
   fi
   if ! awk '
     substr($1, 1, 1) != "-" && substr($1, 1, 1) != "d" { exit 1 }
   ' "$archive_verbose"; then
-    fail "Genesis materials contain a link or unsupported archive entry."
+    fail "The release package contains a link or unsupported archive entry."
+  fi
+  if ! awk '
+    $5 !~ /^[0-9]+$/ { exit 1 }
+    {
+      entries += 1
+      total += $5
+      if (entries > 50000 || $5 > 536870912 || total > 2147483648) {
+        exit 1
+      }
+    }
+    END { if (entries == 0) exit 1 }
+  ' "$archive_verbose"; then
+    fail "The release package exceeds its extracted size or entry bound."
   fi
 
   releases_directory="$install_root/releases"
@@ -389,33 +431,58 @@ verify_artifact "$materials_name"
   fi
   release_stage="$(mktemp -d "$releases_directory/.release-stage.XXXXXX")" ||
     fail "Could not stage the release on its destination filesystem."
-  mkdir "$release_stage/bin" "$release_stage/share"
-  mv "$install_temporary/$binary_name" "$release_stage/bin/tohseno"
-  mv "$install_temporary/$helper_name" \
-    "$release_stage/bin/tohseno-apple-identity"
+  tar -xzf "$archive" --strip-components 1 -C "$release_stage" ||
+    fail "The verified release package could not be extracted."
+  if find "$release_stage" -type l -print -quit | grep -q . ||
+    find "$release_stage" ! -type f ! -type d -print -quit | grep -q .; then
+    fail "The staged release contains a link or unsupported file."
+  fi
+  if [ ! -f "$release_stage/bin/tohseno" ] ||
+    [ -L "$release_stage/bin/tohseno" ] ||
+    [ ! -f "$release_stage/bin/tohseno-apple-identity" ] ||
+    [ -L "$release_stage/bin/tohseno-apple-identity" ] ||
+    [ ! -f "$release_stage/RELEASE.json" ] ||
+    [ -L "$release_stage/RELEASE.json" ] ||
+    [ ! -f "$release_stage/CHECKSUMS.sha256" ] ||
+    [ -L "$release_stage/CHECKSUMS.sha256" ] ||
+    [ ! -d "$release_stage/share" ] ||
+    [ -L "$release_stage/share" ] ||
+    [ ! -d "$release_stage/share/studio" ] ||
+    [ -L "$release_stage/share/studio" ] ||
+    [ ! -f "$release_stage/share/studio/index.html" ] ||
+    [ -L "$release_stage/share/studio/index.html" ] ||
+    [ ! -f "$release_stage/share/studio/app.js" ] ||
+    [ -L "$release_stage/share/studio/app.js" ] ||
+    [ ! -f "$release_stage/share/studio/style.css" ] ||
+    [ -L "$release_stage/share/studio/style.css" ] ||
+    [ ! -f "$release_stage/share/studio/pairing-seal.png" ] ||
+    [ -L "$release_stage/share/studio/pairing-seal.png" ] ||
+    [ ! -d "$release_stage/share/sdk/apple/TohsenoCompanionKit" ] ||
+    [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit" ] ||
+    [ ! -f "$release_stage/share/sdk/apple/TohsenoCompanionKit/Package.swift" ] ||
+    [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit/Package.swift" ] ||
+    [ ! -f "$release_stage/share/sdk/apple/TohsenoCompanionKit/VERSION" ] ||
+    [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit/VERSION" ] ||
+    [ ! -f "$release_stage/share/sdk/apple/TohsenoCompanionKit/LICENSE" ] ||
+    [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit/LICENSE" ] ||
+    [ ! -f "$release_stage/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit/Client.swift" ] ||
+    [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit/Client.swift" ] ||
+    [ ! -f "$release_stage/share/companion/test-vectors/companion-v1.json" ] ||
+    [ -L "$release_stage/share/companion/test-vectors/companion-v1.json" ] ||
+    [ ! -f "$release_stage/share/protocol/schemas/common.schema.json" ] ||
+    [ -L "$release_stage/share/protocol/schemas/common.schema.json" ] ||
+    [ ! -f "$release_stage/share/fascia/apple/FASCIA.json" ] ||
+    [ -L "$release_stage/share/fascia/apple/FASCIA.json" ] ||
+    [ ! -f "$release_stage/share/genesis/GENESIS.json" ] ||
+    [ -L "$release_stage/share/genesis/GENESIS.json" ]; then
+    fail "The staged 0.9.0 release is incomplete or unsafe."
+  fi
   chmod 0755 \
     "$release_stage/bin/tohseno" \
     "$release_stage/bin/tohseno-apple-identity"
-  tar -xzf "$archive" -C "$release_stage/share" ||
-    fail "Genesis materials could not be extracted into the private release stage."
 
-  release_materials="$release_stage/share/genesis"
-  if [ ! -f "$release_materials/GENESIS.json" ] ||
-    [ -L "$release_materials/GENESIS.json" ] ||
-    [ ! -f "$release_materials/fascia/apple/FASCIA.json" ] ||
-    [ -L "$release_materials/fascia/apple/FASCIA.json" ] ||
-    [ ! -d "$release_materials/schemas" ] ||
-    [ -L "$release_materials/schemas" ] ||
-    find "$release_materials" -type l -print -quit | grep -q . ||
-    find "$release_materials" ! -type f ! -type d -print -quit | grep -q .; then
-    fail "Staged Genesis materials failed their anatomy and path-safety checks."
-  fi
-
-  materials_manifest="$release_materials/FILES.sha256"
-  if [ ! -f "$materials_manifest" ] || [ -L "$materials_manifest" ]; then
-    fail "Staged Genesis materials are missing a safe FILES.sha256 manifest."
-  fi
-  manifest_paths="$install_temporary/materials.manifest.paths"
+  package_manifest="$release_stage/CHECKSUMS.sha256"
+  manifest_paths="$install_temporary/package.manifest.paths"
   if ! awk '
     {
       digest = substr($0, 1, 64)
@@ -426,7 +493,7 @@ verify_artifact "$materials_name"
           separator != "  " ||
           relative_path == "" ||
           relative_path ~ /[^A-Za-z0-9._\/-]/ ||
-          relative_path == "FILES.sha256" ||
+          relative_path == "CHECKSUMS.sha256" ||
           seen[relative_path]++) {
         exit 1
       }
@@ -441,46 +508,86 @@ verify_artifact "$materials_name"
       print relative_path
     }
     END { if (NR == 0) exit 1 }
-  ' "$materials_manifest" >"$manifest_paths"; then
-    fail "Genesis FILES.sha256 contains a malformed or unsafe entry."
+  ' "$package_manifest" >"$manifest_paths"; then
+    fail "The release CHECKSUMS.sha256 contains a malformed or unsafe entry."
   fi
-  actual_material_paths="$install_temporary/materials.actual.paths"
-  raw_material_paths="$install_temporary/materials.actual.raw"
+  actual_package_paths="$install_temporary/package.actual.paths"
+  raw_package_paths="$install_temporary/package.actual.raw"
   (
-    cd "$release_materials"
+    cd "$release_stage"
     find . -type f -print
-  ) >"$raw_material_paths" ||
-    fail "Could not enumerate the staged Genesis materials."
+  ) >"$raw_package_paths" ||
+    fail "Could not enumerate the staged release."
   awk '
     {
       sub(/^\.\//, "")
-      if ($0 != "FILES.sha256") print
+      if ($0 != "CHECKSUMS.sha256") print
     }
-  ' "$raw_material_paths" |
-    LC_ALL=C sort >"$actual_material_paths" ||
-    fail "Could not normalize the staged Genesis file list."
+  ' "$raw_package_paths" |
+    LC_ALL=C sort >"$actual_package_paths" ||
+    fail "Could not normalize the staged release file list."
   LC_ALL=C sort "$manifest_paths" >"$manifest_paths.sorted" ||
-    fail "Could not normalize the Genesis manifest paths."
-  if ! cmp -s "$manifest_paths.sorted" "$actual_material_paths"; then
-    fail "Genesis FILES.sha256 does not cover exactly the staged files."
+    fail "Could not normalize the release manifest paths."
+  if ! cmp -s "$manifest_paths.sorted" "$actual_package_paths"; then
+    fail "Release CHECKSUMS.sha256 does not cover exactly the staged files."
   fi
   (
-    cd "$release_materials"
-    shasum -a 256 -c FILES.sha256 >/dev/null
-  ) || fail "Genesis FILES.sha256 verification failed."
+    cd "$release_stage"
+    shasum -a 256 -c CHECKSUMS.sha256 >/dev/null
+  ) || fail "Release CHECKSUMS.sha256 verification failed."
+
+  release_manifest="$release_stage/RELEASE.json"
+  manifest_value() {
+    /usr/bin/plutil -extract "$1" raw -o - "$release_manifest" 2>/dev/null
+  }
+  if [ "$(manifest_value schema)" != "tohseno.release/1" ] ||
+    [ "$(manifest_value version)" != "0.9.0" ] ||
+    [ "$(manifest_value codename)" != "COMPANION" ] ||
+    [ "$(manifest_value target)" != "$target" ] ||
+    [ "$(manifest_value channel)" != "stable" ] ||
+    [ "$(manifest_value dirty)" != "false" ] ||
+    [ "$(manifest_value prerelease)" != "false" ]; then
+    fail "The immutable release manifest is not an authorized clean 0.9.0 package."
+  fi
+  manifest_source_commit="$(manifest_value source_commit)"
+  manifest_source_state="$(manifest_value source_state_sha256)"
+  if [ "${#manifest_source_commit}" -ne 40 ] ||
+    [ "${#manifest_source_state}" -ne 64 ]; then
+    fail "The immutable release manifest has malformed source provenance."
+  fi
+  case "$manifest_source_commit:$manifest_source_state" in
+    *[!0123456789abcdef:]*|*:*:*)
+      fail "The immutable release manifest has malformed source provenance."
+      ;;
+  esac
+  if [ "$manifest_source_commit" = "0000000000000000000000000000000000000000" ] ||
+    [ "$manifest_source_state" = "0000000000000000000000000000000000000000000000000000000000000000" ]; then
+    fail "The immutable release manifest has empty source provenance."
+  fi
+
+  for release_material in protocol fascia studio sdk companion genesis; do
+    if [ ! -d "$release_stage/share/$release_material" ] ||
+      [ -L "$release_stage/share/$release_material" ]; then
+      fail "The release is missing safe $release_material material."
+    fi
+  done
 
   installed_version="$("$release_stage/bin/tohseno" --version 2>/dev/null)" ||
     fail "The TOHSENO executable did not start from its private stage."
-  if [ "$installed_version" != "tohseno 0.8.5" ]; then
-    fail "The downloaded executable is not the pinned 0.8.5 release."
+  if [ "$installed_version" != "tohseno 0.9.0" ]; then
+    fail "The downloaded executable is not the pinned 0.9.0 release."
   fi
   helper_version="$("$release_stage/bin/tohseno-apple-identity" --version 2>/dev/null)" ||
     fail "The Apple identity helper did not start from its private stage."
-  if [ "$helper_version" != "tohseno-apple-identity 0.8.5" ]; then
-    fail "The downloaded Apple identity helper is not the pinned 0.8.5 release."
+  if [ "$helper_version" != "tohseno-apple-identity 0.9.0" ]; then
+    fail "The downloaded Apple identity helper is not the pinned 0.9.0 release."
   fi
 
-  release_name="${version#v}-$target-$(date +%s)-$$"
+  release_nonce="${release_stage##*.release-stage.}"
+  case "$release_nonce" in
+    ''|*[!A-Za-z0-9]*) fail "The release stage has an unsafe identifier." ;;
+  esac
+  release_name="${version#v}-$target-$(date +%s)-$$-$release_nonce"
   release_directory="$releases_directory/$release_name"
   if [ -e "$release_directory" ] || [ -L "$release_directory" ]; then
     fail "Refusing to replace an existing release directory."
@@ -493,12 +600,22 @@ verify_artifact "$materials_name"
   had_current=0
   if [ -L "$current_path" ]; then
     had_current=1
+    previous_current_target="$(readlink "$current_path")"
+    case "$previous_current_target" in
+      releases/*) ;;
+      *) fail "The existing release link has an unsafe target." ;;
+    esac
+    previous_release_name="${previous_current_target#releases/}"
+    case "$previous_release_name" in
+      ''|.|..|*/*)
+        fail "The existing release link has a non-canonical target."
+        ;;
+    esac
     current_physical="$(CDPATH= cd -- "$current_path" && pwd -P)" ||
       fail "The existing release link is broken."
-    case "$current_physical/" in
-      "$releases_directory"/*/) ;;
-      *) fail "The existing release link escapes its releases directory." ;;
-    esac
+    if [ "$current_physical" != "$releases_directory/$previous_release_name" ]; then
+      fail "The existing release link escapes its releases directory."
+    fi
   elif [ -e "$current_path" ]; then
     fail "Refusing a non-symlink release pointer."
   fi
@@ -527,9 +644,13 @@ launcher_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 launcher_root="$(dirname -- "$launcher_directory")"
 release_root="$(CDPATH= cd -- "$launcher_root/current" && pwd -P)" ||
   launcher_fail "release pointer is missing or broken"
-case "$release_root/" in
-  "$launcher_root"/releases/*/) ;;
-  *) launcher_fail "release pointer escapes its installation root" ;;
+release_parent="$(dirname -- "$release_root")"
+release_name="${release_root##*/}"
+if [ "$release_parent" != "$launcher_root/releases" ]; then
+  launcher_fail "release pointer escapes its installation root"
+fi
+case "$release_name" in
+  ''|.|..) launcher_fail "release pointer has an unsafe release name" ;;
 esac
 tohseno_binary="$release_root/bin/tohseno"
 if [ -L "$tohseno_binary" ] || [ ! -f "$tohseno_binary" ] ||
@@ -554,9 +675,14 @@ release_root="$(CDPATH= cd -- "$launcher_root/current" && pwd -P)" || {
   printf '%s\n' "tohseno-apple-identity: release pointer is missing or broken" >&2
   exit 1
 }
-case "$release_root/" in
-  "$launcher_root"/releases/*/) ;;
-  *)
+release_parent="$(dirname -- "$release_root")"
+release_name="${release_root##*/}"
+if [ "$release_parent" != "$launcher_root/releases" ]; then
+  printf '%s\n' "tohseno-apple-identity: release pointer is unsafe" >&2
+  exit 1
+fi
+case "$release_name" in
+  ''|.|..)
     printf '%s\n' "tohseno-apple-identity: release pointer is unsafe" >&2
     exit 1
     ;;
@@ -641,9 +767,63 @@ HELPER_LAUNCHER
     ln -s "releases/$release_name" "$current_stage"
     replace_symlink_atomically "$current_stage" "$current_path"
     current_stage=""
+    current_changed=1
   elif [ ! -L "$current_path" ] ||
     [ "$(readlink "$current_path")" != "releases/$release_name" ]; then
     fail "The fresh release pointer changed before commit."
+  fi
+
+  validate_service_health() {
+    health_file="$1"
+    expected_service_version="$2"
+    service_health_value() {
+      /usr/bin/plutil -extract "$1" raw -o - "$health_file" 2>/dev/null
+    }
+    [ "$(service_health_value schema)" = "tohseno.service-status/1" ] &&
+      [ "$(service_health_value healthy)" = "true" ] &&
+      [ -n "$(service_health_value service_version)" ] &&
+      { [ -z "$expected_service_version" ] ||
+        [ "$(service_health_value service_version)" = "$expected_service_version" ]; } &&
+      case "$(service_health_value origin)" in
+        http://127.0.0.1:*) true ;;
+        *) false ;;
+      esac &&
+      case "$(service_health_value workspace_id)" in
+        workspace_*) true ;;
+        *) false ;;
+      esac
+  }
+
+  install_and_verify_service() {
+    expected_service_version="$1"
+    health_prefix="$2"
+    "$install_directory/$command_name" --json service install \
+      >"$install_temporary/$health_prefix-install.json" &&
+      "$install_directory/$command_name" --json service status \
+        >"$install_temporary/$health_prefix-status.json" &&
+      validate_service_health \
+        "$install_temporary/$health_prefix-status.json" \
+        "$expected_service_version"
+  }
+
+  service_install_status=0
+  install_and_verify_service "0.9.0" service || service_install_status=$?
+  if [ "$service_install_status" -ne 0 ]; then
+    "$install_directory/$command_name" service uninstall >/dev/null 2>&1 || true
+    if [ "$had_current" -eq 1 ]; then
+      rollback_stage="$install_root/.current.rollback.$$"
+      ln -s "$previous_current_target" "$rollback_stage"
+      replace_symlink_atomically "$rollback_stage" "$current_path"
+      current_changed=0
+      if install_and_verify_service "" rollback 2>/dev/null; then
+        printf '%s\n' \
+          "TOHSENO installer: update health failed; restored the previous release and service." >&2
+      else
+        printf '%s\n' \
+          "TOHSENO installer: update health failed; restored the previous release pointer, but its service could not be started." >&2
+      fi
+    fi
+    fail "The 0.9.0 Local Workspace Service did not pass its verified health check."
   fi
   release_committed=1
 
@@ -704,9 +884,7 @@ if [ "$claim_requested" -eq 1 ]; then
   fi
 elif [ "$start_studio" -eq 1 ]; then
   printf '%s\n' \
-    "Opening Studio. It keeps running in this terminal; press Control-C to stop it."
-  cleanup
-  trap - EXIT HUP INT TERM
-  exec "$install_directory/$command_name" studio
+    "Opening Studio. The Local Workspace Service remains healthy after this Terminal exits."
+  "$install_directory/$command_name" studio
 fi
 printf 'Start Studio with: %s studio\n' "$install_directory/$command_name"

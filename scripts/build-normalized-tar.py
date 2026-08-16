@@ -184,22 +184,24 @@ def require_unchanged_after_read(
     )
 
 
-def parse_files_manifest(contents: bytes) -> dict[str, str]:
+def parse_files_manifest(
+    contents: bytes, manifest_base_name: str = "FILES.sha256"
+) -> dict[str, str]:
     expected: dict[str, str] = {}
     try:
         lines = contents.decode("ascii").splitlines()
     except UnicodeDecodeError as error:
-        raise ValueError("FILES.sha256 is not ASCII") from error
+        raise ValueError(f"{manifest_base_name} is not ASCII") from error
     if not lines:
-        raise ValueError("FILES.sha256 is empty")
+        raise ValueError(f"{manifest_base_name} is empty")
     for line in lines:
         if len(line) < 67 or line[64:66] != "  ":
-            raise ValueError("FILES.sha256 contains a malformed line")
+            raise ValueError(f"{manifest_base_name} contains a malformed line")
         digest, relative_name = line[:64], line[66:]
         path = PurePosixPath(relative_name)
         if (
             any(character not in "0123456789abcdef" for character in digest)
-            or relative_name in {"", "FILES.sha256"}
+            or relative_name in {"", manifest_base_name}
             or path.is_absolute()
             or relative_name.startswith("/")
             or relative_name.endswith("/")
@@ -219,20 +221,22 @@ def parse_files_manifest(contents: bytes) -> dict[str, str]:
             )
             or relative_name in expected
         ):
-            raise ValueError("FILES.sha256 contains an unsafe or duplicate entry")
+            raise ValueError(
+                f"{manifest_base_name} contains an unsafe or duplicate entry"
+            )
         expected[relative_name] = digest
     return expected
 
 
 def verify_embedded_files_manifest(
-    archive_file: BinaryIO, root_name: str
+    archive_file: BinaryIO, root_name: str, manifest_base_name: str
 ) -> None:
-    """Verify a Genesis FILES.sha256 against bytes in the completed archive."""
+    """Verify the selected checksum manifest in the completed archive."""
 
     file_digests: dict[str, str] = {}
     manifest = None
     directories: set[str] = set()
-    manifest_name = f"{root_name}/FILES.sha256"
+    manifest_name = f"{root_name}/{manifest_base_name}"
     archive_file.seek(0)
     with tarfile.open(fileobj=archive_file, mode="r:gz") as archive:
         for member in archive:
@@ -265,14 +269,16 @@ def verify_embedded_files_manifest(
                 if member.name == manifest_name:
                     captured_manifest.extend(chunk)
                     if len(captured_manifest) > 16 * 1024 * 1024:
-                        raise ValueError("completed archive FILES.sha256 is too large")
+                        raise ValueError(
+                            f"completed archive {manifest_base_name} is too large"
+                        )
             file_digests[member.name] = digest.hexdigest()
             if member.name == manifest_name:
                 manifest = bytes(captured_manifest)
 
     if manifest is None:
-        raise ValueError("completed archive is missing FILES.sha256")
-    expected = parse_files_manifest(manifest)
+        raise ValueError(f"completed archive is missing {manifest_base_name}")
+    expected = parse_files_manifest(manifest, manifest_base_name)
     observed_names = {
         name.removeprefix(f"{root_name}/")
         for name in file_digests
@@ -280,12 +286,12 @@ def verify_embedded_files_manifest(
     }
     if set(expected) != observed_names:
         raise ValueError(
-            "completed archive FILES.sha256 does not cover exactly its files"
+            f"completed archive {manifest_base_name} does not cover exactly its files"
         )
     for relative_name, expected_digest in expected.items():
         if file_digests[f"{root_name}/{relative_name}"] != expected_digest:
             raise ValueError(
-                f"completed archive FILES.sha256 mismatch: {relative_name}"
+                f"completed archive {manifest_base_name} mismatch: {relative_name}"
             )
 
 
@@ -295,6 +301,7 @@ def build_archive(
     output_name: str,
     root_name: str,
     mtime: int,
+    manifest_base_name: str,
 ) -> None:
     entries = collect_entries(source, root_name)
     stage_name = ""
@@ -366,7 +373,9 @@ def build_archive(
         os.fchmod(descriptor, 0o644)
         os.fsync(descriptor)
         with os.fdopen(os.dup(descriptor), "rb") as archive_input:
-            verify_embedded_files_manifest(archive_input, root_name)
+            verify_embedded_files_manifest(
+                archive_input, root_name, manifest_base_name
+            )
         os.fsync(stage_descriptor)
         os.replace(
             "archive.tmp",
@@ -410,6 +419,11 @@ def main() -> None:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--root-name", required=True, type=parse_root_name)
     parser.add_argument("--mtime", required=True, type=parse_mtime)
+    parser.add_argument(
+        "--manifest-name",
+        choices=("FILES.sha256", "CHECKSUMS.sha256"),
+        default="FILES.sha256",
+    )
     arguments = parser.parse_args()
 
     if arguments.source.is_symlink():
@@ -453,6 +467,7 @@ def main() -> None:
             output_name,
             arguments.root_name,
             arguments.mtime,
+            arguments.manifest_name,
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))

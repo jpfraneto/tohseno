@@ -1,4 +1,4 @@
-name: stable-0.7-ci
+name: TOHSENO 0.9 CI
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: stable-0.7-ci-${{ github.workflow }}-${{ github.ref }}
+  group: tohseno-0.9-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -125,7 +125,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-               and .product_version == "0.8.5"
+               and .product_version == "0.9.0"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"
@@ -134,7 +134,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 0.8.5'
+            grep -Fqx 'tohseno 0.9.0'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -156,6 +156,22 @@ jobs:
         run: |
           swift build --package-path fascia/apple -Xswiftc -warnings-as-errors
           swift test --package-path fascia/apple
+      - name: Build and test CompanionKit and shared vectors
+        run: |
+          swift build --package-path sdk/apple/TohsenoCompanionKit -Xswiftc -warnings-as-errors
+          swift test --package-path sdk/apple/TohsenoCompanionKit
+      - name: Build the native Companion conformance fixture
+        run: |
+          xcodebuild \
+            -project sdk/apple/TohsenoCompanionKit/Examples/CompanionConformanceApp/CompanionConformanceApp.xcodeproj \
+            -scheme CompanionConformanceApp \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/tohseno-companion-conformance" \
+            -disableAutomaticPackageResolution \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=YES \
+            build
       - name: Build generated fixture for Simulator
         run: |
           xcodebuild \
@@ -221,7 +237,7 @@ jobs:
     name: Static surfaces and deterministic release artifacts
     needs: [rust, apple, contracts]
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -289,6 +305,40 @@ jobs:
              and (.evidence.public_installer_repointed | type) == "boolean"
              and .evidence.production_relay_enabled == true' \
             release/V0_8_5_READINESS.json
+          jq -e \
+            '.schema == "tohseno.release-readiness/1"
+             and .version == "0.9.0"
+             and .source.public_installer_pin == "0.8.5"
+             and .source.historical_protocol_rewritten == false
+             and .source.recording_layer_implicit_migration == false
+             and (
+               (
+                 .channel == "release-candidate"
+                 and .ready == false
+                 and .authorization.authorized == false
+               )
+               or
+               (
+                 .channel == "stable"
+                 and .ready == true
+                 and .authorization.authorized == true
+                 and ((.authorization.authorized_by | type) == "string")
+                 and (.authorization.authorized_by | length) > 0
+                 and ((.authorization.authorized_at | type) == "string")
+                 and (.authorization.authorized_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))
+                 and ((.authorization.authorization_form | type) == "string")
+                 and (.authorization.authorization_form | length) > 0
+                 and .protection.immutable_release_policy_verified == true
+                 and .protection.release_tag_protection_verified == true
+                 and ((.protection.release_tag_ruleset_id | type) == "number")
+                 and .protection.release_tag_ruleset_id > 0
+                 and ((.protection.verified_at | type) == "string")
+                 and (.protection.verified_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))
+                 and ((.required_local_evidence | type) == "object")
+                 and ([.required_local_evidence[] | select(. != true)] | length) == 0
+               )
+             )' \
+            release/V0_9_0_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -298,9 +348,12 @@ jobs:
       - name: Public website and installer checks
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
-          cmp website/apps/site/public/oneshot.sh oneshot/oneshot.sh
-          grep -Fq 'version="v0.8.5"' oneshot/oneshot.sh
+          grep -Fq 'version="v0.9.0"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
+          if cmp -s website/apps/site/public/oneshot.sh oneshot/oneshot.sh; then
+            echo "unpublished 0.9 installer must not replace the live 0.8.5 pin" >&2
+            exit 1
+          fi
           grep -Fq 'version="v0.8.5"' website/apps/site/public/oneshot.sh
           grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh
           test -s website/apps/site/public/oneshot.sh
@@ -314,8 +367,15 @@ jobs:
           find oneshot scripts fascia/apple/tests \
             -type f -name '*.sh' -print0 |
             xargs -0 -n1 sh -n
+          scripts/test-installer.sh
+          scripts/test-installer-claim-args.sh
           scripts/test-normalized-archive.sh
           scripts/test-release-package-integrity.sh
+      - name: Persistent factory and private companion end-to-end
+        run: |
+          scripts/test-ontology-lifecycle.sh
+          scripts/test-local-companion-e2e.sh
+          scripts/test-macos-service-lifecycle.sh
       - name: Audit release workflow trust boundaries
         run: |
           ruby <<'RUBY'
@@ -364,7 +424,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.8.5"',
+            '"$RELEASE_TAG" != "v0.9.0"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -380,7 +440,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.8.5 source commit:",
+            "TOHSENO v0.9.0 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

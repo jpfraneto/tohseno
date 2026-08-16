@@ -8,6 +8,7 @@ use tohseno_engine::contract_generation::{
 };
 use tohseno_engine::page;
 use tohseno_engine::protocol_lifecycle;
+use tohseno_engine::safe_file::read_bounded_regular_file;
 use tohseno_engine::verifier::{
     self, LineageVerificationReport, ShotVerificationReport, VerificationCheck, VerificationStatus,
 };
@@ -20,6 +21,7 @@ use tohseno_protocol::record::ShotRecord;
 use tohseno_protocol::signature::SignatureSidecar;
 
 const VECTORS: &str = include_str!("../../protocol/test-vectors/protocol-v1.json");
+const MAXIMUM_PROTOCOL_SIDECAR_BYTES: u64 = 16 * 1024 * 1024;
 
 pub fn protocol_command(
     command: ProtocolCommand,
@@ -128,19 +130,27 @@ pub fn inspect_target(
     if !verification.conformant {
         return Err("Shot failed deterministic offline verification".into());
     }
-    let record: ShotRecord =
-        tohseno_protocol::canonical::from_slice(&fs::read(shot.path.join("TOHSENO/shot.json"))?)?;
-    record.validate()?;
-    let signature: SignatureSidecar = tohseno_protocol::canonical::from_slice(&fs::read(
-        shot.path.join("TOHSENO/signature.json"),
+    let record: ShotRecord = tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+        &shot.path.join("TOHSENO/shot.json"),
+        MAXIMUM_PROTOCOL_SIDECAR_BYTES,
     )?)?;
+    record.validate()?;
+    let signature: SignatureSidecar =
+        tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+            &shot.path.join("TOHSENO/signature.json"),
+            MAXIMUM_PROTOCOL_SIDECAR_BYTES,
+        )?)?;
     record.verify_signature(&signature)?;
     let fascia: FasciaManifest =
-        tohseno_protocol::canonical::from_slice(&fs::read(shot.path.join("TOHSENO/fascia.json"))?)?;
+        tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+            &shot.path.join("TOHSENO/fascia.json"),
+            MAXIMUM_PROTOCOL_SIDECAR_BYTES,
+        )?)?;
     fascia.validate()?;
     let conformance: tohseno_protocol::conformance::ConformanceReport =
-        tohseno_protocol::canonical::from_slice(&fs::read(
-            shot.path.join("TOHSENO/conformance.json"),
+        tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+            &shot.path.join("TOHSENO/conformance.json"),
+            MAXIMUM_PROTOCOL_SIDECAR_BYTES,
         )?)?;
     conformance.validate()?;
     let birth_receipt = read_birth_receipt(&shot.path)?;
@@ -205,7 +215,8 @@ fn read_birth_receipt(
     {
         return Err("Birth Receipt must be a bounded regular file".into());
     }
-    let receipt: BirthReceipt = serde_json::from_slice(&fs::read(path)?)?;
+    let receipt: BirthReceipt =
+        serde_json::from_slice(&read_bounded_regular_file(&path, 4 * 1024 * 1024)?)?;
     receipt.validate()?;
     Ok(Some(receipt))
 }
@@ -497,8 +508,10 @@ fn verified_local_head(
     let shot = ledger
         .latest_evolution(app_name)?
         .ok_or("app has no complete Shot")?;
-    let record: ShotRecord =
-        tohseno_protocol::canonical::from_slice(&fs::read(shot.path.join("TOHSENO/shot.json"))?)?;
+    let record: ShotRecord = tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+        &shot.path.join("TOHSENO/shot.json"),
+        MAXIMUM_PROTOCOL_SIDECAR_BYTES,
+    )?)?;
     record.validate()?;
     Ok((shot, record))
 }
@@ -702,7 +715,8 @@ fn read_pending_factory_identity(
             )
             .into());
         }
-        let identity: FactoryIdentity = serde_json::from_slice(&fs::read(path)?)?;
+        let identity: FactoryIdentity =
+            serde_json::from_slice(&read_bounded_regular_file(&path, 1024 * 1024)?)?;
         identity.validate()?;
         return Ok(Some(identity));
     }
@@ -916,7 +930,10 @@ fn read_record_pair(
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err("record path must be a regular non-symlinked file".into());
     }
-    let record: ShotRecord = tohseno_protocol::canonical::from_slice(&fs::read(path)?)?;
+    let record: ShotRecord = tohseno_protocol::canonical::from_slice(&read_bounded_regular_file(
+        path,
+        MAXIMUM_PROTOCOL_SIDECAR_BYTES,
+    )?)?;
     record.validate()?;
     let signature_path = path
         .parent()
@@ -926,8 +943,9 @@ fn read_record_pair(
     if signature_metadata.file_type().is_symlink() || !signature_metadata.is_file() {
         return Err("signature path must be a regular non-symlinked file".into());
     }
-    let signature: SignatureSidecar =
-        tohseno_protocol::canonical::from_slice(&fs::read(signature_path)?)?;
+    let signature: SignatureSidecar = tohseno_protocol::canonical::from_slice(
+        &read_bounded_regular_file(&signature_path, MAXIMUM_PROTOCOL_SIDECAR_BYTES)?,
+    )?;
     Ok((record, signature))
 }
 

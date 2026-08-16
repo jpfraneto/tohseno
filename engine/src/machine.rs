@@ -3,7 +3,7 @@ use crate::birth_plan::{BirthExpressionPlan, BirthOrganPlan, BirthPlanError};
 use crate::builder_identity::{BuilderIdentity, BuilderIdentityError, BuilderIdentityManager};
 use crate::conception::{ConceptionError, ConceptionInput, ConceptionOutput};
 use crate::config::{Config, ConfigError};
-use crate::events::{Event, EventBus};
+use crate::events::{Event, EventBus, FactoryStage};
 use crate::experience::{
     evaluate_birth, BirthEvaluationEvidence, BirthReceipt, CriterionResult, EvidenceKind,
     EvidenceReference, ExperienceContract, ExperienceError, ExperienceTrial,
@@ -37,10 +37,11 @@ use tohseno_protocol::ontology::{
     ArtifactAvailability, ArtifactDescriptor, AvailabilityStatus, ChangeScope, DesiredChange,
     Evolution as ProtocolEvolution, EvolutionaryIntent, Expression, Feedback, FeedbackAuthor,
     GenomeAcceptance, GenomeProposal, IntentionRecord, MaterializationProvenance, Organ,
-    OriginalMaterial, ShotCommitment, TokenAssociation, TokenAssociationOperation,
-    VerificationGate, VerificationResult, VersionRecord, Visibility, ARTIFACT_AVAILABILITY_SCHEMA,
-    EVOLUTIONARY_INTENT_SCHEMA, EVOLUTION_SCHEMA, EXPRESSION_SCHEMA, FEEDBACK_SCHEMA,
-    GENOME_ACCEPTANCE_SCHEMA, GENOME_PROPOSAL_SCHEMA, VERIFICATION_RESULT_SCHEMA, VERSION_SCHEMA,
+    OriginalMaterial, ShotCommitment, StructuredObservation, TokenAssociation,
+    TokenAssociationOperation, VerificationGate, VerificationResult, VersionRecord, Visibility,
+    ARTIFACT_AVAILABILITY_SCHEMA, EVOLUTIONARY_INTENT_SCHEMA, EVOLUTION_SCHEMA, EXPRESSION_SCHEMA,
+    FEEDBACK_SCHEMA, GENOME_ACCEPTANCE_SCHEMA, GENOME_PROPOSAL_SCHEMA, VERIFICATION_RESULT_SCHEMA,
+    VERSION_SCHEMA,
 };
 use tohseno_protocol::record::CanonicalTimestamp;
 use tohseno_protocol::record::ShotOrigin;
@@ -48,6 +49,8 @@ use tohseno_protocol::record::ShotOrigin;
 const RECORDING_LAYER_MARKER: &str = ".tohseno/recording-layer-v1";
 const RECORDING_LAYER_MARKER_BYTES: &[u8] = b"tohseno.recording-layer/1\n";
 const RECORDED_TREE_DIGEST_BYTES: u64 = 67;
+const MAX_PRIVATE_ENGINE_DOCUMENT_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_EXPERIENCE_EVIDENCE_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct ShotRequest {
@@ -64,6 +67,20 @@ pub enum Evolved {
     Recorded(Evolution),
     NothingNew(Evolution),
     Conducted(ConductedCreation),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AppKind {
+    FactoryShot,
+    RecordingOnly,
+    LegacyProtocol,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AcceptedVersionBase {
+    pub expression_id: ExpressionId,
+    pub version_id: VersionId,
+    pub version_ordinal: u64,
 }
 
 pub struct Engine {
@@ -159,6 +176,106 @@ impl Engine {
 
     pub fn ledger(&self) -> &Ledger {
         &self.ledger
+    }
+
+    /// Classifies an app without reinterpreting recording-only history as a
+    /// protocol Shot.
+    pub fn app_kind(&self, app_name: &str) -> Result<AppKind, EngineError> {
+        let app = self.ledger.load_app(app_name)?;
+        if self.has_recording_layer_marker(app_name)? {
+            if app.shot_id.is_some() || app.builder_id.is_some() || app.expression_id.is_some() {
+                return Err(EngineError::ProtocolBodyIncomplete(
+                    "recording marker is mixed with protocol identity".into(),
+                ));
+            }
+            return Ok(AppKind::RecordingOnly);
+        }
+        if app.shot_id.is_some() && app.builder_id.is_some() && app.expression_id.is_some() {
+            Ok(AppKind::FactoryShot)
+        } else {
+            Ok(AppKind::LegacyProtocol)
+        }
+    }
+
+    /// Returns the exact accepted base currently eligible for an Evolution.
+    pub fn current_accepted_base(
+        &self,
+        app_name: &str,
+    ) -> Result<AcceptedVersionBase, EngineError> {
+        if self.app_kind(app_name)? != AppKind::FactoryShot {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "only a factory Shot has an accepted evolutionary base".into(),
+            ));
+        }
+        let app = self.ledger.load_app(app_name)?;
+        let expression_id = app.expression_id.ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
+        })?;
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let lineage = layout.read_lineage()?;
+        let state = tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+        let expression = state.expression(expression_id).ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete("the Shot has no declared Expression".into())
+        })?;
+        let version_id = expression.current_version.ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete("the Shot has no accepted Version".into())
+        })?;
+        let version = expression
+            .versions
+            .iter()
+            .find(|version| version.version_id == version_id)
+            .ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(
+                    "the current accepted Version is unavailable".into(),
+                )
+            })?;
+        Ok(AcceptedVersionBase {
+            expression_id,
+            version_id,
+            version_ordinal: version.ordinal,
+        })
+    }
+
+    /// Resolves one exact accepted Version without silently substituting the
+    /// current head. This is used for delayed companion feedback: an older
+    /// reviewed Version remains a valid feedback target even after a newer
+    /// Version is accepted, while evolution admission still requires the
+    /// exact current base through [`Self::current_accepted_base`].
+    pub fn accepted_version_base(
+        &self,
+        app_name: &str,
+        version_ordinal: u64,
+    ) -> Result<AcceptedVersionBase, EngineError> {
+        if self.app_kind(app_name)? != AppKind::FactoryShot {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "only a factory Shot has accepted Versions".into(),
+            ));
+        }
+        let app = self.ledger.load_app(app_name)?;
+        let expression_id = app.expression_id.ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete("the Shot has no stable ExpressionID".into())
+        })?;
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let lineage = layout.read_lineage()?;
+        let state = tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+        let version = state
+            .expression(expression_id)
+            .and_then(|expression| {
+                expression
+                    .versions
+                    .iter()
+                    .find(|version| version.ordinal == version_ordinal)
+            })
+            .ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(format!(
+                    "the Shot has no accepted Version ordinal {version_ordinal}"
+                ))
+            })?;
+        Ok(AcceptedVersionBase {
+            expression_id,
+            version_id: version.version_id,
+            version_ordinal: version.ordinal,
+        })
     }
 
     pub fn harnesses(&self) -> Vec<HarnessOption> {
@@ -775,6 +892,119 @@ impl Engine {
         self.record_feedback_with_attachments(app_name, version_ordinal, text, &[])
     }
 
+    /// Record feedback exactly once for a durable private command.
+    ///
+    /// The command marker is carried only by the intentionally-private
+    /// Feedback action. If the process crashes after lineage publication but
+    /// before the private body is stored, replay finds that exact action and
+    /// completes storage instead of appending a second action.
+    pub fn record_feedback_for_command(
+        &self,
+        app_name: &str,
+        version_ordinal: u64,
+        text: &str,
+        command_id: &str,
+        observed_at: &str,
+    ) -> Result<StoredFeedback, EngineError> {
+        crate::ledger::validate_app_name(app_name)?;
+        if command_id.is_empty() || command_id.len() > 200 {
+            return Err(EngineError::ProtocolBodyIncomplete(
+                "feedback command ID must contain 1..=200 bytes".into(),
+            ));
+        }
+        let observed_at =
+            CanonicalTimestamp::parse(observed_at.to_owned()).map_err(ShotLayoutError::from)?;
+        let _app_lock = self.ledger.lock_app(app_name)?;
+        let app = self.ledger.load_app(app_name)?;
+        let shot_id = app
+            .shot_id
+            .ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+        let expected_builder = app
+            .builder_id
+            .ok_or_else(|| EngineError::LegacyRequiresAdoption(app_name.into()))?;
+        let expression_id = app.expression_id.ok_or_else(|| {
+            EngineError::ProtocolBodyIncomplete(format!("{app_name} has no stable ExpressionID"))
+        })?;
+        let manager = BuilderIdentityManager::for_ledger(&self.ledger);
+        let builder = manager.ensure()?;
+        if builder.builder_id != expected_builder {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        let layout = ShotLayout::at(self.ledger.working_tree(app_name));
+        let lineage = layout.read_lineage()?;
+        let state = tohseno_protocol::reduce_lineage(&lineage).map_err(ShotLayoutError::from)?;
+        if state.shot_id != shot_id
+            || state.controller != builder.builder_id
+            || state.controller_key != builder.device.public_key
+        {
+            return Err(EngineError::BuilderMismatch(app_name.into()));
+        }
+        let version = state
+            .expression(expression_id)
+            .and_then(|expression| {
+                expression
+                    .versions
+                    .iter()
+                    .find(|version| version.ordinal == version_ordinal)
+            })
+            .cloned()
+            .ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(format!(
+                    "{app_name} has no accepted version {version_ordinal:04} for expression {expression_id}"
+                ))
+            })?;
+        let feedback = Feedback {
+            schema: FEEDBACK_SCHEMA.into(),
+            expression_id,
+            version_id: version.version_id,
+            build_identity: version.build_identity.clone(),
+            author: Some(FeedbackAuthor {
+                identity: builder.builder_id.to_string(),
+                display_name: None,
+            }),
+            visibility: Visibility::Private,
+            text: (!text.is_empty()).then(|| text.to_owned()),
+            observations: vec![StructuredObservation {
+                kind: "private_command_id".into(),
+                subject: "tohseno.local-command/1".into(),
+                value: command_id.into(),
+            }],
+            attachments: Vec::new(),
+            observed_at,
+        };
+        feedback.validate().map_err(ShotLayoutError::from)?;
+
+        if let Some(existing) = lineage.iter().find(|action| {
+            matches!(
+                &action.action.payload,
+                LineagePayload::Feedback(candidate) if candidate == &feedback
+            )
+        }) {
+            let commitment = existing.commitment().map_err(ShotLayoutError::from)?;
+            return layout
+                .store_feedback(shot_id, &version, &feedback, commitment, &[])
+                .map_err(EngineError::from);
+        }
+
+        let action_timestamp = canonical_now_at_least(&state.last_timestamp)?;
+        let action = LineageAction::new(
+            state.sequence.checked_add(1).ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete("lineage sequence overflowed".into())
+            })?,
+            Some(state.head),
+            shot_id,
+            builder.builder_id,
+            action_timestamp,
+            AvailabilityStatus::IntentionallyPrivate,
+            LineagePayload::Feedback(feedback.clone()),
+        )
+        .map_err(ShotLayoutError::from)?;
+        let signed = sign_lineage_action(&manager, &builder, action)?;
+        layout
+            .record_feedback_action(shot_id, &version, &feedback, &signed, &[])
+            .map_err(EngineError::from)
+    }
+
     /// The attachment-capable feedback entry point used by CLI automation.
     /// Exact bytes are bounded, read without following symlinks, described by
     /// digest and length, and then checked again while they are stored.
@@ -1280,6 +1510,25 @@ impl Engine {
     /// Evolves the Shot. Whatever the folder holds becomes history first;
     /// with an intent, the builder's own agent is then handed the work.
     pub async fn evolve(&self, request: &ShotRequest) -> Result<Evolved, EngineError> {
+        self.evolve_checked(request, None).await
+    }
+
+    /// Evolves only from one exact accepted Expression Version. This is the
+    /// admission path for durable CLI, Studio, and companion commands; it
+    /// never silently records or rebases a drifted working tree.
+    pub async fn evolve_exact(
+        &self,
+        request: &ShotRequest,
+        expected: AcceptedVersionBase,
+    ) -> Result<Evolved, EngineError> {
+        self.evolve_checked(request, Some(expected)).await
+    }
+
+    async fn evolve_checked(
+        &self,
+        request: &ShotRequest,
+        expected: Option<AcceptedVersionBase>,
+    ) -> Result<Evolved, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
         if request.intent.images.len() > crate::gates::intent::MAX_IMAGES {
             return Err(EngineError::ProtocolBodyIncomplete(
@@ -1287,12 +1536,9 @@ impl Engine {
                     .into(),
             ));
         }
-        if request.intent.prompt.trim().is_empty()
-            && (!request.selected_feedback_actions.is_empty() || !request.intent.images.is_empty())
-        {
+        if request.intent.prompt.trim().is_empty() && !request.intent.images.is_empty() {
             return Err(EngineError::ProtocolBodyIncomplete(
-                "selected Feedback actions and references require a nonempty evolutionary instruction"
-                    .into(),
+                "reference images require a nonempty evolutionary instruction".into(),
             ));
         }
         let _app_lock = self.ledger.lock_app(&request.app_name)?;
@@ -1307,6 +1553,32 @@ impl Engine {
             return Err(EngineError::BuilderMismatch(request.app_name.clone()));
         }
         let latest = self.ledger.latest_evolution(&request.app_name)?;
+        if let Some(expected) = expected {
+            let previous = latest.as_ref().ok_or_else(|| {
+                EngineError::ProtocolBodyIncomplete(
+                    "the requested evolutionary base no longer exists".into(),
+                )
+            })?;
+            protocol_lifecycle::verify_completed_evolution(previous)?;
+            if !self.working_tree_matches(previous)? {
+                return Err(EngineError::ProtocolBodyIncomplete(
+                    "stale evolution: the working tree changed after the requested base Version"
+                        .into(),
+                ));
+            }
+            let current = self.current_accepted_base(&request.app_name)?;
+            if current != expected {
+                return Err(EngineError::ProtocolBodyIncomplete(format!(
+                    "stale evolution: requested expression {} Version {} ordinal {}, current base is expression {} Version {} ordinal {}",
+                    expected.expression_id,
+                    expected.version_id,
+                    expected.version_ordinal,
+                    current.expression_id,
+                    current.version_id,
+                    current.version_ordinal
+                )));
+            }
+        }
         // The builder's selected feedback binds the exact Version they
         // experienced. Prove the selection can survive BEFORE any recording
         // side effect: otherwise a drifted folder silently seals a surprise
@@ -1374,7 +1646,7 @@ impl Engine {
             ),
             None => return Err(EngineError::NoCompleteShot(request.app_name.clone())),
         };
-        if request.intent.prompt.trim().is_empty() {
+        if request.intent.prompt.trim().is_empty() && request.selected_feedback_actions.is_empty() {
             return Ok(match recorded {
                 Some(shot) => Evolved::Recorded(shot),
                 None => {
@@ -1443,12 +1715,38 @@ impl Engine {
             }
         }
 
+        // An explicit exact-version Feedback selection is itself sufficient
+        // evolutionary authority. When no separate prose was supplied, derive
+        // the private harness instruction only from the selected signed
+        // Feedback bodies; no generic, latest-Version, or inferred direction
+        // is introduced.
+        let effective_prompt = if request.intent.prompt.trim().is_empty() {
+            let bodies = selected_feedback_actions
+                .iter()
+                .map(|action| {
+                    state
+                        .feedback
+                        .get(action)
+                        .and_then(|feedback| feedback.text.as_deref())
+                        .filter(|text| !text.trim().is_empty())
+                        .ok_or_else(|| {
+                            EngineError::ProtocolBodyIncomplete(format!(
+                                "selected Feedback action {action} has no actionable private text"
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            render_feedback_selected_instruction(&bodies)
+        } else {
+            request.intent.prompt.clone()
+        };
+
         // The exact instruction, selected signed Feedback actions, and exact
         // private reference descriptors wait together until a successful
         // accepted Version.
         let reference_sources = self.validated_reference_sources(&request.intent);
         let staged_references = layout.stage_evolution_inputs(
-            request.intent.prompt.as_bytes(),
+            effective_prompt.as_bytes(),
             &selected_feedback_actions,
             &reference_sources,
         )?;
@@ -1473,13 +1771,13 @@ impl Engine {
             current_version,
             &selected_feedback_actions,
             &staged_references,
-            &request.intent.prompt,
+            &effective_prompt,
             &accepted_genome.genome.behavioral_invariants,
             genome_mutation,
         ))?;
         let instruction = format!(
             "Read AGENTS.md, .tohseno/TASK.md, and the staged evolutionary intention. The builder asks: {}\nReturn a complete candidate and independently inspectable experience evidence. Do not call tohseno evolve; the engine owns final acceptance and sealing.",
-            request.intent.prompt.trim()
+            effective_prompt.trim()
         );
         Ok(Evolved::Conducted(ConductedCreation {
             folder: self.ledger.working_tree(&request.app_name),
@@ -1721,7 +2019,15 @@ impl Engine {
                 }
             }
 
-            let prompt = fs::read_to_string(shot.prompt_path())?;
+            let prompt = String::from_utf8(crate::ledger::read_bounded_regular_file(
+                &shot.prompt_path(),
+                MAX_PRIVATE_ENGINE_DOCUMENT_BYTES,
+            )?)
+            .map_err(|_| {
+                EngineError::ProtocolBodyIncomplete(
+                    "the preserved Evolutionary Intent is not UTF-8".into(),
+                )
+            })?;
             let description = intention_excerpt(&prompt, 4000);
             if description.is_empty() {
                 return Err(EngineError::ProtocolBodyIncomplete(
@@ -1966,6 +2272,8 @@ impl Engine {
             "materializing evolution {}…",
             shot.number
         )));
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Building));
         let artifact = match build::materialize_artifact(&self.ledger, shot, app.target_name())? {
             Ok(artifact) => artifact,
             Err(failure) => return Err(EngineError::ArtifactUnbuildable(failure.output)),
@@ -1991,6 +2299,8 @@ impl Engine {
         });
         let mut engine_experience_criteria = Vec::new();
         if birth_context.is_some() {
+            self.events
+                .emit(Event::factory_stage(FactoryStage::Testing));
             self.events.emit(Event::status(
                 "running the birth test suite independently in Release on Simulator…",
             ));
@@ -2043,6 +2353,8 @@ impl Engine {
             "verifying evolution {}…",
             shot.number
         )));
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Verifying));
         let completed =
             protocol_lifecycle::complete_evolution(&self.ledger, shot, builder, prepared)?;
         if completed.app_metadata_v2.as_ref() != Some(&embedded_metadata) {
@@ -2059,9 +2371,7 @@ impl Engine {
                 .is_empty()
             {
                 let device = if require_device_delivery {
-                    DevicePipeline::new(self.events.clone())
-                        .wait_for_device()
-                        .await?
+                    DevicePipeline::ready_device()?
                 } else {
                     match device::check()? {
                         DeviceState::Ready(device) => device,
@@ -2104,7 +2414,8 @@ impl Engine {
                 }
                 let artifact_directory = temporary_path("birth-device-verification");
                 DevicePipeline::new(self.events.clone())
-                    .build_install(
+                    .build_install_on_device(
+                        &device,
                         shot.number,
                         app.target_name(),
                         bundle_id,
@@ -2331,8 +2642,10 @@ impl Engine {
         // this step above because build/install/launch is itself evidence.
         if require_device_delivery && !physical_was_required {
             let artifact_directory = temporary_path("shot-delivery");
+            let device = DevicePipeline::ready_device()?;
             DevicePipeline::new(self.events.clone())
-                .build_install(
+                .build_install_on_device(
+                    &device,
                     shot.number,
                     app.target_name(),
                     bundle_id,
@@ -2539,6 +2852,10 @@ impl Engine {
                 "Version {} of {} is installed and running on your iPhone.",
                 shot.number, app_name
             )));
+        } else if test_factory_no_device() {
+            self.events.emit(Event::status(
+                "Deterministic factory conformance retained the accepted Version without contacting a physical device.",
+            ));
         } else {
             match device::check() {
                 Ok(DeviceState::Ready(_)) if physical_was_required => {
@@ -2668,11 +2985,15 @@ impl Engine {
             }
             protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
         }
-        self.wait_for_apple_prerequisites().await?;
+        if !test_factory_no_device() {
+            self.wait_for_apple_prerequisites().await?;
+        }
         let working_digest_at_start = self.working_digest(app_name);
         let shot = self
             .ledger
             .reserve_evolution(app_name, previous.as_ref().map(|shot| shot.number))?;
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Materializing));
         self.events.emit(Event::status(format!(
             "preparing evolution {}…",
             shot.number
@@ -2685,7 +3006,12 @@ impl Engine {
             .filter(|text| !text.trim().is_empty());
         let consumed_pending_intent = note.is_none().then(|| pending_intent.clone()).flatten();
         let briefing_intent = if shot.number == 1 {
-            fs::read_to_string(self.ledger.briefing_dir(app_name).join("intent.md")).ok()
+            crate::ledger::read_bounded_regular_file(
+                &self.ledger.briefing_dir(app_name).join("intent.md"),
+                MAX_PRIVATE_ENGINE_DOCUMENT_BYTES,
+            )
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
         } else {
             None
         };
@@ -2728,6 +3054,8 @@ impl Engine {
             "building evolution {}…",
             shot.number
         )));
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Building));
         if build::compile(&self.ledger, &shot, app.target_name())?.is_err() {
             return Err(EngineError::WorkingTreeUnbuildable {
                 app: app_name.into(),
@@ -2901,7 +3229,7 @@ impl Engine {
         self.ledger.initialize()?;
         let root = self.ledger.root();
         self.events.emit(Event::result(format!(
-            "Recording layer is ready at {}.",
+            "Local factory workspace is ready at {}. Recording-only folders remain available through `tohseno init` and `tohseno record`.",
             root.display()
         )));
         Ok(true)
@@ -3214,6 +3542,10 @@ fn compact_diagnostic(value: &str, maximum_characters: usize) -> String {
     }
 }
 
+fn test_factory_no_device() -> bool {
+    cfg!(debug_assertions) && std::env::var("TOHSENO_TEST_FACTORY_NO_DEVICE").as_deref() == Ok("1")
+}
+
 /// Gates 6–8, reusable by create/evolve and refresh.
 pub struct DevicePipeline {
     events: EventBus,
@@ -3263,12 +3595,35 @@ impl DevicePipeline {
         source: &Path,
         artifact_directory: &Path,
     ) -> Result<(), EngineError> {
-        install::require_candidate_namespace(bundle_id).map_err(EngineError::Install)?;
         let device = self.wait_for_device().await?;
+        self.build_install_on_device(
+            &device,
+            shot_number,
+            app_name,
+            bundle_id,
+            source,
+            artifact_directory,
+        )
+        .await
+    }
+
+    /// Build, sign, install, and launch on an already selected device. Factory
+    /// service executions use this after a non-blocking readiness gate so the
+    /// Shot lock is never held while waiting for a phone to appear.
+    pub async fn build_install_on_device(
+        &self,
+        device: &device::Device,
+        shot_number: u32,
+        app_name: &str,
+        bundle_id: &str,
+        source: &Path,
+        artifact_directory: &Path,
+    ) -> Result<(), EngineError> {
+        install::require_candidate_namespace(bundle_id).map_err(EngineError::Install)?;
         let team = sign::development_team_profile().map_err(EngineError::Sign)?;
         if team.provisioning == sign::ProvisioningKind::Free {
             let installed =
-                install::installed_candidate_apps(&device).map_err(EngineError::Install)?;
+                install::installed_candidate_apps(device).map_err(EngineError::Install)?;
             if let Some(blocker) = install::free_team_slot_blocker(&installed, bundle_id) {
                 let candidate = blocker
                     .bundle_id
@@ -3290,22 +3645,38 @@ impl DevicePipeline {
             team.provisioning.as_str(),
             team.team_name.as_deref().unwrap_or(&team.team_id)
         )));
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Building));
         let app = sign::build_signed(sign::SignRequest {
             source,
             artifact_directory,
             app_name,
             bundle_id,
             shot_number,
-            device: &device,
+            device,
             team_id: &team.team_id,
         })
         .map_err(EngineError::Sign)?;
         self.events.emit(Event::status(format!(
             "installing evolution {shot_number}…"
         )));
-        install::install(&device, &app, bundle_id).map_err(EngineError::Install)?;
-        install::launch(&device, bundle_id).map_err(EngineError::Install)?;
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Installing));
+        install::install(device, &app, bundle_id).map_err(EngineError::Install)?;
+        self.events
+            .emit(Event::factory_stage(FactoryStage::Launching));
+        install::launch(device, bundle_id).map_err(EngineError::Install)?;
         Ok(())
+    }
+
+    /// Return immediately when no configured development iPhone is ready.
+    /// This is deliberately distinct from `wait_for_device`: callers can
+    /// release all Shot locks, persist a waiting state, and resume later.
+    pub fn ready_device() -> Result<device::Device, EngineError> {
+        match device::check().map_err(EngineError::Device)? {
+            DeviceState::Ready(device) => Ok(device),
+            state => Err(EngineError::DeviceUnavailable(Box::new(state))),
+        }
     }
 
     pub async fn wait_for_device(&self) -> Result<device::Device, EngineError> {
@@ -3459,6 +3830,15 @@ fn render_pending_evolution_document(
     document
 }
 
+fn render_feedback_selected_instruction(bodies: &[&str]) -> String {
+    let mut instruction =
+        String::from("Implement the exact selected Feedback actions for this accepted Version:");
+    for (index, body) in bodies.iter().enumerate() {
+        instruction.push_str(&format!("\n\n{}. {}", index + 1, body.trim()));
+    }
+    instruction
+}
+
 fn read_private_planning_json<T>(layout: &ShotLayout, filename: &str) -> Result<T, EngineError>
 where
     T: serde::de::DeserializeOwned,
@@ -3483,15 +3863,14 @@ fn validate_conception_source_traceability(
     output: &ConceptionOutput,
 ) -> Result<(), EngineError> {
     let path = layout.root().join(&input.intention_document_path);
-    let metadata = fs::symlink_metadata(&path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 4 * 1024 * 1024
-    {
-        return Err(EngineError::ProtocolBodyIncomplete(format!(
-            "preserved conception document is not a bounded regular file: {}",
-            path.display()
-        )));
-    }
-    output.validate_source_traceability(input, &fs::read(path)?)?;
+    let bytes = crate::ledger::read_bounded_regular_file(&path, MAX_PRIVATE_ENGINE_DOCUMENT_BYTES)
+        .map_err(|_| {
+            EngineError::ProtocolBodyIncomplete(format!(
+                "preserved conception document is not a bounded regular file: {}",
+                path.display()
+            ))
+        })?;
+    output.validate_source_traceability(input, &bytes)?;
     Ok(())
 }
 
@@ -3541,13 +3920,16 @@ fn validate_trial_evidence_files(
                 reference.relative_path
             )));
         }
-        if metadata.len() != reference.artifact.byte_length {
+        if metadata.len() != reference.artifact.byte_length
+            || metadata.len() > MAX_EXPERIENCE_EVIDENCE_BYTES
+        {
             return Err(EngineError::ProtocolBodyIncomplete(format!(
-                "experience evidence `{}` length differs from its declaration",
+                "experience evidence `{}` length differs from its declaration or exceeds the bound",
                 reference.relative_path
             )));
         }
-        let bytes = fs::read(&canonical)?;
+        let bytes =
+            crate::ledger::read_bounded_regular_file(&canonical, MAX_EXPERIENCE_EVIDENCE_BYTES)?;
         if tohseno_protocol::digest::sha256(&bytes) != reference.artifact.digest {
             return Err(EngineError::ProtocolBodyIncomplete(format!(
                 "experience evidence `{}` digest differs from its declaration",
@@ -3565,9 +3947,20 @@ fn evidence_reference_for_file(
     media_type: &str,
 ) -> Result<EvidenceReference, EngineError> {
     let metadata = fs::symlink_metadata(path)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_EXPERIENCE_EVIDENCE_BYTES
+    {
         return Err(EngineError::ProtocolBodyIncomplete(format!(
-            "engine evidence `{}` is not a regular file",
+            "engine evidence `{}` is not a bounded regular file",
+            path.display()
+        )));
+    }
+    let canonical_root = fs::canonicalize(repository)?;
+    let canonical = fs::canonicalize(path)?;
+    if !canonical.starts_with(&canonical_root) {
+        return Err(EngineError::ProtocolBodyIncomplete(format!(
+            "engine evidence `{}` is outside the Shot repository",
             path.display()
         )));
     }
@@ -3581,7 +3974,8 @@ fn evidence_reference_for_file(
         })?
         .to_string_lossy()
         .into_owned();
-    let bytes = fs::read(path)?;
+    let bytes =
+        crate::ledger::read_bounded_regular_file(&canonical, MAX_EXPERIENCE_EVIDENCE_BYTES)?;
     Ok(EvidenceReference {
         kind,
         artifact: ArtifactDescriptor {
@@ -3780,6 +4174,10 @@ pub enum EngineError {
     Experience(ExperienceError),
     Build(build::BuildError),
     Device(device::DeviceError),
+    /// The final device-dependent delivery gate is not presently available.
+    /// Persistent callers should release their Shot lock, wait, and retry the
+    /// exact idempotent execution rather than treating this as source failure.
+    DeviceUnavailable(Box<DeviceState>),
     Sign(sign::SignError),
     Install(install::InstallError),
     NoCompleteShot(String),
@@ -3788,7 +4186,10 @@ pub enum EngineError {
     NothingToSeal(String),
     NotAdoptable(String),
     WorkingTreeIncomplete(String),
-    WorkingTreeUnbuildable { app: String, shot: u32 },
+    WorkingTreeUnbuildable {
+        app: String,
+        shot: u32,
+    },
     SlotLimit,
     IdentityName,
     BuilderIdentity(BuilderIdentityError),
@@ -3814,6 +4215,10 @@ impl std::fmt::Display for EngineError {
             Self::Experience(error) => write!(f, "{error}"),
             Self::Build(error) => write!(f, "{error}"),
             Self::Device(error) => write!(f, "{error}"),
+            Self::DeviceUnavailable(state) => write!(
+                f,
+                "device delivery is waiting for the configured iPhone ({state:?})"
+            ),
             Self::Sign(error) => write!(f, "{error}"),
             Self::Install(error) => write!(f, "{error}"),
             Self::NoCompleteShot(app) => {
@@ -4202,6 +4607,11 @@ mod tests {
         );
         assert!(working.join(".tohseno/app.toml").is_file());
         assert!(working.join(".tohseno/evolutions").is_dir());
+        assert_eq!(
+            fs::read(working.join(RECORDING_LAYER_MARKER)).unwrap(),
+            RECORDING_LAYER_MARKER_BYTES
+        );
+        assert_eq!(engine.app_kind("notebook").unwrap(), AppKind::RecordingOnly);
         assert!(!working.join("AGENTS.md").exists());
         fs::write(working.join("README.md"), b"# Notebook\n").unwrap();
         fs::write(working.join("notes.txt"), b"one\n").unwrap();
@@ -4404,5 +4814,18 @@ mod tests {
             verify_recorded_builder("quiet-press", Some(shot), Some(local), local).unwrap(),
             shot
         );
+    }
+
+    #[test]
+    fn exact_feedback_selection_forms_a_deterministic_private_instruction() {
+        let rendered = render_feedback_selected_instruction(&[
+            "  Keep the saved filters after relaunch.  ",
+            "Make the empty state explain the next action.",
+        ]);
+        assert_eq!(
+            rendered,
+            "Implement the exact selected Feedback actions for this accepted Version:\n\n1. Keep the saved filters after relaunch.\n\n2. Make the empty state explain the next action."
+        );
+        assert!(!rendered.contains("latest"));
     }
 }

@@ -1,6 +1,9 @@
+use crate::safe_file::read_bounded_utf8;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+
+const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Config {
@@ -27,21 +30,29 @@ impl Config {
     /// The recording layer has no configuration ritual of its own.
     pub fn load_or_default(root: &Path) -> Result<Self, ConfigError> {
         let path = root.join("config.toml");
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        Ok(toml::from_str(&fs::read_to_string(path)?)?)
+        let body = match read_bounded_utf8(&path, MAX_CONFIG_BYTES) {
+            Ok(body) => body,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default())
+            }
+            Err(error) => return Err(error.into()),
+        };
+        Ok(toml::from_str(&body)?)
     }
 
     pub fn load_or_create(root: &Path) -> Result<Self, ConfigError> {
         fs::create_dir_all(root)?;
         let path = root.join("config.toml");
-        if !path.exists() {
-            let config = Self::default();
-            config.save(root)?;
-            return Ok(config);
-        }
-        Ok(toml::from_str(&fs::read_to_string(path)?)?)
+        let body = match read_bounded_utf8(&path, MAX_CONFIG_BYTES) {
+            Ok(body) => body,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let config = Self::default();
+                config.save(root)?;
+                return Ok(config);
+            }
+            Err(error) => return Err(error.into()),
+        };
+        Ok(toml::from_str(&body)?)
     }
 
     pub fn save(&self, root: &Path) -> Result<(), ConfigError> {
@@ -121,5 +132,18 @@ mod tests {
         let config = Config::load_or_default(directory.path()).unwrap();
         assert_eq!(config.harness.command, "claude");
         assert!(!directory.path().join("config.toml").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn load_or_create_rejects_a_dangling_config_symlink_without_creating_its_target() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let outside = directory.path().join("outside.toml");
+        symlink(&outside, directory.path().join("config.toml")).unwrap();
+
+        assert!(Config::load_or_create(directory.path()).is_err());
+        assert!(!outside.exists());
     }
 }

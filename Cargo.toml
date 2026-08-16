@@ -1,9 +1,9 @@
 [workspace]
-members = ["engine", "cli", "protocol", "node"]
+members = ["engine", "cli", "protocol", "node", "companion", "application"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.5"
+version = "0.9.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/jpfraneto/tohseno"
@@ -16,7 +16,7 @@ clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 # Rustls keeps the release updater independent of the system OpenSSL install.
-reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "rustls-tls", "stream"] }
 # Temporary files scope updater downloads and historical bundle verification.
 tempfile = "3.15"
 tokio = { version = "1.43", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }

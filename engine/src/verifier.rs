@@ -13,12 +13,13 @@ use crate::builder_identity::{
 };
 use crate::gates::build;
 use crate::protocol_lifecycle::inspect_fascia;
+use crate::safe_file::read_bounded_regular_file;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{Map, Number, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::fs::{self, Metadata};
+use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tohseno_protocol::app_metadata::{AppMetadata, EmbeddedAppMetadata};
 use tohseno_protocol::conformance::{
@@ -750,17 +751,7 @@ fn read_scoped_regular(root: &Path, relative: &str, limit: u64) -> Result<Vec<u8
             metadata.len()
         ));
     }
-    let bytes = fs::read(&path).map_err(|error| format!("{relative}: {error}"))?;
-    let final_metadata =
-        fs::symlink_metadata(&path).map_err(|error| format!("{relative}: {error}"))?;
-    if final_metadata.file_type().is_symlink()
-        || !final_metadata.is_file()
-        || !same_file(&metadata, &final_metadata)
-        || bytes.len() as u64 != metadata.len()
-    {
-        return Err(format!("{relative}: file changed while it was read"));
-    }
-    Ok(bytes)
+    read_bounded_regular_file(&path, limit).map_err(|error| format!("{relative}: {error}"))
 }
 
 fn checked_join(root: &Path, relative: &str, allow_directory: bool) -> Result<PathBuf, String> {
@@ -1059,7 +1050,7 @@ pub(crate) fn verify_private_input_boundary(shot_root: &Path) -> Result<String, 
                 display_path(&entry.path())
             ));
         }
-        let bytes = fs::read(entry.path())
+        let bytes = read_bounded_regular_file(&entry.path(), MAX_FILE_BYTES)
             .map_err(|error| format!("{}: {error}", display_path(&entry.path())))?;
         if !bytes.is_empty() {
             private_inputs.push((entry.file_name().to_string_lossy().into_owned(), bytes));
@@ -1129,7 +1120,8 @@ fn scan_tree_for_private_inputs(
                 display_path(&path)
             ));
         }
-        let bytes = fs::read(&path).map_err(|error| format!("{}: {error}", display_path(&path)))?;
+        let bytes = read_bounded_regular_file(&path, MAX_FILE_BYTES)
+            .map_err(|error| format!("{}: {error}", display_path(&path)))?;
         *scanned += 1;
         for (label, private) in private_inputs {
             if bytes
@@ -1193,7 +1185,8 @@ fn inspect_source_facts(
                     "{relative}: inspectable source exceeds the {MAX_PLIST_BYTES}-byte limit"
                 ));
             }
-            let bytes = fs::read(&path).map_err(|error| format!("{relative}: {error}"))?;
+            let bytes = read_bounded_regular_file(&path, MAX_PLIST_BYTES)
+                .map_err(|error| format!("{relative}: {error}"))?;
             let Ok(text) = std::str::from_utf8(&bytes) else {
                 return Err(format!("{relative}: inspectable source is not UTF-8"));
             };
@@ -1790,25 +1783,6 @@ fn bounded_text(value: &str) -> String {
 
 fn display_path(path: &Path) -> String {
     bounded_text(&path.display().to_string())
-}
-
-#[cfg(unix)]
-fn same_file(left: &Metadata, right: &Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    left.dev() == right.dev()
-        && left.ino() == right.ino()
-        && left.len() == right.len()
-        && left.mtime() == right.mtime()
-        && left.mtime_nsec() == right.mtime_nsec()
-        && left.ctime() == right.ctime()
-        && left.ctime_nsec() == right.ctime_nsec()
-}
-
-#[cfg(not(unix))]
-fn same_file(left: &Metadata, right: &Metadata) -> bool {
-    left.len() == right.len()
-        && left.modified().ok() == right.modified().ok()
-        && left.file_type() == right.file_type()
 }
 
 /// A serde_json value visitor that rejects duplicate keys at every depth

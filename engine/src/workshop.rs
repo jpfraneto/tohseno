@@ -12,6 +12,7 @@ use crate::builder_identity::{
 use crate::gates::build;
 use crate::ledger::{Evolution, Ledger};
 use crate::protocol_lifecycle;
+use crate::safe_file::read_bounded_regular_file;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -696,7 +697,7 @@ fn read_bounded(path: &Path, maximum: u64, label: &str) -> Result<Vec<u8>, Works
             "{label} must be one bounded regular file"
         )));
     }
-    Ok(fs::read(path)?)
+    Ok(read_bounded_regular_file(path, maximum)?)
 }
 
 fn write_new(path: &Path, bytes: &[u8]) -> Result<(), WorkshopError> {

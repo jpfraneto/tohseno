@@ -1,11 +1,14 @@
 use super::{run_checked, CommandError};
 use crate::gates::device::Device;
 use crate::ledger::sanitize_component;
+use crate::safe_file::read_bounded_utf8;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+const MAX_DEVICECTL_JSON_BYTES: u64 = 16 * 1024 * 1024;
 
 pub const CANDIDATE_BUNDLE_PREFIX: &str = "org.tohseno.genesis.";
 pub const FREE_PROVISIONING_APP_LIMIT: usize = 3;
@@ -75,7 +78,7 @@ pub fn installed_candidate_apps(
         ],
         None,
     );
-    let json = fs::read_to_string(&json_path);
+    let json = read_bounded_utf8(&json_path, MAX_DEVICECTL_JSON_BYTES);
     let _ = fs::remove_file(&json_path);
     result?;
     parse_installed_candidate_apps(&json?)

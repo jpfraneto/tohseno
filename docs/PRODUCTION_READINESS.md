@@ -1,4 +1,10 @@
-# TOHSENO production readiness — controlled local alpha gate
+# Historical TOHSENO 0.7/0.8 production-readiness session
+
+> This document is retained as historical evidence and is **not** the 0.9.0
+> release verdict. ADR 0015 supersedes its product lifecycle. Current source
+> state is in `docs/STATE.md`; 0.9.0 gates and the explicit not-yet-authorized
+> publication status are in `release/V0_9_0_READINESS.json` and
+> `release/V0_9_0_OPERATOR_RUNBOOK.md`.
 
 > Historical note: this report records the 2026-07-31 local-alpha session.
 > Current shipped and inactive state is in `docs/STATE.md`. The encrypted

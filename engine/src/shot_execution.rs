@@ -7,7 +7,7 @@
 use crate::harness::{estimated_cost, resolve_selection, HarnessSelection};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use time::format_description::well_known::Rfc3339;
@@ -17,6 +17,10 @@ use tohseno_protocol::digest::{sha256, Bytes32, ShotId};
 pub const EXECUTION_RECORD_SCHEMA: &str = "tohseno.local-shot-execution/1";
 pub const EXECUTION_EVENT_SCHEMA: &str = "tohseno.local-shot-execution-event/1";
 pub const COMPLETION_RECORD_SCHEMA: &str = "tohseno.local-shot-completion/1";
+const MAX_EXECUTION_RECORD_BYTES: u64 = 1024 * 1024;
+const MAX_COMPLETION_RECORD_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_EXECUTION_EVENTS_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_EXECUTION_DIRECTORIES: usize = 100_000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,9 +40,18 @@ pub enum ExecutionPhase {
     TerminalOpened,
     ExecutionStarted,
     ContextLoaded,
+    Conception,
+    Materializing,
     HarnessRunning,
     WorkspaceChanged,
+    Building,
+    Testing,
+    Verifying,
+    Repairing,
+    Installing,
+    Launching,
     ValidationStarted,
+    WaitingForDevice,
     ValidationCompleted,
     ExecutionCompleted,
     ExecutionFailed,
@@ -53,9 +66,18 @@ impl ExecutionPhase {
             Self::TerminalOpened => "terminal.opened",
             Self::ExecutionStarted => "execution.started",
             Self::ContextLoaded => "context.loaded",
+            Self::Conception => "execution.conception",
+            Self::Materializing => "execution.materializing",
             Self::HarnessRunning => "harness.running",
             Self::WorkspaceChanged => "workspace.changed",
+            Self::Building => "execution.building",
+            Self::Testing => "execution.testing",
+            Self::Verifying => "execution.verifying",
+            Self::Repairing => "execution.repairing",
+            Self::Installing => "execution.installing",
+            Self::Launching => "execution.launching",
             Self::ValidationStarted => "validation.started",
+            Self::WaitingForDevice => "execution.waiting_for_device",
             Self::ValidationCompleted => "validation.completed",
             Self::ExecutionCompleted => "execution.completed",
             Self::ExecutionFailed => "execution.failed",
@@ -237,6 +259,22 @@ pub fn prepare_execution(
     repository: &Path,
     preparation: ExecutionPreparation,
 ) -> Result<PreparedExecution, ShotExecutionError> {
+    let execution_id = new_execution_id(preparation.shot_id, preparation.version_ordinal);
+    prepare_execution_with_id(repository, preparation, &execution_id)
+}
+
+/// Prepares one execution under a caller-reserved stable identity.
+///
+/// The application service derives this identity from the durable command ID
+/// before any runner is started. Repeating the same command therefore returns
+/// the same prepared execution, including after a crash between execution
+/// publication and receipt publication.
+pub fn prepare_execution_with_id(
+    repository: &Path,
+    preparation: ExecutionPreparation,
+    execution_id: &str,
+) -> Result<PreparedExecution, ShotExecutionError> {
+    validate_execution_id(execution_id)?;
     let (harness, _) =
         resolve_selection(&preparation.selection).map_err(ShotExecutionError::Invalid)?;
     let route = harness
@@ -245,8 +283,26 @@ pub fn prepare_execution(
         .find(|route| route.id == preparation.selection.route)
         .ok_or_else(|| ShotExecutionError::Invalid("selected route disappeared".into()))?;
     ensure_shot_repository(repository)?;
+    let directory = execution_directory(repository, execution_id);
+    if directory.exists() {
+        let existing = load_execution(repository, execution_id)?;
+        if existing.shot_id != preparation.shot_id
+            || existing.version_ordinal != preparation.version_ordinal
+            || existing.app_name != preparation.app_name
+            || existing.harness != preparation.selection.harness
+            || existing.model != preparation.selection.model
+            || existing.route != preparation.selection.route
+            || existing.intention_digest != preparation.intention_digest
+            || existing.mode != preparation.mode
+        {
+            return Err(ShotExecutionError::Invalid(
+                "reserved execution identity is already bound to different work".into(),
+            ));
+        }
+        return Ok(existing);
+    }
     ensure_no_active_execution(repository)?;
-    let execution_id = new_execution_id(preparation.shot_id, preparation.version_ordinal);
+    let execution_id = execution_id.to_owned();
     let directory = execution_directory(repository, &execution_id);
     fs::create_dir_all(&directory)?;
     set_private_directory(&directory)?;
@@ -289,8 +345,9 @@ pub fn load_execution(
     execution_id: &str,
 ) -> Result<PreparedExecution, ShotExecutionError> {
     validate_execution_id(execution_id)?;
-    let path = execution_directory(repository, execution_id).join("execution.json");
-    let bytes = fs::read(&path)?;
+    let directory = checked_execution_directory(repository, execution_id)?;
+    let path = directory.join("execution.json");
+    let bytes = read_bounded_regular_file(&path, MAX_EXECUTION_RECORD_BYTES)?;
     let execution: PreparedExecution = serde_json::from_slice(&bytes)?;
     if execution.schema != EXECUTION_RECORD_SCHEMA
         || execution.execution_id != execution_id
@@ -330,14 +387,21 @@ pub fn read_events(
 ) -> Result<Vec<ShotExecutionEvent>, ShotExecutionError> {
     let execution = load_execution(repository, execution_id)?;
     let path = execution_directory(repository, execution_id).join("events.jsonl");
-    let body = fs::read_to_string(path)?;
-    body.lines()
+    let bytes = read_bounded_regular_file(&path, MAX_EXECUTION_EVENTS_BYTES)?;
+    let body = String::from_utf8(bytes).map_err(|_| {
+        ShotExecutionError::Invalid("execution events are not bounded UTF-8".into())
+    })?;
+    let events = body
+        .lines()
         .filter(|line| !line.trim().is_empty())
         .map(|line| {
             let event: ShotExecutionEvent = serde_json::from_str(line)?;
             if event.schema != EXECUTION_EVENT_SCHEMA
                 || event.execution_id != execution.execution_id
                 || event.shot_id != execution.shot_id
+                || event.version_ordinal != execution.version_ordinal
+                || event.harness != execution.harness
+                || event.model != execution.model
             {
                 return Err(ShotExecutionError::Invalid(
                     "execution event identity mismatch".into(),
@@ -345,7 +409,17 @@ pub fn read_events(
             }
             Ok(event)
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    if events
+        .iter()
+        .enumerate()
+        .any(|(index, event)| event.sequence != index as u64 + 1)
+    {
+        return Err(ShotExecutionError::Invalid(
+            "execution event sequence is not contiguous".into(),
+        ));
+    }
+    Ok(events)
 }
 
 pub fn load_completion(
@@ -353,9 +427,22 @@ pub fn load_completion(
     execution_id: &str,
 ) -> Result<Option<CompletionRecord>, ShotExecutionError> {
     validate_execution_id(execution_id)?;
+    let execution = load_execution(repository, execution_id)?;
     let path = execution_directory(repository, execution_id).join("completion.json");
-    match fs::read(path) {
-        Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+    match read_bounded_regular_file(&path, MAX_COMPLETION_RECORD_BYTES) {
+        Ok(bytes) => {
+            let completion: CompletionRecord = serde_json::from_slice(&bytes)?;
+            if completion.schema != COMPLETION_RECORD_SCHEMA
+                || completion.execution_id != execution.execution_id
+                || completion.shot_id != execution.shot_id
+                || completion.version_ordinal != execution.version_ordinal
+            {
+                return Err(ShotExecutionError::Invalid(
+                    "execution completion identity mismatch".into(),
+                ));
+            }
+            Ok(Some(completion))
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error.into()),
     }
@@ -506,10 +593,15 @@ pub fn complete_execution(
         authoritative_next_action,
     };
     write_private_json(&directory.join("completion.json"), &completion)?;
-    let final_phase = match outcome {
-        ExecutionOutcome::Completed => ExecutionPhase::ExecutionCompleted,
-        ExecutionOutcome::Failed => ExecutionPhase::ExecutionFailed,
-        ExecutionOutcome::Cancelled => ExecutionPhase::ExecutionCancelled,
+    // A successful harness exit is not product completion. Only a Version
+    // that actually landed through independent verification may project the
+    // accepted/completed phase to Studio or the companion.
+    let final_phase = if landed {
+        ExecutionPhase::ExecutionCompleted
+    } else if outcome == ExecutionOutcome::Cancelled {
+        ExecutionPhase::ExecutionCancelled
+    } else {
+        ExecutionPhase::ExecutionFailed
     };
     update_phase(
         execution,
@@ -674,6 +766,68 @@ pub fn execution_directory(repository: &Path, execution_id: &str) -> PathBuf {
         .join(execution_id)
 }
 
+fn checked_execution_directory(
+    repository: &Path,
+    execution_id: &str,
+) -> Result<PathBuf, ShotExecutionError> {
+    let repository_metadata = fs::symlink_metadata(repository)?;
+    if repository_metadata.file_type().is_symlink() || !repository_metadata.is_dir() {
+        return Err(ShotExecutionError::Invalid(
+            "Shot repository is not a real directory".into(),
+        ));
+    }
+    let private = repository.join(".tohseno");
+    let executions = private.join("executions");
+    let directory = executions.join(execution_id);
+    for (path, label) in [
+        (&private, "private Shot state"),
+        (&executions, "execution root"),
+        (&directory, "execution directory"),
+    ] {
+        let metadata = fs::symlink_metadata(path)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(ShotExecutionError::Invalid(format!(
+                "{label} is not a real directory"
+            )));
+        }
+    }
+    Ok(directory)
+}
+
+fn read_bounded_regular_file(path: &Path, maximum: u64) -> std::io::Result<Vec<u8>> {
+    let before = fs::symlink_metadata(path)?;
+    if before.file_type().is_symlink() || !before.is_file() || before.len() > maximum {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "private execution record is unsafe or exceeds its byte limit",
+        ));
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    let file = options.open(path)?;
+    let opened = file.metadata()?;
+    if !opened.is_file() || opened.len() != before.len() || opened.len() > maximum {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "private execution record changed while opening",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(usize::try_from(opened.len()).unwrap_or(0));
+    file.take(maximum + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != opened.len() || bytes.len() as u64 > maximum {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "private execution record changed while reading",
+        ));
+    }
+    Ok(bytes)
+}
+
 fn capture_git_boundary(
     repository: &Path,
     directory: &Path,
@@ -716,23 +870,44 @@ fn ensure_shot_repository(repository: &Path) -> Result<(), ShotExecutionError> {
 
 fn ensure_no_active_execution(repository: &Path) -> Result<(), ShotExecutionError> {
     let root = repository.join(".tohseno/executions");
+    match fs::symlink_metadata(&root) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(ShotExecutionError::Invalid(
+                "execution root is not a real directory".into(),
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    }
     let entries = match fs::read_dir(&root) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error.into()),
     };
-    for entry in entries {
+    for (index, entry) in entries.enumerate() {
+        if index >= MAX_EXECUTION_DIRECTORIES {
+            return Err(ShotExecutionError::Invalid(
+                "execution history exceeds its local directory limit".into(),
+            ));
+        }
         let entry = entry?;
-        if !entry.file_type()?.is_dir() {
+        let file_type = entry.file_type()?;
+        if file_type.is_symlink() {
+            return Err(ShotExecutionError::Invalid(
+                "execution history contains a symlink".into(),
+            ));
+        }
+        if !file_type.is_dir() {
             continue;
         }
-        let path = entry.path().join("execution.json");
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(error.into()),
+        let Some(execution_id) = entry.file_name().to_str().map(str::to_owned) else {
+            return Err(ShotExecutionError::Invalid(
+                "execution history contains a non-UTF-8 identity".into(),
+            ));
         };
-        let existing: PreparedExecution = serde_json::from_slice(&bytes)?;
+        validate_execution_id(&execution_id)?;
+        let existing = load_execution(repository, &execution_id)?;
         if !matches!(
             existing.phase,
             ExecutionPhase::ExecutionCompleted
@@ -787,8 +962,13 @@ fn append_event(
 ) -> Result<(), ShotExecutionError> {
     let directory = execution_directory(&execution.repository, &execution.execution_id);
     let path = directory.join("events.jsonl");
-    let sequence = match fs::read_to_string(&path) {
-        Ok(body) => body.lines().filter(|line| !line.trim().is_empty()).count() as u64 + 1,
+    let sequence = match read_bounded_regular_file(&path, MAX_EXECUTION_EVENTS_BYTES) {
+        Ok(bytes) => {
+            let body = String::from_utf8(bytes).map_err(|_| {
+                ShotExecutionError::Invalid("execution events are not bounded UTF-8".into())
+            })?;
+            body.lines().filter(|line| !line.trim().is_empty()).count() as u64 + 1
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => 1,
         Err(error) => return Err(error.into()),
     };
@@ -807,6 +987,14 @@ fn append_event(
     };
     let mut encoded = serde_json::to_vec(&event)?;
     encoded.push(b'\n');
+    let existing_length = fs::symlink_metadata(&path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    if existing_length.saturating_add(encoded.len() as u64) > MAX_EXECUTION_EVENTS_BYTES {
+        return Err(ShotExecutionError::Invalid(
+            "execution event journal reached its byte limit".into(),
+        ));
+    }
     let mut options = OpenOptions::new();
     options.create(true).append(true);
     #[cfg(unix)]
@@ -1136,6 +1324,7 @@ mod tests {
         .unwrap();
         assert_eq!(completion.outcome, ExecutionOutcome::Completed);
         assert!(!completion.landed);
+        assert_eq!(execution.phase, ExecutionPhase::ExecutionFailed);
         assert_eq!(completion.files_changed.len(), 1);
         assert_eq!(completion.files_changed[0].path, "implemented.txt");
         assert!(repository.join("implemented.txt").is_file());
@@ -1155,7 +1344,7 @@ mod tests {
                 "workspace.changed",
                 "validation.started",
                 "validation.completed",
-                "execution.completed",
+                "execution.failed",
             ]
         );
 

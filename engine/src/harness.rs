@@ -8,9 +8,12 @@
 //! never stalls on an approval nobody is present to grant.
 
 use crate::config::HarnessConfig;
+use crate::safe_file::read_bounded_utf8;
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+
+const MAX_HARNESS_CONFIG_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -209,6 +212,46 @@ pub fn resolve_selection(
     validate_token("model", &selection.model)?;
     validate_token("route", &selection.route)?;
     if cfg!(debug_assertions)
+        && selection.harness == "tohseno-test-factory"
+        && selection.model == "fixture"
+        && selection.route == "no-inference"
+    {
+        let program = test_factory_harness_program()?
+            .ok_or("TOHSENO_TEST_FACTORY_HARNESS is not configured")?;
+        return Ok((
+            HarnessOption {
+                id: selection.harness.clone(),
+                label: "Deterministic factory fixture".into(),
+                command: program.display().to_string(),
+                installed: true,
+                selected: true,
+                authentication: AuthenticationStatus::Authenticated,
+                models: vec![HarnessModel {
+                    id: selection.model.clone(),
+                    label: "Fixture".into(),
+                    is_default: true,
+                }],
+                routes: vec![HarnessRoute {
+                    id: selection.route.clone(),
+                    label: "No inference".into(),
+                    billing: "none".into(),
+                    available: true,
+                    estimated_additional_cost_usd: Some(0.0),
+                    cost_estimation: true,
+                }],
+                attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+                completion_detection: "fixture process exit plus deterministic engine acceptance"
+                    .into(),
+            },
+            HarnessCommand {
+                program,
+                arguments: Vec::new(),
+                environment: Vec::new(),
+                removed_environment: Vec::new(),
+            },
+        ));
+    }
+    if cfg!(debug_assertions)
         && std::env::var("TOHSENO_TEST_NONLAUNCHING_HARNESS").as_deref() == Ok("1")
         && selection.harness == "tohseno-test-nonlaunching"
         && selection.model == "fixture"
@@ -293,6 +336,34 @@ pub fn resolve_selection(
             removed_environment,
         },
     ))
+}
+
+/// Debug-build-only deterministic harness used by the repository's vertical
+/// factory lifecycle test. Production binaries ignore this environment key.
+pub fn test_factory_harness_program() -> Result<Option<PathBuf>, String> {
+    if !cfg!(debug_assertions) {
+        return Ok(None);
+    }
+    let Some(value) = std::env::var_os("TOHSENO_TEST_FACTORY_HARNESS") else {
+        return Ok(None);
+    };
+    let path = PathBuf::from(value);
+    if !path.is_absolute() {
+        return Err("TOHSENO_TEST_FACTORY_HARNESS must be an absolute path".into());
+    }
+    let metadata = std::fs::symlink_metadata(&path)
+        .map_err(|error| format!("test factory harness is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("test factory harness must be a regular non-symlink file".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err("test factory harness must be executable".into());
+        }
+    }
+    Ok(Some(path))
 }
 
 pub fn build_evolution_command(
@@ -523,7 +594,8 @@ fn removed_environment_for_route(route: &str) -> Vec<OsString> {
 
 fn configured_codex_model() -> Option<String> {
     let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    let body = std::fs::read_to_string(home.join(".codex/config.toml")).ok()?;
+    let body =
+        read_bounded_utf8(&home.join(".codex/config.toml"), MAX_HARNESS_CONFIG_BYTES).ok()?;
     let value = body.parse::<toml::Value>().ok()?;
     let model = value.get("model")?.as_str()?.to_owned();
     validate_token("model", &model).ok()?;

@@ -1,8 +1,11 @@
 use super::{run_checked, CommandError};
+use crate::safe_file::read_bounded_utf8;
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+const MAX_DEVICECTL_JSON_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Device {
@@ -60,7 +63,7 @@ pub fn check() -> Result<DeviceState, DeviceError> {
         None,
     )
     .map_err(DeviceError::Command);
-    let json = fs::read_to_string(&json_path).map_err(DeviceError::Io);
+    let json = read_bounded_utf8(&json_path, MAX_DEVICECTL_JSON_BYTES).map_err(DeviceError::Io);
     let _ = fs::remove_file(&json_path);
     output?;
     let usb_registry = std::process::Command::new("ioreg")

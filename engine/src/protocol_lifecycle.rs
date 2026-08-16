@@ -10,6 +10,7 @@ use crate::builder_identity::{
 };
 use crate::gates::build;
 use crate::ledger::{AppRecord, Evolution, Ledger, LedgerError};
+use crate::safe_file::read_bounded_regular_file;
 use crate::shot_layout::ShotLayout;
 use crate::verifier;
 use bip39::{Language, Mnemonic};
@@ -41,6 +42,11 @@ use tohseno_protocol::tree_hash::hash_source_tree;
 
 #[cfg(test)]
 const CANDIDATE_VERSION: &str = "0.7.0";
+const MAX_FACTORY_INTENTION_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_FACTORY_REFERENCE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_PROTOCOL_JSON_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_INSPECTED_SOURCE_FILE_BYTES: u64 = 256 * 1024 * 1024;
+const MAX_XCODE_PROJECT_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 pub struct PreparedEvolution {
@@ -352,9 +358,16 @@ pub fn complete_evolution(
 /// Seals the user's raw prompt and copied input-image bytes before an external
 /// harness receives access to the Shot workspace.
 pub fn capture_input_commitment(shot: &Evolution) -> Result<Bytes32, ProtocolLifecycleError> {
-    let prompt = fs::read(shot.prompt_path())?;
+    let prompt = read_bounded_regular_file(&shot.prompt_path(), MAX_FACTORY_INTENTION_BYTES)?;
     let mut images = Vec::new();
-    for entry in fs::read_dir(shot.images_path())? {
+    let images_path = shot.images_path();
+    let images_metadata = fs::symlink_metadata(&images_path)?;
+    if images_metadata.file_type().is_symlink() || !images_metadata.is_dir() {
+        return Err(ProtocolLifecycleError::InvalidState(
+            "input images path is not a real directory".into(),
+        ));
+    }
+    for entry in fs::read_dir(images_path)? {
         let entry = entry?;
         let file_type = entry.file_type()?;
         if file_type.is_symlink() || !file_type.is_file() {
@@ -366,8 +379,9 @@ pub fn capture_input_commitment(shot: &Evolution) -> Result<Bytes32, ProtocolLif
         let filename = entry.file_name().into_string().map_err(|_| {
             ProtocolLifecycleError::InvalidState("input image filename is not valid UTF-8".into())
         })?;
+        let bytes = read_bounded_regular_file(&entry.path(), MAX_FACTORY_REFERENCE_BYTES)?;
         images.push(
-            genesis_image(filename, &fs::read(entry.path())?)
+            genesis_image(filename, &bytes)
                 .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?,
         );
     }
@@ -1164,7 +1178,7 @@ fn verify_exact_json_file<T: Serialize>(
     expected: &T,
     label: &str,
 ) -> Result<(), ProtocolLifecycleError> {
-    let observed = fs::read(shot.path.join(relative))?;
+    let observed = read_bounded_regular_file(&shot.path.join(relative), MAX_PROTOCOL_JSON_BYTES)?;
     if observed != json_bytes(expected)? {
         return Err(ProtocolLifecycleError::InvalidState(format!(
             "{label} changed during the signed build"
@@ -1174,7 +1188,8 @@ fn verify_exact_json_file<T: Serialize>(
 }
 
 fn read_record(path: &Path) -> Result<ShotRecord, ProtocolLifecycleError> {
-    let record = tohseno_protocol::canonical::from_slice::<ShotRecord>(&fs::read(path)?)
+    let bytes = read_bounded_regular_file(path, MAX_PROTOCOL_JSON_BYTES)?;
+    let record = tohseno_protocol::canonical::from_slice::<ShotRecord>(&bytes)
         .map_err(|error| ProtocolLifecycleError::Protocol(error.to_string()))?;
     record
         .validate()
@@ -1324,7 +1339,9 @@ fn artifact_resource_matches(
             "embedded {filename} is not a bounded regular file"
         )));
     }
-    if fs::read(source)? != fs::read(embedded)? {
+    let source_bytes = read_bounded_regular_file(source, MAX_RESOURCE_BYTES)?;
+    let embedded_bytes = read_bounded_regular_file(&embedded, MAX_RESOURCE_BYTES)?;
+    if source_bytes != embedded_bytes {
         return Err(ProtocolLifecycleError::InvalidState(format!(
             "embedded {filename} differs from source"
         )));
@@ -1341,7 +1358,10 @@ fn xcode_project_text(source: &Path) -> Result<String, ProtocolLifecycleError> {
                 .is_some_and(|extension| extension == "xcodeproj")
         })
         .ok_or_else(|| ProtocolLifecycleError::InvalidState("Xcode project missing".into()))?;
-    Ok(fs::read_to_string(project.join("project.pbxproj"))?)
+    Ok(crate::safe_file::read_bounded_utf8(
+        &project.join("project.pbxproj"),
+        MAX_XCODE_PROJECT_BYTES,
+    )?)
 }
 
 fn project_version_matches(project: &str, sequence: u32) -> bool {
@@ -1561,16 +1581,11 @@ fn fascia_capability_from_name(name: &str) -> Result<Capability, ProtocolLifecyc
 impl AppCapabilityUse {
     fn load(source: &Path) -> Result<Option<Self>, ProtocolLifecycleError> {
         let path = source.join(APP_CAPABILITIES_PATH);
-        let bytes = match fs::read(&path) {
+        let bytes = match read_bounded_regular_file(&path, MAX_APP_CAPABILITIES_BYTES as u64) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error.into()),
         };
-        if bytes.len() > MAX_APP_CAPABILITIES_BYTES {
-            return Err(ProtocolLifecycleError::InvalidState(format!(
-                "{APP_CAPABILITIES_PATH} exceeds {MAX_APP_CAPABILITIES_BYTES} bytes"
-            )));
-        }
         let declaration: Self = serde_json::from_slice(&bytes).map_err(|error| {
             ProtocolLifecycleError::InvalidState(format!(
                 "{APP_CAPABILITIES_PATH} is not valid closed JSON: {error}"
@@ -1668,7 +1683,7 @@ impl SourceScan {
                     entry.path().display()
                 )));
             }
-            let bytes = fs::read(entry.path())?;
+            let bytes = read_bounded_regular_file(&entry.path(), MAX_INSPECTED_SOURCE_FILE_BYTES)?;
             let binary_dependency = entry.path().extension().is_some_and(|extension| {
                 matches!(
                     extension.to_str(),
@@ -3232,6 +3247,37 @@ let result = try await URLSession.shared.data(from: URL(string: "https://api.exa
         let sealed = capture_input_commitment(&shot).unwrap();
         fs::write(shot.prompt_path(), b"Make something else.\n").unwrap();
         assert_ne!(capture_input_commitment(&shot).unwrap(), sealed);
+    }
+
+    #[test]
+    fn input_commitment_rejects_an_oversized_prompt() {
+        let directory = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(directory.path());
+        ledger.create_app("press", "com.example.press").unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
+        fs::write(
+            shot.prompt_path(),
+            vec![b'x'; MAX_FACTORY_INTENTION_BYTES as usize + 1],
+        )
+        .unwrap();
+
+        assert!(capture_input_commitment(&shot).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn input_commitment_rejects_a_symlinked_prompt() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(directory.path());
+        ledger.create_app("press", "com.example.press").unwrap();
+        let shot = ledger.reserve_evolution("press", None).unwrap();
+        let outside = directory.path().join("outside-prompt.md");
+        fs::write(&outside, b"do not follow me").unwrap();
+        symlink(&outside, shot.prompt_path()).unwrap();
+
+        assert!(capture_input_commitment(&shot).is_err());
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::ledger::{Evolution, Ledger, LedgerError};
+use crate::safe_file::read_bounded_utf8;
 use crate::shot_layout::StoredReference;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,6 +20,7 @@ const BUILD_LAWS: &str = r#"# Build laws
 - Do not edit `.tohseno/` or `TOHSENO/` engine-owned files.
 - Build and test the final source and report real blockers honestly.
 "#;
+const MAX_FACTORY_INTENTION_BYTES: u64 = 4 * 1024 * 1024;
 const FACTORY_BUNDLE_FILES: [(&str, &str); 7] = [
     ("LAWS.md", LAWS),
     ("STRUCTURE.md", STRUCTURE),
@@ -136,7 +138,7 @@ impl Genome {
             copy_directory(previous_source, &shot.path.join("previous-src"))?;
         }
 
-        let prompt = fs::read_to_string(shot.prompt_path())?;
+        let prompt = read_bounded_utf8(&shot.prompt_path(), MAX_FACTORY_INTENTION_BYTES)?;
         let image_references = if image_names.is_empty() {
             "- No reference images were supplied.".to_owned()
         } else {

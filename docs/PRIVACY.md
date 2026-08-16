@@ -22,6 +22,28 @@ pasted command may remain in shell history after expiry. A downloaded
 `.tohseno-intent` package is readable private material, not encrypted. There
 are no site accounts, analytics, or model-inference calls during this handoff.
 
+The private Companion channel is a separate persistent transport. The iPhone
+and Local Workspace Service exchange recipient-specific signed ciphertext
+through opaque relay mailboxes. The relay may observe timing, approximate
+ciphertext size, expiry, and minimum routing metadata, but it receives no
+plaintext prompt, feedback, marketing note, Shot name, icon, source, path,
+recovery phrase, or harness output. It cannot authorize an engine action. The
+Mac verifies the current device capability and remains the workspace authority.
+
+Companion snapshots are allowlisted summaries: stable Shot and exact accepted
+Version identity, real bounded icons when available, supported actions, and
+privacy-safe execution phases. They never contain source code, harness
+credentials, transcripts, model output, or local source filenames. Icons and
+other private blobs are encrypted before relay upload. APNs payloads contain
+only a request to reconcile the authenticated mailbox.
+
+Companion recovery words stay in the iPhone Keychain and are never placed in
+QR codes, relay records, snapshots, logs, analytics, UserDefaults, or crash
+reports. Restoring the 12 words restores only the device identity, not a
+workspace capability or Builder authority. Private companion commands,
+capability grants, envelopes, snapshots, marketing notes, and provenance never
+enter the Public Node or ordinary canonical lineage.
+
 ## Never on-chain
 
 No contract action or registry head may be constructed from:

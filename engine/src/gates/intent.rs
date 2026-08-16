@@ -1,12 +1,13 @@
 use crate::events::{Event, EventBus};
 use crate::ledger::{Evolution, Ledger, LedgerError};
+use crate::safe_file::{read_bounded_regular_file, read_bounded_utf8};
 use std::collections::BTreeSet;
-use std::fs::{self, OpenOptions};
-use std::io::Read;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tohseno_protocol::digest::{sha256, Bytes32};
 
 pub const MAX_IMAGES: usize = 8;
+const MAX_DROPPED_TEXT_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_IMAGE_BYTES: u64 = 64 * 1024 * 1024;
 const IMAGE_EXTENSIONS: [&str; 5] = ["png", "jpg", "jpeg", "heic", "webp"];
 
@@ -63,7 +64,7 @@ impl Intent {
             } else if path.is_absolute() && is_supported_text(&path) {
                 // A dropped MASTER_PROMPT.md (or any text file) IS the
                 // intention; its contents replace the path in place.
-                if let Ok(contents) = fs::read_to_string(&path) {
+                if let Ok(contents) = read_bounded_utf8(&path, MAX_DROPPED_TEXT_BYTES) {
                     ranges.push(token.start..token.end);
                     dropped_texts.push(contents);
                 }
@@ -99,7 +100,7 @@ impl Intent {
                 replacements.push((token.start..token.end, String::new()));
                 images.push(path);
             } else if path.is_absolute() && is_supported_text(&path) {
-                if let Ok(contents) = fs::read_to_string(&path) {
+                if let Ok(contents) = read_bounded_utf8(&path, MAX_DROPPED_TEXT_BYTES) {
                     replacements.push((token.start..token.end, contents));
                 }
             }
@@ -202,54 +203,13 @@ fn read_bounded_image(path: &Path) -> Result<Vec<u8>, IntentError> {
             path.display()
         )));
     }
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
-    }
-    let mut file = options.open(path)?;
-    let open_metadata = file.metadata()?;
-    if !same_file(&path_metadata, &open_metadata) {
-        return Err(IntentError::Invalid(format!(
-            "{} changed before it was opened",
-            path.display()
-        )));
-    }
-    let mut contents = Vec::new();
-    file.by_ref()
-        .take(MAX_IMAGE_BYTES + 1)
-        .read_to_end(&mut contents)?;
-    let final_metadata = fs::symlink_metadata(path)?;
-    if contents.len() as u64 > MAX_IMAGE_BYTES
-        || !same_file(&open_metadata, &final_metadata)
-        || contents.len() as u64 != open_metadata.len()
-    {
-        return Err(IntentError::Invalid(format!(
-            "{} changed while it was read",
-            path.display()
-        )));
-    }
-    Ok(contents)
-}
-
-fn same_file(first: &fs::Metadata, second: &fs::Metadata) -> bool {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        first.dev() == second.dev()
-            && first.ino() == second.ino()
-            && first.len() == second.len()
-            && first.mtime() == second.mtime()
-            && first.mtime_nsec() == second.mtime_nsec()
-    }
-    #[cfg(not(unix))]
-    {
-        first.len() == second.len()
-            && first.modified().ok() == second.modified().ok()
-            && first.created().ok() == second.created().ok()
-    }
+    read_bounded_regular_file(path, MAX_IMAGE_BYTES).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::InvalidData {
+            IntentError::Invalid(format!("{} changed while it was read", path.display()))
+        } else {
+            IntentError::Io(error)
+        }
+    })
 }
 
 fn is_supported_text(path: &Path) -> bool {

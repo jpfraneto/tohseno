@@ -28,6 +28,8 @@ pub mod page;
 pub mod pending_intention;
 pub mod protocol_lifecycle;
 pub mod recovery;
+#[doc(hidden)]
+pub mod safe_file;
 pub mod shot_execution;
 pub mod shot_layout;
 mod swift_source;
@@ -48,7 +50,7 @@ pub use conception::{
     CONCEPTION_OUTPUT_SCHEMA,
 };
 pub use config::Config;
-pub use events::{Event, EventBus};
+pub use events::{Event, EventBus, FactoryStage};
 pub use experience::{
     evaluate_birth, BirthReceipt, ExperienceContract, ExperienceError, ExperienceTrial,
     IncompletenessCategory, BIRTH_RECEIPT_SCHEMA, EXPERIENCE_CONTRACT_SCHEMA,
@@ -66,8 +68,9 @@ pub use intent_package::{
 };
 pub use ledger::{AppRecord, Evolution, Ledger, LedgerError};
 pub use machine::{
-    AcceptedGenomeRevision, ConductedCreation, ConductionPhase, DevicePipeline, Engine,
-    EngineError, InitialExpressionPlan, InitialOrganPlan, ShotRequest, TokenAssociationReceipt,
+    AcceptedGenomeRevision, AcceptedVersionBase, AppKind, ConductedCreation, ConductionPhase,
+    DevicePipeline, Engine, EngineError, InitialExpressionPlan, InitialOrganPlan, ShotRequest,
+    TokenAssociationReceipt,
 };
 pub use pending_intention::{
     LocalPendingIntention, LocalPendingReference, PendingIntentionError, PendingIntentionSource,

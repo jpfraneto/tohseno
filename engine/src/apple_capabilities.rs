@@ -1,5 +1,6 @@
 use crate::gates::sign;
 use crate::ledger::Ledger;
+use crate::safe_file::read_bounded_regular_file;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -14,6 +15,8 @@ use tohseno_protocol::digest::Bytes32;
 pub const APPLE_CAPABILITY_CATALOG_SCHEMA: &str = "tohseno.apple-capability-catalog/1";
 pub const APPLE_CAPABILITY_PROFILE_SCHEMA: &str = "tohseno.apple-capability-profile/1";
 const DEVICE_HISTORY_SCHEMA: &str = "tohseno.local-apple-device-history/1";
+const MAX_DEVICECTL_JSON_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_DEVICE_HISTORY_BYTES: u64 = 4 * 1024 * 1024;
 const CATALOG_JSON: &str = include_str!("../data/apple-capabilities.json");
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -502,7 +505,7 @@ fn connected_device_profiles() -> Vec<AppleDeviceProfile> {
     let bytes = status
         .ok()
         .filter(|output| output.status.success())
-        .and_then(|_| fs::read(&path).ok());
+        .and_then(|_| read_bounded_regular_file(&path, MAX_DEVICECTL_JSON_BYTES).ok());
     let _ = fs::remove_file(&path);
     let Some(bytes) = bytes else {
         return Vec::new();
@@ -653,7 +656,8 @@ struct DeviceHistory {
 }
 
 fn read_device_history(path: &Path) -> Option<Vec<AppleDeviceProfile>> {
-    let history: DeviceHistory = serde_json::from_slice(&fs::read(path).ok()?).ok()?;
+    let bytes = read_bounded_regular_file(path, MAX_DEVICE_HISTORY_BYTES).ok()?;
+    let history: DeviceHistory = serde_json::from_slice(&bytes).ok()?;
     (history.schema == DEVICE_HISTORY_SCHEMA).then_some(history.devices)
 }
 

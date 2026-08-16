@@ -208,6 +208,11 @@ python3 "$integrity_tool" validate-tree \
   --exclude-dir-name .swiftpm \
   --exclude-name Package.resolved
 python3 "$integrity_tool" validate-tree --root "$build_root/studio"
+python3 "$integrity_tool" validate-tree \
+  --root "$build_root/sdk/apple/TohsenoCompanionKit" \
+  --exclude-dir-name .build \
+  --exclude-dir-name .swiftpm
+python3 "$integrity_tool" validate-tree --root "$build_root/companion/test-vectors"
 python3 "$integrity_tool" validate-tree --root "$build_root/dist/genesis"
 
 genesis_source_commit="$(sed -n '1p' "$build_root/dist/genesis/SOURCE_COMMIT.txt")"
@@ -224,16 +229,22 @@ stage_name="${staging_root##*/}"
 package="$staging_root/$target"
 mkdir -p \
   "$package/bin" \
-  "$package/protocol/schemas" \
-  "$package/protocol/test-vectors" \
-  "$package/fascia/apple" \
-  "$package/studio" \
-  "$package/genesis"
+  "$package/share/protocol/schemas" \
+  "$package/share/protocol/test-vectors" \
+  "$package/share/fascia/apple" \
+  "$package/share/studio" \
+  "$package/share/sdk/apple/TohsenoCompanionKit" \
+  "$package/share/companion/test-vectors" \
+  "$package/share/genesis"
 
 cp -P "$rust_binary" "$package/bin/tohseno"
 cp -P "$helper" "$package/bin/tohseno-apple-identity"
-cp -P "$build_root/protocol/schemas/"*.json "$package/protocol/schemas/"
-cp -RP "$build_root/protocol/test-vectors/." "$package/protocol/test-vectors/"
+cp -P \
+  "$build_root/protocol/schemas/"*.json \
+  "$package/share/protocol/schemas/"
+cp -RP \
+  "$build_root/protocol/test-vectors/." \
+  "$package/share/protocol/test-vectors/"
 (
   cd "$build_root/fascia/apple"
   tar \
@@ -242,15 +253,25 @@ cp -RP "$build_root/protocol/test-vectors/." "$package/protocol/test-vectors/"
     --exclude Package.resolved \
     -cf - .
 ) | (
-  cd "$package/fascia/apple"
+  cd "$package/share/fascia/apple"
   tar -xf -
 )
-cp -RP "$build_root/studio/." "$package/studio/"
-cp -RP "$build_root/dist/genesis/." "$package/genesis/"
+cp -RP "$build_root/studio/." "$package/share/studio/"
+(
+  cd "$build_root/sdk/apple/TohsenoCompanionKit"
+  tar --exclude .build --exclude .swiftpm -cf - .
+) | (
+  cd "$package/share/sdk/apple/TohsenoCompanionKit"
+  tar -xf -
+)
+cp -RP \
+  "$build_root/companion/test-vectors/." \
+  "$package/share/companion/test-vectors/"
+cp -RP "$build_root/dist/genesis/." "$package/share/genesis/"
 
 jq -n \
-  --arg version "0.8.5" \
-  --arg codename "GENESIS" \
+  --arg version "0.9.0" \
+  --arg codename "COMPANION" \
   --arg target "$target" \
   --arg source_commit "$source_commit" \
   --arg source_state_sha256 "$source_state_sha256" \
@@ -303,8 +324,8 @@ fi
     --arg target "$target" \
     --argjson dirty "$source_dirty" \
     '.schema == "tohseno.release/1"
-     and .version == "0.8.5"
-     and .codename == "GENESIS"
+     and .version == "0.9.0"
+     and .codename == "COMPANION"
      and .target == $target
      and .source_commit == $source_commit
      and .source_state_sha256 == $source_state_sha256

@@ -1,0 +1,209 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		CC0000010000000000000001 /* CompanionConformanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000020000000000000001 /* CompanionConformanceApp.swift */; };
+		CC0000010000000000000002 /* ConformanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000020000000000000002 /* ConformanceView.swift */; };
+		CC0000010000000000000003 /* TohsenoCompanionKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC00000A0000000000000001 /* TohsenoCompanionKit */; };
+		CC0000010000000000000004 /* PairingScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0000020000000000000004 /* PairingScannerView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		CC0000020000000000000001 /* CompanionConformanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionConformanceApp.swift; sourceTree = "<group>"; };
+		CC0000020000000000000002 /* ConformanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConformanceView.swift; sourceTree = "<group>"; };
+		CC0000020000000000000003 /* CompanionConformanceApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CompanionConformanceApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000020000000000000004 /* PairingScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingScannerView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CC0000030000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (CC0000010000000000000003 /* TohsenoCompanionKit in Frameworks */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		CC0000040000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				CC0000020000000000000001 /* CompanionConformanceApp.swift */,
+				CC0000020000000000000002 /* ConformanceView.swift */,
+				CC0000020000000000000004 /* PairingScannerView.swift */,
+				CC0000040000000000000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CC0000040000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (CC0000020000000000000003 /* CompanionConformanceApp.app */,);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		CC0000050000000000000001 /* CompanionConformanceApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CC0000080000000000000001;
+			buildPhases = (
+				CC0000030000000000000002 /* Sources */,
+				CC0000030000000000000001 /* Frameworks */,
+				CC0000030000000000000003 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = CompanionConformanceApp;
+			packageProductDependencies = (CC00000A0000000000000001 /* TohsenoCompanionKit */,);
+			productName = CompanionConformanceApp;
+			productReference = CC0000020000000000000003 /* CompanionConformanceApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CC0000060000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = { CC0000050000000000000001 = { CreatedOnToolsVersion = 26.3; }; };
+			};
+			buildConfigurationList = CC0000080000000000000002;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = CC0000040000000000000001;
+			packageReferences = (CC0000090000000000000001 /* XCLocalSwiftPackageReference "../.." */,);
+			productRefGroup = CC0000040000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (CC0000050000000000000001 /* CompanionConformanceApp */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CC0000030000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CC0000030000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CC0000010000000000000001 /* CompanionConformanceApp.swift in Sources */,
+				CC0000010000000000000002 /* ConformanceView.swift in Sources */,
+				CC0000010000000000000004 /* PairingScannerView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		CC0000070000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Companion Conformance";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scan a signed TOHSENO Studio pairing invitation.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tohseno.fixture.companionconformance;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1";
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 0.9.0;
+			};
+			name = Debug;
+		};
+		CC0000070000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Companion Conformance";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scan a signed TOHSENO Studio pairing invitation.";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tohseno.fixture.companionconformance;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1";
+				CURRENT_PROJECT_VERSION = 1;
+				MARKETING_VERSION = 0.9.0;
+			};
+			name = Release;
+		};
+		CC0000070000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		CC0000070000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CC0000080000000000000001 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (CC0000070000000000000001, CC0000070000000000000002);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CC0000080000000000000002 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (CC0000070000000000000003, CC0000070000000000000004);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		CC0000090000000000000001 /* XCLocalSwiftPackageReference "../.." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CC00000A0000000000000001 /* TohsenoCompanionKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC0000090000000000000001 /* XCLocalSwiftPackageReference "../.." */;
+			productName = TohsenoCompanionKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = CC0000060000000000000001 /* Project object */;
+}

@@ -2,6 +2,7 @@ use crate::apple_capabilities::{AppleCapabilityCatalog, AppleCapabilityProfile};
 use crate::birth_plan::{BirthExpressionPlan, BirthPlan, RequirementOrigin};
 use crate::experience::ExperienceContract;
 use crate::factory_identity::FactoryIdentity;
+use crate::safe_file::read_bounded_regular_file;
 use crate::shot_layout::{PreparedIntentPackage, ShotLayout, ShotLayoutError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -388,16 +389,8 @@ impl JsonFileConceptionHarness {
 
 impl ConceptionHarness for JsonFileConceptionHarness {
     fn conceive(&self, input: &ConceptionInput) -> Result<ConceptionOutput, ConceptionError> {
-        let metadata = fs::symlink_metadata(&self.path)?;
-        require(
-            metadata.is_file() && !metadata.file_type().is_symlink(),
-            "conception output must be a regular file",
-        )?;
-        require(
-            metadata.len() <= 4 * 1024 * 1024,
-            "conception output exceeds 4 MiB",
-        )?;
-        let output: ConceptionOutput = serde_json::from_slice(&fs::read(&self.path)?)?;
+        let bytes = read_bounded_regular_file(&self.path, 4 * 1024 * 1024)?;
+        let output: ConceptionOutput = serde_json::from_slice(&bytes)?;
         output.validate(input)?;
         Ok(output)
     }
@@ -663,5 +656,26 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("absent from the exact intention"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn json_conception_harness_rejects_a_symlinked_output() {
+        use std::os::unix::fs::symlink;
+
+        let directory = tempfile::tempdir().unwrap();
+        let target = directory.path().join("actual.json");
+        let link = directory.path().join("conception.json");
+        fs::write(
+            &target,
+            serde_json::to_vec(&crate::anky_fixture::output()).unwrap(),
+        )
+        .unwrap();
+        symlink(&target, &link).unwrap();
+
+        let error = JsonFileConceptionHarness::at(link)
+            .conceive(&crate::anky_fixture::conception_input())
+            .unwrap_err();
+        assert!(error.to_string().contains("bounded regular file"));
     }
 }

@@ -1,0 +1,438 @@
+{
+  "schema": "tohseno.companion-test-vectors/1",
+  "test_only": true,
+  "bip39_official": {
+    "entropy_hex": "00000000000000000000000000000000",
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "passphrase": "TREZOR",
+    "seed_hex": "c55257c360c07c72029aebc1b53c05ed0362ada38ead3e3e9efa3708e53495531f09a6987599d18264c1e1c92f2cf141630c7a3c4ab7c81b2f001698e7463b04"
+  },
+  "companion_identity": {
+    "entropy_base64url": "AAAAAAAAAAAAAAAAAAAAAA",
+    "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+    "seed_base64url": "XrALvdzwaQhIiairkVVWgWX1xFPMuF5wgRqu1vbaX8GaWsQLOJzTcNCGIG3siqbEPa6maQ8grT2NSLLSzp445A",
+    "signing_secret_key_base64url": "pm6zY002kP_D0tIdEXBZ2GN1O_QibRkXkkpm4bPFcWY",
+    "signing_public_key_base64url": "_V9lzUQlafYP3cziih9QCtImrQoNtd3SpHWPRA_k04o",
+    "agreement_secret_key_base64url": "1QmKdTfml453LaAJh4BldqwbqSKzS64XZkImWpFBU1k",
+    "agreement_public_key_base64url": "3fPEJT0oL_iGMx-9N_P-gc86v-CcrbaIVVN8x8Wglww",
+    "storage_key_base64url": "NDT5BxYbXrhaf2g8vkwDgEwtuOesFtA4uYYJyWsgT1o",
+    "device_id": "device_xDT__dpew7CqYqs5nnCe95I3"
+  },
+  "workspace_service_identity": {
+    "signing_secret_key_base64url": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+    "signing_public_key_base64url": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+    "agreement_secret_key_base64url": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI",
+    "agreement_public_key_base64url": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVk",
+    "device_id": "device_y5zCpZj3biUpCrgiKB_I72GX"
+  },
+  "pairing": {
+    "studio_signing_public_key_base64url": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+    "studio_ephemeral_secret_key_base64url": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+    "invitation_body_canonical_base64url": "eyJleHBpcmVzX2F0IjoiMjAyNi0wOC0xNVQxMjowMjowMFoiLCJpc3N1ZWRfYXQiOiIyMDI2LTA4LTE1VDEyOjAwOjAwWiIsInJlbGF5X2lkIjoib2ZmaWNpYWwtdjEiLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLWludml0YXRpb24vMSIsInNlc3Npb25faWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInN0dWRpb19kZXZpY2VfaWQiOiJkZXZpY2VfeTV6Q3BaajNiaVVwQ3JnaUtCX0k3MkdYIiwic3R1ZGlvX2VwaGVtZXJhbF9hZ3JlZW1lbnRfcHVibGljX2tleSI6IlY5dExOWjhqcmw0VWJrNGxFZ1ZuQkhJbEJqU01GUXdVZFQwTWt6MEUxQ0UiLCJzdHVkaW9fc2lnbmluZ19wdWJsaWNfa2V5IjoiaW9qajNYUUo4Wlg5VXRzdFBMcGRjc3BuQ2I4ZGxCSWI4M1NJQWJRUGIxdyIsIndvcmtzcGFjZV9pZCI6IndvcmtzcGFjZV92ZWN0b3JfMDAxIn0",
+    "invitation": {
+      "schema": "tohseno.companion-pairing-invitation/1",
+      "session_id": "0123456789abcdef0123456789abcdef",
+      "workspace_id": "workspace_vector_001",
+      "studio_device_id": "device_y5zCpZj3biUpCrgiKB_I72GX",
+      "studio_signing_public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+      "studio_ephemeral_agreement_public_key": "V9tLNZ8jrl4Ubk4lEgVnBHIlBjSMFQwUdT0Mkz0E1CE",
+      "relay_id": "official-v1",
+      "issued_at": "2026-08-15T12:00:00Z",
+      "expires_at": "2026-08-15T12:02:00Z",
+      "signature": "6sZepSa1Lcccs9-qcUPopiKGfOgAaFhG-tqn_xpGSQtthidYRpyPwurG3zyLQ1PfMoi5OlGbS__uW1mmwhdNBw"
+    },
+    "invitation_uri": "tohseno://pair/v1/eyJleHBpcmVzX2F0IjoiMjAyNi0wOC0xNVQxMjowMjowMFoiLCJpc3N1ZWRfYXQiOiIyMDI2LTA4LTE1VDEyOjAwOjAwWiIsInJlbGF5X2lkIjoib2ZmaWNpYWwtdjEiLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLWludml0YXRpb24vMSIsInNlc3Npb25faWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsInNpZ25hdHVyZSI6IjZzWmVwU2ExTGNjY3M5LXFjVVBvcGlLR2ZPZ0FhRmhHLXRxbl94cEdTUXR0aGlkWVJweVB3dXJHM3p5TFExUGZNb2k1T2xHYlNfX3VXMW1td2hkTkJ3Iiwic3R1ZGlvX2RldmljZV9pZCI6ImRldmljZV95NXpDcFpqM2JpVXBDcmdpS0JfSTcyR1giLCJzdHVkaW9fZXBoZW1lcmFsX2FncmVlbWVudF9wdWJsaWNfa2V5IjoiVjl0TE5aOGpybDRVYms0bEVnVm5CSElsQmpTTUZRd1VkVDBNa3owRTFDRSIsInN0dWRpb19zaWduaW5nX3B1YmxpY19rZXkiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3Iiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifQ",
+    "proof_body_canonical_base64url": "eyJjb21wYW5pb25fYWdyZWVtZW50X3B1YmxpY19rZXkiOiIzZlBFSlQwb0xfaUdNeC05Tl9QLWdjODZ2LUNjcmJhSVZWTjh4OFdnbHd3IiwiY29tcGFuaW9uX2RldmljZV9pZCI6ImRldmljZV94RFRfX2RwZXc3Q3FZcXM1bm5DZTk1STMiLCJjb21wYW5pb25fZGlzcGxheV9uYW1lIjoiVmVjdG9yIGlQaG9uZSIsImNvbXBhbmlvbl9zaWduaW5nX3B1YmxpY19rZXkiOiJfVjlselVRbGFmWVAzY3ppaWg5UUN0SW1yUW9OdGQzU3BIV1BSQV9rMDRvIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDBaIiwiaW52aXRhdGlvbl9kaWdlc3QiOiJJSjhNRUpLR3VxQUVYQ1VJUmQ0dU0tcVpSMGhpaUZwYThFQlZuZjFkWUdjIiwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tcGFpcmluZy1wcm9vZi8xIiwic2Vzc2lvbl9pZCI6IjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifQ",
+    "proof": {
+      "schema": "tohseno.companion-pairing-proof/1",
+      "session_id": "0123456789abcdef0123456789abcdef",
+      "workspace_id": "workspace_vector_001",
+      "invitation_digest": "IJ8MEJKGuqAEXCUIRd4uM-qZR0hiiFpa8EBVnf1dYGc",
+      "companion_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "companion_display_name": "Vector iPhone",
+      "companion_signing_public_key": "_V9lzUQlafYP3cziih9QCtImrQoNtd3SpHWPRA_k04o",
+      "companion_agreement_public_key": "3fPEJT0oL_iGMx-9N_P-gc86v-CcrbaIVVN8x8Wglww",
+      "created_at": "2026-08-15T12:01:00Z",
+      "key_confirmation": "_G7qzOwFx0uaXnFttXBm-iJOr1rT6r53Xl_3c0eMjro",
+      "signature": "5267PdjKSs2TMNmYZxeQ6KUdUT8hC34YzegSvbQvGmbLZQ5ssq98bQRCd-ews6DgciuvnSosz6gBvwB42wiqBA"
+    },
+    "response_body_canonical_base64url": "eyJwcm9vZiI6eyJjb21wYW5pb25fYWdyZWVtZW50X3B1YmxpY19rZXkiOiIzZlBFSlQwb0xfaUdNeC05Tl9QLWdjODZ2LUNjcmJhSVZWTjh4OFdnbHd3IiwiY29tcGFuaW9uX2RldmljZV9pZCI6ImRldmljZV94RFRfX2RwZXc3Q3FZcXM1bm5DZTk1STMiLCJjb21wYW5pb25fZGlzcGxheV9uYW1lIjoiVmVjdG9yIGlQaG9uZSIsImNvbXBhbmlvbl9zaWduaW5nX3B1YmxpY19rZXkiOiJfVjlselVRbGFmWVAzY3ppaWg5UUN0SW1yUW9OdGQzU3BIV1BSQV9rMDRvIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDBaIiwiaW52aXRhdGlvbl9kaWdlc3QiOiJJSjhNRUpLR3VxQUVYQ1VJUmQ0dU0tcVpSMGhpaUZwYThFQlZuZjFkWUdjIiwia2V5X2NvbmZpcm1hdGlvbiI6Il9HN3F6T3dGeDB1YVhuRnR0WEJtLWlKT3IxclQ2cjUzWGxfM2MwZU1qcm8iLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLXByb29mLzEiLCJzZXNzaW9uX2lkIjoiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYiLCJzaWduYXR1cmUiOiI1MjY3UGRqS1NzMlRNTm1ZWnhlUTZLVWRVVDhoQzM0WXplZ1N2YlF2R21iTFpRNXNzcTk4YlFSQ2QtZXdzNkRnY2l1dm5Tb3N6NmdCdndCNDJ3aXFCQSIsIndvcmtzcGFjZV9pZCI6IndvcmtzcGFjZV92ZWN0b3JfMDAxIn0sInJlc3BvbnNlX21haWxib3hfaWQiOiJmZWRjYmE5ODc2NTQzMjEwZmVkY2JhOTg3NjU0MzIxMCIsInJlc3BvbnNlX21haWxib3hfcmV2b2tlX2NhcGFiaWxpdHkiOiJEUTBORFEwTkRRME5EUTBORFEwTkRRME5EUTBORFEwTkRRME5EUTBORFEwIiwicmVzcG9uc2VfbWFpbGJveF93cml0ZV9jYXBhYmlsaXR5IjoiREF3TURBd01EQXdNREF3TURBd01EQXdNREF3TURBd01EQXdNREF3TURBdyIsInNjaGVtYSI6InRvaHNlbm8uY29tcGFuaW9uLXBhaXJpbmctcmVzcG9uc2UtYm9keS8xIn0",
+    "response_body": {
+      "schema": "tohseno.companion-pairing-response-body/1",
+      "proof": {
+        "schema": "tohseno.companion-pairing-proof/1",
+        "session_id": "0123456789abcdef0123456789abcdef",
+        "workspace_id": "workspace_vector_001",
+        "invitation_digest": "IJ8MEJKGuqAEXCUIRd4uM-qZR0hiiFpa8EBVnf1dYGc",
+        "companion_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+        "companion_display_name": "Vector iPhone",
+        "companion_signing_public_key": "_V9lzUQlafYP3cziih9QCtImrQoNtd3SpHWPRA_k04o",
+        "companion_agreement_public_key": "3fPEJT0oL_iGMx-9N_P-gc86v-CcrbaIVVN8x8Wglww",
+        "created_at": "2026-08-15T12:01:00Z",
+        "key_confirmation": "_G7qzOwFx0uaXnFttXBm-iJOr1rT6r53Xl_3c0eMjro",
+        "signature": "5267PdjKSs2TMNmYZxeQ6KUdUT8hC34YzegSvbQvGmbLZQ5ssq98bQRCd-ews6DgciuvnSosz6gBvwB42wiqBA"
+      },
+      "response_mailbox_id": "fedcba9876543210fedcba9876543210",
+      "response_mailbox_write_capability": "DAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAw",
+      "response_mailbox_revoke_capability": "DQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0"
+    },
+    "encrypted_response_canonical_base64url": "eyJjaXBoZXJ0ZXh0IjoiajFib3lteTMxVFpJSjRZc0QxdDdEeDJtX3RwbUpLMEt0N1hsMEJjTHhkR0FMSVVadHpadUY1ODJHQ2tBcGpWdGVrTnU1SUR5ZTJxb3B2c3VyVlRwRzhvYVRTSzdQUFFxV2RtUmlkWTVjNE51bHE1Rk5fQ0VsQkQ3YUJaUEs3RVh1NWNUS0ttLXU5VC14em5zd3ozTTFtOXVhUkhkcC1wenNCS1VJTzRjeG5WT0FVOVJZSkgtV0NmYVZQcE53R1FpeTNlQ0d0b1J5d2lnbk1HTjN6SmZMQ2JtMUZWLWtVX08xMEE4dlNzNXl1UXNKenE5NVlJbkw2X0xWZUd0N2lSRl9EaTc4RTVzbVRzTUJ2T2k0ZDE3cF9OMElGdWFLR0tnTUNlOXRqNklwdU84M2UwbFJyNjFrcHE3Sk1zSUVfYnNRNXg1NnpSREM1TTFCaGxFb05TOFNYdHJoTm9Tb0RHRVhJSjdMcDNlUWpGUWhFMUI1SUFyT0llSWlkNlVid21qZXFsekZPUEhKbEdIVnVyRG8wR3NrQXpVdVM2d25JYjg4UzRobnV0NXJBa2NibS1rVnd5dkwxQ1ZUSFlBNjZLaVpETWdjZm9xYjFnN0xYZDNkYzJfSXl0Z3pVZDQ5S21XMmZ3VEdpTnFtMGNKaFNTRlFsdWRRZUJkY0hvSnlyYkxOcVZndXQyOHd4TFFxdjF1Y244TUlEVE1KdTlvVzZtVnZQdGswZ3lNeHJXYm52OGFwbUlfNndwMk96RUNNRVlYMkxDaHJxd0o2TVlXc2lNY1RjNllwTDE1X2FQMGtGN1lBX2dWUjN2R3E5c3g1TjNNdGw3S2NRVmh5cWtBQmZ1aVloZVdsbDBtajB4RkV5ZXh3ZlQwYkxUcFUxMDduTXBUTTFxZ01aQ2E1M2JjQkdDRG9XQnY4VkRiTGx2S0NrZ1FkX204U2hMT25DZFkyelF4TllHbWM0ZjIyblBzS2ViY21aNk5fa0Y4Tkw2NGQzYk4tdGx3ZDBFZjJLdFVNUFlIajZZa292cUp1OTRWWGRCYnpqM2pObmQ2blpRbnp3ZnlydWRkcS1KT0FVUXp0Q2JUT1VVS2lsOGt6ZjNsN3c5anc0R3B3clBGVm5aZDEyUWhoeHJ0SndGTEYwSU5tbnhHN2wyWVd3VG9XOVZCX3BpdUlrWWVCY1B6MkZsNUk2S3VhRUJtVVBoaVhBaTNRQjZqY0QzNmtBNDE5OFBrVEpidU5NMlJqMldralFjbmJTMzJ6eDdMVGRJamJkNXZfQ3pRNUlLSVZGRllIYVFqck5RU1BXNnhDQWZYbkd5azRXc3lLb1dBU2ZjNGdoaEpFUWpMYnFMNjRkOTBOYTFnVDBKcXJ1YVVDNEJXSFRzNVgxVUJKeTVXQ1pJbEtleENZSDZ2ZldFWTNfM2loS29BeWI5OVNHeHhYTnhiWWdaa2o4dDhDYVNSUU1VTy03RDI5Rk5RaFhQcGJLVDFKdWxQTVh5QjZQRnZsMEhVQTNIeW5iSzVWTkJLcFhBWk5uczRaeGthTWdTN3dCMWs2cmIyXzVvWmxzbzEzZnpwSzF4SUViN0ZUdlZnYXlfRXMtdWRHQV9uaWhnb3NyWUp6c1Z6M1VpNGZWXy0tdXFEdnphTm1nT0d2MGxEb0d2UFV1TzllRzNKMmZtcEpmdWJzbkJLVDY1b21rYnV6UmxBIiwiZXBoZW1lcmFsX3B1YmxpY19rZXkiOiI5M18wc1FlSXY5eW1MS0M3RmcxQ2ZQVjJMWVh5dGNyV2dIN0p3XzY3M2drIiwibm9uY2UiOiJDd3NMQ3dzTEN3c0xDd3NMIiwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tZW5jcnlwdGVkLXBhaXJpbmctcmVzcG9uc2UvMSIsInNlc3Npb25faWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiJ9",
+    "encrypted_response": {
+      "schema": "tohseno.companion-encrypted-pairing-response/1",
+      "session_id": "0123456789abcdef0123456789abcdef",
+      "ephemeral_public_key": "93_0sQeIv9ymLKC7Fg1CfPV2LYXytcrWgH7Jw_673gk",
+      "nonce": "CwsLCwsLCwsLCwsL",
+      "ciphertext": "j1boymy31TZIJ4YsD1t7Dx2m_tpmJK0Kt7Xl0BcLxdGALIUZtzZuF582GCkApjVtekNu5IDye2qopvsurVTpG8oaTSK7PPQqWdmRidY5c4Nulq5FN_CElBD7aBZPK7EXu5cTKKm-u9T-xznswz3M1m9uaRHdp-pzsBKUIO4cxnVOAU9RYJH-WCfaVPpNwGQiy3eCGtoRywignMGN3zJfLCbm1FV-kU_O10A8vSs5yuQsJzq95YInL6_LVeGt7iRF_Di78E5smTsMBvOi4d17p_N0IFuaKGKgMCe9tj6IpuO83e0lRr61kpq7JMsIE_bsQ5x56zRDC5M1BhlEoNS8SXtrhNoSoDGEXIJ7Lp3eQjFQhE1B5IArOIeIid6UbwmjeqlzFOPHJlGHVurDo0GskAzUuS6wnIb88S4hnut5rAkcbm-kVwyvL1CVTHYA66KiZDMgcfoqb1g7LXd3dc2_IytgzUd49KmW2fwTGiNqm0cJhSSFQludQeBdcHoJyrbLNqVgut28wxLQqv1ucn8MIDTMJu9oW6mVvPtk0gyMxrWbnv8apmI_6wp2OzECMEYX2LChrqwJ6MYWsiMcTc6YpL15_aP0kF7YA_gVR3vGq9sx5N3Mtl7KcQVhyqkABfuiYheWll0mj0xFEyexwfT0bLTpU107nMpTM1qgMZCa53bcBGCDoWBv8VDbLlvKCkgQd_m8ShLOnCdY2zQxNYGmc4f22nPsKebcmZ6N_kF8NL64d3bN-tlwd0Ef2KtUMPYHj6YkovqJu94VXdBbzj3jNnd6nZQnzwfyruddq-JOAUQztCbTOUUKil8kzf3l7w9jw4GpwrPFVnZd12QhhxrtJwFLF0INmnxG7l2YWwToW9VB_piuIkYeBcPz2Fl5I6KuaEBmUPhiXAi3QB6jcD36kA4198PkTJbuNM2Rj2WkjQcnbS32zx7LTdIjbd5v_CzQ5IKIVFFYHaQjrNQSPW6xCAfXnGyk4WsyKoWASfc4ghhJEQjLbqL64d90Na1gT0JqruaUC4BWHTs5X1UBJy5WCZIlKexCYH6vfWEY3_3ihKoAyb99SGxxXNxbYgZkj8t8CaSRQMUO-7D29FNQhXPpbKT1JulPMXyB6PFvl0HUA3HynbK5VNBKpXAZNns4ZxkaMgS7wB1k6rb2_5oZlso13fzpK1xIEb7FTvVgay_Es-udGA_nihgosrYJzsVz3Ui4fV_--uqDvzaNmgOGv0lDoGvPUuO9eG3J2fmpJfubsnBKT65omkbuzRlA"
+    }
+  },
+  "capability": {
+    "body_canonical_base64url": "eyJhbGxvd2VkX2FjdGlvbnMiOlsid29ya3NwYWNlLnJlYWQiLCJleGVjdXRpb24ucmVhZCIsImZlZWRiYWNrLndyaXRlIiwibWFya2V0aW5nLndyaXRlIiwic2hvdC5jcmVhdGUiLCJzaG90LmV2b2x2ZSJdLCJjYXBhYmlsaXR5X2lkIjoiY2FwYWJpbGl0eV92ZWN0b3JfMDAxIiwiZGV2aWNlX2lkIjoiZGV2aWNlX3hEVF9fZHBldzdDcVlxczVubkNlOTVJMyIsImV4cGlyZXNfYXQiOiIyMDI2LTA4LTE2VDEyOjAxOjAxWiIsImlzc3VlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDFaIiwicmV2b2NhdGlvbl9lcG9jaCI6MCwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tY2FwYWJpbGl0eS1ncmFudC8xIiwic3R1ZGlvX3NpZ25pbmdfcHVibGljX2tleSI6ImlvamozWFFKOFpYOVV0c3RQTHBkY3NwbkNiOGRsQkliODNTSUFiUVBiMXciLCJ3b3Jrc3BhY2VfaWQiOiJ3b3Jrc3BhY2VfdmVjdG9yXzAwMSJ9",
+    "grant": {
+      "schema": "tohseno.companion-capability-grant/1",
+      "capability_id": "capability_vector_001",
+      "workspace_id": "workspace_vector_001",
+      "device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "allowed_actions": [
+        "workspace.read",
+        "execution.read",
+        "feedback.write",
+        "marketing.write",
+        "shot.create",
+        "shot.evolve"
+      ],
+      "issued_at": "2026-08-15T12:01:01Z",
+      "expires_at": "2026-08-16T12:01:01Z",
+      "revocation_epoch": 0,
+      "studio_signing_public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+      "signature": "3RHaylAYIMvBALOjH-a6uCl-KW5d0D--9BWtoz-2JfraEtdkLOQP4-0Laq3wpWhM1lJmHWStJ-El1wDyLGTCCQ"
+    }
+  },
+  "pairing_acceptance": {
+    "canonical_base64url": "eyJjYXBhYmlsaXR5X2dyYW50Ijp7ImFsbG93ZWRfYWN0aW9ucyI6WyJ3b3Jrc3BhY2UucmVhZCIsImV4ZWN1dGlvbi5yZWFkIiwiZmVlZGJhY2sud3JpdGUiLCJtYXJrZXRpbmcud3JpdGUiLCJzaG90LmNyZWF0ZSIsInNob3QuZXZvbHZlIl0sImNhcGFiaWxpdHlfaWQiOiJjYXBhYmlsaXR5X3ZlY3Rvcl8wMDEiLCJkZXZpY2VfaWQiOiJkZXZpY2VfeERUX19kcGV3N0NxWXFzNW5uQ2U5NUkzIiwiZXhwaXJlc19hdCI6IjIwMjYtMDgtMTZUMTI6MDE6MDFaIiwiaXNzdWVkX2F0IjoiMjAyNi0wOC0xNVQxMjowMTowMVoiLCJyZXZvY2F0aW9uX2Vwb2NoIjowLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1jYXBhYmlsaXR5LWdyYW50LzEiLCJzaWduYXR1cmUiOiIzUkhheWxBWUlNdkJBTE9qSC1hNnVDbC1LVzVkMEQtLTlCV3Rvei0ySmZyYUV0ZGtMT1FQNC0wTGFxM3dwV2hNMWxKbUhXU3RKLUVsMXdEeUxHVENDUSIsInN0dWRpb19zaWduaW5nX3B1YmxpY19rZXkiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3Iiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifSwiY29tbWFuZF9tYWlsYm94X2lkIjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJjb21tYW5kX21haWxib3hfd3JpdGVfY2FwYWJpbGl0eSI6IkRnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzQiLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLWdyYW50LXBhY2thZ2UvMSIsInN0dWRpb19hZ3JlZW1lbnRfcHVibGljX2tleSI6InpvMDYwY3kyTS14N2NNRjRGS1hIYnMwQ2xvVUZEVFJIUmJvRmh3NVlmVmsifQ",
+    "acceptance": {
+      "schema": "tohseno.companion-pairing-grant-package/1",
+      "capability_grant": {
+        "schema": "tohseno.companion-capability-grant/1",
+        "capability_id": "capability_vector_001",
+        "workspace_id": "workspace_vector_001",
+        "device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+        "allowed_actions": [
+          "workspace.read",
+          "execution.read",
+          "feedback.write",
+          "marketing.write",
+          "shot.create",
+          "shot.evolve"
+        ],
+        "issued_at": "2026-08-15T12:01:01Z",
+        "expires_at": "2026-08-16T12:01:01Z",
+        "revocation_epoch": 0,
+        "studio_signing_public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+        "signature": "3RHaylAYIMvBALOjH-a6uCl-KW5d0D--9BWtoz-2JfraEtdkLOQP4-0Laq3wpWhM1lJmHWStJ-El1wDyLGTCCQ"
+      },
+      "studio_agreement_public_key": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVk",
+      "command_mailbox_id": "00112233445566778899aabbccddeeff",
+      "command_mailbox_write_capability": "Dg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4"
+    }
+  },
+  "command": {
+    "body_canonical_base64url": "eyJhdXRob3JfZGV2aWNlX2lkIjoiZGV2aWNlX3hEVF9fZHBldzdDcVlxczVubkNlOTVJMyIsImNhcGFiaWxpdHlfaWQiOiJjYXBhYmlsaXR5X3ZlY3Rvcl8wMDEiLCJjb21tYW5kX2lkIjoiY29tbWFuZF92ZWN0b3JfMDAxIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDJaIiwicGF5bG9hZCI6eyJib2R5IjoiTWFrZSB0aGUgYWNjZXB0ZWQgdmVyc2lvbidzIHByaW1hcnkgYWN0aW9uIGNsZWFyZXIuIiwiY29tbWFuZF9raW5kIjoiZmVlZGJhY2suc3VibWl0IiwiZXhwcmVzc2lvbl9pZCI6ImV4cHJlc3Npb25fdmVjdG9yXzAwMSIsInNob3RfaWQiOiJzaG90X3ZlY3Rvcl8wMDEiLCJ2ZXJzaW9uX2lkIjoidmVyc2lvbl92ZWN0b3JfMDAzIiwidmVyc2lvbl9vcmRpbmFsIjozfSwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tY29tbWFuZC8xIiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifQ",
+    "command": {
+      "schema": "tohseno.companion-command/1",
+      "command_id": "command_vector_001",
+      "workspace_id": "workspace_vector_001",
+      "capability_id": "capability_vector_001",
+      "author_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "created_at": "2026-08-15T12:01:02Z",
+      "payload": {
+        "command_kind": "feedback.submit",
+        "shot_id": "shot_vector_001",
+        "expression_id": "expression_vector_001",
+        "version_id": "version_vector_003",
+        "version_ordinal": 3,
+        "body": "Make the accepted version's primary action clearer."
+      },
+      "signature": "q6GKDUAYjZ6TgM2sJdMZIQBLJ0SQ8U_8TRf89NFQqNqFSqau-U_jl5xnxVA0GTlnUiPfBlAub_gfHDgVm0oIAA"
+    }
+  },
+  "snapshot_request_command": {
+    "body_canonical_base64url": "eyJhdXRob3JfZGV2aWNlX2lkIjoiZGV2aWNlX3hEVF9fZHBldzdDcVlxczVubkNlOTVJMyIsImNhcGFiaWxpdHlfaWQiOiJjYXBhYmlsaXR5X3ZlY3Rvcl8wMDEiLCJjb21tYW5kX2lkIjoiY29tbWFuZF9zbmFwc2hvdF9yZXF1ZXN0XzAwMSIsImNyZWF0ZWRfYXQiOiIyMDI2LTA4LTE1VDEyOjAxOjA0WiIsInBheWxvYWQiOnsiY29tbWFuZF9raW5kIjoid29ya3NwYWNlLnNuYXBzaG90LnJlcXVlc3QifSwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tY29tbWFuZC8xIiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifQ",
+    "command": {
+      "schema": "tohseno.companion-command/1",
+      "command_id": "command_snapshot_request_001",
+      "workspace_id": "workspace_vector_001",
+      "capability_id": "capability_vector_001",
+      "author_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "created_at": "2026-08-15T12:01:04Z",
+      "payload": {
+        "command_kind": "workspace.snapshot.request"
+      },
+      "signature": "9OjNfXb4dk8RXoMxydqCPrQY2_RFvbDYa9S1LAGQuRLkAD3_EhWpUa3OhBKZJBI2akX0IxxrZjaLua_5xkU2BA"
+    }
+  },
+  "icon_blob": {
+    "canonical_base64url": "eyJibG9iX2lkIjoiaWNvbl92ZWN0b3JfMDAxIiwiYnl0ZV9sZW5ndGgiOjY4LCJieXRlcyI6ImlWQk9SdzBLR2dvQUFBQU5TVWhFVWdBQUFBRUFBQUFCQ0FRQUFBQzFIQXdDQUFBQUMwbEVRVlI0Mm1Oay1BOEFBUVVCQVNjWTQyWUFBQUFBU1VWT1JLNUNZSUkiLCJoZWlnaHQiOjEsIm1lZGlhX3R5cGUiOiJpbWFnZS9wbmciLCJwbGFjZWhvbGRlciI6ZmFsc2UsInJldmlzaW9uIjo3LCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1pY29uLWJsb2IvMSIsInNoYTI1NiI6IlF4enRhUmFpb2hvVmJqaHdHdjVWdTlmNGlXbjd2OFZ0Zi1DWjFIOG1WR0EiLCJ3aWR0aCI6MX0",
+    "blob": {
+      "schema": "tohseno.companion-icon-blob/1",
+      "blob_id": "icon_vector_001",
+      "revision": 7,
+      "media_type": "image/png",
+      "byte_length": 68,
+      "width": 1,
+      "height": 1,
+      "placeholder": false,
+      "sha256": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA",
+      "bytes": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+    }
+  },
+  "reference_blob": {
+    "canonical_base64url": "eyJibG9iX2lkIjoicmVmZXJlbmNlX3ZlY3Rvcl8wMDEiLCJieXRlX2xlbmd0aCI6NjgsImJ5dGVzIjoiaVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQybU5rLUE4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJSSIsIm1lZGlhX3R5cGUiOiJpbWFnZS9wbmciLCJvcmlnaW5fbmFtZSI6InJlZmVyZW5jZS5wbmciLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1yZWZlcmVuY2UtYmxvYi8xIiwic2hhMjU2IjoiUXh6dGFSYWlvaG9WYmpod0d2NVZ1OWY0aVduN3Y4VnRmLUNaMUg4bVZHQSJ9",
+    "blob": {
+      "schema": "tohseno.companion-reference-blob/1",
+      "blob_id": "reference_vector_001",
+      "origin_name": "reference.png",
+      "media_type": "image/png",
+      "byte_length": 68,
+      "sha256": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA",
+      "bytes": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+    },
+    "chunk_canonical_base64url": [
+      "eyJibG9iX2lkIjoicmVmZXJlbmNlX3ZlY3Rvcl8wMDEiLCJieXRlX2xlbmd0aCI6NjgsImJ5dGVzIjoiaVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQUFFQUFBQUJDQVFBQUFDMUhBd0NBQUFBQzBsRVFWUjQybU5rLUE4QUFRVUJBU2NZNDJZQUFBQUFTVVZPUks1Q1lJSSIsImNodW5rX2J5dGVfbGVuZ3RoIjo2OCwiY2h1bmtfY291bnQiOjEsImNodW5rX2luZGV4IjowLCJjaHVua19zaGEyNTYiOiJReHp0YVJhaW9ob1Ziamh3R3Y1VnU5ZjRpV243djhWdGYtQ1oxSDhtVkdBIiwibWVkaWFfdHlwZSI6ImltYWdlL3BuZyIsIm9yaWdpbl9uYW1lIjoicmVmZXJlbmNlLnBuZyIsInNjaGVtYSI6InRvaHNlbm8uY29tcGFuaW9uLXJlZmVyZW5jZS1ibG9iLWNodW5rLzEiLCJzaGEyNTYiOiJReHp0YVJhaW9ob1Ziamh3R3Y1VnU5ZjRpV243djhWdGYtQ1oxSDhtVkdBIn0"
+    ],
+    "chunks": [
+      {
+        "schema": "tohseno.companion-reference-blob-chunk/1",
+        "blob_id": "reference_vector_001",
+        "origin_name": "reference.png",
+        "media_type": "image/png",
+        "byte_length": 68,
+        "sha256": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA",
+        "chunk_index": 0,
+        "chunk_count": 1,
+        "chunk_byte_length": 68,
+        "chunk_sha256": "QxztaRaiohoVbjhwGv5Vu9f4iWn7v8Vtf-CZ1H8mVGA",
+        "bytes": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII"
+      }
+    ]
+  },
+  "envelope": {
+    "plaintext_base64url": "eyJmaXh0dXJlIjoicHJpdmF0ZSBjb21wYW5pb24gYnl0ZXMifQ",
+    "header_canonical_base64url": "eyJjcmVhdGVkX2F0IjoiMjAyNi0wOC0xNVQxMjowMTowM1oiLCJlbnZlbG9wZV9pZCI6ImVlZWVlZWVlLWVlZWUtNGVlZS04ZWVlLWVlZWVlZWVlZWVlZSIsImVwaGVtZXJhbF9wdWJsaWNfa2V5IjoiSzlPVkJHRWdMaVF2SzY2RHdIY1JuVnVrcmpBRmc5ZnJ0NUk3SW0yRk0wTSIsImV4cGlyZXNfYXQiOiIyMDI2LTA4LTE2VDEyOjAxOjAzWiIsIm1haWxib3hfaWQiOiJhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OSIsIm5vbmNlIjoiSUNBZ0lDQWdJQ0FnSUNBZyIsInJlY2lwaWVudF9kZXZpY2VfaWQiOiJkZXZpY2VfeTV6Q3BaajNiaVVwQ3JnaUtCX0k3MkdYIiwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tZW52ZWxvcGUvMSIsInNlbmRlcl9kZXZpY2VfaWQiOiJkZXZpY2VfeERUX19kcGV3N0NxWXFzNW5uQ2U5NUkzIiwic2VuZGVyX3NlcXVlbmNlIjo0Mn0",
+    "unsigned_canonical_base64url": "eyJjaXBoZXJ0ZXh0IjoiUGdUb0JTX0RyVXRINlAzRHlUWS10UGdwdG01R3p5aDIzLVIyaGpiYlNmMUhqM1YzNzc2bGxkMGo2V2h5YVQxbUU5elhoZ1EiLCJjcmVhdGVkX2F0IjoiMjAyNi0wOC0xNVQxMjowMTowM1oiLCJlbnZlbG9wZV9pZCI6ImVlZWVlZWVlLWVlZWUtNGVlZS04ZWVlLWVlZWVlZWVlZWVlZSIsImVwaGVtZXJhbF9wdWJsaWNfa2V5IjoiSzlPVkJHRWdMaVF2SzY2RHdIY1JuVnVrcmpBRmc5ZnJ0NUk3SW0yRk0wTSIsImV4cGlyZXNfYXQiOiIyMDI2LTA4LTE2VDEyOjAxOjAzWiIsIm1haWxib3hfaWQiOiJhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OSIsIm5vbmNlIjoiSUNBZ0lDQWdJQ0FnSUNBZyIsInJlY2lwaWVudF9kZXZpY2VfaWQiOiJkZXZpY2VfeTV6Q3BaajNiaVVwQ3JnaUtCX0k3MkdYIiwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tZW52ZWxvcGUvMSIsInNlbmRlcl9kZXZpY2VfaWQiOiJkZXZpY2VfeERUX19kcGV3N0NxWXFzNW5uQ2U5NUkzIiwic2VuZGVyX3NlcXVlbmNlIjo0Mn0",
+    "envelope": {
+      "schema": "tohseno.companion-envelope/1",
+      "envelope_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      "mailbox_id": "abcdef0123456789abcdef0123456789",
+      "sender_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "recipient_device_id": "device_y5zCpZj3biUpCrgiKB_I72GX",
+      "sender_sequence": 42,
+      "created_at": "2026-08-15T12:01:03Z",
+      "expires_at": "2026-08-16T12:01:03Z",
+      "ephemeral_public_key": "K9OVBGEgLiQvK66DwHcRnVukrjAFg9frt5I7Im2FM0M",
+      "nonce": "ICAgICAgICAgICAg",
+      "ciphertext": "PgToBS_DrUtH6P3DyTY-tPgptm5Gzyh23-R2hjbbSf1Hj3V3776lld0j6WhyaT1mE9zXhgQ",
+      "signature": "BNlchdkh11ytdGCD7aKZc00MkJK7k-WgIQQ-zOR7RmQ1afkpdlT-ef3EVo88wdxRyofm-NhzGOyUxoZ1lhwQAA"
+    }
+  },
+  "relay": {
+    "pairing_create": {
+      "schema": "tohseno.companion-pairing-session-create/1",
+      "expires_at": "2026-08-15T12:02:00Z",
+      "read_verifier": "0d6ba19b62531ccb0deb8804313eca283c69560f66f1b7b8a2c1592ae8c35c6b",
+      "cancel_verifier": "deb0e38ced1e41de6f92e70e80c418d2d356afaaa99e26f5939dbc7d3ef4772a"
+    },
+    "pairing_created": {
+      "schema": "tohseno.companion-pairing-session-created/1",
+      "session_id": "0123456789abcdef0123456789abcdef",
+      "expires_at": "2026-08-15T12:02:00Z"
+    },
+    "pairing_response_accepted": {
+      "schema": "tohseno.companion-pairing-response-accepted/1",
+      "accepted": true,
+      "duplicate": false
+    },
+    "mailbox_create": {
+      "schema": "tohseno.companion-mailbox-create/1",
+      "write_verifier": "ca02a7bbd898b4cdf99e60c923abcf116f3cc8224a790f395c36953f207cf09a",
+      "read_verifier": "b235d9133396f6aa4f6e6a6d6c6cc16bb8cd806f484918177f1d8027afd44687",
+      "ack_verifier": "22af5eb7a99e9a167adafc9b1c22f688cb7d7f87cd31c10e00dda28bd0953cfc",
+      "revoke_verifier": "5cfac09f7b171a7b492f1df33e8981f7b662a649329ffb8896f1ef816c41a6a6",
+      "push_verifier": "6aa7acca5a190750ad7fd78d3b146f6d53af92405786e9cf7090aa28fc2fc198"
+    },
+    "mailbox_created": {
+      "schema": "tohseno.companion-mailbox-created/1",
+      "mailbox_id": "abcdef0123456789abcdef0123456789",
+      "created_at": "2026-08-15T12:00:00Z"
+    },
+    "direct_envelope": {
+      "schema": "tohseno.companion-envelope/1",
+      "envelope_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      "mailbox_id": "abcdef0123456789abcdef0123456789",
+      "sender_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+      "recipient_device_id": "device_y5zCpZj3biUpCrgiKB_I72GX",
+      "sender_sequence": 42,
+      "created_at": "2026-08-15T12:01:03Z",
+      "expires_at": "2026-08-16T12:01:03Z",
+      "ephemeral_public_key": "K9OVBGEgLiQvK66DwHcRnVukrjAFg9frt5I7Im2FM0M",
+      "nonce": "ICAgICAgICAgICAg",
+      "ciphertext": "PgToBS_DrUtH6P3DyTY-tPgptm5Gzyh23-R2hjbbSf1Hj3V3776lld0j6WhyaT1mE9zXhgQ",
+      "signature": "BNlchdkh11ytdGCD7aKZc00MkJK7k-WgIQQ-zOR7RmQ1afkpdlT-ef3EVo88wdxRyofm-NhzGOyUxoZ1lhwQAA"
+    },
+    "envelope_accepted": {
+      "schema": "tohseno.companion-envelope-accepted/1",
+      "accepted": true,
+      "duplicate": false,
+      "cursor": 7
+    },
+    "mailbox_page": {
+      "schema": "tohseno.companion-mailbox-page/1",
+      "envelopes": [
+        {
+          "cursor": 7,
+          "envelope": {
+            "schema": "tohseno.companion-envelope/1",
+            "envelope_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "mailbox_id": "abcdef0123456789abcdef0123456789",
+            "sender_device_id": "device_xDT__dpew7CqYqs5nnCe95I3",
+            "recipient_device_id": "device_y5zCpZj3biUpCrgiKB_I72GX",
+            "sender_sequence": 42,
+            "created_at": "2026-08-15T12:01:03Z",
+            "expires_at": "2026-08-16T12:01:03Z",
+            "ephemeral_public_key": "K9OVBGEgLiQvK66DwHcRnVukrjAFg9frt5I7Im2FM0M",
+            "nonce": "ICAgICAgICAgICAg",
+            "ciphertext": "PgToBS_DrUtH6P3DyTY-tPgptm5Gzyh23-R2hjbbSf1Hj3V3776lld0j6WhyaT1mE9zXhgQ",
+            "signature": "BNlchdkh11ytdGCD7aKZc00MkJK7k-WgIQQ-zOR7RmQ1afkpdlT-ef3EVo88wdxRyofm-NhzGOyUxoZ1lhwQAA"
+          }
+        }
+      ],
+      "next_cursor": 7,
+      "head_cursor": 7,
+      "has_more": false
+    },
+    "mailbox_reset_required": {
+      "schema": "tohseno.companion-mailbox-reset-required/1",
+      "reset_required": true,
+      "reset_before_cursor": 4,
+      "head_cursor": 7
+    },
+    "mailbox_ack": {
+      "schema": "tohseno.companion-mailbox-ack/1",
+      "cursor": 7
+    },
+    "mailbox_acknowledged": {
+      "schema": "tohseno.companion-mailbox-acknowledged/1",
+      "acknowledged_cursor": 7
+    },
+    "mailbox_revoked": {
+      "schema": "tohseno.companion-mailbox-revoked/1",
+      "revoked": true,
+      "revocation_epoch": 1
+    },
+    "push_register": {
+      "schema": "tohseno.companion-push-register/1",
+      "mailbox_id": "abcdef0123456789abcdef0123456789",
+      "device_id": "device_fixture_for_push",
+      "apns_token": "test-only-apns-token"
+    },
+    "push_unregister": {
+      "schema": "tohseno.companion-push-unregister/1",
+      "mailbox_id": "abcdef0123456789abcdef0123456789"
+    },
+    "health": {
+      "schema": "tohseno.companion-relay-health/1",
+      "service_version": "0.9.0",
+      "ready": true,
+      "push_enabled": false,
+      "maximum_envelope_bytes": 16777232,
+      "retention_seconds": 604800
+    }
+  },
+  "negative": [
+    {
+      "name": "invitation_signature_tamper",
+      "target": "pairing.invitation",
+      "operation": "replace_json_value",
+      "json_pointer": "/workspace_id",
+      "replacement": "workspace_attacker",
+      "expected_rejection": "signature"
+    },
+    {
+      "name": "invitation_unallowlisted_relay",
+      "target": "pairing.invitation",
+      "operation": "replace_json_value",
+      "json_pointer": "/relay_id",
+      "replacement": "attacker-relay",
+      "expected_rejection": "relay_allowlist"
+    },
+    {
+      "name": "pairing_key_confirmation_tamper",
+      "target": "pairing.proof",
+      "operation": "replace_json_value",
+      "json_pointer": "/key_confirmation",
+      "replacement": "AG7qzOwFx0uaXnFttXBm-iJOr1rT6r53Xl_3c0eMjro",
+      "expected_rejection": "key_confirmation"
+    },
+    {
+      "name": "pairing_response_ciphertext_tamper",
+      "target": "pairing.encrypted_response",
+      "operation": "replace_json_value",
+      "json_pointer": "/ciphertext",
+      "replacement": "A1boymy31TZIJ4YsD1t7Dx2m_tpmJK0Kt7Xl0BcLxdGALIUZtzZuF582GCkApjVtekNu5IDye2qopvsurVTpG8oaTSK7PPQqWdmRidY5c4Nulq5FN_CElBD7aBZPK7EXu5cTKKm-u9T-xznswz3M1m9uaRHdp-pzsBKUIO4cxnVOAU9RYJH-WCfaVPpNwGQiy3eCGtoRywignMGN3zJfLCbm1FV-kU_O10A8vSs5yuQsJzq95YInL6_LVeGt7iRF_Di78E5smTsMBvOi4d17p_N0IFuaKGKgMCe9tj6IpuO83e0lRr61kpq7JMsIE_bsQ5x56zRDC5M1BhlEoNS8SXtrhNoSoDGEXIJ7Lp3eQjFQhE1B5IArOIeIid6UbwmjeqlzFOPHJlGHVurDo0GskAzUuS6wnIb88S4hnut5rAkcbm-kVwyvL1CVTHYA66KiZDMgcfoqb1g7LXd3dc2_IytgzUd49KmW2fwTGiNqm0cJhSSFQludQeBdcHoJyrbLNqVgut28wxLQqv1ucn8MIDTMJu9oW6mVvPtk0gyMxrWbnv8apmI_6wp2OzECMEYX2LChrqwJ6MYWsiMcTc6YpL15_aP0kF7YA_gVR3vGq9sx5N3Mtl7KcQVhyqkABfuiYheWll0mj0xFEyexwfT0bLTpU107nMpTM1qgMZCa53bcBGCDoWBv8VDbLlvKCkgQd_m8ShLOnCdY2zQxNYGmc4f22nPsKebcmZ6N_kF8NL64d3bN-tlwd0Ef2KtUMPYHj6YkovqJu94VXdBbzj3jNnd6nZQnzwfyruddq-JOAUQztCbTOUUKil8kzf3l7w9jw4GpwrPFVnZd12QhhxrtJwFLF0INmnxG7l2YWwToW9VB_piuIkYeBcPz2Fl5I6KuaEBmUPhiXAi3QB6jcD36kA4198PkTJbuNM2Rj2WkjQcnbS32zx7LTdIjbd5v_CzQ5IKIVFFYHaQjrNQSPW6xCAfXnGyk4WsyKoWASfc4ghhJEQjLbqL64d90Na1gT0JqruaUC4BWHTs5X1UBJy5WCZIlKexCYH6vfWEY3_3ihKoAyb99SGxxXNxbYgZkj8t8CaSRQMUO-7D29FNQhXPpbKT1JulPMXyB6PFvl0HUA3HynbK5VNBKpXAZNns4ZxkaMgS7wB1k6rb2_5oZlso13fzpK1xIEb7FTvVgay_Es-udGA_nihgosrYJzsVz3Ui4fV_--uqDvzaNmgOGv0lDoGvPUuO9eG3J2fmpJfubsnBKT65omkbuzRlA",
+      "expected_rejection": "authentication"
+    },
+    {
+      "name": "capability_signature_tamper",
+      "target": "capability.grant",
+      "operation": "replace_json_value",
+      "json_pointer": "/revocation_epoch",
+      "replacement": 1,
+      "expected_rejection": "signature"
+    },
+    {
+      "name": "command_signature_tamper",
+      "target": "command",
+      "operation": "replace_json_value",
+      "json_pointer": "/payload/body",
+      "replacement": "relay forged plaintext",
+      "expected_rejection": "signature"
+    },
+    {
+      "name": "envelope_ciphertext_tamper",
+      "target": "envelope",
+      "operation": "replace_json_value",
+      "json_pointer": "/ciphertext",
+      "replacement": "AgToBS_DrUtH6P3DyTY-tPgptm5Gzyh23-R2hjbbSf1Hj3V3776lld0j6WhyaT1mE9zXhgQ",
+      "expected_rejection": "signature_or_authentication"
+    },
+    {
+      "name": "envelope_replay",
+      "target": "envelope",
+      "operation": "redeliver_exact",
+      "expected_rejection": "replay"
+    },
+    {
+      "name": "icon_blob_bytes_tamper",
+      "target": "icon_blob.blob",
+      "operation": "replace_json_value",
+      "json_pointer": "/bytes",
+      "replacement": "AVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII",
+      "expected_rejection": "content_commitment"
+    },
+    {
+      "name": "reference_blob_bytes_tamper",
+      "target": "reference_blob.blob",
+      "operation": "replace_json_value",
+      "json_pointer": "/bytes",
+      "replacement": "AVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII",
+      "expected_rejection": "content_commitment"
+    },
+    {
+      "name": "reference_chunk_bytes_tamper",
+      "target": "reference_blob.chunks/0",
+      "operation": "replace_json_value",
+      "json_pointer": "/bytes",
+      "replacement": "AVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk-A8AAQUBAScY42YAAAAASUVORK5CYII",
+      "expected_rejection": "chunk_commitment"
+    }
+  ]
+}

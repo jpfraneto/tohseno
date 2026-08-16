@@ -39,6 +39,31 @@ python3 "$repository_root/scripts/build-normalized-tar.py" \
   --root-name genesis \
   --mtime 1
 tar -tzf "$valid_archive" >/dev/null
+repeated_archive="$temporary_root/valid-repeated.tar.gz"
+python3 "$repository_root/scripts/build-normalized-tar.py" \
+  --source "$valid_source" \
+  --output "$repeated_archive" \
+  --root-name genesis \
+  --mtime 1
+cmp "$valid_archive" "$repeated_archive"
+
+release_source="$temporary_root/release"
+release_archive="$temporary_root/release.tar.gz"
+mkdir -p "$release_source/bin" "$release_source/share/studio"
+printf '%s\n' "candidate binary" >"$release_source/bin/tohseno"
+printf '%s\n' "candidate Studio" >"$release_source/share/studio/index.html"
+(
+  cd "$release_source"
+  shasum -a 256 bin/tohseno share/studio/index.html >CHECKSUMS.sha256
+)
+python3 "$repository_root/scripts/build-normalized-tar.py" \
+  --source "$release_source" \
+  --output "$release_archive" \
+  --root-name aarch64-apple-darwin \
+  --mtime 1 \
+  --manifest-name CHECKSUMS.sha256
+tar -tzf "$release_archive" | grep -Fqx \
+  'aarch64-apple-darwin/share/studio/index.html'
 
 bad_digest_source="$temporary_root/bad-digest"
 bad_digest_archive="$temporary_root/bad-digest.tar.gz"

@@ -44,8 +44,8 @@ paths_overlap() {
 }
 
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
-candidate_root="${TOHSENO_DATA_ROOT:-$HOME/.tohseno-genesis}"
-evidence_directory="${TOHSENO_LIFECYCLE_EVIDENCE:-$repository_root/genesis/lifecycle/evidence}"
+candidate_root="${TOHSENO_DATA_ROOT:-$HOME/.tohseno-0.9-candidate}"
+evidence_directory="${TOHSENO_LIFECYCLE_EVIDENCE:-$repository_root/dist/lifecycle-evidence}"
 
 case "${HOME:-}" in
   /*) ;;
@@ -75,8 +75,8 @@ if paths_overlap "$candidate_root" "$stable_root"; then
   fail "candidate lifecycle root overlaps the stable data root."
 fi
 
-lifecycle_marker="$candidate_root/.genesis-lifecycle-root"
-install_marker="$candidate_root/.genesis-install-root"
+lifecycle_marker="$candidate_root/.tohseno-0.9-lifecycle-root"
+install_marker="$candidate_root/.tohseno-install-root"
 install_layout=0
 for install_entry in \
   "$candidate_root/bin" \
@@ -91,7 +91,7 @@ done
 if [ "$install_layout" -eq 1 ]; then
   if [ -L "$install_marker" ] ||
     [ ! -f "$install_marker" ] ||
-    [ "$(cat "$install_marker")" != "tohseno-genesis-install-v1" ]; then
+    [ "$(cat "$install_marker")" != "tohseno-stable-install-v2" ]; then
     fail "candidate installation exists without a valid installer marker."
   fi
   for install_directory in \
@@ -140,15 +140,15 @@ done
 if [ -e "$lifecycle_marker" ] || [ -L "$lifecycle_marker" ]; then
   if [ -L "$lifecycle_marker" ] ||
     [ ! -f "$lifecycle_marker" ] ||
-    [ "$(cat "$lifecycle_marker")" != "tohseno-genesis-lifecycle-v1" ]; then
+    [ "$(cat "$lifecycle_marker")" != "tohseno-0.9-lifecycle-v1" ]; then
     fail "candidate lifecycle marker is missing, symlinked, or unrecognized."
   fi
 elif [ "$has_candidate_state" -eq 1 ]; then
   fail "candidate root is nonempty and is not a recorded Genesis lifecycle."
 else
-  marker_stage="$(mktemp "$candidate_root/.genesis-lifecycle.XXXXXX")" ||
+  marker_stage="$(mktemp "$candidate_root/.tohseno-lifecycle.XXXXXX")" ||
     fail "could not stage the lifecycle marker."
-  (umask 077 && printf '%s\n' "tohseno-genesis-lifecycle-v1" >"$marker_stage")
+  (umask 077 && printf '%s\n' "tohseno-0.9-lifecycle-v1" >"$marker_stage")
   if [ -e "$lifecycle_marker" ] || [ -L "$lifecycle_marker" ]; then
     rm -f "$marker_stage"
     fail "candidate lifecycle marker appeared concurrently."
@@ -168,10 +168,10 @@ if paths_overlap "$evidence_directory" "$stable_root"; then
 fi
 
 export TOHSENO_DATA_ROOT="$candidate_root"
-tohseno_bin="${TOHSENO_CANDIDATE_BIN:-$home_directory/.tohseno-genesis/bin/tohseno-genesis}"
+tohseno_bin="${TOHSENO_CANDIDATE_BIN:-$home_directory/.tohseno-0.9-candidate/bin/tohseno}"
 reject_symlink_components "$tohseno_bin" "TOHSENO_CANDIDATE_BIN"
 if [ -L "$tohseno_bin" ] || [ ! -f "$tohseno_bin" ] || [ ! -x "$tohseno_bin" ]; then
-  fail "install the GENESIS candidate before running its lifecycle."
+  fail "install the TOHSENO 0.9 candidate before running its lifecycle."
 fi
 tohseno_bin_directory="$(CDPATH= cd -- "$(dirname -- "$tohseno_bin")" && pwd -P)"
 tohseno_bin="$tohseno_bin_directory/$(basename -- "$tohseno_bin")"
@@ -180,8 +180,8 @@ case "$tohseno_bin/" in
 esac
 candidate_version="$("$tohseno_bin" --version 2>/dev/null)" ||
   fail "candidate executable did not start."
-if [ "$candidate_version" != "tohseno 0.8.5" ]; then
-  fail "candidate executable reported '$candidate_version', not tohseno 0.8.5."
+if [ "$candidate_version" != "tohseno 0.9.0" ]; then
+  fail "candidate executable reported '$candidate_version', not tohseno 0.9.0."
 fi
 
 prompt_file="$repository_root/genesis/SHOT_1_INTENT.md"
@@ -254,4 +254,4 @@ mv "$evolution_stage" "$evolution_evidence"
 evolution_stage=""
 
 printf '%s\n' \
-  "Evolution 1 is locally complete and private; no contract generation is active."
+  "The factory Shot is locally complete and private; companion transport and the public node remain separate."

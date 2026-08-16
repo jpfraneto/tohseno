@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::Write as _;
+use std::fs::{self, OpenOptions};
+use std::io::{Read as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -8,8 +8,10 @@ use tempfile::NamedTempFile;
 use tohseno_engine::{Event, EventBus};
 
 const INSTALL_MARKER: &str = "tohseno-stable-install-v2";
-const INSTALLER_URL: &str = "https://tohseno.com/oneshot.sh";
 const LATEST_RELEASE_URL: &str = "https://api.github.com/repos/jpfraneto/tohseno/releases/latest";
+const RELEASE_DOWNLOAD_BASE: &str = "https://github.com/jpfraneto/tohseno/releases/download";
+const INSTALLER_ASSET: &str = "oneshot.sh";
+const RELEASE_CHECKSUM_ASSET: &str = "SHA256SUMS";
 const UPDATE_CACHE_SCHEMA: &str = "tohseno.update-check/1";
 const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_RELEASE_RESPONSE: usize = 64 * 1024;
@@ -19,6 +21,23 @@ const PATH_LINE: &str = r#"export PATH="$HOME/.tohseno/bin:$PATH""#;
 #[derive(Debug, Deserialize)]
 struct LatestRelease {
     tag_name: String,
+    draft: bool,
+    prerelease: bool,
+    immutable: bool,
+    assets: Vec<ReleaseAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReleaseAsset {
+    name: String,
+    digest: Option<String>,
+}
+
+#[derive(Debug)]
+struct StableRelease {
+    version: String,
+    installer_sha256: String,
+    checksums_sha256: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,10 +54,10 @@ pub async fn maybe_emit_update_notice(bus: &EventBus) {
     };
     let latest = match fresh_cached_version(&root) {
         Some(version) => Some(version),
-        None => match fetch_latest_version().await {
-            Ok(version) => {
-                let _ = write_update_cache(&root, &version);
-                Some(version)
+        None => match fetch_latest_release().await {
+            Ok(release) => {
+                let _ = write_update_cache(&root, &release.version);
+                Some(release.version)
             }
             Err(_) => None,
         },
@@ -57,15 +76,16 @@ pub async fn maybe_emit_update_notice(bus: &EventBus) {
 pub async fn update(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
     let root = validated_install_root()?;
     let current = env!("CARGO_PKG_VERSION");
-    let latest = fetch_latest_version().await?;
-    write_update_cache(&root, &latest)?;
-    if !version_is_newer(&latest, current) {
+    let latest = fetch_latest_release().await?;
+    write_update_cache(&root, &latest.version)?;
+    if !version_is_newer(&latest.version, current) {
         bus.emit(Event::result(format!("TOHSENO {current} is current.")));
         return Ok(());
     }
 
     bus.emit(Event::status(format!(
-        "updating TOHSENO {current} → {latest}…"
+        "updating TOHSENO {current} → {}…",
+        latest.version
     )));
     let installer = download_installer(&latest).await?;
     let status = tokio::process::Command::new("/bin/sh")
@@ -87,10 +107,11 @@ pub async fn update(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
     installer.close()?;
-    verify_installed_version(&root, &latest).await?;
-    write_update_cache(&root, &latest)?;
+    verify_installed_version(&root, &latest.version).await?;
+    write_update_cache(&root, &latest.version)?;
     bus.emit(Event::result(format!(
-        "Updated TOHSENO to {latest}. Studio was left closed."
+        "Updated TOHSENO to {}. The Local Workspace Service was restarted and verified; Studio was not opened.",
+        latest.version
     )));
     Ok(())
 }
@@ -105,9 +126,14 @@ pub fn uninstall(bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
         home.join(".bashrc"),
         home.join(".profile"),
     ];
+    let service_paths = crate::service_commands::ServicePaths::discover()?;
+    if service_paths.install_root != root {
+        return Err("Local Workspace Service root does not match the verified installation".into());
+    }
+    crate::service_commands::uninstall(&service_paths, &crate::service_commands::SystemLaunchctl)?;
     let warnings = uninstall_at(&root, &profiles)?;
     bus.emit(Event::result(
-        "TOHSENO program files were removed. Shots, identities, feedback, and app data remain.",
+        "TOHSENO program files and its LaunchAgent were removed. Shots, identities, feedback, command journals, and companion pairing records remain.",
     ));
     for warning in warnings {
         bus.emit(Event::status(warning));
@@ -131,13 +157,11 @@ fn validated_install_root() -> Result<PathBuf, String> {
     let root = install_root()?;
     require_real_directory(&root, "TOHSENO installation root")?;
     let marker = root.join(".tohseno-install-root");
-    let metadata = fs::symlink_metadata(&marker)
-        .map_err(|_| "no stable TOHSENO installation was found".to_owned())?;
-    if !metadata.file_type().is_file() || metadata.len() > 128 {
-        return Err("the TOHSENO installation marker is unsafe".into());
-    }
-    let value = fs::read_to_string(&marker)
-        .map_err(|error| format!("the TOHSENO installation marker could not be read: {error}"))?;
+    let value = String::from_utf8(
+        read_regular_bounded(&marker, 128)
+            .map_err(|_| "no safe stable TOHSENO installation marker was found".to_owned())?,
+    )
+    .map_err(|_| "the TOHSENO installation marker is not UTF-8".to_owned())?;
     if value.trim_end() != INSTALL_MARKER {
         return Err("the TOHSENO installation marker is unrecognized".into());
     }
@@ -154,11 +178,8 @@ fn require_real_directory(path: &Path, label: &str) -> Result<(), String> {
 
 fn fresh_cached_version(root: &Path) -> Option<String> {
     let path = root.join(".update-check.json");
-    let metadata = fs::symlink_metadata(&path).ok()?;
-    if !metadata.file_type().is_file() || metadata.len() > 4096 {
-        return None;
-    }
-    let cache = serde_json::from_slice::<UpdateCache>(&fs::read(path).ok()?).ok()?;
+    let cache =
+        serde_json::from_slice::<UpdateCache>(&read_regular_bounded(&path, 4096).ok()?).ok()?;
     if cache.schema != UPDATE_CACHE_SCHEMA || parse_version(&cache.latest_version).is_none() {
         return None;
     }
@@ -197,7 +218,7 @@ fn write_update_cache(root: &Path, latest: &str) -> Result<(), String> {
     Ok(())
 }
 
-async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error>> {
+async fn fetch_latest_release() -> Result<StableRelease, Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(1))
@@ -214,6 +235,9 @@ async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error>> {
     }
     let body = bounded_body(response, MAX_RELEASE_RESPONSE).await?;
     let release = serde_json::from_slice::<LatestRelease>(&body)?;
+    if release.draft || release.prerelease || !release.immutable {
+        return Err("GitHub latest release is not an immutable stable release".into());
+    }
     let version = release
         .tag_name
         .strip_prefix('v')
@@ -222,23 +246,67 @@ async fn fetch_latest_version() -> Result<String, Box<dyn std::error::Error>> {
     if parse_version(&version).is_none() {
         return Err("GitHub returned an invalid stable release version".into());
     }
-    Ok(version)
+    Ok(StableRelease {
+        version,
+        installer_sha256: unique_release_asset_digest(&release.assets, INSTALLER_ASSET)?,
+        checksums_sha256: unique_release_asset_digest(&release.assets, RELEASE_CHECKSUM_ASSET)?,
+    })
 }
 
 async fn download_installer(
-    expected_version: &str,
+    release: &StableRelease,
 ) -> Result<NamedTempFile, Box<dyn std::error::Error>> {
+    let expected_version = &release.version;
+    if parse_version(expected_version).is_none() {
+        return Err("installer version is not an exact stable version".into());
+    }
     let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many release-asset redirects");
+            }
+            if release_download_origin_is_allowed(attempt.url()) {
+                attempt.follow()
+            } else {
+                attempt.error("release-asset redirect left the GitHub allowlist")
+            }
+        }))
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(20))
         .user_agent(format!("tohseno-update/{}", env!("CARGO_PKG_VERSION")))
         .build()?;
-    let response = client.get(INSTALLER_URL).send().await?;
-    if !response.status().is_success() || response.url().as_str() != INSTALLER_URL {
-        return Err(format!("installer download returned {}", response.status()).into());
+    let checksums = download_release_asset(
+        &client,
+        expected_version,
+        RELEASE_CHECKSUM_ASSET,
+        MAX_RELEASE_RESPONSE,
+    )
+    .await?;
+    let checksums_digest = tohseno_protocol::digest::sha256(&checksums)
+        .to_string()
+        .trim_start_matches("0x")
+        .to_owned();
+    if checksums_digest != release.checksums_sha256 {
+        return Err("immutable release SHA256SUMS did not match GitHub asset metadata".into());
     }
-    let body = bounded_body(response, MAX_INSTALLER_BYTES).await?;
+    let expected_digest = release_asset_digest(&checksums, INSTALLER_ASSET)?;
+    if expected_digest != release.installer_sha256 {
+        return Err("installer checksum disagrees with GitHub asset metadata".into());
+    }
+    let body = download_release_asset(
+        &client,
+        expected_version,
+        INSTALLER_ASSET,
+        MAX_INSTALLER_BYTES,
+    )
+    .await?;
+    let observed_digest = tohseno_protocol::digest::sha256(&body)
+        .to_string()
+        .trim_start_matches("0x")
+        .to_owned();
+    if observed_digest != expected_digest {
+        return Err("immutable release installer checksum did not match SHA256SUMS".into());
+    }
     validate_installer_pin(&body, expected_version)?;
     let mut file = NamedTempFile::new()?;
     file.write_all(&body)?;
@@ -250,6 +318,95 @@ async fn download_installer(
             .set_permissions(fs::Permissions::from_mode(0o700))?;
     }
     Ok(file)
+}
+
+async fn download_release_asset(
+    client: &reqwest::Client,
+    expected_version: &str,
+    asset: &str,
+    maximum: usize,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    if parse_version(expected_version).is_none()
+        || !matches!(asset, INSTALLER_ASSET | RELEASE_CHECKSUM_ASSET)
+    {
+        return Err("release asset request was not allowlisted".into());
+    }
+    let url = format!("{RELEASE_DOWNLOAD_BASE}/v{expected_version}/{asset}");
+    let response = client.get(&url).send().await?;
+    if !response.status().is_success() || !release_download_origin_is_allowed(response.url()) {
+        return Err(format!("release asset download returned {}", response.status()).into());
+    }
+    bounded_body(response, maximum).await
+}
+
+fn release_download_origin_is_allowed(url: &reqwest::Url) -> bool {
+    url.scheme() == "https"
+        && matches!(
+            url.host_str(),
+            Some(
+                "github.com"
+                    | "objects.githubusercontent.com"
+                    | "release-assets.githubusercontent.com"
+            )
+        )
+}
+
+fn release_asset_digest(manifest: &[u8], asset: &str) -> Result<String, String> {
+    if asset.contains('/') || asset.contains('\\') || asset.is_empty() {
+        return Err("release checksum target is unsafe".into());
+    }
+    let source = std::str::from_utf8(manifest)
+        .map_err(|_| "release checksum manifest is not UTF-8".to_owned())?;
+    let mut matched = None;
+    for line in source.lines() {
+        let Some((digest, name)) = line.split_once("  ") else {
+            return Err("release checksum manifest has an invalid line".into());
+        };
+        if digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|value| value.is_ascii_digit() || (b'a'..=b'f').contains(&value))
+            || name.is_empty()
+            || name.starts_with('.')
+            || name.contains('/')
+            || name.contains('\\')
+        {
+            return Err("release checksum manifest has an unsafe entry".into());
+        }
+        if name == asset && matched.replace(digest.to_owned()).is_some() {
+            return Err("release checksum manifest repeats the installer".into());
+        }
+    }
+    matched.ok_or_else(|| "release checksum manifest does not name the installer".into())
+}
+
+fn unique_release_asset_digest(assets: &[ReleaseAsset], name: &str) -> Result<String, String> {
+    let matches = assets
+        .iter()
+        .filter(|asset| asset.name == name)
+        .collect::<Vec<_>>();
+    if matches.len() != 1 {
+        return Err(format!(
+            "immutable release must contain exactly one {name} asset"
+        ));
+    }
+    let value = matches[0]
+        .digest
+        .as_deref()
+        .ok_or_else(|| format!("immutable release {name} asset has no digest"))?;
+    let digest = value
+        .strip_prefix("sha256:")
+        .ok_or_else(|| format!("immutable release {name} digest is not SHA-256"))?;
+    if digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|value| value.is_ascii_digit() || (b'a'..=b'f').contains(&value))
+    {
+        return Err(format!(
+            "immutable release {name} digest is not canonical SHA-256"
+        ));
+    }
+    Ok(digest.to_owned())
 }
 
 fn validate_installer_pin(body: &[u8], expected_version: &str) -> Result<(), String> {
@@ -265,7 +422,7 @@ fn validate_installer_pin(body: &[u8], expected_version: &str) -> Result<(), Str
         .collect::<Vec<_>>();
     if version_pins.as_slice() != [expected_pin.as_str()] {
         return Err(format!(
-            "tohseno.com is not serving the TOHSENO {expected_version} installer yet; try `tohseno update` again shortly"
+            "the immutable TOHSENO {expected_version} release does not contain its exact installer yet; try `tohseno update` again shortly"
         ));
     }
     Ok(())
@@ -316,14 +473,9 @@ async fn bounded_body(
 fn uninstall_at(root: &Path, profiles: &[PathBuf]) -> Result<Vec<String>, String> {
     require_real_directory(root, "TOHSENO installation root")?;
     let marker = root.join(".tohseno-install-root");
-    let marker_metadata =
-        fs::symlink_metadata(&marker).map_err(|_| "installation marker is missing")?;
-    if !marker_metadata.file_type().is_file()
-        || fs::read_to_string(&marker)
-            .map_err(|error| error.to_string())?
-            .trim_end()
-            != INSTALL_MARKER
-    {
+    let marker_value = String::from_utf8(read_regular_bounded(&marker, 128)?)
+        .map_err(|_| "installation marker is not UTF-8")?;
+    if marker_value.trim_end() != INSTALL_MARKER {
         return Err("installation marker is unsafe or unrecognized".into());
     }
 
@@ -334,6 +486,7 @@ fn uninstall_at(root: &Path, profiles: &[PathBuf]) -> Result<Vec<String>, String
     validate_managed_genesis_link(root)?;
     validate_optional_real_directory(&root.join("share"))?;
     validate_optional_real_directory(&root.join("releases"))?;
+    validate_optional_real_directory(&root.join("logs"))?;
     validate_optional_regular_file(&root.join(".update-check.json"))?;
 
     remove_current_link(root)?;
@@ -343,6 +496,7 @@ fn uninstall_at(root: &Path, profiles: &[PathBuf]) -> Result<Vec<String>, String
     remove_managed_genesis_link(root)?;
     remove_directory_if_empty(&root.join("share"))?;
     remove_managed_tree(&root.join("releases"), "release directory")?;
+    remove_managed_tree(&root.join("logs"), "operational log directory")?;
     remove_optional_regular_file(&root.join(".update-check.json"))?;
 
     let mut warnings = Vec::new();
@@ -490,7 +644,8 @@ fn remove_path_line(path: &Path) -> Result<(), String> {
     if !metadata.file_type().is_file() || metadata.len() > 4 * 1024 * 1024 {
         return Err("shell profile is not a bounded regular file".into());
     }
-    let source = fs::read_to_string(path).map_err(|_| "shell profile is not UTF-8")?;
+    let source = String::from_utf8(read_regular_bounded(path, 4 * 1024 * 1024)?)
+        .map_err(|_| "shell profile is not UTF-8")?;
     let filtered = source
         .split_inclusive('\n')
         .filter(|line| line.trim_end_matches(['\r', '\n']) != PATH_LINE)
@@ -515,6 +670,33 @@ fn remove_path_line(path: &Path) -> Result<(), String> {
     file.persist(path)
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+fn read_regular_bounded(path: &Path, maximum: u64) -> Result<Vec<u8>, String> {
+    let before = fs::symlink_metadata(path).map_err(|error| error.to_string())?;
+    if before.file_type().is_symlink() || !before.is_file() || before.len() > maximum {
+        return Err(format!("{} is not a bounded regular file", path.display()));
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    }
+    let file = options.open(path).map_err(|error| error.to_string())?;
+    let opened = file.metadata().map_err(|error| error.to_string())?;
+    if !opened.is_file() || opened.len() != before.len() || opened.len() > maximum {
+        return Err(format!("{} changed while it was opened", path.display()));
+    }
+    let mut bytes = Vec::with_capacity(usize::try_from(opened.len()).unwrap_or(0));
+    file.take(maximum + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 != opened.len() || bytes.len() as u64 > maximum {
+        return Err(format!("{} changed while it was read", path.display()));
+    }
+    Ok(bytes)
 }
 
 fn unix_seconds() -> Result<u64, String> {
@@ -581,6 +763,86 @@ mod tests {
             "0.7.1"
         )
         .is_err());
+    }
+
+    #[test]
+    fn update_requires_one_exact_release_checksum_for_the_installer() {
+        let digest = "4f".repeat(32);
+        let manifest = format!(
+            "{}  another-asset\n{digest}  {INSTALLER_ASSET}\n",
+            "0a".repeat(32)
+        );
+        assert_eq!(
+            release_asset_digest(manifest.as_bytes(), INSTALLER_ASSET).unwrap(),
+            digest
+        );
+
+        for invalid in [
+            format!("{digest}  {INSTALLER_ASSET}\n{digest}  {INSTALLER_ASSET}\n"),
+            format!("{}  {INSTALLER_ASSET}\n", digest.to_uppercase()),
+            format!("{digest}  nested/{INSTALLER_ASSET}\n"),
+            format!("{digest} *{INSTALLER_ASSET}\n"),
+            format!("{digest}  other\n"),
+        ] {
+            assert!(release_asset_digest(invalid.as_bytes(), INSTALLER_ASSET).is_err());
+        }
+    }
+
+    #[test]
+    fn update_binds_both_assets_to_immutable_github_sha256_metadata() {
+        let digest = "5a".repeat(32);
+        let assets = vec![
+            ReleaseAsset {
+                name: INSTALLER_ASSET.into(),
+                digest: Some(format!("sha256:{digest}")),
+            },
+            ReleaseAsset {
+                name: RELEASE_CHECKSUM_ASSET.into(),
+                digest: Some(format!("sha256:{}", "6b".repeat(32))),
+            },
+        ];
+        assert_eq!(
+            unique_release_asset_digest(&assets, INSTALLER_ASSET).unwrap(),
+            digest
+        );
+
+        let mut duplicate = assets;
+        duplicate.push(ReleaseAsset {
+            name: INSTALLER_ASSET.into(),
+            digest: Some(format!("sha256:{}", "7c".repeat(32))),
+        });
+        assert!(unique_release_asset_digest(&duplicate, INSTALLER_ASSET).is_err());
+        assert!(unique_release_asset_digest(&duplicate, "missing").is_err());
+
+        for invalid in [None, Some("sha512:00"), Some("sha256:ABCDEF")] {
+            let invalid_assets = [ReleaseAsset {
+                name: INSTALLER_ASSET.into(),
+                digest: invalid.map(str::to_owned),
+            }];
+            assert!(unique_release_asset_digest(&invalid_assets, INSTALLER_ASSET).is_err());
+        }
+    }
+
+    #[test]
+    fn update_redirects_stay_on_the_exact_github_release_allowlist() {
+        for url in [
+            "https://github.com/jpfraneto/tohseno/releases/download/v0.9.0/oneshot.sh",
+            "https://objects.githubusercontent.com/release-asset",
+            "https://release-assets.githubusercontent.com/release-asset",
+        ] {
+            assert!(release_download_origin_is_allowed(
+                &reqwest::Url::parse(url).unwrap()
+            ));
+        }
+        for url in [
+            "http://github.com/jpfraneto/tohseno/releases/download/v0.9.0/oneshot.sh",
+            "https://github.com.evil.invalid/oneshot.sh",
+            "https://tohseno.com/oneshot.sh",
+        ] {
+            assert!(!release_download_origin_is_allowed(
+                &reqwest::Url::parse(url).unwrap()
+            ));
+        }
     }
 
     #[test]

@@ -1,0 +1,23 @@
+[package]
+name = "tohseno-application"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64.workspace = true
+libc = "=0.2.189"
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "=0.10.9"
+tempfile.workspace = true
+time = { version = "=0.3.36", default-features = false, features = ["formatting", "parsing"] }
+tokio.workspace = true
+tohseno-engine = { path = "../engine" }
+tohseno-protocol = { path = "../protocol" }
+uuid = { version = "=1.18.1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+p256 = { version = "=0.13.2", features = ["ecdsa"] }
