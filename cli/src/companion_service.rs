@@ -3874,7 +3874,7 @@ mod tests {
     fn persisted_icon_projection_is_stable_across_reconciliation() {
         let revision =
             revision_number("0xc4c26ab4c33958d4b35c2de82b8543dbcaecd64f60794a12fcc5c441c98332df");
-        assert!(revision <= (1_u64 << 53) - 1);
+        assert!(revision < 1_u64 << 53);
         let mut current_shot = shot(None);
         current_shot.icon_revision = revision;
         current_shot.icon = Some(tohseno_companion::snapshot::IconDescriptor {

@@ -312,8 +312,35 @@ assert isinstance(factory[0].get("shot_id"), str)
 assert isinstance(factory[0].get("expression_id"), str)
 assert isinstance(factory[0].get("latest_version_id"), str)
 assert len(recording) == 1 and recording[0].get("display_name") == "anky"
+# One human projection per app. Studio renders this verbatim; it never
+# interprets an internal execution phase for itself.
+presentation = factory[0].get("presentation", {})
+assert presentation.get("state") == "installed", presentation
+assert presentation.get("headline") == "factoryfixture is on your iPhone ✓", presentation
+assert recording[0].get("presentation", {}).get("state") in {"installed", "waiting"}
 ' "$temporary_root/workspace-v1.json" ||
   fail "the workspace snapshot did not distinguish factory and recording-only apps"
+
+# The collapsed Studio serves four routes and nothing else. The Studio-only
+# feedback and marketing endpoints were removed with the UI that called them.
+for route in "/" "/create" "/settings"; do
+  curl -fsS --max-time 2 -o /dev/null "$service_origin$route" ||
+    fail "Studio did not serve $route"
+done
+removed_shot_id="$(python3 -c '
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+print([shot for shot in value["shots"] if shot["kind"] == "factory_shot"][0]["shot_id"], end="")
+' "$temporary_root/workspace-v1.json")" || fail "the workspace snapshot had no factory Shot ID"
+# Read paths are checked because a mutation is refused by the anti-CSRF layer
+# before routing, which would hide a route that still exists.
+for removed in "feedback" "marketing"; do
+  removed_status="$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' \
+    "$service_origin/api/v1/shots/$removed_shot_id/$removed")" ||
+    fail "the removed $removed endpoint did not answer"
+  [ "$removed_status" = "405" ] || [ "$removed_status" = "404" ] ||
+    fail "the Studio-only $removed endpoint still exists (HTTP $removed_status)"
+done
 
 factory_evolution="$temporary_root/factory-evolution.md"
 printf '%s\n' \

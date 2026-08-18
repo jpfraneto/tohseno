@@ -5,263 +5,106 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <meta name="theme-color" content="#0b0b0a">
-    <title>TOHSENO Studio</title>
+    <title>TOHSENO</title>
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
-    <div id="app-shell" class="app-shell" data-connection="connecting">
+    <div id="shell" class="shell" data-view="apps">
       <header class="topbar">
-        <div class="brand-lockup" aria-label="TOHSENO Studio">
-          <span class="brand-mark" aria-hidden="true"><span></span></span>
-          <div>
-            <strong>TOHSENO</strong>
-            <span>LOCAL APP FACTORY</span>
-          </div>
-        </div>
-        <div class="service-presence" role="status" aria-live="polite">
-          <span class="presence-dot" aria-hidden="true"></span>
-          <span id="service-status">Connecting to your TOHSENO…</span>
-        </div>
-        <button id="connect-iphone" class="connect-iphone" type="button">
-          <span aria-hidden="true">＋</span>
-          CONNECT IPHONE
-        </button>
+        <a id="home" class="wordmark" href="/">TOHSENO</a>
+        <button id="open-settings" class="quiet" type="button">Settings</button>
       </header>
 
-      <main class="studio-grid">
-        <aside id="shots-region" class="region shots-region" aria-labelledby="shots-heading">
-          <div class="region-heading">
-            <div>
-              <p class="region-kicker">LOCAL WORKSPACE</p>
-              <h1 id="shots-heading">YOUR SHOTS</h1>
-            </div>
-            <span id="shot-count" class="count-badge">0</span>
-          </div>
-          <button id="new-shot" class="new-shot" type="button">
-            <span class="new-shot-mark" aria-hidden="true">＋</span>
-            <span><strong>New Shot</strong><small>Begin with one exact intention</small></span>
-          </button>
-          <div id="shot-list" class="shot-list" aria-live="polite"></div>
-          <div id="empty-shots" class="empty-shots">
-            <span class="empty-orbit" aria-hidden="true"></span>
-            <strong>Your factory is ready.</strong>
-            <p>Take the first Shot from an intention, not a template.</p>
-          </div>
-          <footer class="workspace-note">
-            <span id="workspace-id">Workspace unavailable</span>
-            <span>Source and harness output stay on this Mac.</span>
-          </footer>
-        </aside>
-
-        <section id="intent-region" class="region intent-region" aria-labelledby="intent-heading">
-          <div class="region-heading center-heading">
-            <div>
-              <p class="region-kicker">FACTORY CONTROL</p>
-              <h1 id="intent-heading">INTENT / SHOT ACTIVITY</h1>
-            </div>
-            <span id="snapshot-time" class="snapshot-time">Waiting for workspace</span>
-          </div>
-
-          <section id="create-surface" class="surface create-surface">
-            <header class="surface-intro">
-              <p class="eyebrow">NEW SHOT</p>
-              <h2>Give the app one exact intention.</h2>
-              <p>TOHSENO preserves these bytes, reserves stable identities, and lets the Local Workspace Service carry the Shot through planning, building, verification, installation, launch, and acceptance.</p>
-            </header>
-
-            <form id="create-form" novalidate>
-              <label class="field compact-field" for="create-name">
-                <span>Shot name</span>
-                <input id="create-name" name="name" required pattern="[a-z0-9][a-z0-9-]{0,62}" maxlength="63" autocomplete="off" spellcheck="false" placeholder="tohseno">
-                <small>Lowercase letters, numbers, and hyphens.</small>
-              </label>
-
-              <label class="field intention-field" for="create-intention">
-                <span>Exact intention</span>
-                <textarea id="create-intention" name="intention" required maxlength="4194304" rows="12" placeholder="Describe the native app, the person it serves, and what accepted should feel like."></textarea>
-                <small>The text is submitted exactly as written. Studio does not turn this into a chat.</small>
-              </label>
-
-              <section class="reference-section" aria-labelledby="create-reference-heading">
-                <div class="reference-heading">
-                  <div>
-                    <strong id="create-reference-heading">Reference images</strong>
-                    <span>Exact local bytes · PNG, JPEG, HEIC, or WebP</span>
-                  </div>
-                  <span id="create-reference-count">0 / 8</span>
-                </div>
-                <label id="create-reference-drop" class="reference-drop" for="create-images" tabindex="0">
-                  <input id="create-images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
-                  <span aria-hidden="true">＋</span>
-                  <strong>Choose or drop reference images</strong>
-                  <small>Up to eight files, 64 MB each and 160 MB combined.</small>
-                </label>
-                <div id="create-reference-list" class="reference-list"></div>
-                <p id="create-reference-status" class="form-status" role="status"></p>
-              </section>
-
-              <section class="factory-defaults" aria-label="Current factory defaults">
-                <div><span>CODING HARNESS</span><strong id="factory-harness">Owner-configured local default</strong></div>
-                <div><span>INFERENCE ROUTE</span><strong id="factory-route">Resolved securely on this Mac</strong></div>
-                <p>Credentials, model access, signing, Xcode, and device trust never leave the Mac.</p>
-              </section>
-
-              <div class="primary-row">
-                <p id="create-status" class="form-status" role="status"></p>
-                <button id="take-shot" class="primary-action" type="submit">TAKE THE SHOT</button>
-              </div>
-            </form>
-          </section>
-
-          <section id="shot-surface" class="surface shot-surface" hidden>
-            <header class="shot-surface-head">
-              <div class="shot-identity">
-                <span id="selected-shot-mark" class="shot-mark" aria-hidden="true">T</span>
-                <div>
-                  <p id="selected-shot-kind" class="eyebrow">FACTORY SHOT</p>
-                  <h2 id="selected-shot-name">Selected Shot</h2>
-                  <p id="selected-shot-version" class="version-binding">No accepted Version yet</p>
-                </div>
-              </div>
-              <button id="return-create" class="quiet-action" type="button">New Shot</button>
-            </header>
-
-            <section class="activity-card" aria-labelledby="activity-heading">
-              <div class="card-heading">
-                <div><p class="eyebrow">LIVE</p><h3 id="activity-heading">Shot activity</h3></div>
-                <span id="activity-state" class="state-pill">Idle</span>
-              </div>
-              <div id="activity-list" class="activity-list"></div>
-            </section>
-
-            <div id="factory-actions" class="factory-actions">
-              <form id="feedback-form" class="action-card" novalidate>
-                <div class="card-heading">
-                  <div><p class="eyebrow">EXACT VERSION</p><h3>Feedback</h3></div>
-                  <span id="feedback-binding" class="binding-chip">Unbound</span>
-                </div>
-                <p>Attach a private observation to the exact accepted Version shown above.</p>
-                <label class="field" for="feedback-body"><span>What should become better?</span><textarea id="feedback-body" maxlength="100000" rows="4" required></textarea></label>
-                <div id="feedback-commitment-list" class="commitment-list"></div>
-                <div class="form-actions">
-                  <button id="feedback-rebind" class="quiet-action" type="button" hidden>Use current Version</button>
-                  <span id="feedback-status" class="form-status" role="status"></span>
-                  <button id="submit-feedback" class="secondary-action" type="submit">SAVE FEEDBACK</button>
-                </div>
-              </form>
-
-              <form id="marketing-form" class="action-card" novalidate>
-                <div class="card-heading"><div><p class="eyebrow">PRIVATE NOTE</p><h3>Marketing</h3></div><span class="binding-chip">SHOT-BOUND</span></div>
-                <p>Keep a private idea beside this Shot. It is not posted, scheduled, or sent to a model.</p>
-                <label class="field" for="marketing-body"><span>Marketing note</span><textarea id="marketing-body" maxlength="100000" rows="4" required></textarea></label>
-                <div class="form-actions">
-                  <span id="marketing-status" class="form-status" role="status"></span>
-                  <button id="submit-marketing" class="secondary-action" type="submit">SAVE PRIVATE NOTE</button>
-                </div>
-              </form>
-
-              <form id="evolve-form" class="action-card evolve-card" novalidate>
-                <div class="card-heading">
-                  <div><p class="eyebrow">EXACT BASE</p><h3>Evolve this Shot</h3></div>
-                  <span id="evolve-binding" class="binding-chip">Unbound</span>
-                </div>
-                <p>Begin one evolutionary transaction from this exact accepted Expression and Version. A newer base is never selected silently.</p>
-                <label class="field" for="evolve-intention"><span>Evolutionary intention</span><textarea id="evolve-intention" maxlength="4194304" rows="7" placeholder="Change this accepted app so that…"></textarea><small>Required unless one or more exact Feedback actions are selected.</small></label>
-                <fieldset id="feedback-selection" class="feedback-selection" hidden>
-                  <legend>Selected Feedback actions</legend>
-                  <div id="feedback-options"></div>
-                </fieldset>
-                <section class="reference-section compact-references" aria-labelledby="evolve-reference-heading">
-                  <div class="reference-heading">
-                    <div><strong id="evolve-reference-heading">Evolution references</strong><span>Optional exact image bytes</span></div>
-                    <span id="evolve-reference-count">0 / 8</span>
-                  </div>
-                  <label id="evolve-reference-drop" class="reference-drop compact" for="evolve-images" tabindex="0">
-                    <input id="evolve-images" type="file" accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp" multiple hidden>
-                    <span aria-hidden="true">＋</span><strong>Choose or drop images</strong>
-                  </label>
-                  <div id="evolve-reference-list" class="reference-list"></div>
-                  <p id="evolve-reference-status" class="form-status" role="status"></p>
-                </section>
-                <div class="form-actions">
-                  <button id="evolve-rebind" class="quiet-action" type="button" hidden>Use current Version</button>
-                  <span id="evolve-status" class="form-status" role="status"></span>
-                  <button id="submit-evolution" class="primary-action compact-primary" type="submit">EVOLVE FROM THIS</button>
-                </div>
-              </form>
-            </div>
-
-            <section id="recording-only-note" class="recording-only-note" hidden>
-              <strong>Recording-only folder</strong>
-              <p>This folder remains compatible with the explicit recording layer. Studio will not silently turn it into a factory Shot or offer lineage actions.</p>
-            </section>
-          </section>
+      <main class="stage">
+        <section id="apps-view" class="view apps-view" aria-labelledby="apps-heading">
+          <h1 id="apps-heading">Your Apps</h1>
+          <div id="app-grid" class="app-grid" aria-live="polite"></div>
+          <p id="apps-empty" class="empty" hidden>Nothing here yet. Describe an app and TOHSENO makes it.</p>
+          <button id="new-app" class="primary" type="button">+ New App</button>
         </section>
 
-        <aside id="current-region" class="region current-region" aria-labelledby="current-heading">
-          <div class="region-heading">
-            <div><p class="region-kicker">LOCAL TRUTH</p><h1 id="current-heading">CURRENT APP / EXECUTION</h1></div>
+        <section id="compose-view" class="view compose-view" hidden>
+          <form id="compose-form" novalidate>
+            <input
+              id="compose-name"
+              class="app-name-field"
+              name="name"
+              maxlength="63"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="name your app"
+              aria-label="App name">
+            <h1 id="compose-title" class="app-name-heading" hidden></h1>
+            <label id="compose-question" class="question" for="compose-intent">What do you want this app to be?</label>
+            <textarea
+              id="compose-intent"
+              maxlength="4194304"
+              rows="10"
+              placeholder="Write or paste your intent here…"></textarea>
+            <div class="attachments">
+              <label id="reference-drop" class="add-images" for="reference-input" tabindex="0">
+                <input
+                  id="reference-input"
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp"
+                  multiple
+                  hidden>
+                + Add images
+              </label>
+              <div id="reference-list" class="reference-list"></div>
+            </div>
+            <div class="submit-row">
+              <p id="compose-status" class="status" role="status"></p>
+              <button id="compose-submit" class="primary" type="submit">Create App</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="state-view" class="view state-view" hidden>
+          <p id="state-kicker" class="kicker"></p>
+          <h1 id="state-headline" class="headline"></h1>
+          <p id="state-detail" class="detail"></p>
+          <div id="state-pulse" class="pulse" aria-hidden="true"><span></span></div>
+          <div class="state-actions">
+            <button id="state-retry" class="primary" type="button" hidden>Retry</button>
+            <button id="state-evolve" class="primary" type="button" hidden>Evolve App</button>
           </div>
+          <details id="state-details" class="details">
+            <summary>Show details</summary>
+            <dl id="detail-facts" class="facts"></dl>
+            <p class="details-note">Private harness output stays on this Mac. Run <code>tohseno service logs</code> for the bounded operational log.</p>
+          </details>
+        </section>
 
-          <section id="current-empty" class="current-empty">
-            <span class="current-placeholder" aria-hidden="true">T</span>
-            <strong>Select a Shot</strong>
-            <p>Its accepted identity and privacy-safe execution state will appear here.</p>
-          </section>
+        <section id="settings-view" class="view settings-view" hidden aria-labelledby="settings-heading">
+          <h1 id="settings-heading">Settings</h1>
 
-          <section id="current-shot" class="current-shot" hidden>
-            <div class="current-app-head">
-              <span id="current-shot-mark" class="current-shot-mark" aria-hidden="true">T</span>
-              <div><h2 id="current-shot-name">Shot</h2><p id="current-bundle">No bundle identifier</p></div>
-            </div>
-            <dl class="identity-facts">
-              <div><dt>Shot ID</dt><dd id="current-shot-id">—</dd></div>
-              <div><dt>Expression ID</dt><dd id="current-expression-id">—</dd></div>
-              <div><dt>Latest Version</dt><dd id="current-version-id">—</dd></div>
-              <div><dt>Accepted</dt><dd id="current-accepted-at">—</dd></div>
-              <div><dt>Icon revision</dt><dd id="current-icon-revision">—</dd></div>
-              <div><dt>Shot status</dt><dd id="current-shot-status">—</dd></div>
-            </dl>
-
-            <section class="execution-card" aria-labelledby="execution-heading">
-              <div class="card-heading"><div><p class="eyebrow">DELIVERY</p><h3 id="execution-heading">Execution</h3></div><span id="execution-state" class="state-pill">Idle</span></div>
-              <p id="execution-detail">No active execution.</p>
-              <ol id="execution-pipeline" class="execution-pipeline"></ol>
-            </section>
-          </section>
-
-          <section class="devices-card" aria-labelledby="devices-heading">
-            <div class="card-heading">
-              <div><p class="eyebrow">PRIVATE CHANNEL</p><h3 id="devices-heading">PAIRED DEVICES</h3></div>
-              <span id="device-count" class="count-badge">0</span>
-            </div>
-            <p id="companion-summary" class="companion-summary">No iPhone connected.</p>
+          <section class="panel" aria-labelledby="iphone-heading">
+            <h2 id="iphone-heading">iPhone</h2>
+            <p id="device-summary" class="detail">No iPhone connected.</p>
             <div id="device-list" class="device-list"></div>
+            <button id="add-iphone" class="secondary" type="button">Add iPhone</button>
           </section>
-        </aside>
+
+          <section class="panel" aria-labelledby="diagnostics-heading">
+            <h2 id="diagnostics-heading">Diagnostics</h2>
+            <dl id="diagnostics" class="facts"></dl>
+          </section>
+        </section>
       </main>
     </div>
 
     <dialog id="pairing-dialog" class="pairing-dialog" aria-labelledby="pairing-title">
-      <div class="pairing-head">
-        <div><p class="eyebrow">ONE-USE PAIRING SEAL</p><h2 id="pairing-title">Connect your iPhone</h2></div>
-        <button id="pairing-close" class="dialog-close" type="button" aria-label="Close pairing">×</button>
-      </div>
-      <p class="pairing-copy">Open the TOHSENO Companion and scan this standard QR. The invitation expires quickly and can be used only once.</p>
-      <div id="pairing-seal" class="pairing-seal">
-        <div class="seal-orbit" aria-hidden="true"></div>
-        <div class="qr-frame"><img id="pairing-qr" alt="One-use TOHSENO companion pairing QR"></div>
-      </div>
-      <div class="pairing-progress" aria-live="polite">
-        <span id="pairing-spinner" class="pairing-spinner" aria-hidden="true"></span>
-        <strong id="pairing-state">Preparing a one-use seal…</strong>
+      <h2 id="pairing-title">Connect your iPhone</h2>
+      <p class="detail">Open TOHSENO on your iPhone and scan this code. It allows that iPhone to create and evolve apps on this Mac, and you can revoke it at any time.</p>
+      <div class="qr-frame"><img id="pairing-qr" alt="One-use TOHSENO pairing code"></div>
+      <p class="pairing-progress" aria-live="polite">
+        <strong id="pairing-state">Preparing…</strong>
         <span id="pairing-countdown">—</span>
-      </div>
-      <p id="pairing-device" class="pairing-device"></p>
+      </p>
       <div class="pairing-actions">
-        <button id="pairing-cancel" class="quiet-action" type="button">Cancel</button>
-        <button id="pairing-new" class="secondary-action" type="button" hidden>NEW PAIRING SEAL</button>
-        <button id="pairing-done" class="primary-action compact-primary" type="button" hidden>DONE</button>
+        <button id="pairing-close" class="quiet" type="button">Close</button>
+        <button id="pairing-new" class="secondary" type="button" hidden>New code</button>
       </div>
     </dialog>
 

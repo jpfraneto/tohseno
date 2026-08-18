@@ -28,8 +28,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tohseno_application::{
     ApplicationError, CommandJournal, CommandOrigin, CreateShotCommand, EvolveShotCommand,
-    JournalError, ReferenceInput, ShotApplicationService, SubmitFeedbackCommand,
-    SubmitMarketingNoteCommand,
+    JournalError, ReferenceInput, ShotApplicationService,
 };
 use tohseno_engine::shot_execution::{load_completion, load_execution};
 use tohseno_engine::{
@@ -50,7 +49,6 @@ const MAX_REFERENCE_TOTAL_BYTES: usize = 160 * 1024 * 1024;
 // space covers the exact intention and bounded JSON descriptors.
 const MAX_API_BODY_BYTES: usize = 232 * 1024 * 1024;
 const MAX_INTENTION_BYTES: usize = 4 * 1024 * 1024;
-const MAX_NOTE_BYTES: usize = 100_000;
 const MAX_HEADER_COUNT: usize = 128;
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 const MAX_SINGLE_HEADER_BYTES: usize = 8 * 1024;
@@ -211,23 +209,6 @@ impl ApiOrigin {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct FeedbackRequest {
-    command_id: String,
-    expression_id: String,
-    version_id: String,
-    version_ordinal: u64,
-    body: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct MarketingRequest {
-    command_id: String,
-    body: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct EmptyRequest {}
 
 #[derive(Debug, Serialize)]
@@ -364,6 +345,7 @@ fn router(state: Arc<WorkspaceState>) -> Router {
     Router::new()
         .route("/", get(studio_index))
         .route("/create", get(studio_index))
+        .route("/settings", get(studio_index))
         .route("/shots/{shot_id}", get(studio_index))
         .route("/app.js", get(studio_javascript))
         .route("/style.css", get(studio_stylesheet))
@@ -378,11 +360,6 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         )
         .route("/api/v1/shots", get(shots).post(create_shot))
         .route("/api/v1/shots/{shot_id}/evolutions", post(evolve_shot))
-        .route(
-            "/api/v1/shots/{shot_id}/feedback",
-            get(feedback_actions).post(submit_feedback),
-        )
-        .route("/api/v1/shots/{shot_id}/marketing", post(submit_marketing))
         .route("/api/v1/executions", get(executions))
         .route("/api/v1/executions/{execution_id}", get(execution))
         .route("/api/v1/events", get(events))
@@ -694,73 +671,6 @@ async fn evolve_shot(
             debug_assert_eq!(receipt.shot_id, parsed_shot);
             Json(json!(receipt))
         })
-        .map_err(ApiError::application)
-}
-
-async fn submit_feedback(
-    State(state): State<Arc<WorkspaceState>>,
-    AxumPath(shot_id): AxumPath<String>,
-    Json(request): Json<FeedbackRequest>,
-) -> Result<Json<Value>, ApiError> {
-    validate_text("feedback", &request.body, MAX_NOTE_BYTES)?;
-    let (name, shot_id) = resolve_shot(&state.application, &shot_id)?;
-    state
-        .application
-        .submit_feedback(SubmitFeedbackCommand {
-            command_id: request.command_id,
-            origin: CommandOrigin::Studio,
-            origin_device_id: None,
-            name,
-            shot_id,
-            expression_id: parse_expression_id(&request.expression_id)?,
-            version_id: parse_version_id(&request.version_id)?,
-            version_ordinal: request.version_ordinal,
-            body: request.body,
-            companion_signature: None,
-            submitted_at: None,
-        })
-        .await
-        .map(|receipt| Json(json!(receipt)))
-        .map_err(ApiError::application)
-}
-
-async fn feedback_actions(
-    State(state): State<Arc<WorkspaceState>>,
-    AxumPath(shot_id): AxumPath<String>,
-) -> Result<Json<Value>, ApiError> {
-    let (name, shot_id) = resolve_shot(&state.application, &shot_id)?;
-    let actions = state
-        .application
-        .feedback_actions(&name)
-        .map_err(ApiError::internal)?;
-    Ok(Json(json!({
-        "schema": "tohseno.local-feedback-action-list/1",
-        "shot_id": shot_id,
-        "actions": actions,
-    })))
-}
-
-async fn submit_marketing(
-    State(state): State<Arc<WorkspaceState>>,
-    AxumPath(shot_id): AxumPath<String>,
-    Json(request): Json<MarketingRequest>,
-) -> Result<Json<Value>, ApiError> {
-    validate_text("marketing note", &request.body, MAX_NOTE_BYTES)?;
-    let (name, shot_id) = resolve_shot(&state.application, &shot_id)?;
-    state
-        .application
-        .submit_marketing_note(SubmitMarketingNoteCommand {
-            command_id: request.command_id,
-            origin: CommandOrigin::Studio,
-            origin_device_id: None,
-            name,
-            shot_id,
-            body: request.body,
-            companion_signature: None,
-            submitted_at: None,
-        })
-        .await
-        .map(|receipt| Json(json!(receipt)))
         .map_err(ApiError::application)
 }
 

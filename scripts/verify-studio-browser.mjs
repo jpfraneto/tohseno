@@ -1,5 +1,9 @@
 #!/usr/bin/env bun
 
+// Optional local evidence run. It drives a real Chrome against a running
+// Local Workspace Service and captures the collapsed Studio surface:
+// the creation composer, then the Settings pairing code.
+
 const origin = process.env.STUDIO_ORIGIN;
 const evidenceDirectory = process.env.TOHSENO_BROWSER_EVIDENCE_DIR;
 const debuggingPort = Number(process.env.TOHSENO_BROWSER_DEBUG_PORT || "49221");
@@ -91,38 +95,41 @@ async function waitFor(expression, message) {
 
 await command("Page.enable");
 await command("Runtime.enable");
-await waitFor("document.readyState === 'complete' && document.querySelector('#app-shell')?.dataset.connection === 'connected' && document.querySelector('#service-status')?.textContent.includes('running')", "Studio did not become ready");
-const initial = await evaluate(`(() => ({
+await waitFor(
+  "document.readyState === 'complete' && document.querySelector('#shell')?.dataset.view === 'compose'",
+  "Studio did not open the creation composer",
+);
+const composer = await evaluate(`(() => ({
   origin: location.origin,
-  connectPresent: document.querySelector('#connect-iphone') !== null,
-  connectWidth: document.querySelector('#connect-iphone')?.getBoundingClientRect().width ?? 0,
-  connectHeight: document.querySelector('#connect-iphone')?.getBoundingClientRect().height ?? 0,
-  connectText: document.querySelector('#connect-iphone')?.textContent.trim(),
-  createName: document.querySelector('#create-name')?.value,
-  referenceLimit: document.querySelector('#create-reference-count')?.textContent,
-  corsHeaderVisibleToPage: false
+  name: document.querySelector('#compose-name')?.value,
+  question: document.querySelector('#compose-question')?.textContent.trim(),
+  submit: document.querySelector('#compose-submit')?.textContent.trim(),
+  addImages: document.querySelector('#reference-drop')?.textContent.trim(),
+  visibleControls: document.querySelectorAll('#compose-view button, #compose-view input, #compose-view textarea').length,
+  connectIphoneOnComposer: document.querySelector('#compose-view #add-iphone') !== null
 }))()`);
-const initialScreenshot = await command("Page.captureScreenshot", { format: "png", fromSurface: true });
-await Bun.write(`${evidenceDirectory}/studio-create-route.png`, Buffer.from(initialScreenshot.data, "base64"));
-await evaluate("document.querySelector('#connect-iphone').click(); true");
-await waitFor("document.querySelector('#pairing-dialog')?.open && document.querySelector('#pairing-qr')?.complete && document.querySelector('#pairing-qr')?.naturalWidth > 0", "Studio pairing QR did not render");
+const composerShot = await command("Page.captureScreenshot", { format: "png", fromSurface: true });
+await Bun.write(`${evidenceDirectory}/studio-create-route.png`, Buffer.from(composerShot.data, "base64"));
+
+await evaluate("document.querySelector('#open-settings').click(); true");
+await waitFor("document.querySelector('#shell')?.dataset.view === 'settings'", "Settings did not open");
+await evaluate("document.querySelector('#add-iphone').click(); true");
+await waitFor(
+  "document.querySelector('#pairing-dialog')?.open && document.querySelector('#pairing-qr')?.complete && document.querySelector('#pairing-qr')?.naturalWidth > 0",
+  "Studio pairing QR did not render",
+);
 await Bun.sleep(500);
 const pairing = await evaluate(`(() => {
   const image = document.querySelector('#pairing-qr');
-  const frame = document.querySelector('.qr-frame');
-  const imageRect = image.getBoundingClientRect();
-  const frameRect = frame.getBoundingClientRect();
+  const rectangle = image.getBoundingClientRect();
   return {
     dialogOpen: document.querySelector('#pairing-dialog').open,
     state: document.querySelector('#pairing-state').textContent.trim(),
     countdown: document.querySelector('#pairing-countdown').textContent.trim(),
-    imageWidth: imageRect.width,
-    imageHeight: imageRect.height,
+    imageWidth: rectangle.width,
     naturalWidth: image.naturalWidth,
     naturalHeight: image.naturalHeight,
-    framePadding: Number.parseFloat(getComputedStyle(frame).padding),
-    sealInsideQrFrame: frame.contains(document.querySelector('.pairing-seal::before')),
-    clip: { x: imageRect.x, y: imageRect.y, width: imageRect.width, height: imageRect.height, scale: 1 }
+    clip: { x: rectangle.x, y: rectangle.y, width: rectangle.width, height: rectangle.height, scale: 1 }
   };
 })()`);
 const screenshot = await command("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -136,54 +143,35 @@ await Bun.write(`${evidenceDirectory}/studio-rendered-qr.png`, Buffer.from(qrScr
 delete pairing.clip;
 
 const result = {
-  schema: "tohseno.studio-browser-verification/1",
-  originMatches: initial.origin === origin,
-  connectIphoneVisible: initial.connectPresent && initial.connectWidth > 0 && initial.connectHeight > 0 && initial.connectText.includes("CONNECT IPHONE"),
-  createRoutePrepopulated: initial.createName === "tohseno",
-  documentedReferenceLimitVisible: initial.referenceLimit === "0 / 8",
-  pairingDialogOpen: pairing.dialogOpen,
-  pairingStateWaiting: pairing.state === "Waiting for iPhone…",
+  schema: "tohseno.studio-browser-verification/2",
+  originMatches: composer.origin === origin,
+  createRoutePrepopulated: composer.name === "tohseno",
+  composerAsksOneQuestion: composer.question === "What do you want this app to be?",
+  primaryActionIsCreateApp: composer.submit === "Create App",
+  imagesAreOptionalAndSecondary: composer.addImages === "+ Add images",
+  // name, intent, image input, image label, and one primary action.
+  composerControlCount: composer.visibleControls,
+  deviceAdministrationOffTheComposer: composer.connectIphoneOnComposer === false,
+  pairingReachedFromSettings: pairing.dialogOpen,
+  pairingStateWaiting: pairing.state === "Waiting for your iPhone…",
   pairingCountdownVisible: /^\d+:\d{2}$/.test(pairing.countdown),
   qrSquareAndRendered: pairing.imageWidth >= 190 && pairing.naturalWidth > 0 && pairing.naturalWidth === pairing.naturalHeight,
-  qrFramePadding: pairing.framePadding,
-  qrRenderedWidth: pairing.imageWidth,
-  qrRenderedHeight: pairing.imageHeight,
-  qrNaturalWidth: pairing.naturalWidth,
-  qrNaturalHeight: pairing.naturalHeight,
   screenshots: ["studio-create-route.png", "studio-pairing-modal.png", "studio-rendered-qr.png"],
   chromeProcessRunning: child.pid > 0,
 };
 await Bun.write(`${evidenceDirectory}/studio-browser-redacted.json`, `${JSON.stringify(result, null, 2)}\n`);
 console.log(JSON.stringify(result));
 if (process.env.TOHSENO_BROWSER_WAIT_FOR_PAIRING === "1") {
-  await waitFor("document.querySelector('#pairing-state')?.textContent.trim() === 'iPhone connected'", "Studio did not receive the successful pairing update");
-  await Bun.sleep(500);
-  const paired = await evaluate(`(() => {
-    const text = document.querySelector('#device-list')?.textContent || '';
-    return {
-      pairingState: document.querySelector('#pairing-state')?.textContent.trim(),
-      pairingCountdown: document.querySelector('#pairing-countdown')?.textContent.trim(),
-      activeDeviceCount: Number(document.querySelector('#device-count')?.textContent),
-      capabilitiesVisible: ['view', 'create', 'evolve', 'send feedback', 'send marketing notes'].every(value => text.includes(value)),
-      datesVisible: text.includes('Connected') && text.includes('Last synchronized'),
-      syncStateVisible: text.includes('SYNC'),
-      revokeVisible: text.includes('REVOKE')
-    };
-  })()`);
+  await waitFor(
+    "document.querySelector('#pairing-state')?.textContent.trim() === 'iPhone connected'",
+    "Studio did not receive the successful pairing update",
+  );
   const pairedScreenshot = await command("Page.captureScreenshot", { format: "png", fromSurface: true });
   await Bun.write(`${evidenceDirectory}/studio-pairing-success.png`, Buffer.from(pairedScreenshot.data, "base64"));
-  const pairedResult = {
-    schema: "tohseno.studio-live-pairing-update/1",
-    livePairingUpdate: paired.pairingState === "iPhone connected" && paired.pairingCountdown === "PAIRED",
-    activeDeviceCount: paired.activeDeviceCount,
-    capabilitiesVisible: paired.capabilitiesVisible,
-    datesVisible: paired.datesVisible,
-    syncStateVisible: paired.syncStateVisible,
-    revokeVisible: paired.revokeVisible,
-    screenshot: "studio-pairing-success.png"
-  };
-  await Bun.write(`${evidenceDirectory}/studio-pairing-live-update.json`, `${JSON.stringify(pairedResult, null, 2)}\n`);
-  console.log(JSON.stringify(pairedResult));
+  await Bun.write(
+    `${evidenceDirectory}/studio-pairing-live-update.json`,
+    `${JSON.stringify({ schema: "tohseno.studio-live-pairing-update/2", livePairingUpdate: true }, null, 2)}\n`,
+  );
 }
 if (process.env.TOHSENO_BROWSER_HOLD === "1") {
   await new Promise(() => {});

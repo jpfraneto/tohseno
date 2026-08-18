@@ -14,7 +14,6 @@ use tohseno_engine::harness::HarnessSelection;
 use tohseno_engine::machine::Evolved;
 use tohseno_engine::{AcceptedVersionBase, Engine, EventBus, ShotRequest, StoredFeedback};
 use tohseno_protocol::digest::{sha256, Bytes32, ExpressionId, ShotId, VersionId};
-use tohseno_protocol::lineage::LineagePayload;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 const MAXIMUM_INTENTION_BYTES: usize = 4 * 1024 * 1024;
@@ -237,17 +236,6 @@ pub struct MarketingNoteReceipt {
     pub command_id: String,
     pub note_id: String,
     pub shot_id: ShotId,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct FeedbackActionSummary {
-    pub schema: String,
-    pub action_commitment: Bytes32,
-    pub expression_id: ExpressionId,
-    pub version_id: VersionId,
-    pub version_ordinal: u64,
-    pub observed_at: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -866,54 +854,6 @@ impl ShotApplicationService {
     pub async fn workspace_snapshot(&self) -> Result<WorkspaceSnapshot, ApplicationError> {
         build_workspace_snapshot(&self.engine, &self.workspace_id, 1, 0, 0)
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
-    }
-
-    /// Return bounded private Feedback action identities for the local Studio.
-    /// Bodies, attachments, source paths, and harness output are deliberately
-    /// excluded; selection binds only the signed exact-Version commitment.
-    pub fn feedback_actions(
-        &self,
-        name: &str,
-    ) -> Result<Vec<FeedbackActionSummary>, ApplicationError> {
-        let layout = tohseno_engine::ShotLayout::at(self.engine.ledger().working_tree(name));
-        let lineage = layout.read_lineage()?;
-        let state = tohseno_protocol::reduce_lineage(&lineage)
-            .map_err(tohseno_engine::ShotLayoutError::from)?;
-        let mut summaries = Vec::new();
-        for signed in lineage.into_iter().rev() {
-            let LineagePayload::Feedback(feedback) = &signed.action.payload else {
-                continue;
-            };
-            let version_ordinal = state
-                .expression(feedback.expression_id)
-                .and_then(|expression| {
-                    expression
-                        .versions
-                        .iter()
-                        .find(|version| version.version_id == feedback.version_id)
-                })
-                .map(|version| version.ordinal)
-                .ok_or_else(|| {
-                    ApplicationError::Orchestration(
-                        "Feedback action names an unavailable exact Version".into(),
-                    )
-                })?;
-            summaries.push(FeedbackActionSummary {
-                schema: "tohseno.feedback-action-summary/1".into(),
-                action_commitment: signed
-                    .commitment()
-                    .map_err(tohseno_engine::ShotLayoutError::from)?,
-                expression_id: feedback.expression_id,
-                version_id: feedback.version_id,
-                version_ordinal,
-                observed_at: feedback.observed_at.as_str().into(),
-            });
-            if summaries.len() == 512 {
-                break;
-            }
-        }
-        summaries.reverse();
-        Ok(summaries)
     }
 
     pub fn factory_defaults(&self) -> FactoryDefaults {

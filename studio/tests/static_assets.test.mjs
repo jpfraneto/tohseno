@@ -24,12 +24,10 @@ test("browser script is valid JavaScript", () => {
 test("every JavaScript-bound element exists exactly once", () => {
   const selectors = [...script.matchAll(/document\.querySelector\("#([a-z0-9-]+)"\)/g)]
     .map((match) => match[1]);
-  assert.ok(selectors.length > 60, "expected the full Studio surface to be bound");
   assert.equal(new Set(selectors).size, selectors.length, "JavaScript binds an ID more than once");
   for (const id of selectors) {
     assert.equal(count(html, `id="${id}"`), 1, `#${id} must exist exactly once`);
   }
-
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length, "HTML IDs must be unique");
 });
@@ -45,41 +43,98 @@ test("assets are compatible with a strict no-inline CSP", () => {
   assert.match(script, /textContent/);
 });
 
-test("Studio presents the three-region local app factory", () => {
-  for (const phrase of [
-    "YOUR SHOTS",
-    "INTENT / SHOT ACTIVITY",
-    "CURRENT APP / EXECUTION",
-    "CONNECT IPHONE",
-    "LOCAL APP FACTORY",
-  ]) {
-    assert.match(html, new RegExp(phrase.replaceAll("/", "\\/")));
-  }
-  assert.match(style, /\.studio-grid\s*\{[\s\S]*grid-template-columns:/);
-  assert.match(html, /id="connect-iphone"[^>]*>[\s\S]*CONNECT IPHONE/);
+test("Studio is four views, not a dashboard", () => {
+  const views = [...html.matchAll(/<section id="([a-z-]+)-view"/g)].map((match) => match[1]);
+  assert.deepEqual(views, ["apps", "compose", "state", "settings"]);
+  // The grid of simultaneous factory-control regions is gone for good.
+  assert.doesNotMatch(style, /grid-template-areas|\.studio-grid/);
+  assert.equal(count(html, "<form"), 1, "one intent form serves both create and evolve");
 });
 
-test("creation route preserves one exact intention and up to eight image references", () => {
-  for (const phrase of ["Exact intention", "Reference images", "0 / 8", "TAKE THE SHOT"])
-    assert.match(html, new RegExp(phrase));
-  assert.match(html, /id="create-images"[^>]*accept="[^"]*image\/png[^"]*"[^>]*multiple/);
+test("the normal path never teaches TOHSENO's ontology", () => {
+  // Details and Settings are the deliberate pressure-release valves. Every
+  // other pixel of the normal create/evolve path is checked here.
+  const visible = html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<details[\s\S]*?<\/details>/g, "")
+    .split('<section id="settings-view"')[0];
+  for (const noun of [
+    "Shot",
+    "Expression",
+    "Version",
+    "Execution",
+    "Feedback",
+    "Marketing",
+    "Harness",
+    "Lineage",
+    "Factory Control",
+    "Local Truth",
+    "Pending Relay",
+  ]) {
+    assert.doesNotMatch(
+      visible,
+      new RegExp(`>[^<]*\\b${noun}\\b`, "i"),
+      `${noun} must not be visible product vocabulary`,
+    );
+  }
+  assert.match(html, /What do you want this app to be\?/);
+  assert.match(script, /"What should change\?"/);
+  assert.match(html, />Create App</);
+  assert.match(script, /"Evolve App"/);
+  assert.match(html, /\+ New App/);
+  assert.match(html, /\+ Add images/);
+});
+
+test("creation preserves one exact intent and up to eight images", () => {
+  assert.match(html, /id="reference-input"[^>]*accept="[^"]*image\/png[^"]*"[^>]*multiple/);
   assert.match(script, /const MAX_REFERENCES = 8;/);
-  assert.match(script, /const exactIntention = ui\.createIntention\.value;/);
   assert.match(script, /api\("\/api\/v1\/shots",\s*\{\s*method: "POST"/);
-  for (const field of ["command_id", "name", "intention", "pending_intention_id", "references"])
+  for (const field of ["command_id", "name", "intention", "pending_intention_id", "references"]) {
     assert.match(script, new RegExp(`${field}:`));
-  for (const field of ["filename", "media_type", "origin", "bytes_base64url"])
+  }
+  for (const field of ["filename", "media_type", "origin", "bytes_base64url"]) {
     assert.match(script, new RegExp(`${field}:`));
+  }
   assert.match(script, /origin: entry\.origin \|\| `studio-file:\$\{entry\.file\.name\}`/);
   assert.match(script, /bytesToBase64\(bytes, true\)/);
-  assert.match(script, /route\.pathname === "\/create"/);
-  assert.match(script, /route\.searchParams\.get\("name"\)/);
-  assert.match(script, /route\.searchParams\.get\("pending"\)/);
-  assert.match(script, /\/api\/v1\/pending-intentions\/\$\{encodeURIComponent\(pendingId\)\}/);
-  assert.match(script, /ui\.createIntention\.readOnly = true/);
-  assert.match(script, /createReferences\.setLocked\(true\)/);
-  assert.match(script, /route\.pathname\.startsWith\("\/shots\/"\)/);
-  assert.match(script, /history\.replaceState\(null, "", `\/shots\/\$\{encodeURIComponent\(shotId\)\}`\)/);
+});
+
+test("evolution binds the exact accepted base at submission without a picker", () => {
+  assert.match(script, /base_expression_id: shot\.expression_id/);
+  assert.match(script, /base_version_id: shot\.latest_version_id/);
+  assert.match(script, /base_version_ordinal: shot\.latest_version_ordinal/);
+  assert.match(script, /error\.code === "stale_base"/);
+  assert.match(script, /This app changed while this request was waiting/);
+  // No exact-version picker, no rebind control, no separate feedback ceremony.
+  assert.doesNotMatch(script, /Use current Version|feedbackOptions|selectedFeedbackActions/);
+  assert.match(script, /selected_feedback_actions: \[\]/);
+});
+
+test("human state comes from the service projection, not from a local phase table", () => {
+  assert.match(script, /shot\.presentation\.state/);
+  assert.match(script, /presentation\.headline/);
+  for (const presented of [
+    "waiting",
+    "building",
+    "ready_for_phone",
+    "installing",
+    "installed",
+    "failed",
+  ]) {
+    assert.ok(script.includes(presented), `missing presented state ${presented}`);
+  }
+  // Internal phases are no longer interpreted or rendered by the browser.
+  assert.doesNotMatch(script, /const PIPELINE|conception:|materializing:|repairing:/);
+  assert.doesNotMatch(script, /executionLabel|renderExecution|pipeline-step/);
+});
+
+test("waiting for the iPhone offers no extra button", () => {
+  assert.match(script, /ui\.stateRetry\.hidden = presentation\.state !== "failed"/);
+  assert.match(script, /ui\.stateEvolve\.hidden = presentation\.state !== "installed"/);
+  const buttons = [...html.matchAll(/<button id="([a-z-]+)"/g)].map((match) => match[1]);
+  for (const forbidden of ["state-install", "state-resume", "state-continue", "state-deliver"]) {
+    assert.ok(!buttons.includes(forbidden), `${forbidden} must not exist`);
+  }
 });
 
 test("Studio uses only the Local Workspace Service API contract", () => {
@@ -87,6 +142,7 @@ test("Studio uses only the Local Workspace Service API contract", () => {
     "/api/v1/health",
     "/api/v1/studio-session",
     "/api/v1/workspace",
+    "/api/v1/factory-defaults",
     "/api/v1/shots",
     "/api/v1/events",
     "/api/v1/companion/devices",
@@ -95,10 +151,10 @@ test("Studio uses only the Local Workspace Service API contract", () => {
   ]) {
     assert.ok(script.includes(endpoint), `missing ${endpoint}`);
   }
-  assert.match(script, /\/api\/v1\/executions\/\$\{encodeURIComponent\(executionId\)\}/);
-  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(binding\.shotId\)\}\/feedback/);
-  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(binding\.shotId\)\}\/evolutions/);
-  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}\/marketing/);
+  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}\/evolutions/);
+  assert.match(script, /\/api\/v1\/pending-intentions\/\$\{encodeURIComponent\(pendingId\)\}/);
+  // The Studio-only feedback and marketing endpoints were removed with their UI.
+  assert.doesNotMatch(script, /\/feedback|\/marketing/);
   assert.doesNotMatch(script, /\/api\/(?:apps|versions)\b/);
 });
 
@@ -114,107 +170,63 @@ test("mutations use the same-origin Studio session and anti-CSRF token", () => {
   assert.doesNotMatch(html + script, /Access-Control-Allow-Origin|x-tohseno-studio/i);
 });
 
-test("feedback and evolution remain bound to an exact accepted Version", () => {
-  for (const field of ["expression_id", "version_id", "version_ordinal"])
-    assert.match(script, new RegExp(`${field}: binding\\.`));
-  for (const field of ["base_expression_id", "base_version_id", "base_version_ordinal"])
-    assert.match(script, new RegExp(`${field}: binding\\.`));
-  assert.match(script, /const feedbackActions = selectedFeedbackActions\(\);/);
-  assert.match(script, /selected_feedback_actions: feedbackActions/);
-  assert.match(script, /!exactIntention\.trim\(\) && feedbackActions\.length === 0/);
-  assert.match(html, /Required unless one or more exact Feedback actions are selected\./);
-  assert.match(html, /A newer base is never selected silently\./);
-  assert.match(html, /id="feedback-rebind"[^>]*>Use current Version<\/button>/);
-  assert.match(html, /id="evolve-rebind"[^>]*>Use current Version<\/button>/);
-  assert.match(html, />EVOLVE FROM THIS<\/button>/);
-  assert.match(script, /classList\.contains\("stale"\)/);
+test("routing covers apps, creation, one app, and settings", () => {
+  assert.match(script, /route\.pathname === "\/create"/);
+  assert.match(script, /route\.pathname === "\/settings"/);
+  assert.match(script, /route\.pathname\.startsWith\("\/shots\/"\)/);
+  assert.match(script, /route\.searchParams\.get\("name"\)/);
+  assert.match(script, /route\.searchParams\.get\("pending"\)/);
+  assert.match(script, /ui\.composeIntent\.readOnly = true/);
+  assert.match(script, /references\.setLocked\(true\)/);
 });
 
-test("marketing notes are private and Shot-bound", () => {
-  assert.match(html, /PRIVATE NOTE/);
-  assert.match(html, /SHOT-BOUND/);
-  assert.match(html, /It is not posted, scheduled, or sent to a model\./);
-  assert.match(script, /command_id: stableCommandId\(ui\.marketingForm, "marketing"\)/);
-  assert.match(script, /body: ui\.marketingBody\.value/);
+test("device administration lives in Settings, not on the creation screen", () => {
+  assert.doesNotMatch(html, /CONNECT IPHONE/);
+  assert.match(html, />Settings</);
+  assert.match(html, />Add iPhone</);
+  assert.match(html, /Allow|allows that iPhone to create and evolve apps on this Mac/);
+  assert.match(script, /method: "DELETE"/);
+  // Pairing is reachable only from Settings.
+  assert.match(script, /ui\.addIphone\.addEventListener\("click", \(\) => openPairing\(\)/);
+  assert.equal(count(script, "openPairing()"), 2);
 });
 
-test("pairing uses the service-rendered standard QR and an event-driven expiring lifecycle", () => {
-  assert.match(html, /ONE-USE PAIRING SEAL/);
-  assert.match(html, /scan this standard QR/);
-  assert.match(html, /class="pairing-seal"/);
-  assert.match(style, /--orange:/);
-  assert.match(style, /url\("\/pairing-seal\.png"\)/);
-  assert.match(style, /\.qr-frame\s*\{[\s\S]*background: (?:#fff|white)/);
-  assert.match(script, /session\.schema !== "tohseno\.studio-pairing-session\/1"/);
-  assert.match(script, /typeof session\.qr_svg !== "string"/);
-  assert.match(script, /new TextEncoder\(\)\.encode\(pairing\.qr_svg\)/);
-  assert.match(script, /data:image\/svg\+xml;base64/);
-  assert.match(script, /Date\.parse\(state\.pairing\.expires_at\) - Date\.now\(\)/);
-  assert.match(script, /source\.addEventListener\("workspace\.changed", scheduleRefresh\)/);
-  assert.match(script, /if \(state\.pairing\?\.state === "waiting"\) await refreshPairingSession\(\)/);
-  assert.doesNotMatch(script, /pairingRefreshTimer/);
-  assert.match(script, /route\.searchParams\.get\("pair"\)/);
-  assert.match(script, /refreshPairingSession\(\)/);
-  assert.doesNotMatch(script, /pairing_uri/);
-});
-
-test("workspace changes stream over SSE instead of polling the workspace", () => {
+test("workspace changes stream over SSE instead of polling", () => {
   assert.match(script, /new EventSource\("\/api\/v1\/events"\)/);
   assert.match(script, /addEventListener\("workspace\.changed", scheduleRefresh\)/);
   assert.match(script, /addEventListener\("workspace\.reconcile", scheduleRefresh\)/);
   assert.doesNotMatch(script, /setInterval\([^)]*refreshWorkspace/);
-  assert.doesNotMatch(script, /setTimeout\([^)]*refreshWorkspace[^)]*,\s*1000\b/);
 });
 
-test("paired devices expose capabilities, real timestamps, sync state, and revocation", () => {
-  assert.match(html, /PAIRED DEVICES/);
-  assert.match(script, /device\.device_id_abbreviation/);
-  assert.match(script, /formatTimestamp\(device\.paired_at\)/);
-  assert.match(script, /relativeTime\(device\.last_seen\)/);
-  assert.match(script, /device\.sync_state/);
-  for (const capability of [
-    "workspace.read",
-    "execution.read",
-    "shot.create",
-    "shot.evolve",
-    "feedback.write",
-    "marketing.write",
-  ]) assert.ok(script.includes(capability));
-  assert.match(script, /method: "DELETE"/);
-  assert.match(script, /This iPhone will immediately lose workspace capabilities/);
-});
-
-test("recording-only folders are identified and never silently promoted", () => {
-  assert.match(html, /Recording-only folder/);
-  assert.match(html, /will not silently turn it into a factory Shot/);
-  assert.match(script, /shot\.kind === "recording_only"/);
-  assert.match(script, /shot\.kind !== "factory_shot"/);
-});
-
-test("Shot views expose archived and retired workspace state", () => {
-  assert.match(html, /<dt>Shot status<\/dt><dd id="current-shot-status">/);
-  assert.match(script, /shot\.retired \? "Retired" : shot\.archived \? "Archived" : "Active"/);
-  assert.match(script, /Retired · local history preserved/);
-  assert.match(script, /Archived · local history preserved/);
-});
-
-test("Studio keeps private implementation material off the browser and phone surfaces", () => {
-  assert.match(html, /Source and harness output stay on this Mac\./);
+test("Studio keeps private implementation material off the browser", () => {
+  assert.match(html, /Private harness output stays on this Mac/);
   assert.doesNotMatch(html, /chat interface/i);
   assert.doesNotMatch(html, /model selector|choose model|source browser|build logs/i);
   assert.doesNotMatch(script, /harness_output|source_code|recovery_phrase|private_key|seed_phrase/i);
   assert.doesNotMatch(script, /tohseno-node|\/api\/v1\/public/i);
 });
 
-test("Studio documentation describes the persistent factory and browser boundary", () => {
+test("the collapsed surface stays small", () => {
+  const scriptLines = script.split("\n").length;
+  const styleLines = style.split("\n").length;
+  const htmlLines = html.split("\n").length;
+  assert.ok(scriptLines < 1_000, `app.js grew back to ${scriptLines} lines`);
+  assert.ok(styleLines < 700, `style.css grew back to ${styleLines} lines`);
+  assert.ok(htmlLines < 200, `index.html grew back to ${htmlLines} lines`);
+});
+
+test("Studio documentation describes the collapsed product surface", () => {
   const prose = readme.replace(/\s+/g, " ");
   for (const phrase of [
+    "App → Intent → App on your iPhone",
     "persistent Local Workspace Service",
-    "`/create?name=tohseno`",
+    "`/create?name=paper`",
     "up to eight validated reference images",
     "anti-CSRF",
-    "CONNECT IPHONE",
-    "recording_only",
-    "raw harness output",
-  ]) assert.ok(prose.includes(phrase), `README is missing ${phrase}`);
+    "Settings",
+    "presentation",
+    "Raw harness output",
+  ]) {
+    assert.ok(prose.includes(phrase), `README is missing ${phrase}`);
+  }
 });
