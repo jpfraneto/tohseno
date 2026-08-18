@@ -4,7 +4,25 @@ The CLI is a client and local administration surface for the same
 `ShotApplicationService` used by Studio and the Companion. It does not contain
 an independent creation or evolution pipeline.
 
-## Factory commands
+## The two commands
+
+```bash
+tohseno create my-app
+tohseno evolve my-app
+```
+
+With nothing else, each ensures the Local Workspace Service is healthy and
+opens the one screen where an intent is written: `/create?name=my-app` for a
+new app, and that app's composer for an evolution. Nothing is built until the
+person presses **Create App** or **Evolve App** once.
+
+If an exact regular `./MASTER_PROMPT.md` is present, `tohseno create` imports
+its bytes into the durable pending-intention store and opens the composer
+prefilled and read-only. The file's own modification time is used as the
+package timestamp, so repeating the command reuses the same record instead of
+accumulating duplicates. Its presence never starts a build by itself.
+
+## Scriptable forms
 
 ```bash
 tohseno create <name> --prompt "..."
@@ -20,23 +38,19 @@ Creation resolves its exact intention in this order:
 1. `--prompt`;
 2. `--prompt-file`;
 3. bounded UTF-8 piped standard input;
-4. an exact regular `./MASTER_PROMPT.md` for an interactive invocation;
-5. otherwise, start the Local Workspace Service and open Studio at the
-   prefilled `/create?name=<name>` route.
+4. otherwise, the composer described above.
 
-The automatic file case reports that exact path and its digest. TOHSENO never
-guesses a similarly named file. A non-interactive command with no intention
-fails without creating a partial Shot. Repeat `--image` for up to eight exact
-reference images; normal size, regular-file, symlink, path, and image-byte
-checks apply.
+A non-interactive command with no intention fails without creating a partial
+Shot. Repeat `--image` for up to eight exact reference images; normal size,
+regular-file, symlink, path, and image-byte checks apply.
 
 The durable receipt identifies the command and execution, plus the Shot as
 soon as it is safely reserved. The detached service owns work after the CLI
 returns. `--wait` waits for deterministic acceptance or failure; it does not
 treat generated files or harness exit as completion.
 
-Evolution has the same exact-intention intake and may select exact Feedback
-actions:
+Evolution has the same exact-intention intake and may still select exact
+Feedback actions:
 
 ```bash
 tohseno evolve <name> --prompt "..."
@@ -49,6 +63,10 @@ tohseno evolve <name> --wait
 The request binds the Shot's exact current Expression and accepted base
 Version. A changed base is rejected as stale; it is never silently rebased.
 Stable command IDs make a retried request one semantic operation.
+
+Expensive local work is serialized by one advisory factory lease, so a second
+command admitted while the Mac is busy waits in its durable `queued` state and
+starts by itself. Nothing needs to be re-sent.
 
 ## Explicit recording capability
 
@@ -96,7 +114,8 @@ tohseno companion simulate ...
 tohseno companion sdk vendor --into <shot-path>
 ```
 
-Pair opens Studio's standard one-use pairing seal. Revocation changes local
+Pair opens Studio's standard one-use pairing code, the same one reachable from
+Studio Settings → **Add iPhone**. Revocation changes local
 admission immediately. The simulator uses the private companion schemas and
 durable command journal rather than a test-only factory path. SDK vendoring
 copies the exact released Swift source, license, shared vectors, and integrity

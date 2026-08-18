@@ -17,7 +17,7 @@ use renderer::Renderer;
 use serde_json::{json, Value};
 use std::fs;
 use std::io::{self, IsTerminal, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tohseno_application::ReferenceInput;
 use tohseno_engine::{Config, Engine, Event, EventBus, Ledger};
 use tohseno_protocol::digest::Bytes32;
@@ -43,7 +43,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Begin an intention-led app birth in the local factory.
+    /// Describe an app. TOHSENO makes it and puts it on your iPhone.
     Create {
         app_name: String,
         /// Supply the exact creation intention inline.
@@ -59,7 +59,7 @@ enum Command {
         #[arg(long)]
         wait: bool,
     },
-    /// Begin an exact-base evolutionary transaction in the local factory.
+    /// Describe what should change. TOHSENO evolves the app and installs it.
     Evolve {
         app_name: Option<String>,
         /// Supply the exact evolutionary intention inline.
@@ -919,14 +919,22 @@ async fn factory_create(
     let service = service_client::ServiceClient::ensure_running()
         .await
         .map_err(|error| error.to_string())?;
-    let Some(intention) = intention else {
-        service
-            .open_studio(&format!("/create?name={name}"))
-            .map_err(|error| error.to_string())?;
-        bus.emit(Event::result(format!(
-            "Studio is ready to create {name}. Add the exact intention, then TAKE THE SHOT."
-        )));
-        return Ok(());
+    let intention = match intention {
+        CreationIntention::Exact(intention) => intention,
+        CreationIntention::Composer { prefill } => {
+            let pending = prefill.as_deref().map(stage_local_intention).transpose()?;
+            let route = match pending.flatten() {
+                Some(pending_id) => format!("/create?name={name}&pending={pending_id}"),
+                None => format!("/create?name={name}"),
+            };
+            service
+                .open_studio(&route)
+                .map_err(|error| error.to_string())?;
+            bus.emit(Event::result(format!(
+                "Describe {name}, then press Create App."
+            )));
+            return Ok(());
+        }
     };
     if intention.trim().is_empty() {
         return Err(
@@ -987,9 +995,11 @@ async fn factory_create(
         };
         println!("{}", serde_json::to_string(&output)?);
     } else {
-        bus.emit(Event::result(format!(
-            "SHOT IN FLIGHT · command {command_id} · Shot {shot_id} · execution {execution_id}."
-        )));
+        bus.emit(Event::result(if completion.is_some() {
+            format!("{name} is on your iPhone.")
+        } else {
+            format!("Building {name}. TOHSENO installs it on your iPhone when it is ready.")
+        }));
         if io::stdout().is_terminal() {
             let _ = service.open_studio(&format!("/shots/{shot_id}"));
         }
@@ -1022,7 +1032,8 @@ async fn factory_evolve(
         None
     };
     let intention = explicit.or(piped).unwrap_or_default();
-    if intention.is_empty() && feedback_actions.is_empty() {
+    let compose = intention.is_empty() && feedback_actions.is_empty();
+    if compose && !interactive(json_output) {
         return Err(
             "evolve requires --prompt, --prompt-file, piped UTF-8 intention, or --feedback-action"
                 .into(),
@@ -1046,6 +1057,17 @@ async fn factory_evolve(
         })
         .ok_or("evolution target is not a factory Shot")?;
     let shot_id = required_string(shot, "shot_id")?;
+    if compose {
+        // No intention was written, so open the one place where it is written.
+        // Studio binds the exact accepted base when Evolve App is pressed.
+        service
+            .open_studio(&format!("/shots/{shot_id}"))
+            .map_err(|error| error.to_string())?;
+        bus.emit(Event::result(format!(
+            "Describe what should change about {name}, then press Evolve App."
+        )));
+        return Ok(());
+    }
     let expression_id = required_string(shot, "expression_id")?;
     let version_id = required_string(shot, "latest_version_id")?;
     let version_ordinal = shot
@@ -1111,9 +1133,11 @@ async fn factory_evolve(
         };
         println!("{}", serde_json::to_string(&output)?);
     } else {
-        bus.emit(Event::result(format!(
-            "EVOLUTION IN FLIGHT · command {command_id} · execution {execution_id} · exact base Version {version_id}."
-        )));
+        bus.emit(Event::result(if completion.is_some() {
+            format!("{name} is on your iPhone.")
+        } else {
+            format!("Evolving {name}. TOHSENO installs the update on your iPhone when it is ready.")
+        }));
         if io::stdout().is_terminal() {
             let _ = service.open_studio(&format!("/shots/{shot_id}"));
         }
@@ -1399,38 +1423,97 @@ fn required_string<'a>(
         .ok_or_else(|| format!("Local Workspace Service response is missing {field}").into())
 }
 
+/// How `tohseno create` obtained its intention, or that it must be written.
+enum CreationIntention {
+    /// Exact bytes from `--prompt`, `--prompt-file`, or bounded piped stdin.
+    Exact(String),
+    /// Nothing was supplied interactively: open the simple composer instead.
+    /// `prefill` is an exact regular `./MASTER_PROMPT.md`, when one is present.
+    Composer { prefill: Option<PathBuf> },
+}
+
 fn resolve_create_intention(
     prompt: Option<String>,
     prompt_file: Option<PathBuf>,
     json_output: bool,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
+) -> Result<CreationIntention, Box<dyn std::error::Error>> {
     if let Some(intention) = resolve_intention(prompt, prompt_file)? {
-        return Ok(Some(intention));
+        return Ok(CreationIntention::Exact(intention));
     }
     if !io::stdin().is_terminal() {
-        return Ok(Some(read_stdin_bounded(MAX_TEXT_FILE_BYTES as usize)?));
+        return Ok(CreationIntention::Exact(read_stdin_bounded(
+            MAX_TEXT_FILE_BYTES as usize,
+        )?));
     }
-    let interactive = io::stdin().is_terminal() && io::stdout().is_terminal() && !json_output;
-    if interactive {
-        let path = PathBuf::from("./MASTER_PROMPT.md");
-        match fs::symlink_metadata(&path) {
-            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-                return Err("./MASTER_PROMPT.md exists but is not a regular file".into());
-            }
-            Ok(_) => {
-                let intention = read_bounded_utf8(&path, MAX_TEXT_FILE_BYTES, "MASTER_PROMPT.md")?;
-                let digest = tohseno_protocol::digest::sha256(intention.as_bytes());
-                eprintln!("Using ./MASTER_PROMPT.md ({digest})");
-                return Ok(Some(intention));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error.into()),
+    if !interactive(json_output) {
+        return Err(
+            "no creation intention was supplied; use --prompt, --prompt-file, or bounded UTF-8 stdin"
+                .into(),
+        );
+    }
+    Ok(CreationIntention::Composer {
+        prefill: master_prompt_prefill(Path::new("."))?,
+    })
+}
+
+/// An exact regular `MASTER_PROMPT.md` beside the caller, if there is one.
+///
+/// Its presence may prefill the composer, but it never starts a build on its
+/// own: one explicit Create App is always required.
+fn master_prompt_prefill(directory: &Path) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
+    let path = directory.join("MASTER_PROMPT.md");
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err("./MASTER_PROMPT.md exists but is not a regular file".into())
         }
+        Ok(_) => Ok(Some(path)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
     }
-    Err(
-        "no creation intention was supplied; use --prompt, --prompt-file, or bounded UTF-8 stdin"
-            .into(),
-    )
+}
+
+fn interactive(json_output: bool) -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal() && !json_output
+}
+
+/// Import an exact local intention file into the durable pending-intention
+/// store so the composer can show it and submit it unchanged.
+fn stage_local_intention(path: &Path) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let ledger = Ledger::discover()?;
+    ledger.initialize()?;
+    stage_intention_in(&ledger, path)
+}
+
+/// Returns `None` when those exact bytes were already imported and consumed by
+/// an earlier creation; the composer then opens empty rather than replaying a
+/// spent record.
+fn stage_intention_in(
+    ledger: &Ledger,
+    path: &Path,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let intention = read_bounded_utf8(path, MAX_TEXT_FILE_BYTES, "MASTER_PROMPT.md")?;
+    // The intention was written when the file was written. Using its own
+    // timestamp — not the clock — keeps repeated `tohseno create` invocations
+    // byte-identical, so the store recognizes them as the same record instead
+    // of accumulating a new one on every open.
+    let package =
+        tohseno_engine::build_intent_package(&intention_timestamp(path)?, &intention, &[])?;
+    let pending = tohseno_engine::PendingIntentionStore::for_ledger(ledger).import_bytes(
+        &package,
+        tohseno_engine::PendingIntentionSource::PortableFile,
+    )?;
+    Ok((pending.state == tohseno_engine::PendingIntentionState::Ready).then_some(pending.id))
+}
+
+fn intention_timestamp(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let modified = fs::symlink_metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .map(time::OffsetDateTime::from)
+        .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    Ok(modified
+        .to_offset(time::UtcOffset::UTC)
+        .replace_nanosecond(0)?
+        .format(&time::format_description::well_known::Rfc3339)?)
 }
 
 fn resolve_intention(
@@ -2064,6 +2147,53 @@ mod tests {
     }
 
     #[test]
+    fn an_interactive_creation_without_an_intention_opens_the_composer() {
+        // `tohseno create paper` in a Terminal must not build anything. It
+        // resolves to the composer, optionally prefilled, and the person
+        // presses Create App once.
+        let root = tempfile::tempdir().unwrap();
+        assert!(master_prompt_prefill(root.path()).unwrap().is_none());
+
+        let master = root.path().join("MASTER_PROMPT.md");
+        fs::write(&master, "Make a paper app.\n").unwrap();
+        assert_eq!(master_prompt_prefill(root.path()).unwrap(), Some(master));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_master_prompt_is_refused_rather_than_followed() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let elsewhere = root.path().join("elsewhere.md");
+        fs::write(&elsewhere, "Not mine.\n").unwrap();
+        symlink(&elsewhere, root.path().join("MASTER_PROMPT.md")).unwrap();
+        assert!(master_prompt_prefill(root.path()).is_err());
+    }
+
+    #[test]
+    fn a_prefilled_intention_is_staged_once_and_never_replayed_after_use() {
+        let root = tempfile::tempdir().unwrap();
+        let ledger = Ledger::at(root.path().join("data"));
+        ledger.initialize().unwrap();
+        let master = root.path().join("MASTER_PROMPT.md");
+        fs::write(&master, "Make a paper app.\n").unwrap();
+
+        let first = stage_intention_in(&ledger, &master).unwrap().unwrap();
+        // Re-running the same command reuses the same durable record instead
+        // of accumulating duplicates of identical bytes.
+        assert_eq!(
+            stage_intention_in(&ledger, &master).unwrap(),
+            Some(first.clone())
+        );
+
+        let store = tohseno_engine::PendingIntentionStore::for_ledger(&ledger);
+        let pending = store.load(&first).unwrap();
+        assert_eq!(pending.prompt, "Make a paper app.\n");
+        store.consume_loaded(&pending).unwrap();
+        assert_eq!(stage_intention_in(&ledger, &master).unwrap(), None);
+    }
+
+    #[test]
     fn retired_v07_mainnet_lifecycle_fails_closed() {
         let lifecycle = include_str!("../../scripts/lifecycle-mainnet.sh");
         assert!(lifecycle.contains("v0.7 Robinhood mainnet lifecycle is retired"));
@@ -2077,7 +2207,7 @@ mod tests {
         let create_help = Cli::try_parse_from(["tohseno", "create", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(create_help.contains("intention-led app birth"));
+        assert!(create_help.contains("puts it on your iPhone"));
         assert!(create_help.contains("--prompt"));
         assert!(create_help.contains("--prompt-file"));
         assert!(create_help.contains("--image"));
