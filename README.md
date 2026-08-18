@@ -1,25 +1,61 @@
 # TOHSENO 0.9.0
 
-TOHSENO is a persistent private app factory on your Mac. One Local Workspace
-Service owns factory commands, executions, Studio, and synchronization with a
-paired iPhone Companion. The Mac remains the backend: prompts, source, coding
-harnesses, Xcode, signing, installation, and acceptance stay local.
+Describe an app. TOHSENO makes it and puts it on your iPhone.
 
 ```bash
+tohseno create my-app
+```
+
+Describe what should change. TOHSENO evolves it and puts the new version on
+your iPhone.
+
+```bash
+tohseno evolve my-app
+```
+
+Each command opens one screen with one box on it. Write the intent, optionally
+attach images, press the one button, and wait. When the app is ready TOHSENO
+installs it on your iPhone by itself — or, if the phone is not plugged in, says
+so and installs it automatically the moment it is:
+
+```text
+Your app is ready.
+
+Plug your iPhone into this Mac
+and I’ll install it automatically.
+```
+
+There is no button to press there. TOHSENO orchestrates itself.
+
+## What it actually is
+
+A persistent private app factory on your Mac. One Local Workspace Service owns
+factory commands, executions, Studio, and synchronization with a paired iPhone.
+The Mac remains the backend: prompts, source, coding harnesses, Xcode, signing,
+installation, and acceptance stay local. Completion means the conception,
+build, test, verification, delivery, and acceptance gates passed — never that a
+harness exited successfully.
+
+That machinery is sophisticated and it is entirely beneath the floor. The
+product is App → Intent → App on your iPhone ([ADR 0016](docs/adr/0016-app-intent-app-on-your-iphone.md)).
+
+## Scriptable forms
+
+The human defaults are simple; nothing was taken away from automation.
+
+```bash
+tohseno create my-app --prompt "..."
 tohseno create my-app --prompt-file MASTER_PROMPT.md --wait
+cat MASTER_PROMPT.md | tohseno create my-app
 tohseno evolve my-app --prompt "Make the first-run experience clearer" --wait
+tohseno --json create my-app --prompt-file MASTER_PROMPT.md
 tohseno studio
 ```
 
-`create` begins an intention-led Shot birth. `evolve` binds a new intention to
-the Shot's exact current Expression and accepted Version; a stale request is
-rejected rather than rebased. Both routes use the same durable application
-service as Studio and the Companion, so work survives the invoking Terminal.
-
-With no supplied intention, an interactive `tohseno create my-app` opens
-Studio at `/create?name=my-app`. Studio contains the intention editor,
-reference-image intake, live execution state, and **CONNECT IPHONE** pairing
-surface. It is served only on loopback by the persistent service.
+An evolution binds the app's exact current Expression and accepted Version at
+submission; a stale request is refused rather than rebased. Every route uses
+the same durable application service as Studio and the iPhone, so work survives
+the invoking Terminal, a closed browser, and a service restart.
 
 ## Recording an ordinary app folder
 
@@ -35,21 +71,29 @@ The visible folder stays ordinary and ejectable. Existing
 `.tohseno/recording-layer-v1` folders remain `recording_only`; TOHSENO never
 silently turns them into factory Shots or rewrites their accepted records.
 
-## Private Companion channel
+## The iPhone
 
-A paired Companion receives encrypted workspace summaries and privacy-safe
-execution events. It can submit exact-Version feedback, private marketing
-notes, exact-base evolutions, and new-Shot intentions according to an explicit
-revocable capability grant. It never receives source code or harness output.
+```text
+Your Apps  →  choose an app  →  What should change?  →  Evolve App
+```
 
-The shared Companion Relay is a content-blind encrypted mailbox. It cannot
-decrypt commands, interpret prompts, build apps, run agents, or authorize Shot
-actions. Private companion records never enter the public `tohseno-node`.
+One tap. No confirmation, no version picker, no separate feedback step. If your
+Mac is asleep the phone says `Waiting for your Mac…`, you can close the app, and
+the request delivers itself later without another tap.
 
-The native integration package and conformance fixture are in
-[`sdk/apple/TohsenoCompanionKit`](sdk/apple/TohsenoCompanionKit/README.md).
+The phone is a remote control for intent, not a mobile TOHSENO: it receives
+encrypted workspace summaries and privacy-safe state, never source code or
+harness output, under an explicit revocable capability grant. The shared relay
+is a content-blind encrypted mailbox that cannot decrypt commands, interpret
+prompts, build apps, run agents, or authorize actions. Private companion
+records never enter the public `tohseno-node`.
+
+- [The Companion app](companion/apple/TohsenoCompanion/README.md)
+- [Companion SDK and conformance fixture](sdk/apple/TohsenoCompanionKit/README.md)
 
 ## Administration
+
+Available when you want it; never in the way when you don't.
 
 ```bash
 tohseno service status

@@ -2,8 +2,16 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0016](0016-app-intent-app-on-your-iphone.md) defines the current
+user-facing surface: the canonical abstraction is App → Intent → App on your
+iPhone, and Studio and the Companion are thin projections over the same durable
+local application service. It supersedes ADR 0015 as the description of what a
+person sees, deliberately including what was deleted to get there. It does not
+change ADR 0015's service, journal, capability, transport, or relay
+architecture.
+
 [ADR 0015](0015-persistent-local-factory-private-companion.md) defines the
-current product boundary: one persistent local app factory with CLI, loopback
+current internal boundary: one persistent local app factory with CLI, loopback
 Studio, and a private paired-companion channel. It supersedes
 [ADR 0014](0014-app-version-feedback-product-boundary.md) as the description
 of current `create`, `evolve`, and Studio behavior while preserving ADR 0014's

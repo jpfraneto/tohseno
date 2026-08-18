@@ -160,6 +160,22 @@ jobs:
         run: |
           swift build --package-path sdk/apple/TohsenoCompanionKit -Xswiftc -warnings-as-errors
           swift test --package-path sdk/apple/TohsenoCompanionKit
+      - name: Build and test the Companion product surface
+        run: |
+          swift build --package-path companion/apple/TohsenoCompanion -Xswiftc -warnings-as-errors
+          swift test --package-path companion/apple/TohsenoCompanion
+      - name: Build the TOHSENO Companion for Simulator
+        run: |
+          xcodebuild \
+            -project companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj \
+            -scheme TohsenoCompanion \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/tohseno-companion" \
+            -disableAutomaticPackageResolution \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_USER_SCRIPT_SANDBOXING=YES \
+            build
       - name: Build the native Companion conformance fixture
         run: |
           xcodebuild \

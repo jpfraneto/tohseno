@@ -281,9 +281,10 @@ Version and is admitted after the current Expression changes.
 Controls: private commands sign the Shot ID, exact Expression ID, Version ID,
 and ordinal. The application service revalidates that exact accepted base at
 admission. Feedback remains attached to the reviewed Version; an evolution is
-rejected as stale rather than silently rebased. Explicit “EVOLVE FROM THIS” on
+rejected as stale rather than silently rebased. One explicit **Evolve App** on
 a currently capable device is sufficient authorization but cannot bypass the
-base check.
+base check; binding the exact base for the person at submission removes a
+choice from the interface, not a check from the service.
 
 Threat: an attacker uses oversized encrypted envelopes, reference descriptors,
 icons, command bodies, or a backlog to exhaust the relay, phone, or Mac.

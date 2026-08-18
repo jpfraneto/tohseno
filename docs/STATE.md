@@ -1,32 +1,67 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-16. This is the plain-language
+Written 2026-07-30, amended through 2026-08-18. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
-## Current source: persistent local factory
+## The product: App → Intent → App on your iPhone
 
-ADR 0015 defines the current 0.9.0 product boundary. TOHSENO is an
-intention-led app factory whose private backend is the owner's Mac. A
-persistent **Local Workspace Service** hosts loopback-only Studio, owns the
-durable private command and event journals, monitors execution, and reconciles
-paired Companions. CLI, Studio, and mobile commands converge on one Rust
-`ShotApplicationService`; none implements a second factory or shells out to
-another frontend.
+ADR 0016 defines what a person sees. The whole product is:
+
+```text
+tohseno create my-app     describe the app     → it installs on your iPhone
+tohseno evolve my-app     describe the change  → the update installs
+```
+
+Each opens one screen with one box. Externally TOHSENO speaks only in App,
+Create, Evolve, Waiting, Building, Ready, Installing, Installed, Failed, Retry,
+and Details. Shots, Expressions, Versions, executions, Feedback records,
+harnesses, inference routes, lineage, and pairing internals are all real and
+none of them appear on the normal path. If a change adds more normal-path
+concepts than it removes, it is probably wrong.
+
+`application/src/presentation.rs` is the single projection that collapses every
+internal execution phase into six human states; the workspace snapshot carries
+one `presentation` per app, Studio renders it verbatim, and the Companion
+mirrors the same table from `fixtures/presentation-v1.json`. Studio's own tests
+assert the absence of protocol vocabulary on the normal path and bound the size
+of each asset, so the old dashboard cannot quietly return.
+
+## Underneath: persistent local factory
+
+ADR 0015 defines the current 0.9.0 internal boundary, unchanged by ADR 0016.
+TOHSENO is an intention-led app factory whose private backend is the owner's
+Mac. A persistent **Local Workspace Service** hosts loopback-only Studio, owns
+the durable private command and event journals, monitors execution, and
+reconciles paired Companions. CLI, Studio, and mobile commands converge on one
+Rust `ShotApplicationService`; none implements a second factory or shells out
+to another frontend.
 
 `tohseno create <name>` begins a factory birth from `--prompt`,
-`--prompt-file`, bounded piped UTF-8, or an exact regular
-`./MASTER_PROMPT.md`, in that order. With no intention in an interactive
-session, it starts the Local Workspace Service and opens Studio at the
-prefilled creation route. Non-interactive invocation without an intention
-fails instead of waiting or creating a partial Shot. Exact intentions and up
-to eight safely checked reference images are preserved before execution.
+`--prompt-file`, or bounded piped UTF-8. With no intention in an interactive
+session it starts the service and opens the creation composer; an exact regular
+`./MASTER_PROMPT.md` prefills that composer through the durable
+pending-intention store, and never starts a build on its own. Non-interactive
+invocation without an intention fails instead of waiting or creating a partial
+Shot. Exact intentions and up to eight safely checked reference images are
+preserved before execution.
 
 `tohseno evolve <name>` begins an evolutionary transaction bound to one Shot,
-one Expression, and one exact accepted base Version. Selected Feedback action
-commitments and exact references are part of that durable, idempotent command.
-If the base changes before admission, the request is stale and is rejected;
-the service never silently rebases it.
+one Expression, and one exact accepted base Version, and with no intention in
+an interactive session opens that app's composer. The surfaces bind the current
+accepted base at submission so nobody selects a Version by hand. Selected
+Feedback action commitments and exact references are part of that durable,
+idempotent command. If the base changes before admission the request is stale
+and is rejected; the service never silently rebases it, and both surfaces
+explain it in one sentence.
+
+Writing what should change and pressing Evolve App is the whole operation.
+Exact-Version Feedback remains a real capability through `tohseno advanced
+feedback` and the Companion `feedback.write` grant, but it is no longer a step
+between having an idea and acting on it, and no Feedback record is fabricated
+alongside an evolution. The Studio-only feedback, marketing, and
+feedback-action HTTP endpoints were removed with the UI that was their only
+caller.
 
 Every admitted command is journaled before its semantic action. Stable command,
 Shot, and execution identities make retries idempotent and allow recovery
@@ -34,7 +69,20 @@ after a process crash. Completion still means that the applicable conception,
 Birth Plan, Genome, materialization, build, test, experience, repair, delivery,
 and acceptance gates passed. Source files or a successful harness exit alone
 are not acceptance. A missing development iPhone yields
-`waiting_for_device`, not success.
+`waiting_for_device`, not success — presented as *Your app is ready, plug your
+iPhone in* with no button to press, because the service resumes delivery by
+itself.
+
+Expensive local work is serialized by one advisory lease file under the private
+machine data root (`application/src/factory_lease.rs`). It is deliberately the
+smallest mechanism that can say “this Mac has your request but is busy”: no
+queue, no scheduler, no new command state, no new protocol record. A runner
+that cannot take the lease stays in its durable `queued` phase — presented
+everywhere as *Waiting to build…* — and starts by itself when the lease frees.
+The lease is released while a verified candidate waits for a cable, so an
+absent phone never blocks unrelated source work, and it is released by process
+exit, so a crashed runner cannot strand the factory. The command journal
+remains the durability and idempotency authority.
 
 ## Recording-layer compatibility
 
@@ -66,11 +114,17 @@ job. Bounded content-free logs and private service state live beneath
 
 `tohseno studio` ensures the installed service is healthy, opens its verified
 loopback origin, and returns to the Terminal. Studio is a visual client of the
-same application service. Its principal surfaces are the Shot list,
-intention/activity area, current app/execution state, and **CONNECT IPHONE**.
-Mutations use exact Origin and anti-CSRF validation; the server does not bind a
-public interface or grant permissive CORS. Live status uses the service event
-stream rather than reloading the whole workspace once per second.
+same application service, and is now four views: Your Apps (`/`), the composer
+(`/create`), one app (`/shots/{id}`), and Settings (`/settings`). Connecting an
+iPhone moved into Settings; the three-region factory-control grid, execution
+pipeline renderer, per-execution polling, Feedback and Marketing forms, and
+exact-Version binding controls were deleted rather than hidden, along with an
+unreferenced second Studio server implementation. A deliberate Details
+disclosure keeps exact status, execution phase, identities, timestamps,
+harness, and route available to the owner. Mutations use exact Origin and
+anti-CSRF validation; the server does not bind a public interface or grant
+permissive CORS. Live status uses the service event stream rather than
+reloading the whole workspace once per second.
 
 Service administration is explicit:
 
@@ -117,11 +171,17 @@ foreground reconciliation works without it. Production relay and APNs
 activation remain fail-closed and have not been authorized by the source
 change.
 
-The future branded iOS app is intentionally not part of this repository.
-`sdk/apple/TohsenoCompanionKit` and its minimal conformance fixture provide the
-identity, pairing, envelope, durable-outbox, reconciliation, command, and
-revocation primitives for a later `tohseno create tohseno`. Released SDK source
-can be vendored into a Shot so generated apps do not depend on a mutable
+The branded iOS app now exists at `companion/apple/TohsenoCompanion`. It is
+built on the released `sdk/apple/TohsenoCompanionKit` and implements no second
+protocol, backend, synchronization mechanism, or mobile coding harness. Its
+whole surface is Your Apps → choose an app → *What should change?* → Evolve
+App, with first-run pairing and no confirmation step. The SDK's
+`Examples/CompanionConformanceApp` remains the raw conformance fixture and was
+not turned into a product. The product lives in a library target, so
+`swift test --package-path companion/apple/TohsenoCompanion` exercises it
+without a Simulator; `App/TohsenoCompanion.xcodeproj` is a thin shell that
+builds, installs, and launches on an iOS Simulator. Released SDK source can
+still be vendored into a Shot so generated apps do not depend on a mutable
 `~/.tohseno/current` path.
 
 ## Public protocol and node remain separate
