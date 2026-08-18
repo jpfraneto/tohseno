@@ -1,3 +1,4 @@
+use crate::factory_lease::FactoryLease;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -943,6 +944,12 @@ async fn run_shot(
         return resume_waiting_delivery(&engine, app_name, &mut execution, json, events).await;
     }
 
+    // Expensive local work is serialized by one advisory lease. A durably
+    // admitted command that arrives while the factory is busy simply stays in
+    // its `queued` phase — presented everywhere as "Waiting to build…" — and
+    // starts by itself the moment the lease frees.
+    let mut lease = Some(take_factory_lease(&engine, events).await?);
+
     update_phase(
         &mut execution,
         ExecutionPhase::ExecutionStarted,
@@ -1102,7 +1109,15 @@ async fn run_shot(
                 ExecutionPhase::Materializing,
                 "The engine is beginning its deterministic materialization, build, test, verification, and delivery gates.",
             )?;
-            match record_and_deliver_with_wait(&engine, app_name, &mut execution, events).await {
+            match record_and_deliver_with_wait(
+                &engine,
+                app_name,
+                &mut execution,
+                &mut lease,
+                events,
+            )
+            .await
+            {
                 Ok(_) => {
                     validation_diagnostic = None;
                     break;
@@ -1164,8 +1179,32 @@ async fn run_shot(
         validation_evidence,
     )?;
     let _ = remove_runner_pid(&execution);
+    // Release the local factory before the terminal record is presented so a
+    // waiting execution starts as early as possible.
+    drop(lease.take());
     present_completion(&completion, json, events)?;
     Ok(completion)
+}
+
+/// Take the exclusive local-factory lease, reporting once if another execution
+/// is currently using the coding harness or Xcode.
+///
+/// No execution event is appended while waiting: the durable phase is already
+/// the honest answer, and every surface presents it as "Waiting to build…".
+/// Writing a `HarnessRunning` heartbeat here would claim work that has not
+/// started.
+async fn take_factory_lease(
+    engine: &Engine,
+    events: &EventBus,
+) -> Result<FactoryLease, Box<dyn std::error::Error>> {
+    let machine_root = engine.ledger().machine_root().to_path_buf();
+    FactoryLease::acquire(&machine_root, || {
+        events.emit(Event::status(
+            "WAITING · this Mac is building another app; this one starts automatically.",
+        ));
+        Ok(())
+    })
+    .await
 }
 
 /// Resume the only safe mid-flight checkpoint without invoking the coding
@@ -1188,12 +1227,15 @@ async fn resume_waiting_delivery(
     DevicePipeline::new(events.clone())
         .wait_for_device()
         .await?;
+    // Waiting for a cable costs nothing, so the lease is taken only once the
+    // iPhone is actually here and deterministic delivery is about to run.
+    let mut lease = Some(take_factory_lease(engine, events).await?);
     update_phase(
         execution,
         ExecutionPhase::Materializing,
         "The configured iPhone is available; the exact candidate resumed at the deterministic delivery pipeline.",
     )?;
-    let diagnostic = record_and_deliver_with_wait(engine, app_name, execution, events)
+    let diagnostic = record_and_deliver_with_wait(engine, app_name, execution, &mut lease, events)
         .await
         .err()
         .map(|error| error.to_string());
@@ -1210,6 +1252,7 @@ async fn resume_waiting_delivery(
         accepted_evidence.or(diagnostic),
     )?;
     let _ = remove_runner_pid(execution);
+    drop(lease.take());
     present_completion(&completion, json, events)?;
     Ok(completion)
 }
@@ -1222,6 +1265,7 @@ async fn record_and_deliver_with_wait(
     engine: &Engine,
     app_name: &str,
     execution: &mut PreparedExecution,
+    lease: &mut Option<FactoryLease>,
     events: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
@@ -1263,9 +1307,14 @@ async fn record_and_deliver_with_wait(
                     ExecutionPhase::WaitingForDevice,
                     "The verified candidate is waiting for the configured iPhone before installation, launch, and acceptance.",
                 )?;
+                // Source and build work already finished. Holding the local
+                // factory while a cable is missing would block unrelated apps
+                // for no reason, so the lease goes back until the phone is here.
+                drop(lease.take());
                 DevicePipeline::new(events.clone())
                     .wait_for_device()
                     .await?;
+                *lease = Some(take_factory_lease(engine, events).await?);
                 update_phase(
                     execution,
                     ExecutionPhase::ValidationStarted,

@@ -1,3 +1,4 @@
+use crate::presentation::Presentation;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use time::format_description::well_known::Rfc3339;
@@ -68,6 +69,9 @@ pub struct ShotSummary {
     pub latest_version_created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<ExecutionSummary>,
+    /// The one human state a person sees. Studio renders this instead of
+    /// interpreting execution phases for itself.
+    pub presentation: Presentation,
     pub archived: bool,
     pub retired: bool,
     pub sort_index: u64,
@@ -142,6 +146,11 @@ pub fn build_workspace_snapshot(
         } else {
             vec![SupportedCompanionAction::Read]
         };
+        let presentation = Presentation::for_app(
+            &app.name,
+            execution.as_ref().map(|summary| summary.state.as_str()),
+            latest_version_id.is_some(),
+        );
         shots.push(ShotSummary {
             shot_id: stable_id,
             display_name: app.name,
@@ -153,6 +162,7 @@ pub fn build_workspace_snapshot(
             latest_version_ordinal,
             latest_version_created_at: accepted_at,
             execution,
+            presentation,
             archived: false,
             retired: app.retired,
             sort_index: u64::try_from(index).unwrap_or(u64::MAX),
