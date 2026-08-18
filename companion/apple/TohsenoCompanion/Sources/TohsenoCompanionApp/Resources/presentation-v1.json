@@ -1,0 +1,28 @@
+{
+  "schema": "tohseno.presentation-projection/1",
+  "note": "The one human projection of internal execution phases. Rust builds it in application/src/presentation.rs; the Swift Companion mirrors it in TohsenoPresentation.swift. Both assert against this file so the Mac and the phone cannot describe the same app differently.",
+  "presented_states": [
+    "waiting",
+    "building",
+    "ready_for_phone",
+    "installing",
+    "installed",
+    "failed"
+  ],
+  "execution_states": {
+    "queued": "waiting",
+    "planning": "building",
+    "conception": "building",
+    "materializing": "building",
+    "building": "building",
+    "testing": "building",
+    "verifying": "building",
+    "repairing": "building",
+    "waiting_for_device": "ready_for_phone",
+    "installing": "installing",
+    "launching": "installing",
+    "accepted": "installed",
+    "failed": "failed",
+    "cancelled": "failed"
+  }
+}

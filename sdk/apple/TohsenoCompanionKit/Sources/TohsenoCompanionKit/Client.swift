@@ -326,6 +326,18 @@ public actor TohsenoCompanionClient {
         return workspace
     }
 
+    /// Signed commands this phone has written that the Mac has not yet
+    /// acknowledged.
+    ///
+    /// The phone is authoritative for its outbox until acknowledgement, so a
+    /// product surface can honestly say "waiting for your Mac" without
+    /// inferring it from transient connection state. Zero means everything
+    /// written here has been received.
+    public func unacknowledgedCommandCount() async throws -> Int {
+        try await ensureLoaded()
+        return state?.outbox.count ?? 0
+    }
+
     /// Return locally cached exact bytes for a workspace icon descriptor.
     /// The cache is populated only by authenticated encrypted `icon.blob`
     /// events and is itself encrypted with the companion storage key.
