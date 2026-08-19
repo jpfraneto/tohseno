@@ -2,6 +2,14 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0018](0018-the-companion-links-a-browser.md) records that the website
+will never hold an account. When the public terminal can send more than once,
+it will be the published Companion linking a browser to a phone: the phone
+keeps the identity and issues a scoped, revocable capability, generated apps
+stay free of identities and grants, and a linked browser still reaches only
+the Mac that phone is paired with. It is accepted and deliberately not
+implemented, and it lists what must be true before it can be.
+
 [ADR 0016](0016-app-intent-app-on-your-iphone.md) defines the current
 user-facing surface: the canonical abstraction is App → Intent → App on your
 iPhone, and Studio and the Companion are thin projections over the same durable
