@@ -16,8 +16,18 @@ tohseno create <name>   write the intention, attach up to eight images
 tohseno demo            replay a build; nothing is installed
 tohseno install         the one-line installer
 tohseno book            the paid day
-help · clear · docs · source · privacy · community · whitepaper · sojourn
+help · clear · docs · source · privacy · community · whitepaper · token
 ```
+
+Anything else that reads like prose is the intention itself. The page asks a
+person to describe an app, so answering that at the prompt opens the composer
+with their words already in it. Only a lone unrecognized word is treated as a
+mistyped command. Typing the `tohseno` prefix is always a command attempt and
+is never reinterpreted.
+
+`docs` and `privacy` are deliberately absent from the status bar and resolve
+through `FALLBACK_LINKS`; both pages stay published and the HTTP suite asserts
+they still serve.
 
 A person writes the whole intention before anything is asked of them. Only at
 send does the page offer three doors:

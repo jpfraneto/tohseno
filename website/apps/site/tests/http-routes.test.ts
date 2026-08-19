@@ -73,21 +73,36 @@ describe("public pages", () => {
       "Describe an app. It gets built, and installed on your iPhone.",
     );
     expect(body).toContain("Free and open source.");
-    expect(body).toContain("$88 and I build it for you.");
-    expect(body).toContain("$22,222 · 96 days · one holder at a time.");
     expect(body).toContain("Codex or Claude Code");
     expect(body).toContain(INSTALL_COMMAND);
     expect(body).toContain("<noscript>");
     expect(body).toContain('href="https://cal.com/jpfraneto/day"');
     expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
     expect(body).toContain('<span class="beta">BETA</span>');
+
+    // Prices were removed from the page deliberately; booking survives as a
+    // link without one, and no price may return by accident.
+    expect(body).not.toMatch(/\$\d/u);
+    expect(body).not.toContain("sojourn");
+    expect(body).toContain(">BOOK A DAY</a>");
+
+    expect(body).toContain(
+      'href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3"',
+    );
+    expect(body).toContain(">$TOHSENO</a>");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain('href="#"');
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
-    expect(body).toContain('href="/docs"');
-    expect(body).toContain('href="/privacy"');
+    // Docs and privacy were removed from the status bar by request. The pages
+    // stay published and stay reachable through the `docs` and `privacy`
+    // commands, so their absence here must not become absence everywhere.
+    expect(body).not.toContain('href="/docs"');
+    expect(body).not.toContain('href="/privacy"');
+    for (const path of ["/docs", "/privacy"]) {
+      expect((await application.fetch(request(path))).status).toBe(200);
+    }
     expect(body).toContain(">COMMUNITY</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
@@ -95,7 +110,7 @@ describe("public pages", () => {
       "<title>TOHSENO — tohseno create my-app-name</title>",
     );
     expect(body).toContain(
-      'content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source, or $88 and I build it for you in a day."',
+      'content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,

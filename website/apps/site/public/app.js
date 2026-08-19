@@ -18,6 +18,7 @@ import {
   DEMO_STEPS,
   DOORS,
   endsWithBlankLine,
+  FALLBACK_LINKS,
   formatBytes,
   intentSummary,
   resolveCommand,
@@ -307,7 +308,7 @@ function printInstaller() {
 /// Prints the destination and, for another origin, opens it in a new tab so
 /// the terminal a person is working in is never taken away from them.
 function openLink(name) {
-  const href = linkHrefs.get(name);
+  const href = linkHrefs.get(name) ?? FALLBACK_LINKS[name];
   const external =
     /^https?:/.test(href) && !href.startsWith(`${window.location.origin}/`);
   gap();
@@ -331,10 +332,7 @@ function beginComposition(requested) {
     say(`  ${problem}`, "warn");
     return;
   }
-  state.appName = name;
-  state.references = [];
-  state.prompt = "";
-  input.value = "";
+  openComposer(name, "");
   gap();
   if (name !== requested.trim()) say(`  → ${name}`, "muted");
   say(`  ${name} — what should it do?`, "accent");
@@ -345,6 +343,27 @@ function beginComposition(requested) {
   saveDraft();
 }
 
+/// A sentence typed at the command prompt is what this page asked for. It
+/// becomes the intention itself rather than an error, and the app name — which
+/// is only a local label and never travels in the package — defaults quietly.
+function beginIntention(text) {
+  openComposer(state.appName ?? "my-app", text);
+  gap();
+  say("  that is an intention, not a command. even better.", "accent");
+  say("  keep going, or send it. drag images in to attach them.", "muted");
+  gap();
+  setMode("compose");
+  input.setSelectionRange(text.length, text.length);
+  saveDraft();
+}
+
+function openComposer(name, prefill) {
+  state.appName = name;
+  state.references = [];
+  state.prompt = "";
+  input.value = prefill;
+}
+
 async function run(rawLine) {
   echoCommand(rawLine);
   state.history.push(rawLine);
@@ -353,6 +372,9 @@ async function run(rawLine) {
   switch (intent.kind) {
     case "create":
       beginComposition(intent.argument);
+      return;
+    case "intention":
+      beginIntention(intent.text);
       return;
     case "evolve":
       gap();
@@ -388,7 +410,7 @@ async function run(rawLine) {
     default:
       gap();
       say(`  command not found: ${intent.typed}`, "warn");
-      say("  type help.", "muted");
+      say("  type help — or describe your app in a sentence to start one.", "muted");
   }
 }
 

@@ -10,6 +10,7 @@ import {
   DEMO_STEPS,
   DOORS,
   endsWithBlankLine,
+  FALLBACK_LINKS,
   formatBytes,
   intentSummary,
   LINK_COMMANDS,
@@ -42,10 +43,57 @@ describe("terminal command surface", () => {
   test("empty, bare, and unknown input are distinct outcomes", () => {
     expect(resolveCommand("   ")).toEqual({ kind: "empty" });
     expect(resolveCommand("tohseno")).toEqual({ kind: "bare" });
-    expect(resolveCommand("sudo rm -rf /")).toEqual({
+    expect(resolveCommand("nonsense")).toEqual({
       kind: "unknown",
-      typed: "sudo",
+      typed: "nonsense",
     });
+  });
+
+  // The page asks a person to describe an app. Answering that at the prompt
+  // used to produce "command not found: a", which is the page refusing the
+  // exact thing it asked for.
+  test("a sentence at the prompt is an intention, not a failed command", () => {
+    expect(
+      resolveCommand("a running app that only counts the days i went out"),
+    ).toEqual({
+      kind: "intention",
+      text: "a running app that only counts the days i went out",
+    });
+    expect(resolveCommand("chess but the pieces argue")).toEqual({
+      kind: "intention",
+      text: "chess but the pieces argue",
+    });
+  });
+
+  test("the intention keeps the person's own spacing and case", () => {
+    const written = "A Running App.  It counts days.";
+    expect(resolveCommand(`  ${written}  `)).toEqual({
+      kind: "intention",
+      text: written,
+    });
+  });
+
+  test("typing the tohseno prefix is always a command attempt", () => {
+    // Someone who typed `tohseno` meant to run something; turning their typo
+    // into an app intention would be worse than telling them it is a typo.
+    expect(resolveCommand("tohseno destroy everything")).toEqual({
+      kind: "unknown",
+      typed: "destroy",
+    });
+  });
+
+  test("$TOHSENO reaches the token link however it is typed", () => {
+    for (const line of ["$TOHSENO", "$tohseno", "tohseno token", "ca", "chart"]) {
+      expect(resolveCommand(line)).toEqual({ kind: "link", link: "token" });
+    }
+  });
+
+  test("pages kept out of the status bar still have a resolvable href", () => {
+    expect(FALLBACK_LINKS.docs).toBe("/docs");
+    expect(FALLBACK_LINKS.privacy).toBe("/privacy");
+    for (const name of Object.keys(FALLBACK_LINKS)) {
+      expect(LINK_COMMANDS).toContain(name);
+    }
   });
 
   test("a multi-word intention after create is kept whole", () => {

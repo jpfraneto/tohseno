@@ -63,8 +63,8 @@ export const COMMANDS = Object.freeze([
   },
   { name: "demo", usage: "tohseno demo", summary: "watch one get built" },
   { name: "install", usage: "tohseno install", summary: "the one-line installer" },
-  { name: "book", usage: "tohseno book", summary: "$88 · your app, one day, on camera" },
-  { name: "sojourn", usage: "tohseno sojourn", summary: "$22,222 · 96 days · one at a time" },
+  { name: "book", usage: "tohseno book", summary: "your app, one day, on camera" },
+  { name: "token", usage: "tohseno token", summary: "$TOHSENO on dexscreener" },
   { name: "docs", usage: "tohseno docs", summary: "the manual" },
   { name: "source", usage: "tohseno source", summary: "every line of it" },
   { name: "privacy", usage: "tohseno privacy", summary: "what leaves this browser" },
@@ -74,17 +74,23 @@ export const COMMANDS = Object.freeze([
   { name: "clear", usage: "clear", summary: "clear the screen" },
 ]);
 
-/// Every command that only opens something already linked in the page chrome.
-/// The href itself is read from the DOM so `config.ts` stays the one authority.
+/// Every command that only opens something. The href is read from the page
+/// chrome where the chrome carries it, so `config.ts` stays the one authority.
 export const LINK_COMMANDS = Object.freeze([
   "book",
-  "sojourn",
+  "token",
   "docs",
   "source",
   "privacy",
   "community",
   "whitepaper",
 ]);
+
+/// Pages that are deliberately not in the status bar but must stay reachable.
+export const FALLBACK_LINKS = Object.freeze({
+  docs: "/docs",
+  privacy: "/privacy",
+});
 
 const ALIASES = Object.freeze({
   new: "create",
@@ -96,10 +102,19 @@ const ALIASES = Object.freeze({
   repo: "source",
   github: "source",
   paper: "whitepaper",
+  $tohseno: "token",
+  tohseno$: "token",
+  ca: "token",
+  chart: "token",
 });
 
 /// Resolves one typed line into an intent. `tohseno` is optional, so both
 /// `tohseno create my-app` and `create my-app` work.
+///
+/// The page asks a person to describe an app, so a sentence typed at the
+/// prompt is an intention, not a mistake. Anything unrecognized that reads
+/// like prose becomes one. A lone unrecognized word is still treated as a
+/// mistyped command, because that is what a lone word usually is.
 export function resolveCommand(input) {
   const raw = input.trim().replace(/\s+/g, " ");
   if (!raw) return { kind: "empty" };
@@ -116,6 +131,9 @@ export function resolveCommand(input) {
   if (name === "help") return { kind: "help" };
   if (name === "clear") return { kind: "clear" };
   if (LINK_COMMANDS.includes(name)) return { kind: "link", link: name };
+  // Typing the `tohseno` prefix is a clear attempt at a command, so it is
+  // never reinterpreted as prose.
+  if (start === 0 && words.length > 1) return { kind: "intention", text: input.trim() };
   return { kind: "unknown", typed };
 }
 
