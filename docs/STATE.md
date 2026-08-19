@@ -184,6 +184,35 @@ builds, installs, and launches on an iOS Simulator. Released SDK source can
 still be vendored into a Shot so generated apps do not depend on a mutable
 `~/.tohseno/current` path.
 
+## The public website is a terminal
+
+`tohseno.com` is one prompt whose placeholder is `tohseno create my-app-name`.
+It speaks the same vocabulary as the Mac and the phone and adds no concept of
+its own. A person writes the whole intention first — text, pasted or dropped
+images — and only then is asked where it should go.
+
+Only one destination works: the ADR 0011 encrypted handoff to their Mac, which
+prints the single-use `--claim` command and falls back to the unencrypted
+private `.tohseno-intent` download when the relay is not activated. The demo
+door replays `application/src/presentation.rs` with its exact headlines, and
+`website/apps/site/tests/terminal.test.ts` checks every replayed state against
+`fixtures/presentation-v1.json`, so the website is now a third surface bound to
+the one presentation contract.
+
+The third door, linking the iPhone Companion, is deliberately unbuilt and says
+so. It is recorded here so it is not quietly redesigned: when the Companion is
+published, scanning will link **the browser to the phone**, not a person to an
+account. The phone keeps the identity and does the signing, the browser holds
+only a capability the phone can revoke, and the phone forwards to the Mac it is
+already paired with. A phone is a remote control for a factory, not a factory.
+Nothing about it makes the website an origin of Shots, and ADR 0011's rule that
+possession of a one-time capability is the whole authorization still holds.
+
+The paid day and the sojourn moved into that terminal as commands and into the
+static boot block, which is the only copy a crawler or a reader without
+JavaScript sees. The published `install.sh` and `oneshot.sh` are unchanged and
+still pin the authorized release.
+
 ## Public protocol and node remain separate
 
 `protocol/` remains normative over every prose document. Its canonical byte

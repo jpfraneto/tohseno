@@ -3,23 +3,8 @@ export const PRODUCT = Object.freeze({
   installCommand: "curl -fsSL https://tohseno.com/oneshot.sh | bash",
   copy: {
     BRAND: "TOHSENO",
-    HEADER_NOTE: "ONE SHOT",
-    HERO_META_DESCRIPTION:
-      "The open source app blueprint system for builders with infinite ideas. Prototype iOS apps you can install, use, and judge.",
-    HERO_HEADLINE: "Give every idea a shot.",
-    HERO_LEDE:
-      "Get rid of your recurring thoughts by turning them into an app you can install, use, and judge.",
-    HERO_COPY_LABEL: "COPY INSTALLER",
-    HERO_COPIED_LABEL: "INSTALLER COPIED",
-    HERO_STEP_1: "install TOHSENO",
-    HERO_STEP_2: "run tohseno",
-    HERO_STEP_3: "tell your coding agent what to make",
-    HERO_REQUIREMENTS:
-      "macOS, Git, and Codex or Claude Code for the full iOS path. TOHSENO manages its own Bun runtime. iOS is the only implemented app platform.",
-    HERO_LINKS_ARIA_LABEL: "More about TOHSENO",
-    HERO_REPO_LINK: "Source on GitHub",
-    HERO_DOCS_LINK: "Docs",
-    PRIVACY_LINK: "Privacy",
+    COPY_LABEL: "COPY INSTALLER",
+    COPIED_LABEL: "INSTALLER COPIED",
     FOOTER_OPERATOR: "Currently operated by Anky, Inc.",
     FOOTER_DOCTRINE: "Private by default. Account-free. Take another one.",
   },

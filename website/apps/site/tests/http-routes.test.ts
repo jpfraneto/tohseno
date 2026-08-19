@@ -45,7 +45,7 @@ const landingStylePath = fileURLToPath(
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("serves the pricing landing page", async () => {
+  test("serves the terminal landing page", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -55,18 +55,31 @@ describe("public pages", () => {
       .update(landingStyle)
       .digest("hex")
       .slice(0, 12);
+    // The revision is derived from the stylesheet itself, so a style change
+    // can never ship behind a stale cached copy.
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    expect(body).toContain("One app<br>per day.");
-    expect(body).toContain("FREE · OPEN SOURCE");
-    expect(body).toContain("$88 FLAT · ONE PER DAY · 30 DAYS OPEN AT A TIME");
-    expect(body).toContain("$22,222 · 96 DAYS · ONE AT A TIME");
-    expect(body).toContain('href="https://cal.com/jpfraneto/day"');
-    expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
-    expect(body).toContain("Book your day — $88");
+    // The prompt is the page. Its placeholder is the first instruction a
+    // person reads, and it is the exact command they will run on their Mac.
+    expect(body).toContain('placeholder="tohseno create my-app-name"');
+    expect(body).toContain('id="terminal-input"');
+    expect(body).toContain('id="term-stream"');
+    expect(body).toContain('id="drop-veil"');
+    expect(body).toContain(`data-install-command="${INSTALL_COMMAND}"`);
+
+    // The boot block is the only copy a crawler or a reader without
+    // JavaScript ever sees, so the whole offer has to survive in the markup.
+    expect(body).toContain(
+      "Describe an app. It gets built, and installed on your iPhone.",
+    );
+    expect(body).toContain("Free and open source.");
+    expect(body).toContain("$88 and I build it for you.");
+    expect(body).toContain("$22,222 · 96 days · one holder at a time.");
     expect(body).toContain("Codex or Claude Code");
     expect(body).toContain(INSTALL_COMMAND);
-    expect(body).toContain('id="copy-installer"');
+    expect(body).toContain("<noscript>");
+    expect(body).toContain('href="https://cal.com/jpfraneto/day"');
+    expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
     expect(body).toContain('<span class="beta">BETA</span>');
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('href="/intake"');
@@ -78,9 +91,11 @@ describe("public pages", () => {
     expect(body).toContain(">COMMUNITY</a>");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
-    expect(body).toContain("<title>TOHSENO — One App Per Day</title>");
     expect(body).toContain(
-      'content="An MVP factory for iOS apps. Free on your Mac. $88 to hold it in your hand. One app per day."',
+      "<title>TOHSENO — tohseno create my-app-name</title>",
+    );
+    expect(body).toContain(
+      'content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source, or $88 and I build it for you in a day."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -169,15 +184,23 @@ describe("public pages", () => {
     expect(body).not.toContain('href="#"');
     const browserScript = readFileSync(browserScriptPath, "utf8");
     expect(browserScript).toContain("navigator.clipboard.writeText(");
-    expect(browserScript).toContain('copyInstaller.addEventListener("click"');
-    expect(browserScript).toContain("renderQuiver");
     expect(browserScript).toContain("replaceChildren");
+    // The terminal composes and encrypts in the browser and reaches the relay
+    // only through the shared modules the Rust CLI is checked against.
+    expect(browserScript).toContain("createEncryptedEnvelope(");
+    expect(browserScript).toContain("./modules/terminal.js");
+    expect(browserScript).toContain("./modules/relay-client.js");
+    // Every stream line is built as a node with textContent, so nothing a
+    // person types or drops can become markup.
     expect(browserScript).not.toContain("innerHTML");
     expect(browserScript).not.toContain("serviceWorker.register");
+    // The old pricing landing page and its dashboard-shaped controls are gone.
+    expect(browserScript).not.toContain("renderQuiver");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(landingStyle).toContain(".tiers");
+    expect(landingStyle).toContain(".term-screen");
+    expect(landingStyle).not.toContain(".tiers");
   });
 
   test("serves the health check", async () => {

@@ -2,147 +2,88 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0c0b0a">
-  <meta name="description" content="An MVP factory for iOS apps. Free on your Mac. $88 to hold it in your hand. One app per day.">
+  <meta name="description" content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source, or $88 and I build it for you in a day.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="TOHSENO — One App Per Day">
-  <meta property="og:description" content="Run TOHSENO free on your Mac, or book one day and have your iOS app built for you.">
+  <meta property="og:title" content="TOHSENO — tohseno create my-app-name">
+  <meta property="og:description" content="Describe an app. It gets built on your Mac and installed on your iPhone. Free and open source, or $88 and I build it for you in a day.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="TOHSENO — One app per day. Yours.">
+  <meta property="og:image:alt" content="TOHSENO — one app per day. Yours.">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
   <link rel="icon" href="/favicon.png" type="image/png">
   <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/landing.css?v=ce00089f2f1b">
+  <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
   <script src="/app.js" type="module"></script>
-  <title>TOHSENO — One App Per Day</title>
+  <title>TOHSENO — tohseno create my-app-name</title>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to content</a>
+  <a class="skip-link" href="#terminal-input">Skip to the prompt</a>
 
-  <div class="wrap">
-    <nav class="top-nav" aria-label="Primary navigation">
+  <main class="terminal" id="terminal" data-install-command="{{INSTALL_COMMAND}}">
+    <header class="term-bar">
       <svg class="enso" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle></svg>
-      <a class="wordmark" href="/">TOHSENO</a>
+      <span class="term-brand">{{BRAND}}</span>
       <span class="beta">BETA</span>
-      <div class="nav-links">
-        <a href="/docs">DOCS</a>
-        <a href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
-        <a class="nav-cta" href="#book">BOOK A DAY →</a>
+      <span class="term-note">an MVP factory for iOS apps</span>
+    </header>
+
+    <div class="term-screen" id="term-screen">
+      <div class="term-stream" id="term-stream">
+        <section class="boot">
+          <h1 class="boot-line">Describe an app. It gets built, and installed on your iPhone.</h1>
+          <p class="boot-line dim">Then you describe what should change, and the update installs. That is the whole product.</p>
+          <ul class="boot-facts">
+            <li><span class="tick">·</span> <strong>Free and open source.</strong> It runs on your Mac, on top of the coding harness you already use — Codex or Claude Code. Your machine, your inference, your apps.</li>
+            <li><span class="tick">·</span> <strong>$88 and I build it for you.</strong> One app, one day, 88 minutes of full craft, live on camera. Source and a 90-second launch video, shipped the same day.</li>
+            <li><span class="tick">·</span> <strong>Or summon a <a data-link="sojourn" href="mailto:jp@tohseno.com?subject=TOHSENO%20Sojourn">sojourn</a>.</strong> $22,222 · 96 days · one holder at a time. Not an app. A world.</li>
+          </ul>
+          <p class="boot-line dim">Type a command below. <code>help</code> lists them all.</p>
+        </section>
       </div>
+
+      <form class="term-form" id="term-form">
+        <label class="term-sigil" for="terminal-input" id="term-sigil">$</label>
+        <textarea
+          id="terminal-input"
+          name="line"
+          class="term-input"
+          rows="1"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="go"
+          aria-describedby="term-hint"
+          placeholder="tohseno create my-app-name"></textarea>
+        <button class="term-send" type="submit">RUN</button>
+      </form>
+      <p class="term-hint" id="term-hint">Nothing you type leaves this browser until you choose where to send it.</p>
+    </div>
+
+    <nav class="term-status" aria-label="TOHSENO links">
+      <a data-link="docs" href="/docs">DOCS</a>
+      <a data-link="source" href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
+      <a data-link="privacy" href="/privacy">PRIVACY</a>
+      <a data-link="community" href="https://community.tohseno.com" rel="noopener noreferrer">COMMUNITY</a>
+      <a data-link="whitepaper" href="/whitepaper.pdf">WHITEPAPER</a>
+      <a class="status-cta" data-link="book" href="https://cal.com/jpfraneto/day" rel="noopener">BOOK A DAY — $88</a>
     </nav>
+  </main>
 
-    <main id="main-content">
-      <header class="hero">
-        <p class="eyebrow">AN MVP FACTORY FOR iOS APPS</p>
-        <h1>One app<br>per day. <span>Yours.</span></h1>
-        <p class="hero-subtitle">
-          TOHSENO turns an intention—a name, a prompt, up to eight images—into a complete, buildable iOS app. <strong>Run it free on your Mac,</strong> or book a day and I build it for you. 88 minutes. On camera. Shipped.
-        </p>
+  <div class="drop-veil" id="drop-veil" aria-hidden="true"><span>drop images to attach</span></div>
 
-        <div class="quiver" aria-label="A rolling 30-day booking window">
-          <div class="quiver-head">
-            <span id="quiver-range">THE NEXT 30 DAYS</span>
-            <a href="https://cal.com/jpfraneto/day">LIVE AVAILABILITY ↗</a>
-          </div>
-          <div class="arrows" id="arrows" aria-hidden="true"></div>
-          <p class="quiver-foot">
-            One arrow per day. A new day enters the window every morning—
-            <span id="release-countdown" class="release">next arrow in —</span>
-          </p>
-        </div>
-      </header>
-
-      <section class="tiers" aria-label="Ways to use TOHSENO">
-        <article class="tier">
-          <p class="tier-tag">LOCAL</p>
-          <h2>Run it<br>yourself</h2>
-          <p class="price">FREE · OPEN SOURCE</p>
-          <p>TOHSENO runs on your Mac on top of the coding harness you already use—<strong>Codex or Claude Code</strong>. Your machine, your inference, your apps.</p>
-          <div class="command">
-            <code id="installer-command">curl -fsSL https://tohseno.com/oneshot.sh | bash</code>
-            <button id="copy-installer" type="button" aria-label="Copy the TOHSENO installer command">COPY</button>
-          </div>
-          <ul>
-            <li><strong>Everything is local.</strong> The filesystem is the database.</li>
-            <li><strong>Source-first.</strong> Inspect it, change it, and keep it.</li>
-            <li>Build in Simulator, then put it on your iPhone when you are ready.</li>
-          </ul>
-        </article>
-
-        <article class="tier book" id="book">
-          <p class="tier-tag">BOOK A DAY</p>
-          <h2>I build it<br>for you</h2>
-          <p class="price">$88 FLAT · ONE PER DAY · 30 DAYS OPEN AT A TIME</p>
-          <p>You hand me the intention. I give it <strong>88 minutes of full craft</strong>—live on stream—and your app ships that day.</p>
-          <ul>
-            <li><strong>Complete source</strong> and a step-by-step build recipe. It is yours.</li>
-            <li><strong>A 90-second launch video.</strong> One take, shipped with the app.</li>
-            <li><strong>Built in public.</strong> The build is streamed and posted.</li>
-            <li><strong>The vow:</strong> if the day's draw does not land it, it rolls into my next open slot until it does.</li>
-          </ul>
-          <a class="fat-button" href="https://cal.com/jpfraneto/day">
-            Book your day — $88
-            <small>PICK A DATE · HAND OVER THE INTENTION</small>
-          </a>
-          <p class="pay-note">Card through Cal.com · USDC by arrangement</p>
-        </article>
-
-        <article class="tier sojourn">
-          <p class="tier-tag">EXTREMELY PRO</p>
-          <h2>Summon<br>a sojourn</h2>
-          <p class="price">$22,222 · 96 DAYS · ONE AT A TIME</p>
-          <p>Not an app. A world. For 96 days I become the creativity engine of your idea—the app, the brand, the content, the everything. Full presence. Sync whenever you need it.</p>
-          <ul>
-            <li>96 days. Whatever it takes.</li>
-            <li>One holder at a time.</li>
-          </ul>
-          <a class="quiet-link" href="mailto:jp@tohseno.com?subject=TOHSENO%20Sojourn">BEGIN THE CONVERSATION</a>
-        </article>
-      </section>
-
-      <section class="forge">
-        <div class="forge-copy">
-          <p class="section-kicker">THE WORKBENCH — PUERTO VARAS, CHILE</p>
-          <h2>A real person builds your app on a real day.</h2>
-          <p>This is not a launch window. It is an ongoing vow: one app, every day, and every app forces one iteration on the engine—the instructions sharpen, the gates tighten, the next arrow flies truer. <strong>Your app makes TOHSENO better. That is the deal underneath the deal.</strong></p>
-        </div>
-      </section>
-
-      <section class="how">
-        <p class="section-kicker">HOW A DAY WORKS</p>
-        <div class="steps">
-          <article class="step"><p class="step-name">AIM</p><h3>Book a date</h3><p>Pick an open date on Cal.com and pay $88.</p></article>
-          <article class="step"><p class="step-name">NOCK</p><h3>Hand over the intention</h3><p>App name, your prompt, and up to eight reference images. That is the whole briefing.</p></article>
-          <article class="step"><p class="step-name">LOOSE</p><h3>88 minutes, live</h3><p>I build it on stream. You do not attend—you receive. The shot log is yours afterward.</p></article>
-          <article class="step"><p class="step-name">LAND</p><h3>Receive the app</h3><p>Source, build recipe, and the 90-second launch video, published the same day.</p></article>
-        </div>
-      </section>
-
-      <section class="vow">
-        <p class="section-kicker">THE VOW</p>
-        <blockquote>Your app ships. If the day's 88 minutes do not land it, <strong>the draw continues into my next open slot until it does.</strong></blockquote>
-        <p>One shot means one shot: the app that ships is the intention as submitted. A new aim is a new arrow—book another day. Builds are public by default; the stream and launch video are part of what you are buying.</p>
-      </section>
-    </main>
-
-    <footer>
-      <span>TOHSENO © 2026</span>
-      <span aria-hidden="true">·</span>
-      <a href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
-      <span aria-hidden="true">·</span>
-      <a href="/docs">DOCS</a>
-      <span aria-hidden="true">·</span>
-      <a href="/privacy">PRIVACY</a>
-      <span aria-hidden="true">·</span>
-      <a href="https://community.tohseno.com" rel="noopener noreferrer">COMMUNITY</a>
-      <span class="footer-place">MADE IN ONE TAKE — PUERTO VARAS, CHILE</span>
-    </footer>
-  </div>
+  <noscript>
+    <section class="noscript">
+      <p>The terminal needs JavaScript. Everything it does is also a command on your Mac:</p>
+      <p><code>{{INSTALL_COMMAND}}</code></p>
+      <p>Then <code>tohseno create my-app-name</code>, describe the app, and it installs on your iPhone. Or <a href="https://cal.com/jpfraneto/day" rel="noopener">book a day</a> and I build it for you for $88.</p>
+    </section>
+  </noscript>
 </body>
 </html>

@@ -233,10 +233,20 @@ export async function createApplication(
     .update(ogImageBytes)
     .digest("hex")
     .slice(0, 8);
+  // The terminal's stylesheet must revalidate the moment it changes, and the
+  // revision has to be derived rather than hand-maintained in the markup.
+  const landingStyleBytes = await Bun.file(
+    join(PUBLIC_DIRECTORY, "landing.css"),
+  ).bytes();
+  const landingStyleRevision = new Bun.CryptoHasher("sha256")
+    .update(landingStyleBytes)
+    .digest("hex")
+    .slice(0, 12);
   const renderPage = async (file: string): Promise<string> =>
     renderTemplate(await Bun.file(join(PUBLIC_DIRECTORY, file)).text(), {
       CANONICAL_ORIGIN: config.baseUrl,
       OG_IMAGE_URL: `${config.baseUrl}/og.png?v=${ogImageVersion}`,
+      LANDING_STYLE_REVISION: landingStyleRevision,
     });
   const [landingPage, docsPage, privacyPage] = await Promise.all([
     renderPage("index.html"),

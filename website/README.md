@@ -5,6 +5,51 @@ explicitly activated, the temporary ciphertext relay. The browser creates the
 noncanonical `tohseno.intent-package/1`, encrypts it with AES-256-GCM, and
 uploads bounded ciphertext chunks. The server never parses the package.
 
+## The landing page is a terminal
+
+`/` is one prompt. Its placeholder is the command a person will actually run
+on their Mac, and the page speaks the same words the Mac and the phone speak:
+App, Create, Evolve, and the six human states of ADR 0016.
+
+```text
+tohseno create <name>   write the intention, attach up to eight images
+tohseno demo            replay a build; nothing is installed
+tohseno install         the one-line installer
+tohseno book            the paid day
+help · clear · docs · source · privacy · community · whitepaper · sojourn
+```
+
+A person writes the whole intention before anything is asked of them. Only at
+send does the page offer three doors:
+
+- **send it to my mac** — the ADR 0011 handoff. The browser builds and encrypts
+  the package, uploads ciphertext chunks, and prints the single-use
+  `--claim` command. If the relay is not activated it downloads the private
+  `.tohseno-intent` file instead and says plainly that the file is not
+  encrypted.
+- **link the tohseno app** — deliberately not built. The iPhone Companion is
+  not published, so the door explains what linking will be and hands back. When
+  it exists it will link *the browser to the phone*, the way WhatsApp Web links
+  a browser to a phone: the phone holds the identity and does the signing, the
+  browser holds a capability the phone can revoke, and there is still no
+  account. Do not turn this into one.
+- **see a demo** — replays `application/src/presentation.rs` with that file's
+  exact headlines. `apps/site/tests/terminal.test.ts` asserts every replayed
+  state against `fixtures/presentation-v1.json`, so the website joins the Mac
+  and the phone in the one presentation contract and cannot invent a state.
+
+`public/modules/terminal.js` holds every decision that is not the DOM — command
+resolution, the app-name rule mirrored from `engine/src/ledger.rs`, the doors,
+the demo table, and reference filenames — so the whole surface is covered by
+`bun test` without a browser. `public/app.js` is only wiring. It builds every
+line as a node with `textContent`; nothing typed or dropped can become markup.
+The stylesheet revision in the markup is derived from the stylesheet itself in
+`server.ts`, so it is never hand-maintained.
+
+The boot block is static markup: it is the only copy a crawler, or a reader
+without JavaScript, ever sees, and it carries the whole offer including the
+paid day.
+
 ## Local development
 
 The relay is fail-closed by default. A complete local handoff may be exercised
