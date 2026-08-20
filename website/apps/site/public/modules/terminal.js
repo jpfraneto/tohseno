@@ -55,6 +55,9 @@ export function appNameProblem(name) {
   return null;
 }
 
+/// The listed commands, and only those. `docs` and `privacy` left the status
+/// bar and leave this list with it: the help is the short menu a person can
+/// hold in their head, not an index of everything that resolves.
 export const COMMANDS = Object.freeze([
   {
     name: "create",
@@ -65,14 +68,17 @@ export const COMMANDS = Object.freeze([
   { name: "install", usage: "tohseno install", summary: "the one-line installer" },
   { name: "book", usage: "tohseno book", summary: "your app, one day, on camera" },
   { name: "token", usage: "tohseno token", summary: "$TOHSENO on dexscreener" },
-  { name: "docs", usage: "tohseno docs", summary: "the manual" },
   { name: "source", usage: "tohseno source", summary: "every line of it" },
-  { name: "privacy", usage: "tohseno privacy", summary: "what leaves this browser" },
   { name: "community", usage: "tohseno community", summary: "where the builders are" },
   { name: "whitepaper", usage: "tohseno whitepaper", summary: "the long form" },
   { name: "help", usage: "help", summary: "this list" },
   { name: "clear", usage: "clear", summary: "clear the screen" },
 ]);
+
+/// What the RUN button runs when nothing has been typed. Pressing it is the
+/// same gesture as typing the one command this page exists for.
+export const DEFAULT_APP_NAME = "my-app";
+export const DEFAULT_CREATE_LINE = `tohseno create ${DEFAULT_APP_NAME}`;
 
 /// Every command that only opens something. The href is read from the page
 /// chrome where the chrome carries it, so `config.ts` stays the one authority.
@@ -86,7 +92,8 @@ export const LINK_COMMANDS = Object.freeze([
   "whitepaper",
 ]);
 
-/// Pages that are deliberately not in the status bar but must stay reachable.
+/// Pages that are deliberately in neither the status bar nor the help list,
+/// and must still be reachable by name.
 export const FALLBACK_LINKS = Object.freeze({
   docs: "/docs",
   privacy: "/privacy",
@@ -204,6 +211,54 @@ export function endsWithBlankLine(value) {
 /// `--claim` from its own argv, so the token follows `bash -s --`.
 export function claimCommand(installCommand, token) {
   return `${installCommand} -s -- --claim ${token}`;
+}
+
+const TEXT_EXTENSIONS = new Set(["md", "markdown", "mdown", "txt", "text"]);
+const TEXT_MEDIA_TYPES = new Set([
+  "text/markdown",
+  "text/x-markdown",
+  "text/plain",
+]);
+
+function fileExtension(name) {
+  const lastDot = name.lastIndexOf(".");
+  return lastDot === -1 ? "" : name.slice(lastDot + 1).toLowerCase();
+}
+
+/// A dropped file is either reference material — an image — or the intention
+/// itself, written down. Several platforms hand `.md` files to the browser
+/// with an empty media type, so the extension is the authority and the media
+/// type only decides the extensionless case.
+export function classifyDroppedFile(name = "", mediaType = "") {
+  const extension = fileExtension(name);
+  if (mediaType.startsWith("image/")) return "image";
+  if (KNOWN_IMAGE_EXTENSIONS.has(extension)) return "image";
+  if (TEXT_EXTENSIONS.has(extension)) return "text";
+  if (!extension && TEXT_MEDIA_TYPES.has(mediaType)) return "text";
+  return null;
+}
+
+/// A dropped document names the app it describes, the way the file on disk
+/// already does. An unusable name is not an error here — the default stands.
+export function appNameFromFilename(filename = "") {
+  const lastDot = filename.lastIndexOf(".");
+  const base = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+  const name = sanitizeAppName(base).slice(0, MAX_APP_NAME_LENGTH).replace(/-+$/, "");
+  return appNameProblem(name) ? null : name;
+}
+
+/// Joins written text onto whatever is already in the prompt, with one blank
+/// line between them. Dropping a second file appends; it never overwrites the
+/// sentences someone already typed.
+export function joinPromptText(existing, added) {
+  const base = existing.replace(/\s+$/, "");
+  const incoming = added
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n?/g, "\n")
+    .trim();
+  if (!base) return incoming;
+  if (!incoming) return base;
+  return `${base}\n\n${incoming}`;
 }
 
 /// Produces a portable filename `intent-package.js` will accept, keeping the

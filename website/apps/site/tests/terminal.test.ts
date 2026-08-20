@@ -2,10 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  appNameFromFilename,
   appNameProblem,
   claimCommand,
+  classifyDroppedFile,
   COMMANDS,
   cycleIndex,
+  DEFAULT_APP_NAME,
+  DEFAULT_CREATE_LINE,
   demoHeadline,
   DEMO_STEPS,
   DOORS,
@@ -13,6 +17,7 @@ import {
   FALLBACK_LINKS,
   formatBytes,
   intentSummary,
+  joinPromptText,
   LINK_COMMANDS,
   resolveCommand,
   sanitizeAppName,
@@ -94,6 +99,25 @@ describe("terminal command surface", () => {
     for (const name of Object.keys(FALLBACK_LINKS)) {
       expect(LINK_COMMANDS).toContain(name);
     }
+  });
+
+  // Docs and privacy left the status bar, and then the help list. Neither
+  // removal may quietly take the page itself away.
+  test("what left the status bar left the help list and still resolves", () => {
+    const listed = COMMANDS.map((command) => command.name);
+    for (const name of ["docs", "privacy"]) {
+      expect(listed).not.toContain(name);
+      expect(resolveCommand(`tohseno ${name}`)).toEqual({ kind: "link", link: name });
+    }
+  });
+
+  test("RUN with nothing typed runs the one command the page is for", () => {
+    expect(DEFAULT_CREATE_LINE).toBe(`tohseno create ${DEFAULT_APP_NAME}`);
+    expect(resolveCommand(DEFAULT_CREATE_LINE)).toEqual({
+      kind: "create",
+      argument: DEFAULT_APP_NAME,
+    });
+    expect(appNameProblem(DEFAULT_APP_NAME)).toBeNull();
   });
 
   test("a multi-word intention after create is kept whole", () => {
@@ -217,6 +241,43 @@ describe("handoff formatting", () => {
     expect(endsWithBlankLine("a running app\n")).toBe(true);
     expect(endsWithBlankLine("a running app")).toBe(false);
     expect(endsWithBlankLine("\n\n")).toBe(false);
+  });
+});
+
+describe("dropped files", () => {
+  test("a written document is the intention, an image is reference material", () => {
+    expect(classifyDroppedFile("spec.md", "text/markdown")).toBe("text");
+    expect(classifyDroppedFile("SPEC.MD", "")).toBe("text");
+    expect(classifyDroppedFile("notes.markdown", "")).toBe("text");
+    expect(classifyDroppedFile("notes.txt", "text/plain")).toBe("text");
+    expect(classifyDroppedFile("shot.png", "image/png")).toBe("image");
+    // Finder and several phone browsers hand over a file with no media type.
+    expect(classifyDroppedFile("shot.HEIC", "")).toBe("image");
+    expect(classifyDroppedFile("pasted", "text/plain")).toBe("text");
+    expect(classifyDroppedFile("archive.zip", "application/zip")).toBeNull();
+    expect(classifyDroppedFile("run.sh", "")).toBeNull();
+    expect(classifyDroppedFile("", "")).toBeNull();
+  });
+
+  test("a dropped document names the app, or quietly declines to", () => {
+    expect(appNameFromFilename("Todo App.md")).toBe("todo-app");
+    expect(appNameFromFilename("running-days.markdown")).toBe("running-days");
+    expect(appNameFromFilename("README")).toBe("readme");
+    expect(appNameFromFilename("config.md")).toBeNull();
+    expect(appNameFromFilename("🌲.md")).toBeNull();
+    expect(appNameFromFilename(`${"x".repeat(80)}.md`)).toBe("x".repeat(63));
+  });
+
+  test("dropped text appends to what is already written", () => {
+    expect(joinPromptText("", "# Spec\r\n\r\nit counts days.\n")).toBe(
+      "# Spec\n\nit counts days.",
+    );
+    expect(joinPromptText("a running app\n", "and a widget")).toBe(
+      "a running app\n\nand a widget",
+    );
+    expect(joinPromptText("a running app", "   ")).toBe("a running app");
+    expect(joinPromptText("  ", "only this")).toBe("only this");
+    expect(joinPromptText("", "﻿from a bom")).toBe("from a bom");
   });
 });
 

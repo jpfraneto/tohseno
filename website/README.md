@@ -7,16 +7,17 @@ uploads bounded ciphertext chunks. The server never parses the package.
 
 ## The landing page is a terminal
 
-`/` is one prompt. Its placeholder is the command a person will actually run
-on their Mac, and the page speaks the same words the Mac and the phone speak:
-App, Create, Evolve, and the six human states of ADR 0016.
+`/` is one prompt and nothing above it. Its placeholder is the command a
+person will actually run on their Mac, and the page speaks the same words the
+Mac and the phone speak: App, Create, Evolve, and the six human states of
+ADR 0016.
 
 ```text
 tohseno create <name>   write the intention, attach up to eight images
 tohseno demo            replay a build; nothing is installed
 tohseno install         the one-line installer
 tohseno book            the paid day
-help · clear · docs · source · privacy · community · whitepaper · token
+help · clear · source · community · whitepaper · token
 ```
 
 Anything else that reads like prose is the intention itself. The page asks a
@@ -25,9 +26,27 @@ with their words already in it. Only a lone unrecognized word is treated as a
 mistyped command. Typing the `tohseno` prefix is always a command attempt and
 is never reinterpreted.
 
-`docs` and `privacy` are deliberately absent from the status bar and resolve
-through `FALLBACK_LINKS`; both pages stay published and the HTTP suite asserts
-they still serve.
+`docs` and `privacy` are deliberately absent from the status bar and from the
+help list, and resolve through `FALLBACK_LINKS`; both pages stay published and
+the HTTP suite asserts they still serve.
+
+RUN pressed on an empty prompt types `tohseno create my-app` and runs it. The
+button is never a dead control, and a first-time visitor reaches the composer
+without knowing a single command.
+
+## What can be dropped, from anywhere
+
+Dropping or pasting anywhere on the page is the whole gesture, in any mode. A
+`.md` file *is* the intention: its text lands in the composer, editable, and
+its filename names the app. Images stay reference material carried alongside
+the words. Neither one requires running a command first — if nothing is open,
+the drop opens the composer itself.
+
+On a phone the software keyboard opens from a tap anywhere on the page, since
+iOS raises it only for a focus inside a real gesture. `app.js` measures how
+much of the window the keyboard covers through `visualViewport` and hands that
+much back through the `--keyboard` custom property, so the prompt is never
+underneath the keys it is receiving.
 
 A person writes the whole intention before anything is asked of them. Only at
 send does the page offer three doors:
@@ -56,9 +75,10 @@ line as a node with `textContent`; nothing typed or dropped can become markup.
 The stylesheet revision in the markup is derived from the stylesheet itself in
 `server.ts`, so it is never hand-maintained.
 
-The boot block is static markup: it is the only copy a crawler, or a reader
-without JavaScript, ever sees, and it carries the whole offer including the
-paid day.
+Nothing sits above the prompt. Every sentence that used to introduce the page
+stood between a person and the one thing to do, so the whole offer — including
+the paid day — now lives in the `<noscript>` block, which is exactly where it
+was ever read from: by a crawler, or by a reader without JavaScript.
 
 ## Local development
 

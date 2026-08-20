@@ -92,12 +92,15 @@ strong {
 
 /* ---------- frame ---------- */
 
+/* `--keyboard` is how much of the window the software keyboard covers, set by
+   app.js from the visual viewport. iOS does not shrink the layout viewport for
+   it, so without this the prompt would sit behind the keys it is receiving. */
 .terminal {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(100% - 32px, 900px);
   height: 100vh;
-  height: 100dvh;
+  height: calc(100dvh - var(--keyboard, 0px));
   margin-inline: auto;
   padding-block: 18px 14px;
 }
@@ -137,12 +140,6 @@ strong {
   letter-spacing: 0.18em;
 }
 
-.term-note {
-  color: var(--ash);
-  letter-spacing: 0.02em;
-  text-transform: lowercase;
-}
-
 /* ---------- screen ---------- */
 
 /* Output accumulates from the top and the prompt follows it, the way a real
@@ -163,42 +160,6 @@ strong {
 
 .term-screen::-webkit-scrollbar-thumb {
   background: var(--ink-3);
-}
-
-/* ---------- boot copy ---------- */
-
-.boot {
-  padding-bottom: 6px;
-}
-
-.boot-line {
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1.65;
-}
-
-h1.boot-line {
-  color: var(--bone);
-  font-weight: 600;
-}
-
-.boot-facts {
-  margin-block: 12px;
-  list-style: none;
-}
-
-.boot-facts li {
-  padding: 3px 0 3px 2ch;
-  text-indent: -2ch;
-  color: var(--ash);
-}
-
-.tick {
-  color: var(--amber);
-}
-
-.dim {
-  color: var(--ash);
 }
 
 /* ---------- stream lines ---------- */
@@ -476,11 +437,18 @@ body.dropping .drop-veil {
 
 .noscript {
   width: min(100% - 32px, 900px);
-  margin: 0 auto 24px;
+  margin: 24px auto;
   padding: 16px;
   border: 1px solid var(--ink-3);
   background: var(--ink-2);
   color: var(--ash);
+}
+
+.noscript h1 {
+  padding-bottom: 8px;
+  color: var(--bone);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .noscript p + p {
@@ -519,10 +487,6 @@ body.dropping .drop-veil {
 
   .term-hint {
     padding: 8px 0 12px;
-  }
-
-  .term-note {
-    display: none;
   }
 
   .term-status {

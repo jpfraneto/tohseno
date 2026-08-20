@@ -1,6 +1,10 @@
 import "./modules/obsolete-worker-cleanup.js";
 import { LIMITS } from "./modules/intent-limits.js";
-import { buildIntentPackage } from "./modules/intent-package.js";
+import {
+  buildIntentPackage,
+  mediaTypeForFilename,
+  utf8ByteLength,
+} from "./modules/intent-package.js";
 import { claimToken, createEncryptedEnvelope } from "./modules/intent-crypto.js";
 import {
   capabilities as relayCapabilities,
@@ -10,10 +14,14 @@ import {
 import { openDraftStore } from "./modules/draft-store.js";
 import { transferStateLabel } from "./modules/draft-logic.js";
 import {
+  appNameFromFilename,
   appNameProblem,
   claimCommand,
+  classifyDroppedFile,
   COMMANDS,
   cycleIndex,
+  DEFAULT_APP_NAME,
+  DEFAULT_CREATE_LINE,
   demoHeadline,
   DEMO_STEPS,
   DOORS,
@@ -21,6 +29,7 @@ import {
   FALLBACK_LINKS,
   formatBytes,
   intentSummary,
+  joinPromptText,
   resolveCommand,
   sanitizeAppName,
   toSafeReferenceName,
@@ -48,14 +57,14 @@ const MODES = Object.freeze({
   command: {
     sigil: "$",
     placeholder: "tohseno create my-app-name",
-    hint: "Nothing you type leaves this browser until you choose where to send it.",
+    hint: "drop a .md file · type help · nothing leaves this browser until you send it",
   },
   compose: {
     sigil: ">",
     placeholder: "what should it do?",
     // Spelled out rather than drawn: the return glyph is missing from enough
     // monospace fonts that it lands as a blank box exactly where it matters.
-    hint: "return twice to send · drag or paste images to attach · esc to cancel",
+    hint: "return twice to send · drop images or a .md file · esc to cancel",
   },
   choose: {
     sigil: " ",
@@ -70,6 +79,7 @@ const screen = document.querySelector("#term-screen");
 const stream = document.querySelector("#term-stream");
 const form = document.querySelector("#term-form");
 const input = document.querySelector("#terminal-input");
+const send = document.querySelector("#term-send");
 const sigil = document.querySelector("#term-sigil");
 const hint = document.querySelector("#term-hint");
 const veil = document.querySelector("#drop-veil");
@@ -337,7 +347,7 @@ function beginComposition(requested) {
   if (name !== requested.trim()) say(`  → ${name}`, "muted");
   say(`  ${name} — what should it do?`, "accent");
   say("  be exact. the first version is built from these words alone.", "muted");
-  say("  drag images in, or paste them. up to eight.", "muted");
+  say("  drop a .md file to fill this in. images too — up to eight.", "muted");
   gap();
   setMode("compose");
   saveDraft();
@@ -598,37 +608,97 @@ async function runDemo(appName) {
 
 /* ------------------------------------------------------------ references */
 
+/// Dropping or pasting onto the page is the whole gesture, from anywhere and
+/// in any mode. A written document becomes the intention itself; images stay
+/// what they are — reference material carried alongside it.
 async function attachFiles(files) {
-  const images = [...files].filter((file) => file.type.startsWith("image/"));
-  if (images.length === 0) return;
-  if (state.mode !== "compose") {
+  const images = [];
+  const documents = [];
+  for (const file of [...files]) {
+    const kind = classifyDroppedFile(file.name ?? "", file.type ?? "");
+    if (kind === "image") images.push(file);
+    else if (kind === "text") documents.push(file);
+  }
+  if (images.length === 0 && documents.length === 0) {
     gap();
-    say("  run tohseno create <name> first, then drop images in.", "warn");
+    say("  images or a .md file. that one is neither.", "warn");
     return;
   }
-  for (const file of images) {
-    if (state.references.length >= LIMITS.references) {
-      say(`  eight images is the limit — ${file.name} was not attached.`, "warn");
-      break;
-    }
-    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-      say(`  PNG, JPEG, HEIC, or WebP — ${file.name} was not attached.`, "warn");
-      continue;
-    }
-    if (file.size > LIMITS.referenceBytes) {
-      say(`  ${file.name} is over 16 MiB. add it later on your Mac.`, "warn");
-      continue;
-    }
-    const originalFilename = toSafeReferenceName(
-      file.name || "pasted-image",
-      file.type,
-      state.references.length,
-      state.references.map((reference) => reference.originalFilename),
-    );
-    state.references.push({ blob: file, originalFilename });
-    say(`  + ${originalFilename} · ${formatBytes(file.size)}`, "muted");
-  }
+  if (state.mode !== "compose") openDroppedComposition(documents[0]);
+  for (const file of documents) await absorbDocument(file);
+  for (const file of images) attachImage(file);
+  autosize();
   saveDraft();
+}
+
+/// Opens a composer around what was dropped, taking the app name from the
+/// document's own filename when it carries a usable one.
+function openDroppedComposition(written) {
+  cancelChoices();
+  state.demoToken += 1;
+  const named = written ? appNameFromFilename(written.name ?? "") : null;
+  const name = named ?? state.appName ?? DEFAULT_APP_NAME;
+  openComposer(name, "");
+  gap();
+  if (written) {
+    say(`  ${name} — this is the intention now.`, "accent");
+    say("  edit it here, then send it.", "muted");
+  } else {
+    say(`  ${name} — what should it do?`, "accent");
+    say("  the images are attached. the app is still written in words.", "muted");
+  }
+  setMode("compose");
+}
+
+async function absorbDocument(file) {
+  if (file.size > LIMITS.promptBytes) {
+    say(`  ${file.name} is over 1 MiB of text. trim it, or open it on your Mac.`, "warn");
+    return;
+  }
+  let text = "";
+  try {
+    text = await file.text();
+  } catch {
+    say(`  ${file.name} could not be read.`, "warn");
+    return;
+  }
+  const merged = joinPromptText(input.value, text);
+  if (!merged.trim()) {
+    say(`  ${file.name} is empty.`, "warn");
+    return;
+  }
+  if (utf8ByteLength(merged) > LIMITS.promptBytes) {
+    say(`  ${file.name} would push this past 1 MiB of text.`, "warn");
+    return;
+  }
+  input.value = merged;
+  say(`  + ${file.name} · ${intentSummary(text, 0)}`, "muted");
+}
+
+function attachImage(file) {
+  if (state.references.length >= LIMITS.references) {
+    say(`  eight images is the limit — ${file.name} was not attached.`, "warn");
+    return;
+  }
+  // Finder and some phone browsers hand over an image with no media type at
+  // all. The filename decides it there, exactly as the package builder does.
+  const mediaType = file.type || mediaTypeForFilename(file.name ?? "");
+  if (!SUPPORTED_IMAGE_TYPES.has(mediaType)) {
+    say(`  PNG, JPEG, HEIC, or WebP — ${file.name} was not attached.`, "warn");
+    return;
+  }
+  if (file.size > LIMITS.referenceBytes) {
+    say(`  ${file.name} is over 16 MiB. add it later on your Mac.`, "warn");
+    return;
+  }
+  const originalFilename = toSafeReferenceName(
+    file.name || "pasted-image",
+    mediaType,
+    state.references.length,
+    state.references.map((reference) => reference.originalFilename),
+  );
+  state.references.push({ blob: file, originalFilename });
+  say(`  + ${originalFilename} · ${formatBytes(file.size)}`, "muted");
 }
 
 /* ----------------------------------------------------------------- draft */
@@ -685,6 +755,14 @@ form.addEventListener("submit", (event) => {
   input.value = "";
   autosize();
   run(line);
+});
+
+/// RUN on an empty prompt is not a no-op: it types the one command this page
+/// exists for and runs it, which lands the person in the composer. The click
+/// runs before the submit it causes, so the line is there when submit reads it.
+send.addEventListener("click", () => {
+  if (state.mode !== "command" || input.value.trim()) return;
+  input.value = DEFAULT_CREATE_LINE;
 });
 
 input.addEventListener("input", () => {
@@ -762,15 +840,40 @@ document.addEventListener("drop", (event) => {
   attachFiles(event.dataTransfer?.files ?? []);
 });
 
-screen.addEventListener("click", (event) => {
+/// A tap anywhere on the page is a request to write, and on a phone that is
+/// the only way the keyboard opens: iOS raises it for a focus that happens
+/// inside a real gesture, and ignores one that does not.
+document.addEventListener("click", (event) => {
+  if (form.hidden) return;
   if (window.getSelection()?.toString()) return;
-  if (event.target.closest("a, button, textarea")) return;
-  if (!form.hidden) input.focus();
+  if (event.target.closest("a, button, textarea, .choices")) return;
+  input.focus();
 });
 
 veil.addEventListener("click", () => {
   document.body.classList.remove("dropping");
   state.dragDepth = 0;
+});
+
+/// The software keyboard covers the bottom of the window without changing the
+/// layout viewport, so the terminal is told how much of itself is behind it
+/// and gives that space back. Otherwise the prompt writes into the keyboard.
+const viewport = window.visualViewport;
+if (viewport) {
+  const fitAboveKeyboard = () => {
+    const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+    // Only a keyboard takes this much of the window. Anything smaller is a
+    // pinch zoom or a retreating address bar, and the layout ignores it.
+    const keyboard = covered > 120 ? Math.round(covered) : 0;
+    document.documentElement.style.setProperty("--keyboard", `${keyboard}px`);
+    screen.scrollTop = screen.scrollHeight;
+  };
+  viewport.addEventListener("resize", fitAboveKeyboard);
+  fitAboveKeyboard();
+}
+
+input.addEventListener("focus", () => {
+  screen.scrollTop = screen.scrollHeight;
 });
 
 setMode("command");

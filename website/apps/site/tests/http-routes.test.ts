@@ -67,8 +67,10 @@ describe("public pages", () => {
     expect(body).toContain('id="drop-veil"');
     expect(body).toContain(`data-install-command="${INSTALL_COMMAND}"`);
 
-    // The boot block is the only copy a crawler or a reader without
-    // JavaScript ever sees, so the whole offer has to survive in the markup.
+    // Everything above the prompt was removed: with JavaScript the page is a
+    // prompt and nothing else. The offer still has to survive in the markup
+    // for a crawler and for a reader without JavaScript, so it lives in the
+    // noscript block, which is the only place it was ever read from.
     expect(body).toContain(
       "Describe an app. It gets built, and installed on your iPhone.",
     );
@@ -76,6 +78,24 @@ describe("public pages", () => {
     expect(body).toContain("Codex or Claude Code");
     expect(body).toContain(INSTALL_COMMAND);
     expect(body).toContain("<noscript>");
+    const noscript = body.slice(
+      body.indexOf("<noscript>"),
+      body.indexOf("</noscript>"),
+    );
+    for (const copy of [
+      "Describe an app. It gets built, and installed on your iPhone.",
+      "Free and open source.",
+      "Codex or Claude Code",
+    ]) {
+      expect(noscript).toContain(copy);
+    }
+    expect(body).not.toContain('class="boot"');
+    // The prompt is the first thing in the terminal, with an empty stream
+    // above it rather than a paragraph of copy.
+    expect(body).toContain('<div class="term-stream" id="term-stream"></div>');
+    // RUN needs an id: pressing it with nothing typed types the create
+    // command and runs it, which the browser script binds by id.
+    expect(body).toContain('id="term-send"');
     expect(body).toContain('href="https://cal.com/jpfraneto/day"');
     expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
     expect(body).toContain('<span class="beta">BETA</span>');
@@ -209,6 +229,10 @@ describe("public pages", () => {
     // person types or drops can become markup.
     expect(browserScript).not.toContain("innerHTML");
     expect(browserScript).not.toContain("serviceWorker.register");
+    // The phone keyboard opens from a real tap and the terminal gives back
+    // the space it covers. Both halves have to stay.
+    expect(browserScript).toContain("window.visualViewport");
+    expect(browserScript).toContain("--keyboard");
     // The old pricing landing page and its dashboard-shaped controls are gone.
     expect(browserScript).not.toContain("renderQuiver");
 
@@ -216,6 +240,9 @@ describe("public pages", () => {
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
     expect(landingStyle).toContain(".term-screen");
     expect(landingStyle).not.toContain(".tiers");
+    expect(landingStyle).toContain("var(--keyboard, 0px)");
+    // The boot copy is gone from the page, and its styles with it.
+    expect(landingStyle).not.toContain(".boot");
   });
 
   test("serves the health check", async () => {
