@@ -57,7 +57,7 @@ const MODES = Object.freeze({
   command: {
     sigil: "$",
     placeholder: "tohseno create my-app-name",
-    hint: "drop a .md file · type help · nothing leaves this browser until you send it",
+    hint: "Describe your app, attach images, and experience it on your phone. Type help for commands",
   },
   compose: {
     sigil: ">",

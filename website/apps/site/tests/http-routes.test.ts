@@ -96,6 +96,13 @@ describe("public pages", () => {
     // RUN needs an id: pressing it with nothing typed types the create
     // command and runs it, which the browser script binds by id.
     expect(body).toContain('id="term-send"');
+    // The one line under the prompt is the only instruction left on the page.
+    // The markup and the browser script must carry the same sentence, or it
+    // visibly changes under the reader the moment the script runs.
+    const hint =
+      "Describe your app, attach images, and experience it on your phone. Type help for commands";
+    expect(body).toContain(`<p class="term-hint" id="term-hint">${hint}</p>`);
+    expect(readFileSync(browserScriptPath, "utf8")).toContain(`hint: "${hint}"`);
     expect(body).toContain('href="https://cal.com/jpfraneto/day"');
     expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
     expect(body).toContain('<span class="beta">BETA</span>');
