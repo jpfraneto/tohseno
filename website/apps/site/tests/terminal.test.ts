@@ -8,8 +8,6 @@ import {
   classifyDroppedFile,
   COMMANDS,
   cycleIndex,
-  DEFAULT_APP_NAME,
-  DEFAULT_CREATE_LINE,
   demoHeadline,
   DEMO_STEPS,
   DOORS,
@@ -111,13 +109,13 @@ describe("terminal command surface", () => {
     }
   });
 
-  test("RUN with nothing typed runs the one command the page is for", () => {
-    expect(DEFAULT_CREATE_LINE).toBe(`tohseno create ${DEFAULT_APP_NAME}`);
-    expect(resolveCommand(DEFAULT_CREATE_LINE)).toEqual({
-      kind: "create",
-      argument: DEFAULT_APP_NAME,
+  test("booking is no longer part of the landing-page command surface", () => {
+    expect(COMMANDS.map((command) => command.name)).not.toContain("book");
+    expect(LINK_COMMANDS).not.toContain("book");
+    expect(resolveCommand("tohseno book")).toEqual({
+      kind: "unknown",
+      typed: "book",
     });
-    expect(appNameProblem(DEFAULT_APP_NAME)).toBeNull();
   });
 
   test("a multi-word intention after create is kept whole", () => {

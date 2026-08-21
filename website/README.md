@@ -16,7 +16,6 @@ ADR 0016.
 tohseno create <name>   write the intention, attach up to eight images
 tohseno demo            replay a build; nothing is installed
 tohseno install         the one-line installer
-tohseno book            the paid day
 help · clear · source · community · whitepaper · token
 ```
 
@@ -30,9 +29,8 @@ is never reinterpreted.
 help list, and resolve through `FALLBACK_LINKS`; both pages stay published and
 the HTTP suite asserts they still serve.
 
-RUN pressed on an empty prompt types `tohseno create my-app` and runs it. The
-button is never a dead control, and a first-time visitor reaches the composer
-without knowing a single command.
+Pressing Return submits a command. A sentence that describes an app opens the
+composer directly, so a first-time visitor does not need to learn a command.
 
 ## What can be dropped, from anywhere
 

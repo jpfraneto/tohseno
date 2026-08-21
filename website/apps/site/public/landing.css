@@ -353,23 +353,6 @@ strong {
   color: #5f584f;
 }
 
-.term-send {
-  flex: none;
-  padding: 1px 10px;
-  border: 1px solid var(--ink-3);
-  background: none;
-  color: var(--ash);
-  font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  cursor: pointer;
-}
-
-.term-send:hover {
-  border-color: var(--amber-dim);
-  color: var(--amber);
-}
-
 .term-hint {
   padding: 10px 0 24px;
   color: var(--ash);
@@ -398,17 +381,6 @@ strong {
 
 .term-status a:hover {
   color: var(--bone);
-}
-
-.term-status .status-cta {
-  margin-left: auto;
-  color: var(--amber);
-}
-
-.term-status .status-cta:hover {
-  color: var(--amber);
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 /* ---------- drag and drop ---------- */
@@ -492,9 +464,5 @@ body.dropping .drop-veil {
   .term-status {
     gap: 6px 14px;
     letter-spacing: 0.12em;
-  }
-
-  .term-status .status-cta {
-    margin-left: 0;
   }
 }

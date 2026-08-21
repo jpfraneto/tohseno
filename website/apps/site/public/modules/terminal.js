@@ -66,7 +66,6 @@ export const COMMANDS = Object.freeze([
   },
   { name: "demo", usage: "tohseno demo", summary: "watch one get built" },
   { name: "install", usage: "tohseno install", summary: "the one-line installer" },
-  { name: "book", usage: "tohseno book", summary: "your app, one day, on camera" },
   { name: "token", usage: "tohseno token", summary: "$TOHSENO on dexscreener" },
   { name: "source", usage: "tohseno source", summary: "every line of it" },
   { name: "community", usage: "tohseno community", summary: "where the builders are" },
@@ -75,15 +74,12 @@ export const COMMANDS = Object.freeze([
   { name: "clear", usage: "clear", summary: "clear the screen" },
 ]);
 
-/// What the RUN button runs when nothing has been typed. Pressing it is the
-/// same gesture as typing the one command this page exists for.
+/// The local label used when an intention or image arrives without a filename.
 export const DEFAULT_APP_NAME = "my-app";
-export const DEFAULT_CREATE_LINE = `tohseno create ${DEFAULT_APP_NAME}`;
 
 /// Every command that only opens something. The href is read from the page
 /// chrome where the chrome carries it, so `config.ts` stays the one authority.
 export const LINK_COMMANDS = Object.freeze([
-  "book",
   "token",
   "docs",
   "source",

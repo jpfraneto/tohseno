@@ -93,9 +93,8 @@ describe("public pages", () => {
     // The prompt is the first thing in the terminal, with an empty stream
     // above it rather than a paragraph of copy.
     expect(body).toContain('<div class="term-stream" id="term-stream"></div>');
-    // RUN needs an id: pressing it with nothing typed types the create
-    // command and runs it, which the browser script binds by id.
-    expect(body).toContain('id="term-send"');
+    expect(body).not.toContain('id="term-send"');
+    expect(body).not.toContain(">RUN</button>");
     // The one line under the prompt is the only instruction left on the page.
     // The markup and the browser script must carry the same sentence, or it
     // visibly changes under the reader the moment the script runs.
@@ -103,15 +102,13 @@ describe("public pages", () => {
       "Describe your app, attach images, and experience it on your phone. Type help for commands";
     expect(body).toContain(`<p class="term-hint" id="term-hint">${hint}</p>`);
     expect(readFileSync(browserScriptPath, "utf8")).toContain(`hint: "${hint}"`);
-    expect(body).toContain('href="https://cal.com/jpfraneto/day"');
-    expect(body.match(/href="https:\/\/cal\.com\/jpfraneto\/day"/g)).toHaveLength(2);
+    expect(body).not.toContain("cal.com/jpfraneto/day");
     expect(body).toContain('<span class="beta">BETA</span>');
 
-    // Prices were removed from the page deliberately; booking survives as a
-    // link without one, and no price may return by accident.
+    // Prices and the booking offer were removed from the page deliberately.
     expect(body).not.toMatch(/\$\d/u);
     expect(body).not.toContain("sojourn");
-    expect(body).toContain(">BOOK A DAY</a>");
+    expect(body).not.toContain("BOOK A DAY");
 
     expect(body).toContain(
       'href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3"',

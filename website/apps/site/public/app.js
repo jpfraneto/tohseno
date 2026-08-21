@@ -21,7 +21,6 @@ import {
   COMMANDS,
   cycleIndex,
   DEFAULT_APP_NAME,
-  DEFAULT_CREATE_LINE,
   demoHeadline,
   DEMO_STEPS,
   DOORS,
@@ -79,7 +78,6 @@ const screen = document.querySelector("#term-screen");
 const stream = document.querySelector("#term-stream");
 const form = document.querySelector("#term-form");
 const input = document.querySelector("#terminal-input");
-const send = document.querySelector("#term-send");
 const sigil = document.querySelector("#term-sigil");
 const hint = document.querySelector("#term-hint");
 const veil = document.querySelector("#drop-veil");
@@ -755,14 +753,6 @@ form.addEventListener("submit", (event) => {
   input.value = "";
   autosize();
   run(line);
-});
-
-/// RUN on an empty prompt is not a no-op: it types the one command this page
-/// exists for and runs it, which lands the person in the composer. The click
-/// runs before the submit it causes, so the line is there when submit reads it.
-send.addEventListener("click", () => {
-  if (state.mode !== "command" || input.value.trim()) return;
-  input.value = DEFAULT_CREATE_LINE;
 });
 
 input.addEventListener("input", () => {
