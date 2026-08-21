@@ -4,7 +4,7 @@ umask 022
 
 script_name="factory-harness.sh"
 fixture_directory="$(CDPATH= cd -- "$(dirname -- "$0")/../../engine/fixtures/apple-expression" && pwd -P)"
-conceptor="$fixture_directory/prepare-birth-fixture.py"
+trial_recorder="$fixture_directory/prepare-birth-fixture.py"
 materializer="$fixture_directory/materialize.sh"
 exerciser="$fixture_directory/exercise-birth.sh"
 
@@ -13,7 +13,7 @@ fail() {
   exit 1
 }
 
-for executable in "$conceptor" "$materializer" "$exerciser"; do
+for executable in "$trial_recorder" "$materializer" "$exerciser"; do
   [ -f "$executable" ] && [ ! -L "$executable" ] && [ -x "$executable" ] ||
     fail "a deterministic Apple-expression fixture is unavailable"
 done
@@ -33,12 +33,6 @@ case "$app_name" in
 esac
 
 case "$instruction" in
-  *'.tohseno/CONCEPTION.md'*)
-    input="$shot_root/.tohseno/private/planning/conception-input.json"
-    output="$shot_root/.tohseno/private/planning/conception-output.json"
-    [ -f "$input" ] && [ ! -L "$input" ] || fail "conception input is unavailable"
-    "$conceptor" conception "$input" "$output"
-    ;;
   *'.tohseno/EVOLUTION_INTENT.md'*)
     source_file="$shot_root/TemplateApp.swift"
     [ -f "$source_file" ] && [ ! -L "$source_file" ] ||

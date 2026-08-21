@@ -101,7 +101,6 @@ pub struct ConductedCreation {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConductionPhase {
-    Conception,
     BirthMaterialization,
     EvolutionMaterialization,
 }
@@ -459,9 +458,8 @@ impl Engine {
         Ok(expected)
     }
 
-    /// Preserve the exact intention and prepare the selected intelligence for
-    /// conception. No app-specific Genome exists or can be accepted before
-    /// the structured conception output passes deterministic validation.
+    /// Preserve the exact intention, compose and accept the initial Genome,
+    /// and prepare the selected intelligence to materialize the app.
     pub fn create(&self, request: &ShotRequest) -> Result<ConductedCreation, EngineError> {
         crate::ledger::validate_app_name(&request.app_name)?;
         if request.intent.images.len() > crate::gates::intent::MAX_IMAGES {
@@ -474,7 +472,7 @@ impl Engine {
                 "feedback can be selected only for an evolution from an accepted Version".into(),
             ));
         }
-        let _app_lock = self.ledger.lock_app(&request.app_name)?;
+        let app_lock = self.ledger.lock_app(&request.app_name)?;
         if self.has_recording_layer_marker(&request.app_name)? {
             return Err(EngineError::ProtocolBodyIncomplete(
                 "a recording-layer app cannot enter the historical app-building pipeline".into(),
@@ -557,7 +555,7 @@ impl Engine {
             let existing = ConceptionInput::read(&layout)?;
             if existing.intent_digest != prepared_intention.intention_digest {
                 return Err(EngineError::ProtocolBodyIncomplete(
-                    "the pending conception is bound to a different exact intention".into(),
+                    "the staged Genome context is bound to a different exact intention".into(),
                 ));
             }
             existing
@@ -568,16 +566,16 @@ impl Engine {
             input.write(&layout)?;
             input
         };
-        crate::conception::write_conception_task(
-            &self.ledger.working_tree(&request.app_name),
-            &conception_input,
-        )?;
-        Ok(ConductedCreation {
-            folder: self.ledger.working_tree(&request.app_name),
-            agent_command: self.preferred_agent_command(),
-            instruction: "Read .tohseno/CONCEPTION.md and produce the strict app-specific conception output. No Genome is accepted and no app is materialized before that output validates.".into(),
-            phase: ConductionPhase::Conception,
-        })
+        // The protocol binds a genome digest into every VersionRecord, so the
+        // Shot needs an accepted Genome and a declared Expression before it can
+        // hold one. Deriving them is the engine's job. There is no separate
+        // planning round trip: the next thing that runs is the coding harness,
+        // reading the exact intention the human wrote.
+        let synthesized = crate::conception::synthesize(&conception_input)?;
+        // Acceptance re-locks this app, and the lock is not reentrant.
+        drop(app_lock);
+        self.stage_conception_output(&request.app_name, &synthesized)?;
+        self.accept_pending_conception(&request.app_name)
     }
 
     pub fn conception_input(&self, app_name: &str) -> Result<ConceptionInput, EngineError> {
@@ -1265,7 +1263,7 @@ impl Engine {
             None => {
                 if !validated_initial_conception {
                     return Err(EngineError::ProtocolBodyIncomplete(
-                        "revision 1 can be accepted only from the strict app-specific conception output produced after the intelligence reads the exact intention and Apple capability profile"
+                        "revision 1 can be accepted only from validated initial Genome material bound to the exact intention and Apple capability profile"
                             .into(),
                     ));
                 }

@@ -2060,27 +2060,31 @@ impl SourceScan {
     }
 
     fn scan_xcode_settings(&mut self, relative: &Path, text: &str) {
-        let dependency_marker = text.lines().find_map(|line| {
-            let line = line.trim();
-            if line == "isa = XCRemoteSwiftPackageReference;" {
-                Some("XCRemoteSwiftPackageReference object")
-            } else if line == "isa = XCLocalSwiftPackageReference;" {
-                Some("XCLocalSwiftPackageReference object")
-            } else if line.starts_with("packageProductDependencies = (") {
-                Some("packageProductDependencies assignment")
-            } else if line.starts_with("path = Pods/")
-                || line.starts_with("path = \"Pods/")
-                || line.starts_with("baseConfigurationReference =") && line.contains("Pods-")
-            {
-                Some("CocoaPods project path")
-            } else if (line.starts_with("path = ") || line.starts_with("name = "))
-                && line.contains("Carthage/Build/")
-            {
-                Some("Carthage build-product path")
-            } else {
-                None
-            }
-        });
+        let dependency_marker = text
+            .lines()
+            .find_map(|line| {
+                let line = line.trim();
+                if line == "isa = XCRemoteSwiftPackageReference;" {
+                    Some("XCRemoteSwiftPackageReference object")
+                } else if line == "isa = XCLocalSwiftPackageReference;" {
+                    Some("XCLocalSwiftPackageReference object")
+                } else if line.starts_with("path = Pods/")
+                    || line.starts_with("path = \"Pods/")
+                    || line.starts_with("baseConfigurationReference =") && line.contains("Pods-")
+                {
+                    Some("CocoaPods project path")
+                } else if (line.starts_with("path = ") || line.starts_with("name = "))
+                    && line.contains("Carthage/Build/")
+                {
+                    Some("Carthage build-product path")
+                } else {
+                    None
+                }
+            })
+            .or_else(|| {
+                has_nonempty_package_product_dependencies(text)
+                    .then_some("non-empty packageProductDependencies assignment")
+            });
         if let Some(marker) = dependency_marker {
             self.third_party_dependency = true;
             self.third_party_dependency_evidence
@@ -2170,6 +2174,34 @@ impl SourceScan {
             .get(&capability)
             .and_then(|evidence| evidence.first())
     }
+}
+
+fn has_nonempty_package_product_dependencies(text: &str) -> bool {
+    let mut inside_assignment = false;
+    for line in text.lines().map(str::trim) {
+        if !inside_assignment {
+            let Some(remainder) = line.strip_prefix("packageProductDependencies = (") else {
+                continue;
+            };
+            if let Some((contents, _)) = remainder.split_once(");") {
+                if !contents.trim().is_empty() {
+                    return true;
+                }
+            } else {
+                inside_assignment = true;
+            }
+            continue;
+        }
+
+        if line.starts_with(");") {
+            inside_assignment = false;
+        } else if !line.is_empty() {
+            return true;
+        }
+    }
+
+    // A malformed or unterminated assignment is not an auditable empty list.
+    inside_assignment
 }
 
 fn is_apple_test_source(relative: &Path) -> bool {
@@ -2835,6 +2867,40 @@ let result = try await URLSession.shared.data(from: URL(string: "https://api.exa
         .unwrap();
         let scan = SourceScan::inspect(directory.path()).unwrap();
         assert!(!scan.third_party_dependency);
+    }
+
+    #[test]
+    fn empty_xcode_package_product_lists_are_not_dependencies() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("App.xcodeproj");
+        fs::create_dir(&project).unwrap();
+        fs::write(
+            project.join("project.pbxproj"),
+            "packageProductDependencies = (\n);\npackageProductDependencies = ();\n",
+        )
+        .unwrap();
+
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(!scan.third_party_dependency);
+    }
+
+    #[test]
+    fn nonempty_xcode_package_product_lists_remain_dependencies() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("App.xcodeproj");
+        fs::create_dir(&project).unwrap();
+        fs::write(
+            project.join("project.pbxproj"),
+            "packageProductDependencies = (\n\tABC123 /* ExamplePackage */,\n);\n",
+        )
+        .unwrap();
+
+        let scan = SourceScan::inspect(directory.path()).unwrap();
+        assert!(scan.third_party_dependency);
+        assert!(scan
+            .third_party_dependency_evidence
+            .as_ref()
+            .is_some_and(|evidence| evidence.fact.contains("non-empty")));
     }
 
     #[test]

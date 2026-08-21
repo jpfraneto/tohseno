@@ -1402,6 +1402,18 @@ fn recover_references(
 fn receipt_from_status<T: for<'de> Deserialize<'de>>(
     status: &crate::command::CommandStatus,
 ) -> Result<Option<T>, ApplicationError> {
+    // A failed, rejected, or cancelled command keeps its receipt as durable
+    // evidence of how far execution reached. Replaying it as this command's
+    // answer would report the state captured while the work was still in
+    // flight, telling the caller the Shot is running when the command has
+    // already terminated and nothing will resume it. Terminal failures fall
+    // through to the resume path, which surfaces the recorded rejection.
+    if matches!(
+        status.state,
+        CommandState::Rejected | CommandState::Failed | CommandState::Cancelled
+    ) {
+        return Ok(None);
+    }
     status
         .result
         .as_ref()
@@ -1618,6 +1630,48 @@ fn ensure_private_directory(path: &Path) -> Result<(), ApplicationError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn status_with_receipt(state: CommandState) -> crate::command::CommandStatus {
+        crate::command::CommandStatus {
+            schema: "tohseno.local-command-status/1".into(),
+            command_id: "command_fixture".into(),
+            state,
+            updated_at: "2026-01-01T00:00:00Z".into(),
+            result: Some(crate::command::CommandResult {
+                receipt: serde_json::json!({ "state": "running" }),
+            }),
+            rejection: None,
+        }
+    }
+
+    #[test]
+    fn a_terminally_failed_command_never_replays_its_in_flight_receipt() {
+        // The receipt is written while work is still running and is kept as
+        // durable evidence. Replaying it after the command terminated told the
+        // caller a Shot was running when nothing would ever resume it.
+        for state in [
+            CommandState::Failed,
+            CommandState::Rejected,
+            CommandState::Cancelled,
+        ] {
+            let replayed =
+                receipt_from_status::<serde_json::Value>(&status_with_receipt(state)).unwrap();
+            assert_eq!(replayed, None, "{state:?} must not replay a receipt");
+        }
+    }
+
+    #[test]
+    fn an_unfinished_or_completed_command_still_replays_its_stable_receipt() {
+        for state in [
+            CommandState::Running,
+            CommandState::WaitingForDevice,
+            CommandState::Completed,
+        ] {
+            let replayed =
+                receipt_from_status::<serde_json::Value>(&status_with_receipt(state)).unwrap();
+            assert!(replayed.is_some(), "{state:?} must replay its receipt");
+        }
+    }
 
     #[test]
     fn reference_path_reader_rejects_symlinks_and_preserves_exact_bytes() {

@@ -96,6 +96,21 @@ versions/
 # END TOHSENO PRIVATE MATERIAL
 "#;
 
+/// Build products are not private material; they are not the app at all. This
+/// tree becomes the Version, and `workspace_fingerprint` hashes the same tree
+/// to decide whether a harness has stopped working — so derived data written
+/// here would both be preserved forever and mask a stalled run behind a stream
+/// of compiler writes.
+const BUILD_OUTPUT_IGNORE_BLOCK: &str = r#"# BEGIN TOHSENO BUILD OUTPUT
+build/
+DerivedData/
+.build/
+xcuserdata/
+*.xcresult
+*.xcuserdatad
+# END TOHSENO BUILD OUTPUT
+"#;
+
 const EVOLUTIONARY_INTENT_TEMPLATE: &str = r#"# Evolutionary Intent
 
 Current version:
@@ -2330,8 +2345,26 @@ impl ShotLayout {
     }
 
     fn ensure_private_ignore_rules(&self) -> Result<(), ShotLayoutError> {
-        const BEGIN: &str = "# BEGIN TOHSENO PRIVATE MATERIAL";
-        const END: &str = "# END TOHSENO PRIVATE MATERIAL";
+        self.ensure_managed_ignore_block(
+            "# BEGIN TOHSENO PRIVATE MATERIAL",
+            "# END TOHSENO PRIVATE MATERIAL",
+            PRIVATE_IGNORE_BLOCK,
+        )?;
+        self.ensure_managed_ignore_block(
+            "# BEGIN TOHSENO BUILD OUTPUT",
+            "# END TOHSENO BUILD OUTPUT",
+            BUILD_OUTPUT_IGNORE_BLOCK,
+        )
+    }
+
+    /// Own exactly one delimited region of the Shot's `.gitignore`, leaving
+    /// every line the owner wrote outside it untouched.
+    fn ensure_managed_ignore_block(
+        &self,
+        begin_marker: &str,
+        end_marker: &str,
+        block: &str,
+    ) -> Result<(), ShotLayoutError> {
         let path = self.root.join(".gitignore");
         let existing = match fs::symlink_metadata(&path) {
             Ok(metadata) => {
@@ -2344,8 +2377,8 @@ impl ShotLayout {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(error) => return Err(error.into()),
         };
-        let begins = existing.match_indices(BEGIN).collect::<Vec<_>>();
-        let ends = existing.match_indices(END).collect::<Vec<_>>();
+        let begins = existing.match_indices(begin_marker).collect::<Vec<_>>();
+        let ends = existing.match_indices(end_marker).collect::<Vec<_>>();
         if !begins.is_empty() || !ends.is_empty() {
             if begins.len() != 1 || ends.len() != 1 || begins[0].0 >= ends[0].0 {
                 return Err(ShotLayoutError::Invalid(
@@ -2353,12 +2386,12 @@ impl ShotLayout {
                 ));
             }
             let start = begins[0].0;
-            let mut end = ends[0].0 + END.len();
-            if existing.as_bytes().get(end) == Some(&b'\n') {
-                end += 1;
+            let mut finish = ends[0].0 + end_marker.len();
+            if existing.as_bytes().get(finish) == Some(&b'\n') {
+                finish += 1;
             }
             let mut updated = existing.clone();
-            updated.replace_range(start..end, PRIVATE_IGNORE_BLOCK);
+            updated.replace_range(start..finish, block);
             if updated == existing {
                 return Ok(());
             }
@@ -2371,7 +2404,7 @@ impl ShotLayout {
         if !updated.is_empty() {
             updated.push('\n');
         }
-        updated.push_str(PRIVATE_IGNORE_BLOCK);
+        updated.push_str(block);
         write_replace_file(&path, updated.as_bytes(), false)
     }
 }
@@ -4421,6 +4454,40 @@ mod tests {
         assert!(upgraded_ignore.contains("custom/"));
         assert!(upgraded_ignore.contains("GENOME.md"));
         assert!(upgraded_ignore.contains(".tohseno/capabilities.lock"));
+    }
+
+    #[test]
+    fn build_output_never_becomes_part_of_the_shot() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("shot");
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join(".gitignore"), b"secrets.env\n").unwrap();
+        let layout = ShotLayout::at(&root);
+        layout.initialize_directories().unwrap();
+
+        let ignore = fs::read_to_string(root.join(".gitignore")).unwrap();
+        // Derived data would otherwise be preserved as the Version and would
+        // keep the stall watchdog's fingerprint changing forever.
+        for pattern in [
+            "build/",
+            "DerivedData/",
+            ".build/",
+            "xcuserdata/",
+            "*.xcresult",
+            "*.xcuserdatad",
+        ] {
+            assert!(ignore.contains(pattern), "{pattern} must be excluded");
+        }
+        // The two managed regions stay separate, and what the owner wrote survives.
+        assert!(ignore.contains("# BEGIN TOHSENO PRIVATE MATERIAL"));
+        assert!(ignore.contains("# BEGIN TOHSENO BUILD OUTPUT"));
+        assert!(ignore.contains("secrets.env"));
+
+        // Re-initializing is idempotent rather than accumulating blocks.
+        layout.initialize_directories().unwrap();
+        let again = fs::read_to_string(root.join(".gitignore")).unwrap();
+        assert_eq!(again, ignore);
+        assert_eq!(again.matches("# BEGIN TOHSENO BUILD OUTPUT").count(), 1);
     }
 
     #[test]

@@ -290,8 +290,12 @@ The engine—not this harness—owns final acceptance and sealing.
 
 ## Authority and product truth
 
-- The exact human intention in `.tohseno/EVOLUTION_INTENT.md` is authoritative.
-- The accepted Genome in `.tohseno/genome.json` is its app-specific interpretation.
+- The exact human intention in `.tohseno/EVOLUTION_INTENT.md` is authoritative,
+  and interpreting it is your job. Nothing else in this Shot describes the
+  product; do not expect a plan to have already resolved it for you.
+- The accepted Genome in `.tohseno/genome.json` is engine-composed protocol
+  substrate that binds this Shot's identity. It is not a product specification
+  and it never narrows the intention.
 - The Apple profile at `.tohseno/private/planning/apple-capability-profile.json`
   describes available material and evidence constraints, not a denylist.
 - When that profile contains `signing_team`, its exact `team_id` is the
@@ -342,15 +346,17 @@ directory and add them to the app target. Keep repository-root
 folder. The engine reconciles observed source/artifact evidence into final
 Fascia facts.
 
-## App plan
+## Protocol substrate
 
-Read the structured plan at `.tohseno/private/planning/birth-plan.json`, the
-accepted app rules at `.tohseno/genome.json`, and the implementation plan at
-`.tohseno/private/planning/birth-expression-plan.json`. These files are authoritative;
-do not reproduce them in this task.
+`.tohseno/genome.json`, `.tohseno/private/planning/birth-plan.json`, and
+`.tohseno/private/planning/birth-expression-plan.json` are engine-composed. They
+fix this Shot's identity, its organ graph, and the shape of the trial you
+return. They deliberately say almost nothing about the product, because the
+product is the preserved intention and reading it is your work.
 
 Protocol-substrate organs preserve identity and provenance. They do not fulfill
-product requirements. App-specific organs must drive the implementation.
+product requirements. The app-specific organ carries the whole intention: treat
+every promise the human made as in scope for it.
 
 ## Experience Contract
 
@@ -365,9 +371,22 @@ appropriate, launch in Simulator, traverse each required target-user journey,
 capture meaningful multi-state evidence, inspect it from that actor's
 perspective, repair mismatches, and repeat until the contract passes. Use
 launch arguments or injected sensor fixtures only in test configurations;
-prove the real framework path remains in Release source. When the profile has
-a compatible connected iPhone and a required scenario is hardware-critical,
-also build/install/launch and exercise that scenario on the physical device.
+prove the real framework path remains in Release source. The engine
+independently reruns the checked-in suite with `-configuration Release` and
+`CODE_SIGNING_ALLOWED=NO`. If tests use `@testable import`, enable testability
+for that Release test build; never buy access by widening a product symbol to
+`public` or dropping `@testable`. If unsigned Simulator launch cannot prepare
+the real Keychain-backed InstallationIdentity, use an explicit launch argument
+guarded by `#if targetEnvironment(simulator)` for the UI-test journey only.
+Normal and physical-device Release launches must still prepare the real
+identity and fail visibly on errors. When the profile has a compatible
+connected iPhone and a required scenario is hardware-critical, also
+build/install/launch and exercise that scenario on the physical device.
+
+Keep build products out of the Shot. Pass an explicit `-derivedDataPath` and
+result-bundle path outside this directory, and never let derived data, a
+result bundle, or `.xcuserdatad` land in the source tree. This tree is what
+becomes the Version, so anything built here is preserved as if it were the app.
 
 Every claimed final verification must exercise the exact final source tree.
 After the last source, test, fixture, or project-definition edit, regenerate
@@ -419,8 +438,8 @@ only if all three acceptance dimensions pass.
 
     /// Writes the private briefing for a conducted creation into the app's
     /// own `.tohseno/`: exact intent, static Constitution material, Fascia
-    /// references, and a holding TASK.md. The actual app-specific task is
-    /// written only after intelligent conception and Genome acceptance.
+    /// references, and a staged TASK.md. The real materialization task replaces
+    /// it once the engine has composed and accepted this Shot's Genome.
     pub fn compose_briefing(
         &self,
         ledger: &Ledger,
@@ -474,13 +493,12 @@ only if all three acceptance dimensions pass.
         };
         let prompt = &intent.prompt;
         let task = format!(
-            r#"# TOHSENO conception pending
+            r#"# TOHSENO briefing staged
 
-Do not materialize an app from this holding task. Read
-`.tohseno/CONCEPTION.md`; the selected intelligence must first interpret the
-exact intention and Apple capability context into a strict app-specific Birth
-Plan, Genome, organs, and Experience Contract. The engine validates and accepts
-that proposal before replacing this file with the materialization task.
+Do not materialize an app from this staged briefing. The engine is still
+composing this Shot's Genome and Expression and will replace this file with the
+materialization task before any harness runs. If you are reading this file, the
+run has not started yet.
 
 ## App identity
 
@@ -489,8 +507,7 @@ that proposal before replacing this file with the materialization task.
 - TOHSENO engine version: `{engine_version}`
 - TOHSENO source commit: `{source_commit}`
 - static Constitution/Genome bundle digest: `{constitution_digest}`
-- accepted Shot Genome digest: not yet accepted
-- Apple capability profile digest: see `.tohseno/CONCEPTION.md` after discovery
+- accepted Shot Genome digest: being composed by the engine
 
 ## Exact human intention
 

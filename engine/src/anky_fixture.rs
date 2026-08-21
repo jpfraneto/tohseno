@@ -717,14 +717,15 @@ fn evidence(kind: EvidenceKind, name: &str) -> EvidenceReference {
 mod tests {
     use super::*;
     use crate::birth_plan::{BirthExpressionPlan, OrganKind};
-    use crate::conception::{ConceptionHarness, FakeConceptionHarness};
     use crate::experience::evaluate_birth;
 
+    /// A rich, intention-derived plan still validates. The engine no longer
+    /// asks an intelligence to author one, but nothing stops a Shot from
+    /// carrying one, and every acceptance rule that governed it still holds.
     #[test]
-    fn anky_conception_derives_the_intention_instead_of_a_generic_factory_shape() {
+    fn a_richly_derived_plan_still_passes_every_acceptance_rule() {
         let input = conception_input();
-        let harness = FakeConceptionHarness::returning(output());
-        let proposed = harness.conceive(&input).unwrap();
+        let proposed = output();
         let expression = proposed.validate(&input).unwrap();
         assert_eq!(
             proposed
@@ -818,6 +819,8 @@ mod tests {
         assert!(!task.contains("\"forbidden_substitutions\""));
         assert!(!task.contains("\"camera_to_dark_background\""));
         assert!(task.contains("A DEBUG fixture may prove individual"));
+        assert!(task.contains("independently reruns the checked-in suite"));
+        assert!(task.contains("#if targetEnvironment(simulator)"));
         assert!(task.contains("relative to the Shot repository root"));
         assert!(task.contains("Set `experience_contract_digest` to the authoritative digest"));
         assert!(task.contains("exactly one real\n  Xcode project at `./Anky.xcodeproj`"));
@@ -922,6 +925,55 @@ mod tests {
                 && criterion.observation.as_deref()
                     == Some("implementation_complete; acceptance_pending_physical_experience")));
         assert!(!receipt.accepted);
+    }
+
+    #[test]
+    fn release_build_evidence_may_belong_to_a_protocol_organ() {
+        let plan = plan(sha256(INTENTION.as_bytes()));
+        let contract = contract(&plan);
+        let expression = BirthExpressionPlan::from_birth_plan(&plan).unwrap();
+        let mut candidate = trial(&plan, &contract, None, None, true, Vec::new());
+        let scenario = candidate
+            .scenario_results
+            .iter_mut()
+            .find(|result| {
+                result
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.kind == EvidenceKind::ReleaseBuild)
+            })
+            .unwrap();
+        let release_index = scenario
+            .evidence
+            .iter()
+            .position(|evidence| evidence.kind == EvidenceKind::ReleaseBuild)
+            .unwrap();
+        let release_evidence = scenario.evidence.remove(release_index);
+        candidate.organ_results[0].criteria[0]
+            .evidence
+            .push(release_evidence);
+        candidate.validate(&plan, &expression, &contract).unwrap();
+
+        let receipt = evaluate_birth(
+            &plan,
+            &expression,
+            &contract,
+            &candidate,
+            evaluation_evidence(
+                &plan,
+                Bytes32::new([0x76; 32]),
+                vec![criterion("protocol_conformance", true, true)],
+            ),
+        )
+        .unwrap();
+
+        assert!(receipt.accepted);
+        assert!(receipt
+            .experience_verification
+            .criteria
+            .iter()
+            .find(|criterion| criterion.id == "release_build")
+            .is_some_and(|criterion| criterion.evidence.len() == 1));
     }
 
     #[test]

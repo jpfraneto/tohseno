@@ -21,6 +21,39 @@ pub struct BirthEvaluationEvidence {
     pub engine_experience_criteria: Vec<CriterionResult>,
 }
 
+fn all_trial_evidence(trial: &ExperienceTrial) -> impl Iterator<Item = &EvidenceReference> {
+    trial
+        .scenario_results
+        .iter()
+        .flat_map(|result| {
+            result.evidence.iter().chain(
+                result
+                    .assertions
+                    .iter()
+                    .flat_map(|assertion| assertion.evidence.iter()),
+            )
+        })
+        .chain(trial.organ_results.iter().flat_map(|result| {
+            result
+                .criteria
+                .iter()
+                .flat_map(|criterion| criterion.evidence.iter())
+        }))
+        .chain(
+            trial
+                .forbidden_substitution_results
+                .iter()
+                .flat_map(|criterion| criterion.evidence.iter()),
+        )
+        .chain(trial.intent_review.evidence.iter())
+        .chain(
+            trial
+                .physical_device
+                .iter()
+                .flat_map(|device| device.evidence.iter()),
+        )
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceKind {
@@ -780,8 +813,12 @@ pub fn evaluate_birth(
             id: "release_build".into(),
             passed: trial.release_build_passed,
             deterministic: true,
-            evidence: scenario_evidence
-                .clone()
+            // A Release build is global evidence. It commonly belongs to a
+            // protocol-substrate organ (identity or continuity), not to a
+            // target-user scenario. Every reference here has already passed
+            // the trial's structural validation; the machine additionally
+            // checks the referenced bytes before evaluation.
+            evidence: all_trial_evidence(trial)
                 .find(|evidence| evidence.kind == EvidenceKind::ReleaseBuild)
                 .cloned()
                 .into_iter()

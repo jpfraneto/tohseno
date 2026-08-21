@@ -45,8 +45,7 @@ pub use birth_plan::{
     OrganKind, BIRTH_EXPRESSION_PLAN_SCHEMA, BIRTH_PLAN_SCHEMA,
 };
 pub use conception::{
-    render_conception_task, ConceptionError, ConceptionHarness, ConceptionInput, ConceptionOutput,
-    FakeConceptionHarness, JsonFileConceptionHarness, CONCEPTION_INPUT_SCHEMA,
+    synthesize, ConceptionError, ConceptionInput, ConceptionOutput, CONCEPTION_INPUT_SCHEMA,
     CONCEPTION_OUTPUT_SCHEMA,
 };
 pub use config::Config;

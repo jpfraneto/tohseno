@@ -71,10 +71,10 @@ factory genome, the Apple Fascia, and immutable completed directories at
 
 `tohseno create` captures raw text and references, resolves the existing
 Builder identity, creates the stable Shot ID, writes the local binding and
-briefing, and starts one detached unattended runner. The runner performs
-intelligent conception, validates and internally accepts the app-specific
-proposal, materializes and repairs the Release candidate, and asks the engine
-to record and deliver it. Preparation alone does not sign the initial
+briefing, and starts one detached unattended runner. The engine composes and
+accepts this Shot's Genome and Expression itself, so the runner invokes the
+coding harness once against the exact intention, materializes and repairs the
+Release candidate, and asks the engine to record and deliver it. Preparation alone does not sign the initial
 commitment or create version `0001`.
 
 The recording engine snapshots the living tree, checks the Apple project and

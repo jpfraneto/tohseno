@@ -10,6 +10,13 @@ stay free of identities and grants, and a linked browser still reaches only
 the Mac that phone is paired with. It is accepted and deliberately not
 implemented, and it lists what must be true before it can be.
 
+[ADR 0017](0017-the-engine-composes-the-genome.md) defines how a birth runs:
+the engine composes and accepts each Shot's Genome and Expression itself, and
+the single harness invocation reads the exact human intention. It supersedes
+[ADR 0012](0012-intention-led-app-birth.md)'s Conception phase while keeping
+ADR 0012's intention-led birth and engine-owned acceptance intact. It also
+bounds one unattended harness invocation by stall and total runtime.
+
 [ADR 0016](0016-app-intent-app-on-your-iphone.md) defines the current
 user-facing surface: the canonical abstraction is App → Intent → App on your
 iPhone, and Studio and the Companion are thin projections over the same durable

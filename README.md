@@ -32,9 +32,9 @@ There is no button to press there. TOHSENO orchestrates itself.
 A persistent private app factory on your Mac. One Local Workspace Service owns
 factory commands, executions, Studio, and synchronization with a paired iPhone.
 The Mac remains the backend: prompts, source, coding harnesses, Xcode, signing,
-installation, and acceptance stay local. Completion means the conception,
-build, test, verification, delivery, and acceptance gates passed — never that a
-harness exited successfully.
+installation, and acceptance stay local. Completion means the build, test,
+verification, delivery, and acceptance gates passed — never that a harness
+exited successfully.
 
 That machinery is sophisticated and it is entirely beneath the floor. The
 product is App → Intent → App on your iPhone ([ADR 0016](docs/adr/0016-app-intent-app-on-your-iphone.md)).

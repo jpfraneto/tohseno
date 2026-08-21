@@ -514,7 +514,18 @@ async fn main() {
 
 async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let bus = EventBus::default();
-    let render_task = if cli.json {
+    // The LaunchAgent runs `--json service run`, and that long-lived process
+    // never prints a command result for `--json` to keep clean. Suppressing
+    // the renderer there leaves the installed service unable to write a single
+    // line to the operational log it is configured to own, so the run command
+    // always renders its bounded event stream.
+    let service_run = matches!(
+        &cli.command,
+        Command::Service {
+            command: ServiceCommand::Run { .. }
+        }
+    );
+    let render_task = if cli.json && !service_run {
         None
     } else {
         let renderer = Renderer::new(io::stdout(), io::stdout().is_terminal());

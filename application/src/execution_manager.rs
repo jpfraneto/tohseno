@@ -4,14 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use tohseno_engine::harness::{
-    build_conception_command, build_evolution_command, build_materialization_command,
-    HarnessSelection,
+    build_evolution_command, build_materialization_command, HarnessSelection,
 };
 use tohseno_engine::protocol_lifecycle::verify_completed_evolution;
 use tohseno_engine::shot_execution::{
     append_harness_heartbeat, complete_execution, execution_directory, has_workspace_changed,
     load_completion, load_execution, prepare_execution, prepare_execution_with_id,
-    privacy_safe_workspace_progress, read_events, update_phase,
+    privacy_safe_workspace_progress, read_events, update_phase, workspace_fingerprint,
 };
 use tohseno_engine::{
     CompletionRecord, ConductedCreation, ConductionPhase, DevicePipeline, Engine, EngineError,
@@ -21,6 +20,18 @@ use tohseno_engine::{
 
 const DEFAULT_REPAIR_PASSES: u8 = 5;
 const MAXIMUM_REPAIR_PASSES: u8 = 8;
+/// How long a harness may write nothing to the Shot before the supervisor
+/// treats it as hung. Long enough for a slow build or a long think, far short
+/// of a night.
+const DEFAULT_STALL_SECS: u64 = 30 * 60;
+const MAXIMUM_STALL_SECS: u64 = 4 * 60 * 60;
+/// Absolute ceiling on one harness invocation, regardless of progress.
+const DEFAULT_MAX_RUNTIME_SECS: u64 = 4 * 60 * 60;
+const MAXIMUM_MAX_RUNTIME_SECS: u64 = 12 * 60 * 60;
+/// A harness gets a short window to flush and stop its own children after the
+/// supervisor sends SIGTERM. After that, the advertised ceiling must remain a
+/// ceiling even when the harness ignores the graceful signal.
+const HARNESS_GRACEFUL_STOP_SECS: u64 = 30;
 
 pub fn selection(
     engine: &Engine,
@@ -213,7 +224,6 @@ fn prepare_inner(
         intention_digest: package.intention_digest,
         references,
         mode: match creation.phase {
-            ConductionPhase::Conception => ExecutionMode::Conception,
             ConductionPhase::BirthMaterialization => ExecutionMode::BirthMaterialization,
             ConductionPhase::EvolutionMaterialization => ExecutionMode::EvolutionMaterialization,
         },
@@ -279,7 +289,7 @@ pub fn ensure_background_runner(
             remove_stale_runner_pid(&execution)?;
             start_background_runner(&mut execution)?;
             events.emit(Event::handoff(format!(
-                "SHOT IN FLIGHT · {} · {} · conception, materialization, verification, and phone delivery are running unattended.",
+                "SHOT IN FLIGHT · {} · {} · materialization, verification, and phone delivery are running unattended.",
                 execution.harness_display_name, execution.model
             )));
         }
@@ -975,128 +985,43 @@ async fn run_shot(
         .iter()
         .map(|path| path.strip_prefix(&repository).unwrap_or(path).to_path_buf())
         .collect::<Vec<_>>();
+    // One harness invocation per execution. The Shot's Genome is already
+    // accepted before this point, so the first thing the harness ever sees is
+    // the exact human intention.
     let first_command = match execution.mode {
-        ExecutionMode::Conception => build_conception_command(
-            &selection,
-            Path::new(".tohseno/CONCEPTION.md"),
-            &relative_images,
-            None,
-        ),
-        ExecutionMode::BirthMaterialization => build_materialization_command(
-            &selection,
-            Path::new(".tohseno/TASK.md"),
-            &relative_images,
-            None,
-        ),
         ExecutionMode::EvolutionMaterialization => build_evolution_command(
             &selection,
             Path::new(&execution.intent_path),
             &relative_images,
         ),
-    }
-    .map_err(|error| format!("harness adapter rejected execution: {error}"))?;
-    let first_phase = if execution.mode == ExecutionMode::Conception {
-        ExecutionPhase::Conception
-    } else {
-        ExecutionPhase::Materializing
-    };
-    let (mut status, mut cancelled) = execute_harness(
-        first_command,
-        &repository,
-        &mut execution,
-        &mut changed_reported,
-        first_phase,
-        events,
-    )
-    .await?;
-
-    let mut validation_diagnostic = None;
-    if status.success() && !cancelled && execution.mode == ExecutionMode::Conception {
-        let maximum_conception_repairs = std::env::var("TOHSENO_MAX_CONCEPTION_REPAIR_PASSES")
-            .or_else(|_| std::env::var("TOHSENO_MAX_REPAIR_PASSES"))
-            .ok()
-            .and_then(|value| value.parse::<u8>().ok())
-            .unwrap_or(DEFAULT_REPAIR_PASSES)
-            .min(MAXIMUM_REPAIR_PASSES);
-        let mut validated_conception = None;
-        for pass in 0..=maximum_conception_repairs {
-            match engine.pending_conception(app_name) {
-                Ok(value) => {
-                    validated_conception = Some(value);
-                    validation_diagnostic = None;
-                    break;
-                }
-                Err(error) => {
-                    let diagnostic = error.to_string();
-                    validation_diagnostic = Some(diagnostic.clone());
-                    if pass == maximum_conception_repairs {
-                        break;
-                    }
-                    events.emit(Event::status(format!(
-                        "CONCEPTION REPAIR {}/{} · {diagnostic}",
-                        pass + 1,
-                        maximum_conception_repairs
-                    )));
-                    let command = build_conception_command(
-                        &selection,
-                        Path::new(".tohseno/CONCEPTION.md"),
-                        &relative_images,
-                        Some(&diagnostic),
-                    )
-                    .map_err(|adapter| {
-                        format!("harness adapter rejected Conception repair: {adapter}")
-                    })?;
-                    (status, cancelled) = execute_harness(
-                        command,
-                        &repository,
-                        &mut execution,
-                        &mut changed_reported,
-                        ExecutionPhase::Repairing,
-                        events,
-                    )
-                    .await?;
-                    if !status.success() || cancelled {
-                        break;
-                    }
-                }
-            }
-        }
-        if let Some((proposal, expression)) = validated_conception {
-            present_conception_summary(&proposal, &expression, events);
-            engine.accept_pending_conception(app_name)?;
+        // A legacy `conception` record resumes as the materialization it was
+        // always going to become.
+        ExecutionMode::BirthMaterialization | ExecutionMode::Conception => {
             execution.mode = ExecutionMode::BirthMaterialization;
-            update_phase(
-                &mut execution,
-                ExecutionPhase::ContextLoaded,
-                "The app-specific Genome, Birth Plan, organs, and Experience Contract passed deterministic validation and were accepted internally for materialization.",
-            )?;
-            let command = build_materialization_command(
+            build_materialization_command(
                 &selection,
                 Path::new(".tohseno/TASK.md"),
                 &relative_images,
                 None,
             )
-            .map_err(|error| format!("harness adapter rejected materialization: {error}"))?;
-            (status, cancelled) = execute_harness(
-                command,
-                &repository,
-                &mut execution,
-                &mut changed_reported,
-                ExecutionPhase::Materializing,
-                events,
-            )
-            .await?;
         }
     }
+    .map_err(|error| format!("harness adapter rejected execution: {error}"))?;
+    let (mut status, mut cancelled, mut stalled) = execute_harness(
+        first_command,
+        &repository,
+        &mut execution,
+        &mut changed_reported,
+        ExecutionPhase::Materializing,
+        events,
+    )
+    .await?;
 
-    if status.success()
-        && !cancelled
-        && validation_diagnostic.is_none()
-        && matches!(
-            execution.mode,
-            ExecutionMode::BirthMaterialization | ExecutionMode::EvolutionMaterialization
-        )
-    {
+    // A stalled harness is a failure with a known cause. Recording that cause
+    // beats letting the acceptance gates report the same silence as "no
+    // accepted Version" with no explanation of why.
+    let mut validation_diagnostic = stalled.take();
+    if status.success() && !cancelled && validation_diagnostic.is_none() {
         let maximum_repairs = std::env::var("TOHSENO_MAX_REPAIR_PASSES")
             .or_else(|_| std::env::var("TOHSENO_MAX_BIRTH_REPAIR_PASSES"))
             .ok()
@@ -1130,10 +1055,9 @@ async fn run_shot(
                         break;
                     }
                     let repair_kind = match execution.mode {
-                        ExecutionMode::BirthMaterialization => "BIRTH REPAIR",
                         ExecutionMode::EvolutionMaterialization => "EVOLUTION CANDIDATE REPAIR",
-                        ExecutionMode::Conception => {
-                            unreachable!("conception is not materialization")
+                        ExecutionMode::BirthMaterialization | ExecutionMode::Conception => {
+                            "BIRTH REPAIR"
                         }
                     };
                     events.emit(Event::status(format!(
@@ -1148,7 +1072,7 @@ async fn run_shot(
                         Some(&diagnostic),
                     )
                     .map_err(|adapter| format!("harness adapter rejected repair: {adapter}"))?;
-                    (status, cancelled) = execute_harness(
+                    (status, cancelled, stalled) = execute_harness(
                         command,
                         &repository,
                         &mut execution,
@@ -1157,6 +1081,10 @@ async fn run_shot(
                         events,
                     )
                     .await?;
+                    if let Some(reason) = stalled.take() {
+                        validation_diagnostic = Some(reason);
+                        break;
+                    }
                     if !status.success() || cancelled {
                         break;
                     }
@@ -1356,7 +1284,7 @@ async fn execute_harness(
     changed_reported: &mut bool,
     active_phase: ExecutionPhase,
     events: &EventBus,
-) -> Result<(std::process::ExitStatus, bool), Box<dyn std::error::Error>> {
+) -> Result<(std::process::ExitStatus, bool, Option<String>), Box<dyn std::error::Error>> {
     let mut command = tokio::process::Command::new(&harness.program);
     command
         .args(&harness.arguments)
@@ -1376,9 +1304,6 @@ async fn execute_harness(
         execution,
         active_phase,
         match active_phase {
-            ExecutionPhase::Conception => {
-                "The harness is deriving the app-specific Birth Plan and Genome."
-            }
             ExecutionPhase::Repairing => {
                 "The harness is repairing only the independently diagnosed acceptance gap."
             }
@@ -1387,8 +1312,27 @@ async fn execute_harness(
     )?;
     events.emit(Event::status("SHOT IN FLIGHT"));
     let mut cancelled = false;
+    let mut stalled = None;
+    let stall_after = bounded_duration_setting(
+        "TOHSENO_HARNESS_STALL_SECS",
+        DEFAULT_STALL_SECS,
+        MAXIMUM_STALL_SECS,
+    );
+    let give_up_after = bounded_duration_setting(
+        "TOHSENO_HARNESS_MAX_RUNTIME_SECS",
+        DEFAULT_MAX_RUNTIME_SECS,
+        MAXIMUM_MAX_RUNTIME_SECS,
+    );
     let harness_started = Instant::now();
     let mut last_heartbeat = Instant::now();
+    // Progress is measured against the Shot tree, not against harness output.
+    // A harness that prints forever while writing nothing is not working. The
+    // prepared boundary is already this tree's state at start, so establishing
+    // it costs no extra Git work.
+    let mut last_progress_at = Instant::now();
+    let mut last_fingerprint = execution.baseline.tree.clone();
+    let mut stop_requested_at = None;
+    let mut forced_stop_reported = false;
     let status;
     {
         let wait = child.wait();
@@ -1401,17 +1345,41 @@ async fn execute_harness(
                     break;
                 }
                 _ = interval.tick() => {
+                    #[cfg(unix)]
+                    if !forced_stop_reported
+                        && stop_requested_at.is_some_and(|requested: Instant| {
+                            requested.elapsed()
+                                >= Duration::from_secs(HARNESS_GRACEFUL_STOP_SECS)
+                        })
+                    {
+                        if let Some(pid) = child_id {
+                            // The pinned wait owns the mutable Child borrow, so
+                            // signal by its stable PID. SIGKILL is deliberately
+                            // reserved for a harness that ignored SIGTERM.
+                            unsafe { libc::kill(pid as i32, libc::SIGKILL); }
+                            events.emit(Event::status(
+                                "HARNESS FORCED STOP · the harness ignored the graceful stop deadline",
+                            ));
+                            forced_stop_reported = true;
+                        }
+                    }
                     if !*changed_reported && has_workspace_changed(execution)? {
                         // A file change is useful activity, but it is not a
                         // factory lifecycle phase. Preserve the typed
-                        // Conception/Materializing/Repairing state while the
-                        // harness is still doing that exact work.
+                        // Materializing/Repairing state while the harness is
+                        // still doing that exact work.
                         events.emit(Event::status(
                             "The Shot repository changed after the prepared boundary.",
                         ));
                         *changed_reported = true;
                     }
                     if last_heartbeat.elapsed() >= Duration::from_secs(60) {
+                        if let Ok(fingerprint) = workspace_fingerprint(execution) {
+                            if fingerprint != last_fingerprint {
+                                last_fingerprint = fingerprint;
+                                last_progress_at = Instant::now();
+                            }
+                        }
                         let elapsed_minutes = harness_started.elapsed().as_secs() / 60;
                         let activity = privacy_safe_workspace_progress(execution)
                             .unwrap_or_else(|_| {
@@ -1429,6 +1397,44 @@ async fn execute_harness(
                             ),
                         )?;
                         last_heartbeat = Instant::now();
+
+                        // An unattended run has nobody watching it. Without
+                        // these two bounds a harness that hangs holds the
+                        // factory lease until a human notices, which is how a
+                        // two-minute silence became an eight-hour one.
+                        let idle = last_progress_at.elapsed();
+                        let total = harness_started.elapsed();
+                        if stalled.is_none() && idle >= stall_after {
+                            stalled = Some(format!(
+                                "{} wrote nothing to the Shot for {} minute(s); the supervisor stopped it. Raise TOHSENO_HARNESS_STALL_SECS if this app genuinely needs longer silent stretches.",
+                                execution.harness_display_name,
+                                idle.as_secs() / 60
+                            ));
+                        } else if stalled.is_none() && total >= give_up_after {
+                            stalled = Some(format!(
+                                "{} ran for {} minute(s) without reaching an acceptance gate; the supervisor stopped it. Raise TOHSENO_HARNESS_MAX_RUNTIME_SECS to allow a longer single run.",
+                                execution.harness_display_name,
+                                total.as_secs() / 60
+                            ));
+                        }
+                        if stop_requested_at.is_none() {
+                            if let Some(reason) = &stalled {
+                                events.emit(Event::status(format!(
+                                    "HARNESS STOPPED · {reason}"
+                                )));
+                                append_harness_heartbeat(execution, reason.clone())?;
+                                #[cfg(unix)]
+                                if let Some(pid) = child_id {
+                                    // SIGTERM first so the harness can close
+                                    // its own children and flush; the wait
+                                    // below resolves either way.
+                                    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+                                }
+                                #[cfg(not(unix))]
+                                let _ = child_id;
+                                stop_requested_at = Some(Instant::now());
+                            }
+                        }
                     }
                 }
                 signal = tokio::signal::ctrl_c() => {
@@ -1443,40 +1449,19 @@ async fn execute_harness(
         }
     }
     execution.process_id = None;
-    Ok((status, cancelled))
+    Ok((status, cancelled, stalled))
 }
 
-fn present_conception_summary(
-    output: &tohseno_engine::ConceptionOutput,
-    expression: &tohseno_engine::BirthExpressionPlan,
-    events: &EventBus,
-) {
-    let actors = output
-        .birth_plan
-        .target_users
-        .iter()
-        .map(|actor| actor.role.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let capabilities = output
-        .birth_plan
-        .capabilities
-        .iter()
-        .map(|capability| capability.identifier.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let product_organs = expression
-        .organs
-        .iter()
-        .filter(|organ| organ.kind == tohseno_engine::OrganKind::AppSpecific)
-        .map(|organ| organ.organ_id.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    events.emit(Event::status(format!(
-        "APP-SPECIFIC CONCEPTION\nPromise: {}\nTarget users: {actors}\nApple capabilities: {capabilities}\nProduct organs: {product_organs}\nRequired journeys: {}",
-        output.birth_plan.promise,
-        output.birth_plan.completion_contract.required_scenario_ids.join(", ")
-    )));
+/// Read a bounded duration from the environment, falling back to the default
+/// and refusing a value that would effectively disable the bound.
+fn bounded_duration_setting(name: &str, default_secs: u64, maximum_secs: u64) -> Duration {
+    let seconds = std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(default_secs)
+        .min(maximum_secs);
+    Duration::from_secs(seconds)
 }
 
 pub async fn follow(

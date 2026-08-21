@@ -1,9 +1,11 @@
 //! The one human projection of local factory work.
 //!
-//! Internally an execution moves through conception, planning, materialization,
-//! harness work, build, test, verification, repair, delivery, launch, and
-//! acceptance. None of that is the product. Every surface — Studio, the CLI,
-//! and the Companion — shows the same six human states derived here:
+//! Internally an execution moves through planning, materialization, harness
+//! work, build, test, verification, repair, delivery, launch, and acceptance.
+//! (`conception` is no longer produced; the table still maps it so records
+//! written by earlier releases stay readable.) None of that is the product.
+//! Every surface — Studio, the CLI, and the Companion — shows the same six
+//! human states derived here:
 //!
 //! ```text
 //! waiting → building → ready_for_phone → installing → installed

@@ -6,7 +6,9 @@ use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tohseno_companion::identity::WorkspaceServiceIdentity;
@@ -16,6 +18,15 @@ const WORKSPACE_SCHEMA: &str = "tohseno.local-workspace/1";
 const KEYCHAIN_SERVICE: &str = "com.tohseno.workspace-service";
 const VERIFICATION_KEYCHAIN_PREFIX: &str = "com.tohseno.workspace-service.verification.";
 const MAX_WORKSPACE_RECORD_BYTES: u64 = 64 * 1024;
+/// How long the workspace-secret read may block before the service says why.
+/// macOS raises a Keychain authorization dialog whenever the requesting binary
+/// is not on the item's access list, and `SecItemCopyMatching` does not return
+/// until somebody answers it. Waiting silently is indistinguishable from a hang.
+const KEYCHAIN_NOTICE_DELAY: Duration = Duration::from_secs(3);
+/// Repeated so a long unanswered dialog stays visibly the cause, rather than
+/// one line scrolled past at startup.
+const KEYCHAIN_NOTICE_INTERVAL: Duration = Duration::from_secs(30);
+pub const KEYCHAIN_NOTICE: &str = "macOS is asking permission to read the TOHSENO workspace key. Answer the Keychain dialog with Always Allow; the service cannot start until it is answered.";
 
 pub trait SecretStore: Send + Sync {
     fn put(&self, reference: &str, value: &[u8]) -> Result<(), String>;
@@ -181,6 +192,38 @@ fn configured_keychain_service() -> Result<String, String> {
     Ok(service)
 }
 
+/// Read one secret without letting an unanswered Keychain dialog look like a
+/// freeze. The read stays on this thread; a watcher announces the delay, so a
+/// service that appears stuck always states its own cause.
+fn read_secret_announcing_delay(
+    secrets: &dyn SecretStore,
+    reference: &str,
+    notice_delay: Duration,
+    announce: impl Fn() + Send + 'static,
+) -> Result<Vec<u8>, String> {
+    let finished = Arc::new(AtomicBool::new(false));
+    let watched = Arc::clone(&finished);
+    let watcher = std::thread::spawn(move || {
+        let started = Instant::now();
+        let mut announced_at = None;
+        while !watched.load(Ordering::Relaxed) {
+            let due = match announced_at {
+                None => started.elapsed() >= notice_delay,
+                Some(last) => Instant::now().duration_since(last) >= KEYCHAIN_NOTICE_INTERVAL,
+            };
+            if due {
+                announce();
+                announced_at = Some(Instant::now());
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+    let result = secrets.get(reference);
+    finished.store(true, Ordering::Relaxed);
+    let _ = watcher.join();
+    result
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkspaceIdentityRecord {
@@ -214,8 +257,15 @@ impl WorkspaceIdentity {
                 let record: WorkspaceIdentityRecord =
                     tohseno_protocol::canonical::from_slice(&bytes)?;
                 validate_record(&record)?;
-                let secret =
-                    Zeroizing::new(secrets.get(&record.secret_reference).map_err(io_error)?);
+                let secret = Zeroizing::new(
+                    read_secret_announcing_delay(
+                        secrets,
+                        &record.secret_reference,
+                        KEYCHAIN_NOTICE_DELAY,
+                        || eprintln!("{KEYCHAIN_NOTICE}"),
+                    )
+                    .map_err(io_error)?,
+                );
                 if secret.len() != 64 {
                     return Err("workspace Keychain secret has the wrong length".into());
                 }
@@ -395,6 +445,63 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A store whose read blocks, standing in for an unanswered macOS Keychain
+    /// authorization dialog.
+    struct SlowSecretStore(Duration);
+
+    impl SecretStore for SlowSecretStore {
+        fn put(&self, _reference: &str, _value: &[u8]) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn get(&self, _reference: &str) -> Result<Vec<u8>, String> {
+            std::thread::sleep(self.0);
+            Ok(b"secret".to_vec())
+        }
+
+        fn delete(&self, _reference: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_blocked_secret_read_announces_its_cause_and_still_returns() {
+        let announced = Arc::new(AtomicBool::new(false));
+        let observed = Arc::clone(&announced);
+        let secret = read_secret_announcing_delay(
+            &SlowSecretStore(Duration::from_millis(300)),
+            "workspace-seed:test",
+            Duration::from_millis(20),
+            move || observed.store(true, Ordering::Relaxed),
+        )
+        .unwrap();
+        assert_eq!(secret, b"secret".to_vec());
+        assert!(
+            announced.load(Ordering::Relaxed),
+            "a read that outlasts the notice delay must state why it is waiting"
+        );
+    }
+
+    #[test]
+    fn a_prompt_free_secret_read_stays_silent() {
+        let announced = Arc::new(AtomicBool::new(false));
+        let observed = Arc::clone(&announced);
+        let store = MemorySecretStore::default();
+        store.put("workspace-seed:test", b"secret").unwrap();
+        let secret = read_secret_announcing_delay(
+            &store,
+            "workspace-seed:test",
+            Duration::from_secs(30),
+            move || observed.store(true, Ordering::Relaxed),
+        )
+        .unwrap();
+        assert_eq!(secret, b"secret".to_vec());
+        assert!(
+            !announced.load(Ordering::Relaxed),
+            "the ordinary authorized read must not narrate itself"
+        );
+    }
 
     #[test]
     fn injectable_store_round_trips_without_writing_secret_bytes() {

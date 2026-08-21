@@ -327,12 +327,13 @@ pub fn resolve_selection(
     let executable =
         find_executable(known).ok_or_else(|| format!("{} became unavailable", option.label))?;
     let removed_environment = removed_environment_for_route(&route.id);
+    let environment = executable_path_environment(&executable)?;
     Ok((
         option,
         HarnessCommand {
             program: executable,
             arguments: known.bypass_arguments.iter().map(OsString::from).collect(),
-            environment: Vec::new(),
+            environment,
             removed_environment,
         },
     ))
@@ -378,29 +379,6 @@ pub fn build_evolution_command(
             "Read `{}`, complete the requested app, verify it, and exit.",
             intent_path.display()
         ),
-    )
-}
-
-pub fn build_conception_command(
-    selection: &HarnessSelection,
-    task_path: &Path,
-    image_paths: &[PathBuf],
-    repair_diagnostic: Option<&str>,
-) -> Result<HarnessCommand, String> {
-    build_command(
-        selection,
-        image_paths,
-        conception_instruction(task_path, repair_diagnostic),
-    )
-}
-
-fn conception_instruction(task_path: &Path, repair_diagnostic: Option<&str>) -> String {
-    let repair = repair_diagnostic
-        .map(|diagnostic| format!(" Repair only this failing criterion and exit: {diagnostic}"))
-        .unwrap_or_default();
-    format!(
-        "Read `{}`, complete the requested conception task, verify its output, and exit.{repair}",
-        task_path.display(),
     )
 }
 
@@ -623,11 +601,69 @@ fn find_executable(known: &KnownHarness) -> Option<PathBuf> {
         return from_path;
     }
     let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    known
+    let from_home = known
         .home_paths
         .iter()
         .map(|relative| home.join(relative))
-        .find(|candidate| is_executable(candidate))
+        .find(|candidate| is_executable(candidate));
+    from_home.or_else(|| find_nvm_executable(&home, known))
+}
+
+/// NVM does not expose its selected Node installation to launchd. Resolve the
+/// same default alias an interactive shell uses so the persistent factory sees
+/// an npm-installed harness without inheriting the user's entire shell PATH.
+fn find_nvm_executable(home: &Path, known: &KnownHarness) -> Option<PathBuf> {
+    let nvm = home.join(".nvm");
+    let alias = read_bounded_utf8(&nvm.join("alias/default"), 256).ok()?;
+    let alias = alias.trim();
+    if alias.is_empty()
+        || alias.len() > 64
+        || alias
+            .bytes()
+            .any(|byte| !(byte.is_ascii_digit() || byte == b'.'))
+    {
+        return None;
+    }
+    let prefix = format!("v{alias}");
+    let mut versions = std::fs::read_dir(nvm.join("versions/node"))
+        .ok()?
+        .take(128)
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|candidate| {
+            candidate
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| {
+                    name == prefix
+                        || name
+                            .strip_prefix(&prefix)
+                            .is_some_and(|suffix| suffix.starts_with('.'))
+                })
+        })
+        .collect::<Vec<_>>();
+    versions.sort();
+    versions.into_iter().rev().find_map(|version| {
+        known
+            .binaries
+            .iter()
+            .map(|binary| version.join("bin").join(binary))
+            .find(|candidate| is_executable(candidate))
+    })
+}
+
+/// npm launchers commonly use `#!/usr/bin/env node`. Prepending the selected
+/// executable's own directory lets that stable launcher find its sibling Node
+/// binary even when launchd supplies only the macOS system PATH.
+fn executable_path_environment(executable: &Path) -> Result<Vec<(OsString, OsString)>, String> {
+    let parent = executable
+        .parent()
+        .ok_or("the harness executable has no parent directory")?;
+    let inherited = std::env::var_os("PATH").unwrap_or_default();
+    let value = std::env::join_paths(
+        std::iter::once(parent.to_path_buf()).chain(std::env::split_paths(&inherited)),
+    )
+    .map_err(|error| format!("the harness PATH could not be constructed: {error}"))?;
+    Ok(vec![(OsString::from("PATH"), value)])
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -765,9 +801,9 @@ mod tests {
     }
 
     #[test]
-    fn conception_repair_instruction_carries_the_engine_diagnostic() {
-        let instruction = conception_instruction(
-            Path::new(".tohseno/CONCEPTION.md"),
+    fn repair_instruction_carries_the_engine_diagnostic() {
+        let instruction = materialization_instruction(
+            Path::new(".tohseno/TASK.md"),
             Some("organ dependency has not been declared"),
         );
         assert!(instruction.contains("Repair only this failing criterion"));
@@ -796,5 +832,37 @@ mod tests {
             split_command("\"/Users/App Maker/bin/codex\""),
             Some(vec![OsString::from("/Users/App Maker/bin/codex")])
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn launchd_discovers_an_nvm_default_harness_and_its_sibling_node() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let nvm = root.path().join(".nvm");
+        std::fs::create_dir_all(nvm.join("alias")).unwrap();
+        std::fs::write(nvm.join("alias/default"), b"22.12\n").unwrap();
+        let bin = nvm.join("versions/node/v22.12.0/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        for name in ["codex", "node"] {
+            let executable = bin.join(name);
+            std::fs::write(&executable, b"#!/bin/sh\n").unwrap();
+            let mut permissions = std::fs::metadata(&executable).unwrap().permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&executable, permissions).unwrap();
+        }
+
+        let codex = known_harness("codex").unwrap();
+        let executable = find_nvm_executable(root.path(), codex).unwrap();
+        assert_eq!(executable, bin.join("codex"));
+
+        let environment = executable_path_environment(&executable).unwrap();
+        let configured_path = environment
+            .iter()
+            .find(|(name, _)| name == "PATH")
+            .map(|(_, value)| value)
+            .unwrap();
+        assert_eq!(std::env::split_paths(configured_path).next(), Some(bin));
     }
 }

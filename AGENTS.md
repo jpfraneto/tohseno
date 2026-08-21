@@ -10,12 +10,16 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0016 governs the
-   current user-facing surface: App → Intent → App on your iPhone, with Studio
-   and the Companion as thin projections. ADR 0015 governs the persistent local
-   factory and private companion boundary beneath it while preserving ADR
-   0014's recording format. ADR 0006 governs the successor (0.8) contract
-   generation and public-witness design.
+2. **`docs/adr/`** — accepted architectural decisions. ADR 0017 governs how a
+   birth runs: the engine composes and accepts the Genome itself and the one
+   harness invocation reads the exact intention, so there is no Conception
+   phase and no `.tohseno/CONCEPTION.md`. Do not reintroduce a planning round
+   trip in front of the build. ADR 0016 governs the current user-facing
+   surface: App → Intent → App on your iPhone, with Studio and the Companion as
+   thin projections. ADR 0015 governs the persistent local factory and private
+   companion boundary beneath it while preserving ADR 0014's recording format.
+   ADR 0006 governs the successor (0.8) contract generation and public-witness
+   design.
 
    ADR 0016 is a deletion decision as much as an addition: the Studio dashboard,
    its execution-pipeline renderer, its Feedback/Marketing forms, and its

@@ -10,6 +10,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::service_commands::{self, ServicePaths, SystemLaunchctl};
+use crate::workspace_identity::KEYCHAIN_NOTICE;
 use crate::workspace_service::{load_runtime, RuntimeRecord};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
@@ -43,6 +44,11 @@ impl ServiceClient {
             return Ok(client);
         }
         let paths = ServicePaths::discover().map_err(boxed)?;
+        let error_log = paths.logs.join("workspace-service.error.log");
+        // Only what this attempt writes can explain this attempt.
+        let already_written = std::fs::metadata(&error_log)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
         if std::env::var("TOHSENO_DEVELOPMENT_SERVICE").as_deref() == Ok("1") {
             let executable = std::env::current_exe()?;
             Command::new(executable)
@@ -62,6 +68,11 @@ impl ServiceClient {
                 Err(error) => last_error = error.to_string(),
             }
             tokio::time::sleep(Duration::from_millis(125)).await;
+        }
+        // A service that never answered is usually blocked rather than broken,
+        // and the transport error only describes the symptom.
+        if let Some(blocker) = startup_blocker(&error_log, already_written) {
+            return Err(blocker.into());
         }
         Err(format!("Local Workspace Service did not become healthy: {last_error}").into())
     }
@@ -204,6 +215,19 @@ fn boxed(error: Box<dyn std::error::Error>) -> BoxError {
     std::io::Error::other(error.to_string()).into()
 }
 
+/// The stated reason this start attempt is still waiting, read only from what
+/// the attempt itself appended. Returns nothing when the service failed for
+/// some reason it could not narrate.
+fn startup_blocker(error_log: &Path, already_written: u64) -> Option<String> {
+    let bytes = std::fs::read(error_log).ok()?;
+    let appended = bytes.get(usize::try_from(already_written).ok()?..)?;
+    String::from_utf8_lossy(appended)
+        .lines()
+        .rev()
+        .find(|line| line.contains(KEYCHAIN_NOTICE))
+        .map(ToOwned::to_owned)
+}
+
 #[derive(Debug, Serialize)]
 pub struct ApiReference<'a> {
     pub filename: &'a str,
@@ -215,6 +239,32 @@ pub struct ApiReference<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unanswered_keychain_dialog_is_reported_instead_of_the_transport_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let log = directory.path().join("workspace-service.error.log");
+        std::fs::write(&log, format!("{KEYCHAIN_NOTICE}\n")).unwrap();
+        assert_eq!(startup_blocker(&log, 0).unwrap(), KEYCHAIN_NOTICE);
+    }
+
+    #[test]
+    fn an_earlier_run_s_keychain_dialog_never_explains_this_one() {
+        let directory = tempfile::tempdir().unwrap();
+        let log = directory.path().join("workspace-service.error.log");
+        let stale = format!("{KEYCHAIN_NOTICE}\n");
+        std::fs::write(&log, &stale).unwrap();
+        assert!(startup_blocker(&log, stale.len() as u64).is_none());
+    }
+
+    #[test]
+    fn a_failure_the_service_could_not_narrate_stays_unexplained() {
+        let directory = tempfile::tempdir().unwrap();
+        let log = directory.path().join("workspace-service.error.log");
+        std::fs::write(&log, b"thread 'main' panicked\n").unwrap();
+        assert!(startup_blocker(&log, 0).is_none());
+        assert!(startup_blocker(&directory.path().join("absent.log"), 0).is_none());
+    }
 
     #[test]
     fn routes_cannot_escape_the_verified_origin() {

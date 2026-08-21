@@ -33,6 +33,7 @@ use tohseno_application::{
 use tohseno_engine::shot_execution::{load_completion, load_execution};
 use tohseno_engine::{
     Engine, Event, EventBus, ExecutionPhase, LocalPendingIntention, PendingIntentionStore,
+    ShotLayout,
 };
 use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
 use uuid::Uuid;
@@ -307,6 +308,8 @@ pub async fn run_with(
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let mut last_workspace_digest = None;
+        let mut last_fingerprint = None;
+        let mut ticks_since_full_pass = WORKSPACE_SNAPSHOT_BACKSTOP_TICKS;
         loop {
             interval.tick().await;
             // Relay failures are transient operational state. The next bounded
@@ -320,6 +323,21 @@ pub async fn run_with(
             }
             let _ = reconciliation_companion.reconcile_relay_once().await;
             let _ = reconciliation_companion.publish_workspace_changes().await;
+            // Rebuilding the snapshot walks every app tree and reverifies every
+            // lineage, so an unconditional pass here costs a fifth of a core
+            // forever and grows with the workspace. The stat-only fingerprint
+            // moves whenever private per-app state does; the slower backstop
+            // still converges if a change leaves every timestamp untouched.
+            let fingerprint = workspace_change_fingerprint(reconciliation_application.engine());
+            ticks_since_full_pass = ticks_since_full_pass.saturating_add(1);
+            let rebuild = fingerprint.is_none()
+                || fingerprint != last_fingerprint
+                || ticks_since_full_pass >= WORKSPACE_SNAPSHOT_BACKSTOP_TICKS;
+            if !rebuild {
+                continue;
+            }
+            ticks_since_full_pass = 0;
+            last_fingerprint = fingerprint;
             if let Ok(snapshot) = reconciliation_application.workspace_snapshot().await {
                 if let Ok(digest) = privacy_safe_workspace_digest(&snapshot) {
                     if last_workspace_digest.is_some_and(|previous| previous != digest) {
@@ -1178,6 +1196,82 @@ fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
     }
 }
 
+/// Reconciliation passes run every two seconds; a full snapshot rebuild is
+/// forced at most this many passes apart even when nothing appears to change.
+const WORKSPACE_SNAPSHOT_BACKSTOP_TICKS: u32 = 15;
+/// Private per-app state lives directly under the app's metadata root, so the
+/// fingerprint never descends into the source tree the harness writes.
+const FINGERPRINT_MAX_DEPTH: usize = 3;
+/// Bounds the stat cost per app so an unusual metadata tree cannot make the
+/// cheap pass as expensive as the rebuild it exists to avoid.
+const FINGERPRINT_MAX_ENTRIES: usize = 256;
+
+/// A stat-only fingerprint of the private per-app state behind the workspace
+/// snapshot. Metadata is published by atomic replacement, so a changed record
+/// moves either its own timestamp or its parent directory's. This reads no
+/// file contents and therefore carries no private material.
+fn workspace_change_fingerprint(engine: &Engine) -> Option<Bytes32> {
+    let ledger = engine.ledger();
+    let mut stamps = String::new();
+    for app in ledger.list_apps().ok()? {
+        let root = ledger.working_tree(&app.name);
+        stamp_path(&root, &mut stamps);
+        let mut budget = FINGERPRINT_MAX_ENTRIES;
+        stamp_tree(
+            &ShotLayout::at(root).metadata_root(),
+            0,
+            &mut budget,
+            &mut stamps,
+        );
+    }
+    Some(tohseno_protocol::digest::sha256(stamps.as_bytes()))
+}
+
+fn stamp_path(path: &Path, output: &mut String) {
+    use std::fmt::Write as _;
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        let _ = write!(output, "{}\u{0}absent\u{1}", path.display());
+        return;
+    };
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|since| since.as_nanos())
+        .unwrap_or_default();
+    let _ = write!(
+        output,
+        "{}\u{0}{modified}\u{0}{}\u{1}",
+        path.display(),
+        metadata.len()
+    );
+}
+
+fn stamp_tree(directory: &Path, depth: usize, budget: &mut usize, output: &mut String) {
+    stamp_path(directory, output);
+    if depth >= FINGERPRINT_MAX_DEPTH || *budget == 0 {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    let mut children: Vec<PathBuf> = entries
+        .take(*budget)
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .collect();
+    children.sort();
+    for path in children {
+        if *budget == 0 {
+            return;
+        }
+        *budget -= 1;
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.is_dir() => stamp_tree(&path, depth + 1, budget, output),
+            _ => stamp_path(&path, output),
+        }
+    }
+}
+
 fn privacy_safe_workspace_digest(
     snapshot: &tohseno_application::WorkspaceSnapshot,
 ) -> Result<Bytes32, tohseno_protocol::ProtocolError> {
@@ -1210,7 +1304,28 @@ fn now() -> String {
 }
 
 async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
+    // launchd stops and restarts this service with SIGTERM, so handling only
+    // SIGINT would skip graceful shutdown on the exact path the LaunchAgent
+    // uses and strand a runtime record naming a process that no longer exists.
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        match signal(SignalKind::terminate()) {
+            Ok(mut terminate) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {}
+                    _ = terminate.recv() => {}
+                }
+            }
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }
 
 fn rotate_operational_logs(logs: &Path) -> Result<(), BoxError> {
@@ -1461,6 +1576,55 @@ mod tests {
         assert_eq!(privacy_safe_workspace_digest(&first).unwrap(), first_digest);
         first.active_executions[0].state = "planning".into();
         assert_ne!(privacy_safe_workspace_digest(&first).unwrap(), first_digest);
+    }
+
+    #[test]
+    fn the_change_fingerprint_moves_for_added_replaced_and_removed_metadata() {
+        let root = tempfile::tempdir().unwrap();
+        let metadata = root.path().join(".tohseno");
+        fs::create_dir_all(metadata.join("executions/one")).unwrap();
+        fs::write(metadata.join("executions/one/execution.json"), b"running").unwrap();
+
+        let stamp = |directory: &Path| {
+            let mut output = String::new();
+            let mut budget = FINGERPRINT_MAX_ENTRIES;
+            stamp_tree(directory, 0, &mut budget, &mut output);
+            output
+        };
+
+        let baseline = stamp(&metadata);
+        assert_eq!(stamp(&metadata), baseline, "a quiet tree must not move");
+
+        // Execution records are replaced in place as a run advances, so the
+        // fingerprint has to notice a same-length rewrite, not just new files.
+        fs::write(metadata.join("executions/one/execution.json"), b"waiting").unwrap();
+        let rewritten = stamp(&metadata);
+        assert_ne!(rewritten, baseline, "a replaced record must move");
+
+        fs::write(metadata.join("executions/one/events.jsonl"), b"{}").unwrap();
+        let added = stamp(&metadata);
+        assert_ne!(added, rewritten, "an added record must move");
+
+        fs::remove_file(metadata.join("executions/one/events.jsonl")).unwrap();
+        assert_ne!(stamp(&metadata), added, "a removed record must move");
+    }
+
+    #[test]
+    fn the_change_fingerprint_reads_no_file_contents_and_stays_bounded() {
+        let root = tempfile::tempdir().unwrap();
+        let metadata = root.path().join(".tohseno");
+        fs::create_dir_all(&metadata).unwrap();
+        for index in 0..(FINGERPRINT_MAX_ENTRIES * 2) {
+            fs::write(metadata.join(format!("record-{index}")), b"private").unwrap();
+        }
+        let mut output = String::new();
+        let mut budget = FINGERPRINT_MAX_ENTRIES;
+        stamp_tree(&metadata, 0, &mut budget, &mut output);
+        assert_eq!(budget, 0, "the walk must stop at its entry budget");
+        assert!(
+            !output.contains("private"),
+            "the fingerprint must never carry file contents"
+        );
     }
 
     #[cfg(unix)]

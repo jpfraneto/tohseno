@@ -1,14 +1,11 @@
 use crate::apple_capabilities::{AppleCapabilityCatalog, AppleCapabilityProfile};
-use crate::birth_plan::{BirthExpressionPlan, BirthPlan, RequirementOrigin};
+use crate::birth_plan::{BirthExpressionPlan, BirthOrganPlan, BirthPlan, RequirementOrigin};
 use crate::experience::ExperienceContract;
 use crate::factory_identity::FactoryIdentity;
-use crate::safe_file::read_bounded_regular_file;
 use crate::shot_layout::{PreparedIntentPackage, ShotLayout, ShotLayoutError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
-use std::fs;
-use std::path::{Path, PathBuf};
 use tohseno_protocol::canonical;
 use tohseno_protocol::digest::Bytes32;
 use tohseno_protocol::ontology::ArtifactAvailability;
@@ -353,147 +350,180 @@ impl ConceptionOutput {
     }
 }
 
-pub trait ConceptionHarness {
-    fn conceive(&self, input: &ConceptionInput) -> Result<ConceptionOutput, ConceptionError>;
-}
+/// The one behavioral invariant every synthesized Genome carries. App-specific
+/// organs cite it byte-for-byte, so it is a constant rather than a literal
+/// repeated at each use site.
+const INTENTION_IS_AUTHORITATIVE: &str =
+    "The exact preserved intention is authoritative over every later interpretation of this app.";
 
-/// Deterministic test harness. It proves the orchestration boundary without
-/// invoking or pretending to be a live intelligence.
-#[derive(Clone)]
-pub struct FakeConceptionHarness {
-    output: ConceptionOutput,
-}
+const REQUIREMENT_ID: &str = "req_preserved_intention";
+const JOURNEY_ID: &str = "journey_preserved_intention";
+const SCENARIO_ID: &str = "scenario_preserved_intention";
+const APP_ORGAN_ID: &str = "app_experience";
 
-impl FakeConceptionHarness {
-    pub fn returning(output: ConceptionOutput) -> Self {
-        Self { output }
-    }
-}
-
-impl ConceptionHarness for FakeConceptionHarness {
-    fn conceive(&self, input: &ConceptionInput) -> Result<ConceptionOutput, ConceptionError> {
-        self.output.validate(input)?;
-        Ok(self.output.clone())
-    }
-}
-
-pub struct JsonFileConceptionHarness {
-    path: PathBuf,
-}
-
-impl JsonFileConceptionHarness {
-    pub fn at(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
-    }
-}
-
-impl ConceptionHarness for JsonFileConceptionHarness {
-    fn conceive(&self, input: &ConceptionInput) -> Result<ConceptionOutput, ConceptionError> {
-        let bytes = read_bounded_regular_file(&self.path, 4 * 1024 * 1024)?;
-        let output: ConceptionOutput = serde_json::from_slice(&bytes)?;
-        output.validate(input)?;
-        Ok(output)
-    }
-}
-
-pub fn render_conception_task(input: &ConceptionInput) -> Result<String, ConceptionError> {
+/// Derive the Shot's initial Genome, Birth Plan, and Experience Contract from
+/// the preserved intention without asking an intelligence for them.
+///
+/// The protocol binds a `genome_digest` into every VersionRecord, so a Shot
+/// still needs an accepted Genome before it can hold a Version. What it does
+/// not need is a separate planning conversation: the engine composes the
+/// substrate deterministically and hands the exact human intention straight to
+/// the coding harness. Interpreting that intention is the harness's job, and
+/// the acceptance gates that follow — Release build, install, launch, and the
+/// declared trial — are where interpretation is actually checked.
+pub fn synthesize(input: &ConceptionInput) -> Result<ConceptionOutput, ConceptionError> {
     input.validate()?;
-    let identity = &input.factory_identity;
-    Ok(format!(
-        r#"# TOHSENO Conception
+    let app = input.app_name.as_str();
 
-This phase interprets the exact human intention before any app-specific Genome is accepted. Do not materialize an app in this phase.
+    let genome = tohseno_protocol::ontology::Genome {
+        schema: tohseno_protocol::ontology::GENOME_SCHEMA.into(),
+        revision: 1,
+        purpose: format!(
+            "Deliver the exact preserved intention for `{app}` as a native iPhone app."
+        ),
+        intended_for: vec!["The person who wrote this app's preserved intention.".into()],
+        essential_experience: vec![
+            "Opening the app on iPhone does what its preserved intention describes.".into(),
+        ],
+        behavioral_invariants: vec![INTENTION_IS_AUTHORITATIVE.into()],
+        interaction_laws: Vec::new(),
+        aesthetic_principles: Vec::new(),
+        privacy_principles: vec![
+            "App data stays on the owner's device unless the preserved intention says otherwise."
+                .into(),
+        ],
+        ownership_principles: vec![
+            "The owner owns this app, its source, and its signed lineage.".into(),
+        ],
+        platform_commitments: vec!["iphone".into()],
+        boundaries: Vec::new(),
+        non_goals: Vec::new(),
+        required_capabilities: Vec::new(),
+        forbidden_transformations: vec![
+            "Replacing a promised experience with a placeholder, mock, or stub.".into(),
+        ],
+        acceptance_principles: vec![
+            "The app builds in Release, installs on the owner's iPhone, and launches.".into(),
+        ],
+        freely_changeable: vec!["Anything the preserved intention does not fix.".into()],
+    };
 
-Read `{intent_path}` and inspect every supplied reference. The exact intention is authoritative; your interpretation supplements it and never replaces it.
+    let mut embodiment = crate::birth_plan::protocol_substrate_organs();
+    embodiment.push(BirthOrganPlan {
+        organ_id: APP_ORGAN_ID.into(),
+        kind: crate::birth_plan::OrganKind::AppSpecific,
+        provides: vec!["preserved_intention_experience".into()],
+        owns_state: Vec::new(),
+        permissions: Vec::new(),
+        dependencies: Vec::new(),
+        emits: Vec::new(),
+        consumes: Vec::new(),
+        genome_invariants: vec![INTENTION_IS_AUTHORITATIVE.into()],
+        requirement_ids: vec![REQUIREMENT_ID.into()],
+        capability_ids: Vec::new(),
+        journey_ids: vec![JOURNEY_ID.into()],
+        acceptance_criteria: vec![crate::birth_plan::OrganAcceptanceCriterion {
+            id: "fulfils_preserved_intention".into(),
+            assertion: format!(
+                "`{app}` does what `{}` describes, with no unimplemented promise.",
+                input.intention_document_path
+            ),
+            deterministic: false,
+        }],
+        platforms: vec!["iphone".into()],
+    });
 
-Resolve unspecified implementation details in service of the product promise, target users, explicit requirements, app-specific Genome, and actual Apple constraints. A consequential reduction of the product promise is a deviation, not an implementation decision.
+    let birth_plan = BirthPlan {
+        schema: crate::birth_plan::BIRTH_PLAN_SCHEMA.into(),
+        intent_digest: input.intent_digest,
+        product_name: app.to_owned(),
+        promise: format!("`{app}` does what its preserved intention describes, on iPhone."),
+        target_users: vec![crate::birth_plan::TargetUser {
+            id: "owner".into(),
+            role: "The person who wrote this app's preserved intention.".into(),
+            ability_or_age_context: None,
+            environment: vec!["iphone".into()],
+            goals: vec!["Use the app that the preserved intention describes.".into()],
+            constraints: Vec::new(),
+            understands_without_explanation: Vec::new(),
+        }],
+        contexts: vec!["iphone".into()],
+        requirements: vec![crate::birth_plan::BirthRequirement {
+            id: REQUIREMENT_ID.into(),
+            statement: format!(
+                "The app fulfils the exact preserved intention at `{}`.",
+                input.intention_document_path
+            ),
+            level: crate::birth_plan::RequirementLevel::Must,
+            // The engine is not claiming to have read the intention. It states
+            // the one requirement that is true of every Shot and leaves the
+            // reading to the harness, so nothing here can cite text the human
+            // never wrote.
+            origin: RequirementOrigin::InferredToCompleteIntent,
+            source_excerpt: None,
+            source_location: None,
+        }],
+        capabilities: Vec::new(),
+        journeys: vec![crate::birth_plan::ProductJourney {
+            id: JOURNEY_ID.into(),
+            target_actor: "owner".into(),
+            promise: format!("The owner opens `{app}` and it does what they asked for."),
+            requirement_ids: vec![REQUIREMENT_ID.into()],
+        }],
+        embodiment,
+        completion_contract: crate::birth_plan::CompletionContract {
+            must_requirement_ids: vec![REQUIREMENT_ID.into()],
+            required_scenario_ids: vec![SCENARIO_ID.into()],
+            physical_verification_capabilities: Vec::new(),
+            release_build_required: true,
+            zero_product_gaps_required: true,
+        },
+        explicit_non_goals: Vec::new(),
+        forbidden_substitutions: Vec::new(),
+        genome,
+    };
 
-The Apple capability profile is available material and verification context, not a denylist. `simulator_unavailable` and `unknown_until_physical_device` never mean a capability is forbidden in the Release product. A runtime fallback is valid only under its declared runtime condition and cannot become the primary product for factory convenience.
+    let experience_contract = ExperienceContract {
+        schema: crate::experience::EXPERIENCE_CONTRACT_SCHEMA.into(),
+        intent_digest: input.intent_digest,
+        birth_plan_digest: birth_plan
+            .digest()
+            .map_err(|error| ConceptionError(error.to_string()))?,
+        scenarios: vec![crate::experience::ExperienceScenario {
+            id: SCENARIO_ID.into(),
+            target_actor: "owner".into(),
+            initial_state: format!(
+                "`{app}` is installed on the owner's iPhone and has not been opened."
+            ),
+            environment: vec!["iphone".into()],
+            steps_or_gestures: vec![
+                "Open the app.".into(),
+                "Use it the way its preserved intention describes.".into(),
+            ],
+            expected_states: vec![
+                "Every experience the preserved intention promises is present and works.".into(),
+            ],
+            requirement_ids: vec![REQUIREMENT_ID.into()],
+            capability_ids: Vec::new(),
+            completion_condition:
+                "The app delivers the preserved intention with no unimplemented promise.".into(),
+            evidence_required: vec![crate::experience::EvidenceKind::XcuiTest],
+            physical_device_required: false,
+        }],
+    };
 
-Produce exactly one strict JSON object at `.tohseno/private/planning/{output_file}` using this closed wrapper (replace the values and objects; do not add fields):
-
-```json
-{{
-  "schema": "{output_schema}",
-  "intent_digest": "<exact intent_digest from {input_file}>",
-  "apple_capability_profile_digest": "<exact profile digest from {identity_file}>",
-  "birth_plan": {{"schema": "{birth_schema}"}},
-  "experience_contract": {{"schema": "{experience_schema}"}},
-  "rationale": "<concise rationale for meaningful ambiguity resolution>"
-}}
-```
-
-The complete nested field definitions are in `{birth_schema_file}`, `{experience_schema_file}`, `{profile_schema_file}`, `{genome_schema_file}`, and `{ontology_schema_file}` in the same planning directory. Derive specific target actors, stable requirement IDs with origins, app-specific organs, forbidden substitutions, and target-user scenarios. Protocol substrate cannot count as product fulfillment.
-
-The engine enforces these cross-object rules in addition to the JSON Schemas. Audit every one before returning:
-
-- `birth_plan.product_name` is exactly `conception-input.json.app_name`, including case and punctuation.
-- Every `explicit_intention.source_excerpt` is a short byte-exact substring of the preserved intention. Do not flatten Markdown lists, code fences, punctuation, Unicode dashes, or backticks. Every `reference_image.source_location` is exactly one supplied artifact `name`; use separate requirements when distinct references supply distinct evidence.
-- Every must requirement is present in the completion contract and is covered by an app-specific organ, a target-user journey, and an Experience Contract scenario. Every `required_scenario_ids` entry names an Experience Contract scenario.
-- Every planned capability exists in the Apple catalog and in `genome.required_capabilities`. Every organ has a nonempty `provides` array. Across app-specific organs, `provides` contains every required capability identifier verbatim, in addition to human-readable promises.
-- A `protocol_substrate` organ claims no requirements, capabilities, or journeys. Product integration with protocol substrate is a separate `app_specific` organ.
-- Organs are in topological declaration order. Each dependency is only the exact `organ_id` of an earlier organ, never a capability or `provides` token. Every organ includes the exact platform token `iphone`.
-- Every organ has at least one `genome_invariants` entry. Every `app_specific.genome_invariants` entry is byte-for-byte one existing string from the proposed Genome's invariant/principle/law arrays; do not paraphrase it.
-- Every primary hardware capability whose catalog definition requires physical verification is named in `physical_verification_capabilities`. Every scenario exercising any such declared capability sets `physical_device_required` and includes `physical_device_trial` evidence.
-- A live external service or API contract explicitly required by the intention remains live-service acceptance work. Fixtures may be additional deterministic test evidence, but no scenario, journey, or completion criterion may treat a mock, inferred contract, or "contract-faithful test session" as a substitute for reaching and exercising that named service.
-- `experience_contract.birth_plan_digest` is SHA-256 over the Birth Plan's RFC 8785 JSON Canonicalization Scheme bytes. Preserve Unicode as UTF-8 rather than ASCII `\u` escapes; write the final object as canonical compact UTF-8 JSON followed by one newline.
-
-Before writing output, read:
-
-- `.tohseno/private/planning/{input_file}`
-- `.tohseno/private/planning/{profile_file}`
-- `.tohseno/private/planning/{catalog_file}`
-- `.tohseno/private/planning/{identity_file}`
-- `genome/LAWS.md`
-
-Factory identity governing this conception:
-
-- TOHSENO engine version: `{version}`
-- TOHSENO source commit: `{commit}`
-- static Constitution/Genome bundle digest: `{constitution}`
-- accepted Shot Genome digest: not accepted yet
-- Apple capability profile digest: `{profile}`
-
-The output is a proposal. The engine validates it deterministically and owns acceptance.
-
-## Compiled Factory Constitution
-
-{constitution_text}
-"#,
-        intent_path = input.intention_document_path,
-        output_file = CONCEPTION_OUTPUT_FILE,
-        output_schema = CONCEPTION_OUTPUT_SCHEMA,
-        birth_schema = crate::birth_plan::BIRTH_PLAN_SCHEMA,
-        experience_schema = crate::experience::EXPERIENCE_CONTRACT_SCHEMA,
-        input_file = CONCEPTION_INPUT_FILE,
-        profile_file = APPLE_CAPABILITY_PROFILE_FILE,
-        identity_file = FACTORY_IDENTITY_FILE,
-        catalog_file = APPLE_CAPABILITY_CATALOG_FILE,
-        birth_schema_file = BIRTH_PLAN_SCHEMA_FILE,
-        experience_schema_file = EXPERIENCE_CONTRACT_SCHEMA_FILE,
-        profile_schema_file = APPLE_CAPABILITY_PROFILE_SCHEMA_FILE,
-        genome_schema_file = GENOME_SCHEMA_FILE,
-        ontology_schema_file = ONTOLOGY_SCHEMA_FILE,
-        version = identity.engine_version,
-        commit = identity.source_commit,
-        constitution = identity.static_constitution_digest,
-        profile = identity.apple_capability_profile_digest,
-        constitution_text = crate::genome::Genome::constitution_text().trim(),
-    ))
-}
-
-pub fn write_conception_task(
-    root: &Path,
-    input: &ConceptionInput,
-) -> Result<PathBuf, ConceptionError> {
-    let task = render_conception_task(input)?;
-    let path = root.join(".tohseno/CONCEPTION.md");
-    let parent = path
-        .parent()
-        .ok_or_else(|| ConceptionError("conception task has no parent".into()))?;
-    fs::create_dir_all(parent)?;
-    fs::write(&path, task)?;
-    Ok(path)
+    let output = ConceptionOutput {
+        schema: CONCEPTION_OUTPUT_SCHEMA.into(),
+        intent_digest: input.intent_digest,
+        apple_capability_profile_digest: input.apple_capability_profile.digest()?,
+        birth_plan,
+        experience_contract,
+        rationale: format!(
+            "The engine composed `{app}`'s initial Genome and Expression deterministically from the preserved intention. No planning conversation was run: the intention itself is the plan, and the Release build, install, launch, and declared trial are the gates."
+        ),
+    };
+    output.validate(input)?;
+    Ok(output)
 }
 
 fn preserve_json(
@@ -562,8 +592,9 @@ impl From<crate::experience::ExperienceError> for ConceptionError {
 mod tests {
     use super::*;
 
-    #[test]
-    fn conception_task_exposes_current_compiled_policy_and_matching_digest() {
+    const INTENTION: &[u8] = b"# Weather thing\n\nShow me the sky right now.\n";
+
+    fn input(app_name: &str) -> ConceptionInput {
         let catalog = AppleCapabilityCatalog::embedded().unwrap();
         let profile = AppleCapabilityProfile {
             schema: crate::apple_capabilities::APPLE_CAPABILITY_PROFILE_SCHEMA.into(),
@@ -594,41 +625,67 @@ mod tests {
         };
         let prepared = PreparedIntentPackage {
             intention_digest: Bytes32::new([0x11; 32]),
-            document_digest: Bytes32::new([0x12; 32]),
-            document_relative_path: ".tohseno/EVOLUTION_INTENT.md".into(),
+            document_digest: tohseno_protocol::digest::sha256(INTENTION),
+            document_relative_path: ".tohseno/INTENTION.md".into(),
             references: Vec::new(),
         };
-        let input = ConceptionInput::new("example", &prepared, profile).unwrap();
-        let task = render_conception_task(&input).unwrap();
-        assert!(task.contains(crate::genome::Genome::constitution_text().trim()));
-        assert!(task.contains(&crate::genome::Genome::bundle_digest().to_string()));
-        assert!(task.contains(env!("TOHSENO_SOURCE_COMMIT")));
-        assert!(task.contains("simulator_unavailable"));
-        assert!(task.contains("not a denylist"));
-        assert!(task.contains(BIRTH_PLAN_SCHEMA_FILE));
-        assert!(task.contains(EXPERIENCE_CONTRACT_SCHEMA_FILE));
-        assert!(task.contains(APPLE_CAPABILITY_CATALOG_FILE));
-        assert!(task.contains("Every organ has a nonempty `provides` array"));
-        assert!(task.contains("Every organ has at least one `genome_invariants` entry"));
-
-        let directory = tempfile::tempdir().unwrap();
-        let layout = ShotLayout::at(directory.path());
-        input.write(&layout).unwrap();
-        for filename in [
-            BIRTH_PLAN_SCHEMA_FILE,
-            EXPERIENCE_CONTRACT_SCHEMA_FILE,
-            EXPERIENCE_TRIAL_SCHEMA_FILE,
-            APPLE_CAPABILITY_PROFILE_SCHEMA_FILE,
-            GENOME_SCHEMA_FILE,
-            ONTOLOGY_SCHEMA_FILE,
-            APPLE_CAPABILITY_CATALOG_FILE,
-        ] {
-            let bytes = layout.read_private_planning_file(filename).unwrap();
-            serde_json::from_slice::<serde_json::Value>(&bytes)
-                .unwrap_or_else(|error| panic!("{filename} is not JSON: {error}"));
-        }
+        ConceptionInput::new(app_name, &prepared, profile).unwrap()
     }
 
+    /// The whole point of synthesis: the substrate a Shot needs before it can
+    /// hold a Version is derivable, so no intelligence has to produce it.
+    #[test]
+    fn synthesis_passes_every_gate_the_engine_used_to_demand_of_an_intelligence() {
+        let input = input("example");
+        let output = synthesize(&input).unwrap();
+        let expression = output.validate(&input).unwrap();
+        output
+            .validate_source_traceability(&input, INTENTION)
+            .unwrap();
+        expression.validate(&output.birth_plan.genome).unwrap();
+        assert_eq!(output.birth_plan.genome.revision, 1);
+    }
+
+    /// Source traceability used to be the expensive rule: an intelligence could
+    /// invent an "exact" excerpt and the engine had to catch it. A synthesized
+    /// plan quotes nothing, so there is no citation that could be fabricated —
+    /// it holds even though the plan and the intention share no wording.
+    #[test]
+    fn synthesis_never_cites_text_the_human_did_not_write() {
+        let input = input("example");
+        let output = synthesize(&input).unwrap();
+        assert!(output
+            .birth_plan
+            .requirements
+            .iter()
+            .all(|requirement| requirement.source_excerpt.is_none()
+                && requirement.source_location.is_none()));
+        output
+            .validate_source_traceability(&input, INTENTION)
+            .unwrap();
+    }
+
+    #[test]
+    fn synthesis_is_deterministic_for_one_intention() {
+        let input = input("example");
+        assert_eq!(
+            synthesize(&input).unwrap().birth_plan.digest().unwrap(),
+            synthesize(&input).unwrap().birth_plan.digest().unwrap()
+        );
+    }
+
+    #[test]
+    fn synthesis_binds_the_shot_name_and_intention() {
+        let output = synthesize(&input("weather-thing")).unwrap();
+        assert_eq!(output.birth_plan.product_name, "weather-thing");
+        assert_eq!(output.intent_digest, Bytes32::new([0x11; 32]));
+        assert!(output.birth_plan.requirements[0]
+            .statement
+            .contains(".tohseno/INTENTION.md"));
+    }
+
+    /// The engine still refuses a plan that drops physical verification. Only
+    /// the author changed; the acceptance rules did not.
     #[test]
     fn primary_hardware_capabilities_cannot_drop_physical_verification() {
         let input = crate::anky_fixture::conception_input();
@@ -656,26 +713,5 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("absent from the exact intention"), "{error}");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn json_conception_harness_rejects_a_symlinked_output() {
-        use std::os::unix::fs::symlink;
-
-        let directory = tempfile::tempdir().unwrap();
-        let target = directory.path().join("actual.json");
-        let link = directory.path().join("conception.json");
-        fs::write(
-            &target,
-            serde_json::to_vec(&crate::anky_fixture::output()).unwrap(),
-        )
-        .unwrap();
-        symlink(&target, &link).unwrap();
-
-        let error = JsonFileConceptionHarness::at(link)
-            .conceive(&crate::anky_fixture::conception_input())
-            .unwrap_err();
-        assert!(error.to_string().contains("bounded regular file"));
     }
 }

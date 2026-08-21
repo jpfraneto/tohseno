@@ -688,7 +688,7 @@ fn report_unfinished_app(
             )));
         }
         bus.emit(Event::status(format!(
-            "next: continue the prepared conception/materialization execution or rerun `tohseno create {target}` with the same exact intention."
+            "next: continue the prepared materialization execution or rerun `tohseno create {target}` with the same exact intention."
         )));
     }
     Ok(true)

@@ -25,6 +25,9 @@ const MAX_EXECUTION_DIRECTORIES: usize = 100_000;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionMode {
+    /// No longer produced. The engine derives the Genome itself, so a birth
+    /// goes straight to materialization. Kept so private records written by
+    /// releases through 0.9.0 remain readable.
     Conception,
     BirthMaterialization,
     #[default]
@@ -40,6 +43,7 @@ pub enum ExecutionPhase {
     TerminalOpened,
     ExecutionStarted,
     ContextLoaded,
+    // No longer produced; kept readable for records written through 0.9.0.
     Conception,
     Materializing,
     HarnessRunning,
@@ -658,8 +662,15 @@ pub fn capture_tree(
 }
 
 pub fn has_workspace_changed(execution: &PreparedExecution) -> Result<bool, ShotExecutionError> {
+    Ok(workspace_fingerprint(execution)? != execution.baseline.tree)
+}
+
+/// The current Shot tree hash. Comparing it against its own previous value is
+/// how the supervisor tells a harness that is working slowly from one that has
+/// stopped working at all.
+pub fn workspace_fingerprint(execution: &PreparedExecution) -> Result<String, ShotExecutionError> {
     let directory = execution_directory(&execution.repository, &execution.execution_id);
-    Ok(capture_tree(&execution.repository, &directory)? != execution.baseline.tree)
+    capture_tree(&execution.repository, &directory)
 }
 
 /// Summarize visible harness progress without exposing private prompt text,

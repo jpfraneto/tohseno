@@ -65,9 +65,9 @@ caller.
 
 Every admitted command is journaled before its semantic action. Stable command,
 Shot, and execution identities make retries idempotent and allow recovery
-after a process crash. Completion still means that the applicable conception,
-Birth Plan, Genome, materialization, build, test, experience, repair, delivery,
-and acceptance gates passed. Source files or a successful harness exit alone
+after a process crash. Completion still means that the applicable
+materialization, build, test, experience, repair, delivery, and acceptance
+gates passed. Source files or a successful harness exit alone
 are not acceptance. A missing development iPhone yields
 `waiting_for_device`, not success — presented as *Your app is ready, plug your
 iPhone in* with no button to press, because the service resumes delivery by
