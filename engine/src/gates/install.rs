@@ -202,6 +202,21 @@ impl std::fmt::Display for InstallError {
 
 impl std::error::Error for InstallError {}
 
+impl InstallError {
+    /// A locked phone is an external readiness condition, not an app defect.
+    /// Keep this deliberately narrow so every other devicectl failure still
+    /// fails closed at the delivery gate.
+    pub fn is_device_locked(&self) -> bool {
+        let Self::Command(error) = self else {
+            return false;
+        };
+        let stderr = String::from_utf8_lossy(&error.output.stderr);
+        stderr.contains("reason: Locked")
+            && (stderr.contains("device was not, or could not be, unlocked")
+                || stderr.contains("FBSOpenApplicationErrorDomain error 7"))
+    }
+}
+
 impl From<CommandError> for InstallError {
     fn from(error: CommandError) -> Self {
         Self::Command(error)
@@ -311,5 +326,32 @@ mod tests {
         assert!(
             free_team_slot_blocker(&installed[..2], "org.tohseno.genesis.alice.four").is_none()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_the_explicit_locked_device_launch_error_is_retryable() {
+        use std::os::unix::process::ExitStatusExt;
+
+        let command_error = |stderr: &str| {
+            InstallError::Command(CommandError {
+                program: "xcrun devicectl device process launch".into(),
+                output: std::process::Output {
+                    status: std::process::ExitStatus::from_raw(1 << 8),
+                    stdout: Vec::new(),
+                    stderr: stderr.as_bytes().to_vec(),
+                },
+            })
+        };
+
+        assert!(command_error(
+            "The request was denied for reason: Locked (Unable to launch because the device was not, or could not be, unlocked). FBSOpenApplicationErrorDomain error 7"
+        )
+        .is_device_locked());
+        assert!(!command_error(
+            "The application failed to launch because its signature is invalid"
+        )
+        .is_device_locked());
+        assert!(!InstallError::BundleNamespace("com.example.app".into()).is_device_locked());
     }
 }

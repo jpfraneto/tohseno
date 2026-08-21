@@ -3663,7 +3663,22 @@ impl DevicePipeline {
         install::install(device, &app, bundle_id).map_err(EngineError::Install)?;
         self.events
             .emit(Event::factory_stage(FactoryStage::Launching));
-        install::launch(device, bundle_id).map_err(EngineError::Install)?;
+        let mut waiting_for_unlock = false;
+        loop {
+            match install::launch(device, bundle_id) {
+                Ok(()) => break,
+                Err(error) if error.is_device_locked() => {
+                    if !waiting_for_unlock {
+                        self.events.emit(Event::handoff(
+                            "Unlock the connected iPhone and keep its screen awake. TOHSENO will retry launching the already-installed candidate without rebuilding it.",
+                        ));
+                        waiting_for_unlock = true;
+                    }
+                    tokio::time::sleep(self.poll_interval).await;
+                }
+                Err(error) => return Err(EngineError::Install(error)),
+            }
+        }
         Ok(())
     }
 
