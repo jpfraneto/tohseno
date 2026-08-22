@@ -32,7 +32,7 @@ describe("companion relay configuration", () => {
     expect(config.limits.clockSkewMs).toBe(300_000);
     expect(safeCompanionStartupSummary(config)).toEqual({
       service: "tohseno-companion-relay",
-      version: "0.9.0",
+      version: "0.9.9",
       environment: "test",
       host: "127.0.0.1",
       port: 3100,
@@ -73,6 +73,11 @@ describe("companion relay configuration", () => {
       BASE_URL: "http://127.0.0.1:3100",
       COMPANION_RELAY_MAX_ENVELOPE_BYTES: String(16 * 1024 * 1024 + 17),
     })).toThrow(String(16 * 1024 * 1024 + 16));
+    expect(() => loadCompanionRelayConfig({
+      NODE_ENV: "test",
+      BASE_URL: "http://127.0.0.1:3100",
+      COMPANION_RELAY_HEALTHCHECK_HOST: "https://healthcheck.railway.app",
+    })).toThrow("HEALTHCHECK_HOST");
   });
 
   test("forbids fake push in production and requires every APNs credential", () => {

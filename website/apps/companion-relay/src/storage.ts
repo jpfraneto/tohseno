@@ -230,13 +230,16 @@ export class CompanionRelayStorage {
     await this.withLock("storage", async () => {
       const metadata = await this.readPairing(id);
       verifyCapability(capability, metadata.cancelVerifier);
-      if (metadata.state === "cancelled") return;
-      metadata.state = "cancelled";
-      metadata.purgeAt = now + this.limits.pairingLifetimeMs;
-      delete metadata.responseBytes;
-      delete metadata.responseSha256;
+      if (metadata.state !== "cancelled") {
+        metadata.state = "cancelled";
+        metadata.purgeAt = now + this.limits.pairingLifetimeMs;
+        delete metadata.responseBytes;
+        delete metadata.responseSha256;
+        // Publish the terminal state before deleting its payload. A crash may
+        // leave an unreachable file, but never live metadata with no response.
+        await this.writePairing(metadata);
+      }
       await rm(join(this.pairingDirectory(id), "response.bin"), { force: true });
-      await this.writePairing(metadata);
     });
   }
 
@@ -388,11 +391,18 @@ export class CompanionRelayStorage {
       if (record.expiresAt > now) continue;
       if (!record.discarded) {
         metadata.resetBeforeCursor = Math.max(metadata.resetBeforeCursor, record.cursor);
-        await rm(this.envelopePath(mailboxId, record.id), { force: true });
+        record.discarded = true;
       }
       expired.add(record.id);
     }
     if (expired.size > 0) {
+      // Make the expired records unreachable before removing bytes. Keeping
+      // the discarded records in metadata until deletion finishes makes the
+      // cleanup restartable at every crash boundary.
+      await this.writeMailbox(metadata);
+      for (const id of expired) {
+        await rm(this.envelopePath(mailboxId, id), { force: true });
+      }
       metadata.envelopes = metadata.envelopes.filter((record) => !expired.has(record.id));
       await this.writeMailbox(metadata);
     }
@@ -453,17 +463,28 @@ export class CompanionRelayStorage {
         throw new RelayError(400, "Acknowledgement cursor is out of range", "cursor");
       }
       if (cursor <= metadata.acknowledgedCursor) {
+        for (const record of metadata.envelopes) {
+          if (record.cursor <= cursor && record.discarded) {
+            await rm(this.envelopePath(mailboxId, record.id), { force: true });
+          }
+        }
         return { acknowledgedCursor: metadata.acknowledgedCursor };
       }
       for (const record of metadata.envelopes) {
         if (record.cursor <= cursor && !record.discarded) {
           record.discarded = true;
-          await rm(this.envelopePath(mailboxId, record.id), { force: true });
         }
       }
       metadata.acknowledgedCursor = cursor;
       metadata.resetBeforeCursor = Math.max(metadata.resetBeforeCursor, cursor);
+      // Commit the acknowledgement before deleting opaque bytes. Retrying the
+      // same acknowledgement finishes any deletion interrupted by a crash.
       await this.writeMailbox(metadata);
+      for (const record of metadata.envelopes) {
+        if (record.cursor <= cursor && record.discarded) {
+          await rm(this.envelopePath(mailboxId, record.id), { force: true });
+        }
+      }
       return { acknowledgedCursor: cursor };
     });
   }
@@ -478,22 +499,27 @@ export class CompanionRelayStorage {
       const metadata = await this.readMailbox(mailboxId);
       await this.assertEnvelopeDirectory(mailboxId);
       verifyCapability(capability, metadata.revokeVerifier);
-      if (metadata.revokedAt) return { revocationEpoch: metadata.revocationEpoch };
+      if (!metadata.revokedAt) {
+        for (const record of metadata.envelopes) record.discarded = true;
+        metadata.resetBeforeCursor = metadata.nextCursor - 1;
+        metadata.revocationEpoch += 1;
+        metadata.revokedAt = now;
+        metadata.purgeAt = now + this.limits.revocationRetentionMs;
+        // Revocation becomes durable before payload cleanup. A retry can finish
+        // cleanup, while no crash can make a partially deleted mailbox active.
+        await this.writeMailbox(metadata);
+        this.emit(mailboxId, {
+          kind: "revoked",
+          cursor: metadata.nextCursor - 1,
+        });
+      }
       for (const record of metadata.envelopes) {
         await rm(this.envelopePath(mailboxId, record.id), { force: true });
       }
       metadata.envelopes = [];
-      metadata.resetBeforeCursor = metadata.nextCursor - 1;
-      metadata.revocationEpoch += 1;
-      metadata.revokedAt = now;
-      metadata.purgeAt = now + this.limits.revocationRetentionMs;
       await assertPrivateDirectory(this.pushRoot());
       await removePrivateDirectoryIfPresent(this.pushDirectory(mailboxId));
       await this.writeMailbox(metadata);
-      this.emit(mailboxId, {
-        kind: "revoked",
-        cursor: metadata.nextCursor - 1,
-      });
       return { revocationEpoch: metadata.revocationEpoch };
     });
   }
@@ -612,23 +638,27 @@ export class CompanionRelayStorage {
           cleaned += 1;
           continue;
         }
-        let changed = false;
         const removeIds = new Set<string>();
         for (const record of metadata.envelopes) {
           if (cleaned >= limit) break;
           if (record.expiresAt > now) continue;
           if (!record.discarded) {
             metadata.resetBeforeCursor = Math.max(metadata.resetBeforeCursor, record.cursor);
-            await rm(this.envelopePath(id, record.id), { force: true });
+            record.discarded = true;
           }
           removeIds.add(record.id);
           cleaned += 1;
-          changed = true;
         }
         if (removeIds.size > 0) {
+          // Persist the logical discard first, then delete and finally compact
+          // metadata. Each intermediate state is safe to resume after restart.
+          await this.writeMailbox(metadata);
+          for (const envelopeId of removeIds) {
+            await rm(this.envelopePath(id, envelopeId), { force: true });
+          }
           metadata.envelopes = metadata.envelopes.filter((record) => !removeIds.has(record.id));
+          await this.writeMailbox(metadata);
         }
-        if (changed) await this.writeMailbox(metadata);
         if (cleaned >= limit) break;
       } catch {
         // Corrupt/tampered records stay unavailable and are not blindly deleted.

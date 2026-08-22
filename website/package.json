@@ -1,6 +1,6 @@
 {
   "name": "tohseno",
-  "version": "0.9.0",
+  "version": "0.9.9",
   "private": true,
   "type": "module",
   "workspaces": [

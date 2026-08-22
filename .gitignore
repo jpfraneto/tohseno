@@ -26,3 +26,6 @@ __pycache__/
 # JavaScript dependencies
 node_modules/
 **/node_modules/
+
+# Cloudflare local development cache
+.wrangler/

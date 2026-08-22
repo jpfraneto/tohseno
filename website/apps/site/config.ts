@@ -18,6 +18,18 @@ export interface AppConfig {
   baseUrl: string;
   trustProxy: boolean;
   relay: RelayConfig;
+  billing: BillingConfig;
+}
+
+export interface BillingConfig {
+  enabled: boolean;
+  provider: "stripe" | "fake";
+  root?: string;
+  stripeSecretKey?: string;
+  stripeWebhookSecret?: string;
+  monthlyPriceId?: string;
+  yearlyPriceId?: string;
+  receiptSigningPrivateKey?: string;
 }
 
 export interface RelayConfig {
@@ -112,6 +124,38 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     }
   }
 
+  const billingEnabled = parseBoolean("BILLING_ENABLED", env.BILLING_ENABLED, false);
+  const billingProvider = oneOf(
+    "BILLING_PROVIDER",
+    env.BILLING_PROVIDER,
+    ["stripe", "fake"] as const,
+    "stripe",
+  );
+  const billingRoot = env.BILLING_ROOT;
+  if (billingEnabled) {
+    if (!billingRoot?.startsWith("/")) {
+      throw new Error("BILLING_ROOT must be an explicit absolute path when billing is enabled");
+    }
+    if (billingProvider === "fake" && nodeEnv !== "test") {
+      throw new Error("the fake billing provider is available only in tests");
+    }
+    for (const [name, value] of [
+      ["BILLING_RECEIPT_SIGNING_PKCS8_BASE64URL", env.BILLING_RECEIPT_SIGNING_PKCS8_BASE64URL],
+      ["BILLING_MONTHLY_PRICE_ID", env.BILLING_MONTHLY_PRICE_ID],
+      ["BILLING_YEARLY_PRICE_ID", env.BILLING_YEARLY_PRICE_ID],
+    ] as const) {
+      if (!value) throw new Error(`${name} is required when billing is enabled`);
+    }
+    if (billingProvider === "stripe") {
+      if (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET) {
+        throw new Error("Stripe credentials are required when production billing is enabled");
+      }
+      if (nodeEnv === "production" && !env.STRIPE_SECRET_KEY.startsWith("sk_live_")) {
+        throw new Error("production billing requires a live Stripe secret key");
+      }
+    }
+  }
+
   return {
     nodeEnv,
     port,
@@ -125,6 +169,16 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       maxBytes: parsePositiveInteger("INTENT_RELAY_MAX_BYTES", env.INTENT_RELAY_MAX_BYTES, 10 * 1024 * 1024 * 1024),
       globalRequestsPerMinute: parsePositiveInteger("INTENT_RELAY_GLOBAL_RATE", env.INTENT_RELAY_GLOBAL_RATE, 1_200),
       sourceRequestsPerMinute: parsePositiveInteger("INTENT_RELAY_SOURCE_RATE", env.INTENT_RELAY_SOURCE_RATE, 120),
+    },
+    billing: {
+      enabled: billingEnabled,
+      provider: billingProvider,
+      root: billingRoot,
+      stripeSecretKey: env.STRIPE_SECRET_KEY,
+      stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      monthlyPriceId: env.BILLING_MONTHLY_PRICE_ID,
+      yearlyPriceId: env.BILLING_YEARLY_PRICE_ID,
+      receiptSigningPrivateKey: env.BILLING_RECEIPT_SIGNING_PKCS8_BASE64URL,
     },
   };
 }
@@ -154,5 +208,7 @@ export function safeStartupSummary(
     trustProxy: config.trustProxy,
     relayEnabled: config.relay.enabled,
     claimInstallerReady: config.relay.claimInstallerReady,
+    billingEnabled: config.billing.enabled,
+    billingProvider: config.billing.enabled ? config.billing.provider : "disabled",
   };
 }

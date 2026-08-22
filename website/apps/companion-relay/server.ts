@@ -78,14 +78,17 @@ export async function createCompanionRelayApplication(
       let status = 500;
       counters.requests += 1;
       try {
-        if (!hasExpectedOrigin(request, config)) {
+        if (
+          !hasExpectedOrigin(request, config) &&
+          !isExpectedHealthcheck(request, config, pathname, requestedMethod)
+        ) {
           throw new RelayError(421, "Request authority does not match the configured relay origin", "authority");
         }
         let response: Response;
         if (pathname === "/healthz" && requestedMethod === "GET") {
           response = json({
             schema: "tohseno.companion-relay-health/1",
-            service_version: "0.9.0",
+            service_version: "0.9.9",
             ready: config.enabled,
             push_enabled: push.mode !== "noop",
             maximum_envelope_bytes: config.limits.envelopeBytes,
@@ -188,7 +191,11 @@ function sourceKey(
 
 function hasExpectedOrigin(request: Request, config: CompanionRelayConfig): boolean {
   const expected = new URL(config.baseUrl);
-  if (!config.trustProxy) return new URL(request.url).origin === expected.origin;
+  if (!config.trustProxy) {
+    const actual = new URL(request.url);
+    if (actual.origin === expected.origin) return true;
+    return isDevelopmentLocalNetworkAlias(actual, expected, config);
+  }
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",", 1)[0]?.trim();
   const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim();
   if (!forwardedHost || !forwardedProtocol) return false;
@@ -197,6 +204,44 @@ function hasExpectedOrigin(request: Request, config: CompanionRelayConfig): bool
   } catch {
     return false;
   }
+}
+
+function isExpectedHealthcheck(
+  request: Request,
+  config: CompanionRelayConfig,
+  pathname: string,
+  method: string,
+): boolean {
+  if (!config.healthcheckHost || pathname !== "/healthz" || method !== "GET") return false;
+  try {
+    return new URL(request.url).hostname === config.healthcheckHost;
+  } catch {
+    return false;
+  }
+}
+
+function isDevelopmentLocalNetworkAlias(
+  actual: URL,
+  expected: URL,
+  config: CompanionRelayConfig,
+): boolean {
+  if (config.nodeEnv !== "development") return false;
+  if (actual.protocol !== "http:" || expected.protocol !== "http:") return false;
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(expected.hostname)) return false;
+  if (actual.port !== expected.port) return false;
+  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.local$/i.test(actual.hostname)
+    || isPrivateIPv4Address(actual.hostname);
+}
+
+function isPrivateIPv4Address(host: string): boolean {
+  const octets = host.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value) || value < 0 || value > 255)) {
+    return false;
+  }
+  return octets[0] === 10
+    || (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31)
+    || (octets[0] === 192 && octets[1] === 168)
+    || (octets[0] === 169 && octets[1] === 254);
 }
 
 function json(data: unknown, status = 200): Response {

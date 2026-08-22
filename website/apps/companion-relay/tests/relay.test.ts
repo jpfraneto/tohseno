@@ -8,6 +8,7 @@ import {
   renameSync,
   rmSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -279,7 +280,11 @@ describe("shared Rust relay contract", () => {
     expect(await revoked.json()).toEqual(relay.mailbox_revoked);
 
     const health = await (await fx.application.fetch(request("/healthz"))).json();
-    expect(health).toEqual({ ...relay.health, push_enabled: true });
+    expect(health).toEqual({
+      ...relay.health,
+      service_version: "0.9.9",
+      push_enabled: true,
+    });
   });
 });
 
@@ -470,6 +475,40 @@ describe("opaque mailbox delivery", () => {
     }));
     expect(retryAfterAck.status).toBe(200);
     expect(await retryAfterAck.json()).toMatchObject({ duplicate: true, cursor: 1 });
+  });
+
+  test("finishes envelope cleanup after a committed acknowledgement survives a crash", async () => {
+    const fx = await fixture();
+    const mailbox = await createMailbox(fx);
+    expect((await upload(fx, mailbox, envelope(mailbox.id, fx.clock.now()))).status).toBe(201);
+
+    const mailboxRoot = join(fx.root, "mailboxes", mailbox.id);
+    const metadataPath = join(mailboxRoot, "metadata.json");
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+    metadata.envelopes[0].discarded = true;
+    metadata.acknowledgedCursor = 1;
+    metadata.resetBeforeCursor = 1;
+    writeFileSync(metadataPath, JSON.stringify(metadata), { mode: 0o600 });
+    expect(readdirSync(join(mailboxRoot, "envelopes"))).toHaveLength(1);
+
+    const restarted = await createCompanionRelayApplication({
+      config: fx.config,
+      push: fx.push,
+      clock: fx.clock,
+      log: (record) => fx.logs.push(record),
+      logError: (record) => fx.logs.push(record),
+    });
+    const retry = await restarted.fetch(request(`/v1/companion/mailboxes/${mailbox.id}/ack`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authorization(mailbox.secrets.ack.capability),
+      },
+      body: JSON.stringify({ schema: "tohseno.companion-mailbox-ack/1", cursor: 1 }),
+    }));
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ acknowledged_cursor: 1 });
+    expect(readdirSync(join(mailboxRoot, "envelopes"))).toEqual([]);
   });
 
   test("streams live envelopes over SSE without polling", async () => {
@@ -727,6 +766,70 @@ describe("opaque mailbox delivery", () => {
     expect(unsafe.status).toBe(500);
     expect(await unsafe.json()).toMatchObject({ error_class: "unsafe_path" });
   });
+
+  test("accepts one local-network hostname alias for a loopback development relay", async () => {
+    const fx = await fixture({ NODE_ENV: "development" });
+
+    const localNetwork = await fx.application.fetch(
+      new Request("http://tohseno-mac.local:3100/healthz"),
+    );
+    expect(localNetwork.status).toBe(200);
+
+    const privateAddress = await fx.application.fetch(
+      new Request("http://172.20.10.3:3100/healthz"),
+    );
+    expect(privateAddress.status).toBe(200);
+
+    const wrongPort = await fx.application.fetch(
+      new Request("http://tohseno-mac.local:3101/healthz"),
+    );
+    expect(wrongPort.status).toBe(421);
+
+    const externalHost = await fx.application.fetch(
+      new Request("http://relay.example:3100/healthz"),
+    );
+    expect(externalHost.status).toBe(421);
+
+    const publicAddress = await fx.application.fetch(
+      new Request("http://8.8.8.8:3100/healthz"),
+    );
+    expect(publicAddress.status).toBe(421);
+  });
+
+  test("does not accept local-network authority aliases outside development", async () => {
+    const fx = await fixture();
+    const response = await fx.application.fetch(
+      new Request("http://tohseno-mac.local:3100/healthz"),
+    );
+    expect(response.status).toBe(421);
+  });
+
+  test("allows only the configured hosting health probe on its alternate authority", async () => {
+    const fx = await fixture({
+      NODE_ENV: "production",
+      BASE_URL: "https://companion.tohseno.com",
+      TRUST_PROXY: "true",
+      COMPANION_RELAY_ACTIVATION_READY: "true",
+      COMPANION_RELAY_PUSH_MODE: "noop",
+      COMPANION_RELAY_HEALTHCHECK_HOST: "healthcheck.railway.app",
+    });
+
+    const health = await fx.application.fetch(
+      new Request("http://healthcheck.railway.app/healthz"),
+    );
+    expect(health.status).toBe(200);
+    expect(await health.json()).toMatchObject({ ready: true });
+
+    expect((await fx.application.fetch(
+      new Request("http://healthcheck.railway.app/metrics"),
+    )).status).toBe(421);
+    expect((await fx.application.fetch(
+      new Request("http://healthcheck.railway.app/healthz", { method: "POST" }),
+    )).status).toBe(421);
+    expect((await fx.application.fetch(
+      new Request("http://other.railway.app/healthz"),
+    )).status).toBe(421);
+  });
 });
 
 describe("rate limits and operational surface", () => {
@@ -775,7 +878,7 @@ describe("rate limits and operational surface", () => {
     const health = await fx.application.fetch(request("/healthz"));
     expect(await health.json()).toEqual({
       schema: "tohseno.companion-relay-health/1",
-      service_version: "0.9.0",
+      service_version: "0.9.9",
       ready: true,
       push_enabled: true,
       maximum_envelope_bytes: fx.config.limits.envelopeBytes,

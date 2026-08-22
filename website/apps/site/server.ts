@@ -4,6 +4,7 @@ import { loadConfig, PRODUCT, safeStartupSummary } from "./config.ts";
 import { HttpError, withSecurityHeaders } from "./src/security.ts";
 import { INTENT_LIMITS } from "./src/intent-limits.ts";
 import { createRelayRouter } from "./src/relay-routes.ts";
+import { createBillingRouter } from "./src/billing.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
@@ -155,6 +156,7 @@ const BROWSER_MODULE_PATH = /^\/modules\/[a-z0-9-]+\.js$/;
 
 function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
+  if (pathname.startsWith("/api/billing/v1/")) return "billing";
   if (pathname === "/") return "landing-page";
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
@@ -222,6 +224,7 @@ export async function createApplication(
 ): Promise<TohsenoApplication> {
   const config = options.config ?? loadConfig();
   const relay = await createRelayRouter(config);
+  const billing = await createBillingRouter(config);
   const log = options.log ??
     ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
   const logError = options.logError ??
@@ -266,6 +269,7 @@ export async function createApplication(
     const canonicalResponse = canonicalBoundary(request, config);
     if (canonicalResponse) return canonicalResponse;
     if (relay.handles(pathname)) return relay.fetch(request);
+    if (billing.handles(pathname)) return billing.fetch(request);
 
     if (method !== "GET" && method !== "HEAD") {
       if (

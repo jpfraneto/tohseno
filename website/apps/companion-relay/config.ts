@@ -8,6 +8,7 @@ export interface CompanionRelayConfig {
   port: number;
   baseUrl: string;
   trustProxy: boolean;
+  healthcheckHost?: string;
   enabled: boolean;
   activationReady: boolean;
   root?: string;
@@ -79,6 +80,12 @@ export function loadCompanionRelayConfig(
   }
 
   const trustProxy = boolean("TRUST_PROXY", env.TRUST_PROXY, false);
+  const healthcheckHost = env.COMPANION_RELAY_HEALTHCHECK_HOST;
+  if (healthcheckHost && !isHost(healthcheckHost)) {
+    throw new Error(
+      "COMPANION_RELAY_HEALTHCHECK_HOST must be a hostname or IP address without a scheme, port, or path",
+    );
+  }
   const enabled = boolean("COMPANION_RELAY_ENABLED", env.COMPANION_RELAY_ENABLED, false);
   const activationReady = boolean(
     "COMPANION_RELAY_ACTIVATION_READY",
@@ -138,6 +145,7 @@ export function loadCompanionRelayConfig(
     port,
     baseUrl: baseUrl.origin,
     trustProxy,
+    healthcheckHost,
     enabled,
     activationReady,
     root,
@@ -174,7 +182,7 @@ export function safeCompanionStartupSummary(
 ): Record<string, string | number | boolean> {
   return {
     service: "tohseno-companion-relay",
-    version: "0.9.0",
+    version: "0.9.9",
     environment: config.nodeEnv,
     host: config.host,
     port: config.port,

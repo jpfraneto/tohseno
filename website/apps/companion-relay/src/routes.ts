@@ -52,7 +52,7 @@ export function createCompanionRouter(options: {
           return json({
             schema: "tohseno.companion-relay-capabilities/1",
             available: true,
-            service_version: "0.9.0",
+            service_version: "0.9.9",
             pairing_lifetime_seconds: config.limits.pairingLifetimeMs / 1000,
             retention_seconds: config.limits.retentionMs / 1000,
             clock_skew_seconds: config.limits.clockSkewMs / 1000,
