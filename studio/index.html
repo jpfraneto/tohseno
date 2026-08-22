@@ -6,22 +6,54 @@
     <meta name="color-scheme" content="dark">
     <meta name="theme-color" content="#0b0b0a">
     <title>TOHSENO</title>
+    <link rel="icon" type="image/png" href="/tohseno-logo.png">
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
     <div id="shell" class="shell" data-view="apps">
       <header class="topbar">
-        <a id="home" class="wordmark" href="/">TOHSENO</a>
+        <a id="home" class="wordmark" href="/">
+          <img src="/tohseno-logo.png" alt="" aria-hidden="true">
+          <span>TOHSENO</span>
+        </a>
         <button id="open-settings" class="quiet" type="button">Settings</button>
       </header>
 
       <main class="stage">
-        <section id="apps-view" class="view apps-view" aria-labelledby="apps-heading">
-          <h1 id="apps-heading">Your Apps</h1>
-          <div id="app-grid" class="app-grid" aria-live="polite"></div>
-          <p id="apps-empty" class="empty" hidden>Nothing here yet. Describe an app and TOHSENO makes it.</p>
-          <button id="new-app" class="primary" type="button">+ New App</button>
+        <section id="gate-view" class="view gate-view" hidden aria-live="polite">
+          <p id="gate-kicker" class="kicker"></p>
+          <h1 id="gate-headline" class="headline"></h1>
+          <p id="gate-detail" class="detail"></p>
+          <div id="gate-prices" class="gate-prices" hidden>
+            <button id="pro-monthly" class="primary" type="button">$9.99 monthly</button>
+            <button id="pro-yearly" class="secondary" type="button">$99 yearly</button>
+            <p>$99 yearly saves about two months.</p>
+            <button id="pro-not-now" class="quiet" type="button">Not now</button>
+          </div>
+          <button id="gate-primary" class="primary" type="button" hidden></button>
+          <button id="gate-back" class="quiet" type="button" hidden>Back</button>
         </section>
+
+        <section id="apps-view" class="view apps-view" aria-labelledby="apps-heading">
+          <div class="app-column">
+            <div class="library-heading">
+              <h1 id="apps-heading">Your Apps</h1>
+              <button id="new-app" class="new-app-button" type="button" hidden>Take a Shot</button>
+            </div>
+            <div id="apps-loading" class="apps-loading" role="status" aria-live="polite">
+              <img src="/tohseno-logo.png" alt="" aria-hidden="true">
+              <span id="apps-loading-message">Loading your apps…</span>
+            </div>
+            <div id="app-grid" class="app-grid" aria-live="polite" hidden></div>
+            <p id="apps-empty" class="empty" hidden>Nothing here yet. Tell TOHSENO what you want to make.</p>
+          </div>
+        </section>
+
+        <div id="selection-empty" class="selection-empty" hidden>
+          <p class="kicker">Your workspace</p>
+          <h1>Choose an app</h1>
+          <p class="detail">Select an app to describe what should change and see its current iPhone state.</p>
+        </div>
 
         <section id="compose-view" class="view compose-view" hidden>
           <form id="compose-form" novalidate>
@@ -76,6 +108,27 @@
           </details>
         </section>
 
+        <aside id="preview-panel" class="preview-panel" hidden aria-labelledby="preview-heading">
+          <div class="preview-heading-row">
+            <div>
+              <p class="kicker">On your iPhone</p>
+              <h1 id="preview-heading">Preview</h1>
+            </div>
+            <span id="preview-status" class="preview-status"></span>
+          </div>
+          <div class="phone-frame">
+            <div class="phone-screen">
+              <img id="preview-image" class="preview-image" alt="" hidden>
+              <div id="preview-fallback" class="preview-fallback">
+                <img id="preview-icon" src="/tohseno-logo.png" alt="">
+                <strong id="preview-name">Choose an app</strong>
+                <span id="preview-message">Its latest accepted screen will appear here.</span>
+              </div>
+            </div>
+          </div>
+          <p class="preview-note">Latest accepted first screen. Run the app on your iPhone for the full interaction.</p>
+        </aside>
+
         <section id="settings-view" class="view settings-view" hidden aria-labelledby="settings-heading">
           <h1 id="settings-heading">Settings</h1>
 
@@ -83,7 +136,6 @@
             <h2 id="iphone-heading">iPhone</h2>
             <p id="device-summary" class="detail">No iPhone connected.</p>
             <div id="device-list" class="device-list"></div>
-            <button id="add-iphone" class="secondary" type="button">Add iPhone</button>
           </section>
 
           <section class="panel" aria-labelledby="diagnostics-heading">
@@ -93,20 +145,6 @@
         </section>
       </main>
     </div>
-
-    <dialog id="pairing-dialog" class="pairing-dialog" aria-labelledby="pairing-title">
-      <h2 id="pairing-title">Connect your iPhone</h2>
-      <p class="detail">Open TOHSENO on your iPhone and scan this code. It allows that iPhone to create and evolve apps on this Mac, and you can revoke it at any time.</p>
-      <div class="qr-frame"><img id="pairing-qr" alt="One-use TOHSENO pairing code"></div>
-      <p class="pairing-progress" aria-live="polite">
-        <strong id="pairing-state">Preparing…</strong>
-        <span id="pairing-countdown">—</span>
-      </p>
-      <div class="pairing-actions">
-        <button id="pairing-close" class="quiet" type="button">Close</button>
-        <button id="pairing-new" class="secondary" type="button" hidden>New code</button>
-      </div>
-    </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="/app.js" defer></script>

@@ -11,9 +11,12 @@ const ui = {
   shell: document.querySelector("#shell"),
   home: document.querySelector("#home"),
   openSettings: document.querySelector("#open-settings"),
+  appsLoading: document.querySelector("#apps-loading"),
+  appsLoadingMessage: document.querySelector("#apps-loading-message"),
   appGrid: document.querySelector("#app-grid"),
   appsEmpty: document.querySelector("#apps-empty"),
   newApp: document.querySelector("#new-app"),
+  selectionEmpty: document.querySelector("#selection-empty"),
   composeForm: document.querySelector("#compose-form"),
   composeName: document.querySelector("#compose-name"),
   composeTitle: document.querySelector("#compose-title"),
@@ -32,16 +35,25 @@ const ui = {
   stateEvolve: document.querySelector("#state-evolve"),
   stateDetails: document.querySelector("#state-details"),
   detailFacts: document.querySelector("#detail-facts"),
+  previewPanel: document.querySelector("#preview-panel"),
+  previewImage: document.querySelector("#preview-image"),
+  previewFallback: document.querySelector("#preview-fallback"),
+  previewIcon: document.querySelector("#preview-icon"),
+  previewName: document.querySelector("#preview-name"),
+  previewMessage: document.querySelector("#preview-message"),
+  previewStatus: document.querySelector("#preview-status"),
   deviceSummary: document.querySelector("#device-summary"),
   deviceList: document.querySelector("#device-list"),
-  addIphone: document.querySelector("#add-iphone"),
   diagnostics: document.querySelector("#diagnostics"),
-  pairingDialog: document.querySelector("#pairing-dialog"),
-  pairingQr: document.querySelector("#pairing-qr"),
-  pairingState: document.querySelector("#pairing-state"),
-  pairingCountdown: document.querySelector("#pairing-countdown"),
-  pairingClose: document.querySelector("#pairing-close"),
-  pairingNew: document.querySelector("#pairing-new"),
+  gateKicker: document.querySelector("#gate-kicker"),
+  gateHeadline: document.querySelector("#gate-headline"),
+  gateDetail: document.querySelector("#gate-detail"),
+  gatePrimary: document.querySelector("#gate-primary"),
+  gateBack: document.querySelector("#gate-back"),
+  gatePrices: document.querySelector("#gate-prices"),
+  proMonthly: document.querySelector("#pro-monthly"),
+  proYearly: document.querySelector("#pro-yearly"),
+  proNotNow: document.querySelector("#pro-not-now"),
   toast: document.querySelector("#toast"),
 };
 
@@ -59,6 +71,9 @@ const state = {
   shots: [],
   devices: [],
   companion: null,
+  entitlement: null,
+  genesis: null,
+  gateAction: null,
   view: "apps",
   selectedShotId: null,
   composeMode: "create",
@@ -69,8 +84,6 @@ const state = {
   commandId: null,
   eventSource: null,
   refreshTimer: null,
-  pairing: null,
-  pairingTimer: null,
   toastTimer: null,
 };
 
@@ -348,12 +361,29 @@ async function refreshDevices() {
   if (state.view === "settings") renderSettings();
 }
 
+async function refreshProductBoundary() {
+  const entitlement = await api("/api/v1/entitlement");
+  state.entitlement = entitlement;
+  if (entitlement.phase === "genesis_incomplete") {
+    state.genesis = await api("/api/v1/genesis");
+    state.view = "gate";
+  } else if (["trial_qualified", "trial_expired", "pro_lapsed"].includes(entitlement.phase)) {
+    state.view = "gate";
+  } else if (state.view === "gate") {
+    state.view = "apps";
+  }
+  render();
+}
+
 function scheduleRefresh() {
   window.clearTimeout(state.refreshTimer);
   state.refreshTimer = window.setTimeout(() => {
-    refreshWorkspace().catch((error) => showToast(error.message, true));
+    refreshProductBoundary()
+      .then(() => {
+        if (state.view !== "gate") return refreshWorkspace();
+      })
+      .catch((error) => showToast(error.message, true));
     if (state.view === "settings") refreshDevices().catch(() => {});
-    if (state.pairing?.state === "waiting") refreshPairingSession().catch(() => {});
   }, 200);
 }
 
@@ -371,32 +401,134 @@ function connectEvents() {
 
 function render() {
   ui.shell.dataset.view = state.view;
+  const normal = ["apps", "compose", "state"].includes(state.view);
   for (const [name, node] of [
     ["apps", document.querySelector("#apps-view")],
     ["compose", document.querySelector("#compose-view")],
     ["state", document.querySelector("#state-view")],
     ["settings", document.querySelector("#settings-view")],
+    ["gate", document.querySelector("#gate-view")],
   ]) {
-    node.hidden = state.view !== name;
+    node.hidden = name === "apps" ? !normal : state.view !== name;
   }
-  if (state.view === "apps") renderApps();
+  ui.selectionEmpty.hidden = state.view !== "apps";
+  ui.previewPanel.hidden = !normal;
+  if (normal) {
+    renderApps();
+    renderPreview();
+  }
   if (state.view === "state") renderAppState();
   if (state.view === "settings") renderSettings();
+  if (state.view === "gate") renderGate();
+}
+
+function renderGate() {
+  ui.gatePrices.hidden = true;
+  ui.gatePrimary.hidden = true;
+  ui.gateBack.hidden = true;
+  state.gateAction = null;
+  const entitlement = state.entitlement;
+  if (!entitlement) return;
+  if (entitlement.phase === "genesis_incomplete") {
+    const genesis = state.genesis;
+    if (!genesis) return;
+    ui.gateKicker.textContent = "TOHSENO on your iPhone";
+    ui.gateHeadline.textContent = genesis.instruction;
+    ui.gateDetail.textContent = genesis.detail || "";
+    if (genesis.primary_action) {
+      state.gateAction = genesis.primary_action;
+      ui.gatePrimary.textContent = {
+        begin: "Begin",
+        continue: "Continue",
+        open_app_store: "Open the App Store",
+        open_xcode_accounts: "Open Xcode",
+        install_companion: "Install TOHSENO",
+        create_app: "Take a Shot",
+      }[genesis.primary_action] || "Continue";
+      ui.gatePrimary.hidden = false;
+    }
+    ui.gateBack.hidden = !genesis.can_go_back;
+    return;
+  }
+  if (entitlement.phase === "trial_expired") {
+    ui.gateKicker.textContent = "";
+    ui.gateHeadline.textContent = "Your TOHSENO trial has ended.";
+    ui.gateDetail.textContent = "Everything you made is still here. Only people who completed five successful days are qualified to purchase Pro.";
+    return;
+  }
+  ui.gateKicker.textContent = "TOHSENO Pro";
+  ui.gateHeadline.textContent = entitlement.phase === "pro_lapsed"
+    ? "Continue with TOHSENO Pro."
+    : "You made software on five different days.";
+  ui.gateDetail.textContent = entitlement.phase === "pro_lapsed"
+    ? "Your apps and everything you made are still here."
+    : "Continue with TOHSENO Pro.";
+  ui.gatePrices.hidden = false;
 }
 
 function renderApps() {
   ui.appGrid.replaceChildren();
+  const loading = state.workspace === null;
+  ui.appsLoading.hidden = !loading;
+  ui.appGrid.hidden = loading;
+  ui.newApp.hidden = loading;
+  if (loading) {
+    ui.appsEmpty.hidden = true;
+    return;
+  }
   ui.appsEmpty.hidden = state.shots.length > 0;
   for (const shot of state.shots) {
     const card = element("button", "app-card");
     card.type = "button";
-    card.setAttribute("aria-label", `Open ${shot.display_name}`);
+    const status = cardStatus(shot);
+    card.setAttribute("aria-label", `Open ${shot.display_name}, ${status}`);
+    card.title = `${shot.display_name} · ${status}`;
     card.dataset.state = shot.presentation.state;
-    const mark = element("span", "app-mark", shot.display_name.trim().charAt(0).toUpperCase() || "T");
-    mark.setAttribute("aria-hidden", "true");
-    card.append(mark, element("strong", null, shot.display_name), element("span", "app-status", cardStatus(shot)));
+    card.dataset.selected = String(shot.shot_id === state.selectedShotId);
+    const icon = element("img", "app-icon");
+    icon.alt = "";
+    icon.loading = "lazy";
+    icon.decoding = "async";
+    icon.src = `/api/v1/shots/${encodeURIComponent(shot.shot_id)}/icon?revision=${encodeURIComponent(shot.icon.revision)}`;
+    icon.addEventListener("error", () => {
+      if (!icon.src.endsWith("/tohseno-logo.png")) icon.src = "/tohseno-logo.png";
+    });
+    const dot = element("span", "app-status-dot");
+    dot.setAttribute("aria-hidden", "true");
+    const iconShell = element("span", "app-icon-shell");
+    iconShell.append(icon, dot);
+    card.append(iconShell, element("span", "app-icon-name", shot.display_name));
     card.addEventListener("click", () => openApp(shot.shot_id));
     ui.appGrid.append(card);
+  }
+}
+
+function renderPreview() {
+  const shot = selectedShot();
+  ui.previewImage.hidden = true;
+  ui.previewFallback.hidden = false;
+  ui.previewImage.onload = null;
+  ui.previewImage.removeAttribute("src");
+  if (!shot) {
+    ui.previewStatus.textContent = state.composeMode === "create" && state.view === "compose" ? "New app" : "";
+    ui.previewName.textContent = state.view === "compose" ? (ui.composeName.value || "New app") : "Choose an app";
+    ui.previewMessage.textContent = state.view === "compose"
+      ? "Your app preview will appear after its first accepted build."
+      : "Its latest accepted screen will appear here.";
+    ui.previewIcon.src = "/tohseno-logo.png";
+    return;
+  }
+  ui.previewName.textContent = shot.display_name;
+  ui.previewMessage.textContent = shot.presentation.detail || shot.presentation.headline;
+  ui.previewStatus.textContent = cardStatus(shot);
+  ui.previewIcon.src = `/api/v1/shots/${encodeURIComponent(shot.shot_id)}/icon?revision=${encodeURIComponent(shot.icon.revision)}`;
+  if (shot.latest_version_id) {
+    ui.previewImage.alt = `${shot.display_name} latest accepted screen`;
+    ui.previewImage.onload = () => {
+      ui.previewImage.hidden = false;
+      ui.previewFallback.hidden = true;
+    };
+    ui.previewImage.src = `/api/v1/shots/${encodeURIComponent(shot.shot_id)}/preview?revision=${encodeURIComponent(shot.latest_version_id)}`;
   }
 }
 
@@ -443,7 +575,20 @@ function renderDetails(shot) {
   if (execution) {
     fact(ui.detailFacts, "Execution phase", execution.state.replaceAll("_", " "));
     fact(ui.detailFacts, "Execution", abbreviate(execution.execution_id), execution.execution_id);
+    fact(ui.detailFacts, "Execution elapsed", formatDuration(execution.elapsed_seconds));
+    fact(ui.detailFacts, "Started", formatTimestamp(execution.started_at), execution.started_at);
     fact(ui.detailFacts, "Updated", formatTimestamp(execution.updated_at), execution.updated_at);
+    if (execution.state_transition) {
+      fact(
+        ui.detailFacts,
+        "Persistent state",
+        execution.state_transition.persistent_state.replaceAll("_", " "),
+      );
+      fact(ui.detailFacts, "State transition", execution.state_transition.summary);
+      if (execution.state_transition.migrations.length) {
+        fact(ui.detailFacts, "Migrations", execution.state_transition.migrations.join(", "));
+      }
+    }
   }
   fact(ui.detailFacts, "App", abbreviate(shot.shot_id), shot.shot_id);
   if (shot.expression_id) fact(ui.detailFacts, "Expression", abbreviate(shot.expression_id), shot.expression_id);
@@ -719,104 +864,6 @@ async function revokeDevice(device) {
   }
 }
 
-async function openPairing() {
-  if (!ui.pairingDialog.open) ui.pairingDialog.showModal();
-  await startPairing();
-}
-
-async function startPairing() {
-  stopPairingTimer();
-  state.pairing = null;
-  ui.pairingQr.removeAttribute("src");
-  ui.pairingState.textContent = "Preparing…";
-  ui.pairingCountdown.textContent = "—";
-  ui.pairingNew.hidden = true;
-  try {
-    const session = await api("/api/v1/companion/pairing-sessions", { method: "POST", body: "{}" });
-    validatePairing(session);
-    state.pairing = session;
-    renderPairing();
-    state.pairingTimer = window.setInterval(updatePairingCountdown, 250);
-  } catch (error) {
-    ui.pairingState.textContent = error.message;
-    ui.pairingNew.hidden = false;
-  }
-}
-
-function validatePairing(session) {
-  if (
-    session.schema !== "tohseno.studio-pairing-session/1" ||
-    typeof session.session_id !== "string" ||
-    typeof session.expires_at !== "string" ||
-    typeof session.qr_svg !== "string" ||
-    session.qr_svg.length > 1024 * 1024
-  ) {
-    throw new Error("Your TOHSENO returned an invalid pairing code.");
-  }
-}
-
-function renderPairing() {
-  const pairing = state.pairing;
-  if (!pairing) return;
-  if (!ui.pairingQr.hasAttribute("src")) {
-    ui.pairingQr.src = `data:image/svg+xml;base64,${bytesToBase64(new TextEncoder().encode(pairing.qr_svg))}`;
-  }
-  updatePairingCountdown();
-  if (pairing.state === "paired") {
-    stopPairingTimer();
-    ui.pairingState.textContent = "iPhone connected";
-    ui.pairingCountdown.textContent = "";
-    refreshDevices().catch(() => {});
-    window.setTimeout(() => closePairing().catch(() => {}), 900);
-  } else if (pairing.state === "expired" || pairing.state === "cancelled") {
-    stopPairingTimer();
-    ui.pairingState.textContent = pairing.state === "expired" ? "That code expired" : "Pairing cancelled";
-    ui.pairingCountdown.textContent = "";
-    ui.pairingNew.hidden = false;
-  } else {
-    ui.pairingState.textContent = "Waiting for your iPhone…";
-  }
-}
-
-function updatePairingCountdown() {
-  if (state.pairing?.state !== "waiting") return;
-  const remaining = Math.max(0, Date.parse(state.pairing.expires_at) - Date.now());
-  const seconds = Math.ceil(remaining / 1000);
-  ui.pairingCountdown.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-  if (remaining === 0) refreshPairingSession().catch(() => {});
-}
-
-async function refreshPairingSession() {
-  if (!state.pairing) return;
-  const session = await api(
-    `/api/v1/companion/pairing-sessions/${encodeURIComponent(state.pairing.session_id)}`,
-  );
-  validatePairing(session);
-  state.pairing = session;
-  renderPairing();
-}
-
-async function closePairing() {
-  stopPairingTimer();
-  const pairing = state.pairing;
-  state.pairing = null;
-  if (pairing?.state === "waiting") {
-    try {
-      await api(`/api/v1/companion/pairing-sessions/${encodeURIComponent(pairing.session_id)}`, {
-        method: "DELETE",
-      });
-    } catch (error) {
-      if (!(error instanceof ApiError && [404, 410, 500].includes(error.status))) throw error;
-    }
-  }
-  if (ui.pairingDialog.open) ui.pairingDialog.close();
-}
-
-function stopPairingTimer() {
-  window.clearInterval(state.pairingTimer);
-  state.pairingTimer = null;
-}
-
 /* ------------------------------------------------------------------ pieces */
 
 function abbreviate(value, visible = 8) {
@@ -834,6 +881,13 @@ function formatTimestamp(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function formatDuration(value) {
+  const seconds = Math.max(0, Number(value) || 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
 function showToast(message, error = false) {
@@ -859,6 +913,7 @@ function bind() {
     openApps();
   });
   ui.newApp.addEventListener("click", () => openCompose({ mode: "create" }));
+  ui.composeName.addEventListener("input", renderPreview);
   ui.openSettings.addEventListener("click", () => {
     state.view = "settings";
     history.replaceState(null, "", "/settings");
@@ -878,12 +933,46 @@ function bind() {
     const shot = selectedShot();
     if (shot) openCompose({ mode: "evolve", shot });
   });
-  ui.addIphone.addEventListener("click", () => openPairing().catch((error) => showToast(error.message, true)));
-  ui.pairingClose.addEventListener("click", () => closePairing().catch((error) => showToast(error.message, true)));
-  ui.pairingNew.addEventListener("click", () => startPairing().catch((error) => showToast(error.message, true)));
-  ui.pairingDialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closePairing().catch((error) => showToast(error.message, true));
+  ui.gatePrimary.addEventListener("click", async () => {
+    if (!state.gateAction) return;
+    if (state.gateAction === "create_app") {
+      await refreshProductBoundary();
+      openCompose({ mode: "create" });
+      return;
+    }
+    try {
+      state.genesis = await api(`/api/v1/genesis/actions/${encodeURIComponent(state.gateAction)}`, {
+        method: "POST",
+      });
+      render();
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  });
+  ui.gateBack.addEventListener("click", () => history.back());
+  for (const [button, plan] of [[ui.proMonthly, "monthly"], [ui.proYearly, "yearly"]]) {
+    button.addEventListener("click", async () => {
+      try {
+        const continuation = await api("/api/v1/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan }),
+        });
+        const checkout = new URL(continuation.checkout_url);
+        if (checkout.protocol !== "https:" || checkout.hostname !== "checkout.stripe.com") {
+          throw new Error("TOHSENO refused an untrusted checkout continuation.");
+        }
+        window.location.assign(checkout.href);
+      } catch (error) {
+        showToast(error.message, true);
+      }
+    });
+  }
+  ui.proNotNow.addEventListener("click", () => window.close());
+  window.addEventListener("focus", () => {
+    if (!["trial_qualified", "pro_lapsed"].includes(state.entitlement?.phase)) return;
+    api("/api/v1/billing/refresh", { method: "POST" })
+      .then(refreshProductBoundary)
+      .catch(() => {});
   });
   window.addEventListener("popstate", () => applyRoute().catch((error) => showToast(error.message, true)));
 }
@@ -931,6 +1020,7 @@ async function bootstrap() {
       api("/api/v1/health"),
       api("/api/v1/factory-defaults"),
       refreshWorkspace(),
+      refreshProductBoundary(),
     ]);
     if (
       health.schema !== "tohseno.local-workspace-health/1" ||
@@ -941,10 +1031,12 @@ async function bootstrap() {
     }
     state.health = health;
     state.factory = factory;
-    await applyRoute();
+    if (state.view !== "gate") await applyRoute();
     connectEvents();
   } catch (error) {
     ui.shell.setAttribute("data-offline", "true");
+    ui.appsLoading.classList.add("failed");
+    ui.appsLoadingMessage.textContent = "Your apps could not be loaded.";
     showToast(error.message, true);
   }
 }

@@ -43,9 +43,9 @@ test("assets are compatible with a strict no-inline CSP", () => {
   assert.match(script, /textContent/);
 });
 
-test("Studio is four views, not a dashboard", () => {
+test("Studio keeps four normal views and one replacement gate, not a dashboard", () => {
   const views = [...html.matchAll(/<section id="([a-z-]+)-view"/g)].map((match) => match[1]);
-  assert.deepEqual(views, ["apps", "compose", "state", "settings"]);
+  assert.deepEqual(views, ["gate", "apps", "compose", "state", "settings"]);
   // The grid of simultaneous factory-control regions is gone for good.
   assert.doesNotMatch(style, /grid-template-areas|\.studio-grid/);
   assert.equal(count(html, "<form"), 1, "one intent form serves both create and evolve");
@@ -58,6 +58,8 @@ test("the normal path never teaches TOHSENO's ontology", () => {
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<details[\s\S]*?<\/details>/g, "")
     .split('<section id="settings-view"')[0];
+  assert.equal(count(visible, ">Take a Shot<"), 1, "the one branded creation action must stay singular");
+  const ontologyChecked = visible.replace(">Take a Shot<", "><");
   for (const noun of [
     "Shot",
     "Expression",
@@ -72,7 +74,7 @@ test("the normal path never teaches TOHSENO's ontology", () => {
     "Pending Relay",
   ]) {
     assert.doesNotMatch(
-      visible,
+      ontologyChecked,
       new RegExp(`>[^<]*\\b${noun}\\b`, "i"),
       `${noun} must not be visible product vocabulary`,
     );
@@ -81,8 +83,30 @@ test("the normal path never teaches TOHSENO's ontology", () => {
   assert.match(script, /"What should change\?"/);
   assert.match(html, />Create App</);
   assert.match(script, /"Evolve App"/);
-  assert.match(html, /\+ New App/);
+  assert.match(html, />Take a Shot</);
   assert.match(html, /\+ Add images/);
+});
+
+test("apps load explicitly and use the local icon and brand assets", () => {
+  assert.match(html, /id="apps-loading"[^>]*role="status"/);
+  assert.match(html, /Loading your apps…/);
+  assert.match(html, /src="\/tohseno-logo\.png"/);
+  assert.match(script, /ui\.appsLoading\.hidden = !loading/);
+  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}\/icon/);
+  assert.match(style, /\[hidden\][^{]*\{[^}]*display: none !important;/s);
+});
+
+test("the workspace is a compact app rail, one intent surface, and one honest phone preview", () => {
+  assert.match(style, /grid-template-columns: minmax\(160px, 190px\)/);
+  assert.match(style, /\.app-card[^}]*width: 56px[^}]*min-height: 70px/s);
+  assert.match(style, /\.app-status-dot/);
+  assert.match(style, /\.app-icon-name/);
+  assert.match(style, /height: 100dvh/);
+  assert.match(style, /overflow-y: auto/);
+  assert.match(html, /id="preview-panel"/);
+  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}\/preview/);
+  assert.match(html, /Latest accepted first screen/);
+  assert.doesNotMatch(html, /pipeline|build log|factory control/i);
 });
 
 test("creation preserves one exact intent and up to eight images", () => {
@@ -147,7 +171,8 @@ test("Studio uses only the Local Workspace Service API contract", () => {
     "/api/v1/events",
     "/api/v1/companion/devices",
     "/api/v1/companion/status",
-    "/api/v1/companion/pairing-sessions",
+    "/api/v1/entitlement",
+    "/api/v1/genesis",
   ]) {
     assert.ok(script.includes(endpoint), `missing ${endpoint}`);
   }
@@ -180,15 +205,13 @@ test("routing covers apps, creation, one app, and settings", () => {
   assert.match(script, /references\.setLocked\(true\)/);
 });
 
-test("device administration lives in Settings, not on the creation screen", () => {
+test("Mac-to-iPhone genesis is cable-first and QR is absent", () => {
   assert.doesNotMatch(html, /CONNECT IPHONE/);
   assert.match(html, />Settings</);
-  assert.match(html, />Add iPhone</);
-  assert.match(html, /Allow|allows that iPhone to create and evolve apps on this Mac/);
+  assert.doesNotMatch(html + script, /pairing-qr|qr_svg|Scan the code|Add iPhone/);
+  assert.match(script, /\/api\/v1\/genesis\/actions/);
+  assert.match(script, /Install TOHSENO/);
   assert.match(script, /method: "DELETE"/);
-  // Pairing is reachable only from Settings.
-  assert.match(script, /ui\.addIphone\.addEventListener\("click", \(\) => openPairing\(\)/);
-  assert.equal(count(script, "openPairing()"), 2);
 });
 
 test("workspace changes stream over SSE instead of polling", () => {
@@ -210,8 +233,8 @@ test("the collapsed surface stays small", () => {
   const scriptLines = script.split("\n").length;
   const styleLines = style.split("\n").length;
   const htmlLines = html.split("\n").length;
-  assert.ok(scriptLines < 1_000, `app.js grew back to ${scriptLines} lines`);
-  assert.ok(styleLines < 700, `style.css grew back to ${styleLines} lines`);
+  assert.ok(scriptLines < 1_100, `app.js grew back to ${scriptLines} lines`);
+  assert.ok(styleLines < 900, `style.css grew back to ${styleLines} lines`);
   assert.ok(htmlLines < 200, `index.html grew back to ${htmlLines} lines`);
 });
 

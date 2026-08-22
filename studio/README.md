@@ -1,4 +1,4 @@
-# TOHSENO Studio 0.9.0
+# TOHSENO Studio 0.9.9
 
 Studio is the loopback-only browser window into the persistent Local Workspace
 Service. It is not a separate backend: every creation and evolution passes
@@ -20,18 +20,31 @@ Studio exists to serve exactly one sentence:
 
 **App → Intent → App on your iPhone.**
 
-There is no dashboard. There is no factory-control surface. Shots, Expressions,
-Versions, Executions, harnesses, inference routes, Feedback records, marketing
-notes, lineage, and pairing internals are all real inside TOHSENO, and none of
-them appear on the normal path.
+There is no dashboard. There is no factory-control surface. **Take a Shot** is
+the one branded creation action; Shot identities, Expressions, Versions,
+Executions, harnesses, inference routes, Feedback records, marketing notes,
+lineage, and pairing internals remain behind the normal path.
 
-## Four views
+## Four views, one workspace
+
+The normal desktop surface keeps a compact icon rail on the left. Each app is
+one icon with its short name underneath, like an iPhone home screen, plus a
+status-colored dot. Selecting an
+app places its one intent composer or one human state in the middle and its
+latest accepted first-screen capture in an iPhone frame on the right. When no
+capture exists, the frame says so and shows the app icon; it is a preview, not
+a fake interactive simulator. Narrow windows collapse these regions without
+changing the route or creating a dashboard.
+
+At desktop widths the shell is exactly one viewport tall. The app rail,
+composer/state surface, and preview each own their scrolling, so a long app
+library never pushes either adjacent column off screen.
 
 ```text
-/                 Your Apps          a restrained list, plus + New App
+/                 Your Apps          compact app rail, plus Take a Shot
 /create           the composer       name · one intent · optional images · Create App
 /shots/{id}       one app            the same composer, or its one human state
-/settings         Settings           Add iPhone, revoke, diagnostics
+/settings         Settings           revoke and diagnostics
 ```
 
 `tohseno create paper` with no intention opens `/create?name=paper` with the
@@ -87,12 +100,24 @@ Review your request and try again.
 
 The exact protocol reason stays available under `Show details`.
 
+## Genesis and entitlement replacement surfaces
+
+Before genesis, Studio replaces the normal views with exactly one current
+instruction: cable, Xcode, Trust, Developer Mode, Apple Account, Companion
+installation, secure pairing, or the first Shot. It never renders the factory
+behind a dismissible modal.
+
+After genesis, the full factory is available during the trial. On the fifth
+distinct successful day Studio shows the Pro decision with $9.99 monthly,
+$99 yearly, the annual saving sentence, and Not now. A seven-day expiry with
+fewer than five days shows only that the trial ended and everything is
+preserved. Create/Evolve enforcement is below this browser.
+
 ## Settings
 
-Pairing is a one-time setup concern, so **Add iPhone** lives in Settings rather
-than on every screen. The dialog shows the service-rendered one-use QR and one
-sentence about what it grants; the underlying capabilities remain granular,
-signed, and revocable. Diagnostics show the service version, loopback origin,
+Pairing is a one-time cable-genesis concern. The old QR dialog and Add iPhone
+button remain deleted; the underlying capabilities remain granular, signed,
+and revocable. Diagnostics show the service version, loopback origin,
 workspace identity, local coding harness, inference route, and private-channel
 state.
 
