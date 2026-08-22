@@ -22,7 +22,12 @@ public struct RelayEndpoint: Equatable, Sendable {
     public let id: String
     public let baseURL: URL
 
-    public init(id: String, baseURL: URL, allowLoopbackHTTP: Bool = false) throws {
+    public init(
+        id: String,
+        baseURL: URL,
+        allowLoopbackHTTP: Bool = false,
+        allowLocalNetworkHTTP: Bool = false
+    ) throws {
         try requireIdentifier(id, field: "relay_id")
         guard baseURL.user == nil, baseURL.password == nil,
               baseURL.query == nil, baseURL.fragment == nil,
@@ -33,10 +38,29 @@ public struct RelayEndpoint: Equatable, Sendable {
         let isLoopback = allowLoopbackHTTP
             && baseURL.scheme == "http"
             && ["127.0.0.1", "::1", "localhost"].contains(baseURL.host!)
-        guard isHTTPS || isLoopback else { throw TohsenoCompanionError.relayNotAllowed }
+        let isLocalNetwork = allowLocalNetworkHTTP
+            && baseURL.scheme == "http"
+            && (
+                baseURL.host!.lowercased().hasSuffix(".local")
+                    || isPrivateIPv4Address(baseURL.host!)
+            )
+        guard isHTTPS || isLoopback || isLocalNetwork else {
+            throw TohsenoCompanionError.relayNotAllowed
+        }
         self.id = id
         self.baseURL = baseURL
     }
+}
+
+private func isPrivateIPv4Address(_ host: String) -> Bool {
+    let fields = host.split(separator: ".", omittingEmptySubsequences: false)
+    guard fields.count == 4 else { return false }
+    let octets = fields.compactMap { UInt8($0) }
+    guard octets.count == fields.count else { return false }
+    return octets[0] == 10
+        || (octets[0] == 172 && (16 ... 31).contains(octets[1]))
+        || (octets[0] == 192 && octets[1] == 168)
+        || (octets[0] == 169 && octets[1] == 254)
 }
 
 public struct RelayAllowlist: Sendable {

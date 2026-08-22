@@ -7,18 +7,24 @@ import TohsenoCompanionKit
 /// durability, and reconciliation; these tests cover what the *product* does.
 actor StubBackend: CompanionBackend {
     var shots: [ShotSummary]
+    var iconData: [String: Data]
     var unacknowledged = 0
     var reachable = true
     private(set) var submissions: [EvolutionRequest] = []
+    private(set) var creations: [CreateShotRequest] = []
     private(set) var reconciles = 0
+    private(set) var synchronizations = 0
+    private(set) var pairedInvitations: [String] = []
     private var failure: TohsenoCompanionError?
+    private var pairingFailure: TohsenoCompanionError?
 
     let connectionStates: AsyncStream<CompanionConnectionState>
     let events: AsyncStream<WorkspaceEvent>
     private let eventContinuation: AsyncStream<WorkspaceEvent>.Continuation
 
-    init(shots: [ShotSummary] = []) {
+    init(shots: [ShotSummary] = [], iconData: [String: Data] = [:]) {
         self.shots = shots
+        self.iconData = iconData
         (connectionStates, _) = AsyncStream.makeStream(of: CompanionConnectionState.self)
         (events, eventContinuation) = AsyncStream.makeStream(of: WorkspaceEvent.self)
     }
@@ -27,6 +33,7 @@ actor StubBackend: CompanionBackend {
     func set(unacknowledged: Int) { self.unacknowledged = unacknowledged }
     func set(reachable: Bool) { self.reachable = reachable }
     func rejectNext(with error: TohsenoCompanionError) { failure = error }
+    func rejectNextPairing(with error: TohsenoCompanionError) { pairingFailure = error }
 
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot {
         WorkspaceSnapshot(
@@ -40,7 +47,7 @@ actor StubBackend: CompanionBackend {
                 deviceID: "device_fixture",
                 capabilityID: "capability_fixture",
                 revocationEpoch: 0,
-                allowedActions: [.workspaceRead, .shotEvolve],
+                allowedActions: [.workspaceRead, .shotCreate, .shotEvolve],
                 revoked: false
             ),
             nextCursor: 0
@@ -52,7 +59,9 @@ actor StubBackend: CompanionBackend {
         if !reachable { throw TohsenoCompanionError.transportUnavailable }
     }
 
-    func iconBytes(for descriptor: IconDescriptor) async throws -> Data? { nil }
+    func iconBytes(for descriptor: IconDescriptor) async throws -> Data? {
+        iconData[descriptor.blobID]
+    }
 
     func requestEvolution(_ request: EvolutionRequest) async throws -> CommandReceipt {
         if let failure {
@@ -66,6 +75,16 @@ actor StubBackend: CompanionBackend {
         return CommandReceipt(commandID: request.commandID, state: .received)
     }
 
+    func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt {
+        if let failure {
+            self.failure = nil
+            throw failure
+        }
+        creations.append(request)
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: request.commandID, state: .received)
+    }
+
     func unacknowledgedCommandCount() async throws -> Int { unacknowledged }
     func createIdentity() async throws -> RecoveryPhrase {
         try RecoveryPhrase(
@@ -74,11 +93,16 @@ actor StubBackend: CompanionBackend {
     }
 
     func pair(invitation: String, displayName: String) async throws {
+        pairedInvitations.append(invitation)
+        if let pairingFailure {
+            self.pairingFailure = nil
+            throw pairingFailure
+        }
         if invitation.hasPrefix("tohseno://pair/") { return }
         throw TohsenoCompanionError.invalidInvitation("fixture")
     }
 
-    func startSynchronization() async throws {}
+    func startSynchronization() async throws { synchronizations += 1 }
 }
 
 @MainActor
@@ -88,8 +112,30 @@ func model(_ backend: StubBackend) async -> CompanionModel {
     return model
 }
 
-@Suite("Choose app → what should change → Evolve App")
+@Suite("Create or choose app → one intent → App")
 struct CompanionFlowTests {
+    @MainActor
+    @Test("The main CTA sends one new-app intent through the durable backend")
+    func createApp() async {
+        let backend = StubBackend()
+        let subject = await model(backend)
+        subject.openCreate()
+        #expect(subject.screen == .create)
+        #expect(!subject.canCreate)
+
+        subject.appName = "tiny-timer"
+        subject.intent = "A tiny timer with one large start button."
+        #expect(subject.canCreate)
+        await subject.create()
+
+        let creations = await backend.creations
+        #expect(creations.count == 1)
+        #expect(creations[0].suggestedName == "tiny-timer")
+        #expect(creations[0].intention == "A tiny timer with one large start button.")
+        #expect(subject.screen == .apps)
+        #expect(subject.intent.isEmpty)
+    }
+
     @MainActor
     @Test("Your Apps lists the person's apps and nothing else")
     func yourApps() async {
@@ -105,6 +151,38 @@ struct CompanionFlowTests {
         let subject = await model(StubBackend(shots: [shot(version: 4), retired, recording]))
         #expect(subject.apps.map(\.displayName) == ["anky"])
         #expect(subject.screen == .apps)
+    }
+
+    @MainActor
+    @Test("Your Apps loads each app's real icon by its immutable blob identity")
+    func appIcons() async throws {
+        let icon = IconDescriptor(
+            blobID: "icon_anky",
+            revision: 2,
+            mediaType: "image/png",
+            byteLength: 3,
+            width: 1,
+            height: 1,
+            placeholder: false
+        )
+        let anky = ShotSummary(
+            shotID: "shot_anky",
+            displayName: "anky",
+            kind: .factoryShot,
+            icon: icon,
+            iconRevision: 2,
+            expressionID: "expression_anky",
+            latestVersionID: "version_anky",
+            latestVersionOrdinal: 4,
+            latestVersionCreatedAt: "2026-08-18T00:00:00Z",
+            sortIndex: 0,
+            supportedCompanionActions: [.workspaceRead]
+        )
+        let bytes = Data([0x01, 0x02, 0x03])
+        let subject = await model(StubBackend(shots: [anky], iconData: [icon.blobID: bytes]))
+
+        #expect(subject.icon(for: anky) == bytes)
+        #expect(subject.icons[anky.shotID] == nil, "shot IDs and blob IDs are distinct namespaces")
     }
 
     @MainActor
@@ -213,26 +291,96 @@ struct CompanionFlowTests {
     }
 
     @MainActor
-    @Test("Pairing is one scan and lands directly in Your Apps")
-    func pairing() async {
+    @Test("Entitlement replaces the product and unlocks only from a signed Mac event")
+    func entitlementScreens() async throws {
+        let subject = await model(StubBackend(shots: [shot(version: 4)]))
+        func event(_ projection: ProductEntitlementProjection, cursor: UInt64) -> WorkspaceEvent {
+            WorkspaceEvent(
+                eventID: "event_entitlement_\(cursor)",
+                workspaceID: "workspace_fixture",
+                cursor: cursor,
+                emittedAt: "2026-08-18T00:00:00Z",
+                payload: .productEntitlement(projection)
+            )
+        }
+        subject.apply(event(ProductEntitlementProjection(
+            phase: "trial_qualified", successfulDays: 5,
+            factoryMutationsAllowed: false, purchaseAllowed: true
+        ), cursor: 1))
+        #expect(subject.screen == .entitlementDecision)
+        subject.apply(event(ProductEntitlementProjection(
+            phase: "trial_expired", successfulDays: 4,
+            factoryMutationsAllowed: false, purchaseAllowed: false
+        ), cursor: 2))
+        #expect(subject.screen == .trialEnded)
+        subject.apply(event(ProductEntitlementProjection(
+            phase: "pro_yearly", successfulDays: 5,
+            factoryMutationsAllowed: true, purchaseAllowed: false
+        ), cursor: 3))
+        #expect(subject.screen == .apps)
+    }
+
+    @MainActor
+    @Test("Cable bootstrap shows recovery words once before private pairing")
+    func cableBootstrap() async {
         let backend = StubBackend(shots: [shot(version: 1)])
         let subject = CompanionModel(backend: backend, deviceName: "Test iPhone")
-        #expect(subject.screen == .firstRun)
-        await subject.createIdentity()
+        #expect(subject.screen == .loading)
+        await subject.bootstrapFromCable(URL(string: "tohseno://pair/v1/fixture")!)
         #expect(subject.recoveryWords?.split(separator: " ").count == 12)
-        await subject.pair(scanned: "tohseno://pair/v1/fixture")
+        #expect(await backend.pairedInvitations.isEmpty)
+        await subject.confirmRecoveryWords()
+        #expect(await backend.pairedInvitations == ["tohseno://pair/v1/fixture"])
         #expect(subject.screen == .apps)
         #expect(subject.recoveryWords == nil, "recovery words are shown once, not kept on screen")
         #expect(subject.notice == nil)
     }
 
     @MainActor
-    @Test("A bad code is a sentence, not a protocol error")
+    @Test("A paired Companion reconnects its live channel after relaunch")
+    func relaunchReconnects() async {
+        let backend = StubBackend(shots: [shot(version: 1)])
+        let subject = CompanionModel(backend: backend, deviceName: "Test iPhone")
+
+        await subject.refresh()
+
+        #expect(subject.screen == .apps)
+        #expect(await backend.reconciles == 1)
+        #expect(await backend.synchronizations == 1)
+    }
+
+    @MainActor
+    @Test("An invalid cable payload is refused without pairing")
     func badPairingCode() async {
         let subject = CompanionModel(backend: StubBackend(), deviceName: "Test iPhone")
         await subject.pair(scanned: "https://example.com/not-a-pairing-code")
         #expect(subject.screen == .firstRun)
-        #expect(subject.notice == "That code didn’t work. Show a new one on your Mac and scan again.")
+        #expect(subject.notice == "The private connection was invalid. Reconnect this iPhone to your Mac.")
+    }
+
+    @MainActor
+    @Test("An unreachable Mac gives an actionable network message")
+    func unreachablePairingMac() async {
+        let backend = StubBackend()
+        await backend.rejectNextPairing(with: .transportUnavailable)
+        let subject = CompanionModel(backend: backend, deviceName: "Test iPhone")
+
+        await subject.pair(scanned: "tohseno://pair/v1/fixture")
+
+        #expect(subject.notice == "TOHSENO couldn’t reach the development relay on your Mac. The USB cable installs and debugs the app, but it doesn’t carry Companion messages. Connect both devices to the same Wi‑Fi, then try again.")
+    }
+
+    @MainActor
+    @Test("Pairing failures distinguish expired, clock, used, and refused codes")
+    func pairingFailureMessages() {
+        #expect(CompanionModel.humanPairingFailure(TohsenoCompanionError.invitationExpired)
+            == "The private connection expired. Reconnect this iPhone to your Mac.")
+        #expect(CompanionModel.humanPairingFailure(TohsenoCompanionError.invitationNotYetValid)
+            == "Your iPhone and Mac clocks don’t agree. Set Date & Time to automatic on both devices, then try again.")
+        #expect(CompanionModel.humanPairingFailure(TohsenoCompanionError.relayFailure(409))
+            == "The private connection expired or was already used. Reconnect this iPhone to your Mac.")
+        #expect(CompanionModel.humanPairingFailure(TohsenoCompanionError.relayFailure(500))
+            == "Your Mac refused the private connection. Reconnect this iPhone and try again.")
     }
 
     @Test("Screenshots are recognized by their own bytes")

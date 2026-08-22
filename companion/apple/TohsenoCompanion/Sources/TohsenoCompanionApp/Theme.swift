@@ -1,4 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Black, chemical orange, and space — the same identity as the Mac, sized for
 /// a thumb. There is no chrome to theme because there is no dashboard.
@@ -9,6 +14,9 @@ public enum Tohseno {
     public static let bone = Color(red: 0.957, green: 0.941, blue: 0.902)
     public static let ash = Color(red: 0.443, green: 0.435, blue: 0.408)
     public static let orange = Color(red: 1.0, green: 0.392, blue: 0.118)
+    public static let connected = Color(red: 0.45, green: 0.73, blue: 0.27)
+    public static let warning = Color(red: 1.0, green: 0.64, blue: 0.12)
+    public static let failed = Color(red: 0.82, green: 0.31, blue: 0.25)
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
@@ -20,8 +28,36 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(enabled ? Tohseno.void : Tohseno.ash)
             .padding(.vertical, 15)
             .padding(.horizontal, 28)
+            .frame(maxWidth: .infinity)
             .background(enabled ? Tohseno.orange : Tohseno.iron, in: Capsule())
             .opacity(configuration.isPressed ? 0.8 : 1)
+    }
+}
+
+struct TohsenoMark: View {
+    var size: CGFloat
+
+    var body: some View {
+        mark
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+
+    private var mark: Image {
+        guard let url = Bundle.module.url(forResource: "tohseno-logo", withExtension: "png") else {
+            return Image(systemName: "circle")
+        }
+#if canImport(UIKit)
+        guard let image = UIImage(contentsOfFile: url.path) else { return Image(systemName: "circle") }
+        return Image(uiImage: image)
+#elseif canImport(AppKit)
+        guard let image = NSImage(contentsOf: url) else { return Image(systemName: "circle") }
+        return Image(nsImage: image)
+#else
+        return Image(systemName: "circle")
+#endif
     }
 }
 

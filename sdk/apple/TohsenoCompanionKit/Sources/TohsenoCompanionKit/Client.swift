@@ -1065,7 +1065,7 @@ public actor TohsenoCompanionClient {
             workspace = workspace.updatingExecution(execution)
         case let .executionCompleted(execution), let .executionFailed(execution):
             workspace = workspace.updatingExecution(execution, terminal: true)
-        case .commandAcknowledged, .commandRejected, .deviceRevoked:
+        case .productEntitlement, .commandAcknowledged, .commandRejected, .deviceRevoked:
             break
         case .workspaceSnapshot:
             break
@@ -1259,7 +1259,11 @@ public actor TohsenoCompanionClient {
         let endpoint = try RelayEndpoint(
             id: pairing.relayID,
             baseURL: URL,
-            allowLoopbackHTTP: URL.scheme == "http"
+            allowLoopbackHTTP: URL.scheme == "http",
+            // The persisted endpoint must still equal the configured
+            // allowlist below. This permits a debug `.local` endpoint to be
+            // reconstructed after relaunch without widening trust.
+            allowLocalNetworkHTTP: URL.scheme == "http"
         )
         let allowlisted = try allowlist.endpoint(for: endpoint.id)
         guard allowlisted == endpoint else { throw TohsenoCompanionError.relayNotAllowed }

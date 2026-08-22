@@ -5,6 +5,31 @@ import TohsenoCompanionKit
 
 @Suite("The phone and the Mac describe an app identically")
 struct PresentationTests {
+    @Test("The Release app owns a modern full-screen launch configuration")
+    func fullScreenLaunchConfiguration() throws {
+        let package = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoData = try Data(contentsOf: package.appendingPathComponent("App/Info.plist"))
+        let info = try #require(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+        #expect(info["UILaunchScreen"] != nil)
+        #expect(info["CFBundleURLTypes"] != nil)
+        #expect(info["NSMicrophoneUsageDescription"] != nil)
+        #expect(info["NSSpeechRecognitionUsageDescription"] != nil)
+
+        let project = try String(
+            contentsOf: package.appendingPathComponent(
+                "App/TohsenoCompanion.xcodeproj/project.pbxproj"
+            ),
+            encoding: .utf8
+        )
+        #expect(project.components(separatedBy: "GENERATE_INFOPLIST_FILE = NO;").count - 1 == 2)
+        #expect(project.components(separatedBy: "INFOPLIST_FILE = Info.plist;").count - 1 == 2)
+    }
+
     @Test("Every execution state the Mac can send is projected the same way here")
     func matchesTheSharedTable() throws {
         let table = try PresentationFixture.executionStates()

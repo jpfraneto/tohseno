@@ -3,6 +3,31 @@ import XCTest
 @testable import TohsenoCompanionKit
 
 final class CryptoTests: XCTestCase {
+    func testLocalNetworkHTTPRelayRequiresAnExplicitDevelopmentAllowance() throws {
+        let localURL = URL(string: "http://tohseno-mac.local:3100")!
+        XCTAssertThrowsError(try RelayEndpoint(id: "official-v1", baseURL: localURL))
+        XCTAssertNoThrow(try RelayEndpoint(
+            id: "official-v1",
+            baseURL: localURL,
+            allowLocalNetworkHTTP: true
+        ))
+        XCTAssertThrowsError(try RelayEndpoint(
+            id: "official-v1",
+            baseURL: URL(string: "http://relay.example:3100")!,
+            allowLocalNetworkHTTP: true
+        ))
+        XCTAssertNoThrow(try RelayEndpoint(
+            id: "official-v1",
+            baseURL: URL(string: "http://172.20.10.3:3100")!,
+            allowLocalNetworkHTTP: true
+        ))
+        XCTAssertThrowsError(try RelayEndpoint(
+            id: "official-v1",
+            baseURL: URL(string: "http://8.8.8.8:3100")!,
+            allowLocalNetworkHTTP: true
+        ))
+    }
+
     func testOfficialTwelveWordBIP39VectorAndRestoration() throws {
         let entropy = Data(repeating: 0, count: 16)
         let phrase = try RecoveryPhrase(entropy: entropy)

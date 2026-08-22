@@ -561,6 +561,14 @@ public final class URLSessionCompanionRelayTransport: CompanionRelayTransport, @
         } catch let error as TohsenoCompanionError {
             throw error
         } catch {
+#if DEBUG
+            let diagnostic = error as NSError
+            NSLog(
+                "TOHSENO Companion relay transport failed: domain=%@ code=%ld",
+                diagnostic.domain,
+                diagnostic.code
+            )
+#endif
             throw TohsenoCompanionError.transportUnavailable
         }
     }

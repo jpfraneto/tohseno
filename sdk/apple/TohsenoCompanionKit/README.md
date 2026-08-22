@@ -1,4 +1,4 @@
-# TohsenoCompanionKit 0.9.0
+# TohsenoCompanionKit 0.9.9
 
 `TohsenoCompanionKit` is the native Apple client for TOHSENO's private
 companion channel. It does not contain a coding harness, public-node client,
@@ -16,6 +16,8 @@ The package provides:
   payload store for the offline command/reference outbox;
 - cursor reconciliation, snapshots, incremental events, and full-snapshot gap
   detection;
+- an explicit encrypted `product.entitlement` projection without payment
+  details or public lineage;
 - authenticated, bounded PNG/JPEG `icon.blob` events with SHA-256 and decoded
   dimension verification plus an encrypted-at-rest cache;
 - exact-version feedback, private marketing notes, evolution, and new-Shot

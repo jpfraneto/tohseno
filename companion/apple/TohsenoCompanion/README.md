@@ -1,4 +1,4 @@
-# TOHSENO Companion 0.9.0
+# TOHSENO Companion 0.9.9
 
 The iPhone app. It is a beautiful remote control for intent, not a mobile
 TOHSENO: the Mac remains the factory, and this app implements no second
@@ -7,13 +7,9 @@ coding harness. Everything it does goes through the released
 `sdk/apple/TohsenoCompanionKit`.
 
 ```text
-Your Apps
-    ↓
-Choose App
-    ↓
-What should change?
-    ↓
-Evolve App
+Your Apps (a compact adaptive icon grid)
+    ├─ Choose App → What should change? → Evolve
+    └─ New App    → What should it be?     → Create App
 ```
 
 That is the whole product.
@@ -36,14 +32,27 @@ fixture for protocol verification, and stays that way.
 
 ## Screens
 
-**First run.** One sentence about what connecting grants, twelve recovery words
-shown exactly once, and one camera scan of the code from the Mac's Settings.
-Then straight into Your Apps. Capabilities remain granular, signed, and
+**First run.** The Mac installs and launches Companion through the cable with
+a signed, expiring `tohseno://pair/v1/…` payload. The iPhone shows twelve
+recovery words exactly once and pairs only after they are confirmed saved.
+Those words never travel to the Mac, URL, relay, build settings, or logs. Then
+straight into Your Apps. Capabilities remain granular, signed, and
 revocable underneath; that vocabulary never appears here.
 
-**Your Apps.** Real icons where the Mac has them, one letter mark where it does
-not, and at most one subtle status word — and only when something is actually
-happening. A settled app says nothing.
+**Your Apps.** After a short restoration state, the Companion uses the whole
+screen for a compact, scrollable icon grid. Each app has the real icon where
+the Mac has one, a one-letter mark where it does not, a short name, and one
+status-colored dot. There are no oversized cards or decorative dock competing
+with the apps. A native material bar stays at the bottom with the main New App
+action. Opening an app uses native stack navigation, including the iPhone's
+standard left-edge swipe to return to Your Apps.
+
+**New app.** The bottom action opens one compact intent composer for an app
+name, intention, and optional screenshots. Create App sends that single intent
+through the same signed Companion backend as every other action. Both this
+composer and an existing app's evolution composer include a microphone button:
+spoken words appear live in the normal intent field and remain editable before
+submission.
 
 **One app.** The app's name, its current state if it has one, and the box:
 
@@ -59,15 +68,19 @@ What should change?
 
 + Add screenshots
 
-                          Evolve App
+                             Evolve
 ```
 
 No feedback-saving step. No version picker. No execution configuration. No
 confirmation after the tap.
 
+The encrypted private entitlement projection can replace the app with the Pro
+decision or trial-ended screen. Checkout is completed on the Mac; no payment
+data or billing history is sent to this app.
+
 ## What one tap means
 
-`Evolve App` is fire-and-forget for the person and durable underneath. The SDK
+`Evolve` is fire-and-forget for the person and durable underneath. The SDK
 signs the command, seals it, and persists it with its images *before* the tap
 returns, so the app can be closed immediately.
 

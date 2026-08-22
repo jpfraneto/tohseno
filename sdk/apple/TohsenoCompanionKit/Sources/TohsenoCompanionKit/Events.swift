@@ -1,7 +1,69 @@
 import Foundation
 
+public struct ProductEntitlementProjection: Codable, Equatable, Sendable {
+    public static let schemaV1 = "tohseno.private-product-entitlement/1"
+    public let schema: String
+    public let phase: String
+    public let successfulDays: UInt8
+    public let requiredSuccessfulDays: UInt8
+    public let factoryMutationsAllowed: Bool
+    public let purchaseAllowed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case schema, phase
+        case successfulDays = "successful_days"
+        case requiredSuccessfulDays = "required_successful_days"
+        case factoryMutationsAllowed = "factory_mutations_allowed"
+        case purchaseAllowed = "purchase_allowed"
+    }
+
+    public init(
+        schema: String = Self.schemaV1,
+        phase: String,
+        successfulDays: UInt8,
+        requiredSuccessfulDays: UInt8 = 5,
+        factoryMutationsAllowed: Bool,
+        purchaseAllowed: Bool
+    ) {
+        self.schema = schema
+        self.phase = phase
+        self.successfulDays = successfulDays
+        self.requiredSuccessfulDays = requiredSuccessfulDays
+        self.factoryMutationsAllowed = factoryMutationsAllowed
+        self.purchaseAllowed = purchaseAllowed
+    }
+
+    public init(from decoder: Decoder) throws {
+        try requireExactKeys(decoder, [
+            "schema", "phase", "successful_days", "required_successful_days",
+            "factory_mutations_allowed", "purchase_allowed",
+        ])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(String.self, forKey: .schema)
+        phase = try container.decode(String.self, forKey: .phase)
+        successfulDays = try container.decode(UInt8.self, forKey: .successfulDays)
+        requiredSuccessfulDays = try container.decode(UInt8.self, forKey: .requiredSuccessfulDays)
+        factoryMutationsAllowed = try container.decode(Bool.self, forKey: .factoryMutationsAllowed)
+        purchaseAllowed = try container.decode(Bool.self, forKey: .purchaseAllowed)
+        try validate()
+    }
+
+    public func validate() throws {
+        let phases = [
+            "genesis_incomplete", "trial_active", "trial_qualified", "trial_expired",
+            "pro_monthly", "pro_yearly", "pro_lapsed",
+        ]
+        guard schema == Self.schemaV1, phases.contains(phase), requiredSuccessfulDays == 5,
+              successfulDays <= requiredSuccessfulDays,
+              factoryMutationsAllowed == ["trial_active", "pro_monthly", "pro_yearly"].contains(phase),
+              purchaseAllowed == ["trial_qualified", "pro_lapsed"].contains(phase)
+        else { throw TohsenoCompanionError.invalidEncoding("invalid private product entitlement") }
+    }
+}
+
 public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
     case workspaceSnapshot(WorkspaceSnapshot)
+    case productEntitlement(ProductEntitlementProjection)
     case shotUpsert(ShotSummary)
     case shotArchive(shotID: String)
     case shotRemove(shotID: String)
@@ -25,7 +87,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
 
     private enum Keys: String, CodingKey {
         case eventKind = "event_kind"
-        case snapshot, shot, blob
+        case snapshot, entitlement, shot, blob
         case shotID = "shot_id"
         case expressionID = "expression_id"
         case versionID = "version_id"
@@ -38,6 +100,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
 
     private enum Kind: String, Codable {
         case workspaceSnapshot = "workspace.snapshot"
+        case productEntitlement = "product.entitlement"
         case shotUpsert = "shot.upsert"
         case shotArchive = "shot.archive"
         case shotRemove = "shot.remove"
@@ -60,6 +123,9 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case .workspaceSnapshot:
             try requireExactKeys(decoder, ["event_kind", "snapshot"])
             self = try .workspaceSnapshot(container.decode(WorkspaceSnapshot.self, forKey: .snapshot))
+        case .productEntitlement:
+            try requireExactKeys(decoder, ["event_kind", "entitlement"])
+            self = try .productEntitlement(container.decode(ProductEntitlementProjection.self, forKey: .entitlement))
         case .shotUpsert:
             try requireExactKeys(decoder, ["event_kind", "shot"])
             self = try .shotUpsert(container.decode(ShotSummary.self, forKey: .shot))
@@ -122,6 +188,9 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case let .workspaceSnapshot(snapshot):
             try container.encode(Kind.workspaceSnapshot, forKey: .eventKind)
             try container.encode(snapshot, forKey: .snapshot)
+        case let .productEntitlement(entitlement):
+            try container.encode(Kind.productEntitlement, forKey: .eventKind)
+            try container.encode(entitlement, forKey: .entitlement)
         case let .shotUpsert(shot):
             try container.encode(Kind.shotUpsert, forKey: .eventKind)
             try container.encode(shot, forKey: .shot)
@@ -175,6 +244,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
     func validate() throws {
         switch self {
         case let .workspaceSnapshot(snapshot): try snapshot.validate()
+        case let .productEntitlement(entitlement): try entitlement.validate()
         case let .shotUpsert(shot): try shot.validate()
         case let .shotArchive(id), let .shotRemove(id): try requireIdentifier(id, field: "shot_id")
         case let .iconBlob(blob): try blob.validate()

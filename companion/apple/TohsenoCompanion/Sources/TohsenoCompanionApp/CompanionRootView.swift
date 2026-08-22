@@ -1,7 +1,7 @@
 import SwiftUI
 import TohsenoCompanionKit
 
-/// The whole product: Your Apps → choose app → what should change → Evolve App.
+/// The whole product: Your Apps → choose app → what should change → Evolve.
 public struct CompanionRootView: View {
     @State private var model: CompanionModel
 
@@ -10,68 +10,302 @@ public struct CompanionRootView: View {
     }
 
     public var body: some View {
-        ZStack {
-            Tohseno.void.ignoresSafeArea()
-            switch model.screen {
-            case .firstRun:
-                FirstRunView(model: model)
-            case .apps:
-                YourAppsView(model: model)
-            case let .app(shotID):
-                if let shot = model.app(shotID) {
-                    AppView(model: model, shot: shot)
-                } else {
-                    YourAppsView(model: model)
+        GeometryReader { geometry in
+            ZStack {
+                CompanionBackground()
+                switch model.screen {
+                case .loading:
+                    CompanionLoadingView()
+                case .firstRun:
+                    FirstRunView(model: model)
+                case .entitlementDecision:
+                    CompanionEntitlementView(trialEnded: false)
+                case .trialEnded:
+                    CompanionEntitlementView(trialEnded: true)
+                case .apps, .create, .app:
+                    CompanionNavigation(model: model)
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .tint(Tohseno.orange)
         .preferredColorScheme(.dark)
         .task { model.start() }
+        .onOpenURL { url in
+            Task { await model.bootstrapFromCable(url) }
+        }
+    }
+}
+
+private enum CompanionRoute: Hashable {
+    case create
+    case app(String)
+}
+
+private struct CompanionNavigation: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        NavigationStack(path: path) {
+            YourAppsView(model: model)
+                .companionRootNavigationBar()
+                .navigationDestination(for: CompanionRoute.self) { route in
+                    switch route {
+                    case .create:
+                        CreateAppView(model: model)
+                            .companionDestinationNavigationBar()
+                    case let .app(shotID):
+                        if let shot = model.app(shotID) {
+                            AppView(model: model, shot: shot)
+                                .companionDestinationNavigationBar()
+                        }
+                    }
+                }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CompanionBottomBar(model: model)
+        }
+    }
+
+    private var path: Binding<[CompanionRoute]> {
+        Binding(
+            get: {
+                switch model.screen {
+                case .create: [.create]
+                case let .app(shotID): [.app(shotID)]
+                default: []
+                }
+            },
+            set: { routes in
+                guard let route = routes.last else {
+                    if model.screen != .apps { model.openApps() }
+                    return
+                }
+                switch route {
+                case .create:
+                    if model.screen != .create { model.openCreate() }
+                case let .app(shotID):
+                    if model.screen != .app(shotID), let shot = model.app(shotID) {
+                        model.open(shot)
+                    }
+                }
+            }
+        )
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func companionRootNavigationBar() -> some View {
+#if os(iOS)
+        toolbar(.hidden, for: .navigationBar)
+#else
+        self
+#endif
+    }
+
+    @ViewBuilder
+    func companionDestinationNavigationBar() -> some View {
+#if os(iOS)
+        toolbar(.visible, for: .navigationBar)
+#else
+        self
+#endif
+    }
+
+    @ViewBuilder
+    func companionInlineNavigationTitle(_ title: String) -> some View {
+#if os(iOS)
+        navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+#else
+        navigationTitle(title)
+#endif
+    }
+}
+
+private struct CompanionBottomBar: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Button {
+                guard model.screen != .create else { return }
+                withAnimation(.easeInOut(duration: 0.2)) { model.openCreate() }
+            } label: {
+                HStack(spacing: 9) {
+                    TohsenoMark(size: 26)
+                        .padding(3)
+                        .background(Tohseno.void, in: RoundedRectangle(cornerRadius: 8))
+                    Text("New App")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(Tohseno.void)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 18)
+                .background(Tohseno.orange, in: Capsule())
+            }
+            .accessibilityLabel("Create a new app")
+            Spacer()
+        }
+        .padding(.top, 9)
+        .padding(.bottom, 7)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Divider().opacity(0.45) }
+    }
+}
+
+private struct CompanionEntitlementView: View {
+    let trialEnded: Bool
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            TohsenoMark(size: 88)
+            Text(trialEnded ? "Your TOHSENO trial has ended." : "Continue with TOHSENO Pro.")
+                .font(.system(size: 28, weight: .semibold))
+                .multilineTextAlignment(.center)
+            Text(trialEnded
+                 ? "Everything you made is still here."
+                 : "TOHSENO Pro is completed on your Mac. $9.99 monthly or $99 yearly.")
+                .font(.system(size: 16))
+                .foregroundStyle(Tohseno.ash)
+                .multilineTextAlignment(.center)
+            if !trialEnded {
+                Text("$99 yearly saves about two months.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Tohseno.ash)
+            }
+            Spacer()
+        }
+        .padding(32)
+    }
+}
+
+private struct CompanionBackground: View {
+    var body: some View {
+        ZStack {
+            Tohseno.void
+            RadialGradient(
+                colors: [Color.white.opacity(0.035), .clear],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: 520
+            )
+            LinearGradient(
+                colors: [.clear, Tohseno.orange.opacity(0.025), .clear],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct CompanionLoadingView: View {
+    var body: some View {
+        VStack(spacing: 22) {
+            TohsenoMark(size: 92)
+            ProgressView()
+                .tint(Tohseno.orange)
+            Text("Loading your apps…")
+                .font(.system(size: 15))
+                .foregroundStyle(Tohseno.ash)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
 struct YourAppsView: View {
     @Bindable var model: CompanionModel
 
+    private let columns = [
+        GridItem(.adaptive(minimum: 82, maximum: 104), spacing: 12, alignment: .top)
+    ]
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            WordmarkView().padding(.horizontal, 24).padding(.bottom, 28)
-            Text("Your Apps")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(Tohseno.bone)
-                .padding(.horizontal, 24)
+        VStack(spacing: 0) {
+            CompanionHeader(connection: model.connection)
+
             if model.apps.isEmpty {
                 Spacer()
-                Text("Apps you make on your Mac appear here.")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Tohseno.ash)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal, 40)
+                VStack(spacing: 12) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 30, weight: .light))
+                        .foregroundStyle(Tohseno.ash)
+                    Text("Apps you make on your Mac appear here.")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Tohseno.ash)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 40)
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+                    LazyVGrid(columns: columns, alignment: .center, spacing: 24) {
                         ForEach(model.apps, id: \.shotID) { shot in
                             Button { model.open(shot) } label: {
                                 AppTile(
                                     shot: shot,
-                                    icon: model.icons[shot.icon?.blobID ?? shot.shotID],
+                                    icon: model.icon(for: shot),
                                     presentation: model.presentation(for: shot)
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppRowButtonStyle())
                         }
                     }
-                    .padding(24)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 28)
                 }
+                .refreshable { await model.refresh() }
             }
+
             if let notice = model.notice {
-                NoticeView(text: notice).padding(24)
+                NoticeView(text: notice)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
             }
         }
-        .padding(.top, 24)
-        .refreshable { await model.refresh() }
+    }
+}
+
+private struct CompanionHeader: View {
+    let connection: CompanionConnectionState
+
+    var body: some View {
+        HStack(spacing: 12) {
+            WordmarkView()
+            Spacer()
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 14, weight: .medium))
+            Text(connectionText)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .foregroundStyle(connectionColor)
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var connectionText: String {
+        switch connection {
+        case .connected: "Mac connected"
+        case .pairing: "Connecting…"
+        case .reconnecting: "Reconnecting…"
+        case .disconnected: "Mac offline"
+        case .revoked: "Access removed"
+        }
+    }
+
+    private var connectionColor: Color {
+        switch connection {
+        case .connected: Tohseno.connected
+        case .pairing, .reconnecting: Tohseno.warning
+        case .disconnected: Tohseno.ash
+        case .revoked: Tohseno.failed
+        }
     }
 }
 
@@ -81,25 +315,32 @@ struct AppTile: View {
     let presentation: TohsenoPresentation
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            IconView(name: shot.displayName, bytes: icon)
+        VStack(spacing: 8) {
+            IconView(name: shot.displayName, bytes: icon, size: 64)
+                .overlay(alignment: .bottomTrailing) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().strokeBorder(Tohseno.void, lineWidth: 2))
+                        .accessibilityLabel(status)
+                }
             Text(shot.displayName)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Tohseno.bone)
                 .lineLimit(1)
-            // One subtle indicator, and only when something is actually going
-            // on. A settled app says nothing.
-            if presentation.state != .installed {
-                Text(status)
-                    .font(.system(size: 13))
-                    .foregroundStyle(presentation.state == .failed ? Tohseno.ash : Tohseno.orange)
-                    .lineLimit(1)
-            }
+                .minimumScaleFactor(0.76)
+                .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Tohseno.iron))
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private var statusColor: Color {
+        switch presentation.state {
+        case .installed, .readyForPhone: Tohseno.connected
+        case .waiting, .building, .installing: Tohseno.warning
+        case .failed: Tohseno.failed
+        }
     }
 
     private var status: String {
@@ -108,15 +349,25 @@ struct AppTile: View {
         case .building: "Evolving"
         case .readyForPhone: "Ready to install"
         case .installing: "Installing"
-        case .installed: ""
+        case .installed: "Installed"
         case .failed: "Failed"
         }
+    }
+}
+
+private struct AppRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
 struct IconView: View {
     let name: String
     let bytes: Data?
+    var size: CGFloat = 64
 
     var body: some View {
         Group {
@@ -130,16 +381,28 @@ struct IconView: View {
             placeholder
 #endif
         }
-        .frame(width: 52, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .scaledToFill()
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.36), radius: 7, y: 4)
     }
 
     private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 13)
-            .fill(Tohseno.iron)
+        RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [Tohseno.iron, Tohseno.carbon],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .overlay(
                 Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: size * 0.36, weight: .semibold))
                     .foregroundStyle(Tohseno.orange)
             )
     }
@@ -150,69 +413,108 @@ struct AppView: View {
     let shot: ShotSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Button { model.openApps() } label: {
-                    Label("Your Apps", systemImage: "chevron.left")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Tohseno.ash)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                let presentation = model.presentation(for: shot)
+                StateView(presentation: presentation)
+
+                composer
+
+                if let notice = model.notice {
+                    NoticeView(text: notice)
                 }
-                Spacer()
             }
             .padding(.horizontal, 20)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(shot.displayName.uppercased())
-                        .font(.system(size: 26, weight: .semibold))
-                        .kerning(1.5)
-                        .foregroundStyle(Tohseno.bone)
-                        .padding(.top, 20)
-
-                    let presentation = model.presentation(for: shot)
-                    if presentation.state != .installed {
-                        StateView(presentation: presentation).padding(.top, 22)
-                    }
-
-                    if presentation.state != .building, presentation.state != .installing {
-                        composer.padding(.top, 30)
-                    }
-
-                    if let notice = model.notice {
-                        NoticeView(text: notice).padding(.top, 22)
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
-            }
+            .padding(.top, 18)
+            .padding(.bottom, 36)
         }
-        .padding(.top, 20)
+        .companionInlineNavigationTitle(shot.displayName)
+        .scrollDismissesKeyboard(.interactively)
         .refreshable { await model.refresh() }
     }
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("What should change?")
-                .font(.system(size: 16))
-                .foregroundStyle(Tohseno.ash)
-            TextEditor(text: $model.intent)
-                .scrollContentBackground(.hidden)
-                .font(.system(size: 17))
+        VStack(alignment: .leading, spacing: 16) {
+            Text("What should become different?")
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(Tohseno.bone)
-                .frame(minHeight: 190)
-                .padding(14)
-                .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Tohseno.iron))
+
+            IntentEditor(
+                text: $model.intent,
+                placeholder: "Describe the change you want…",
+                minimumHeight: 170
+            )
+
             ScreenshotPicker(attachments: $model.attachments)
-            HStack {
-                Spacer()
-                Button("Evolve App") {
-                    Task { await model.evolve() }
+
+            Button {
+                Task { await model.evolve() }
+            } label: {
+                if model.busy {
+                    ProgressView()
+                        .tint(Tohseno.void)
+                } else {
+                    Text("Evolve")
                 }
-                .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))
-                .disabled(!model.canEvolve)
             }
+            .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))
+            .disabled(!model.canEvolve)
+            .padding(.top, 6)
         }
+    }
+}
+
+private struct CreateAppView: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                nameField
+                    .font(.system(size: 18, weight: .semibold))
+                    .padding(14)
+                    .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Tohseno.iron))
+
+                Text("What do you want this app to be?")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Tohseno.bone)
+
+                IntentEditor(
+                    text: $model.intent,
+                    placeholder: "Describe the app you want…",
+                    minimumHeight: 190
+                )
+
+                ScreenshotPicker(attachments: $model.attachments)
+
+                if let notice = model.notice { NoticeView(text: notice) }
+
+                Button {
+                    Task { await model.create() }
+                } label: {
+                    if model.busy { ProgressView().tint(Tohseno.void) }
+                    else { Text("Create App") }
+                }
+                .buttonStyle(PrimaryButtonStyle(enabled: model.canCreate))
+                .disabled(!model.canCreate)
+            }
+            .padding(20)
+            .padding(.bottom, 24)
+        }
+        .companionInlineNavigationTitle("New App")
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    @ViewBuilder
+    private var nameField: some View {
+#if os(iOS)
+        TextField("app-name", text: $model.appName)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+#else
+        TextField("app-name", text: $model.appName)
+#endif
     }
 }
 
@@ -220,25 +522,26 @@ struct StateView: View {
     let presentation: TohsenoPresentation
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(presentation.headline)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(Tohseno.bone)
-            if let detail = presentation.detail {
-                Text(detail)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Tohseno.ash)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        HStack(spacing: 12) {
             if presentation.state.inFlight {
                 ProgressView()
-                    .progressViewStyle(.linear)
                     .tint(Tohseno.orange)
-                    .frame(width: 160)
-                    .padding(.top, 6)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(presentation.headline)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Tohseno.bone)
+                if let detail = presentation.detail {
+                    Text(detail)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Tohseno.ash)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

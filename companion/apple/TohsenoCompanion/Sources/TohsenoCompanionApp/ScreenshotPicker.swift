@@ -5,34 +5,17 @@ import TohsenoCompanionKit
 import PhotosUI
 #endif
 
-/// "+ Add screenshots" — optional, secondary, and never in the way of the box.
+/// Optional image references, kept visually secondary to the intention.
 struct ScreenshotPicker: View {
     @Binding var attachments: [CompanionReferenceBlob]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            picker
-            if !attachments.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(attachments, id: \.blobID) { blob in
-                            HStack(spacing: 8) {
-                                Text(blob.originName)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Tohseno.bone)
-                                    .lineLimit(1)
-                                Button {
-                                    attachments.removeAll { $0.blobID == blob.blobID }
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundStyle(Tohseno.ash)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .overlay(Capsule().strokeBorder(Tohseno.iron))
-                        }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                picker
+                ForEach(attachments, id: \.blobID) { blob in
+                    AttachmentThumbnail(blob: blob) {
+                        attachments.removeAll { $0.blobID == blob.blobID }
                     }
                 }
             }
@@ -48,9 +31,7 @@ struct ScreenshotPicker: View {
             maxSelectionCount: CompanionAttachments.maximumCount,
             matching: .images
         ) {
-            Text("+ Add screenshots")
-                .font(.system(size: 15))
-                .foregroundStyle(Tohseno.ash)
+            addImagesLabel
         }
         .onChange(of: selection) { _, items in
             Task { await adopt(items) }
@@ -69,11 +50,68 @@ struct ScreenshotPicker: View {
     }
 #else
     private var picker: some View {
-        Text("+ Add screenshots")
-            .font(.system(size: 15))
-            .foregroundStyle(Tohseno.ash)
+        addImagesLabel
     }
 #endif
+
+    private var addImagesLabel: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "photo.badge.plus")
+                .font(.system(size: 17, weight: .medium))
+            Text(attachments.isEmpty ? "Add images" : "Add more")
+                .font(.system(size: 15, weight: .medium))
+        }
+        .foregroundStyle(Tohseno.bone)
+        .padding(.horizontal, 14)
+        .frame(height: 56)
+        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(Tohseno.iron)
+        )
+    }
+}
+
+private struct AttachmentThumbnail: View {
+    let blob: CompanionReferenceBlob
+    let remove: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+#if canImport(UIKit)
+                if let image = UIImage(data: blob.bytes) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    fallback
+                }
+#else
+                fallback
+#endif
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            Button(action: remove) {
+                Image(systemName: "xmark.circle.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Tohseno.bone, Color.black.opacity(0.72))
+                    .font(.system(size: 18))
+            }
+            .offset(x: 6, y: -6)
+            .accessibilityLabel("Remove \(blob.originName)")
+        }
+        .padding(.top, 6)
+        .padding(.trailing, 6)
+    }
+
+    private var fallback: some View {
+        RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .fill(Tohseno.iron)
+            .overlay(Image(systemName: "photo").foregroundStyle(Tohseno.ash))
+    }
 }
 
 /// Turning picked bytes into exactly the reference blobs the Mac accepts.

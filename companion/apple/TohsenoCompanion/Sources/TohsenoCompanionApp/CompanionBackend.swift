@@ -11,6 +11,7 @@ public protocol CompanionBackend: Sendable {
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot
     func reconcile() async throws
     func iconBytes(for descriptor: IconDescriptor) async throws -> Data?
+    func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt
     func requestEvolution(_ request: EvolutionRequest) async throws -> CommandReceipt
     /// Signed commands this phone has written that the Mac has not acknowledged.
     func unacknowledgedCommandCount() async throws -> Int
@@ -62,9 +63,18 @@ public enum CompanionClientFactory {
         let payloadStore = try FileCompanionPayloadStore(
             directoryURL: stateURL.deletingLastPathComponent().appending(path: "outbox")
         )
+        let selectedRelay = relayOrigin ?? URL(string: productionRelay)!
+#if DEBUG
+        // A physical development build may use the same content-blind relay
+        // on its paired Mac. Release builds remain HTTPS-only.
+        let allowLocalNetworkHTTP = relayOrigin?.scheme == "http"
+#else
+        let allowLocalNetworkHTTP = false
+#endif
         let endpoint = try RelayEndpoint(
             id: "official-v1",
-            baseURL: relayOrigin ?? URL(string: productionRelay)!
+            baseURL: selectedRelay,
+            allowLocalNetworkHTTP: allowLocalNetworkHTTP
         )
         return TohsenoCompanionClient(
             stateStore: stateStore,

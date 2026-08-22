@@ -8,17 +8,19 @@ import TohsenoCompanionKit
 /// them, and none of that vocabulary appears on this screen.
 struct FirstRunView: View {
     @Bindable var model: CompanionModel
-    @State private var scanning = false
+#if DEBUG && os(iOS)
+    @State private var localNetworkPermission = LocalNetworkPermissionRequest()
+#endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             WordmarkView()
             Spacer()
-            Text("Connect this iPhone\nto your Mac.")
+            Text("Keep this iPhone\nconnected to your Mac.")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Tohseno.bone)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Open TOHSENO on your Mac, choose Settings, then Add iPhone. This iPhone will be able to create and evolve apps on that Mac, and you can revoke it at any time.")
+            Text("TOHSENO on your Mac is completing the private connection. You can revoke this iPhone from the Mac at any time.")
                 .font(.system(size: 16))
                 .foregroundStyle(Tohseno.ash)
                 .fixedSize(horizontal: false, vertical: true)
@@ -33,46 +35,30 @@ struct FirstRunView: View {
             }
 
             Spacer()
-            Button("Scan the code") {
-                Task {
-                    await model.createIdentity()
-                    scanning = true
+            if model.busy {
+                ProgressView("Connecting…")
+                    .tint(Tohseno.orange)
+                    .foregroundStyle(Tohseno.ash)
+                    .frame(maxWidth: .infinity)
+            } else if model.recoveryWords != nil {
+                Button("I've written them down") {
+                    Task { await model.confirmRecoveryWords() }
                 }
+                .buttonStyle(PrimaryButtonStyle(enabled: true))
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(PrimaryButtonStyle(enabled: !model.busy))
-            .disabled(model.busy)
-            .frame(maxWidth: .infinity)
         }
         .padding(28)
-        .sheet(isPresented: $scanning) { scanner }
-    }
-
-#if os(iOS)
-    private var scanner: some View {
-        NavigationStack {
-            PairingScannerView(
-                onScan: { payload in
-                    scanning = false
-                    Task { await model.pair(scanned: payload) }
-                },
-                onFailure: { _ in scanning = false }
-            )
-            .ignoresSafeArea()
-            .navigationTitle("Scan your Mac")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { scanning = false }
-                }
-            }
+        .onAppear {
+#if DEBUG && os(iOS)
+            // The development Companion talks to the same encrypted relay on
+            // its Mac. Trigger iOS's permission sheet before camera capture so
+            // a denied local-network operation is not misreported as a bad QR.
+            localNetworkPermission.begin()
+#endif
         }
     }
-#else
-    private var scanner: some View {
-        Text("Scanning requires an iPhone camera.")
-            .foregroundStyle(Tohseno.ash)
-            .padding(40)
-    }
-#endif
+
 }
 
 /// Shown exactly once, only when this iPhone's identity is first created.

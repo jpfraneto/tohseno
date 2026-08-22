@@ -8,11 +8,13 @@
 /* Begin PBXBuildFile section */
 		TC0000010000000000000001 /* TohsenoCompanionMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = TC0000020000000000000001 /* TohsenoCompanionMain.swift */; };
 		TC0000010000000000000002 /* TohsenoCompanionApp in Frameworks */ = {isa = PBXBuildFile; productRef = TC00000A0000000000000001 /* TohsenoCompanionApp */; };
+		TC0000010000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = TC0000020000000000000003 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		TC0000020000000000000001 /* TohsenoCompanionMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TohsenoCompanionMain.swift; sourceTree = "<group>"; };
 		TC0000020000000000000002 /* TohsenoCompanion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TohsenoCompanion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		TC0000020000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +31,7 @@
 			isa = PBXGroup;
 			children = (
 				TC0000020000000000000001 /* TohsenoCompanionMain.swift */,
+				TC0000020000000000000003 /* Assets.xcassets */,
 				TC0000040000000000000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -87,7 +90,7 @@
 		TC0000030000000000000003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (TC0000010000000000000003 /* Assets.xcassets in Resources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -105,16 +108,18 @@
 		TC0000070000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = 84V63LKV45;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TOHSENO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by TOHSENO on your Mac.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach screenshots to describe what should change.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.9.0;
+				MARKETING_VERSION = 0.9.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tohseno.companion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -127,16 +132,18 @@
 		TC0000070000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
+				CURRENT_PROJECT_VERSION = 5;
+				DEVELOPMENT_TEAM = 84V63LKV45;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TOHSENO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by TOHSENO on your Mac.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach screenshots to describe what should change.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 0.9.0;
+				MARKETING_VERSION = 0.9.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.tohseno.companion;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
