@@ -100,9 +100,9 @@ for executable in "$binary" "$identity_helper" "$fixture_harness"; do
   test -f "$executable" && test ! -L "$executable" && test -x "$executable" ||
     fail "a factory lifecycle executable was not built safely"
 done
-test "$("$binary" --version)" = "tohseno 0.9.0" || fail "TOHSENO 0.9.0 was not built"
-test "$("$identity_helper" --version)" = "tohseno-apple-identity 0.9.0" ||
-  fail "the 0.9.0 Apple identity helper was not built"
+test "$("$binary" --version)" = "tohseno 0.9.9" || fail "TOHSENO 0.9.9 was not built"
+test "$("$identity_helper" --version)" = "tohseno-apple-identity 0.9.9" ||
+  fail "the 0.9.9 Apple identity helper was not built"
 
 family="$temporary_root/data"
 machine="$family"
@@ -178,6 +178,7 @@ TOHSENO_HOME="$family" \
   TOHSENO_IDENTITY_BACKEND=software-test \
   TOHSENO_TEST_FACTORY_HARNESS="$fixture_harness" \
   TOHSENO_TEST_FACTORY_NO_DEVICE=1 \
+  TOHSENO_DEVELOPMENT_ENTITLEMENT=1 \
   "$binary" service run \
   >"$temporary_root/service.log" 2>&1 &
 service_pid=$!
@@ -226,10 +227,10 @@ factory_name="factoryfixture"
 factory_app="$family/$factory_name"
 factory_intention="$temporary_root/factory-intention.md"
 printf '%s\n' \
-  '# Coherent Intention' \
+  '# Counter Intention' \
   '' \
-  'Show a complete, quiet native iPhone expression with a clear visible identity.' \
-  'The primary screen must state that it is a TOHSENO expression and that the Apple materialization gates passed.' \
+  'A tiny app with one button that counts how many times I have tapped it.' \
+  'Remember the count between launches.' \
   >"$factory_intention"
 
 run_tohseno --json create "$factory_name" \
@@ -254,6 +255,12 @@ assert execution.get("accepted") is True
 assert execution.get("state") == "accepted"
 ' "$temporary_root/create.json" || fail "factory creation did not return an accepted stable receipt"
 
+TOHSENO_FIXTURE_SKIP_LEGACY_TRIAL=1 \
+  "$repository_root/engine/fixtures/apple-expression/exercise-birth.sh" \
+  "$factory_app" "$factory_name" \
+  >"$temporary_root/create-usable-app.log" ||
+  fail "the created counter did not build, launch, and persist its count"
+
 builder_record="$machine/identity/builder.json"
 builder_key_tag="$(python3 -c '
 import json, sys
@@ -271,6 +278,24 @@ cmp "$factory_intention" "$factory_app/INTENTION.md" >/dev/null ||
   fail "factory creation changed the exact intention bytes"
 execution_count="$(find "$factory_app/.tohseno/executions" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
 [ "$execution_count" -eq 1 ] || fail "factory creation did not preserve exactly one execution"
+create_execution_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["receipt"]["execution_id"], end="")' "$temporary_root/create.json")"
+python3 -c '
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value == {
+    "schema": "tohseno.state-transition/1",
+    "persistent_state": "unchanged",
+    "summary": "No persistent application state changed.",
+    "changes": [],
+    "migrations": [],
+    "data_safety": "preserved",
+}
+' "$factory_app/.tohseno/executions/$create_execution_id/state-transition.json" ||
+  fail "factory creation did not retain its private State Transition Receipt"
+test ! -e "$factory_app/TOHSENO_STATE_TRANSITION.json" ||
+  fail "the harness receipt draft leaked into app source"
+test ! -e "$factory_app/AGENTS.md" ||
+  fail "factory creation used generated AGENTS.md as application governance"
 version_one="$(find "$factory_app/versions" -type f -path '*/0001/version.json' -print | head -n 1)"
 [ -n "$version_one" ] && [ -f "$version_one" ] && [ ! -L "$version_one" ] ||
   fail "factory creation did not accept Version 0001"
@@ -317,6 +342,10 @@ assert len(recording) == 1 and recording[0].get("display_name") == "anky"
 presentation = factory[0].get("presentation", {})
 assert presentation.get("state") == "installed", presentation
 assert presentation.get("headline") == "factoryfixture is on your iPhone ✓", presentation
+execution = factory[0].get("execution", {})
+assert execution.get("started_at")
+assert isinstance(execution.get("elapsed_seconds"), int)
+assert execution.get("state_transition", {}).get("persistent_state") == "unchanged"
 assert recording[0].get("presentation", {}).get("state") in {"installed", "waiting"}
 ' "$temporary_root/workspace-v1.json" ||
   fail "the workspace snapshot did not distinguish factory and recording-only apps"
@@ -346,7 +375,7 @@ factory_evolution="$temporary_root/factory-evolution.md"
 printf '%s\n' \
   '# Evolutionary Intention' \
   '' \
-  'Keep the exact Shot and accepted Genome while making continuity into Version 0002 visible.' \
+  'Add a reset button. Preserve the existing count.' \
   >"$factory_evolution"
 run_tohseno --json evolve "$factory_name" \
   --prompt-file "$factory_evolution" --wait \
@@ -365,6 +394,22 @@ assert execution.get("complete") is True
 assert execution.get("accepted") is True
 assert execution.get("state") == "accepted"
 ' "$temporary_root/evolve.json" || fail "factory evolution did not return an accepted exact-base receipt"
+
+evolve_execution_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["receipt"]["execution_id"], end="")' "$temporary_root/evolve.json")"
+python3 -c '
+import json, sys
+value = json.load(open(sys.argv[1], encoding="utf-8"))
+assert value.get("schema") == "tohseno.state-transition/1"
+assert value.get("persistent_state") == "unchanged"
+assert value.get("data_safety") == "preserved"
+' "$factory_app/.tohseno/executions/$evolve_execution_id/state-transition.json" ||
+  fail "factory evolution did not retain its private State Transition Receipt"
+
+TOHSENO_FIXTURE_SKIP_LEGACY_TRIAL=1 \
+  "$repository_root/engine/fixtures/apple-expression/exercise-birth.sh" \
+  "$factory_app" "$factory_name" \
+  >"$temporary_root/evolve-usable-app.log" ||
+  fail "the evolved counter did not retain its count and expose reset"
 
 version_two="$(find "$factory_app/versions" -type f -path '*/0002/version.json' -print | head -n 1)"
 [ -n "$version_two" ] && [ -f "$version_two" ] && [ ! -L "$version_two" ] ||

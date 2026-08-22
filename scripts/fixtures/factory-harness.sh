@@ -4,16 +4,14 @@ umask 022
 
 script_name="factory-harness.sh"
 fixture_directory="$(CDPATH= cd -- "$(dirname -- "$0")/../../engine/fixtures/apple-expression" && pwd -P)"
-trial_recorder="$fixture_directory/prepare-birth-fixture.py"
 materializer="$fixture_directory/materialize.sh"
-exerciser="$fixture_directory/exercise-birth.sh"
 
 fail() {
   printf '%s: %s\n' "$script_name" "$1" >&2
   exit 1
 }
 
-for executable in "$trial_recorder" "$materializer" "$exerciser"; do
+for executable in "$materializer"; do
   [ -f "$executable" ] && [ ! -L "$executable" ] && [ -x "$executable" ] ||
     fail "a deterministic Apple-expression fixture is unavailable"
 done
@@ -33,12 +31,22 @@ case "$app_name" in
 esac
 
 case "$instruction" in
-  *'.tohseno/EVOLUTION_INTENT.md'*)
+  *'.tohseno/TASK.md'*)
+    app_record="$shot_root/.tohseno/app.toml"
+    [ -f "$app_record" ] && [ ! -L "$app_record" ] || fail "Shot metadata is unavailable"
+    bundle_id="$(sed -n 's/^bundle_id = "\([A-Za-z0-9.-]*\)"$/\1/p' "$app_record")"
+    [ -n "$bundle_id" ] || fail "the fixture bundle identifier is unavailable"
+    project="$shot_root/$app_name.xcodeproj"
+    if [ ! -e "$project" ] && [ ! -L "$project" ]; then
+      "$materializer" "$shot_root" "$app_name" "$bundle_id"
+    elif [ ! -d "$project" ] || [ -L "$project" ]; then
+      fail "the deterministic Xcode project boundary is unsafe"
+    else
     source_file="$shot_root/TemplateApp.swift"
     [ -f "$source_file" ] && [ ! -L "$source_file" ] ||
       fail "the accepted fixture source is unavailable"
-    original='This fixture passes the real Apple materialization gates.'
-    replacement='Version 0002 keeps the exact Shot identity and makes continuity visible.'
+    original='if false { // TOHSENO_RESET_BUTTON'
+    replacement='if true { // TOHSENO_RESET_BUTTON'
     original_count="$(grep -F -c "$original" "$source_file" || true)"
     replacement_count="$(grep -F -c "$replacement" "$source_file" || true)"
     if [ "$original_count" -eq 1 ] && [ "$replacement_count" -eq 0 ]; then
@@ -50,19 +58,10 @@ case "$instruction" in
     elif [ "$original_count" -ne 0 ] || [ "$replacement_count" -ne 1 ]; then
       fail "the deterministic evolution source boundary is ambiguous"
     fi
-    ;;
-  *'.tohseno/TASK.md'*)
-    app_record="$shot_root/.tohseno/app.toml"
-    [ -f "$app_record" ] && [ ! -L "$app_record" ] || fail "Shot metadata is unavailable"
-    bundle_id="$(sed -n 's/^bundle_id = "\([A-Za-z0-9.-]*\)"$/\1/p' "$app_record")"
-    [ -n "$bundle_id" ] || fail "the fixture bundle identifier is unavailable"
-    project="$shot_root/$app_name.xcodeproj"
-    if [ ! -e "$project" ] && [ ! -L "$project" ]; then
-      "$materializer" "$shot_root" "$app_name" "$bundle_id"
-    elif [ ! -d "$project" ] || [ -L "$project" ]; then
-      fail "the deterministic Xcode project boundary is unsafe"
     fi
-    "$exerciser" "$shot_root" "$app_name"
+    printf '%s\n' \
+      '{"schema":"tohseno.state-transition/1","persistent_state":"unchanged","summary":"No persistent application state changed.","changes":[],"migrations":[],"data_safety":"preserved"}' \
+      >"$shot_root/TOHSENO_STATE_TRANSITION.json"
     ;;
   *) fail "the factory supplied an unknown harness phase" ;;
 esac
