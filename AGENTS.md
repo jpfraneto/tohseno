@@ -10,7 +10,12 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0017 governs how a
+2. **`docs/adr/`** — accepted architectural decisions. ADR 0020 governs cable
+   genesis, the private successful-day/entitlement authority, earned Pro,
+   hosted billing receipts, and the dependency-free npm front door. ADR 0019 governs the
+   bounded intent-to-usable-app transition: one implementation harness, at
+   most one code/build repair, one shared wall-clock budget, and one private
+   State Transition Receipt. ADR 0017 governs how a
    birth runs: the engine composes and accepts the Genome itself and the one
    harness invocation reads the exact intention, so there is no Conception
    phase and no `.tohseno/CONCEPTION.md`. Do not reintroduce a planning round

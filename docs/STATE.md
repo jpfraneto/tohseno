@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-18. This is the plain-language
+Written 2026-07-30, amended through 2026-08-22. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -29,7 +29,7 @@ of each asset, so the old dashboard cannot quietly return.
 
 ## Underneath: persistent local factory
 
-ADR 0015 defines the current 0.9.0 internal boundary, unchanged by ADR 0016.
+ADR 0015 defines the persistent local boundary, refined for 0.9.9 by ADR 0020.
 TOHSENO is an intention-led app factory whose private backend is the owner's
 Mac. A persistent **Local Workspace Service** hosts loopback-only Studio, owns
 the durable private command and event journals, monitors execution, and
@@ -65,10 +65,14 @@ caller.
 
 Every admitted command is journaled before its semantic action. Stable command,
 Shot, and execution identities make retries idempotent and allow recovery
-after a process crash. Completion still means that the applicable
-materialization, build, test, experience, repair, delivery, and acceptance
-gates passed. Source files or a successful harness exit alone
-are not acceptance. A missing development iPhone yields
+after a process crash. ADR 0019 bounds the operation to one implementation
+harness and at most one targeted repair for a concrete code/build defect. Both
+share one 60-minute wall-clock harness budget; fifteen minutes without source
+progress stops the current harness. Device, signing, provisioning, network,
+lineage, and protocol conditions never invoke intelligence. Source files or a
+successful harness exit alone are not completion: TOHSENO performs the finite
+deterministic build, recording, installation, and launch. A missing development
+iPhone yields
 `waiting_for_device`, not success — presented as *Your app is ready, plug your
 iPhone in* with no button to press, because the service resumes delivery by
 itself.
@@ -83,6 +87,18 @@ The lease is released while a verified candidate waits for a cable, so an
 absent phone never blocks unrelated source work, and it is released by process
 exit, so a crashed runner cannot strand the factory. The command journal
 remains the durability and idempotency authority.
+
+The harness reads one small `.tohseno/TASK.md`: the exact intention, continuity
+and data-preservation rules, and the app identity needed to build. It does not
+author a Genome, plan, ontology, or new Experience Trial. For births, the
+engine stages the exact Fascia sources and resource placeholders before the
+harness starts; they are not machine-discovery work for the harness. A repair
+does not repeat Xcode acceptance and cannot replace the intention-wide state
+transition draft. Every terminal execution records a private
+`.tohseno/executions/<execution-id>/state-transition.json`; absent or invalid
+harness evidence becomes `unknown` without repair. Details shows the receipt
+and wall-clock execution elapsed from the first durable event, so sleep,
+restarts, and repair attempts cannot reset the visible clock.
 
 ## Recording-layer compatibility
 
@@ -120,8 +136,9 @@ iPhone moved into Settings; the three-region factory-control grid, execution
 pipeline renderer, per-execution polling, Feedback and Marketing forms, and
 exact-Version binding controls were deleted rather than hidden, along with an
 unreferenced second Studio server implementation. A deliberate Details
-disclosure keeps exact status, execution phase, identities, timestamps,
-harness, and route available to the owner. Mutations use exact Origin and
+disclosure keeps exact status, execution phase, identities, total wall-clock
+elapsed time, the State Transition Receipt, harness, and route available to the
+owner. Mutations use exact Origin and
 anti-CSRF validation; the server does not bind a public interface or grant
 permissive CORS. Live status uses the service event stream rather than
 reloading the whole workspace once per second.
@@ -136,6 +153,44 @@ Ordinary service uninstall removes only a recognized installer-owned
 LaunchAgent and preserves app folders, Builder identity, command journals,
 and companion pairing state.
 
+## Cable genesis, trial, Pro, and npm
+
+ADR 0020 makes no-argument `tohseno` the product door. A fresh installation
+walks one durable cable state machine through Xcode, Trust, Developer Mode,
+Apple Account signing, Companion build/install, CoreDevice URL launch, and
+secure pairing. Only a derived device observation is durable; recovery words
+exist only on the iPhone. The normal Mac-to-phone QR and Studio Add iPhone
+surface are deleted.
+
+Trial authority is the private versioned ledger at
+`service/entitlement/state-v1.json`. The clock starts only after physical
+Companion install and pairing. The complete factory is available for at most
+seven local calendar days. An accepted, installed, launched Version counts on
+at most one distinct date. Five days move to `trial_qualified` and lock the
+next new mutation. Expiry with fewer days moves to `trial_expired` and offers
+no purchase. Existing apps and read-only integrity, diagnostics, export,
+billing recovery, and safe uninstall remain available.
+
+Create/Evolve admission is enforced in `ShotApplicationService`, below CLI,
+Studio, and Companion. Commands durably accepted before the boundary finish;
+new commands do not enter the journal afterward. The phone receives only the
+encrypted private `product.entitlement` projection. A pre-0.9.9 paired user
+starts a deterministic fresh trial with zero fabricated days. Debug source
+checkouts may explicitly set `TOHSENO_DEVELOPMENT_ENTITLEMENT=1`; that path is
+absent from release builds.
+
+Hosted billing lives in the existing Bun site. Checkout claims are short-lived
+and workspace-signed, containing only a derived installation binding and plan.
+Stripe webhooks are signature/timestamp checked and produce P-256 server-signed
+receipts. The local service verifies a release-pinned public key and exact
+installation bind before changing entitlement. Monthly is $9.99 and yearly is
+$99. Billing is configuration-gated and currently inactive.
+
+The dependency-free npm bootstrap is `packages/cli`, version 0.1.0. It uses one
+fixed HTTPS manifest, refuses redirects and unapproved origins, verifies exact
+size, SHA-256, release layout/checksums, and Apple signing policy, and installs
+only into the existing user-owned layout. It has not been published.
+
 ## Private Companion channel
 
 The Companion is a signed remote interface, not a Builder identity, wallet,
@@ -144,10 +199,11 @@ for Apple device trust. Its recoverable BIP-39 12-word identity derives
 domain-separated Ed25519, X25519, and local-storage keys. Restoring those words
 does not restore a workspace capability; the device must pair again.
 
-Studio creates a signed, one-use invitation that expires after approximately
-two minutes. Its `tohseno://pair/v1/…` QR contains public rendezvous material
-and an allowlisted relay identifier—not recovery words, private keys,
-filesystem paths, arbitrary URLs, or permanent credentials. The owner grants
+After cable installation, the Mac launches a signed, one-use invitation that
+expires after approximately two minutes using CoreDevice's supported URL
+payload. It contains public rendezvous material and an allowlisted relay
+identifier—not recovery words, private keys, filesystem paths, arbitrary URLs,
+or permanent credentials. The owner grants
 explicit revocable capabilities for workspace/execution reads, feedback,
 marketing notes, Shot creation, and evolution. Revocation is checked before
 new command admission and event delivery.
@@ -232,20 +288,20 @@ contract generation or deployment command is active on current source.
 
 ## Repository source versus published release
 
-Repository source and package metadata target **0.9.0**. That is not a claim
-that a public 0.9.0 release, production relay, APNs provider, or new installer
-pin exists. As of this document's date:
+Repository source and native package metadata target **0.9.9**; the npm
+bootstrap targets **0.1.0**. That is not a claim that either is public, or that
+production billing, relay, APNs, or a new installer pin exists. As of this
+document's date:
 
 - the public installer still pins immutable **0.8.5**;
 - the published website copies must remain byte-identical to that authorized
-  installer until 0.9.0 activation;
-- no v0.9.0 tag or GitHub release has been created;
-- no production companion relay, APNs credentials, DNS, or deployment has been
+  installer until separately authorized activation;
+- no v0.9.9 tag, GitHub release, native manifest, or npm publication exists;
+- no production billing, companion relay, APNs credentials, DNS, or deployment has been
   activated by this change;
-- local 0.9.0 source must pass the readiness gates and be built from a clean,
+- local 0.9.9 source must pass the readiness gates and be built from a clean,
   captured commit before an owner authorizes publication.
 
-The ordered release, independent checksum verification, service-health,
-relay/APNs activation, installer-pin, and rollback instructions are in
-`release/V0_9_0_OPERATOR_RUNBOOK.md`. Until every gate is recorded, the public
-0.8.5 pin is the honest production state.
+The 0.9.9 readiness and manual npm/billing owner steps are in `docs/runbooks/`.
+The older 0.9.0 operator runbook remains historical evidence. Until every gate
+is recorded, the public 0.8.5 pin is the honest production state.

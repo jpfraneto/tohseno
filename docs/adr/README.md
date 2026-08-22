@@ -2,6 +2,23 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0020](0020-cable-genesis-earned-pro-npm-front-door.md) defines TOHSENO
+0.9.9's complete product boundary: the first Mac↔iPhone relationship begins
+through the cable while the existing cryptographic pairing remains intact;
+the complete factory is available for at most seven calendar days; five
+accepted physical-delivery days qualify a person for $9.99 monthly or $99
+yearly Pro; factory admission is enforced below every UI; Apple membership is
+independent; and `tohseno@0.1.0` is a thin verified native-release front door.
+It authorizes no publication or production external activation.
+
+[ADR 0019](0019-bounded-intent-to-usable-app.md) defines the current execution
+hot path: one implementation harness, at most one concrete code/build repair,
+one shared wall-clock budget, deterministic build and delivery, and one private
+State Transition Receipt. CLI, Studio, and Companion remain origins of the
+same durable application operation. It supersedes ADR 0017's older supervision
+defaults and harness-authored Experience Trial requirement without changing
+the public protocol or accepted history.
+
 [ADR 0018](0018-the-companion-links-a-browser.md) records that the website
 will never hold an account. When the public terminal can send more than once,
 it will be the published Companion linking a browser to a phone: the phone

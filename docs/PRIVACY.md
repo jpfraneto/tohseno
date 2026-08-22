@@ -44,6 +44,23 @@ workspace capability or Builder authority. Private companion commands,
 capability grants, envelopes, snapshots, marketing notes, and provenance never
 enter the Public Node or ordinary canonical lineage.
 
+## Private entitlement and billing
+
+Genesis progress, the trial anchor, successful-day evidence, subscription
+plan/paid-through state, monotonic provider revision, and verified receipt
+digest are private machine state. They are never Shot, Version, public-node,
+registry, token, or contract input.
+Evidence keeps only bounded command/execution/Version links needed for
+idempotency; it contains no intention, source, app name, device name, Apple
+identifier, recovery material, or payment data.
+
+The Companion receives only an encrypted phase, successful-day count, and
+admission booleans. Hosted checkout receives a derived installation binding,
+plan, short expiry, workspace public signing key, and signature. It does not
+receive apps, intentions, source, device names, Apple identifiers, recovery
+words, or local paths. Complete claims, provider payloads, receipts, and
+customer/payment data must never enter access logs.
+
 ## Never on-chain
 
 No contract action or registry head may be constructed from:

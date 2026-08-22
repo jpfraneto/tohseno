@@ -626,6 +626,24 @@ Controls:
 - cache disagreement fails verification and can be repaired without rewriting
   history.
 
+## Billing and entitlement boundary
+
+Threats include local trial-file tampering, duplicated success evidence,
+checkout substitution, forged or stale webhooks, a receipt copied between
+Macs, compromised server signing material, and capability logging.
+
+Controls are a private bounded atomic ledger; distinct-date plus
+command/execution/Version idempotency; admission below every UI; short-lived
+workspace-signed claims; a fixed billing origin; hosted payment pages; bounded
+webhooks with HMAC/timestamp verification; provider-event idempotency; P-256
+server-signed canonical receipts; a release-pinned public key; exact derived
+installation binding; monotonic receipt revisions that reject replay and
+rollback; and fail-closed checkout/refresh when configuration or verification
+is absent. The signing private key is never present in source,
+native/npm artifacts, Studio, or Companion. Rotation requires a new reviewed
+release. The explicit development entitlement is compiled only into debug
+builds and must never be set in a production LaunchAgent.
+
 ## Operational guidance
 
 - Never store Builder, recovery, or installation private keys in a Shot.

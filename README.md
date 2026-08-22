@@ -1,4 +1,16 @@
-# TOHSENO 0.9.0
+# TOHSENO 0.9.9
+
+The intended front door is:
+
+```bash
+npm i -g tohseno
+tohseno
+```
+
+The dependency-free npm package bootstraps a separately verified native
+release; it is not another factory. No-argument startup opens the one product
+surface and walks a fresh Mac through cable, Xcode, Apple signing, Companion
+installation, and secure pairing before the trial clock begins.
 
 Describe an app. TOHSENO makes it and puts it on your iPhone.
 
@@ -35,6 +47,13 @@ The Mac remains the backend: prompts, source, coding harnesses, Xcode, signing,
 installation, and acceptance stay local. Completion means the build, test,
 verification, delivery, and acceptance gates passed — never that a harness
 exited successfully.
+
+One intention gets one implementation harness invocation and, only for a
+concrete code/build failure, at most one targeted repair. Both share a
+60-minute wall-clock harness budget and a 15-minute no-source-progress limit.
+External conditions never invoke repair intelligence. Every terminal execution
+keeps a private State Transition Receipt describing what happened to persistent
+application state. See [ADR 0019](docs/adr/0019-bounded-intent-to-usable-app.md).
 
 That machinery is sophisticated and it is entirely beneath the floor. The
 product is App → Intent → App on your iPhone ([ADR 0016](docs/adr/0016-app-intent-app-on-your-iphone.md)).
@@ -91,6 +110,17 @@ records never enter the public `tohseno-node`.
 - [The Companion app](companion/apple/TohsenoCompanion/README.md)
 - [Companion SDK and conformance fixture](sdk/apple/TohsenoCompanionKit/README.md)
 
+First run is cable-first. TOHSENO builds the existing Companion with the
+detected free or paid Apple development team, installs it with CoreDevice, and
+launches one signed, expiring pairing invitation through the supported URL
+payload. The twelve recovery words are generated and shown only on the iPhone.
+
+The complete product is available during a seven-calendar-day trial. Five
+distinct days on which a Version is accepted, installed, and launched qualify
+the installation for TOHSENO Pro. Qualification locks the next new mutation
+until the person chooses $9.99 monthly or $99 yearly; fewer than five days when
+the clock ends yields no purchase offer. See [ADR 0020](docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md).
+
 ## Administration
 
 Available when you want it; never in the way when you don't.
@@ -110,16 +140,19 @@ The intended installed layout uses a user LaunchAgent and the stable
 
 ## Release status and authority
 
-The repository source targets 0.9.0. The public one-line installer remains
-pinned to immutable 0.8.5 until 0.9.0 artifacts are published and independently
+The repository source targets 0.9.9. Neither `tohseno@0.1.0` nor native 0.9.9
+is claimed published by this source change. The public one-line installer remains
+pinned to immutable 0.8.5 until 0.9.9 artifacts are published and independently
 verified by an authorized owner; no source checkout is installed on user Macs.
-See [current state](docs/STATE.md) and the
-[0.9.0 release runbook](release/V0_9_0_OPERATOR_RUNBOOK.md).
+See [current state](docs/STATE.md), the [0.9.9 readiness runbook](docs/runbooks/V0_9_9_READINESS.md),
+and the [npm publication runbook](docs/runbooks/NPM_0_1_0.md).
 
 `protocol/` remains normative over prose. Historical protocol bytes,
 Builder identities, signatures, and public-node validation remain unchanged.
 
 - [Architecture decisions](docs/adr/README.md)
+- [Current runtime architecture](docs/ARCHITECTURE.md)
+- [Evolution golden path and core-loop smoke test](docs/GOLDEN_PATH.md)
 - [Threat model](docs/THREAT_MODEL.md)
 - [Privacy boundary](docs/PRIVACY.md)
 - [Protocol specification](protocol/SPECIFICATION.md)

@@ -1,2509 +1,1075 @@
-# HISTORICAL MASTER PROMPT — TOHSENO GENESIS CANDIDATE
+# TOHSENO 0.9.9 — Cable Genesis, Earned Pro, and the Real npm Door
 
-> **Superseded implementation input.** This prompt is preserved as historical
-> evidence of the v0.7 build and is not current protocol, contract, or
-> deployment authority. It asks for surfaces later rejected by security review,
-> including `ShotRelations`, public handles, App Store self-claims, and a v0.7
-> mainnet lifecycle. Those instructions must not be executed. Current law lives
-> in `protocol/SPECIFICATION.md` and accepted ADR 0006; no contract generation
-> is active.
+You are Codex operating directly inside the existing `jpfraneto/tohseno` repository on JP’s Mac.
 
-You are Codex operating directly inside the existing `jpfraneto/tohseno` monorepo on JP’s Mac.
-
-Read this prompt completely. Then inspect the entire repository, its Git history, the current working tree, installed tools, existing documentation, current CLI behavior, current Studio behavior, and every relevant source file before changing anything.
+Read this prompt completely. Then inspect the repository, `AGENTS.md`, accepted ADRs, protocol authority, current working tree, recent Git history, release machinery, CLI, Local Workspace Service, Studio, Companion, Apple device gates, installer, website, tests, and documentation before changing anything.
 
 Do not respond with a plan and stop.
 
 Do the work.
 
-Evolve the current system into one integrated **TOHSENO Genesis Candidate** in which the complete lifecycle works:
+The mission is to evolve the current repository into **TOHSENO 0.9.9**, with one complete, coherent path:
 
 ```text
-install TOHSENO
-    ↓
-create a local BuilderID
-    ↓
-take a Shot from one intention
-    ↓
-generate a complete Apple app
-    ↓
-embed the TOHSENO Apple Fascia
-    ↓
-build and install it on an iPhone
-    ↓
-produce a signed, immutable Shot record
-    ↓
-verify it deterministically
-    ↓
-publish its commitment through a neutral registry
-    ↓
-evolve it into the next complete Shot
-    ↓
-verify the lineage locally and publicly
-    ↓
-allow an independent implementation to reproduce the verification
-```
+npm i -g tohseno
+        ↓
+tohseno
+        ↓
+pick up your iPhone
+        ↓
+connect it by cable
+        ↓
+trust this Mac
+        ↓
+enable Developer Mode
+        ↓
+install Xcode if needed
+        ↓
+add your Apple Account to Xcode
+        ↓
+TOHSENO installs Companion on the iPhone
+        ↓
+Mac and iPhone establish their private relationship through the cable
+        ↓
+take your first Shot
+        ↓
+use TOHSENO successfully on five distinct days
+        ↓
+unlock the opportunity to join TOHSENO Pro
+        ↓
+$9.99/month or $99/year
 
-The mission is not to create another roadmap or scatter this work across hypothetical versions.
+The product law remains:
 
-Compress the previously imagined `0.7.0 → 1.0.0` progression into **one coherent repository evolution**.
+App → Intent → App on your iPhone.
 
-The resulting code should be marked:
+The new product law beneath it is:
 
-```text
-0.7.0
-codename: GENESIS
-status: protocol candidate, not canonical release
-```
+The cable is genesis. Five successful days earn Pro.
 
-This is a real production candidate.
+This is not a roadmap exercise. Implement the strongest coherent end-to-end version possible tonight, test it, document it, and leave every external or secret-bearing activation fail-closed with exact owner instructions.
 
-It may deploy experimental infrastructure to Robinhood Chain mainnet and exercise the full lifecycle against it.
+1. Repository authority and operating mode
 
-It must **not** yet:
+Read AGENTS.md first and obey it.
 
-* tag `v1.0.0`;
-* declare an immutable deployment canonical;
-* update the stable public installer;
-* update DEX Screener;
-* announce the protocol;
-* publish the final permanent Arweave Genesis Bundle;
-* open an unrestricted public gas relayer;
-* claim that incomplete or unverified work succeeded.
+The repository already has an explicit hierarchy:
 
-The purpose is to make the whole system live, run it against reality, discover what breaks, and leave exact evidence.
+protocol/ is normative for protocol bytes and validation.
+Accepted ADRs govern architecture.
+Historical prompts and frozen lineage material are not current authority.
+docs/STATE.md describes what actually ships.
 
----
-
-# 1. Operating mode
-
-## Work on the current branch
-
-Do not create a feature branch unless the repository is already on one.
-
-JP works directly on the living system.
-
-Never force-push.
+Do not accidentally treat this file as authorization to alter public protocol bytes, historical records, contract generations, or frozen test vectors.
 
 Before editing:
 
-```sh
 git status --short
 git log -10 --oneline
 cargo metadata --no-deps
-```
 
-Preserve all pre-existing uncommitted work. Never overwrite user changes merely to simplify implementation.
+Preserve unrelated user changes.
+
+Do not:
+
+create or switch branches unless already working on one;
+force-push;
+publish npm automatically;
+create a GitHub release or tag;
+repin the public installer;
+activate production relay, APNs, DNS, contracts, or billing credentials;
+deploy a contract;
+alter historical protocol bytes;
+weaken code signing, Gatekeeper, device trust, capability admission, exact-Version semantics, command durability, or acceptance gates;
+reintroduce the deleted Studio dashboard;
+introduce sudo into the normal installation;
+claim that an external action succeeded when it was not actually verified.
+
+When physical participation is genuinely necessary—unlocking an iPhone, tapping Trust, enabling Developer Mode, signing into Xcode, or completing payment—present one immediate human action and continue all other independent work.
+
+Never request, display, log, or commit private keys, recovery words, Apple credentials, Stripe secrets, npm credentials, or identifying device information unnecessarily.
+
+2. Preserve the architecture that already works
+
+The repository already contains:
+
+the Rust engine and acceptance machinery;
+ShotApplicationService;
+durable command and execution journals;
+detached factory execution;
+the factory lease;
+the persistent Local Workspace Service;
+loopback-only Studio;
+the thin CLI;
+physical-device discovery through CoreDevice/devicectl;
+cable, trust, and Developer Mode detection;
+Xcode toolchain and signing readiness detection;
+free versus paid Apple-team detection;
+the three-app free Personal Team limit;
+signed build, install, launch, and accepted-Version gates;
+the private Companion protocol;
+durable encrypted phone outbox;
+content-blind relay;
+capability-based command admission;
+the Swift Companion SDK;
+the branded Companion app;
+the one human presentation projection;
+release-integrity and lifecycle verification scripts.
+
+Preserve these rails.
+
+In particular:
+
+Studio remains a thin browser projection over the loopback Local Workspace Service.
+The Companion remains a remote control for intent, not a mobile factory.
+CLI, Studio, and Companion continue converging on the same application service.
+The Mac remains authoritative for factory and workspace state.
+Installed Shots remain ordinary independent apps.
+Existing paired devices and persisted private state must remain compatible.
+Exact accepted-Version binding and stale-request refusal remain unchanged.
+The relay remains content-blind.
+No second backend, factory, entitlement authority, or synchronization mechanism may appear accidentally.
+The normal path must not expose Shots, Expressions, Versions, executions, capabilities, harnesses, or protocol language.
+Details may continue exposing bounded technical information deliberately.
+
+If a change adds more normal-path concepts than it removes, reconsider it.
+
+3. Record the product decision
+
+Add an accepted ADR covering the complete 0.9.9 product decision and update docs/STATE.md, README files, runbooks, and relevant comments consistently.
+
+The ADR must establish:
+
+The first Mac ↔ iPhone relationship begins physically through a cable.
+Mac ↔ iPhone QR scanning is removed from the normal genesis path.
+The existing secure invitation, device identity, capability, signing, encryption, revocation, and relay model remains underneath.
+The cable transports or initiates the one-use bootstrap; it does not replace cryptographic identity with USB trust.
+TOHSENO offers the complete product during the trial, not a reduced demo.
+The trial lasts at most seven calendar days.
+Five successful days qualify the person for TOHSENO Pro.
+TOHSENO Pro costs $9.99/month or $99/year.
+TOHSENO Pro and the Apple Developer Program are independent.
+A free Apple Personal Team remains supported for Pro users, subject to Apple’s weekly provisioning and three-installed-app limits.
+The Studio factory, CLI mutations, and Companion mutations lock when entitlement is unavailable.
+Existing work and installed applications are never deleted or remotely disabled by the paywall.
+Billing and entitlement records are private product state, not public TOHSENO protocol objects.
+Existing historical records and already-paired devices are not rewritten.
+
+Do not make the ADR authorize npm publication, release publication, production billing activation, or external infrastructure activation.
+
+4. Cable Genesis
+
+Replace first-run QR pairing with a guided cable-first genesis.
+
+The exact human sequence is:
+
+Pick up your iPhone.
+Connect it to this Mac with a cable.
+Trust this Mac.
+Enable Developer Mode.
+Install Xcode.
+Add your Apple Account to Xcode.
+Install TOHSENO on your iPhone.
+Take your first Shot.
 
-## Work autonomously
+This sequence must feel straightforward, direct, and precise.
 
-Do not stop to ask conceptual questions already answered by this prompt.
+Interaction law
 
-When implementation details are uncertain:
+At every moment, show:
 
-1. inspect the existing code;
-2. inspect the installed tool’s `--help`;
-3. inspect authoritative local or official documentation;
-4. choose the smallest design preserving the invariants;
-5. record the decision in code or an ADR;
-6. continue.
+one instruction;
+one immediate action;
+at most one primary button;
+one way to go back when going back is safe;
+no dashboard;
+no checklist wall;
+no simultaneous collection of decisions;
+no protocol vocabulary;
+no fake completion controls.
 
-If a physical or secret-bearing action genuinely requires JP—Touch ID, plugging in an iPhone, unlocking a signing key, selecting an Apple team, or authorizing a mainnet deployment—emit exactly one imperative sentence describing the immediate action, then continue every other independent task.
+Prefer automatic detection. If TOHSENO can observe that the action succeeded, advance automatically.
 
-Do not expose, print, commit, copy into logs, or request raw private keys or mnemonic words.
+Do not ask “Did you do it?” when the machine can know.
 
-## Do not rewrite working machinery without cause
-
-The present system already has:
-
-* a Rust engine library;
-* a thin CLI frontend;
-* a Studio frontend;
-* an event bus;
-* append-only integer Shots;
-* a filesystem ledger;
-* a coding-harness plugin;
-* generation and repair loops;
-* Apple signing and USB installation;
-* a one-line installer;
-* three machine voices plus harness output.
-
-Preserve those working rails.
-
-Refactor only where the protocol requires a clean boundary.
-
----
-
-# 2. The constitutional center
-
-Encode these principles in code, schemas, tests, documentation, and contracts.
-
-## What TOHSENO is
-
-> TOHSENO is an open protocol for creating and evolving Apple apps from a shared, machine-verifiable structure.
-
-> A Shot is one app, its permanent identity, and its signed history.
-
-> Every Shot belongs to its builder.
-
-> Any compatible factory can understand and continue it.
-
-> One canonical rulebook. No canonical doorway.
-
-> Nodes index. Builders own.
-
-> Intelligence imagines without bounds; machines keep the promises exact.
-
-## What the TOHSENO implementation is
-
-The application, CLI, Studio, node, and services built by JP and Anky, Inc. are the **first entry point** into TOHSENO.
-
-They are not privileged by the protocol.
-
-The contracts must not recognize an official client, server, factory, relayer, node, company, token interface, or website.
-
-The first implementation may be historically first and experientially best.
-
-It must never be technically necessary.
-
-## What is canonical
-
-The canonical objects are:
-
-### The TOHSENO Protocol
-
-**Ownership** — which cryptographic identity has authority over a Shot.
-
-**Signed actions** — explicit commands authorized by that identity, such as creating, evolving, publishing, transferring, pairing a device, claiming a handle, or associating an appcoin.
-
-**Lineage** — the ordered chain connecting every accepted Evolution of the same Shot.
-
-**Public records** — the minimal facts anyone can inspect and independently verify about a Shot.
-
-### The TOHSENO Apple Fascia
-
-The finite connective structure shared by every compatible TOHSENO app.
-
-A TOHSENO app may appear on iPhone, iPad, Apple Vision, or any Apple surface capable of running the resulting application. The Mac is the workshop where Shots are created, built, signed, and materialized.
-
-The app’s purpose may be infinitely expressive.
-
-Its connective tissue must be finite, declared, inspectable, and known.
-
-### The protocol schemas
-
-The exact fields, types, byte encodings, hashing rules, signature formats, and allowed values used by TOHSENO objects.
-
-### The deployed registry contract
-
-A neutral public witness that verifies authorized actions and records the current public state of each Shot.
-
-### The conformance tests
-
-Pure, deterministic checks an application, factory, node, or implementation must pass before truthfully claiming TOHSENO compatibility.
-
----
-
-# 3. Identity model
-
-Implement four separate identity concepts. Never collapse them.
-
-## BuilderID
-
-A BuilderID is the stable public identity that owns and controls Shots.
-
-For the Genesis Candidate, represent it as a deterministic smart-account address on Robinhood Chain:
-
-```text
-eip155:4663:<account-address>
-```
-
-The address remains stable when device keys are added, revoked, or replaced.
-
-A BuilderID is not:
-
-* an Apple ID;
-* a TOHSENO username;
-* an Anky, Inc. account;
-* a Mac;
-* an iPhone;
-* one permanent private key;
-* a passkey relying-party account;
-* a seed phrase;
-* the TOHSENO application.
-
-A BuilderID is the durable center around which replaceable signing authorities are organized.
-
-## Builder DeviceKey
-
-Each authorized physical device has its own P-256 key.
-
-The private key must be generated and retained using Apple’s hardware-backed facilities where available.
-
-The device key authorizes protocol actions.
-
-The BuilderID smart account records which P-256 public keys are currently authorized.
-
-A lost Mac key can be revoked without changing the BuilderID or Shot ownership.
-
-## Recovery Root
-
-Recovery is separate from ordinary signing.
-
-Implement an optional recovery mechanism using established cryptographic standards. Do not invent a new mnemonic format.
-
-For the Genesis Candidate:
-
-* support a BIP-39 mnemonic as one possible recovery mechanism;
-* derive a standard Ethereum secp256k1 recovery authority using a documented BIP-44 path;
-* use that recovery authority only to recover BuilderID control, authorize replacement devices, or revoke compromised devices;
-* never import the mnemonic into generated applications;
-* never store the mnemonic in plaintext;
-* never print it in logs;
-* never regenerate or silently replace it;
-* clearly document the derivation path and domain;
-* permit a BuilderID to begin locally before recovery is exported;
-* warn before public publication when no recovery path has been secured, but do not block private local app creation.
-
-Do not implement Solana or other wallet derivations merely because the same mnemonic could support them. TOHSENO v1 needs only the recovery authority it actually uses.
-
-## InstallationKey
-
-Every generated TOHSENO application creates its own app-specific P-256 InstallationKey on first launch.
-
-This key represents one installation of one app.
-
-It is not automatically connected to:
-
-* the BuilderID;
-* another TOHSENO app;
-* another installation;
-* an Apple ID;
-* a TOHSENO server;
-* a universal user profile.
-
-No username.
-
-No password.
-
-No mandatory account screen.
-
-No global cross-app tracking key.
-
-## Consentful continuity
-
-Create an exact protocol object allowing two installation identities to establish a narrow, explicit relationship.
-
-The default must be unlinkability.
-
-A continuity proof must contain:
-
-* issuer installation public key or installation identifier;
-* intended recipient or audience;
-* originating ShotID;
-* narrowly scoped claims;
-* nonce;
-* expiration;
-* explicit signature.
-
-A continuity proof must not expose:
-
-* a universal human identifier;
-* every app the person uses;
-* the BuilderID unless explicitly required;
-* unrelated local data;
-* unrelated continuity relationships.
-
-Demonstrate this invariant:
-
-> Two independently generated TOHSENO apps can recognize a continuity relationship chosen by the user without usernames, passwords, shared private keys, Apple ID, or an Anky, Inc. identity server—and cannot correlate the person before consent.
-
-This is a core TOHSENO innovation.
-
----
-
-# 4. The user is the center
-
-Make this statement architecturally true.
-
-## Identity is independent of the client
-
-The CLI may create or display a BuilderID.
-
-Studio may visualize it.
-
-The TOHSENO iPhone app may authorize another device.
-
-Another implementation may produce the same action.
-
-No client owns the identity.
-
-## Identity is independent of a particular device
-
-A device is an authorized signer, not the permanent human identity.
-
-## Protocol ownership is independent of Apple ID
-
-Apple ID remains relevant only to Apple-specific functions such as:
-
-* Xcode signing;
-* device installation;
-* App Store publication;
-* optional iCloud services.
-
-Apple ID must never determine TOHSENO ownership or membership.
-
-Rename the existing engine concept currently called `identity` when it actually means Apple signing readiness.
-
-For example:
-
-```text
-engine/src/gates/identity.rs
-```
-
-should become the equivalent of:
-
-```text
-engine/src/gates/apple_signing.rs
-```
-
-Update all symbols and tests accordingly.
-
-## Builder identity is independent of application-user identity
-
-The public BuilderID may say who created and controls a Shot.
-
-It must not automatically reveal who is using an installation of the resulting app.
-
-## Private activity is independent of public provenance
-
-Private by default:
-
-* user prompts;
-* reference images;
-* local application data;
-* unpublished source;
-* private Shots;
-* app usage;
-* continuity links;
-* recovery material;
-* local device inventory.
-
-Public only through an explicit signed action:
-
-* Shot commitment;
-* public lineage head;
-* controller;
-* publication state;
-* source or manifest URI chosen for publication;
-* handle claim;
-* appcoin association;
-* App Store graduation attestation.
-
----
-
-# 5. Meaning of signatures
-
-Encode this division clearly:
-
-```text
-Cryptography proves:
-“This key signed this digest.”
-
-The TOHSENO schemas establish:
-“This digest represents CREATE_SHOT.”
-
-The BuilderID establishes:
-“This key is authorized to act.”
-
-The contract enforces:
-“Therefore this public transition is valid.”
-```
-
-The specification defines meaning.
-
-The schemas define bytes.
-
-The device produces the signature.
-
-The BuilderID defines authority.
-
-The contracts enforce public consequences.
-
-The Rust verifier must reproduce the same judgment locally.
-
-The contract is the public judge.
-
-It is not the author of the language.
-
----
-
-# 6. Target repository architecture
-
-Adapt to existing code rather than following names blindly, but create clean equivalents of this structure:
-
-```text
-tohseno/
-├── MASTER_PROMPT.md
-├── README.md
-├── WHITEPAPER.md
-├── Cargo.toml
-│
-├── protocol/                    # Rust crate + normative protocol material
-│   ├── Cargo.toml
-│   ├── src/
-│   │   ├── builder.rs
-│   │   ├── canonical.rs
-│   │   ├── continuity.rs
-│   │   ├── digest.rs
-│   │   ├── evolution.rs
-│   │   ├── fascia.rs
-│   │   ├── identity.rs
-│   │   ├── record.rs
-│   │   ├── schema.rs
-│   │   ├── signature.rs
-│   │   ├── tree_hash.rs
-│   │   └── lib.rs
-│   ├── schemas/
-│   ├── test-vectors/
-│   ├── SPECIFICATION.md
-│   ├── IMPLEMENTERS.md
-│   └── CONFORMANCE.md
-│
-├── apple-identity/              # tiny Apple-native key bridge
-│   ├── Package.swift
-│   ├── Sources/
-│   └── Tests/
-│
-├── fascia/
-│   └── apple/
-│       ├── FASCIA.json
-│       ├── FASCIA.md
-│       ├── IDENTITY.md
-│       ├── STORAGE.md
-│       ├── CONTINUITY.md
-│       ├── PRIVACY.md
-│       ├── PROVENANCE.md
-│       ├── DISTRIBUTION.md
-│       ├── swift/
-│       └── tests/
-│
-├── contracts/
-│   ├── foundry.toml
-│   ├── src/
-│   │   ├── P256Verifier.sol
-│   │   ├── BuilderAccount.sol
-│   │   ├── BuilderAccountFactory.sol
-│   │   ├── ShotRegistry.sol
-│   │   └── ShotRelations.sol
-│   ├── script/
-│   ├── test/
-│   └── deployments/
-│
-├── node/                        # optional reference indexer + relayer crate
-│
-├── engine/                      # existing local factory engine
-├── cli/                         # existing CLI
-├── studio/                      # existing Studio
-├── genome/                      # instructions for generative intelligence
-├── oneshot/                     # installer
-├── genesis/
-│   ├── SHOT_1_INTENT.md
-│   ├── GENESIS_BUNDLE.md
-│   └── lifecycle/
-│
-├── site/
-│   └── protocol/                # generated single public entry-point page
-│
-├── scripts/
-│   ├── probe-p256.sh
-│   ├── deploy-candidate.sh
-│   ├── lifecycle-local.sh
-│   ├── lifecycle-mainnet.sh
-│   ├── build-genesis-bundle.sh
-│   └── release-candidate.sh
-│
-└── .github/workflows/
-```
-
-Keep dependencies disciplined, pinned, and justified.
-
-Generated applications must continue to have zero third-party runtime dependencies unless a future declared Fascia explicitly permits otherwise.
-
-The TOHSENO tool itself may use carefully chosen cryptographic, canonicalization, RPC, and contract-tooling dependencies.
-
----
-
-# 7. Separate genome from Fascia
-
-This distinction is essential.
-
-## Genome
-
-The existing files such as:
-
-```text
-genome/LAWS.md
-genome/STRUCTURE.md
-genome/TASTE.md
-```
-
-are instructions given to generative intelligence.
-
-They tell the coding agent what to build and how to behave.
-
-They may contain prose, taste, examples, and generative constraints.
-
-## Fascia
-
-The Fascia is deterministic compatibility law.
-
-It must be understandable by a simple program that has no intelligence.
-
-The Fascia must define:
-
-* required files;
-* required interfaces;
-* required identity behavior;
-* local-first persistence behavior;
-* privacy behavior;
-* continuity behavior;
-* provenance embedding;
-* distribution metadata;
-* allowed schema values;
-* capability declarations;
-* hash rules;
-* conformance gates.
-
-A coding model creates the expression.
-
-A deterministic verifier determines whether the result kept its promises.
-
-Do not ask an LLM whether an app conforms.
-
----
-
-# 8. The initial TOHSENO Apple Fascia
-
-Freeze the smallest useful connective structure.
-
-Do not attempt to standardize every possible Apple API.
-
-The Fascia defines the shared organs, not every domain-specific behavior.
-
-Every generated app must contain the equivalent of:
-
-```text
-<generated-project>/
-├── TOHSENO/
-│   ├── shot.json
-│   ├── signature.json
-│   ├── fascia.json
-│   ├── conformance.json
-│   ├── FASCIA.md
-│   ├── IDENTITY.md
-│   ├── STORAGE.md
-│   ├── CONTINUITY.md
-│   ├── PRIVACY.md
-│   ├── PROVENANCE.md
-│   └── DISTRIBUTION.md
-│
-└── <app-source>/
-    └── TohsenoFascia/
-        ├── InstallationIdentity.swift
-        ├── ContinuityEnvelope.swift
-        ├── LocalPersistence.swift
-        ├── Provenance.swift
-        └── TohsenoMetadata.swift
-```
-
-The exact Xcode paths may differ according to the existing generator and target layout, but their meaning must be exact and discoverable.
-
-## Required Fascia behavior
-
-### Application shell
-
-* SwiftUI;
-* iOS 17+ or the repository’s verified minimum;
-* standard Apple project;
-* no external package dependencies by default;
-* useful screen reachable immediately;
-* no mandatory onboarding carousel;
-* no account wall.
-
-### Installation identity
-
-* app-specific P-256 key;
-* created automatically;
-* private key remains device-bound;
-* public identifier derived deterministically from the public key;
-* no central registration required.
-
-### Storage
-
-Default local first:
-
-* SwiftData for durable structured domain state where appropriate;
-* UserDefaults only for small preferences;
-* Keychain for small secrets and persistent key references;
-* Secure Enclave for eligible signing authority;
-* files for exported or document-like content.
-
-CloudKit must be optional and explicitly declared.
-
-No Fascia requirement may make Apple ID mandatory.
-
-### Continuity
-
-* explicit signed envelopes;
-* pairwise or narrowly scoped;
-* no automatic universal correlation;
-* transport-neutral schema;
-* QR and file/deep-link transport can be reference implementations;
-* no dependency on the official TOHSENO app.
-
-### Privacy
-
-* no telemetry by default;
-* no tracking;
-* no silent identity linkage;
-* no upload of prompts, private Shot data, or local app content;
-* all network use must be declared in `fascia.json`.
-
-### Provenance
-
-Embed:
-
-* ShotID;
-* evolution number;
-* evolution commitment;
-* BuilderID or public creator reference where appropriate;
-* Fascia identifier;
-* factory identifier and version;
-* source commit or source commitment;
-* public registry coordinates if published.
-
-Do not embed Builder DeviceKey secrets or user InstallationKey secrets.
-
-### Distribution
-
-Record:
-
-* bundle identifier;
-* `CFBundleVersion`, identical to the integer Shot number;
-* supported Apple surfaces derived from the Xcode project;
-* local, published, or App Store state;
-* optional App Store identifier once explicitly attested.
-
-## Finite capability vocabulary
-
-Define a small machine-readable capability declaration.
-
-Do not pretend to enumerate every future app behavior.
-
-At minimum distinguish:
-
-* local storage;
-* network access;
-* private CloudKit sync;
-* StoreKit;
-* notifications;
-* camera;
-* microphone;
-* location;
-* contacts;
-* health;
-* Bluetooth;
-* other Apple entitlements.
-
-Conformance must compare declared capabilities with actual Info.plist entries and entitlements wherever deterministic inspection is possible.
-
-Undeclared sensitive capabilities are a conformance failure.
-
----
-
-# 9. Protocol record model
-
-The protocol name is timeless:
-
-```json
-{
-  "protocol": "tohseno"
-}
-```
-
-Version the exact machine expressions, not the meaning of the name:
-
-```json
-{
-  "schema": "tohseno.shot/1",
-  "fascia": "tohseno.apple/1"
-}
-```
-
-## ShotID
-
-Generate one cryptographically random 32-byte ShotID when an app is first created.
-
-It never changes.
-
-Do not derive identity from the slug, domain, appcoin, bundle identifier, or TOHSENO server.
-
-## Evolution
-
-Each integer Shot in the existing filesystem ledger becomes one complete Evolution of the protocol Shot.
-
-Preserve:
-
-```text
-Shot number = CFBundleVersion
-```
-
-The first complete generation is Evolution 1.
-
-Evolution 2 points to Evolution 1.
-
-Old shot directories remain immutable.
-
-## Canonical local Shot record
-
-Define a normative schema equivalent to:
-
-```json
-{
-  "protocol": "tohseno",
-  "schema": "tohseno.shot/1",
-  "shot_id": "0x<32-byte-id>",
-  "slug": "tohseno",
-  "builder_id": "eip155:4663:0x<builder-account>",
-  "sequence": 1,
-  "previous": null,
-  "fascia": "tohseno.apple/1",
-  "bundle_id": "com.example.tohseno",
-  "bundle_version": 1,
-  "genesis_input_sha256": "0x...",
-  "source_tree_sha256": "0x...",
-  "fascia_sha256": "0x...",
-  "factory": {
-    "implementation": "jpfraneto/tohseno",
-    "version": "0.7.0",
-    "source_commit": "<git-commit>"
-  },
-  "created_at": "<RFC3339>"
-}
-```
-
-For later Evolutions:
-
-```json
-{
-  "sequence": 2,
-  "previous": "0x<evolution-1-commitment>"
-}
-```
-
-Do not include self-referential hashes.
-
-The Evolution commitment is computed from the canonical record bytes excluding the signature sidecar.
-
-## Signature sidecar
-
-Use an exact signature schema equivalent to:
-
-```json
-{
-  "schema": "tohseno.signature/1",
-  "algorithm": "p256",
-  "digest": "0x...",
-  "public_key": {
-    "x": "0x<32-bytes>",
-    "y": "0x<32-bytes>"
-  },
-  "signature": {
-    "r": "0x<32-bytes>",
-    "s": "0x<32-bytes>"
-  },
-  "low_s": true
-}
-```
-
-Enforce low-`s` in Rust and Solidity.
-
-## Canonicalization
-
-Choose and document one deterministic representation.
-
-For JSON records, implement RFC 8785-compatible canonical JSON or another equivalently precise, cross-language rule.
-
-Provide test vectors showing:
-
-```text
-human-readable object
-canonical bytes
-SHA-256 digest
-P-256 public key
-r
-s
-verification result
-```
-
-Swift, Rust, and Solidity-facing fixtures must agree.
-
-## Source tree commitment
-
-Define a deterministic source-tree hash.
-
-At minimum:
-
-1. enumerate included files;
-2. normalize relative paths to UTF-8 with `/` separators;
-3. exclude build products, signing artifacts, logs, temporary files, `.git`, private prompt material, and user-local secrets;
-4. sort paths lexicographically;
-5. hash each file’s raw bytes;
-6. combine normalized path and content digest through an exact length-prefixed encoding;
-7. hash the resulting stream with SHA-256.
-
-Document every exclusion.
-
-Provide fixtures.
-
-The same source tree must always produce the same commitment on different machines.
-
----
-
-# 10. Pure protocol crate
-
-Add a new Rust crate to the workspace that has no terminal, Studio, RPC, filesystem-global, server, Apple-signing, or harness opinions.
-
-The crate owns only:
-
-* protocol types;
-* schema validation;
-* canonicalization;
-* hashing;
-* P-256 signature formats;
-* low-`s` normalization and validation;
-* Evolution commitments;
-* lineage verification;
-* continuity envelopes;
-* source-tree hashing;
-* public action digest construction;
-* conformance report types;
-* test vectors.
-
-The protocol crate must be usable by another Rust application without importing the TOHSENO engine.
-
-The engine depends on the protocol crate.
-
-The protocol crate must never depend on the engine.
-
----
-
-# 11. Apple device key bridge
-
-The Rust CLI needs a production Apple-native method for generating and using P-256 keys without exporting private material.
-
-Implement a small Swift executable or an equally narrow Security.framework bridge.
-
-It should expose machine-readable commands equivalent to:
-
-```sh
-tohseno-apple-identity create --tag <tag>
-tohseno-apple-identity public --tag <tag>
-tohseno-apple-identity sign --tag <tag> --digest <32-byte-hex>
-tohseno-apple-identity delete --tag <tag>
-```
-
-Requirements:
-
-* use Secure Enclave P-256 where available;
-* store persistent key references through Keychain;
-* return public `x` and `y`;
-* convert Apple’s signature format into exact fixed-width `r` and `s`;
-* never return the private key;
-* never log key material beyond public data;
-* provide a software-backed test backend for CI and machines lacking Secure Enclave support;
-* clearly identify test keys so they can never be mistaken for production authority;
-* package the helper with the release artifact;
-* make the Rust engine discover it relative to the installed binary rather than relying on a global PATH accident.
-
-Generated applications should receive equivalent native Swift source for their separate InstallationKeys.
-
----
-
-# 12. Local BuilderID lifecycle
-
-Add local identity state under a structure equivalent to:
-
-```text
-~/.tohseno/
-└── identity/
-    ├── builder.json
-    ├── recovery.json.enc
-    ├── devices/
-    └── actions/
-```
-
-No private key bytes in these files.
-
-`builder.json` may contain:
-
-* chain ID;
-* BuilderAccountFactory address;
-* predicted BuilderAccount address;
-* BuilderID string;
-* active local device public key;
-* local key tag;
-* deployment status;
-* recovery public address;
-* creation timestamp.
-
-## First launch behavior
-
-Before or during the first `tohseno create`:
-
-1. generate a Mac DeviceKey automatically if none exists;
-2. calculate the deterministic BuilderAccount address using the configured factory;
-3. create the local BuilderID descriptor;
-4. continue app creation without an account screen;
-5. sign the local Shot Genesis after the app passes build, install, and conformance;
-6. keep everything private until the builder explicitly publishes.
-
-The experience should feel like:
-
-```text
-Open TOHSENO.
-Take a Shot.
-Your identity is already there.
-```
-
-## Recovery commands
-
-Implement the equivalent of:
-
-```sh
-tohseno identity show
-tohseno identity backup
-tohseno identity recover
-tohseno identity devices
-tohseno identity authorize
-tohseno identity revoke
-```
-
-Do not overload first-run creation with crypto explanations.
-
-`identity backup` may reveal recovery words only after an explicit local confirmation and must tell the user never to paste them into a website or generated app.
-
-## Pairing protocol
-
-Define a signed pairing request and device authorization schema.
-
-An unauthorized new device creates a key and produces a QR payload containing:
-
-* BuilderID;
-* proposed device public key;
-* requested permissions;
-* challenge;
-* nonce;
-* expiration;
-* network coordinates.
-
-An already authorized device scans or imports it.
-
-Approval means the authorized device signs an exact `AUTHORIZE_DEVICE` action.
-
-No secret moves between devices.
-
-Implement transport-neutral data first.
-
-Provide QR encoding in Studio and the TOHSENO companion app.
-
----
-
-# 13. Engine and ledger integration
-
-Preserve the current append-only filesystem model.
-
-Extend the ledger without mutating finalized historical shot directories.
-
-For new Shots, create before finalization:
-
-```text
-shots/0001/
-├── prompt.md
-├── images/
-├── genome/
-├── previous-src/
-├── src/
-├── artifact/
-├── build.log
-├── harness.log
-├── TASK.md
-├── TOHSENO/
-│   ├── shot.json
-│   ├── signature.json
-│   ├── fascia.json
-│   └── conformance.json
-└── .complete
-```
-
-The order must become:
-
-```text
-reserve Shot
-    ↓
-record user input
-    ↓
-compose genome + Fascia
-    ↓
-generate complete app
-    ↓
-repair until build passes
-    ↓
-verify source anatomy
-    ↓
-build, sign, install, launch
-    ↓
-run full local conformance
-    ↓
-calculate commitments
-    ↓
-sign canonical Shot record
-    ↓
-write protocol sidecars
-    ↓
-finalize immutable Shot
-```
-
-Never finalize a Shot before its protocol record and conformance receipt exist.
-
-A failed Shot remains incomplete and must never become the app’s recognized head.
-
-## Existing apps
-
-Do not mutate old finalized Shot directories.
-
-Add an explicit migration command equivalent to:
-
-```sh
-tohseno adopt <app-name>
-```
-
-Adoption must:
-
-* inspect the latest legacy Shot;
-* create a new complete integer Shot;
-* preserve the prior source as context;
-* create a new protocol identity and signed Evolution;
-* mark its origin as a legacy adoption;
-* never fabricate cryptographic history for old unsigned Shots.
-
----
-
-# 14. CLI evolution
-
-Preserve existing commands and add coherent protocol commands.
-
-The final CLI should support equivalents of:
-
-```sh
-tohseno create <app-name>
-tohseno evolve <app-name>
-tohseno refresh [<app-name>]
-tohseno retire <app-name>
-tohseno list
-tohseno studio
-tohseno doctor
-
-tohseno verify <app-name-or-path>
-tohseno inspect <app-name-or-path>
-tohseno adopt <app-name>
-
-tohseno identity show
-tohseno identity backup
-tohseno identity devices
-tohseno identity authorize
-tohseno identity revoke
-
-tohseno publish <app-name>
-tohseno network status
-tohseno registry show <app-name>
-tohseno handle claim <handle> <app-name>
-tohseno appcoin associate <app-name> <chain-id> <token-address>
-
-tohseno protocol info
-tohseno protocol vectors
-tohseno protocol verify-record <path>
-tohseno page build <app-name>
-```
-
-Group subcommands naturally using Clap rather than creating an incoherent flat namespace.
-
-## Output discipline
-
-Retain:
-
-* `Status`;
-* `Handoff`;
-* `Result`;
-* `HarnessLine`.
-
-A protocol operation should still tell the human one next thing at a time.
-
-Do not dump cryptographic internals into ordinary output.
+When the user must act outside TOHSENO, guide them to the exact place and wait without losing state.
 
 Examples:
 
-```text
-your TOHSENO identity is ready.
-shot 1 is locally verified.
-publishing shot 1…
-shot 1 is witnessed on Robinhood Chain.
-```
+Pick up your iPhone.
+Connect your iPhone to this Mac with a cable.
+Unlock your iPhone and tap Trust.
+On your iPhone, open Settings → Privacy & Security → Developer Mode.
+Turn it on and let your iPhone restart.
+Install Xcode from the App Store, then open it once.
+Open Xcode → Settings → Accounts and add your Apple Account.
+Installing TOHSENO on your iPhone…
+TOHSENO is on your iPhone.
+Take your first Shot.
 
-Detailed identifiers belong in `--json`, `inspect`, and report output.
+The desired user-visible order is canonical. Internally, account for real tool dependencies honestly. For example, if Developer Mode cannot be authoritatively inspected until Xcode/CoreDevice is available, do not falsely claim it is enabled. Advance to the required Xcode action, then return to the deferred verification without exposing implementation complexity.
 
-## Machine-readable mode
+Reuse the existing device gates
 
-Add `--json` or equivalent structured output for protocol commands so other implementations and automation can use the CLI without parsing prose.
+The repository already distinguishes:
 
----
+cable missing;
+trust required;
+Developer Mode required;
+ready physical device.
 
-# 15. Conformance verifier
+Extend and project this machinery rather than creating a second device detector.
 
-`tohseno verify` is a central protocol artifact.
+Use privacy-minimal device information.
 
-It must be deterministic and usable offline for local verification.
+The genesis state must be durable across:
 
-It must never call an LLM.
+Studio refresh;
+Studio closure;
+Local Workspace Service restart;
+Mac restart;
+iPhone restart;
+failed Companion installation;
+interrupted Apple sign-in;
+an already-completed step;
+an already-paired compatible device.
+Install the Companion through the cable
 
-The verifier should check at least:
+The Local Workspace Service must:
 
-## Record integrity
+Detect the attached trusted development iPhone.
+Detect Xcode and Apple-signing readiness.
+Select the appropriate Apple development team using the existing paid/free preference.
+Build the existing branded Companion target for that physical device.
+Sign it with the user’s Apple development identity.
+Install it through the existing safe devicectl boundary.
+Launch it.
+Complete the existing cryptographic pairing/capability ceremony through a one-use cable-originated bootstrap.
+Verify that the Companion and Mac reached the paired state.
+Continue to the first-Shot experience.
 
-* required schemas exist;
-* JSON is valid;
-* canonical bytes reproduce the declared digest;
-* ShotID is valid;
-* BuilderID is valid;
-* sequence is valid;
-* previous commitment matches;
-* source-tree commitment matches;
-* Fascia commitment matches;
-* local DeviceKey signature verifies;
-* signature uses authorized public key according to available identity state;
-* `s` is low;
-* no required field is ambiguous.
+Do not weaken the pairing protocol. Change how the one-use invitation reaches the phone.
 
-## Fascia integrity
+Investigate the installed Xcode/devicectl tooling and official local help before selecting the transport. Prefer a supported local mechanism such as launching the installed Companion with a one-use TOHSENO URL or another bounded CoreDevice-supported payload. Never invent a command-line flag without verifying it.
 
-* required files exist;
-* required Swift types or interfaces exist;
-* required files are part of the Xcode target;
-* no undeclared third-party dependencies;
-* declared capabilities match project settings, entitlements, and Info.plist where inspectable;
-* sensitive capabilities are declared;
-* InstallationKey implementation is app-specific;
-* no Builder recovery secret is embedded;
-* no global TOHSENO user key is embedded;
-* continuity schema is present;
-* provenance metadata is present;
-* storage is local first;
-* network use is declared.
+The one-use bootstrap must remain:
 
-## Apple project integrity
+signed;
+bounded;
+expiring;
+single-use;
+tied to the intended workspace and device;
+free of recovery words, private keys, arbitrary URLs, and filesystem paths;
+invalid after cancellation or completion.
 
-* expected project and target exist;
-* bundle identifier matches the record;
-* `CFBundleVersion` equals Shot sequence;
-* deployment target is acceptable;
-* source builds;
-* signed artifact corresponds to the source Shot where verifiable.
+Preserve the Companion’s twelve-word recoverable device identity behavior. Recovery words remain shown exactly once and must not be copied into Mac logs, URLs, build settings, environment variables, artifacts, relay records, or Studio.
 
-## Public verification
+Remove the camera/QR ceremony from normal Mac ↔ Companion first run. Preserve only QR behavior that is still separately required by an accepted decision, such as browser-linking under ADR 0018. Do not conflate browser ↔ phone linking with Mac ↔ phone genesis.
 
-When `--public` is supplied:
+Existing paired installations must continue working without being forced through genesis again.
 
-* query the configured Robinhood Chain RPC;
-* verify registry code and configured deployment identity;
-* verify the public controller;
-* verify the public head;
-* verify sequence;
-* verify transaction receipt;
-* verify optional handle;
-* verify optional appcoin relation.
+Add focused tests for every state and transition.
 
-## Output
+5. The complete trial experience
 
-Human output:
+The trial begins only after all of the following are true:
 
-```text
-TOHSENO SHOT
+Companion was successfully installed on the physical iPhone;
+Mac and Companion completed secure pairing;
+the Local Workspace Service durably recorded genesis.
 
-✓ record
-✓ signature
-✓ lineage
-✓ Apple Fascia
-✓ source commitment
-✓ project
-✓ privacy boundary
-✓ local-first storage
-✓ public witness
+Before that point, onboarding is not consuming trial time.
 
-CONFORMANT
-```
+The trial gives the person the exact product they would use after paying.
 
-Machine output must include every check, expected value, observed value, and evidence path.
+There is:
 
-A failure must return a non-zero exit code.
+no reduced feature set;
+no separate “trial app”;
+no separate “Pro app”;
+no fake sample factory;
+no watermark;
+no card required upfront.
 
-Conformance tests are executable protocol law, not cosmetic test coverage.
+“What you tried is what you buy.”
 
----
+Trial state
 
-# 16. Smart contracts
+Implement one private, versioned, durable entitlement state machine.
 
-Use Foundry.
+At minimum, it must represent:
 
-Pin all external dependencies to exact commits or versions.
+genesis_incomplete
+trial_active
+trial_qualified
+trial_expired
+pro_monthly
+pro_yearly
+pro_lapsed
 
-Avoid upgradeable proxies.
+Use names appropriate to the codebase, but preserve the semantics.
 
-Avoid founder admin powers.
+The state must survive service and Mac restarts and must be recoverable without rewriting app lineage.
 
-Avoid token custody.
+The canonical authority should live on the Mac within private machine state. Companion receives only the minimal signed private product projection it needs. Do not place subscription state into public protocol records or the public node.
 
-Avoid unnecessary standards and abstractions.
+Do not mutate a frozen Companion schema casually. If a new private versioned entitlement projection or event is required, add the smallest explicit structure with compatibility tests.
 
-## Robinhood Chain candidate configuration
+Successful day
 
-Use:
+A successful day is a distinct local calendar day on which a factory command produces a newly accepted Version that was actually delivered, installed, and launched on the physical iPhone according to the existing acceptance rules.
 
-```text
-chain ID: 4663
-native gas token: ETH
-P256VERIFY: 0x0000000000000000000000000000000000000100
-```
+Consequences:
 
-Implement and test the supplied EIP-7951 semantics:
+Opening Studio does not count.
+Opening Companion does not count.
+Writing an intention does not count.
+A harness exit does not count.
+Generated source does not count.
+A failed build does not count.
+Waiting for a phone does not count.
+Multiple accepted Versions on the same day count as one successful day.
+Create and Evolve are treated equally when they reach accepted delivery.
+Retrying the same durable command cannot count twice.
 
-```text
-input:
-messageDigest || r || s || publicKeyX || publicKeyY
+Record bounded evidence connecting each successful day to an accepted execution/Version without exposing private intention bytes.
 
-five big-endian 32-byte values
-total: 160 bytes
+This product trusts the person. Do not build invasive anti-tamper, surveillance, fingerprinting, or adversarial clock policing. Validate the obvious invariants and keep the implementation local and comprehensible.
 
-success:
-32-byte integer 1
+Trial completion
 
-failure:
-empty bytes
+The trial ends at the first of:
 
-gas:
-6,900 for the precompile
+five successful distinct days; or
+seven calendar days after genesis.
 
-application rule:
-enforce low-s separately
-```
+When the fifth successful day is reached, allow the current accepted operation to finish normally.
 
-Before deployment, run a real `eth_call` probe with a known vector and store the exact request and response as evidence.
+On the next normal entry into Studio or Companion, show the Pro decision instead of the product.
 
-Treat empty output, malformed output, or any value other than exactly 1 as failure.
+Qualified copy:
 
-## P256Verifier
+You made software on five different days.
 
-Implement a minimal library that:
+Continue with TOHSENO Pro.
 
-* checks component lengths;
-* checks low-`s`;
-* performs a static call to `0x100`;
-* validates exact return length and value;
-* never treats non-reverting failure as success.
+Options:
 
-## BuilderAccount
+$9.99 monthly
+$99 yearly
+Not now
 
-Implement a minimal, non-upgradeable smart account.
+The annual option should explain concisely that it saves approximately two months, without sales clutter.
 
-It must:
+If seven days pass without five successful days, lock the factory without offering purchase:
 
-* maintain authorized P-256 DeviceKeys;
-* identify keys by an exact public-key hash;
-* expose ERC-1271 `isValidSignature`;
-* verify the supplied DeviceKey is authorized;
-* verify low-`s`;
-* call P256VERIFY;
-* maintain an independent nonce for device-management actions;
-* add a device through a signed authorization;
-* revoke a device through a signed authorization;
-* support a documented recovery authority;
-* emit complete events;
-* have no privileged Anky, Inc. key;
-* have no official TOHSENO client key.
+Your TOHSENO trial has ended.
 
-Signature encoding must be exact and versioned.
+Everything you made is still here.
 
-A suggested compact encoding is:
+Only people who completed five successful days are qualified to purchase Pro.
 
-```text
-version byte
-publicKeyX: 32 bytes
-publicKeyY: 32 bytes
-r: 32 bytes
-s: 32 bytes
-```
+Do not invent an automatic cancellation. No subscription exists before qualification and conscious purchase.
 
-Document it normatively.
+Add deterministic tests using an injected clock. Never make tests depend on the actual wall clock or sleeping for days.
 
-## BuilderAccountFactory
+Test:
 
-Implement deterministic account creation with CREATE2.
+genesis does not consume a successful day;
+one accepted Version counts;
+failure does not count;
+waiting does not count;
+two acceptances on one day count once;
+acceptance on five distinct days qualifies;
+the fifth day completes the current operation before locking;
+seven-day expiry without qualification does not offer Pro;
+retries are idempotent;
+restart preserves state;
+timezone/day-boundary handling is deterministic;
+existing paired users receive a documented, safe migration policy;
+no Shot or accepted Version is deleted by expiry or lapse.
+6. The hard product boundary
 
-It must expose:
+The entitlement boundary must be enforced below the UI.
 
-```text
-predictAccount(...)
-createAccount(...)
-```
+Do not implement only a JavaScript paywall.
 
-The CLI must be able to compute the BuilderID before account deployment.
+When locked:
 
-The initial account may be deployed lazily at the first public protocol action.
+Studio displays only the appropriate entitlement screen.
+tohseno create refuses before admitting a command.
+tohseno evolve refuses before admitting a command.
+Companion Create/Evolve requests are rejected with one human sentence.
+The application service rejects new factory mutations.
+Existing durable work already admitted before the boundary is resolved according to an explicit, tested rule.
+Read-only integrity, diagnostics, renewal, export, billing recovery, and safe uninstallation remain possible.
+The Local Workspace Service continues running so entitlement can be restored.
+Existing app folders, source, Shots, accepted Versions, journals, identities, pairing state, and installed apps remain intact.
+Generated apps receive no remote kill switch.
+Already-installed apps do not depend on a live TOHSENO subscription to launch.
 
-The factory must not own or control created accounts.
+Choose and document the rule for an operation admitted immediately before qualification/expiry. Prefer the rule implied above: an already-admitted operation may reach its deterministic terminal result, then the factory locks.
 
-## ShotRegistry
+Companion and Studio must describe the same entitlement state in human language.
 
-Implement the smallest neutral public witness.
+7. TOHSENO Pro and Apple membership are separate
 
-It should store only what independent parties need to establish:
+TOHSENO Pro unlocks the factory:
 
-* Shot controller;
-* current Evolution head;
-* integer sequence;
-* public state;
-* optional public content commitment.
+creating apps;
+evolving apps;
+Companion commands;
+continuing to use Studio as a living factory.
 
-Do not store source code, prompts, images, private app data, or the entire manifest.
+Apple’s development membership controls Apple provisioning and distribution.
 
-Support actions equivalent to:
+The existing repository already detects:
 
-```text
-CREATE_SHOT
-APPEND_EVOLUTION
-TRANSFER_SHOT
-SET_PUBLIC_STATE
-```
+free Personal Team;
+paid development team;
+unknown team;
+the three-app free-team wall;
+provisioning expiry from embedded profiles.
 
-Anyone may submit a correctly signed action.
+Preserve and surface that truth simply.
 
-The caller gains no ownership.
+A TOHSENO Pro user with a free Apple Personal Team remains supported.
 
-The registry must ask:
+They may:
 
-> Is this transition authorized by the identity controlling this Shot?
+keep using TOHSENO Pro;
+install up to Apple’s free-device limit;
+replace an already-installed app;
+rebuild and reinstall when the seven-day provisioning expires.
 
-It must never ask:
+They may encounter:
 
-> Did the official TOHSENO server submit it?
+approximately weekly reinstallation;
+at most three active development apps on the device;
+no TestFlight or App Store distribution.
 
-For every action:
+A paid Apple Developer Program membership unlocks the Apple side:
 
-* construct an exact typed digest;
-* include chain ID;
-* include verifying contract;
-* include action type;
-* include ShotID;
-* include current or previous head as appropriate;
-* include expected sequence;
-* include nonce or transition-specific replay protection;
-* include deadline where appropriate;
-* verify through ERC-1271;
-* reject stale heads;
-* reject incorrect sequence;
-* reject replay;
-* emit complete events.
+more concurrent development apps;
+longer-lived development provisioning;
+TestFlight;
+App Store distribution;
+additional Apple capabilities.
 
-EIP-712 may be used for public action encoding. Provide exact Rust and Solidity matching test vectors.
+Do not call it “Apple Pro.”
 
-## ShotRelations
+Do not require the Apple Developer Program to purchase TOHSENO Pro.
 
-Keep human-readable and economic relationships outside the neutral core.
+When the free-team limit or expiry is actually encountered, present one decision:
 
-Implement a separate contract supporting signed relationships equivalent to:
-
-```text
-CLAIM_HANDLE
-RELEASE_HANDLE
-ASSOCIATE_APPCOIN
-REMOVE_APPCOIN
-ATTEST_APP_STORE
-```
-
-A handle is an alias for a ShotID.
-
-The ShotID remains fundamental.
-
-`tohseno.com/anky` is a gateway rendering an alias, not the source of identity.
-
-An appcoin relation stores an explicit chain identifier and token address chosen by the Shot controller.
-
-The existence of a token must never be required to:
-
-* create;
-* own;
-* verify;
-* publish;
-* evolve;
-* transfer;
-* use a Shot.
-
-Do not deploy or modify `$TOHSENO`.
-
-Only associate its exact existing address when supplied through explicit configuration.
-
-Never guess the token address.
-
-## Do not require ERC-4337 for the first proof
-
-Robinhood Chain supports account abstraction, but the essential TOHSENO property can be proven more simply:
-
-```text
-builder signs
-    ↓
-any relayer submits
-    ↓
-BuilderAccount validates
-    ↓
-registry transitions
-```
-
-Implement ERC-1271-compatible relayed actions first.
-
-Architect BuilderAccount so ERC-4337 support can be added without changing Shot identity.
-
-Only implement ERC-4337 in this mission if it is small, demonstrably correct, and does not delay or destabilize the core lifecycle.
-
-Do not introduce a bundler or paymaster dependency merely to sound modern.
-
----
-
-# 17. Reference node and relayer
-
-Add an optional reference node only after the pure protocol, local lifecycle, and contracts work.
-
-A node may:
-
-* validate signed public actions;
-* relay them;
-* pay gas from its own funded operator account;
-* index registry events;
-* resolve Shot records;
-* serve public manifests and static pages;
-* expose health and network status.
-
-A node never owns a Shot because it relayed, stored, indexed, or served it.
-
-## Minimal API
-
-Provide versioned endpoints equivalent to:
-
-```text
-GET  /v1/health
-GET  /v1/network
-GET  /v1/shots/:shot_id
-GET  /v1/handles/:handle
-POST /v1/relay
-```
-
-Use an append-only filesystem data directory for the candidate unless a stronger database is demonstrably necessary.
-
-## Experimental anti-spam policy
-
-The candidate relayer must not initially be open to the whole internet.
-
-Support:
-
-* explicit BuilderID allowlist;
-* action-size limit;
-* signature prevalidation;
-* chain simulation before submission;
-* per-BuilderID quotas;
-* per-action quotas;
-* maximum sponsored gas;
-* idempotency;
-* replay rejection;
-* structured audit logs with no private content.
-
-Do not create a shared ETH deposit pool contract.
-
-A node can pay gas from its own relay account.
-
-A future paymaster or sponsorship market is an extension, not part of Shot validity.
-
----
-
-# 18. Studio evolution
-
-Do not spend this mission redesigning the Studio.
-
-Preserve its current visual system and local-first architecture.
-
-Add functional protocol surfaces:
-
-* BuilderID display;
-* current Mac DeviceKey status;
-* recovery status;
-* device authorization QR;
-* local/private Shot state;
-* conformance state;
-* published state;
-* public registry head;
-* handle;
-* appcoin association;
-* exact transaction links or identifiers;
-* verify button;
-* publish button guarded as experimental;
-* protocol and network status.
-
-Use understandable language.
-
-Do not force users to understand:
-
-* elliptic curves;
-* calldata;
-* ERC-1271;
-* CREATE2;
-* account abstraction;
-* gas sponsorship.
-
-The ordinary interface should say:
-
-```text
-Your identity
-This Mac
-Private
-Verified
-Published
-App Store
-```
-
-Expose raw facts in an advanced inspector.
-
-Studio and CLI must call the same engine and protocol crates.
-
-Studio must not secretly become a second source of truth.
-
----
-
-# 19. Static Shot pages
-
-Implement a deterministic page generator:
-
-```sh
-tohseno page build <app-name>
-```
-
-It should produce a self-contained static directory equivalent to:
-
-```text
-public/<slug>/
-├── index.html
-├── shot.json
-├── fascia.json
-├── icon.png
-└── assets/
-```
-
-The HTML should contain its CSS and minimal JavaScript directly or use adjacent static files with no runtime build requirement.
-
-Show:
-
-* app name;
-* one-line intention;
-* icon;
-* screenshots if public;
-* ShotID;
-* BuilderID or creator label;
-* current Evolution;
-* verification state;
-* source link if public;
-* registry coordinates;
-* handle;
-* appcoin relation;
-* App Store link if attested.
-
-The page must be renderable by any gateway.
-
-Do not encode `tohseno.com` as protocol law.
-
-A gateway maps:
-
-```text
-handle → ShotID → public artifact
-```
-
-The Shot owns the identity.
-
-The domain renders it.
-
-Create a single protocol entry-point site under:
-
-```text
-site/protocol/
-```
-
-It must be capable of becoming `tohseno.com/protocol`, but do not deploy or replace the stable public page in this mission unless an explicit release-candidate environment already exists.
-
----
-
-# 20. TOHSENO as Shot #1
-
-Create:
-
-```text
-genesis/SHOT_1_INTENT.md
-```
-
-This file defines the first TOHSENO Apple app.
-
-Its initial functional purpose is to be an Apple-native protocol companion and entry point, not the protocol itself.
-
-The functional candidate should:
-
-* show the user’s BuilderID;
-* show authorized devices;
-* generate or display its local app identity;
-* scan or import a pairing request;
-* allow an authorized user to approve a new device;
-* make approval feel like a deliberate swipe-right action;
-* sign the exact authorization payload;
-* verify Shot records or QR payloads;
-* show local and public Shot provenance;
-* contain no username/password system;
-* work locally without an Anky, Inc. server;
-* use the same Apple Fascia as every other Shot.
-
-Do not hand-code special protocol privileges for this app.
-
-Create it through the same public factory path available to any app:
-
-```sh
-tohseno create tohseno --prompt-file genesis/SHOT_1_INTENT.md
-```
-
-It must become Shot #1 historically, not constitutionally.
-
-After publication, claim the handle:
-
-```text
-tohseno
-```
-
-only through the same signed relation action available to any other Shot.
-
-Associate `$TOHSENO` only when the exact token coordinates are explicitly configured.
-
-Record creator metadata equivalent to:
-
-```text
-JP / Anky, Inc.
-jpfraneto.eth
-```
-
-as provenance, not permission.
-
-The deployed contracts must not obey `jpfraneto.eth` after deployment merely because it deployed or authored them.
-
-First in history.
-
-Equal under the protocol.
-
----
-
-# 21. Whitepaper and normative documentation
-
-Replace the old root `MASTER_PROMPT.md` with the final repository constitution derived from this work, while preserving the previous file under a clear historical path.
-
-Create a concise `WHITEPAPER.md`.
-
-It must explain the system simply.
-
-Its center is:
-
-> A Shot is an Apple app with a permanent identity, a known anatomy, and a history controlled by its builder.
-
-> TOHSENO is the open protocol that lets any compatible machine create, understand, verify, and continue a Shot.
-
-Include:
-
-* problem;
-* Shot;
-* BuilderID;
-* Apple Fascia;
-* local-first creation;
-* signed Evolutions;
-* neutral public witness;
-* independent factories;
-* nodes;
-* continuity and privacy;
-* conformance;
-* relationship to the first implementation;
-* relationship to `$TOHSENO`;
-* explicit non-goals.
-
-Avoid inflated claims that TOHSENO invented its underlying cryptography.
-
-Say plainly:
-
-> TOHSENO uses established cryptography to create a portable ownership and continuity layer for personal software.
-
-Create normative documents separately from the whitepaper:
-
-```text
-protocol/SPECIFICATION.md
-protocol/IMPLEMENTERS.md
-protocol/CONFORMANCE.md
-```
-
-A stranger should be able to build another implementation without reading engine internals.
-
----
-
-# 22. Genesis Bundle
-
-Create a deterministic build command:
-
-```sh
-scripts/build-genesis-bundle.sh
-```
-
-It should produce:
-
-```text
-dist/genesis/
-├── WHITEPAPER.md
-├── SPECIFICATION.md
-├── IMPLEMENTERS.md
-├── CONFORMANCE.md
-├── FASCIA.json
-├── schemas/
-├── test-vectors/
-├── contracts/
-├── ABI/
-├── DEPLOYMENT.json
-├── SOURCE_COMMIT.txt
-├── FILES.sha256
-└── GENESIS.json
-```
-
-`GENESIS.json` must identify:
-
-* protocol name;
-* candidate version;
-* codename;
-* source commit;
-* Fascia commitment;
-* schema commitments;
-* contract source commitments;
-* test-vector commitment;
-* candidate deployment addresses if deployed;
-* candidate status;
-* creation time;
-* explicit statement that this is not yet the final canonical release.
-
-The bundle must be reproducible from a clean checkout.
-
-Do not upload the final canonical bundle to Arweave in this mission.
-
-Optionally prepare the exact publishing command or an explicitly labeled candidate publication, but never call it final.
-
----
-
-# 23. Installer and release-candidate channel
-
-Preserve the current stable installer behavior.
-
-Add an explicit release-candidate channel without silently replacing stable.
-
-Support an invocation equivalent to:
-
-```sh
-curl -fsSL https://tohseno.com/oneshot.sh | TOHSENO_CHANNEL=genesis bash
-```
-
-or create an equivalent unambiguous candidate installer path.
-
-The candidate release must package:
-
-* `tohseno`;
-* the Apple identity helper;
-* protocol schemas;
-* Fascia material;
-* Studio assets;
-* required metadata;
-* checksums.
-
-The installer must:
-
-* detect macOS and architecture;
-* install under `~/.tohseno/bin`;
-* verify checksums;
-* install the helper;
-* verify both binaries;
-* avoid telemetry;
-* avoid accounts;
-* avoid secrets;
-* leave the stable channel untouched.
-
-Update release automation to support a GitHub prerelease:
-
-```text
-v0.7.0
-```
-
-Do not create that tag until all automated checks pass.
-
-Do not create `v1.0.0`.
-
----
-
-# 24. Contract deployment procedure
-
-Implement a safe deployment script for Robinhood Chain mainnet.
-
-Configuration should come from explicit environment variables or secure Foundry account configuration, not hardcoded secrets.
-
-Use equivalents of:
-
-```text
-ROBINHOOD_RPC_URL
-ETHEREUM_MAINNET_RPC_URL
-TOHSENO_DEPLOYER_ACCOUNT
-TOHSENO_RELAYER_ACCOUNT
-TOHSENO_TOKEN_ADDRESS
-TOHSENO_ALLOW_EXPERIMENTAL_MAINNET
-TOHSENO_ALLOW_APPCOIN_ASSOCIATION
-```
-
-Prefer encrypted local keystores or hardware-backed signers.
-
-Never require a raw private key in shell history.
-
-Before deployment:
-
-1. verify chain ID is exactly `4663`;
-2. probe P256VERIFY at `0x100`;
-3. run all Foundry tests;
-4. run cross-language digest vectors;
-5. simulate deployment;
-6. display expected deployer;
-7. resolve `jpfraneto.eth` through Ethereum mainnet when possible;
-8. require the actual deployment signer to match the intended JP address;
-9. estimate gas;
-10. require the explicit experimental-mainnet guard.
-
-Deploy with an unmistakable codename such as:
-
-```text
-TOHSENO GENESIS CANDIDATE
-```
-
-The candidate contracts must store or emit:
-
-* codename;
-* Genesis candidate bundle hash;
-* source commit;
-* deployment chain;
-* deployment time.
-
-After deployment:
-
-* verify bytecode;
-* write `contracts/deployments/robinhood-mainnet-genesis.json`;
-* write ABI files;
-* record transaction hashes;
-* confirm every address through RPC;
-* rerun the P-256 vector through the deployed path;
-* create a BuilderAccount;
-* register a temporary protocol smoke Shot;
-* append an Evolution;
-* verify controller and head;
-* record all evidence.
-
-Do not declare these candidate addresses eternal.
-
----
-
-# 25. End-to-end lifecycle command
-
-Add a command or script equivalent to:
-
-```sh
-tohseno lifecycle genesis
-```
+Remove one installed app
 
 or:
 
-```sh
-scripts/lifecycle-mainnet.sh
-```
+Use a paid Apple development team
 
-It must execute the system as one observable chain.
+Guide the person through Apple enrollment only when they choose that road. Open Apple’s official enrollment location, preserve state, and wait. On return, re-detect the team rather than trusting a button press.
 
-Use a clean candidate data root so the test does not corrupt JP’s normal local ledger:
+Never claim TOHSENO can purchase, activate, or guarantee Apple membership.
 
-```text
-~/.tohseno-genesis/
-```
+8. Billing and entitlement receipts
 
-The lifecycle is:
+Implement the smallest production-shaped billing boundary that can support:
 
-## Phase A — installation
+$9.99/month;
+$99/year;
+qualified users only;
+subscription activation;
+renewal;
+cancellation at period end;
+lapse;
+restoration;
+customer billing management;
+local entitlement refresh.
 
-* build or obtain the release-candidate artifacts;
-* install through the candidate one-liner rather than running only from `cargo run`;
-* verify binary and helper versions;
-* run `tohseno doctor`.
+Prefer a hosted web checkout initiated from Studio, not payment collection inside the sideloaded Companion.
 
-## Phase B — identity
+Inspect the existing website/server architecture before choosing placement. Do not create a second unrelated web stack if the existing Bun website can host the bounded billing endpoints safely.
 
-* create a local Apple DeviceKey;
-* derive or predict BuilderID;
-* verify no private key was exported;
-* deploy the BuilderAccount lazily or explicitly;
-* verify its code and initial device;
-* create or verify recovery configuration;
-* record public identifiers.
+A viable shape is:
 
-## Phase C — Shot #1
+qualified local installation
+    ↓
+one-use signed checkout claim
+    ↓
+official TOHSENO HTTPS billing endpoint
+    ↓
+hosted checkout
+    ↓
+verified webhook
+    ↓
+server-signed entitlement receipt
+    ↓
+Local Workspace Service verifies receipt
+    ↓
+Studio and Companion unlock
 
-Run:
+The exact implementation may differ if the repository contains a stronger existing identity primitive. Prefer reuse over invention.
 
-```sh
-tohseno create tohseno --prompt-file genesis/SHOT_1_INTENT.md
-```
+Requirements:
 
-Use available brand reference images, capped at the existing eight-image boundary.
+Bind checkout to a privacy-minimal stable TOHSENO installation/Builder identity.
+Do not send app source, intentions, app names, device names, Apple identifiers, or recovery material to billing.
+Use opaque one-use nonces.
+Verify webhook signatures.
+Make webhook processing idempotent.
+Never trust a browser success redirect as proof of payment.
+Represent monthly/yearly plan and validity explicitly.
+Verify entitlement receipts locally using a pinned public verification key or an equivalently strong asymmetric mechanism.
+Do not embed a billing signing secret in the CLI, Studio, npm package, Companion, or repository.
+Store server secrets only through documented environment configuration.
+Fail closed when billing configuration or receipt verification is unavailable.
+Permit a bounded offline grace policy only if explicitly documented and tested.
+Never log complete checkout tokens or payment data.
+Provide a customer-portal path for managing the subscription.
+Preserve access until the paid-through date when cancellation is scheduled for period end.
 
-The harness must produce a complete app.
+If live billing credentials are unavailable, complete the code, schemas, fixtures, local fake provider, webhook tests, configuration validation, and exact activation runbook. Do not fake a production transaction or mark production billing active.
 
-The engine must repair it until it builds.
+Add test-mode flows that cannot be enabled accidentally in release builds.
 
-The app must be signed, installed, and launched on the connected iPhone.
+9. Make npm i -g tohseno the real front door
 
-The generated app must contain the Apple Fascia.
+The public npm package tohseno@0.0.2 currently exists but is functionally empty.
 
-The engine must calculate commitments, sign the Shot record, run conformance, and finalize Evolution 1.
+Create or isolate the npm package at:
 
-## Phase D — local verification
+packages/cli
 
-Run strict verification.
+unless inspection reveals an already-authoritative package location that should be preserved.
 
-Save JSON evidence.
+The npm package is a thin, dependency-free, secure Node.js bootstrap and launcher.
 
-Confirm:
+It does not reimplement the Rust CLI, Local Workspace Service, Studio, Companion protocol, application service, or factory.
 
-* ShotID;
-* BuilderID;
-* source commitment;
-* Fascia commitment;
-* P-256 signature;
-* sequence 1;
-* no previous head;
-* bundle version 1;
-* installation success;
-* privacy boundaries.
+Its job is:
 
-## Phase E — publication
+identify the Mac;
+securely obtain the authorized native TOHSENO release;
+install it into the existing installer-owned layout;
+delegate to the stable native launcher;
+open the existing loopback Studio/onboarding experience.
 
-Create the public artifact bundle.
+The desired fresh-Mac experience is:
 
-Submit the signed public action through:
+npm i -g tohseno
+tohseno
+Reconcile with the current architecture
 
-* a configured candidate relayer; or
-* direct submission by a funded operator account.
+Do not invent a second Tohseno Studio.app architecture merely because a generic installer prompt assumes one.
 
-The messenger must not become owner.
+The current repository defines:
 
-Verify through independent RPC reads:
+a Rust native CLI;
+embedded/static Studio assets;
+a loopback Local Workspace Service;
+a stable launcher under ~/.tohseno/bin/tohseno;
+a user LaunchAgent;
+no-sudo installation.
 
-* Shot exists;
-* controller is BuilderID;
-* sequence is 1;
-* head equals local commitment;
-* public state is correct.
+Preserve that model unless repository inspection proves a deliberate accepted replacement already exists.
 
-## Phase F — handle and appcoin
+The npm package installs and launches the official native TOHSENO release bundle containing the Rust executable and Studio assets.
 
-Claim `tohseno` through the relation contract.
+Do not install into /Applications unless the repository already contains an accepted, signed application-bundle architecture for Studio. Do not add one as scope creep.
 
-Only associate `$TOHSENO` when:
+npm package requirements
 
-* `TOHSENO_TOKEN_ADDRESS` is explicitly present;
-* chain ID is explicit;
-* token code exists;
-* `TOHSENO_ALLOW_APPCOIN_ASSOCIATION=1`.
+Implement using ESM and built-in Node APIs only.
 
-Never infer or guess.
-
-## Phase G — Evolution 2
-
-Run a real evolution prompt adding one small useful feature to the TOHSENO app, such as an advanced record-verification inspector.
-
-The engine must create a full second Shot, not a diff.
+Configure:
 
-Confirm:
+{
+  "name": "tohseno",
+  "version": "0.1.0"
+}
 
-* sequence 2;
-* `CFBundleVersion = 2`;
-* previous equals Evolution 1 commitment;
-* new source commitment;
-* valid DeviceKey signature;
-* conformance;
-* installation;
-* registry append;
-* registry head updated to Evolution 2;
-* Evolution 1 remains immutable.
+Also include:
 
-## Phase H — independent verification
-
-Provide at least one independently implemented verification path.
-
-Acceptable examples:
-
-* Solidity tests recomputing a digest created by Rust;
-* a tiny standalone Swift verifier reading a protocol fixture;
-* a separate minimal executable depending only on the protocol schemas, not the engine.
+a bin mapping from tohseno to the executable entry point;
+files containing only required runtime files;
+Node >=20;
+repository metadata;
+homepage;
+bugs URL;
+license;
+precise description;
+publishConfig.access: "public".
 
-It must verify both Evolutions without consulting the TOHSENO Studio or proprietary server.
+Support:
 
-## Phase I — restart and recovery behavior
+tohseno
+tohseno install
+tohseno open
+tohseno doctor
+tohseno --version
+tohseno --help
 
-* restart Studio;
-* restart CLI;
-* reload local ledger;
-* confirm BuilderID stability;
-* confirm device key stability;
-* confirm Shot lineage;
-* run `refresh`;
-* verify the installed app remains the same Shot;
-* ensure no state depends on a process that was previously running.
+After native installation, preserve existing native commands by delegating unknown commands to the installed Rust launcher.
 
----
+Therefore commands such as these must continue working:
 
-# 26. Testing strategy
-
-JP prefers reality over prolonged staging.
-
-Honor that without confusing production with guesswork.
-
-Tests here are executable laws and evidence.
-
-Run:
-
-```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-```
-
-Run Swift tests and builds.
-
-Run Foundry formatting, compilation, unit tests, fuzz tests, and invariant tests.
-
-At minimum include:
-
-* canonicalization fixtures;
-* malformed schema cases;
-* source-tree hash fixtures;
-* P-256 valid signature;
-* P-256 invalid signature;
-* malformed precompile return;
-* high-`s` rejection;
-* unauthorized device rejection;
-* revoked device rejection;
-* recovery action;
-* wrong chain rejection;
-* wrong registry rejection;
-* expired action rejection;
-* replay rejection;
-* stale previous-head rejection;
-* skipped sequence rejection;
-* caller not becoming owner;
-* relayer substitution success;
-* handle collision;
-* unauthorized appcoin association;
-* Shot transfer;
-* local record verification;
-* public record verification;
-* continuity proof scope;
-* continuity expiry;
-* pairwise unlinkability;
-* generated app Fascia conformance;
-* generated app undeclared capability failure;
-* immutable finalized Shot behavior;
-* legacy adoption behavior.
-
-Use fuzz and invariant tests around contract state transitions.
-
-Do not claim smart-contract safety merely because unit tests pass.
-
-Mark unaudited status honestly.
-
----
-
-# 27. CI
-
-Update GitHub Actions to exercise everything possible without a physical iPhone:
-
-* Rust formatting;
-* Clippy;
-* Rust tests;
-* schema generation and clean-diff check;
-* protocol test vectors;
-* Swift helper build and software-backend tests;
-* Foundry build and tests;
-* static Studio checks;
-* installer shell checks;
-* release package assembly;
-* Genesis Bundle reproducibility;
-* candidate binary smoke tests;
-* generated fixture app simulator build where possible.
-
-Keep the real-device lifecycle as an explicit local production gate.
-
-CI must fail if generated schemas, test vectors, ABIs, or bundle checksums are stale.
-
----
-
-# 28. Security boundaries
-
-Never compromise these for convenience.
-
-## No secret reuse across generated apps
-
-Do not derive every InstallationKey from the Builder recovery mnemonic.
-
-Do not inject the Builder DeviceKey into generated apps.
-
-Do not share one universal app identity.
-
-Each installation creates its own key.
-
-## No official-server dependency
-
-Local creation, signing, verification, evolution, installation, and use must work without an Anky, Inc. server.
-
-Publication may use a replaceable relayer.
-
-## No Apple ID protocol dependency
-
-Apple ID may be necessary for Apple signing.
-
-It is never required for TOHSENO identity.
-
-## No invisible publication
-
-A local Shot is private.
-
-Publishing is an explicit signed transition.
-
-## No privileged registry caller
-
-Any address may relay a valid action.
-
-## No hidden mutability
-
-Candidate contracts are non-upgradeable.
-
-A corrected protocol candidate requires a new deployment.
-
-## No token dependency
-
-The protocol remains valid without `$TOHSENO`.
-
-## No invented success
-
-If the real iPhone is absent, say the device gate was not completed.
-
-If deployment credentials are absent, say contracts were not deployed.
-
-If the token address is absent, leave the appcoin relation pending.
-
-If GitHub authentication is absent, leave the release command prepared.
-
-Never synthesize transaction hashes, addresses, signatures, releases, screenshots, or lifecycle evidence.
-
----
-
-# 29. Public and private states
-
-Represent state explicitly.
-
-## Private local Shot
-
-* exists in the filesystem;
-* has BuilderID;
-* has signed lineage;
-* has Fascia;
-* can be verified;
-* has no necessary public record.
-
-## Published Shot
-
-* builder signed an explicit publication;
-* registry records the public head;
-* nodes may index or mirror declared public artifacts;
-* private app data remains private.
-
-## App Store Shot
-
-* builder signed an App Store attestation;
-* record connects ShotID, bundle identifier, store identifier, and Evolution;
-* App Store distribution does not replace Shot identity.
-
-Do not make the registry the creator of a Shot.
-
-The registry witnesses a Shot that already exists.
-
----
-
-# 30. Update the core product experience
-
-After this evolution, the ordinary loop remains extremely small:
-
-```sh
-curl -fsSL https://tohseno.com/oneshot.sh | bash
 tohseno create my-app
-```
+tohseno evolve my-app
+tohseno studio
+tohseno service status
+tohseno companion devices
 
-The user describes an app.
+Avoid recursive self-invocation. Resolve the native launcher by its explicit trusted installation path.
 
-TOHSENO creates it.
+No-argument behavior
 
-The identity layer should appear as infrastructure, not homework.
+tohseno with no arguments must:
 
-The full conceptual lifecycle is present even when the ordinary user only sees:
+reject non-macOS systems clearly;
+detect arm64 versus x86_64;
+determine whether the authorized native release is installed;
+verify the installed release metadata;
+install or update when required;
+ensure the Local Workspace Service is installed and healthy;
+open Studio;
+enter cable genesis when genesis is incomplete;
+otherwise enter the trial, Pro, or locked product surface.
 
-```text
-taking shot 1…
-building…
-installing…
-shot 1 is on your phone.
-```
+Keep output concise and human:
 
-Protocol complexity belongs beneath the surface.
+Installing TOHSENO…
+Starting TOHSENO…
+Opening TOHSENO…
 
-Advanced users and implementers can inspect every byte.
+Do not expose internal installation vocabulary unless something fails.
 
----
+Official release manifest
 
-# 31. Production-candidate release procedure
+Do not embed arbitrary artifact URLs in npm source.
 
-After all automated checks and the local lifecycle pass:
+Fetch a small HTTPS release manifest from an official TOHSENO origin.
 
-1. update the workspace version to `0.7.0`;
-2. update README and candidate documentation;
-3. generate schemas, vectors, ABIs, deployment files, and Genesis Bundle;
-4. ensure `git diff` contains no generated drift or secrets;
-5. commit coherent work with clear messages;
-6. push the current branch to `origin`;
-7. create `v0.7.0` only if the complete candidate checks pass;
-8. mark the GitHub release as a prerelease;
-9. test the candidate installer from the released artifact;
-10. repeat the complete lifecycle using that artifact rather than the local build;
-11. record evidence;
-12. leave the stable channel and `v1.0.0` untouched.
+Design, version, validate, test, and document its JSON schema.
 
-Do not announce success merely because the code reached `main`.
+It must include:
 
-The acceptance gate is the released candidate performing the lifecycle.
+schema version;
+native release version;
+minimum compatible npm CLI version;
+artifact URL for each supported architecture;
+exact artifact byte size;
+SHA-256 digest;
+expected file/layout version;
+expected signing identity information where applicable.
 
----
+Use an allowlist of exact HTTPS origins and hosts.
 
-# 32. Required evidence report
+Reject:
 
-Create:
+HTTP;
+credentials in URLs;
+unexpected ports;
+unapproved hosts;
+redirects to unapproved hosts;
+malformed manifests;
+duplicate architecture entries;
+unsupported architecture;
+oversized manifest or artifact;
+missing digest;
+noncanonical digest;
+incompatible versions.
 
-```text
-genesis/lifecycle/GENESIS_CANDIDATE_REPORT.md
-```
+Download into a securely created temporary directory.
 
-Also create a machine-readable JSON report.
+Verify:
 
-Include:
+exact byte size;
+exact SHA-256;
+archive shape;
+no path traversal;
+no symlink escape;
+expected native launcher;
+expected release metadata;
+existing repository release-integrity/signature mechanisms.
 
-* start and end timestamps;
-* operating system;
-* architecture;
-* Xcode version;
-* Rust version;
-* Swift version;
-* Foundry version;
-* Git source commit;
-* release-candidate version;
-* installed artifact checksums;
-* BuilderID;
-* public device-key fingerprint;
-* recovery status without secrets;
-* contract addresses;
-* deployment transaction hashes;
-* contract bytecode hashes;
-* P256VERIFY probe input and output;
-* ShotID;
-* Evolution 1 commitment;
-* Evolution 2 commitment;
-* source-tree commitments;
-* Fascia commitment;
-* conformance outputs;
-* iPhone device model without unnecessary personal identifiers;
-* installation and launch result;
-* registry reads;
-* handle claim;
-* appcoin relation or exact reason pending;
-* independent-verifier output;
-* release URL or exact reason not created;
-* every command executed;
-* every remaining blocker;
-* explicit statement of whether the candidate is ready for cleanup;
-* explicit statement that it is not yet the canonical shipped protocol.
+Use the repository’s current release-package integrity model rather than inventing a weaker parallel verifier.
 
-The report must distinguish:
+If the native release is delivered as a notarized macOS application or package, additionally use the appropriate existing macOS verification:
 
-```text
-implemented
-automatically verified
-manually observed
-deployed
-not completed
-```
+codesign --verify --deep --strict
+spctl --assess --type execute --verbose
 
----
+Verify the expected Team ID/designated requirement when applicable.
 
-# 33. Definition of done
+If the release is currently a signed archive rather than an application bundle, verify it according to the repository’s authoritative release package and activation policy. Do not pretend spctl meaningfully verifies an artifact type it does not assess.
 
-This mission is complete only when the repository can demonstrate all of the following:
+Never:
 
-## Factory
+bypass Gatekeeper;
+remove quarantine attributes;
+invoke sudo;
+execute an unverified download;
+trust npm-package integrity as a substitute for native-release verification;
+install from a source checkout;
+follow an arbitrary manifest URL from an environment variable in production mode.
 
-* the one-line installer works through the candidate channel;
-* `tohseno create` accepts one intention;
-* the harness generates a complete Apple app;
-* build repair works;
-* the app installs and launches on a connected iPhone;
-* `tohseno evolve` creates a second complete world.
+Install into the repository’s existing safe user-owned layout, preserving rollback and installer ownership.
 
-## Identity
+Doctor
 
-* a Mac receives a hardware-backed P-256 DeviceKey;
-* a deterministic BuilderID exists;
-* the private device key never leaves Apple key storage;
-* device authorization and revocation schemas exist;
-* recovery exists or is honestly marked pending;
-* Apple ID is not the protocol identity.
+tohseno doctor should report, without unnecessary identifiers:
 
-## Fascia
+macOS version;
+architecture;
+Node version;
+native TOHSENO installation/version;
+release-manifest compatibility;
+Local Workspace Service installation and health;
+Xcode installation;
+Xcode command-line tools;
+Apple-signing readiness;
+free/paid/unknown provisioning category when detectable;
+whether a physical iPhone is visible;
+cable/trust/Developer Mode readiness in human terms;
+Companion installation/pairing state;
+trial/qualification/Pro state without payment details or secrets.
 
-* every new app contains the same finite connective structure;
-* InstallationKey exists automatically;
-* storage is local first;
-* continuity is explicit;
-* privacy separation is enforced;
-* provenance is embedded;
-* conformance is deterministic.
+Doctor is diagnostic. It must not mutate device trust, install software, start checkout, expose recovery words, print full device identifiers, or dump private paths unnecessarily.
 
-## Shot
+npm tests
 
-* ShotID remains stable across Evolutions;
-* sequence equals `CFBundleVersion`;
-* each Evolution is a complete source world;
-* previous commitments form valid lineage;
-* records are signed;
-* finalized Shots remain immutable.
+Add unit tests for:
 
-## Public protocol
+command parsing;
+no-argument routing;
+platform rejection;
+architecture selection;
+semantic version comparison;
+manifest validation;
+minimum CLI enforcement;
+hostname allowlist;
+redirect rejection;
+byte-size enforcement;
+SHA-256 verification;
+archive path safety;
+installed-native detection;
+delegation without recursion;
+readable failures;
+redaction of sensitive values.
 
-* experimental BuilderAccountFactory is deployed;
-* experimental BuilderAccount is created;
-* P-256 validation works through the chain precompile;
-* experimental ShotRegistry is deployed;
-* anyone can relay valid signed actions;
-* caller does not gain ownership;
-* Evolution 1 is registered;
-* Evolution 2 updates the head;
-* independent RPC reads confirm public state.
+Add an isolated integration test that:
 
-## Replaceability
+runs npm pack;
+installs the tarball into a temporary npm prefix;
+proves the tohseno executable exists;
+proves tohseno --version succeeds;
+proves tohseno --help succeeds;
+does not modify the developer’s global npm installation;
+performs no network download or native installation.
 
-* another implementation can parse the schemas;
-* test vectors exist;
-* a second verifier validates the records;
-* no official TOHSENO server or app is required;
-* contracts contain no privileged official-client path.
+Ensure npm pack --dry-run contains no:
 
-## Genesis
+repository secrets;
+fixtures unrelated to the npm runtime;
+signing material;
+release authority material;
+private test data;
+.env files;
+source checkout;
+native binaries not intentionally shipped;
+user paths;
+unrelated repository files.
+npm release documentation
 
-* the TOHSENO app is created through the same factory as every other app;
-* it is Shot #1 historically;
-* it receives no protocol privilege;
-* `tohseno` handle is claimed through the normal relation;
-* `$TOHSENO` is associated only through an explicit controller action and exact configured token address.
+Add exact manual instructions for publishing tohseno@0.1.0:
 
-## Release discipline
+authenticate with npm;
+verify package ownership;
+verify the existing 0.0.2 package and dist-tags;
+run unit and isolated integration tests;
+inspect npm pack --dry-run;
+inspect the actual tarball;
+publish with provenance where supported;
+verify the registry metadata;
+install from npm into a genuinely clean temporary prefix;
+test tohseno --help and tohseno --version;
+test the native download only after an authorized native release manifest exists.
 
-* code is on the intended Git branch;
-* candidate release can be installed;
-* production-candidate lifecycle was exercised;
-* stable release remains untouched;
-* final Arweave publication remains pending;
-* the evidence report is complete.
+Do not publish automatically.
 
----
+Do not change the live npm dist-tag.
 
-# 34. Final execution instruction
+10. Studio experience
 
-Begin by inspecting the repository and preserving working behavior.
+Studio remains four conceptual surfaces at most, but genesis and entitlement may replace the normal surface when applicable.
 
-Then implement the system end to end.
+Routing priority:
 
-Do not stop after creating types, schemas, contracts, or documentation.
+genesis incomplete
+    → cable genesis
 
-Do not stop after unit tests.
+genesis complete + trial active
+    → Your Apps / Create / Evolve
 
-Do not stop after deploying contracts.
+trial qualified or Pro lapsed
+    → Pro decision
 
-Do not stop after generating an app.
+trial expired without qualification
+    → preserved-work trial-ended screen
 
-The mission is the closed loop:
+active Pro
+    → Your Apps / Create / Evolve
 
-```text
-intention
-→ app
-→ Fascia
-→ signed Shot
-→ deterministic verification
-→ public witness
-→ Evolution
-→ independent verification
-```
+Do not render the normal factory behind a dismissible modal. The entitlement screen is the product surface while locked.
 
-Fix every failure you can fix autonomously.
+Do not expose a permanent “Connect iPhone” QR action as the normal first-device path.
 
-When a human action is unavoidable, emit one exact handoff and continue all independent work.
+Settings may retain:
 
-At the end, return only:
+connected iPhone summary;
+revoke;
+diagnostics;
+reconnect/replace through an explicit cable flow;
+Apple provisioning status;
+subscription management when appropriate.
 
-1. what changed;
-2. what was actually executed;
-3. what passed;
-4. what failed;
-5. commit and release identifiers;
-6. deployed addresses and transaction hashes;
-7. ShotID and Evolution commitments;
-8. the path to `GENESIS_CANDIDATE_REPORT.md`;
-9. the single next action required before canonical shipment.
+Maintain:
 
-The result should make this statement mechanically true:
+loopback binding;
+Host validation;
+same-origin mutations;
+CSRF protection;
+strict CSP;
+text-only safe rendering;
+bounded assets;
+event-stream refresh;
+no permissive CORS.
 
-> A person can install TOHSENO, take a Shot, own its identity, verify its anatomy, publish its lineage, continue it through any compatible factory, and survive the disappearance of the first doorway.
+Enforce genesis and entitlement server-side.
+
+11. Companion experience
+
+The Companion remains the same app before and after payment.
+
+Add only the smallest product states required:
+
+cable bootstrap / recovery words
+Your Apps
+one app
+entitlement decision
+trial ended
+
+Do not add:
+
+account dashboards;
+billing history;
+Apple enrollment inside the phone;
+source browsing;
+build logs;
+model selection;
+protocol terminology;
+chat;
+a second factory.
+
+On entitlement lock, the Companion may open the trusted TOHSENO billing continuation on the Mac or explain in one sentence that Pro is completed on the Mac. Do not collect payment directly inside the sideloaded Companion for 0.9.9.
+
+The existing durable outbox must not accept new evolution commands after the entitlement boundary. Commands already durably accepted before the boundary follow the documented in-flight rule.
+
+Existing offline/reconciliation behavior must remain correct.
+
+12. CLI behavior
+
+Preserve all existing scriptable forms.
+
+The native CLI should gain a useful no-argument entry point if it does not already have one:
+
+tohseno
+
+Its behavior after npm delegation is:
+
+ensure service health;
+open Studio;
+route Studio to genesis, trial, paywall, or normal use.
+
+Add explicit structured entitlement inspection only if useful for tests or administration, for example:
+
+tohseno entitlement status
+tohseno entitlement refresh
+
+Do not expose developer-only trial mutation commands in release builds.
+
+Test-only time/state controls must require the repository’s existing isolated verification mode or equivalent safe compile-time/debug gating.
+
+JSON output must remain stable and must not mix human progress into stdout.
+
+13. Migration
+
+Define and test migration for existing 0.9.0 users.
+
+Requirements:
+
+never erase pairing state;
+never erase identity;
+never erase workspace data;
+never reset an already-running factory silently;
+never fabricate successful trial days from app count alone;
+never lock JP out of a development checkout without an explicit safe development policy;
+existing paired Companion installations continue functioning;
+an existing user receives a deterministic trial anchor or explicit grandfathered development entitlement according to a documented rule;
+release builds cannot accidentally inherit test/grandfather flags.
+
+Choose the smallest honest migration and record it in the ADR and docs/STATE.md.
+
+14. Verification
+
+Start by running the relevant focused tests before editing so existing failures are distinguished from regressions.
+
+After implementation, run the repository’s declared suite from AGENTS.md:
+
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+cargo test --locked --workspace --all-targets --all-features
+swift build --package-path apple-identity
+swift test --package-path apple-identity
+swift test --package-path fascia/apple
+swift test --package-path sdk/apple/TohsenoCompanionKit
+swift test --package-path companion/apple/TohsenoCompanion
+forge build --root contracts
+forge test --root contracts -vvv
+node --test studio/tests/static_assets.test.mjs
+(cd website && bun run typecheck && bun test)
+./scripts/test-ontology-lifecycle.sh
+./scripts/test-local-companion-e2e.sh
+./scripts/test-macos-service-lifecycle.sh
+
+Also add and run:
+
+cable-genesis state-machine tests;
+Companion bootstrap tests;
+device-gate projection tests;
+genesis restart/recovery tests;
+trial clock tests;
+successful-day/idempotency tests;
+entitlement-admission tests;
+Studio paywall tests;
+Companion paywall tests;
+billing receipt verification tests;
+webhook idempotency tests;
+npm CLI unit tests;
+npm pack/install integration test;
+package-content audit;
+release-manifest validation tests;
+a focused 0.9.9 local golden-path script.
+
+The golden path should prove as much as possible without real secrets or a physical phone:
+
+fresh isolated installation
+→ service starts
+→ genesis begins
+→ simulated cable states advance one action at a time
+→ Companion installation/pairing fixture completes
+→ trial begins
+→ accepted versions on five distinct injected days qualify
+→ next entry locks
+→ verified test entitlement unlocks
+→ lapse locks again
+→ all workspace and accepted records remain
+
+When a physical iPhone is available, provide one exact smoke command or runbook that exercises:
+
+cable
+→ Trust
+→ Developer Mode
+→ free Personal Team
+→ Companion build/sign/install/launch
+→ cryptographic pairing
+→ first Shot
+
+Do not make the automated suite require JP’s real phone, Keychain, LaunchAgent, global npm prefix, production relay, or billing credentials.
+
+15. Documentation and release truth
+
+Update consistently:
+
+root README;
+docs/STATE.md;
+ADR index;
+Studio README;
+CLI README;
+Companion README;
+SDK documentation if bootstrap behavior changes;
+installer/release documentation;
+0.9.9 readiness/runbook;
+npm package README;
+billing activation runbook;
+trial and entitlement privacy documentation;
+threat model where the new billing/entitlement boundary matters.
+
+Clearly distinguish:
+
+repository source targets;
+npm bootstrap package version 0.1.0;
+native TOHSENO product version 0.9.9;
+currently published native release;
+currently authorized installer pin;
+currently active billing state;
+currently active relay/APNs state.
+
+Do not claim 0.9.9 is publicly available merely because source code targets it.
+
+Do not overwrite the historical root EVOLUTIONARY_PROMPT.md semantics without first reconciling its current historical status. This file is execution input, not protocol authority. Once the implementation is complete, move or preserve it according to repository documentation conventions without allowing it to supersede protocol/ or accepted ADRs.
+
+16. Definition of done
+
+This mission is complete when:
+
+A fresh Mac can install the npm package in isolation.
+tohseno is a real executable.
+The npm bootstrap securely installs or locates the authorized native release.
+The native service opens Studio.
+First run is a durable cable-first journey.
+Every onboarding screen asks for one immediate action.
+Xcode, Apple Account, cable, Trust, Developer Mode, signing, Companion installation, and pairing are detected honestly.
+Companion installation uses the user’s free or paid Apple development team.
+Mac and iPhone establish the existing secure relationship without normal-path QR scanning.
+Trial begins only after verified Companion genesis.
+The complete factory works during the trial.
+Accepted physical-device results count at most once per calendar day.
+Five successful days qualify the person for Pro.
+Seven elapsed days without qualification end the trial without a purchase offer.
+Studio, CLI mutations, application-service mutations, and Companion mutations enforce the entitlement below the UI.
+Qualified users see $9.99/month and $99/year.
+Verified entitlement activation unlocks the same product.
+Subscription lapse locks it again without deleting anything.
+Free Apple Personal Team remains supported for Pro users.
+The existing three-app limit and weekly provisioning reality remain honest.
+Installed generated apps contain no subscription kill switch.
+Existing pairings and workspaces migrate safely.
+Public protocol, contracts, frozen history, and release authority remain unchanged.
+Relevant focused tests and the full declared verification suite pass.
+npm package publication remains a documented manual owner action.
+External activation blockers are listed exactly and no unavailable external success is fabricated.
+17. Final report
+
+At the end, report:
+
+the product behavior now implemented;
+the exact architecture chosen for cable bootstrap;
+how recovery words remain safe;
+the trial and successful-day authority;
+where entitlement is enforced;
+how monthly/yearly billing is represented;
+what is real versus still configuration-gated;
+how free and paid Apple teams behave;
+the npm package structure;
+the release-manifest and verification design;
+migration behavior;
+every test run and its result;
+any physical or secret-bearing action JP must perform;
+exact manual commands to publish tohseno@0.1.0;
+exact command to run the physical-iPhone 0.9.9 smoke path.
+
+Do not end with merely a proposal.
+
+Build the coherent system.
