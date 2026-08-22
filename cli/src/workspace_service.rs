@@ -27,8 +27,8 @@ use std::time::Duration;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tohseno_application::{
-    ApplicationError, CommandJournal, CommandOrigin, CreateShotCommand, EvolveShotCommand,
-    JournalError, ReferenceInput, ShotApplicationService,
+    ApplicationError, CommandJournal, CommandOrigin, CreateShotCommand, EntitlementStore,
+    EvolveShotCommand, JournalError, ReferenceInput, ShotApplicationService, SubscriptionPlan,
 };
 use tohseno_engine::shot_execution::{load_completion, load_execution};
 use tohseno_engine::{
@@ -38,6 +38,10 @@ use tohseno_engine::{
 use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
 use uuid::Uuid;
 
+use crate::cable_genesis::{
+    build_and_install_companion, launch_companion_bootstrap, project as project_genesis,
+    CableGenesisStore, CableGenesisView, CompanionInstallState, GenesisObservation,
+};
 use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
 use crate::service_commands::ServicePaths;
 use crate::workspace_identity::{KeychainSecretStore, SecretStore, WorkspaceIdentity};
@@ -79,6 +83,12 @@ struct WorkspaceState {
     companion: Arc<CompanionCoordinator>,
     events: EventBus,
     event_cursor: Arc<AtomicU64>,
+    genesis: CableGenesisStore,
+    entitlement: EntitlementStore,
+    service_root: PathBuf,
+    companion_project: PathBuf,
+    workspace_identity: Arc<WorkspaceIdentity>,
+    billing_verification_key: PathBuf,
 }
 
 #[derive(Debug)]
@@ -134,6 +144,14 @@ impl ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             code: "local_service_error",
             message: error.to_string(),
+        }
+    }
+
+    fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            code: "service_unavailable",
+            message: message.into(),
         }
     }
 }
@@ -212,6 +230,12 @@ impl ApiOrigin {
 #[serde(deny_unknown_fields)]
 struct EmptyRequest {}
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BillingRequest {
+    plan: SubscriptionPlan,
+}
+
 #[derive(Debug, Serialize)]
 struct HealthResponse {
     schema: &'static str,
@@ -248,12 +272,19 @@ pub async fn run_with(
     )?);
     let engine = Engine::discover(events.clone())?;
     let journal = CommandJournal::open(&paths.service_state)?;
+    let entitlement = EntitlementStore::open(paths.service_state.clone())?;
+    #[cfg(debug_assertions)]
+    if std::env::var("TOHSENO_DEVELOPMENT_ENTITLEMENT").as_deref() == Ok("1") {
+        entitlement.grant_development_at(OffsetDateTime::now_utc())?;
+    }
+    let genesis = CableGenesisStore::open(&paths.service_state)?;
     let application = ShotApplicationService::new(
         engine,
         journal,
         events.clone(),
         workspace.record.workspace_id.clone(),
-    );
+    )
+    .with_entitlement(entitlement.clone());
     // Commands are durable before their semantic effects begin. Reconcile
     // interrupted admissions before accepting new HTTP or companion work so a
     // service restart cannot strand received, validated, accepted, or running
@@ -264,6 +295,14 @@ pub async fn run_with(
         workspace.clone(),
         application.clone(),
     )?);
+    // A pre-0.9.9 paired installation keeps its identity and capability. Its
+    // first 0.9.9 service observation becomes a deterministic trial anchor;
+    // existing app count never fabricates successful days.
+    if entitlement.state()?.phase == tohseno_application::EntitlementPhase::GenesisIncomplete
+        && companion.devices()?.iter().any(|device| !device.revoked)
+    {
+        entitlement.migrate_existing_pairing_now()?;
+    }
     let requested_port = port
         .or_else(|| {
             std::env::var("TOHSENO_SERVICE_PORT")
@@ -294,12 +333,46 @@ pub async fn run_with(
         csrf_token,
     };
     publish_runtime(&paths.service_state, &runtime)?;
+    let companion_project = paths
+        .install_root
+        .join("current/share/companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj");
+    let billing_verification_key = paths
+        .install_root
+        .join("current/share/billing/verification-key-p256.txt");
+    #[cfg(debug_assertions)]
+    let development_repository_root = (std::env::var("TOHSENO_DEVELOPMENT_SERVICE").as_deref()
+        == Ok("1"))
+    .then(|| {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or("CLI source path has no repository root")
+    })
+    .transpose()?;
+    #[cfg(debug_assertions)]
+    let companion_project = development_repository_root
+        .as_ref()
+        .filter(|_| !companion_project.is_file())
+        .map(|root| root.join("companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj"))
+        .unwrap_or(companion_project);
+    #[cfg(debug_assertions)]
+    let billing_verification_key = development_repository_root
+        .as_ref()
+        .filter(|_| !billing_verification_key.is_file())
+        .map(|root| root.join("billing/verification-key-p256.txt"))
+        .unwrap_or(billing_verification_key);
     let state = Arc::new(WorkspaceState {
         runtime: runtime.clone(),
         application,
         companion,
         events: events.clone(),
         event_cursor: Arc::new(AtomicU64::new(1)),
+        genesis,
+        entitlement,
+        service_root: paths.service_state.clone(),
+        companion_project,
+        workspace_identity: workspace,
+        billing_verification_key,
     });
     let reconciliation_companion = state.companion.clone();
     let reconciliation_application = state.application.clone();
@@ -367,16 +440,24 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         .route("/shots/{shot_id}", get(studio_index))
         .route("/app.js", get(studio_javascript))
         .route("/style.css", get(studio_stylesheet))
+        .route("/tohseno-logo.png", get(studio_logo))
         .route("/pairing-seal.png", get(studio_pairing_seal))
         .route("/api/v1/health", get(health))
         .route("/api/v1/studio-session", get(studio_session))
         .route("/api/v1/workspace", get(workspace))
         .route("/api/v1/factory-defaults", get(factory_defaults))
+        .route("/api/v1/entitlement", get(entitlement_status))
+        .route("/api/v1/billing/checkout", post(billing_checkout))
+        .route("/api/v1/billing/refresh", post(billing_refresh))
+        .route("/api/v1/genesis", get(genesis_status))
+        .route("/api/v1/genesis/actions/{action}", post(genesis_action))
         .route(
             "/api/v1/pending-intentions/{pending_id}",
             get(pending_intention),
         )
         .route("/api/v1/shots", get(shots).post(create_shot))
+        .route("/api/v1/shots/{shot_id}/icon", get(shot_icon))
+        .route("/api/v1/shots/{shot_id}/preview", get(shot_preview))
         .route("/api/v1/shots/{shot_id}/evolutions", post(evolve_shot))
         .route("/api/v1/executions", get(executions))
         .route("/api/v1/executions/{execution_id}", get(execution))
@@ -558,6 +639,278 @@ async fn factory_defaults(State(state): State<Arc<WorkspaceState>>) -> Json<Valu
     Json(json!(state.application.factory_defaults()))
 }
 
+async fn entitlement_status(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .application
+        .entitlement_status()
+        .map_err(ApiError::application)?
+        .map(|status| Json(json!(status)))
+        .ok_or_else(|| ApiError::internal("private entitlement authority is unavailable"))
+}
+
+async fn billing_checkout(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<BillingRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let status = state.entitlement.status_now().map_err(ApiError::internal)?;
+    if !status.purchase_allowed {
+        return Err(ApiError::conflict(
+            "purchase_unavailable",
+            "TOHSENO Pro is available only after five successful days.",
+        ));
+    }
+    // Refuse to send somebody to payment until this installed release already
+    // has the public key required to verify the resulting receipt locally.
+    crate::billing::read_verification_key(&state.billing_verification_key)
+        .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    let checkout_url = crate::billing::begin_checkout(
+        &state.runtime.workspace_id,
+        &state.workspace_identity.identity,
+        request.plan,
+    )
+    .await
+    .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    Ok(Json(json!({
+        "schema": "tohseno.local-checkout-continuation/1",
+        "checkout_url": checkout_url,
+    })))
+}
+
+async fn billing_refresh(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let status = crate::billing::refresh_entitlement(
+        &state.runtime.workspace_id,
+        &state.workspace_identity.identity,
+        &state.entitlement,
+        &state.billing_verification_key,
+        &state.service_root.join("billing/receipt-v1.json"),
+    )
+    .await
+    .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    state
+        .events
+        .emit(Event::status("TOHSENO entitlement refreshed."));
+    // The receipt has already unlocked the local factory. A temporarily
+    // unavailable private relay must not turn that durable success into a
+    // failed refresh response; the Companion receives the same projection on
+    // its next snapshot request.
+    let _ = state.companion.publish_entitlement_to_all_devices().await;
+    Ok(Json(json!(status)))
+}
+
+fn observe_genesis(state: &WorkspaceState) -> Result<GenesisObservation, ApiError> {
+    use tohseno_engine::gates::{apple_signing, device, toolchain};
+    let xcode_ready = toolchain::check() == toolchain::ToolchainState::Ready;
+    let device_state = xcode_ready.then(device::check).and_then(Result::ok);
+    let cable_visible = match device_state.as_ref() {
+        Some(device::DeviceState::CableMissing) | None => device::cable_visible(),
+        Some(_) => true,
+    };
+    let signing_ready = matches!(
+        apple_signing::check(),
+        apple_signing::AppleSigningState::Ready { .. }
+    );
+    let paired = state
+        .companion
+        .devices()
+        .map_err(ApiError::internal)?
+        .iter()
+        .any(|device| !device.revoked);
+    Ok(GenesisObservation {
+        cable_visible,
+        xcode_ready,
+        device: device_state,
+        signing_ready,
+        paired,
+    })
+}
+
+fn current_genesis_view(state: &WorkspaceState) -> Result<CableGenesisView, ApiError> {
+    let observed = observe_genesis(state)?;
+    let mut record = state.genesis.load().map_err(ApiError::internal)?;
+    if observed.paired
+        && matches!(
+            record.companion_install,
+            CompanionInstallState::WaitingForPairing | CompanionInstallState::Installed
+        )
+    {
+        record = state
+            .genesis
+            .set_install_state(CompanionInstallState::Installed, None, None, None)
+            .map_err(ApiError::internal)?;
+        state
+            .entitlement
+            .complete_genesis_now()
+            .map_err(ApiError::internal)?;
+    }
+    Ok(project_genesis(&record, &observed))
+}
+
+async fn genesis_status(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<CableGenesisView>, ApiError> {
+    current_genesis_view(&state).map(Json)
+}
+
+async fn genesis_action(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(action): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<CableGenesisView>, ApiError> {
+    match action.as_str() {
+        "begin" => {
+            state.genesis.begin().map_err(ApiError::internal)?;
+        }
+        "continue" => {
+            state
+                .genesis
+                .acknowledge_unobservable_trust_guidance()
+                .map_err(ApiError::internal)?;
+        }
+        "open_app_store" => {
+            let status = std::process::Command::new("open")
+                .arg("macappstore://itunes.apple.com/app/id497799835")
+                .status()
+                .map_err(ApiError::internal)?;
+            if !status.success() {
+                return Err(ApiError::internal("the App Store could not be opened"));
+            }
+        }
+        "open_xcode_accounts" => {
+            let status = std::process::Command::new("open")
+                .args(["-a", "Xcode"])
+                .status()
+                .map_err(ApiError::internal)?;
+            if !status.success() {
+                return Err(ApiError::internal("Xcode could not be opened"));
+            }
+        }
+        "install_companion" => {
+            let view = current_genesis_view(&state)?;
+            if view.step != crate::cable_genesis::GenesisStep::InstallCompanion {
+                return Err(ApiError::conflict(
+                    "genesis_not_ready",
+                    "complete the current iPhone setup action first",
+                ));
+            }
+            let device = match tohseno_engine::gates::device::check().map_err(ApiError::internal)? {
+                tohseno_engine::gates::device::DeviceState::Ready(device) => device,
+                _ => {
+                    return Err(ApiError::conflict(
+                        "iphone_not_ready",
+                        "the connected iPhone is not ready for installation",
+                    ))
+                }
+            };
+            let team_id = match tohseno_engine::gates::apple_signing::check() {
+                tohseno_engine::gates::apple_signing::AppleSigningState::Ready {
+                    team_id, ..
+                } => team_id,
+                tohseno_engine::gates::apple_signing::AppleSigningState::Missing => {
+                    return Err(ApiError::conflict(
+                        "apple_account_not_ready",
+                        "add your Apple Account in Xcode first",
+                    ));
+                }
+            };
+            state
+                .genesis
+                .set_install_state(
+                    CompanionInstallState::Building,
+                    Some(&device.identifier),
+                    None,
+                    None,
+                )
+                .map_err(ApiError::internal)?;
+            let genesis = state.genesis.clone();
+            let companion = state.companion.clone();
+            let project = state.companion_project.clone();
+            let service_root = state.service_root.clone();
+            let events = state.events.clone();
+            tokio::spawn(async move {
+                let build_device = device.clone();
+                let build_project = project.clone();
+                let build_root = service_root.clone();
+                let built = tokio::task::spawn_blocking(move || {
+                    build_and_install_companion(
+                        &build_project,
+                        &build_root,
+                        &build_device,
+                        &team_id,
+                    )
+                })
+                .await;
+                if !matches!(built, Ok(Ok(()))) {
+                    let _ = genesis.set_install_state(
+                        CompanionInstallState::Failed,
+                        None,
+                        None,
+                        Some("The Companion build, signing, or installation did not complete."),
+                    );
+                    events.emit(Event::status("Companion installation stopped safely."));
+                    return;
+                }
+                let session = match companion.create_pairing_session().await {
+                    Ok(session) => session,
+                    Err(_) => {
+                        let _ = genesis.set_install_state(
+                            CompanionInstallState::Failed,
+                            None,
+                            None,
+                            Some("The private Companion connection is not configured yet."),
+                        );
+                        events.emit(Event::status(
+                            "Companion pairing configuration is unavailable.",
+                        ));
+                        return;
+                    }
+                };
+                let _ = genesis.set_install_state(
+                    CompanionInstallState::Launching,
+                    None,
+                    Some(&session.session_id),
+                    None,
+                );
+                let launch_device = device;
+                let launch_root = service_root;
+                let invitation = session.pairing_uri;
+                let launched = tokio::task::spawn_blocking(move || {
+                    launch_companion_bootstrap(&launch_root, &launch_device, &invitation)
+                })
+                .await;
+                if matches!(launched, Ok(Ok(()))) {
+                    let _ = genesis.set_install_state(
+                        CompanionInstallState::WaitingForPairing,
+                        None,
+                        None,
+                        None,
+                    );
+                    events.emit(Event::status("Companion is waiting for private pairing."));
+                } else {
+                    let _ = genesis.set_install_state(
+                        CompanionInstallState::Failed,
+                        None,
+                        None,
+                        Some("The Companion was installed but did not launch."),
+                    );
+                    events.emit(Event::status("Companion launch stopped safely."));
+                }
+            });
+        }
+        _ => {
+            return Err(ApiError::bad(
+                "invalid_genesis_action",
+                "genesis action is invalid",
+            ))
+        }
+    }
+    current_genesis_view(&state).map(Json)
+}
+
 async fn shots(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
     let snapshot = state
         .application
@@ -568,6 +921,52 @@ async fn shots(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, 
         "schema": "tohseno.local-shot-list/1",
         "shots": snapshot.shots,
     })))
+}
+
+async fn shot_icon(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Response, ApiError> {
+    let icon = state
+        .application
+        .shot_icon(&shot_id)
+        .map_err(ApiError::application)?
+        .ok_or_else(|| ApiError::not_found("app does not exist"))?;
+    if !matches!(icon.media_type.as_str(), "image/png" | "image/jpeg")
+        || icon.private_bytes.is_empty()
+        || u64::try_from(icon.private_bytes.len()).ok() != Some(icon.byte_length)
+    {
+        return Err(ApiError::internal("app icon is unavailable"));
+    }
+    let content_type = HeaderValue::from_str(&icon.media_type)
+        .map_err(|_| ApiError::internal("app icon media type is invalid"))?;
+    let mut response = Response::new(Body::from(icon.private_bytes));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, content_type);
+    Ok(response)
+}
+
+async fn shot_preview(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Response, ApiError> {
+    let preview = state
+        .application
+        .shot_preview(&shot_id)
+        .map_err(ApiError::application)?
+        .ok_or_else(|| ApiError::not_found("app preview does not exist"))?;
+    if preview.media_type != "image/png"
+        || preview.private_bytes.is_empty()
+        || u64::try_from(preview.private_bytes.len()).ok() != Some(preview.byte_length)
+    {
+        return Err(ApiError::internal("app preview is unavailable"));
+    }
+    let mut response = Response::new(Body::from(preview.private_bytes));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+    Ok(response)
 }
 
 async fn pending_intention(
@@ -894,6 +1293,16 @@ async fn studio_stylesheet() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
         include_str!("../../studio/style.css"),
+    )
+}
+
+async fn studio_logo() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=86400, immutable"),
+        ],
+        include_bytes!("../../brand/logos/tohseno-logo-final.png").as_slice(),
     )
 }
 
@@ -1558,7 +1967,10 @@ mod tests {
             shot_id: "shot_fixture".into(),
             state: "queued".into(),
             version_ordinal: 1,
+            started_at: "2026-08-16T00:00:00Z".into(),
+            elapsed_seconds: 0,
             updated_at: "2026-08-16T00:00:00Z".into(),
+            state_transition: None,
         };
         let mut first = tohseno_application::WorkspaceSnapshot {
             schema: "tohseno.companion-workspace-snapshot/1".into(),

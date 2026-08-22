@@ -5,7 +5,9 @@
 //! clients. It deliberately does not contain terminal or HTTP rendering.
 
 pub mod application_service;
+pub mod billing;
 pub mod command;
+pub mod entitlement;
 pub mod execution_manager;
 pub mod factory_lease;
 pub mod journal;
@@ -17,8 +19,16 @@ pub use application_service::{
     EvolveShotCommand, EvolveShotReceipt, FactoryDefaults, FeedbackReceipt, MarketingNoteReceipt,
     ReferenceInput, ShotApplicationService, SubmitFeedbackCommand, SubmitMarketingNoteCommand,
 };
+pub use billing::{
+    installation_binding, verify_receipt, EntitlementReceiptPayload, ReceiptError,
+    SignedEntitlementReceipt,
+};
 pub use command::{
     CommandKind, CommandOrigin, CommandRecord, CommandResult, CommandState, CommandStatus,
+};
+pub use entitlement::{
+    EntitlementError, EntitlementPhase, EntitlementState, EntitlementStatus, EntitlementStore,
+    SubscriptionPlan, SuccessfulDayEvidence, VerifiedSubscription,
 };
 pub use factory_lease::FactoryLease;
 pub use journal::{Admission, CommandJournal, JournalError};

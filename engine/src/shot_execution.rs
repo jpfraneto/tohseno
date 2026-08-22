@@ -17,6 +17,10 @@ use tohseno_protocol::digest::{sha256, Bytes32, ShotId};
 pub const EXECUTION_RECORD_SCHEMA: &str = "tohseno.local-shot-execution/1";
 pub const EXECUTION_EVENT_SCHEMA: &str = "tohseno.local-shot-execution-event/1";
 pub const COMPLETION_RECORD_SCHEMA: &str = "tohseno.local-shot-completion/1";
+pub const STATE_TRANSITION_SCHEMA: &str = "tohseno.state-transition/1";
+pub const STATE_TRANSITION_HARNESS_DRAFT_PATH: &str = "TOHSENO_STATE_TRANSITION.json";
+pub const STATE_TRANSITION_DRAFT_PATH: &str = ".tohseno/state-transition-draft.json";
+pub const STATE_TRANSITION_RECEIPT_FILE: &str = "state-transition.json";
 const MAX_EXECUTION_RECORD_BYTES: u64 = 1024 * 1024;
 const MAX_COMPLETION_RECORD_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_EXECUTION_EVENTS_BYTES: u64 = 16 * 1024 * 1024;
@@ -190,6 +194,35 @@ pub struct ValidationObservation {
     pub command: String,
     pub status: String,
     pub evidence: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PersistentStateTransition {
+    Changed,
+    Unchanged,
+    Unknown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataSafety {
+    Preserved,
+    Destructive,
+    Unknown,
+}
+
+/// A deliberately tiny private receipt. The application's own models,
+/// migrations, schemas, and files remain the source of truth.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateTransitionReceipt {
+    pub schema: String,
+    pub persistent_state: PersistentStateTransition,
+    pub summary: String,
+    pub changes: Vec<String>,
+    pub migrations: Vec<String>,
+    pub data_safety: DataSafety,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -452,6 +485,24 @@ pub fn load_completion(
     }
 }
 
+pub fn load_state_transition_receipt(
+    repository: &Path,
+    execution_id: &str,
+) -> Result<Option<StateTransitionReceipt>, ShotExecutionError> {
+    validate_execution_id(execution_id)?;
+    let execution = load_execution(repository, execution_id)?;
+    let path = execution_directory(repository, execution_id).join(STATE_TRANSITION_RECEIPT_FILE);
+    match read_bounded_regular_file(&path, MAX_COMPLETION_RECORD_BYTES) {
+        Ok(bytes) => {
+            let receipt: StateTransitionReceipt = serde_json::from_slice(&bytes)?;
+            validate_state_transition(&receipt, &execution.repository, &[])?;
+            Ok(Some(receipt))
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn complete_execution(
     execution: &mut PreparedExecution,
@@ -468,6 +519,11 @@ pub fn complete_execution(
     let final_tree = capture_tree(&execution.repository, &directory)?;
     let files_changed =
         changed_files(&execution.repository, &execution.baseline.tree, &final_tree)?;
+    let state_transition = finalize_state_transition(execution, &files_changed);
+    write_private_json(
+        &directory.join(STATE_TRANSITION_RECEIPT_FILE),
+        &state_transition,
+    )?;
     if !files_changed.is_empty() && execution.phase != ExecutionPhase::WorkspaceChanged {
         update_phase(
             execution,
@@ -638,11 +694,29 @@ pub fn capture_tree(
         .args(["read-tree", "--empty"])
         .env("GIT_INDEX_FILE", &index);
     command_ok(read_tree, "initialize temporary Git index")?;
-    let mut add = Command::new("git");
-    add.arg("-C")
+    let private_ignore_status = Command::new("git")
+        .arg("-C")
         .arg(repository)
-        .args(["add", "-A", "--", "."])
-        .env("GIT_INDEX_FILE", &index);
+        .args(["check-ignore", "-q", "--", ".tohseno"])
+        .status()
+        .map_err(|error| {
+            ShotExecutionError::Git(format!("inspect private TOHSENO ignore boundary: {error}"))
+        })?;
+    let private_is_ignored = match private_ignore_status.code() {
+        Some(0) => true,
+        Some(1) => false,
+        _ => {
+            return Err(ShotExecutionError::Git(
+                "inspect private TOHSENO ignore boundary: git check-ignore failed".into(),
+            ));
+        }
+    };
+    let mut add = Command::new("git");
+    add.arg("-C").arg(repository).args(["add", "-A", "--", "."]);
+    if !private_is_ignored {
+        add.arg(":(exclude,top).tohseno/**");
+    }
+    add.env("GIT_INDEX_FILE", &index);
     command_ok(add, "capture the Shot workspace")?;
     let mut write_tree = Command::new("git");
     write_tree
@@ -674,10 +748,9 @@ pub fn workspace_fingerprint(execution: &PreparedExecution) -> Result<String, Sh
 }
 
 /// Summarize visible harness progress without exposing private prompt text,
-/// source filenames, logs, or model output. Standardized artifact classes are
-/// enough for Studio to distinguish planning, implementation, tests, and
-/// experience evidence while the detached process remains the source of
-/// truth for liveness.
+/// source filenames, logs, or model output. Standardized source artifact
+/// classes are enough to show useful progress while the detached process
+/// remains the source of truth for liveness.
 pub fn privacy_safe_workspace_progress(
     execution: &PreparedExecution,
 ) -> Result<String, ShotExecutionError> {
@@ -688,13 +761,10 @@ pub fn privacy_safe_workspace_progress(
         &execution.baseline.tree,
         &current_tree,
     )?;
-    Ok(workspace_progress_from_changes(
-        &execution.repository,
-        &files,
-    ))
+    Ok(workspace_progress_from_changes(&files))
 }
 
-fn workspace_progress_from_changes(repository: &Path, files: &[ChangedFile]) -> String {
+fn workspace_progress_from_changes(files: &[ChangedFile]) -> String {
     let mut signals = std::collections::BTreeSet::new();
     for file in files {
         let lower = file.path.to_ascii_lowercase();
@@ -723,28 +793,6 @@ fn workspace_progress_from_changes(repository: &Path, files: &[ChangedFile]) -> 
         }
     }
 
-    for (relative, signal) in [
-        (
-            ".tohseno/private/planning/conception-output.json",
-            "conception proposal",
-        ),
-        (
-            ".tohseno/private/planning/accepted-conception-output.json",
-            "accepted conception",
-        ),
-        (
-            ".tohseno/private/planning/experience-trial.json",
-            "Experience Trial",
-        ),
-    ] {
-        if real_file(&repository.join(relative)) {
-            signals.insert(signal);
-        }
-    }
-    if real_directory(&repository.join(".tohseno/private/planning/evidence")) {
-        signals.insert("experience evidence");
-    }
-
     let scope = if files.is_empty() {
         "no source-tree file change is visible yet".to_owned()
     } else {
@@ -758,16 +806,6 @@ fn workspace_progress_from_changes(repository: &Path, files: &[ChangedFile]) -> 
             signals.into_iter().collect::<Vec<_>>().join(", ")
         )
     }
-}
-
-fn real_file(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink())
-}
-
-fn real_directory(path: &Path) -> bool {
-    fs::symlink_metadata(path)
-        .is_ok_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
 }
 
 pub fn execution_directory(repository: &Path, execution_id: &str) -> PathBuf {
@@ -1097,6 +1135,99 @@ fn elapsed_seconds(started_at: &str, ended_at: &str) -> u64 {
     u64::try_from((ended - started).whole_seconds()).unwrap_or(0)
 }
 
+pub fn elapsed_seconds_between(started_at: &str, ended_at: &str) -> u64 {
+    elapsed_seconds(started_at, ended_at)
+}
+
+fn finalize_state_transition(
+    execution: &PreparedExecution,
+    changed_files: &[ChangedFile],
+) -> StateTransitionReceipt {
+    let draft = execution.repository.join(STATE_TRANSITION_DRAFT_PATH);
+    let parsed = read_bounded_regular_file(&draft, MAX_COMPLETION_RECORD_BYTES)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<StateTransitionReceipt>(&bytes).ok())
+        .and_then(|receipt| {
+            validate_state_transition(&receipt, &execution.repository, changed_files)
+                .ok()
+                .map(|()| receipt)
+        });
+    parsed.unwrap_or_else(unknown_state_transition)
+}
+
+fn unknown_state_transition() -> StateTransitionReceipt {
+    StateTransitionReceipt {
+        schema: STATE_TRANSITION_SCHEMA.into(),
+        persistent_state: PersistentStateTransition::Unknown,
+        summary: "The persistent application state transition could not be established.".into(),
+        changes: Vec::new(),
+        migrations: Vec::new(),
+        data_safety: DataSafety::Unknown,
+    }
+}
+
+fn validate_state_transition(
+    receipt: &StateTransitionReceipt,
+    repository: &Path,
+    changed_files: &[ChangedFile],
+) -> Result<(), ShotExecutionError> {
+    if receipt.schema != STATE_TRANSITION_SCHEMA
+        || receipt.summary.trim().is_empty()
+        || receipt.summary.len() > 2_000
+        || receipt.changes.len() > 64
+        || receipt.migrations.len() > 64
+        || receipt
+            .changes
+            .iter()
+            .chain(receipt.migrations.iter())
+            .any(|value| value.trim().is_empty() || value.len() > 1_000)
+    {
+        return Err(ShotExecutionError::Invalid(
+            "state transition receipt has an invalid bounded shape".into(),
+        ));
+    }
+    match receipt.persistent_state {
+        PersistentStateTransition::Changed if receipt.changes.is_empty() => {
+            return Err(ShotExecutionError::Invalid(
+                "a changed state transition must name at least one change".into(),
+            ));
+        }
+        PersistentStateTransition::Unchanged
+            if !receipt.changes.is_empty() || !receipt.migrations.is_empty() =>
+        {
+            return Err(ShotExecutionError::Invalid(
+                "an unchanged state transition cannot name changes or migrations".into(),
+            ));
+        }
+        PersistentStateTransition::Unknown
+            if !receipt.changes.is_empty() || !receipt.migrations.is_empty() =>
+        {
+            return Err(ShotExecutionError::Invalid(
+                "an unknown state transition cannot claim changes or migrations".into(),
+            ));
+        }
+        _ => {}
+    }
+    for migration in &receipt.migrations {
+        let relative = Path::new(migration);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|part| !matches!(part, std::path::Component::Normal(_)))
+            || (!changed_files.is_empty()
+                && (!repository.join(relative).is_file()
+                    || !changed_files
+                        .iter()
+                        .any(|changed| changed.path == *migration)))
+        {
+            return Err(ShotExecutionError::Invalid(format!(
+                "state transition migration path is not changed source: {migration}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn git_output(repository: &Path, arguments: &[&str]) -> Result<String, ShotExecutionError> {
     let mut command = Command::new("git");
     command.arg("-C").arg(repository).args(arguments);
@@ -1158,6 +1289,29 @@ mod tests {
     }
 
     #[test]
+    fn git_trees_ignore_private_execution_and_version_material() {
+        let temporary = tempfile::tempdir().unwrap();
+        let repository = temporary.path().join("shot");
+        let execution = repository.join(".tohseno/executions/test");
+        fs::create_dir_all(&execution).unwrap();
+        ensure_shot_repository(&repository).unwrap();
+        let baseline = capture_tree(&repository, &execution).unwrap();
+        fs::create_dir_all(repository.join(".tohseno/evolutions/0001/src")).unwrap();
+        fs::write(
+            repository.join(".tohseno/evolutions/0001/src/private.swift"),
+            "private copy\n",
+        )
+        .unwrap();
+        fs::write(repository.join("Counter.swift"), "source\n").unwrap();
+
+        let final_tree = capture_tree(&repository, &execution).unwrap();
+        let files = changed_files(&repository, &baseline, &final_tree).unwrap();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "Counter.swift");
+    }
+
+    #[test]
     fn execution_ids_are_private_path_components() {
         let id = new_execution_id(ShotId::random(), 1);
         assert_eq!(id.len(), 32);
@@ -1176,7 +1330,47 @@ mod tests {
     }
 
     #[test]
-    fn workspace_progress_exposes_artifact_classes_without_private_filenames() {
+    fn changed_and_unchanged_state_transition_receipts_have_a_tiny_shape() {
+        let repository = tempfile::tempdir().unwrap();
+        fs::create_dir_all(repository.path().join("migrations")).unwrap();
+        fs::write(
+            repository.path().join("migrations/007_add_favorites.sql"),
+            "alter table writing add favorite integer;\n",
+        )
+        .unwrap();
+        let changed = StateTransitionReceipt {
+            schema: STATE_TRANSITION_SCHEMA.into(),
+            persistent_state: PersistentStateTransition::Changed,
+            summary: "Favorites are now persisted per writing.".into(),
+            changes: vec!["Added favorite state to Writing".into()],
+            migrations: vec!["migrations/007_add_favorites.sql".into()],
+            data_safety: DataSafety::Preserved,
+        };
+        validate_state_transition(
+            &changed,
+            repository.path(),
+            &[ChangedFile {
+                status: "A".into(),
+                path: "migrations/007_add_favorites.sql".into(),
+                additions: Some(1),
+                deletions: Some(0),
+            }],
+        )
+        .unwrap();
+
+        let unchanged = StateTransitionReceipt {
+            schema: STATE_TRANSITION_SCHEMA.into(),
+            persistent_state: PersistentStateTransition::Unchanged,
+            summary: "No persistent application state changed.".into(),
+            changes: Vec::new(),
+            migrations: Vec::new(),
+            data_safety: DataSafety::Preserved,
+        };
+        validate_state_transition(&unchanged, repository.path(), &[]).unwrap();
+    }
+
+    #[test]
+    fn workspace_progress_exposes_only_source_artifact_classes() {
         let temporary = tempfile::tempdir().unwrap();
         let repository = temporary.path();
         fs::create_dir_all(repository.join(".tohseno/private/planning/evidence")).unwrap();
@@ -1200,13 +1394,14 @@ mod tests {
             },
         ];
 
-        let report = workspace_progress_from_changes(repository, &files);
+        let report = workspace_progress_from_changes(&files);
 
         assert!(report.contains("2 source-tree file(s) changed"));
         assert!(report.contains("Xcode project definition"));
         assert!(report.contains("Swift source"));
-        assert!(report.contains("Experience Trial"));
-        assert!(report.contains("experience evidence"));
+        assert!(!report.contains("Experience Trial"));
+        assert!(!report.contains("experience evidence"));
+        assert!(!report.contains("conception"));
         assert!(!report.contains("SecretProductName"));
         assert!(!report.contains("SecretFeature"));
         assert!(!report.contains("secret.xcodeproj"));
@@ -1339,6 +1534,13 @@ mod tests {
         assert_eq!(completion.files_changed.len(), 1);
         assert_eq!(completion.files_changed[0].path, "implemented.txt");
         assert!(repository.join("implemented.txt").is_file());
+        assert_eq!(
+            load_state_transition_receipt(&repository, &execution.execution_id)
+                .unwrap()
+                .unwrap()
+                .persistent_state,
+            PersistentStateTransition::Unknown
+        );
         let names = read_events(&repository, &execution.execution_id)
             .unwrap()
             .into_iter()

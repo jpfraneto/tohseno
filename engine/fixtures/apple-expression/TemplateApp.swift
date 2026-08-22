@@ -17,6 +17,8 @@ struct FixtureApplication: App {
 }
 
 private struct ContentView: View {
+    @AppStorage("tohseno.fixture.tap-count") private var tapCount = 0
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "circle.hexagongrid.fill")
@@ -24,9 +26,19 @@ private struct ContentView: View {
                 .foregroundStyle(.tint)
             Text("A TOHSENO expression")
                 .font(.title.bold())
-            Text("This fixture passes the real Apple materialization gates.")
+            Text("Intent became a usable app.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+            Button("Count: \(tapCount)") {
+                tapCount += 1
+            }
+            .accessibilityIdentifier("tap-counter")
+            if false { // TOHSENO_RESET_BUTTON
+                Button("Reset") {
+                    tapCount = 0
+                }
+                .accessibilityIdentifier("reset-counter")
+            }
         }
         .padding()
     }

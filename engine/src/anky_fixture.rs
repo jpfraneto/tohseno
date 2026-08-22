@@ -780,7 +780,7 @@ mod tests {
     }
 
     #[test]
-    fn materialization_task_exposes_factory_identity_and_forbids_silent_substitution() {
+    fn materialization_task_is_small_and_keeps_intention_and_data_continuity_authoritative() {
         let proposed = output();
         let expression = BirthExpressionPlan::from_birth_plan(&proposed.birth_plan).unwrap();
         let factory = factory_identity(&proposed.birth_plan);
@@ -797,36 +797,28 @@ mod tests {
             )
             .unwrap();
         let task = std::fs::read_to_string(directory.path().join(".tohseno/TASK.md")).unwrap();
-        assert!(task.contains(env!("CARGO_PKG_VERSION")));
-        assert!(task.contains(env!("TOHSENO_SOURCE_COMMIT")));
-        assert!(task.contains(&factory.static_constitution_digest.to_string()));
-        assert!(task.contains(&factory.accepted_shot_genome_digest.unwrap().to_string()));
-        assert!(task.contains(&factory.apple_capability_profile_digest.to_string()));
-        assert!(task.contains(
-            &proposed
-                .experience_contract
-                .digest()
-                .expect("experience contract digest")
-                .to_string()
-        ));
-        assert!(task.contains("not a denylist"));
-        assert!(task.contains("engine-selected development team"));
-        assert!(task.contains("Simulator sensor input is absent"));
-        assert!(task.contains("silently replace accepted persistence"));
-        assert!(task.contains(".tohseno/private/planning/birth-plan.json"));
-        assert!(task.contains(".tohseno/private/planning/birth-expression-plan.json"));
-        assert!(task.contains(".tohseno/private/planning/experience-contract.json"));
-        assert!(!task.contains("\"forbidden_substitutions\""));
-        assert!(!task.contains("\"camera_to_dark_background\""));
-        assert!(task.contains("A DEBUG fixture may prove individual"));
-        assert!(task.contains("independently reruns the checked-in suite"));
-        assert!(task.contains("#if targetEnvironment(simulator)"));
-        assert!(task.contains("relative to the Shot repository root"));
-        assert!(task.contains("Set `experience_contract_digest` to the authoritative digest"));
-        assert!(task.contains("exactly one real\n  Xcode project at `./Anky.xcodeproj`"));
-        assert!(task.contains("repository-root `TohsenoFascia/`"));
-        assert!(task.contains("repository-root\n`TOHSENO/fascia.json`"));
-        assert!(task.contains("Do not call `tohseno evolve`"));
+        assert!(task.contains("exact human intention"));
+        assert!(task.contains("preserve existing user data"));
+        assert!(task.contains("prefer forward migrations"));
+        assert!(task.contains("TOHSENO owns final deterministic build"));
+        assert!(task.contains("tohseno.state-transition/1"));
+        assert!(task.contains("TOHSENO_STATE_TRANSITION.json"));
+        assert!(task.contains("Do not search for, copy, or rewrite them"));
+        assert!(task.contains("TOHSENO/embedded-provenance.json"));
+        assert!(directory
+            .path()
+            .join("TohsenoFascia/InstallationIdentity.swift")
+            .is_file());
+        assert_eq!(
+            std::fs::read(directory.path().join("TOHSENO/fascia.json")).unwrap(),
+            b"{}\n"
+        );
+        assert!(!task.contains("Birth Plan"));
+        assert!(!task.contains("Experience Contract"));
+        assert!(!task.contains("repair mismatches"));
+        assert!(task.lines().count() < 60);
+        assert!(task.contains("must be `Anky`"));
+        assert!(task.contains("org.tohseno.genesis.fixture.anky"));
     }
 
     #[test]

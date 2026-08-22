@@ -42,8 +42,6 @@ project_destination="$destination/$app_name.xcodeproj"
 for path in \
   "$destination/TemplateApp.swift" \
   "$destination/${app_name}UITests" \
-  "$destination/TohsenoFascia" \
-  "$destination/TOHSENO" \
   "$destination/MEMORY.md" \
   "$destination/WORLD.md" \
   "$project_destination"
@@ -57,8 +55,13 @@ done
 mkdir "$project_destination"
 mkdir -p "$project_destination/xcshareddata/xcschemes"
 mkdir "$destination/${app_name}UITests"
-mkdir "$destination/TohsenoFascia"
-mkdir "$destination/TOHSENO"
+for directory in "$destination/TohsenoFascia" "$destination/TOHSENO"; do
+  if [ -L "$directory" ]; then
+    printf '%s\n' "fixture protocol substrate is a symlink: $directory" >&2
+    exit 73
+  fi
+  mkdir -p "$directory"
+done
 
 sed \
   -e "s|__APP_NAME__|$app_name|g" \
@@ -85,12 +88,29 @@ for source in \
   Provenance.swift \
   TohsenoMetadata.swift
 do
-  install -m 0644 \
-    "$repository_root/fascia/apple/swift/$source" \
-    "$destination/TohsenoFascia/$source"
+  prepared="$destination/TohsenoFascia/$source"
+  normative="$repository_root/fascia/apple/swift/$source"
+  if [ -e "$prepared" ] || [ -L "$prepared" ]; then
+    [ -f "$prepared" ] && [ ! -L "$prepared" ] && cmp "$normative" "$prepared" >/dev/null || {
+      printf '%s\n' "fixture protocol source does not match the engine: $prepared" >&2
+      exit 73
+    }
+  else
+    install -m 0644 "$normative" "$prepared"
+  fi
 done
 
-printf '{}\n' >"$destination/TOHSENO/fascia.json"
-printf '{}\n' >"$destination/TOHSENO/embedded-provenance.json"
+for placeholder in fascia.json embedded-provenance.json; do
+  prepared="$destination/TOHSENO/$placeholder"
+  if [ -e "$prepared" ] || [ -L "$prepared" ]; then
+    [ -f "$prepared" ] && [ ! -L "$prepared" ] &&
+      printf '{}\n' | cmp - "$prepared" >/dev/null || {
+      printf '%s\n' "fixture protocol placeholder is not exact: $prepared" >&2
+      exit 73
+    }
+  else
+    printf '{}\n' >"$prepared"
+  fi
+done
 
 printf '%s\n' "materialized Apple expression fixture: $destination"

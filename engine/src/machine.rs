@@ -670,8 +670,6 @@ impl Engine {
             &expression,
             &factory,
         )?;
-        self.genome
-            .write_standing_orders(&self.ledger.working_tree(app_name), app_name)?;
         self.conduct_accepted_creation(app_name)
     }
 
@@ -702,7 +700,7 @@ impl Engine {
         Ok(ConductedCreation {
             folder: self.ledger.working_tree(app_name),
             agent_command: self.preferred_agent_command(),
-            instruction: "Read AGENTS.md and .tohseno/TASK.md, materialize the accepted Birth Plan, execute every required target-user scenario, and return a strict Experience Trial. Do not call tohseno evolve; the engine owns acceptance and sealing.".into(),
+            instruction: "Read .tohseno/TASK.md, implement the exact human intention, and exit. The engine owns build, verification, recording, and delivery.".into(),
             phase: ConductionPhase::BirthMaterialization,
         })
     }
@@ -1773,10 +1771,13 @@ impl Engine {
             &accepted_genome.genome.behavioral_invariants,
             genome_mutation,
         ))?;
-        let instruction = format!(
-            "Read AGENTS.md, .tohseno/TASK.md, and the staged evolutionary intention. The builder asks: {}\nReturn a complete candidate and independently inspectable experience evidence. Do not call tohseno evolve; the engine owns final acceptance and sealing.",
-            effective_prompt.trim()
-        );
+        let app = self.ledger.load_app(&request.app_name)?;
+        self.genome.write_application_task(
+            &self.ledger.working_tree(&request.app_name),
+            &request.app_name,
+            &app.bundle_id,
+        )?;
+        let instruction = "Read .tohseno/TASK.md, implement the exact human intention, and exit. The engine owns build, verification, recording, and delivery.".into();
         Ok(Evolved::Conducted(ConductedCreation {
             folder: self.ledger.working_tree(&request.app_name),
             agent_command: self.preferred_agent_command(),
@@ -1826,8 +1827,11 @@ impl Engine {
         if app.builder_id != Some(builder.builder_id) {
             return Err(EngineError::BuilderMismatch(app_name.into()));
         }
-        self.genome
-            .write_standing_orders(&self.ledger.working_tree(app_name), app_name)?;
+        self.genome.write_application_task(
+            &self.ledger.working_tree(app_name),
+            app_name,
+            &app.bundle_id,
+        )?;
         // A latest evolution that no longer verifies (a stranded pre-repin
         // world, or an unsigned past) is honest legacy: the adoption records
         // a fresh root that names it without inventing history for it.
@@ -2172,9 +2176,25 @@ impl Engine {
         })
     }
 
-    fn load_birth_context(&self, app_name: &str) -> Result<BirthContext, EngineError> {
+    fn load_legacy_birth_context(
+        &self,
+        app_name: &str,
+    ) -> Result<Option<BirthContext>, EngineError> {
         let root = self.ledger.working_tree(app_name);
         let layout = ShotLayout::at(&root);
+        let trial_path = root
+            .join(".tohseno/private/planning")
+            .join(crate::conception::EXPERIENCE_TRIAL_FILE);
+        match fs::symlink_metadata(&trial_path) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {}
+            Ok(_) => {
+                return Err(EngineError::ProtocolBodyIncomplete(
+                    "legacy experience trial is not a regular private file".into(),
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        }
         let plan: crate::birth_plan::BirthPlan =
             read_private_planning_json(&layout, crate::conception::BIRTH_PLAN_FILE)?;
         let expression: BirthExpressionPlan =
@@ -2205,13 +2225,13 @@ impl Engine {
             )));
         }
         validate_trial_evidence_files(&root, &trial)?;
-        Ok(BirthContext {
+        Ok(Some(BirthContext {
             plan,
             expression,
             contract,
             trial,
             factory_identity,
-        })
+        }))
     }
 
     /// The shared recording path for a candidate Version. Initial birth adds
@@ -2285,9 +2305,15 @@ impl Engine {
             self.events
                 .emit(Event::status(preview::failure_diagnostic(&reason)));
         }
-        let birth_context = requires_birth_acceptance
-            .then(|| self.load_birth_context(app_name))
-            .transpose()?;
+        // Experience Trials authored by older harnesses remain readable and
+        // verifiable. New executions do not ask coding intelligence to author
+        // this ontology: deterministic build/protocol/device gates are the
+        // bounded hot path.
+        let birth_context = if requires_birth_acceptance {
+            self.load_legacy_birth_context(app_name)?
+        } else {
+            None
+        };
         let physical_was_required = birth_context.as_ref().is_some_and(|context| {
             !context
                 .plan
@@ -2973,15 +2999,16 @@ impl Engine {
             // Fail before reserving or building when the harness returned only
             // a build, a generic plan, or incomplete target-user evidence.
             validate_canonical_birth_project_layout(&working, app_name)?;
-            let birth = self.load_birth_context(app_name)?;
-            let blockers = birth_candidate_blockers(&birth);
-            if !blockers.is_empty() {
-                return Err(EngineError::ProtocolBodyIncomplete(format!(
-                    "birth candidate remains unsealed before recording: {}",
-                    summarize_birth_candidate_blockers(&blockers)
-                )));
+            if let Some(birth) = self.load_legacy_birth_context(app_name)? {
+                let blockers = birth_candidate_blockers(&birth);
+                if !blockers.is_empty() {
+                    return Err(EngineError::ProtocolBodyIncomplete(format!(
+                        "birth candidate remains unsealed before recording: {}",
+                        summarize_birth_candidate_blockers(&blockers)
+                    )));
+                }
+                protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
             }
-            protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
         }
         if !test_factory_no_device() {
             self.wait_for_apple_prerequisites().await?;
@@ -3034,8 +3061,6 @@ impl Engine {
             shot.number
         )));
         self.ledger.snapshot_working_tree(&shot)?;
-        self.genome
-            .write_standing_orders(&shot.source_path(), app_name)?;
         // The engine-owned provenance placeholder never travels through a
         // snapshot; recreate it so the anatomy gate and prepare can run.
         let placeholder = shot.source_path().join("TOHSENO/embedded-provenance.json");

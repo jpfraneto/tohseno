@@ -3,7 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
-use tohseno_engine::shot_execution::{load_execution, read_events, ExecutionPhase};
+use tohseno_engine::safe_file::read_bounded_regular_file;
+use tohseno_engine::shot_execution::{
+    elapsed_seconds_between, load_execution, load_state_transition_receipt, read_events,
+    ExecutionPhase, ShotExecutionEvent, StateTransitionReceipt,
+};
 use tohseno_engine::{AppKind, Engine, ShotLayout};
 use tohseno_protocol::digest::{sha256, ExpressionId, VersionId};
 
@@ -47,7 +51,11 @@ pub struct ExecutionSummary {
     pub shot_id: String,
     pub state: String,
     pub version_ordinal: u64,
+    pub started_at: String,
+    pub elapsed_seconds: u64,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_transition: Option<StateTransitionReceipt>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -106,6 +114,7 @@ pub fn build_workspace_snapshot(
     device_capability_epoch: u64,
     next_cursor: u64,
 ) -> Result<WorkspaceSnapshot, Box<dyn std::error::Error + Send + Sync>> {
+    let generated_at = now();
     let mut shots = Vec::new();
     let mut active_executions = Vec::new();
     for (index, app) in engine.ledger().list_apps()?.into_iter().enumerate() {
@@ -174,13 +183,75 @@ pub fn build_workspace_snapshot(
         schema: WORKSPACE_SNAPSHOT_SCHEMA.into(),
         workspace_id: workspace_id.into(),
         snapshot_version,
-        generated_at: now(),
+        generated_at,
         service_version: env!("CARGO_PKG_VERSION").into(),
         shots,
         active_executions,
         device_capability_epoch,
         next_cursor,
     })
+}
+
+pub fn load_shot_icon(
+    engine: &Engine,
+    workspace_id: &str,
+    shot_id: &str,
+) -> Result<Option<IconDescriptor>, Box<dyn std::error::Error + Send + Sync>> {
+    for app in engine.ledger().list_apps()? {
+        let kind = match engine.app_kind(&app.name)? {
+            AppKind::FactoryShot => ShotKind::FactoryShot,
+            AppKind::RecordingOnly => ShotKind::RecordingOnly,
+            AppKind::LegacyProtocol => continue,
+        };
+        let stable_id = match (kind, app.shot_id) {
+            (ShotKind::FactoryShot, Some(value)) => value.to_string(),
+            (ShotKind::FactoryShot, None) => continue,
+            (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+        };
+        if stable_id == shot_id {
+            return discover_icon(engine, &app.name).map(Some);
+        }
+    }
+    Ok(None)
+}
+
+pub fn load_shot_preview(
+    engine: &Engine,
+    workspace_id: &str,
+    shot_id: &str,
+) -> Result<Option<IconDescriptor>, Box<dyn std::error::Error + Send + Sync>> {
+    for app in engine.ledger().list_apps()? {
+        let kind = match engine.app_kind(&app.name)? {
+            AppKind::FactoryShot => ShotKind::FactoryShot,
+            AppKind::RecordingOnly => ShotKind::RecordingOnly,
+            AppKind::LegacyProtocol => continue,
+        };
+        let stable_id = match (kind, app.shot_id) {
+            (ShotKind::FactoryShot, Some(value)) => value.to_string(),
+            (ShotKind::FactoryShot, None) => continue,
+            (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+        };
+        if stable_id != shot_id {
+            continue;
+        }
+        let path = engine.ledger().working_tree(&app.name).join("preview.png");
+        let bytes = match read_bounded_regular_file(&path, 32 * 1024 * 1024) {
+            Ok(bytes) if !bytes.is_empty() => bytes,
+            Ok(_) => return Ok(None),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let digest = sha256(&bytes);
+        return Ok(Some(IconDescriptor {
+            revision: digest.to_string(),
+            blob_id: digest.to_string(),
+            media_type: "image/png".into(),
+            byte_length: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
+            placeholder: false,
+            private_bytes: bytes,
+        }));
+    }
+    Ok(None)
 }
 
 fn accepted_head(
@@ -258,20 +329,34 @@ fn latest_execution(
                 | ExecutionPhase::ExecutionFailed
                 | ExecutionPhase::ExecutionCancelled
         );
-        let updated_at = read_events(
+        let events = read_events(
             &engine.ledger().working_tree(app_name),
             &execution.execution_id,
         )
-        .ok()
-        .and_then(|events| events.last().map(|event| event.timestamp.clone()))
-        .unwrap_or_else(|| execution.prepared_at.clone());
+        .unwrap_or_default();
+        let observed_at = now();
+        let (started_at, updated_at, elapsed_seconds) =
+            execution_timing(&execution.prepared_at, &events, &observed_at);
+        let state_transition = if active {
+            None
+        } else {
+            load_state_transition_receipt(
+                &engine.ledger().working_tree(app_name),
+                &execution.execution_id,
+            )
+            .ok()
+            .flatten()
+        };
         summaries.push((
             ExecutionSummary {
                 execution_id: execution.execution_id,
                 shot_id: shot_id.into(),
                 state: privacy_safe_phase(execution.phase).into(),
                 version_ordinal: execution.version_ordinal,
+                elapsed_seconds,
+                started_at,
                 updated_at,
+                state_transition,
             },
             active,
         ));
@@ -284,6 +369,23 @@ fn latest_execution(
             .then_with(|| right.execution_id.cmp(&left.execution_id))
     });
     Ok(summaries.into_iter().next())
+}
+
+fn execution_timing(
+    prepared_at: &str,
+    events: &[ShotExecutionEvent],
+    observed_at: &str,
+) -> (String, String, u64) {
+    let started_at = events
+        .first()
+        .map(|event| event.timestamp.clone())
+        .unwrap_or_else(|| prepared_at.to_owned());
+    let updated_at = events
+        .last()
+        .map(|event| event.timestamp.clone())
+        .unwrap_or_else(|| prepared_at.to_owned());
+    let elapsed = elapsed_seconds_between(&started_at, observed_at);
+    (started_at, updated_at, elapsed)
 }
 
 fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
@@ -478,6 +580,33 @@ mod tests {
             privacy_safe_phase(ExecutionPhase::ValidationCompleted),
             "verifying"
         );
+    }
+
+    #[test]
+    fn total_elapsed_uses_the_first_durable_event_across_repair_attempts() {
+        let event = |sequence, phase: ExecutionPhase, timestamp: &str| ShotExecutionEvent {
+            schema: "tohseno.local-shot-execution-event/1".into(),
+            sequence,
+            event: phase.event_name().into(),
+            execution_id: "execution_fixture".into(),
+            shot_id: tohseno_protocol::digest::ShotId::from_bytes([0x61; 32]),
+            version_ordinal: 1,
+            harness: "fixture".into(),
+            model: "fixture".into(),
+            timestamp: timestamp.into(),
+            phase,
+            report: "fixture".into(),
+        };
+        let events = vec![
+            event(1, ExecutionPhase::Prepared, "2026-08-21T04:38:00Z"),
+            event(2, ExecutionPhase::Materializing, "2026-08-21T04:39:00Z"),
+            event(3, ExecutionPhase::Repairing, "2026-08-21T10:39:00Z"),
+        ];
+        let (started_at, updated_at, elapsed) =
+            execution_timing("2026-08-21T04:38:00Z", &events, "2026-08-21T10:50:00Z");
+        assert_eq!(started_at, "2026-08-21T04:38:00Z");
+        assert_eq!(updated_at, "2026-08-21T10:39:00Z");
+        assert_eq!(elapsed, 6 * 3_600 + 12 * 60);
     }
 
     #[test]

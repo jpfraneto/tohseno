@@ -388,7 +388,14 @@ pub fn validate_complete_source(source: &Path) -> Result<(), BuildError> {
     }
     let synchronized_metadata_group = project_text.contains("PBXFileSystemSynchronizedRootGroup")
         && project_text.contains("TOHSENO");
+    // Xcode folder resources intentionally name only the directory in the
+    // project file. Their children are copied into the built bundle by Xcode
+    // and verified again from that artifact after the build.
+    let bundled_metadata_folder = project_text.contains("path = TOHSENO;")
+        && project_text.contains("TOHSENO in Resources")
+        && project_text.contains("PBXResourcesBuildPhase");
     if !synchronized_metadata_group
+        && !bundled_metadata_folder
         && metadata_files
             .iter()
             .any(|name| !project_text.contains(name))
@@ -795,6 +802,41 @@ try await InstallationIdentity.shared.prepare()
             validate_fascia_source_inventory(directory.path()),
             Err(BuildError::FasciaInventory(_))
         ));
+    }
+
+    #[test]
+    fn complete_source_accepts_a_tohseno_folder_resource() {
+        let directory = tempfile::tempdir().unwrap();
+        let fascia = directory.path().join("TohsenoFascia");
+        let resources = directory.path().join("TOHSENO");
+        let project = directory.path().join("Counter.xcodeproj");
+        fs::create_dir(&fascia).unwrap();
+        fs::create_dir(&resources).unwrap();
+        fs::create_dir(&project).unwrap();
+        for (name, contents) in REQUIRED_FASCIA {
+            fs::write(fascia.join(name), contents).unwrap();
+        }
+        fs::write(resources.join("fascia.json"), b"{}\n").unwrap();
+        fs::write(resources.join("embedded-provenance.json"), b"{}\n").unwrap();
+        fs::write(
+            directory.path().join("CounterApp.swift"),
+            b"InstallationIdentity.shared.prepare()\n",
+        )
+        .unwrap();
+        let fascia_names = REQUIRED_FASCIA
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(
+            project.join("project.pbxproj"),
+            format!(
+                "{fascia_names}\npath = TOHSENO;\nTOHSENO in Resources\nPBXResourcesBuildPhase\n"
+            ),
+        )
+        .unwrap();
+
+        validate_complete_source(directory.path()).unwrap();
     }
 
     #[test]

@@ -75,6 +75,10 @@ if ! xcodebuild \
   exit 1
 fi
 grep -F "Test Suite 'All tests' passed" "$test_log" >/dev/null
+if [ "${TOHSENO_FIXTURE_SKIP_LEGACY_TRIAL:-0}" = "1" ]; then
+  printf '%s\n' "Focused usable-app Simulator test passed."
+  exit 0
+fi
 printf '%s\n' \
   "Deterministic fixture review: the exact bounded intention, visible labels, app-specific organ, forbidden build-only substitution, and XCUITest result agree." \
   >"$evidence_root/intent-review.txt"

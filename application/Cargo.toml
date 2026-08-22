@@ -12,6 +12,7 @@ libc = "=0.2.189"
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "=0.10.9"
+p256 = { version = "=0.13.2", features = ["ecdsa"] }
 tempfile.workspace = true
 time = { version = "=0.3.36", default-features = false, features = ["formatting", "parsing"] }
 tokio.workspace = true
@@ -20,4 +21,3 @@ tohseno-protocol = { path = "../protocol" }
 uuid = { version = "=1.18.1", features = ["v4", "serde"] }
 
 [dev-dependencies]
-p256 = { version = "=0.13.2", features = ["ecdsa"] }

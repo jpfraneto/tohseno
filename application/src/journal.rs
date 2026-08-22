@@ -103,6 +103,21 @@ impl CommandJournal {
         &self.root
     }
 
+    /// Reports whether a command was durably admitted without reading its
+    /// private payload. Entitlement uses this to let in-flight work finish
+    /// while refusing a new mutation before journal admission.
+    pub fn contains(&self, command_id: &str) -> Result<bool, JournalError> {
+        let path = self.command_directory(command_id)?;
+        match fs::symlink_metadata(path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => Err(
+                JournalError::Invalid("command journal entry is not a real directory".into()),
+            ),
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     pub fn admit<T: Serialize>(
         &self,
         metadata: AdmissionMetadata,

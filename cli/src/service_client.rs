@@ -101,6 +101,33 @@ impl ServiceClient {
         decode(response).await
     }
 
+    /// Repeat an exact command body once when the response is ambiguous. The
+    /// create/evolve command ID is content-derived and the service journal is
+    /// idempotent, so this recovers a receipt without admitting duplicate
+    /// human work when the first response crosses the client timeout.
+    pub async fn post_durable<T: Serialize, R: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &T,
+    ) -> Result<R, BoxError> {
+        match self.post(path, body).await {
+            Ok(receipt) => Ok(receipt),
+            Err(error) if is_ambiguous_transport_error(&error) => {
+                match self.post(path, body).await {
+                    Ok(receipt) => Ok(receipt),
+                    Err(retry) if is_ambiguous_transport_error(&retry) => Err(std::io::Error::other(
+                        format!(
+                            "could not confirm durable command admission after an idempotent retry: {retry}"
+                        ),
+                    )
+                    .into()),
+                    Err(retry) => Err(retry),
+                }
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn delete<R: DeserializeOwned>(&self, path: &str) -> Result<R, BoxError> {
         let response = self
             .http
@@ -215,6 +242,10 @@ fn boxed(error: Box<dyn std::error::Error>) -> BoxError {
     std::io::Error::other(error.to_string()).into()
 }
 
+fn is_ambiguous_transport_error(error: &BoxError) -> bool {
+    error.downcast_ref::<reqwest::Error>().is_some()
+}
+
 /// The stated reason this start attempt is still waiting, read only from what
 /// the attempt itself appended. Returns nothing when the service failed for
 /// some reason it could not narrate.
@@ -239,6 +270,63 @@ pub struct ApiReference<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn durable_post_recovers_the_receipt_after_the_first_response_times_out() {
+        use axum::{extract::State, routing::post, Json, Router};
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        async fn command(State(requests): State<Arc<AtomicUsize>>) -> Json<serde_json::Value> {
+            if requests.fetch_add(1, Ordering::SeqCst) == 0 {
+                tokio::time::sleep(Duration::from_millis(80)).await;
+            }
+            Json(serde_json::json!({"execution_id": "execution_fixture"}))
+        }
+
+        let requests = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_requests = requests.clone();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/command", post(command))
+                    .with_state(server_requests),
+            )
+            .await
+            .unwrap();
+        });
+        let client = ServiceClient {
+            http: Client::builder()
+                .timeout(Duration::from_millis(30))
+                .build()
+                .unwrap(),
+            runtime: RuntimeRecord {
+                schema: "tohseno.local-workspace-runtime/1".into(),
+                service_version: "0.9.0".into(),
+                workspace_id: "workspace_fixture".into(),
+                studio_device_id: "device_fixture".into(),
+                origin: format!("http://{address}"),
+                port: address.port(),
+                process_id: 1,
+                started_at: "2026-08-15T12:00:00Z".into(),
+                instance_id: "service_fixture".into(),
+                csrf_token: "x".repeat(32),
+            },
+        };
+
+        let receipt: serde_json::Value = client
+            .post_durable("/command", &serde_json::json!({"command_id": "stable"}))
+            .await
+            .unwrap();
+        assert_eq!(receipt["execution_id"], "execution_fixture");
+        assert_eq!(requests.load(Ordering::SeqCst), 2);
+        server.abort();
+    }
 
     #[test]
     fn an_unanswered_keychain_dialog_is_reported_instead_of_the_transport_error() {

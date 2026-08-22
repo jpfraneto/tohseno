@@ -1,4 +1,9 @@
-# TOHSENO CLI 0.9.0
+# TOHSENO CLI 0.9.9
+
+`tohseno` with no arguments is the normal entry point: it ensures the local
+service is available and opens Studio at genesis, trial, Pro, or normal use.
+`tohseno doctor` is read-only and reports the machine, toolchain, signing,
+privacy-minimal iPhone readiness, Companion pairing, and entitlement phase.
 
 The CLI is a client and local administration surface for the same
 `ShotApplicationService` used by Studio and the Companion. It does not contain
@@ -68,6 +73,12 @@ Expensive local work is serialized by one advisory factory lease, so a second
 command admitted while the Mac is busy waits in its durable `queued` state and
 starts by itself. Nothing needs to be re-sent.
 
+Create and evolve share the same bounded executor: one implementation harness,
+at most one concrete code/build repair, and one shared 60-minute harness
+budget. A repair never resets the clock. Missing device, signing, provisioning,
+network, and protocol conditions do not invoke intelligence. The resulting
+private State Transition Receipt is available under execution Details.
+
 ## Explicit recording capability
 
 ```bash
@@ -114,8 +125,9 @@ tohseno companion simulate ...
 tohseno companion sdk vendor --into <shot-path>
 ```
 
-Pair opens Studio's standard one-use pairing code, the same one reachable from
-Studio Settings → **Add iPhone**. Revocation changes local
+Fresh Mac-to-iPhone pairing is driven by the cable-genesis surface. The service
+uses CoreDevice's supported URL payload to deliver one signed, expiring
+invitation only after Companion installation. Revocation changes local
 admission immediately. The simulator uses the private companion schemas and
 durable command journal rather than a test-only factory path. SDK vendoring
 copies the exact released Swift source, license, shared vectors, and integrity

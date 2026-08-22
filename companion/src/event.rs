@@ -9,12 +9,68 @@ use crate::{parse_timestamp, require, validate_identifier, Result};
 use serde::{Deserialize, Serialize};
 
 pub const COMPANION_EVENT_SCHEMA: &str = "tohseno.companion-event/1";
+pub const PRODUCT_ENTITLEMENT_SCHEMA: &str = "tohseno.private-product-entitlement/1";
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductEntitlementProjection {
+    pub schema: String,
+    pub phase: String,
+    pub successful_days: u8,
+    pub required_successful_days: u8,
+    pub factory_mutations_allowed: bool,
+    pub purchase_allowed: bool,
+}
+
+impl ProductEntitlementProjection {
+    pub fn validate(&self) -> Result<()> {
+        require(
+            self.schema == PRODUCT_ENTITLEMENT_SCHEMA,
+            "unsupported private product entitlement schema",
+        )?;
+        require(
+            matches!(
+                self.phase.as_str(),
+                "genesis_incomplete"
+                    | "trial_active"
+                    | "trial_qualified"
+                    | "trial_expired"
+                    | "pro_monthly"
+                    | "pro_yearly"
+                    | "pro_lapsed"
+            ),
+            "private product entitlement phase is invalid",
+        )?;
+        require(
+            self.successful_days <= self.required_successful_days
+                && self.required_successful_days == 5,
+            "private product successful-day count is invalid",
+        )?;
+        require(
+            self.factory_mutations_allowed
+                == matches!(
+                    self.phase.as_str(),
+                    "trial_active" | "pro_monthly" | "pro_yearly"
+                ),
+            "private product mutation projection differs from phase",
+        )?;
+        require(
+            self.purchase_allowed
+                == matches!(self.phase.as_str(), "trial_qualified" | "pro_lapsed"),
+            "private product purchase projection differs from phase",
+        )
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "event_kind")]
 pub enum WorkspaceEventPayload {
     #[serde(rename = "workspace.snapshot")]
     WorkspaceSnapshot { snapshot: Box<WorkspaceSnapshot> },
+    #[serde(rename = "product.entitlement")]
+    ProductEntitlement {
+        entitlement: ProductEntitlementProjection,
+    },
     #[serde(rename = "shot.upsert")]
     ShotUpsert { shot: Box<ShotSummary> },
     #[serde(rename = "shot.archive")]
@@ -58,6 +114,7 @@ impl WorkspaceEventPayload {
     fn validate(&self) -> Result<()> {
         match self {
             Self::WorkspaceSnapshot { snapshot } => snapshot.validate(),
+            Self::ProductEntitlement { entitlement } => entitlement.validate(),
             Self::ShotUpsert { shot } => shot.validate(),
             Self::ShotArchive { shot_id } | Self::ShotRemove { shot_id } => {
                 validate_identifier("event Shot ID", shot_id)

@@ -1,7 +1,10 @@
 use crate::command::{CommandKind, CommandOrigin, CommandState};
+use crate::entitlement::{EntitlementStatus, EntitlementStore, SuccessfulDayEvidence};
 use crate::execution_manager;
 use crate::journal::{AdmissionMetadata, CommandJournal, JournalError};
-use crate::snapshot::{build_workspace_snapshot, WorkspaceSnapshot};
+use crate::snapshot::{
+    build_workspace_snapshot, load_shot_icon, IconDescriptor, WorkspaceSnapshot,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeSet, HashMap};
@@ -270,6 +273,7 @@ pub struct ShotApplicationService {
     workspace_id: String,
     selection: Option<HarnessSelection>,
     command_claims: Arc<Mutex<HashMap<String, Weak<Mutex<()>>>>>,
+    entitlement: Option<EntitlementStore>,
 }
 
 impl ShotApplicationService {
@@ -286,12 +290,29 @@ impl ShotApplicationService {
             workspace_id: workspace_id.into(),
             selection: None,
             command_claims: Arc::new(Mutex::new(HashMap::new())),
+            entitlement: None,
         }
     }
 
     pub fn with_selection(mut self, selection: HarnessSelection) -> Self {
         self.selection = Some(selection);
         self
+    }
+
+    /// Installs the private product authority used by every real frontend.
+    /// Unit-level callers that exercise lower orchestration primitives may
+    /// omit it; the Local Workspace Service always supplies it.
+    pub fn with_entitlement(mut self, entitlement: EntitlementStore) -> Self {
+        self.entitlement = Some(entitlement);
+        self
+    }
+
+    pub fn entitlement_status(&self) -> Result<Option<EntitlementStatus>, ApplicationError> {
+        self.entitlement
+            .as_ref()
+            .map(EntitlementStore::status_now)
+            .transpose()
+            .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
     pub fn engine(&self) -> &Engine {
@@ -359,6 +380,7 @@ impl ShotApplicationService {
         &self,
         command: CreateShotCommand,
     ) -> Result<CreateShotReceipt, ApplicationError> {
+        self.require_new_factory_mutation(&command.command_id)?;
         let (payload, files) = create_payload(&command)?;
         let admission = self.command_journal.admit_with_files(
             AdmissionMetadata {
@@ -514,6 +536,7 @@ impl ShotApplicationService {
         &self,
         command: EvolveShotCommand,
     ) -> Result<EvolveShotReceipt, ApplicationError> {
+        self.require_new_factory_mutation(&command.command_id)?;
         let (payload, files) = evolve_payload(&command)?;
         let app = self.engine.ledger().load_app(&command.name)?;
         let shot_id = app.shot_id.ok_or_else(|| {
@@ -856,6 +879,16 @@ impl ShotApplicationService {
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
+    pub fn shot_icon(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
+        load_shot_icon(&self.engine, &self.workspace_id, shot_id)
+            .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+    }
+
+    pub fn shot_preview(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
+        crate::snapshot::load_shot_preview(&self.engine, &self.workspace_id, shot_id)
+            .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+    }
+
     pub fn factory_defaults(&self) -> FactoryDefaults {
         let options = self.engine.harnesses();
         let selection = self.resolve_selection().ok();
@@ -1106,6 +1139,20 @@ impl ShotApplicationService {
             let version = self.engine.ledger().shot(name, ordinal)?;
             tohseno_engine::protocol_lifecycle::verify_completed_evolution(&version)
                 .map_err(|error| ApplicationError::Orchestration(error.to_string()))?;
+            if let Some(entitlement) = &self.entitlement {
+                let accepted = self.engine.current_accepted_base(name)?;
+                entitlement
+                    .record_successful_day_now(SuccessfulDayEvidence {
+                        // The store replaces both clock-derived fields at the
+                        // atomic recording boundary.
+                        local_date: String::new(),
+                        command_id: command_id.into(),
+                        execution_id: execution_id.into(),
+                        accepted_version_id: accepted.version_id.to_string(),
+                        accepted_at: String::new(),
+                    })
+                    .map_err(|error| ApplicationError::Orchestration(error.to_string()))?;
+            }
         }
         let (state, rejection) = if completion.landed {
             (CommandState::Completed, None)
@@ -1166,6 +1213,18 @@ impl ShotApplicationService {
             Some(reason.into()),
         )?;
         Err(ApplicationError::Invalid(reason.into()))
+    }
+
+    fn require_new_factory_mutation(&self, command_id: &str) -> Result<(), ApplicationError> {
+        if self.command_journal.contains(command_id)? {
+            return Ok(());
+        }
+        if let Some(entitlement) = &self.entitlement {
+            entitlement
+                .require_new_factory_mutation()
+                .map_err(|error| ApplicationError::Invalid(error.to_string()))?;
+        }
+        Ok(())
     }
 }
 
@@ -1711,6 +1770,55 @@ mod tests {
             bytes: vec![1, 2, 3],
         }];
         assert!(reference_payload(&inputs).is_err());
+    }
+
+    #[test]
+    fn mac_and_companion_intentions_become_the_same_application_payload() {
+        let cli = CreateShotCommand {
+            command_id: "cli_create".into(),
+            origin: CommandOrigin::Cli,
+            origin_device_id: None,
+            name: "counter".into(),
+            intention: "Remember a tap count between launches.".into(),
+            references: Vec::new(),
+            submitted_at: None,
+        };
+        let companion = CreateShotCommand {
+            command_id: "companion_create".into(),
+            origin: CommandOrigin::Companion,
+            origin_device_id: Some("device_fixture".into()),
+            ..cli.clone()
+        };
+        assert_eq!(
+            create_payload(&cli).unwrap().0,
+            create_payload(&companion).unwrap().0
+        );
+
+        let base_expression_id = ExpressionId::from_bytes([0x71; 32]);
+        let base_version_id = VersionId::from_bytes([0x72; 32]);
+        let mac_evolution = EvolveShotCommand {
+            command_id: "studio_evolve".into(),
+            origin: CommandOrigin::Studio,
+            origin_device_id: None,
+            name: "counter".into(),
+            base_expression_id,
+            base_version_id,
+            base_version_ordinal: 1,
+            intention: "Add a reset button without losing the count.".into(),
+            selected_feedback_actions: Vec::new(),
+            references: Vec::new(),
+            submitted_at: None,
+        };
+        let phone_evolution = EvolveShotCommand {
+            command_id: "companion_evolve".into(),
+            origin: CommandOrigin::Companion,
+            origin_device_id: Some("device_fixture".into()),
+            ..mac_evolution.clone()
+        };
+        assert_eq!(
+            evolve_payload(&mac_evolution).unwrap().0,
+            evolve_payload(&phone_evolution).unwrap().0
+        );
     }
 
     #[tokio::test]

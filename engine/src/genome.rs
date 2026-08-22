@@ -238,202 +238,104 @@ acceptance and sealing.
         Ok(shot.path.join("TASK.md"))
     }
 
-    /// Writes the standing orders any coding agent auto-reads on entering
-    /// the folder: `AGENTS.md` (with a `CLAUDE.md` pointer). This is how the
-    /// tohseno ontology permeates work tohseno never drives — the agent
-    /// itself records each finished Evolution. Engine-owned; written once.
-    pub fn write_standing_orders(&self, folder: &Path, app_name: &str) -> Result<(), GenomeError> {
-        let agents = folder.join("AGENTS.md");
-        if !agents.exists() {
-            let contents = format!(
-                "# {app_name}\n\nRead `.tohseno/TASK.md`, follow `.tohseno/BUILD_LAWS.md`, and complete the app. Never edit engine-owned files under `.tohseno/` or `TOHSENO/`.\n"
-            );
-            fs::write(&agents, contents)?;
-        }
-        let claude = folder.join("CLAUDE.md");
-        if !claude.exists() {
-            fs::write(
-                &claude,
-                "Read AGENTS.md.
-",
-            )?;
-        }
-        Ok(())
-    }
-
     pub fn write_birth_task(
         &self,
         folder: &Path,
         app_name: &str,
         bundle_id: &str,
-        conception: &crate::conception::ConceptionOutput,
+        _conception: &crate::conception::ConceptionOutput,
         _expression: &crate::birth_plan::BirthExpressionPlan,
-        factory: &crate::factory_identity::FactoryIdentity,
+        _factory: &crate::factory_identity::FactoryIdentity,
     ) -> Result<PathBuf, GenomeError> {
-        let experience_digest = conception
-            .experience_contract
-            .digest()
-            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        self.write_application_task(folder, app_name, bundle_id)
+    }
+
+    /// Refresh the one small harness contract for both creation and evolution.
+    /// Protocol planning material remains private engine input and is not a
+    /// second product specification for the coding intelligence.
+    pub fn write_application_task(
+        &self,
+        folder: &Path,
+        app_name: &str,
+        bundle_id: &str,
+    ) -> Result<PathBuf, GenomeError> {
+        self.stage_birth_substrate(folder, app_name)?;
         let task = format!(
-            r#"# TOHSENO birth materialization
+            r#"# TOHSENO task
 
-Return a complete production-quality native iPhone candidate and its evidence.
-The engine—not this harness—owns final acceptance and sealing.
+You are modifying this application.
 
-## Factory identity
+The exact human intention in `.tohseno/EVOLUTION_INTENT.md` is authoritative.
+Implement it completely.
 
-- TOHSENO engine version: `{engine_version}`
-- TOHSENO source commit: `{source_commit}`
-- static Constitution/Genome bundle digest: `{constitution_digest}`
-- accepted Shot Genome digest: `{genome_digest}`
-- Apple capability profile digest: `{profile_digest}`
+For an existing app:
+- preserve working behavior not contradicted by the intention
+- preserve existing user data unless the intention explicitly requires otherwise
+- inspect the existing persistence model before changing persistent state
+- prefer forward migrations; do not rewrite accepted migration history
+- do not perform unrelated architectural refactors
 
-## Authority and product truth
+Use the smallest appropriate implementation.
 
-- The exact human intention in `.tohseno/EVOLUTION_INTENT.md` is authoritative,
-  and interpreting it is your job. Nothing else in this Shot describes the
-  product; do not expect a plan to have already resolved it for you.
-- The accepted Genome in `.tohseno/genome.json` is engine-composed protocol
-  substrate that binds this Shot's identity. It is not a product specification
-  and it never narrows the intention.
-- The Apple profile at `.tohseno/private/planning/apple-capability-profile.json`
-  describes available material and evidence constraints, not a denylist.
-- When that profile contains `signing_team`, its exact `team_id` is the
-  engine-selected development team for physical evidence. Do not guess a team
-  from certificate display names or parenthetical labels; the engine still
-  owns the final signed delivery gate.
-- Explicit native capabilities must be implemented in the Release product.
-- `simulator_unavailable` or unknown hardware never means product absence.
-- A fallback is allowed only under its accepted runtime condition and cannot
-  become primary merely because Simulator sensor input is absent.
-- No primary interaction may be a mock, inert surface, placeholder, or promise
-  of later work. “MVP” means the smallest complete production-quality promise.
-- Release dependency construction must fail visibly when required durable
-  recovery state or the Fascia InstallationIdentity cannot initialize. Never
-  silently replace accepted persistence with an in-memory store or replace an
-  installation identity with a sentinel string merely to keep the UI moving.
-- When the exact intention requires a named live service or API contract,
-  successful contract retrieval and real-service journey evidence are part of
-  acceptance. Fixtures may test deterministic UI and failure states, but they
-  never satisfy the required live integration. An unavailable required service
-  remains a blocking product gap in the Experience Trial.
-- Internal repair passes are part of this birth, not Evolutions.
-- Protocol conformance is necessary and insufficient: the product promise and
-  target-user experience must independently pass.
+For a new native iPhone app, the root project, shared scheme, target, and app
+product must be `{app_name}` and the bundle identifier must be `{bundle_id}`.
+TOHSENO has already staged exact engine-owned files in `TohsenoFascia/` and
+`TOHSENO/`. Do not search for, copy, or rewrite them. Add both existing
+directories to the application target; bundle `TOHSENO/fascia.json` and
+`TOHSENO/embedded-provenance.json` as resources.
 
-## App identity
+This file is the complete harness contract. Do not load TOHSENO workflow or
+planning skills.
 
-- Product/target: `{app_name}`
-- Bundle identifier: `{bundle_id}`
-- The Shot repository root is the canonical source root. Put exactly one real
-  Xcode project at `./{app_name}.xcodeproj`; do not leave the only project
-  under `src/`, and do not create a second nested `.xcodeproj`. Application
-  source and resources may live in subordinate folders referenced by that
-  root project.
-- The shared Xcode scheme and built `.app` basename must both be exactly
-  `{app_name}`; use `CFBundleDisplayName` for differently cased user-facing
-  branding. The engine invokes `xcodebuild -scheme {app_name}` and looks for
-  `{app_name}.app`.
-- Do not disable signing in project settings. The engine disables signing for
-  generic compile/Simulator gates and explicitly enables automatic signing for
-  the paired-device delivery gate.
+TOHSENO owns final deterministic build, verification, installation, launch,
+recording, and delivery after you exit. Do not run broad acceptance suites that
+TOHSENO will run again. Run only focused checks needed to implement the exact
+intention confidently.
 
-Copy the five Apple Fascia reference sources from
-`.tohseno/fascia/apple/swift/` into the repository-root `TohsenoFascia/`
-directory and add them to the app target. Keep repository-root
-`TOHSENO/fascia.json` and `TOHSENO/embedded-provenance.json` as engine-owned
-`{{}}` placeholders in source; do not put the only copies under another source
-folder. The engine reconciles observed source/artifact evidence into final
-Fascia facts.
+Before exiting, write a factual draft to the repository-root file
+`TOHSENO_STATE_TRANSITION.json` with this exact small shape:
 
-## Protocol substrate
+```json
+{{
+  "schema": "tohseno.state-transition/1",
+  "persistent_state": "unchanged",
+  "summary": "No persistent application state changed.",
+  "changes": [],
+  "migrations": [],
+  "data_safety": "preserved"
+}}
+```
 
-`.tohseno/genome.json`, `.tohseno/private/planning/birth-plan.json`, and
-`.tohseno/private/planning/birth-expression-plan.json` are engine-composed. They
-fix this Shot's identity, its organ graph, and the shape of the trial you
-return. They deliberately say almost nothing about the product, because the
-product is the preserved intention and reading it is your work.
-
-Protocol-substrate organs preserve identity and provenance. They do not fulfill
-product requirements. The app-specific organ carries the whole intention: treat
-every promise the human made as in scope for it.
-
-## Experience Contract
-
-- Authoritative RFC 8785 canonical JSON SHA-256 digest:
-  `{experience_digest}`
-
-Read the structured contract at
-`.tohseno/private/planning/experience-contract.json`; do not reproduce it here.
-
-Build the Release implementation, run deterministic XCTest and XCUITest where
-appropriate, launch in Simulator, traverse each required target-user journey,
-capture meaningful multi-state evidence, inspect it from that actor's
-perspective, repair mismatches, and repeat until the contract passes. Use
-launch arguments or injected sensor fixtures only in test configurations;
-prove the real framework path remains in Release source. The engine
-independently reruns the checked-in suite with `-configuration Release` and
-`CODE_SIGNING_ALLOWED=NO`. If tests use `@testable import`, enable testability
-for that Release test build; never buy access by widening a product symbol to
-`public` or dropping `@testable`. If unsigned Simulator launch cannot prepare
-the real Keychain-backed InstallationIdentity, use an explicit launch argument
-guarded by `#if targetEnvironment(simulator)` for the UI-test journey only.
-Normal and physical-device Release launches must still prepare the real
-identity and fail visibly on errors. When the profile has a compatible
-connected iPhone and a required scenario is hardware-critical, also
-build/install/launch and exercise that scenario on the physical device.
-
-Keep build products out of the Shot. Pass an explicit `-derivedDataPath` and
-result-bundle path outside this directory, and never let derived data, a
-result bundle, or `.xcuserdatad` land in the source tree. This tree is what
-becomes the Version, so anything built here is preserved as if it were the app.
-
-Every claimed final verification must exercise the exact final source tree.
-After the last source, test, fixture, or project-definition edit, regenerate
-the Xcode project when applicable, rebuild the affected products, and rerun the
-relevant suites. An in-flight run or `test-without-building` result from an
-older product is not evidence for newer files. Preserve the real exit status
-of `xcodebuild`; when filtering output, use `set -o pipefail` or capture and
-check the producer status so `grep`, `head`, or `tail` cannot turn a failing
-suite into shell success.
-
-Write strict `{trial_schema}` JSON to
-`.tohseno/private/planning/experience-trial.json` using the closed schema at
-`.tohseno/private/planning/{trial_schema_file}`. Give every organ criterion
-its own result and evidence. Do not infer all organ results from a build or
-from overall conformance. A product gap, failed must-level journey, missing
-required physical trial, or forbidden substitution must remain failed.
-Set `experience_contract_digest` to the authoritative digest printed above
-exactly; do not substitute a hash of the pretty-printed contract file. Set
-`birth_plan_digest` to the accepted Birth Plan's RFC 8785 canonical digest.
-Every evidence `relative_path` is relative to the Shot repository root, not to
-the trial file. Evidence kept beside the trial must therefore be named like
-`.tohseno/private/planning/evidence/...`, and the file, byte length, and raw
-SHA-256 digest must match that exact repository-root-relative declaration.
-A scenario's `passed` flag covers its complete environment, gestures, expected
-states, and completion condition. A DEBUG fixture may prove individual
-mechanics inside a failed scenario, but it never makes a named live-service or
-physical-device scenario pass; keep that scenario false and record the typed
-blocking constraint.
-
-Do not call `tohseno evolve`. Exit after returning the candidate and evidence;
-the engine will evaluate, issue a focused repair pass when needed, and seal
-only if all three acceptance dimensions pass.
+Use `changed` when the persistent model changed and list concrete changes and
+relative migration paths. Use `unknown` only when reality cannot be established.
+This draft is a receipt, not a schema or plan. Then exit.
 "#,
-            engine_version = factory.engine_version,
-            source_commit = factory.source_commit,
-            constitution_digest = factory.static_constitution_digest,
-            genome_digest = factory
-                .accepted_shot_genome_digest
-                .expect("materialization identity requires an accepted Genome"),
-            profile_digest = factory.apple_capability_profile_digest,
-            experience_digest = experience_digest,
-            trial_schema = crate::experience::EXPERIENCE_TRIAL_SCHEMA,
-            trial_schema_file = crate::conception::EXPERIENCE_TRIAL_SCHEMA_FILE,
         );
         let path = folder.join(".tohseno/TASK.md");
         fs::write(&path, task)?;
         Ok(path)
+    }
+
+    /// New births receive the deterministic protocol substrate before a
+    /// coding harness starts. Existing applications keep the exact substrate
+    /// of their accepted Version.
+    fn stage_birth_substrate(&self, folder: &Path, app_name: &str) -> Result<(), GenomeError> {
+        if folder.join(format!("{app_name}.xcodeproj")).exists() {
+            return Ok(());
+        }
+        let fascia = folder.join("TohsenoFascia");
+        let resources = folder.join("TOHSENO");
+        fs::create_dir_all(&fascia)?;
+        fs::create_dir_all(&resources)?;
+        for (name, contents) in FASCIA_SWIFT {
+            fs::write(fascia.join(name), contents.as_bytes())?;
+        }
+        for (name, contents) in FASCIA_DOCUMENTS {
+            fs::write(resources.join(name), contents.as_bytes())?;
+        }
+        fs::write(resources.join("fascia.json"), b"{}\n")?;
+        fs::write(resources.join("embedded-provenance.json"), b"{}\n")?;
+        Ok(())
     }
 
     /// Writes the private briefing for a conducted creation into the app's

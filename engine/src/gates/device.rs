@@ -66,14 +66,25 @@ pub fn check() -> Result<DeviceState, DeviceError> {
     let json = read_bounded_utf8(&json_path, MAX_DEVICECTL_JSON_BYTES).map_err(DeviceError::Io);
     let _ = fs::remove_file(&json_path);
     output?;
-    let usb_registry = std::process::Command::new("ioreg")
+    let usb_registry = usb_registry();
+    parse_with_usb_registry(&json?, &usb_registry)
+}
+
+/// Privacy-minimal pre-CoreDevice observation used only to project the cable
+/// step while Xcode is unavailable. No device identifier leaves this module.
+pub fn cable_visible() -> bool {
+    let registry = usb_registry();
+    registry.contains("iPhone") || registry.contains("Apple Mobile Device")
+}
+
+fn usb_registry() -> String {
+    std::process::Command::new("ioreg")
         .args(["-p", "IOUSB", "-l", "-w", "0"])
         .output()
         .ok()
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
-        .unwrap_or_default();
-    parse_with_usb_registry(&json?, &usb_registry)
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

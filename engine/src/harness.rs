@@ -396,13 +396,16 @@ pub fn build_materialization_command(
 }
 
 fn materialization_instruction(task_path: &Path, repair_diagnostic: Option<&str>) -> String {
-    let repair = repair_diagnostic
-        .map(|diagnostic| format!(" Repair only this failing criterion and exit: {diagnostic}"))
-        .unwrap_or_default();
-    format!(
-        "Read `{}`, complete the requested app, verify it, and exit.{repair}",
-        task_path.display()
-    )
+    match repair_diagnostic {
+        Some(diagnostic) => format!(
+            "Read `{}`. Repair only this independently diagnosed criterion: {diagnostic}. Do not redo the implementation or run xcodebuild; TOHSENO immediately reruns its deterministic gates. Do not replace the existing state-transition draft. Then exit.",
+            task_path.display()
+        ),
+        None => format!(
+            "Read `{}`, complete the requested app, verify it, and exit.",
+            task_path.display()
+        ),
+    }
 }
 
 fn build_command(
@@ -806,8 +809,10 @@ mod tests {
             Path::new(".tohseno/TASK.md"),
             Some("organ dependency has not been declared"),
         );
-        assert!(instruction.contains("Repair only this failing criterion"));
+        assert!(instruction.contains("Repair only this independently diagnosed criterion"));
         assert!(instruction.contains("organ dependency has not been declared"));
+        assert!(instruction.contains("Do not redo the implementation or run xcodebuild"));
+        assert!(instruction.contains("Do not replace the existing state-transition draft"));
         assert!(!instruction.contains("sibling Shot repositories"));
     }
 
@@ -823,7 +828,7 @@ mod tests {
             Path::new(".tohseno/TASK.md"),
             Some("one trial field is invalid"),
         );
-        assert!(repair.contains("Repair only this failing criterion"));
+        assert!(repair.contains("Repair only this independently diagnosed criterion"));
     }
 
     #[test]

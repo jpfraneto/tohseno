@@ -977,6 +977,7 @@ fn apply_event(
             observed.failed_executions.insert(execution.execution_id);
         }
         WorkspaceEventPayload::ExecutionQueued { .. }
+        | WorkspaceEventPayload::ProductEntitlement { .. }
         | WorkspaceEventPayload::ExecutionStarted { .. }
         | WorkspaceEventPayload::ExecutionUpdated { .. }
         | WorkspaceEventPayload::ExecutionWaitingForDevice { .. }

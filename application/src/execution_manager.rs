@@ -2,10 +2,8 @@ use crate::factory_lease::FactoryLease;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
-use tohseno_engine::harness::{
-    build_evolution_command, build_materialization_command, HarnessSelection,
-};
+use std::time::{Duration, SystemTime};
+use tohseno_engine::harness::{build_materialization_command, HarnessSelection};
 use tohseno_engine::protocol_lifecycle::verify_completed_evolution;
 use tohseno_engine::shot_execution::{
     append_harness_heartbeat, complete_execution, execution_directory, has_workspace_changed,
@@ -18,16 +16,15 @@ use tohseno_engine::{
     ExecutionReference, FactoryStage, PreparedExecution, ShotLayout,
 };
 
-const DEFAULT_REPAIR_PASSES: u8 = 5;
-const MAXIMUM_REPAIR_PASSES: u8 = 8;
 /// How long a harness may write nothing to the Shot before the supervisor
-/// treats it as hung. Long enough for a slow build or a long think, far short
-/// of a night.
-const DEFAULT_STALL_SECS: u64 = 30 * 60;
-const MAXIMUM_STALL_SECS: u64 = 4 * 60 * 60;
-/// Absolute ceiling on one harness invocation, regardless of progress.
-const DEFAULT_MAX_RUNTIME_SECS: u64 = 4 * 60 * 60;
-const MAXIMUM_MAX_RUNTIME_SECS: u64 = 12 * 60 * 60;
+/// treats it as hung.
+const DEFAULT_STALL_SECS: u64 = 15 * 60;
+const MAXIMUM_STALL_SECS: u64 = 30 * 60;
+/// One human intention owns one shared wall-clock harness budget. A targeted
+/// repair consumes what remains instead of receiving a fresh clock.
+const DEFAULT_TOTAL_HARNESS_BUDGET_SECS: u64 = 60 * 60;
+const MAXIMUM_TOTAL_HARNESS_BUDGET_SECS: u64 = 2 * 60 * 60;
+const MAX_HARNESS_INVOCATIONS: u8 = 2;
 /// A harness gets a short window to flush and stop its own children after the
 /// supervisor sends SIGTERM. After that, the advertised ceiling must remain a
 /// ceiling even when the harness ignores the graceful signal.
@@ -595,6 +592,16 @@ fn spawn_background_runner(
             execution.repository.display()
         )
     })?;
+    // Publish the exact child PID before releasing the execution-scoped
+    // launcher lock. The child will confirm the same PID after acquiring its
+    // process-lifetime claim. Without this handoff, the service monitor can
+    // briefly see RunnerStarted with neither marker and spawn a redundant
+    // second runner.
+    if let Err(error) = write_runner_pid(execution, child.id()) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error.into());
+    }
     std::thread::spawn(move || {
         let _ = child.wait();
     });
@@ -966,9 +973,9 @@ async fn run_shot(
         "The unattended runner claimed the prepared Shot.",
     )?;
     let started_at = read_events(&repository, execution_id)?
-        .last()
+        .first()
         .map(|event| event.timestamp.clone())
-        .ok_or("execution start event was not persisted")?;
+        .unwrap_or_else(|| execution.prepared_at.clone());
     update_phase(
         &mut execution,
         ExecutionPhase::ContextLoaded,
@@ -979,115 +986,105 @@ async fn run_shot(
         model: execution.model.clone(),
         route: execution.route.clone(),
     };
-    let started = Instant::now();
+    let harness_budget_started = SystemTime::now();
+    let harness_budget = bounded_duration_setting(
+        "TOHSENO_HARNESS_TOTAL_BUDGET_SECS",
+        DEFAULT_TOTAL_HARNESS_BUDGET_SECS,
+        MAXIMUM_TOTAL_HARNESS_BUDGET_SECS,
+    );
+    let harness_context = HarnessExecutionContext {
+        repository: &repository,
+        execution_started_at: &started_at,
+        shared_budget_started: harness_budget_started,
+        shared_budget: harness_budget,
+        events,
+    };
     let mut changed_reported = false;
     let relative_images = images
         .iter()
         .map(|path| path.strip_prefix(&repository).unwrap_or(path).to_path_buf())
         .collect::<Vec<_>>();
-    // One harness invocation per execution. The Shot's Genome is already
-    // accepted before this point, so the first thing the harness ever sees is
-    // the exact human intention.
-    let first_command = match execution.mode {
-        ExecutionMode::EvolutionMaterialization => build_evolution_command(
-            &selection,
-            Path::new(&execution.intent_path),
-            &relative_images,
-        ),
-        // A legacy `conception` record resumes as the materialization it was
-        // always going to become.
-        ExecutionMode::BirthMaterialization | ExecutionMode::Conception => {
-            execution.mode = ExecutionMode::BirthMaterialization;
-            build_materialization_command(
-                &selection,
-                Path::new(".tohseno/TASK.md"),
-                &relative_images,
-                None,
-            )
-        }
+    // The implementation pass sees the exact human intention. Only one later,
+    // targeted repair may follow, and it consumes this same budget.
+    if execution.mode == ExecutionMode::Conception {
+        execution.mode = ExecutionMode::BirthMaterialization;
     }
+    clear_state_transition_draft(&repository)?;
+    let first_command = build_materialization_command(
+        &selection,
+        Path::new(".tohseno/TASK.md"),
+        &relative_images,
+        None,
+    )
     .map_err(|error| format!("harness adapter rejected execution: {error}"))?;
     let (mut status, mut cancelled, mut stalled) = execute_harness(
         first_command,
-        &repository,
         &mut execution,
         &mut changed_reported,
         ExecutionPhase::Materializing,
-        events,
+        &harness_context,
     )
     .await?;
+    collect_state_transition_draft(&repository, true)?;
+    let harness_invocations = 1_u8;
 
     // A stalled harness is a failure with a known cause. Recording that cause
     // beats letting the acceptance gates report the same silence as "no
     // accepted Version" with no explanation of why.
     let mut validation_diagnostic = stalled.take();
     if status.success() && !cancelled && validation_diagnostic.is_none() {
-        let maximum_repairs = std::env::var("TOHSENO_MAX_REPAIR_PASSES")
-            .or_else(|_| std::env::var("TOHSENO_MAX_BIRTH_REPAIR_PASSES"))
-            .ok()
-            .and_then(|value| value.parse::<u8>().ok())
-            .unwrap_or(DEFAULT_REPAIR_PASSES)
-            .min(MAXIMUM_REPAIR_PASSES);
-        for pass in 0..=maximum_repairs {
-            update_phase(
-                &mut execution,
-                ExecutionPhase::Materializing,
-                "The engine is beginning its deterministic materialization, build, test, verification, and delivery gates.",
-            )?;
-            match record_and_deliver_with_wait(
-                &engine,
-                app_name,
-                &mut execution,
-                &mut lease,
-                events,
-            )
-            .await
-            {
-                Ok(_) => {
-                    validation_diagnostic = None;
-                    break;
-                }
-                Err(error) => {
-                    let diagnostic = error.to_string();
-                    validation_diagnostic = Some(diagnostic.clone());
-                    let externally_blocked = is_external_validation_block(&diagnostic);
-                    if pass == maximum_repairs || externally_blocked {
-                        break;
-                    }
-                    let repair_kind = match execution.mode {
-                        ExecutionMode::EvolutionMaterialization => "EVOLUTION CANDIDATE REPAIR",
-                        ExecutionMode::BirthMaterialization | ExecutionMode::Conception => {
-                            "BIRTH REPAIR"
-                        }
-                    };
-                    events.emit(Event::status(format!(
-                        "{repair_kind} {}/{} · {diagnostic}",
-                        pass + 1,
-                        maximum_repairs
-                    )));
-                    let command = build_materialization_command(
-                        &selection,
-                        Path::new(".tohseno/TASK.md"),
-                        &relative_images,
-                        Some(&diagnostic),
-                    )
-                    .map_err(|adapter| format!("harness adapter rejected repair: {adapter}"))?;
-                    (status, cancelled, stalled) = execute_harness(
-                        command,
-                        &repository,
+        update_phase(
+            &mut execution,
+            ExecutionPhase::Materializing,
+            "TOHSENO is running its finite deterministic build, verification, and delivery gates.",
+        )?;
+        if let Err(error) =
+            record_and_deliver_with_wait(&engine, app_name, &mut execution, &mut lease, events)
+                .await
+        {
+            let diagnostic = error.to_string();
+            validation_diagnostic = Some(diagnostic.clone());
+            if repair_allowed(
+                harness_invocations,
+                &diagnostic,
+                wall_elapsed(harness_budget_started),
+                harness_budget,
+            ) {
+                events.emit(Event::status(format!("ONE TARGETED REPAIR · {diagnostic}")));
+                let command = build_materialization_command(
+                    &selection,
+                    Path::new(".tohseno/TASK.md"),
+                    &relative_images,
+                    Some(&diagnostic),
+                )
+                .map_err(|adapter| format!("harness adapter rejected repair: {adapter}"))?;
+                (status, cancelled, stalled) = execute_harness(
+                    command,
+                    &mut execution,
+                    &mut changed_reported,
+                    ExecutionPhase::Repairing,
+                    &harness_context,
+                )
+                .await?;
+                collect_state_transition_draft(&repository, false)?;
+                if let Some(reason) = stalled.take() {
+                    validation_diagnostic = Some(reason);
+                } else if status.success() && !cancelled {
+                    update_phase(
                         &mut execution,
-                        &mut changed_reported,
-                        ExecutionPhase::Repairing,
+                        ExecutionPhase::Materializing,
+                        "TOHSENO is rerunning the deterministic gates once after the targeted repair.",
+                    )?;
+                    validation_diagnostic = record_and_deliver_with_wait(
+                        &engine,
+                        app_name,
+                        &mut execution,
+                        &mut lease,
                         events,
                     )
-                    .await?;
-                    if let Some(reason) = stalled.take() {
-                        validation_diagnostic = Some(reason);
-                        break;
-                    }
-                    if !status.success() || cancelled {
-                        break;
-                    }
+                    .await
+                    .err()
+                    .map(|error| error.to_string());
                 }
             }
         }
@@ -1099,7 +1096,7 @@ async fn run_shot(
     let completion = complete_execution(
         &mut execution,
         started_at,
-        started.elapsed().as_secs(),
+        0,
         status.code(),
         cancelled,
         accepted,
@@ -1268,28 +1265,115 @@ fn execution_phase_for_factory_stage(stage: FactoryStage) -> ExecutionPhase {
     }
 }
 
-fn is_external_validation_block(diagnostic: &str) -> bool {
-    diagnostic.contains("external_environment_constraint")
-        || diagnostic.contains("acceptance_pending_physical_experience")
-        || diagnostic.contains("acceptance_pending_simulator_environment")
-        || diagnostic.contains("factory identity changed")
-        || diagnostic.contains("Developer Mode")
-        || diagnostic.contains("Trust This Computer")
+fn is_repairable_implementation_defect(diagnostic: &str) -> bool {
+    let external_or_protocol = [
+        "external_environment_constraint",
+        "acceptance_pending_physical_experience",
+        "acceptance_pending_simulator_environment",
+        "factory identity changed",
+        "Developer Mode",
+        "Trust This Computer",
+        "device delivery",
+        "device was not",
+        "signing",
+        "provisioning",
+        "network",
+        "DNS",
+        "protocol body is incomplete",
+        "conformance",
+        "lineage",
+    ]
+    .iter()
+    .any(|marker| diagnostic.contains(marker));
+    if external_or_protocol {
+        return false;
+    }
+    [
+        "does not build",
+        "build failed",
+        "BUILD FAILED",
+        "missing required anatomy",
+        "Simulator artifact failed",
+        "engine Simulator tests failed",
+        "error:",
+    ]
+    .iter()
+    .any(|marker| diagnostic.contains(marker))
+}
+
+fn repair_allowed(
+    harness_invocations: u8,
+    diagnostic: &str,
+    shared_elapsed: Duration,
+    shared_budget: Duration,
+) -> bool {
+    harness_invocations < MAX_HARNESS_INVOCATIONS
+        && shared_elapsed < shared_budget
+        && is_repairable_implementation_defect(diagnostic)
+}
+
+fn clear_state_transition_draft(repository: &Path) -> std::io::Result<()> {
+    for relative in [
+        tohseno_engine::shot_execution::STATE_TRANSITION_HARNESS_DRAFT_PATH,
+        tohseno_engine::shot_execution::STATE_TRANSITION_DRAFT_PATH,
+    ] {
+        match fs::remove_file(repository.join(relative)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+fn collect_state_transition_draft(
+    repository: &Path,
+    replace_existing: bool,
+) -> std::io::Result<()> {
+    let source =
+        repository.join(tohseno_engine::shot_execution::STATE_TRANSITION_HARNESS_DRAFT_PATH);
+    let metadata = match fs::symlink_metadata(&source) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 64 * 1024 {
+        let _ = fs::remove_file(source);
+        return Ok(());
+    }
+    let destination = repository.join(tohseno_engine::shot_execution::STATE_TRANSITION_DRAFT_PATH);
+    if !replace_existing && destination.is_file() {
+        fs::remove_file(source)?;
+        return Ok(());
+    }
+    match fs::remove_file(&destination) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    fs::rename(source, destination)
+}
+
+struct HarnessExecutionContext<'a> {
+    repository: &'a Path,
+    execution_started_at: &'a str,
+    shared_budget_started: SystemTime,
+    shared_budget: Duration,
+    events: &'a EventBus,
 }
 
 async fn execute_harness(
     harness: tohseno_engine::HarnessCommand,
-    repository: &Path,
     execution: &mut PreparedExecution,
     changed_reported: &mut bool,
     active_phase: ExecutionPhase,
-    events: &EventBus,
+    context: &HarnessExecutionContext<'_>,
 ) -> Result<(std::process::ExitStatus, bool, Option<String>), Box<dyn std::error::Error>> {
     let mut command = tokio::process::Command::new(&harness.program);
     command
         .args(&harness.arguments)
         .envs(harness.environment)
-        .current_dir(repository)
+        .current_dir(context.repository)
         .stdin(Stdio::null())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -1310,7 +1394,7 @@ async fn execute_harness(
             _ => "The harness is materializing the preserved intention and references.",
         },
     )?;
-    events.emit(Event::status("SHOT IN FLIGHT"));
+    context.events.emit(Event::status("SHOT IN FLIGHT"));
     let mut cancelled = false;
     let mut stalled = None;
     let stall_after = bounded_duration_setting(
@@ -1318,18 +1402,13 @@ async fn execute_harness(
         DEFAULT_STALL_SECS,
         MAXIMUM_STALL_SECS,
     );
-    let give_up_after = bounded_duration_setting(
-        "TOHSENO_HARNESS_MAX_RUNTIME_SECS",
-        DEFAULT_MAX_RUNTIME_SECS,
-        MAXIMUM_MAX_RUNTIME_SECS,
-    );
-    let harness_started = Instant::now();
-    let mut last_heartbeat = Instant::now();
+    let harness_started = SystemTime::now();
+    let mut last_heartbeat = SystemTime::now();
     // Progress is measured against the Shot tree, not against harness output.
     // A harness that prints forever while writing nothing is not working. The
     // prepared boundary is already this tree's state at start, so establishing
     // it costs no extra Git work.
-    let mut last_progress_at = Instant::now();
+    let mut last_progress_at = SystemTime::now();
     let mut last_fingerprint = execution.baseline.tree.clone();
     let mut stop_requested_at = None;
     let mut forced_stop_reported = false;
@@ -1347,9 +1426,8 @@ async fn execute_harness(
                 _ = interval.tick() => {
                     #[cfg(unix)]
                     if !forced_stop_reported
-                        && stop_requested_at.is_some_and(|requested: Instant| {
-                            requested.elapsed()
-                                >= Duration::from_secs(HARNESS_GRACEFUL_STOP_SECS)
+                        && stop_requested_at.is_some_and(|requested: SystemTime| {
+                            wall_elapsed(requested) >= Duration::from_secs(HARNESS_GRACEFUL_STOP_SECS)
                         })
                     {
                         if let Some(pid) = child_id {
@@ -1357,7 +1435,7 @@ async fn execute_harness(
                             // signal by its stable PID. SIGKILL is deliberately
                             // reserved for a harness that ignored SIGTERM.
                             unsafe { libc::kill(pid as i32, libc::SIGKILL); }
-                            events.emit(Event::status(
+                            context.events.emit(Event::status(
                                 "HARNESS FORCED STOP · the harness ignored the graceful stop deadline",
                             ));
                             forced_stop_reported = true;
@@ -1368,19 +1446,20 @@ async fn execute_harness(
                         // factory lifecycle phase. Preserve the typed
                         // Materializing/Repairing state while the harness is
                         // still doing that exact work.
-                        events.emit(Event::status(
+                        context.events.emit(Event::status(
                             "The Shot repository changed after the prepared boundary.",
                         ));
                         *changed_reported = true;
                     }
-                    if last_heartbeat.elapsed() >= Duration::from_secs(60) {
+                    if wall_elapsed(last_heartbeat) >= Duration::from_secs(60) {
                         if let Ok(fingerprint) = workspace_fingerprint(execution) {
                             if fingerprint != last_fingerprint {
                                 last_fingerprint = fingerprint;
-                                last_progress_at = Instant::now();
+                                last_progress_at = SystemTime::now();
                             }
                         }
-                        let elapsed_minutes = harness_started.elapsed().as_secs() / 60;
+                        let attempt_elapsed = wall_elapsed(harness_started);
+                        let execution_elapsed = elapsed_since_timestamp(context.execution_started_at);
                         let activity = privacy_safe_workspace_progress(execution)
                             .unwrap_or_else(|_| {
                                 if *changed_reported {
@@ -1392,34 +1471,36 @@ async fn execute_harness(
                         append_harness_heartbeat(
                             execution,
                             format!(
-                                "{} is still running after {elapsed_minutes} minute(s); {activity}.",
-                                execution.harness_display_name
+                                "{} is still running. Execution elapsed: {}; current attempt: {}; {activity}.",
+                                execution.harness_display_name,
+                                format_duration(execution_elapsed),
+                                format_duration(attempt_elapsed),
                             ),
                         )?;
-                        last_heartbeat = Instant::now();
+                        last_heartbeat = SystemTime::now();
 
                         // An unattended run has nobody watching it. Without
                         // these two bounds a harness that hangs holds the
                         // factory lease until a human notices, which is how a
                         // two-minute silence became an eight-hour one.
-                        let idle = last_progress_at.elapsed();
-                        let total = harness_started.elapsed();
+                        let idle = wall_elapsed(last_progress_at);
+                        let total = wall_elapsed(context.shared_budget_started);
                         if stalled.is_none() && idle >= stall_after {
                             stalled = Some(format!(
-                                "{} wrote nothing to the Shot for {} minute(s); the supervisor stopped it. Raise TOHSENO_HARNESS_STALL_SECS if this app genuinely needs longer silent stretches.",
+                                "{} wrote nothing to the app source for {} minute(s); the supervisor stopped it.",
                                 execution.harness_display_name,
                                 idle.as_secs() / 60
                             ));
-                        } else if stalled.is_none() && total >= give_up_after {
+                        } else if stalled.is_none() && total >= context.shared_budget {
                             stalled = Some(format!(
-                                "{} ran for {} minute(s) without reaching an acceptance gate; the supervisor stopped it. Raise TOHSENO_HARNESS_MAX_RUNTIME_SECS to allow a longer single run.",
+                                "The shared harness budget for this intention reached {} minute(s); the supervisor stopped {}.",
+                                context.shared_budget.as_secs() / 60,
                                 execution.harness_display_name,
-                                total.as_secs() / 60
                             ));
                         }
                         if stop_requested_at.is_none() {
                             if let Some(reason) = &stalled {
-                                events.emit(Event::status(format!(
+                                context.events.emit(Event::status(format!(
                                     "HARNESS STOPPED · {reason}"
                                 )));
                                 append_harness_heartbeat(execution, reason.clone())?;
@@ -1432,7 +1513,7 @@ async fn execute_harness(
                                 }
                                 #[cfg(not(unix))]
                                 let _ = child_id;
-                                stop_requested_at = Some(Instant::now());
+                                stop_requested_at = Some(SystemTime::now());
                             }
                         }
                     }
@@ -1462,6 +1543,32 @@ fn bounded_duration_setting(name: &str, default_secs: u64, maximum_secs: u64) ->
         .unwrap_or(default_secs)
         .min(maximum_secs);
     Duration::from_secs(seconds)
+}
+
+fn wall_elapsed(started: SystemTime) -> Duration {
+    SystemTime::now()
+        .duration_since(started)
+        .unwrap_or_default()
+}
+
+fn elapsed_since_timestamp(started_at: &str) -> Duration {
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
+    Duration::from_secs(tohseno_engine::shot_execution::elapsed_seconds_between(
+        started_at, &now,
+    ))
+}
+
+fn format_duration(duration: Duration) -> String {
+    let seconds = duration.as_secs();
+    let hours = seconds / 3_600;
+    let minutes = (seconds % 3_600) / 60;
+    if hours > 0 {
+        format!("{hours}h {minutes}m")
+    } else {
+        format!("{minutes}m")
+    }
 }
 
 pub async fn follow(
@@ -2135,12 +2242,74 @@ mod tests {
     }
 
     #[test]
-    fn typed_external_constraints_stop_automatic_repair() {
-        assert!(is_external_validation_block(
-            "incompleteness.backend [external_environment_constraint]: DNS is unavailable"
+    fn only_one_concrete_code_repair_fits_the_bounded_policy() {
+        let budget = Duration::from_secs(DEFAULT_TOTAL_HARNESS_BUDGET_SECS);
+        assert!(repair_allowed(
+            1,
+            "the folder does not build: error: missing symbol",
+            Duration::from_secs(10),
+            budget,
         ));
-        assert!(!is_external_validation_block(
-            "incompleteness.upload [product_gap]: retry is broken"
+        assert!(repair_allowed(
+            1,
+            "the folder is missing required anatomy: the generated app is missing its Fascia or provenance resource placeholder",
+            Duration::from_secs(10),
+            budget,
         ));
+        assert!(!repair_allowed(
+            2,
+            "the folder does not build: error: missing symbol",
+            Duration::from_secs(10),
+            budget,
+        ));
+        assert!(!repair_allowed(
+            1,
+            "the folder does not build: error: missing symbol",
+            budget,
+            budget,
+        ));
+    }
+
+    #[test]
+    fn external_and_protocol_conditions_never_invoke_intelligence() {
+        for diagnostic in [
+            "incompleteness.backend [external_environment_constraint]: DNS is unavailable",
+            "device delivery is waiting for the configured iPhone",
+            "automatic signing is unavailable",
+            "the local Shot protocol body is incomplete: conformance failed",
+        ] {
+            assert!(!is_repairable_implementation_defect(diagnostic));
+        }
+    }
+
+    #[test]
+    fn wall_clock_format_does_not_reset_for_a_repair_attempt() {
+        let durable_execution_elapsed = Duration::from_secs(6 * 3_600 + 12 * 60);
+        let current_repair_attempt = Duration::from_secs(11 * 60);
+        assert_eq!(format_duration(durable_execution_elapsed), "6h 12m");
+        assert_eq!(format_duration(current_repair_attempt), "11m");
+    }
+
+    #[test]
+    fn repair_cannot_replace_the_intentions_state_transition_draft() {
+        let repository = tempfile::tempdir().unwrap();
+        fs::create_dir_all(repository.path().join(".tohseno")).unwrap();
+        let harness = repository
+            .path()
+            .join(tohseno_engine::shot_execution::STATE_TRANSITION_HARNESS_DRAFT_PATH);
+        let retained = repository
+            .path()
+            .join(tohseno_engine::shot_execution::STATE_TRANSITION_DRAFT_PATH);
+        fs::write(&harness, b"{\"persistent_state\":\"changed\"}\n").unwrap();
+        collect_state_transition_draft(repository.path(), true).unwrap();
+        fs::write(&harness, b"{\"persistent_state\":\"unchanged\"}\n").unwrap();
+
+        collect_state_transition_draft(repository.path(), false).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(retained).unwrap(),
+            "{\"persistent_state\":\"changed\"}\n"
+        );
+        assert!(!harness.exists());
     }
 }

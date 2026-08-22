@@ -1,3 +1,5 @@
+mod billing;
+mod cable_genesis;
 mod companion_service;
 mod companion_simulator;
 mod identity_commands;
@@ -324,6 +326,8 @@ enum CompanionAdminCommand {
     Status,
     /// Open Studio directly into the pairing surface.
     Pair,
+    /// Build, install, and launch the current Companion on the connected iPhone.
+    Install,
     /// List paired and revoked companion devices.
     Devices,
     /// Immediately revoke one paired device.
@@ -489,7 +493,19 @@ enum TokenCommand {
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
+    let arguments = product_arguments(std::env::args_os().collect());
+    let cli = Cli::parse_from(arguments);
+    run_main(cli).await;
+}
+
+fn product_arguments(mut arguments: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsString> {
+    if arguments.len() == 1 {
+        arguments.push("studio".into());
+    }
+    arguments
+}
+
+async fn run_main(cli: Cli) {
     let redact_service_error = matches!(
         &cli.command,
         Command::Service {
@@ -709,11 +725,10 @@ async fn dispatch(
             }
         },
         Command::Doctor { background } => {
-            let engine = Engine::discover(bus.clone())?;
             if !background {
                 bus.emit(Event::status("checking this Mac…"));
             }
-            engine.doctor_once()?;
+            product_doctor(json, bus).await?;
         }
         Command::Identity { command } => match command {
             IdentityCommand::Show => identity_commands::show(bus, json)?,
@@ -973,7 +988,7 @@ async fn factory_create(
         "references": api_references(&references),
     });
     let receipt: Value = service
-        .post("/api/v1/shots", &body)
+        .post_durable("/api/v1/shots", &body)
         .await
         .map_err(|error| error.to_string())?;
     let execution_id = receipt
@@ -1115,7 +1130,7 @@ async fn factory_evolve(
         "references": api_references(&references),
     });
     let receipt: Value = service
-        .post(&format!("/api/v1/shots/{shot_id}/evolutions"), &body)
+        .post_durable(&format!("/api/v1/shots/{shot_id}/evolutions"), &body)
         .await
         .map_err(|error| error.to_string())?;
     let execution_id = receipt
@@ -1253,10 +1268,19 @@ async fn service_admin(
             )?;
         }
         ServiceCommand::Restart => {
+            let previous_instance = service_client::ServiceClient::connect()
+                .await
+                .ok()
+                .map(|client| client.runtime().instance_id.clone());
             let receipt = service_commands::restart(&paths, &SystemLaunchctl)?;
             let client = service_client::ServiceClient::ensure_running()
                 .await
                 .map_err(|error| error.to_string())?;
+            if previous_instance.as_deref() == Some(client.runtime().instance_id.as_str()) {
+                return Err(
+                    "launchd did not replace the previous Local Workspace Service process".into(),
+                );
+            }
             present_json_or_status(
                 json_output,
                 json!({
@@ -1325,6 +1349,142 @@ async fn service_admin(
     Ok(())
 }
 
+async fn product_doctor(
+    json_output: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use tohseno_engine::gates::{apple_signing, device, toolchain};
+
+    let command_text = |program: &str, arguments: &[&str]| {
+        std::process::Command::new(program)
+            .args(arguments)
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+    };
+    let macos =
+        command_text("/usr/bin/sw_vers", &["-productVersion"]).unwrap_or_else(|| "unknown".into());
+    let node = command_text("node", &["--version"]);
+    let xcode_tools = command_text("xcode-select", &["-p"]).is_some();
+    let xcode = toolchain::check() == toolchain::ToolchainState::Ready;
+    let (apple_signing_ready, provisioning) = match apple_signing::check() {
+        apple_signing::AppleSigningState::Ready { provisioning, .. } => {
+            (true, provisioning.as_str())
+        }
+        apple_signing::AppleSigningState::Missing => (false, "unknown"),
+    };
+    let device_state = if xcode {
+        match device::check() {
+            Ok(device::DeviceState::Ready(_)) => "ready",
+            Ok(device::DeviceState::CableMissing) => "cable_missing",
+            Ok(device::DeviceState::TrustRequired) => "trust_required",
+            Ok(device::DeviceState::DeveloperModeRequired) => "developer_mode_required",
+            Err(_) => "unknown",
+        }
+    } else if device::cable_visible() {
+        "xcode_required"
+    } else {
+        "cable_missing"
+    };
+    let paths = service_commands::ServicePaths::discover()?;
+    let service_installed = paths.launch_agent.is_file();
+    let client = service_client::ServiceClient::connect().await.ok();
+    let service_healthy = client.is_some();
+    let entitlement = match &client {
+        Some(client) => client.get::<Value>("/api/v1/entitlement").await.ok(),
+        None => None,
+    };
+    let companion = match &client {
+        Some(client) => client.get::<Value>("/api/v1/companion/status").await.ok(),
+        None => None,
+    };
+    let release_manifest_compatible = paths
+        .install_root
+        .join("current/RELEASE.json")
+        .is_file()
+        .then(|| {
+            fs::read(paths.install_root.join("current/RELEASE.json"))
+                .ok()
+                .filter(|bytes| bytes.len() <= 64 * 1024)
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                .is_some_and(|value| {
+                    value["schema"] == "tohseno.release/1"
+                        && value["version"] == env!("CARGO_PKG_VERSION")
+                        && value["channel"] == "stable"
+                        && value["prerelease"] == false
+                })
+        });
+    let report = json!({
+        "schema": "tohseno.doctor/1",
+        "macos_version": macos,
+        "architecture": std::env::consts::ARCH,
+        "node_version": node,
+        "native_version": env!("CARGO_PKG_VERSION"),
+        "release_manifest_compatible": release_manifest_compatible,
+        "service_installed": service_installed,
+        "service_healthy": service_healthy,
+        "xcode_installed": xcode,
+        "xcode_command_line_tools": xcode_tools,
+        "apple_signing_ready": apple_signing_ready,
+        "provisioning_category": provisioning,
+        "iphone_state": device_state,
+        "companion_paired": companion.as_ref().and_then(|value| value["paired_devices"].as_u64()).unwrap_or(0) > 0,
+        "companion_relay": companion.as_ref().and_then(|value| value["relay_connection"].as_str()),
+        "entitlement_phase": entitlement.as_ref().and_then(|value| value["phase"].as_str()),
+        "successful_days": entitlement.as_ref().and_then(|value| value["successful_days"].as_u64()),
+    });
+    if json_output {
+        println!("{}", serde_json::to_string(&report)?);
+    } else {
+        for (label, value) in [
+            (
+                "macOS",
+                report["macos_version"].as_str().unwrap_or("unknown"),
+            ),
+            (
+                "architecture",
+                report["architecture"].as_str().unwrap_or("unknown"),
+            ),
+            (
+                "Node",
+                report["node_version"].as_str().unwrap_or("not installed"),
+            ),
+            (
+                "native TOHSENO",
+                report["native_version"].as_str().unwrap_or("unknown"),
+            ),
+            ("iPhone", device_state),
+            (
+                "Apple signing",
+                if apple_signing_ready {
+                    provisioning
+                } else {
+                    "not ready"
+                },
+            ),
+            (
+                "entitlement",
+                report["entitlement_phase"]
+                    .as_str()
+                    .unwrap_or("service unavailable"),
+            ),
+        ] {
+            bus.emit(Event::status(format!("{label}: {value}")));
+        }
+        bus.emit(Event::result(if service_healthy {
+            "Local Workspace Service is healthy."
+        } else if service_installed {
+            "Local Workspace Service is installed but not healthy."
+        } else {
+            "Local Workspace Service is not installed."
+        }));
+    }
+    Ok(())
+}
+
 async fn companion_admin(
     command: CompanionAdminCommand,
     json_output: bool,
@@ -1364,6 +1524,59 @@ async fn companion_admin(
                 json_output,
                 session,
                 "Studio is waiting for the iPhone.",
+                bus,
+            )?;
+        }
+        CompanionAdminCommand::Install => {
+            use tohseno_engine::gates::{apple_signing, device};
+            let device = match device::check()? {
+                device::DeviceState::Ready(device) => device,
+                _ => return Err("the connected iPhone is not ready for installation".into()),
+            };
+            let team_id = match apple_signing::check() {
+                apple_signing::AppleSigningState::Ready { team_id, .. } => team_id,
+                apple_signing::AppleSigningState::Missing => {
+                    return Err(
+                        "add your Apple Account in Xcode before installing the Companion".into(),
+                    )
+                }
+            };
+            let paths = service_commands::ServicePaths::discover()?;
+            let installed_project = paths.install_root.join(
+                "current/share/companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj",
+            );
+            #[cfg(debug_assertions)]
+            let project = {
+                let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .ok_or("CLI source path has no repository root")?
+                    .join("companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj");
+                if installed_project.is_file() {
+                    installed_project
+                } else {
+                    source
+                }
+            };
+            #[cfg(not(debug_assertions))]
+            let project = installed_project;
+            cable_genesis::build_and_install_companion(
+                &project,
+                &paths.service_state,
+                &device,
+                &team_id,
+            )
+            .map_err(|error| error.to_string())?;
+            cable_genesis::launch_companion(&paths.service_state, &device)
+                .map_err(|error| error.to_string())?;
+            present_json_or_status(
+                json_output,
+                json!({
+                    "schema": "tohseno.companion-install-receipt/1",
+                    "bundle_identifier": "com.tohseno.companion",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "launched": true,
+                }),
+                "The current TOHSENO Companion was installed and launched.",
                 bus,
             )?;
         }
@@ -2013,6 +2226,18 @@ mod tests {
             foreground.command,
             Command::Studio {
                 foreground_port: Some(0)
+            }
+        ));
+    }
+
+    #[test]
+    fn no_arguments_enter_the_same_studio_product_door() {
+        let arguments = product_arguments(vec!["tohseno".into()]);
+        let parsed = Cli::try_parse_from(arguments).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Command::Studio {
+                foreground_port: None,
             }
         ));
     }

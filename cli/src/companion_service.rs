@@ -30,7 +30,10 @@ use tohseno_companion::command::{
 };
 use tohseno_companion::crypto::{base64url, decode_array};
 use tohseno_companion::envelope::{open_envelope, seal_envelope, EnvelopeMetadata, OpaqueEnvelope};
-use tohseno_companion::event::{WorkspaceEvent, WorkspaceEventPayload, COMPANION_EVENT_SCHEMA};
+use tohseno_companion::event::{
+    ProductEntitlementProjection, WorkspaceEvent, WorkspaceEventPayload, COMPANION_EVENT_SCHEMA,
+    PRODUCT_ENTITLEMENT_SCHEMA,
+};
 use tohseno_companion::icon::IconBlob;
 use tohseno_companion::journal::ReplayWindow;
 use tohseno_companion::pairing::{
@@ -1391,6 +1394,12 @@ impl CompanionCoordinator {
             )
             .await?;
         let mut projection = published_snapshot;
+        let cursor = self
+            .publish_product_entitlement(record, agreement_key)
+            .await?;
+        projection.next_cursor = cursor
+            .checked_add(1)
+            .ok_or("companion event cursor overflowed")?;
         for icon_blob in converted.icon_blobs {
             let cursor = self
                 .publish_workspace_event(
@@ -1407,6 +1416,54 @@ impl CompanionCoordinator {
         }
         self.store_workspace_projection(record, &projection)?;
         Ok((event_cursor, envelope))
+    }
+
+    async fn publish_product_entitlement(
+        &self,
+        record: &DeviceRecord,
+        agreement_key: &[u8; 32],
+    ) -> Result<u64, BoxError> {
+        let status = self
+            .application
+            .entitlement_status()?
+            .ok_or("private entitlement authority is unavailable")?;
+        self.publish_workspace_event(
+            record,
+            agreement_key,
+            WorkspaceEventPayload::ProductEntitlement {
+                entitlement: ProductEntitlementProjection {
+                    schema: PRODUCT_ENTITLEMENT_SCHEMA.into(),
+                    phase: serde_json::to_value(status.phase)?
+                        .as_str()
+                        .ok_or("private entitlement phase is invalid")?
+                        .into(),
+                    successful_days: status.successful_days.try_into()?,
+                    required_successful_days: status.required_successful_days.try_into()?,
+                    factory_mutations_allowed: status.factory_mutations_allowed,
+                    purchase_allowed: status.purchase_allowed,
+                },
+            },
+        )
+        .await
+    }
+
+    pub async fn publish_entitlement_to_all_devices(&self) -> Result<usize, BoxError> {
+        if self.relay.is_none() {
+            return Ok(0);
+        }
+        let mut published = 0;
+        for record in self
+            .load_devices()?
+            .into_iter()
+            .filter(|record| !record.revoked)
+        {
+            let agreement_key =
+                decode_array::<32>("device agreement public key", &record.agreement_public_key)?;
+            self.publish_product_entitlement(&record, &agreement_key)
+                .await?;
+            published += 1;
+        }
+        Ok(published)
     }
 
     /// Project authoritative workspace changes to every active device. This
@@ -1441,7 +1498,6 @@ impl CompanionCoordinator {
             }
             let agreement_key =
                 decode_array::<32>("device agreement public key", &record.agreement_public_key)?;
-            let mut next_cursor = previous.next_cursor;
             for payload in payloads {
                 let icon_blob_id = match &payload {
                     WorkspaceEventPayload::ShotUpsert { shot } => {
@@ -1449,12 +1505,8 @@ impl CompanionCoordinator {
                     }
                     _ => None,
                 };
-                let cursor = self
-                    .publish_workspace_event(&record, &agreement_key, payload)
+                self.publish_workspace_event(&record, &agreement_key, payload)
                     .await?;
-                next_cursor = cursor
-                    .checked_add(1)
-                    .ok_or("companion event cursor overflowed")?;
                 published += 1;
                 if let Some(blob_id) = icon_blob_id {
                     let blob = converted
@@ -1463,21 +1515,24 @@ impl CompanionCoordinator {
                         .find(|blob| blob.blob_id == blob_id)
                         .ok_or("Shot icon descriptor has no private blob")?
                         .clone();
-                    let cursor = self
-                        .publish_workspace_event(
-                            &record,
-                            &agreement_key,
-                            WorkspaceEventPayload::IconBlob {
-                                blob: Box::new(blob),
-                            },
-                        )
-                        .await?;
-                    next_cursor = cursor
-                        .checked_add(1)
-                        .ok_or("companion event cursor overflowed")?;
+                    self.publish_workspace_event(
+                        &record,
+                        &agreement_key,
+                        WorkspaceEventPayload::IconBlob {
+                            blob: Box::new(blob),
+                        },
+                    )
+                    .await?;
                     published += 1;
                 }
             }
+            let cursor = self
+                .publish_product_entitlement(&record, &agreement_key)
+                .await?;
+            let next_cursor = cursor
+                .checked_add(1)
+                .ok_or("companion event cursor overflowed")?;
+            published += 1;
             let mut projection = current;
             projection.next_cursor = next_cursor;
             self.store_workspace_projection(&record, &projection)?;
@@ -3783,7 +3838,10 @@ mod tests {
             shot_id: "shot_fixture".into(),
             state: "accepted".into(),
             version_ordinal: 1,
+            started_at: "2026-08-16T01:00:00Z".into(),
+            elapsed_seconds: 123,
             updated_at: "2026-08-16T01:02:03.987654Z".into(),
+            state_transition: None,
         })
         .unwrap();
         assert_eq!(projected.updated_at, "2026-08-16T01:02:03Z");
