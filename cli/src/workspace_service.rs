@@ -458,6 +458,7 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         .route("/api/v1/shots", get(shots).post(create_shot))
         .route("/api/v1/shots/{shot_id}/icon", get(shot_icon))
         .route("/api/v1/shots/{shot_id}/preview", get(shot_preview))
+        .route("/api/v1/shots/{shot_id}/receipt", get(shot_receipt))
         .route("/api/v1/shots/{shot_id}/evolutions", post(evolve_shot))
         .route("/api/v1/executions", get(executions))
         .route("/api/v1/executions/{execution_id}", get(execution))
@@ -945,6 +946,24 @@ async fn shot_icon(
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
     Ok(response)
+}
+
+/// The owner's read-only disclosure for one app's latest execution.
+///
+/// Loopback and non-mutating, so it needs no anti-CSRF token; it is still
+/// private material and is never rendered on the normal Create/Evolve path.
+async fn shot_receipt(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    let receipt = state
+        .application
+        .execution_receipt(&shot_id)
+        .map_err(ApiError::application)?
+        .ok_or_else(|| ApiError::not_found("this app has no execution to explain yet"))?;
+    Ok(Json(serde_json::to_value(receipt).map_err(
+        |_| ApiError::internal("the execution receipt could not be rendered"),
+    )?))
 }
 
 async fn shot_preview(

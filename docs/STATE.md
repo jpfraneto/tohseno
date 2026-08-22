@@ -137,8 +137,14 @@ pipeline renderer, per-execution polling, Feedback and Marketing forms, and
 exact-Version binding controls were deleted rather than hidden, along with an
 unreferenced second Studio server implementation. A deliberate Details
 disclosure keeps exact status, execution phase, identities, total wall-clock
-elapsed time, the State Transition Receipt, harness, and route available to the
-owner. Mutations use exact Origin and
+elapsed time, and the State Transition Receipt available to the owner, and now
+carries the **execution receipt**: the verbatim intention that was sent, the
+harness, model, and route that actually ran it, the tokens it burned and any
+additional charge, and the deterministic gate that refused a candidate, quoted
+with the engine's own evidence. Every value is read from that execution's own
+durable records, so changing the configured harness afterwards cannot rewrite
+what already happened, and a fact the factory never recorded is shown as
+absent rather than as zero. Mutations use exact Origin and
 anti-CSRF validation; the server does not bind a public interface or grant
 permissive CORS. Live status uses the service event stream rather than
 reloading the whole workspace once per second.

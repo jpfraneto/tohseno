@@ -35,6 +35,7 @@ const ui = {
   stateEvolve: document.querySelector("#state-evolve"),
   stateDetails: document.querySelector("#state-details"),
   detailFacts: document.querySelector("#detail-facts"),
+  detailReceipt: document.querySelector("#detail-receipt"),
   previewPanel: document.querySelector("#preview-panel"),
   previewImage: document.querySelector("#preview-image"),
   previewFallback: document.querySelector("#preview-fallback"),
@@ -81,6 +82,10 @@ const state = {
   // Retained only in this browser tab so a failed command can be retried
   // without retyping. Nothing is written to disk from here.
   drafts: new Map(),
+  // One execution receipt per app and execution state, so a finished build
+  // replaces the running one instead of being answered from a stale read.
+  receipts: new Map(),
+  receiptRequests: new Set(),
   commandId: null,
   eventSource: null,
   refreshTimer: null,
@@ -604,17 +609,101 @@ function renderDetails(shot) {
     fact(ui.detailFacts, "Accepted at", formatTimestamp(shot.latest_version_created_at));
   }
   if (shot.bundle_identifier) fact(ui.detailFacts, "Bundle", shot.bundle_identifier);
-  if (state.factory) {
-    fact(ui.detailFacts, "Coding harness", state.factory.harness_label);
-    fact(
-      ui.detailFacts,
-      "Inference route",
-      [state.factory.model_label || state.factory.model_id, state.factory.route_label || state.factory.route_id]
-        .filter(Boolean)
-        .join(" · "),
-    );
+  renderReceipt(shot);
+}
+
+/* --------------------------------------------------------------- receipt */
+
+// What this app's latest execution was asked, ran, cost, and did. Every value
+// is read back from that execution's own durable records, so a harness changed
+// afterwards cannot rewrite what already happened.
+function renderReceipt(shot) {
+  ui.detailReceipt.replaceChildren();
+  const key = receiptKey(shot);
+  const receipt = state.receipts.get(key);
+  if (receipt === undefined) return loadReceipt(shot.shot_id, key);
+  if (!receipt) return;
+
+  const asked = receiptGroup("What you asked");
+  asked.section.append(receipt.intention
+    ? element("p", "receipt-intent", receipt.intention)
+    : element("p", "receipt-absent", "The exact words were not preserved for this execution."));
+  if (receipt.reference_count) {
+    const plural = receipt.reference_count === 1 ? "" : "s";
+    asked.section.append(element("p", "receipt-note", `${receipt.reference_count} reference image${plural} were sent with it.`));
   }
-  if (shot.failure_reason) fact(ui.detailFacts, "Reason", shot.failure_reason);
+
+  const ran = receiptGroup("What ran");
+  fact(ran.facts, "Harness", [receipt.harness, receipt.model === "default" ? null : receipt.model].filter(Boolean).join(" · "));
+  fact(ran.facts, "Route", receipt.route.replaceAll("-", " "));
+  if (receipt.harness_attempts > 1) fact(ran.facts, "Attempts", `${receipt.harness_attempts} harness attempts`);
+  fact(ran.facts, "Started", formatTimestamp(receipt.started_at), receipt.started_at);
+  if (receipt.duration_seconds !== undefined) fact(ran.facts, "Ran for", formatDuration(receipt.duration_seconds));
+
+  const cost = receiptGroup("What it cost");
+  fact(cost.facts, "Tokens", receipt.total_tokens === undefined
+    ? `Not reported by ${receipt.harness}`
+    : Number(receipt.total_tokens).toLocaleString());
+  fact(cost.facts, "Additional charge", receipt.additional_cost_usd === undefined
+    ? "Not metered"
+    : receipt.additional_cost_usd
+      ? `$${receipt.additional_cost_usd.toFixed(2)}`
+      : `None · ${receipt.route_billing.replaceAll("-", " ")}`);
+
+  const happened = receiptGroup("What happened");
+  fact(happened.facts, "Outcome", receipt.landed ? "Accepted and installed" : outcomeLabel(receipt));
+  if (receipt.files_changed !== undefined) {
+    fact(happened.facts, "Files changed", receipt.diff_summary || String(receipt.files_changed));
+  }
+  const transition = receipt.state_transition;
+  if (transition) {
+    fact(happened.facts, "Stored data", transition.persistent_state.replaceAll("_", " "));
+    fact(happened.facts, "What it changed", transition.summary);
+    if (transition.migrations.length) fact(happened.facts, "Migrations", transition.migrations.join(", "));
+  }
+  for (const refusal of receipt.refusals || []) {
+    fact(happened.facts, "Refused at", refusal.gate || refusal.check);
+    if (refusal.evidence) happened.section.append(element("p", "receipt-evidence", refusal.evidence));
+  }
+  if (receipt.next_action) happened.section.append(element("p", "receipt-note", receipt.next_action));
+
+  for (const { section, facts } of [asked, ran, cost, happened]) {
+    if (facts.childElementCount || section.childElementCount > 2) ui.detailReceipt.append(section);
+  }
+}
+
+function outcomeLabel(receipt) {
+  if (!receipt.outcome) return receipt.phase.replaceAll("_", " ");
+  return receipt.outcome === "completed"
+    ? "The harness finished, but no version was accepted"
+    : receipt.outcome;
+}
+
+function receiptGroup(heading) {
+  const section = element("section", "receipt-group");
+  section.append(element("h3", null, heading));
+  const facts = element("dl", "facts");
+  section.append(facts);
+  return { section, facts };
+}
+
+function receiptKey(shot) {
+  return [shot.shot_id, shot.execution?.execution_id || "", shot.execution?.state || ""].join("|");
+}
+
+async function loadReceipt(shotId, key) {
+  if (state.receiptRequests.has(key)) return;
+  state.receiptRequests.add(key);
+  let receipt = null;
+  try {
+    receipt = await api(`/api/v1/shots/${encodeURIComponent(shotId)}/receipt`);
+  } catch {
+    // An app with no execution yet has nothing to explain. Details still shows
+    // its identities; the receipt section simply stays empty.
+  }
+  state.receiptRequests.delete(key);
+  state.receipts.set(key, receipt);
+  if (state.view === "state" && state.selectedShotId === shotId) render();
 }
 
 function renderSettings() {

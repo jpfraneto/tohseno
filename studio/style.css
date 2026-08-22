@@ -700,6 +700,64 @@ h2 {
   word-break: break-all;
 }
 
+/* ----------------------------------------------------------- the receipt */
+
+.receipt-group {
+  margin-top: 22px;
+}
+
+.receipt-group h3 {
+  margin: 0;
+  color: var(--ash);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.receipt-group .facts {
+  margin-top: 10px;
+}
+
+/* The person's own words, quoted back verbatim. */
+.receipt-intent {
+  margin: 12px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--orange);
+  color: var(--bone);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.receipt-note {
+  margin: 12px 0 0;
+  color: var(--ash);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.receipt-absent {
+  margin: 12px 0 0;
+  color: var(--iron);
+  font-size: 13px;
+}
+
+/* The engine's exact diagnostic, unedited. */
+.receipt-evidence {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--carbon);
+  color: var(--silver);
+  font-family: "SF Mono", SFMono-Regular, ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+}
+
 /* ---------------------------------------------------------------- settings */
 
 .panel {

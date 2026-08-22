@@ -197,6 +197,12 @@ When an evolution appears stuck, walk these artifacts in order:
 | Execution | `<app>/.tohseno/executions/<execution-id>/execution.json` and `events.jsonl` | stable execution ID and monotonic phases |
 | Completion | `completion.json`, `state-transition.json`, accepted app lineage | landed completion agrees with accepted Version |
 
+Studio's Details disclosure now assembles that whole walk into one execution
+receipt (`GET /api/v1/shots/{shot_id}/receipt`, projected by
+[`application/src/receipt.rs`](../application/src/receipt.rs)): what was asked,
+what ran, what it cost, and which gate refused. Reach for the raw artifacts
+below when the receipt is not enough.
+
 Private files may contain sensitive local state; inspect them locally and do
 not paste them into relay or public-node logs.
 

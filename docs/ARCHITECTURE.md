@@ -128,6 +128,19 @@ a stable app-local execution and starts a detached runner. The runner performs
 the bounded harness work and deterministic gates defined by ADR 0019. A Version
 is accepted only after those gates pass; harness exit alone is not success.
 
+Details is the owner's disclosure, not a second product surface.
+[`application/src/receipt.rs`](../application/src/receipt.rs) projects one
+execution receipt per app — the preserved intention, the harness/model/route
+that ran, metered tokens and additional charge, and each deterministic gate
+that refused — assembled from that execution's own `execution.json`,
+`completion.json`, `state-transition.json`, preserved `intent.md`, and, for
+executions prepared before per-execution preservation existed, the durable
+command journal found by recomputing the execution identity.
+[`engine/src/harness_usage.rs`](../engine/src/harness_usage.rs) reads the token
+total out of the private harness log that is already captured; no harness is
+invoked differently in order to be metered, and a harness that reports nothing
+stays unmetered rather than being recorded as zero.
+
 ## Persistence map
 
 Default locations are shown; verification scripts override them with isolated
