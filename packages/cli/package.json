@@ -1,0 +1,35 @@
+{
+  "name": "tohseno",
+  "version": "0.1.0",
+  "description": "Secure bootstrap and launcher for the native TOHSENO app factory on macOS",
+  "type": "module",
+  "bin": {
+    "tohseno": "bin/tohseno.js"
+  },
+  "files": [
+    "bin/tohseno.js",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jpfraneto/tohseno.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://tohseno.com",
+  "bugs": {
+    "url": "https://github.com/jpfraneto/tohseno/issues"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:pack": "node test/pack-install.test.js"
+  }
+}
