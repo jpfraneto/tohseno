@@ -5,6 +5,7 @@
 //! so they remain beneath the ignored `.tohseno/executions` boundary.
 
 use crate::harness::{estimated_cost, resolve_selection, HarnessSelection};
+use crate::harness_usage::{read_harness_usage, HarnessUsage};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
@@ -21,6 +22,9 @@ pub const STATE_TRANSITION_SCHEMA: &str = "tohseno.state-transition/1";
 pub const STATE_TRANSITION_HARNESS_DRAFT_PATH: &str = "TOHSENO_STATE_TRANSITION.json";
 pub const STATE_TRANSITION_DRAFT_PATH: &str = ".tohseno/state-transition-draft.json";
 pub const STATE_TRANSITION_RECEIPT_FILE: &str = "state-transition.json";
+/// This execution's own copy of the intent document it was prepared from.
+pub const PRESERVED_INTENT_FILE: &str = "intent.md";
+const MAX_PRESERVED_INTENT_BYTES: u64 = 1024 * 1024;
 const MAX_EXECUTION_RECORD_BYTES: u64 = 1024 * 1024;
 const MAX_COMPLETION_RECORD_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_EXECUTION_EVENTS_BYTES: u64 = 16 * 1024 * 1024;
@@ -256,6 +260,10 @@ pub struct CompletionRecord {
     pub independently_computed_repository_state: String,
     pub estimated_additional_cost_usd: Option<f64>,
     pub actual_additional_cost_usd: Option<f64>,
+    /// What the harness reported burning, when it reports it at all. Absent on
+    /// records written before metering and on harnesses that stay silent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_usage: Option<HarnessUsage>,
     pub authoritative_next_action: String,
 }
 
@@ -369,12 +377,43 @@ pub fn prepare_execution_with_id(
         phase: ExecutionPhase::Prepared,
     };
     write_record(&prepared)?;
+    preserve_execution_intent(&prepared)?;
     append_event(
         &prepared,
         ExecutionPhase::Prepared,
         "The intention, references, and version boundary are prepared.",
     )?;
     Ok(prepared)
+}
+
+/// Keep this execution's own copy of what was asked.
+///
+/// The app-level prepared intent document is rewritten by the next evolution,
+/// so without this an owner reading a finished execution would be shown a
+/// later request's words. A copy that cannot be taken is not fatal: the
+/// execution still runs, and the receipt says the intention was not preserved
+/// rather than showing the wrong one.
+fn preserve_execution_intent(execution: &PreparedExecution) -> Result<(), ShotExecutionError> {
+    let source = execution.repository.join(&execution.intent_path);
+    let Ok(bytes) = read_bounded_regular_file(&source, MAX_PRESERVED_INTENT_BYTES) else {
+        return Ok(());
+    };
+    let directory = execution_directory(&execution.repository, &execution.execution_id);
+    write_private_bytes(&directory.join(PRESERVED_INTENT_FILE), &bytes)
+}
+
+/// The exact intent document this execution was prepared from.
+pub fn preserved_intent(
+    repository: &Path,
+    execution_id: &str,
+) -> Result<Option<String>, ShotExecutionError> {
+    validate_execution_id(execution_id)?;
+    let path = execution_directory(repository, execution_id).join(PRESERVED_INTENT_FILE);
+    match read_bounded_regular_file(&path, MAX_PRESERVED_INTENT_BYTES) {
+        Ok(bytes) => Ok(String::from_utf8(bytes).ok()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub fn load_execution(
@@ -650,6 +689,10 @@ pub fn complete_execution(
         } else {
             None
         },
+        // Read from the private log TOHSENO already captures. A subscription
+        // route costs no additional money and still burns real tokens; the
+        // owner is entitled to see the second number.
+        token_usage: read_harness_usage(&execution.harness, &directory.join("harness.log")),
         authoritative_next_action,
     };
     write_private_json(&directory.join("completion.json"), &completion)?;
@@ -1063,12 +1106,16 @@ fn write_record(execution: &PreparedExecution) -> Result<(), ShotExecutionError>
 }
 
 fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result<(), ShotExecutionError> {
+    let mut encoded = serde_json::to_vec_pretty(value)?;
+    encoded.push(b'\n');
+    write_private_bytes(path, &encoded)
+}
+
+fn write_private_bytes(path: &Path, encoded: &[u8]) -> Result<(), ShotExecutionError> {
     let parent = path
         .parent()
         .ok_or_else(|| ShotExecutionError::Invalid("private record has no parent".into()))?;
     fs::create_dir_all(parent)?;
-    let mut encoded = serde_json::to_vec_pretty(value)?;
-    encoded.push(b'\n');
     let stage = parent.join(format!(".record-{}.tmp", std::process::id()));
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
@@ -1080,7 +1127,7 @@ fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result<(), ShotEx
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
     }
     let mut file = options.open(&stage)?;
-    file.write_all(&encoded)?;
+    file.write_all(encoded)?;
     file.sync_all()?;
     fs::rename(stage, path)?;
     Ok(())

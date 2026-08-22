@@ -2177,6 +2177,7 @@ mod tests {
             independently_computed_repository_state: String::new(),
             estimated_additional_cost_usd: Some(0.0),
             actual_additional_cost_usd: None,
+            token_usage: None,
             authoritative_next_action: next_action.into(),
         }
     }

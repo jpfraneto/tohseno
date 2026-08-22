@@ -12,6 +12,7 @@ pub mod execution_manager;
 pub mod factory_lease;
 pub mod journal;
 pub mod presentation;
+pub mod receipt;
 pub mod snapshot;
 
 pub use application_service::{
@@ -33,6 +34,9 @@ pub use entitlement::{
 pub use factory_lease::FactoryLease;
 pub use journal::{Admission, CommandJournal, JournalError};
 pub use presentation::{Presentation, PresentedState};
+pub use receipt::{
+    load_execution_receipt, ExecutionReceipt, IntentionSource, Refusal, EXECUTION_RECEIPT_SCHEMA,
+};
 pub use snapshot::{
     ExecutionSummary, IconDescriptor, ShotKind, ShotSummary, SupportedCompanionAction,
     WorkspaceSnapshot,

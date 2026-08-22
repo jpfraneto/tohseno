@@ -884,6 +884,21 @@ impl ShotApplicationService {
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
+    /// What the most recent execution of this Shot was asked, ran, cost, and
+    /// did. The owner's Details disclosure; never part of the normal path.
+    pub fn execution_receipt(
+        &self,
+        shot_id: &str,
+    ) -> Result<Option<crate::receipt::ExecutionReceipt>, ApplicationError> {
+        crate::receipt::load_execution_receipt(
+            &self.engine,
+            &self.workspace_id,
+            self.command_journal.root(),
+            shot_id,
+        )
+        .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+    }
+
     pub fn shot_preview(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
         crate::snapshot::load_shot_preview(&self.engine, &self.workspace_id, shot_id)
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
@@ -2326,6 +2341,7 @@ mod tests {
             independently_computed_repository_state: "no accepted Version".into(),
             estimated_additional_cost_usd: Some(0.0),
             actual_additional_cost_usd: Some(0.0),
+            token_usage: None,
             authoritative_next_action: "Repair and retry.".into(),
         };
         fs::write(

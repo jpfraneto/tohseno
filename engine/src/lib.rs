@@ -20,6 +20,7 @@ pub mod factory_identity;
 pub mod gates;
 pub mod genome;
 pub mod harness;
+pub mod harness_usage;
 pub mod intent_envelope;
 pub mod intent_package;
 pub mod ledger;
@@ -60,6 +61,7 @@ pub use harness::{
     AttachmentBehavior, AuthenticationStatus, HarnessCommand, HarnessModel, HarnessOption,
     HarnessRoute, HarnessSelection,
 };
+pub use harness_usage::{read_harness_usage, HarnessUsage, HARNESS_USAGE_SCHEMA};
 pub use intent_envelope::{decrypt_intent_envelope, IntentEnvelopeError, INTENT_ENVELOPE_AAD};
 pub use intent_package::{
     build_intent_package, parse_intent_package, IntentPackage, IntentPackageError,

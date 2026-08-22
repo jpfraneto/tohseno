@@ -388,7 +388,7 @@ fn execution_timing(
     (started_at, updated_at, elapsed)
 }
 
-fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
+pub(crate) fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
     match phase {
         ExecutionPhase::Prepared
         | ExecutionPhase::RunnerStarted
@@ -412,7 +412,7 @@ fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
     }
 }
 
-fn recording_id(workspace_id: &str, name: &str) -> String {
+pub(crate) fn recording_id(workspace_id: &str, name: &str) -> String {
     let digest =
         sha256(format!("TOHSENO-RECORDING-SUMMARY-ID-V1\0{workspace_id}\0{name}").as_bytes());
     format!(
