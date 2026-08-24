@@ -120,6 +120,11 @@ const STATIC_FILES: Record<
     type: "text/javascript; charset=utf-8",
     revalidate: true,
   },
+  "/landing.js": {
+    file: "landing.js",
+    type: "text/javascript; charset=utf-8",
+    revalidate: true,
+  },
   "/manifest.webmanifest": {
     file: "manifest.webmanifest",
     type: "application/manifest+json; charset=utf-8",
@@ -154,6 +159,16 @@ const STATIC_FILES: Record<
   },
   "/og.png": { file: "og.png", type: "image/png" },
   "/favicon.png": { file: "favicon.png", type: "image/png" },
+  "/tohseno-logo.png": { file: "tohseno-logo.png", type: "image/png" },
+  "/app-breathekeeper.png": {
+    file: "app-breathekeeper.png",
+    type: "image/png",
+  },
+  "/app-who-ate.png": { file: "app-who-ate.png", type: "image/png" },
+  "/app-handoff.png": { file: "app-handoff.png", type: "image/png" },
+  "/app-water-walk.png": { file: "app-water-walk.png", type: "image/png" },
+  "/app-ink-memory.png": { file: "app-ink-memory.png", type: "image/png" },
+  "/app-room-tone.png": { file: "app-room-tone.png", type: "image/png" },
 };
 
 const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;

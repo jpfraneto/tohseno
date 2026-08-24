@@ -39,16 +39,17 @@ const faviconPath = fileURLToPath(
 const shotIconDirectory = fileURLToPath(
   new URL("../public/shot-icons", import.meta.url),
 );
-const browserScriptPath = fileURLToPath(
-  new URL("../public/app.js", import.meta.url),
+const landingScriptPath = fileURLToPath(
+  new URL("../public/landing.js", import.meta.url),
 );
 const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
+const NPM_INSTALL_COMMAND = "npm i -g tohseno";
 
 describe("public pages", () => {
-  test("serves the terminal landing page", async () => {
+  test("serves the brutalist landing page", async () => {
     const application = await testApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
@@ -62,53 +63,31 @@ describe("public pages", () => {
     // can never ship behind a stale cached copy.
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    // The prompt is the page. Its placeholder is the first instruction a
-    // person reads, and it is the exact command they will run on their Mac.
-    expect(body).toContain('placeholder="tohseno create my-app-name"');
-    expect(body).toContain('id="terminal-input"');
-    expect(body).toContain('id="term-stream"');
-    expect(body).toContain('id="drop-veil"');
-    expect(body).toContain(`data-install-command="${INSTALL_COMMAND}"`);
-
-    // Everything above the prompt was removed: with JavaScript the page is a
-    // prompt and nothing else. The offer still has to survive in the markup
-    // for a crawler and for a reader without JavaScript, so it lives in the
-    // noscript block, which is the only place it was ever read from.
+    expect(body).toContain("MAKE THE<br>iPHONE APP<br><em>THAT SHOULD EXIST.</em>");
+    expect(body).toContain("One coherent intention becomes a native application");
+    expect(body).toContain("YOUR IDEA DOES NOT NEED TO BECOME A STARTUP");
+    expect(body).toContain("ONE INTENTION.<br>ONE REAL ATTEMPT.");
+    expect(body).toContain("MAKE SOFTWARE<br>FOR YOUR ACTUAL LIFE.");
+    expect(body).toContain("THE FACTORY IS<br>A MIDWIFE.");
+    expect(body).toContain("FROM ZERO<br>TO YOUR PHONE.");
+    expect(body).toContain("LOCAL CREATION.<br>PUBLIC PROOF.");
+    expect(body).toContain("WHAT SHOULD<br>EXIST?");
+    expect(body).toContain(NPM_INSTALL_COMMAND);
+    expect(body).not.toContain(INSTALL_COMMAND);
+    expect(body.match(/data-copy-install/g)).toHaveLength(3);
+    expect(body).toContain('src="/app-breathekeeper.png"');
+    expect(body).toContain('src="/app-room-tone.png"');
+    expect(body).toContain('src="/landing.js" defer');
+    expect(body).toContain('property="og:title" content="Open Source iOS Apps Factory"');
+    expect(body).toContain('name="twitter:title" content="Open Source iOS Apps Factory"');
+    expect(body).not.toContain("One App Per Day");
+    expect(body.match(/class="ticker-track"/g)).toHaveLength(2);
+    expect(body).toContain("REALITY IS NOW CHEAP ENOUGH TO ANSWER.");
+    expect(body).toContain("data-copy-contract");
     expect(body).toContain(
-      "Describe an app. It gets built, and installed on your iPhone.",
+      "0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3",
     );
-    expect(body).toContain("Free and open source.");
-    expect(body).toContain("Codex or Claude Code");
-    expect(body).toContain(INSTALL_COMMAND);
-    expect(body).toContain("<noscript>");
-    const noscript = body.slice(
-      body.indexOf("<noscript>"),
-      body.indexOf("</noscript>"),
-    );
-    for (const copy of [
-      "Describe an app. It gets built, and installed on your iPhone.",
-      "Free and open source.",
-      "Codex or Claude Code",
-    ]) {
-      expect(noscript).toContain(copy);
-    }
-    expect(body).not.toContain('class="boot"');
-    // The prompt is the first thing in the terminal, with an empty stream
-    // above it rather than a paragraph of copy.
-    expect(body).toContain('<div class="term-stream" id="term-stream"></div>');
-    expect(body).not.toContain('id="term-send"');
-    expect(body).not.toContain(">RUN</button>");
-    // The one line under the prompt is the only instruction left on the page.
-    // The markup and the browser script must carry the same sentence, or it
-    // visibly changes under the reader the moment the script runs.
-    const hint =
-      "Describe your app, attach images, and experience it on your phone. Type help for commands";
-    expect(body).toContain(`<p class="term-hint" id="term-hint">${hint}</p>`);
-    expect(readFileSync(browserScriptPath, "utf8")).toContain(`hint: "${hint}"`);
     expect(body).not.toContain("cal.com/jpfraneto/day");
-    expect(body).toContain('<span class="beta">BETA</span>');
-
-    // Prices and the booking offer were removed from the page deliberately.
     expect(body).not.toMatch(/\$\d/u);
     expect(body).not.toContain("sojourn");
     expect(body).not.toContain("BOOK A DAY");
@@ -116,28 +95,25 @@ describe("public pages", () => {
     expect(body).toContain(
       'href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3"',
     );
-    expect(body).toContain(">$TOHSENO</a>");
+    expect(body).toContain(">$TOHSENO <span");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain('href="#"');
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
-    // Docs and privacy were removed from the status bar by request. The pages
-    // stay published and stay reachable through the `docs` and `privacy`
-    // commands, so their absence here must not become absence everywhere.
     expect(body).not.toContain('href="/docs"');
     expect(body).not.toContain('href="/privacy"');
     for (const path of ["/docs", "/privacy"]) {
       expect((await application.fetch(request(path))).status).toBe(200);
     }
-    expect(body).toContain(">COMMUNITY</a>");
+    expect(body).toContain("COMMUNITY <span");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
     expect(body).toContain(
-      "<title>TOHSENO — tohseno create my-app-name</title>",
+      "<title>TOHSENO — Give Every Idea a Shot</title>",
     );
     expect(body).toContain(
-      'content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source."',
+      'content="An open-source factory for turning coherent intentions into independently owned native iOS applications."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -224,32 +200,24 @@ describe("public pages", () => {
       expect(target.status).toBe(200);
     }
     expect(body).not.toContain('href="#"');
-    const browserScript = readFileSync(browserScriptPath, "utf8");
-    expect(browserScript).toContain("navigator.clipboard.writeText(");
-    expect(browserScript).toContain("replaceChildren");
-    // The terminal composes and encrypts in the browser and reaches the relay
-    // only through the shared modules the Rust CLI is checked against.
-    expect(browserScript).toContain("createEncryptedEnvelope(");
-    expect(browserScript).toContain("./modules/terminal.js");
-    expect(browserScript).toContain("./modules/relay-client.js");
-    // Every stream line is built as a node with textContent, so nothing a
-    // person types or drops can become markup.
-    expect(browserScript).not.toContain("innerHTML");
-    expect(browserScript).not.toContain("serviceWorker.register");
-    // The phone keyboard opens from a real tap and the terminal gives back
-    // the space it covers. Both halves have to stay.
-    expect(browserScript).toContain("window.visualViewport");
-    expect(browserScript).toContain("--keyboard");
-    // The old pricing landing page and its dashboard-shaped controls are gone.
-    expect(browserScript).not.toContain("renderQuiver");
+    const landingScript = readFileSync(landingScriptPath, "utf8");
+    expect(landingScript).toContain("navigator.clipboard");
+    expect(landingScript).toContain("document.execCommand");
+    expect(landingScript).toContain("textContent");
+    expect(landingScript).toContain('"COPIED!"');
+    expect(landingScript).toContain("2000");
+    expect(landingScript).not.toContain("innerHTML");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(landingStyle).toContain(".term-screen");
+    expect(landingStyle).toContain(".shot-flow");
+    expect(landingStyle).toContain(".shot-grid");
+    expect(landingStyle).toContain(".ownership-grid");
+    expect(landingStyle).toContain("@keyframes ticker-scroll");
+    expect(landingStyle).toContain("@keyframes ticker-shake");
+    expect(landingStyle).toContain("translateX(-50%)");
     expect(landingStyle).not.toContain(".tiers");
-    expect(landingStyle).toContain("var(--keyboard, 0px)");
-    // The boot copy is gone from the page, and its styles with it.
-    expect(landingStyle).not.toContain(".boot");
+    expect(landingStyle).toContain("@media (max-width: 500px)");
   });
 
   test("serves the health check", async () => {
@@ -264,6 +232,7 @@ describe("public pages", () => {
     const expectations: Array<[string, string]> = [
       ["/styles.css", "text/css"],
       ["/landing.css", "text/css"],
+      ["/landing.js", "text/javascript"],
       ["/fonts/fraunces-latin.woff2", "font/woff2"],
       ["/fonts/plex-mono-latin.woff2", "font/woff2"],
       ["/app.js", "text/javascript"],
@@ -274,6 +243,13 @@ describe("public pages", () => {
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
       ["/favicon.png", "image/png"],
+      ["/tohseno-logo.png", "image/png"],
+      ["/app-breathekeeper.png", "image/png"],
+      ["/app-who-ate.png", "image/png"],
+      ["/app-handoff.png", "image/png"],
+      ["/app-water-walk.png", "image/png"],
+      ["/app-ink-memory.png", "image/png"],
+      ["/app-room-tone.png", "image/png"],
       ["/logo.svg", "image/svg+xml"],
       ["/whitepaper.pdf", "application/pdf"],
       ["/shot-icons/shot-001.webp", "image/webp"],

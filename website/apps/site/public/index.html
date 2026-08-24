@@ -3,78 +3,199 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0c0b0a">
-  <meta name="description" content="An MVP factory for iOS apps. Describe an app, send the intent to your Mac, and install it on your iPhone. Free and open source.">
+  <meta name="theme-color" content="#080908">
+  <meta name="description" content="An open-source factory for turning coherent intentions into independently owned native iOS applications.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="TOHSENO — tohseno create my-app-name">
-  <meta property="og:description" content="Describe an app. It gets built on your Mac and installed on your iPhone. Free and open source.">
+  <meta property="og:title" content="Open Source iOS Apps Factory">
+  <meta property="og:description" content="Make the iPhone app that should exist.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="TOHSENO — one app per day. Yours.">
+  <meta property="og:image:alt" content="TOHSENO — Give every idea a Shot.">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Open Source iOS Apps Factory">
+  <meta name="twitter:description" content="Make the iPhone app that should exist.">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
-  <link rel="icon" href="/favicon.png" type="image/png">
-  <link rel="preload" href="/fonts/plex-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
-  <script src="/app.js" type="module"></script>
-  <title>TOHSENO — tohseno create my-app-name</title>
+  <script src="/landing.js" defer></script>
+  <title>TOHSENO — Give Every Idea a Shot</title>
 </head>
 <body>
-  <a class="skip-link" href="#terminal-input">Skip to the prompt</a>
+  <a class="skip-link" href="#main">Skip to the main content</a>
 
-  <!-- The whole offer, for a reader or a crawler without JavaScript. With
-       JavaScript the page is a prompt and nothing else: every sentence that
-       used to sit above it was between a person and the one thing to do. -->
-  <noscript>
-    <section class="noscript">
-      <h1>Describe an app. It gets built, and installed on your iPhone.</h1>
-      <p>Then you describe what should change, and the update installs. That is the whole product.</p>
-      <p><strong>Free and open source.</strong> It runs on your Mac, on top of the coding harness you already use — Codex or Claude Code. Your machine, your inference, your apps.</p>
-      <p>The terminal on this page needs JavaScript. Everything it does is also a command on your Mac:</p>
-      <p><code>{{INSTALL_COMMAND}}</code></p>
-      <p>Then <code>tohseno create my-app-name</code>, describe the app, and it installs on your iPhone.</p>
-    </section>
-  </noscript>
-
-  <main class="terminal" id="terminal" data-install-command="{{INSTALL_COMMAND}}">
-    <header class="term-bar">
-      <svg class="enso" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12.5"></circle></svg>
-      <span class="term-brand">{{BRAND}}</span>
-      <span class="beta">BETA</span>
-    </header>
-
-    <div class="term-screen" id="term-screen">
-      <div class="term-stream" id="term-stream"></div>
-
-      <form class="term-form" id="term-form">
-        <label class="term-sigil" for="terminal-input" id="term-sigil">$</label>
-        <textarea
-          id="terminal-input"
-          name="line"
-          class="term-input"
-          rows="1"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          enterkeyhint="go"
-          aria-describedby="term-hint"
-          placeholder="tohseno create my-app-name"></textarea>
-      </form>
-      <p class="term-hint" id="term-hint">Describe your app, attach images, and experience it on your phone. Type help for commands</p>
-    </div>
-
-    <nav class="term-status" aria-label="TOHSENO links">
-      <a data-link="source" href="{{REPOSITORY_URL}}" rel="noopener">SOURCE</a>
-      <a data-link="community" href="https://community.tohseno.com" rel="noopener noreferrer">COMMUNITY</a>
-      <a data-link="whitepaper" href="/whitepaper.pdf">WHITEPAPER</a>
-      <a data-link="token" href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">$TOHSENO</a>
+  <header class="nav frame">
+    <a href="#top" class="wordmark" aria-label="TOHSENO home">
+      <img src="/tohseno-logo.png" alt="">
+      <span>TOHSENO</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#method">METHOD</a>
+      <a href="#ownership">OWNERSHIP</a>
+      <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">GITHUB <span aria-hidden="true">↗</span></a>
+      <a href="/whitepaper.pdf" target="_blank" rel="noopener">WHITEPAPER <span aria-hidden="true">↗</span></a>
+      <a class="token-link" href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">$TOHSENO <span aria-hidden="true">↗</span></a>
     </nav>
+  </header>
+
+  <button
+    class="ticker token-ticker"
+    type="button"
+    data-copy-contract
+    data-contract="0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3"
+    aria-label="Copy the TOHSENO contract address">
+    <span class="ticker-track">
+      <span class="ticker-group">
+        <span data-contract-text>$TOHSENO IS LIVE ON ROBINHOOD CHAIN ~ 0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3</span><span aria-hidden="true">✳</span>
+        <span data-contract-text>$TOHSENO IS LIVE ON ROBINHOOD CHAIN ~ 0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3</span><span aria-hidden="true">✳</span>
+      </span>
+      <span class="ticker-group" aria-hidden="true">
+        <span data-contract-text>$TOHSENO IS LIVE ON ROBINHOOD CHAIN ~ 0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3</span><span>✳</span>
+        <span data-contract-text>$TOHSENO IS LIVE ON ROBINHOOD CHAIN ~ 0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3</span><span>✳</span>
+      </span>
+    </span>
+  </button>
+
+  <main id="main">
+    <section class="hero frame" id="top">
+      <p class="eyebrow"><span aria-hidden="true">●</span> OPEN-SOURCE FACTORY FOR NATIVE iOS APPS</p>
+      <h1>MAKE THE<br>iPHONE APP<br><em>THAT SHOULD EXIST.</em></h1>
+      <div class="hero-bottom">
+        <p class="lede">One coherent intention becomes a native application you can hold, use, evolve, and completely own.</p>
+        <button class="install" type="button" data-copy-install data-install-command="npm i -g tohseno" aria-label="Copy the TOHSENO install command">
+          <span class="prompt" aria-hidden="true">$</span>
+          <code data-install-text>npm i -g tohseno</code>
+          <span class="copy-mark" data-copy-label>COPY</span>
+        </button>
+      </div>
+      <div class="hero-stamp" aria-hidden="true"><img src="/tohseno-logo.png" alt=""></div>
+    </section>
+
+    <section class="ticker orange-band manifesto" aria-label="Manifesto">
+      <div class="ticker-track">
+        <div class="ticker-group">
+          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span aria-hidden="true">✳</span>
+          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span aria-hidden="true">✳</span>
+        </div>
+        <div class="ticker-group" aria-hidden="true">
+          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span>✳</span>
+          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span>✳</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="permission frame bone">
+      <p class="section-no">[ 001 / PERMISSION ]</p>
+      <div>
+        <h2>YOUR IDEA DOES NOT NEED TO BECOME A STARTUP BEFORE IT IS ALLOWED TO BECOME REAL.</h2>
+        <p>It does not need a business plan. It does not need a market. It does not need permission. It needs one honest encounter with reality.</p>
+      </div>
+    </section>
+
+    <section class="method frame" id="method">
+      <div class="section-head">
+        <p>[ 002 / TAKE A SHOT ]</p>
+        <h2>ONE INTENTION.<br>ONE REAL ATTEMPT.</h2>
+      </div>
+      <div class="shot-flow">
+        <article>
+          <span>01 — INTENTION</span>
+          <p>“I want an app that helps me stop smoking for 21 days.”</p>
+        </article>
+        <div class="flow-arrow" aria-hidden="true">→</div>
+        <article class="inverted">
+          <span>02 — TOHSENO</span>
+          <div class="terminal-lines"><b>■</b> BOUND FIRST FORM<br><b>■</b> BUILD NATIVE SWIFTUI<br><b>■</b> VERIFY ON MAC<br><b>■</b> INSTALL ON iPHONE</div>
+        </article>
+        <div class="flow-arrow" aria-hidden="true">→</div>
+        <article>
+          <span>03 — CONTACT</span>
+          <p>Use it with your own hands. Let the original idea lose its immunity from reality.</p>
+        </article>
+      </div>
+      <blockquote>“A Shot is a question asked of reality in executable form.”</blockquote>
+    </section>
+
+    <section class="contact-sheet frame bone">
+      <div class="section-head">
+        <p>[ 003 / PERSONAL SOFTWARE ]</p>
+        <h2>MAKE SOFTWARE<br>FOR YOUR ACTUAL LIFE.</h2>
+      </div>
+      <div class="shot-grid">
+        <article><span>01 / BREATHWORK FACILITATOR</span><div class="mini-app"><img src="/app-breathekeeper.png" alt="Breathekeeper app icon"></div><h3>BREATHEKEEPER</h3><p>“Guide a room through timed breath journeys without touching my phone.”</p></article>
+        <article><span>02 / FATHER OF TWINS</span><div class="mini-app"><img src="/app-who-ate.png" alt="Who Ate? app icon"></div><h3>WHO ATE?</h3><p>“Track which twin ate, slept, and pooped—without mixing them up.”</p></article>
+        <article><span>03 / NIGHT-SHIFT NURSE</span><div class="mini-app"><img src="/app-handoff.png" alt="Handoff app icon"></div><h3>HANDOFF</h3><p>“Keep the details I’m too tired to trust my memory with.”</p></article>
+        <article><span>04 / SMALL FARMER</span><div class="mini-app"><img src="/app-water-walk.png" alt="Water Walk app icon"></div><h3>WATER WALK</h3><p>“Tell me what needs water today before I walk the field.”</p></article>
+        <article><span>05 / TATTOO ARTIST</span><div class="mini-app"><img src="/app-ink-memory.png" alt="Ink Memory app icon"></div><h3>INK MEMORY</h3><p>“Photograph every healed tattoo and remember the ink recipe.”</p></article>
+        <article><span>06 / TOURING MUSICIAN</span><div class="mini-app"><img src="/app-room-tone.png" alt="Room Tone app icon"></div><h3>ROOM TONE</h3><p>“Remember what every venue sounded like before tonight’s soundcheck.”</p></article>
+      </div>
+      <p class="permission-line">YOU ARE ALLOWED TO MAKE SOFTWARE THAT ONLY YOU USE.</p>
+    </section>
+
+    <section class="ownership frame" id="ownership">
+      <p class="section-no">[ 004 / OWNERSHIP ]</p>
+      <h2>THE FACTORY IS<br>A MIDWIFE.<br><em>NOT A LANDLORD.</em></h2>
+      <div class="ownership-grid">
+        <p class="big-rule">TOHSENO CAN DISAPPEAR.<br>YOUR APP MUST CONTINUE.</p>
+        <ul>
+          <li><span>01</span> ORDINARY SWIFTUI + XCODE</li>
+          <li><span>02</span> ONE REPOSITORY PER APPLICATION</li>
+          <li><span>03</span> NO PROPRIETARY RUNTIME</li>
+          <li><span>04</span> NO TOHSENO ACCOUNT REQUIRED</li>
+          <li><span>05</span> CONTINUE WITH ANY MODEL — OR NONE</li>
+          <li><span>06</span> PUBLISH WHEN YOU CHOOSE</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="steps frame orange-block">
+      <div class="section-head">
+        <p>[ 005 / BEGIN ]</p>
+        <h2>FROM ZERO<br>TO YOUR PHONE.</h2>
+      </div>
+      <ol>
+        <li>
+          <b>01</b>
+          <h3>INSTALL</h3>
+          <button type="button" data-copy-install data-install-command="npm i -g tohseno"><code data-install-text>npm i -g tohseno</code><span data-copy-label>COPY</span></button>
+        </li>
+        <li><b>02</b><h3>CONNECT</h3><p>Plug your iPhone into your Mac. Tohseno guides you through Xcode, signing, and Developer Mode.</p></li>
+        <li><b>03</b><h3>TAKE A SHOT</h3><p>Describe what should exist. Experience it on your phone. Evolve it from what reality teaches you.</p></li>
+      </ol>
+    </section>
+
+    <section class="chain frame bone">
+      <div class="section-head">
+        <p>[ 006 / PUBLIC MEMORY ]</p>
+        <h2>LOCAL CREATION.<br>PUBLIC PROOF.</h2>
+      </div>
+      <p class="chain-copy">Every Shot belongs to its builder. The network may attest to an action. It never grants an application permission to exist.</p>
+      <div class="chain-path"><span>MAC FACTORY</span><b aria-hidden="true">→</b><span>OWNED REPOSITORY</span><b aria-hidden="true">→</b><span>OPTIONAL ONCHAIN RECORD</span></div>
+      <a class="contract-card" href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">
+        <span><strong>$TOHSENO</strong><small>LIVE ON ROBINHOOD CHAIN</small></span>
+        <code>0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3</code>
+        <b>VIEW ON DEX <span aria-hidden="true">↗</span></b>
+      </a>
+    </section>
   </main>
 
-  <div class="drop-veil" id="drop-veil" aria-hidden="true"><span>drop a .md file, or images</span></div>
+  <footer class="frame">
+    <div class="footer-logo"><img src="/tohseno-logo.png" alt="TOHSENO brush circle"><h2>WHAT SHOULD<br>EXIST?</h2></div>
+    <button class="install giant" type="button" data-copy-install data-install-command="npm i -g tohseno" aria-label="Copy the TOHSENO install command">
+      <span class="prompt" aria-hidden="true">$</span><code data-install-text>npm i -g tohseno</code><span data-copy-label>COPY</span>
+    </button>
+    <div class="footer-links">
+      <span>GIVE EVERY IDEA A SHOT. LET REALITY CONTINUE IT. TAKE ANOTHER ONE.</span>
+      <div>
+        <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">SOURCE <span aria-hidden="true">↗</span></a>
+        <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">COMMUNITY <span aria-hidden="true">↗</span></a>
+        <a href="/whitepaper.pdf" target="_blank" rel="noopener">WHITEPAPER <span aria-hidden="true">↗</span></a>
+      </div>
+    </div>
+  </footer>
+
+  <p class="copy-status" role="status" aria-live="polite" aria-atomic="true"></p>
 </body>
 </html>
