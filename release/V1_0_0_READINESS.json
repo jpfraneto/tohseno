@@ -1,8 +1,8 @@
 {
   "schema": "tohseno.release-readiness/1",
   "version": "1.0.0",
-  "channel": "release-candidate",
-  "ready": false,
+  "channel": "stable",
+  "ready": true,
   "authorization": {
     "authorized": true,
     "authorized_by": "jpfraneto",
@@ -23,7 +23,7 @@
     "recording_layer_implicit_migration": false
   },
   "required_local_evidence": {
-    "clean_source_commit_captured": false,
+    "clean_source_commit_captured": true,
     "rust_fmt_green": true,
     "rust_clippy_green": true,
     "rust_workspace_tests_green": true,
@@ -44,8 +44,8 @@
     "reinstall_green": true,
     "failed_update_rollback_green": true,
     "uninstall_and_data_preservation_green": true,
-    "release_candidate_artifacts_built_from_clean_commit": false,
-    "release_candidate_manifests_verified": false
+    "release_candidate_artifacts_built_from_clean_commit": true,
+    "release_candidate_manifests_verified": true
   },
   "external_activation_gates": {
     "immutable_v1_0_0_tag_published": false,
@@ -63,21 +63,21 @@
     "npm_clean_prefix_install_verified": false
   },
   "current_verified_evidence": {
-    "verified_at": "2026-08-24T20:20:45Z",
-    "source_commit_at_verification": "08bf7a4befd79518fcf017ccaea657385505afd8",
-    "worktree_clean": false,
+    "verified_at": "2026-08-24T20:44:48Z",
+    "source_commit_at_verification": "09a7c4c63971af4ec18d8fe4c549510102017b82",
+    "worktree_clean": true,
     "rust_result": "formatting and strict Clippy passed; 549 tests passed, 0 failures",
     "swift_result": "apple-identity, Fascia, CompanionKit, and Companion passed; 59 tests passed, 0 failures",
     "studio_result": "21 static contract tests passed",
     "website_and_relay_result": "typecheck passed; 84 tests passed, 0 failures",
     "contracts_result": "forge build passed; 81 tests passed, 0 failures",
-    "npm_result": "npm owner jpfraneto authenticated; 10 bootstrap tests and isolated pack-install passed; dry-run archive contains 12 files",
+    "npm_result": "npm owner jpfraneto authenticated; tohseno@1.0.0 passed 10 bootstrap tests and isolated pack-install; dry-run archive contains 12 files",
     "golden_path_result": "TOHSENO 1.0.0 local golden path passed",
     "factory_lifecycle_result": "1.0 factory create/evolve and recording compatibility lifecycle passed",
     "companion_end_to_end_result": "local Companion Relay, Workspace Service, and simulator smoke passed",
     "macos_service_lifecycle_result": "real isolated macOS service install, health, restart, pointer switch, and uninstall passed",
     "installer_result": "fresh install, reinstall, service health, failed-update rollback, uninstall, data preservation, claim arguments, and public-pin gates passed",
-    "release_package_integrity_result": "the Developer ID signing path passed for both architectures at 0.9.9; fresh 1.0.0 clean-commit archives remain required"
+    "release_package_integrity_result": "Apple Silicon and Intel 1.0.0 archives were built from clean commit 09a7c4c63971af4ec18d8fe4c549510102017b82; normalized manifests and installer regressions passed; both native executables carry valid Developer ID Application signatures for Team 84V63LKV45"
   },
-  "blocking_reason": "The owner promoted the unreleased product and npm front door to 1.0.0. Fresh clean-commit 1.0.0 archives and their normalized manifests must pass before the protected v1.0.0 tag is created."
+  "blocking_reason": null
 }
