@@ -212,6 +212,52 @@ struct CompanionFlowTests {
     }
 
     @MainActor
+    @Test("Opening a yellow in-flight app is read-only and cannot spend another build")
+    func openingInFlightAppIsReadOnly() async throws {
+        let backend = StubBackend(shots: [shot(version: 4, execution: .building)])
+        let subject = await model(backend)
+        let anky = try #require(subject.apps.first)
+
+        subject.open(anky)
+
+        #expect(subject.screen == .app(anky.shotID))
+        #expect(await backend.submissions.isEmpty)
+        #expect(subject.presentation(for: anky).headline == "Building anky…")
+        subject.intent = "Queue another expensive change."
+        #expect(!subject.canEvolve)
+        await subject.evolve()
+        #expect(await backend.submissions.isEmpty)
+    }
+
+    @MainActor
+    @Test("Manual Sync reconciles once and never submits an app mutation")
+    func manualSyncIsReadOnly() async {
+        let backend = StubBackend(shots: [shot(version: 4)])
+        let subject = await model(backend)
+        #expect(await backend.reconciles == 1)
+
+        await subject.syncNow()
+
+        #expect(await backend.reconciles == 2)
+        #expect(await backend.submissions.isEmpty)
+        #expect(await backend.creations.isEmpty)
+        #expect(!subject.syncing)
+    }
+
+    @MainActor
+    @Test("Manual Sync says when the Mac could not be reached")
+    func manualSyncFailureIsVisible() async {
+        let backend = StubBackend(shots: [shot(version: 4)])
+        let subject = await model(backend)
+        await backend.set(reachable: false)
+
+        await subject.syncNow()
+
+        #expect(subject.notice == "Couldn’t sync with your Mac.")
+        #expect(await backend.submissions.isEmpty)
+    }
+
+    @MainActor
     @Test("An unreachable Mac still accepts the request; the phone says so honestly")
     func offlineSubmission() async throws {
         let backend = StubBackend(shots: [shot(version: 4)])

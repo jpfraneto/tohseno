@@ -84,7 +84,7 @@ struct PresentationTests {
         ] {
             let presentation = TohsenoPresentation.of(shot(version: 1, execution: phase))
             #expect(presentation.state == .building)
-            #expect(presentation.headline == "Evolving anky…")
+            #expect(presentation.headline == "Building anky…")
         }
     }
 }

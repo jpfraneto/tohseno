@@ -801,6 +801,7 @@ mod tests {
         assert!(task.contains("preserve existing user data"));
         assert!(task.contains("prefer forward migrations"));
         assert!(task.contains("TOHSENO owns final deterministic build"));
+        assert!(task.contains("Do not launch a Simulator or device app"));
         assert!(task.contains("tohseno.state-transition/1"));
         assert!(task.contains("TOHSENO_STATE_TRANSITION.json"));
         assert!(task.contains("Do not search for, copy, or rewrite them"));

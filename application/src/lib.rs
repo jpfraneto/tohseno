@@ -18,7 +18,8 @@ pub mod snapshot;
 pub use application_service::{
     ApplicationError, CommandRecoverySummary, CreateShotCommand, CreateShotReceipt,
     EvolveShotCommand, EvolveShotReceipt, FactoryDefaults, FeedbackReceipt, MarketingNoteReceipt,
-    ReferenceInput, ShotApplicationService, SubmitFeedbackCommand, SubmitMarketingNoteCommand,
+    ReferenceInput, RetireShotReceipt, ShotApplicationService, SubmitFeedbackCommand,
+    SubmitMarketingNoteCommand,
 };
 pub use billing::{
     installation_binding, verify_receipt, EntitlementReceiptPayload, ReceiptError,
@@ -35,7 +36,9 @@ pub use factory_lease::FactoryLease;
 pub use journal::{Admission, CommandJournal, JournalError};
 pub use presentation::{Presentation, PresentedState};
 pub use receipt::{
-    load_execution_receipt, ExecutionReceipt, IntentionSource, Refusal, EXECUTION_RECEIPT_SCHEMA,
+    load_execution_activity, load_execution_receipt, ExecutionActivity, ExecutionActivityEntry,
+    ExecutionReceipt, IntentionSource, Refusal, EXECUTION_ACTIVITY_SCHEMA,
+    EXECUTION_RECEIPT_SCHEMA,
 };
 pub use snapshot::{
     ExecutionSummary, IconDescriptor, ShotKind, ShotSummary, SupportedCompanionAction,

@@ -31,7 +31,7 @@ if grep -Fq 'intent claim "$claim_token"' "$installer"; then
   printf '%s\n' "installer passes the claim token in a nested process argument" >&2
   exit 1
 fi
-grep -Fq 'version="v0.9.0"' "$installer"
+grep -Fq 'version="v0.9.9"' "$installer"
 cmp \
   "$repository_root/website/apps/site/public/oneshot.sh" \
   "$repository_root/website/apps/site/public/install.sh"

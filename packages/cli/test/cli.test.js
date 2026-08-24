@@ -17,7 +17,7 @@ function manifest() {
       {
         architecture: "arm64",
         target: "aarch64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-aarch64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-release-aarch64-apple-darwin.tar.gz",
         byte_size: 123,
         sha256: "ab".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },
@@ -25,7 +25,7 @@ function manifest() {
       {
         architecture: "x64",
         target: "x86_64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-x86_64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-release-x86_64-apple-darwin.tar.gz",
         byte_size: 456,
         sha256: "cd".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },

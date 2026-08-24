@@ -33,6 +33,7 @@ public final class CompanionModel {
     public private(set) var notice: String?
     public private(set) var recoveryWords: String?
     public private(set) var busy = false
+    public private(set) var syncing = false
     public private(set) var entitlement: ProductEntitlementProjection?
 
     /// The one text box. Nothing else is composed on the phone.
@@ -99,6 +100,19 @@ public final class CompanionModel {
     /// Pull the Mac's current truth. Safe to call on every launch and
     /// foreground; the SDK reconciles and replays anything that was missed.
     public func refresh() async {
+        await refresh(reportFailure: false)
+    }
+
+    /// A person-requested refresh. Unlike background reconciliation, failure
+    /// is visible so the Sync button never pretends stale data is current.
+    public func syncNow() async {
+        await refresh(reportFailure: true)
+    }
+
+    private func refresh(reportFailure: Bool) async {
+        guard !syncing else { return }
+        syncing = true
+        defer { syncing = false }
         do {
             try await backend.reconcile()
             // A process relaunch restores the persisted pairing before this
@@ -106,12 +120,14 @@ public final class CompanionModel {
             // first successful reconciliation so reopening the Companion is
             // the same connected state as completing a fresh pairing.
             try await backend.startSynchronization()
+            if reportFailure { notice = nil }
         } catch TohsenoCompanionError.notPaired {
             screen = .firstRun
             return
         } catch {
             // Offline is not an error the person needs to read. The durable
             // outbox keeps the request; `unacknowledged` says the honest thing.
+            if reportFailure { notice = "Couldn’t sync with your Mac." }
         }
         await load()
     }
@@ -266,6 +282,7 @@ public final class CompanionModel {
     public var canEvolve: Bool {
         guard case let .app(shotID) = screen, let shot = app(shotID) else { return false }
         guard entitlement?.factoryMutationsAllowed != false else { return false }
+        guard !presentation(for: shot).state.inFlight else { return false }
         return !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && shot.expressionID != nil
             && shot.latestVersionID != nil

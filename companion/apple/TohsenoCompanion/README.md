@@ -44,8 +44,10 @@ screen for a compact, scrollable icon grid. Each app has the real icon where
 the Mac has one, a one-letter mark where it does not, a short name, and one
 status-colored dot. There are no oversized cards or decorative dock competing
 with the apps. A native material bar stays at the bottom with the main New App
-action. Opening an app uses native stack navigation, including the iPhone's
-standard left-edge swipe to return to Your Apps.
+action. A read-only Sync button beside Mac connected requests the newest
+encrypted workspace projection and reports when the Mac cannot be reached.
+Opening an app uses native stack navigation, including the iPhone's standard
+left-edge swipe to return to Your Apps, and never submits a build.
 
 **New app.** The bottom action opens one compact intent composer for an app
 name, intention, and optional screenshots. Create App sends that single intent
@@ -71,8 +73,9 @@ What should change?
                              Evolve
 ```
 
-No feedback-saving step. No version picker. No execution configuration. No
-confirmation after the tap.
+No feedback-saving step. No version picker. No execution configuration. The
+screen says that opening is read-only; only the explicit Evolve App button
+sends one request. It stays disabled while that app already has work in flight.
 
 The encrypted private entitlement projection can replace the app with the Pro
 decision or trial-ended screen. Checkout is completed on the Mac; no payment
@@ -86,7 +89,7 @@ returns, so the app can be closed immediately.
 
 | Situation | What the phone says |
 | --- | --- |
-| Mac reachable, factory free | `Evolving Anky…` |
+| Mac reachable, factory free | `Building Anky…` |
 | Mac unreachable | `Waiting for your Mac…` |
 | Mac reachable, factory busy | `Waiting…` |
 | Verified but no cable | `Anky is ready.` / `Connect this iPhone to your Mac to install the update.` |

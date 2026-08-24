@@ -139,6 +139,28 @@ impl ApiError {
         }
     }
 
+    fn retire_application(error: ApplicationError) -> Self {
+        match error {
+            ApplicationError::Engine(tohseno_engine::EngineError::DeviceUnavailable(_)) => {
+                Self::unavailable(
+                    "Connect and unlock your iPhone before deleting an installed app.",
+                )
+            }
+            ApplicationError::Engine(tohseno_engine::EngineError::Install(_)) => Self::unavailable(
+                "Your iPhone could not remove this app. Keep it connected and unlocked, then try again.",
+            ),
+            ApplicationError::Invalid(message)
+                if message.starts_with("this app is still building") =>
+            {
+                Self::conflict("app_busy", message)
+            }
+            ApplicationError::Invalid(message) if message == "app does not exist" => {
+                Self::not_found(message)
+            }
+            error => Self::application(error),
+        }
+    }
+
     fn internal(error: impl std::fmt::Display) -> Self {
         Self {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -456,9 +478,11 @@ fn router(state: Arc<WorkspaceState>) -> Router {
             get(pending_intention),
         )
         .route("/api/v1/shots", get(shots).post(create_shot))
+        .route("/api/v1/shots/{shot_id}", delete(retire_shot))
         .route("/api/v1/shots/{shot_id}/icon", get(shot_icon))
         .route("/api/v1/shots/{shot_id}/preview", get(shot_preview))
         .route("/api/v1/shots/{shot_id}/receipt", get(shot_receipt))
+        .route("/api/v1/shots/{shot_id}/activity", get(shot_activity))
         .route("/api/v1/shots/{shot_id}/evolutions", post(evolve_shot))
         .route("/api/v1/executions", get(executions))
         .route("/api/v1/executions/{execution_id}", get(execution))
@@ -924,6 +948,18 @@ async fn shots(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, 
     })))
 }
 
+async fn retire_shot(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .application
+        .retire_shot(&shot_id)
+        .await
+        .map(|receipt| Json(json!(receipt)))
+        .map_err(ApiError::retire_application)
+}
+
 async fn shot_icon(
     State(state): State<Arc<WorkspaceState>>,
     AxumPath(shot_id): AxumPath<String>,
@@ -961,9 +997,25 @@ async fn shot_receipt(
         .execution_receipt(&shot_id)
         .map_err(ApiError::application)?
         .ok_or_else(|| ApiError::not_found("this app has no execution to explain yet"))?;
-    Ok(Json(serde_json::to_value(receipt).map_err(
-        |_| ApiError::internal("the execution receipt could not be rendered"),
-    )?))
+    Ok(Json(serde_json::to_value(receipt).map_err(|_| {
+        ApiError::internal("the execution receipt could not be rendered")
+    })?))
+}
+
+/// Durable semantic progress and metered usage for the open Details surface.
+/// Raw harness output remains in the private on-disk operational log.
+async fn shot_activity(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    let activity = state
+        .application
+        .execution_activity(&shot_id)
+        .map_err(ApiError::application)?
+        .ok_or_else(|| ApiError::not_found("this app has no execution activity yet"))?;
+    Ok(Json(serde_json::to_value(activity).map_err(|_| {
+        ApiError::internal("the execution activity could not be rendered")
+    })?))
 }
 
 async fn shot_preview(

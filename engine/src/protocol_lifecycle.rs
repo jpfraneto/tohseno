@@ -1499,6 +1499,16 @@ pub fn reconcile_birth_capability_declaration(
             .get(&capability)
             .filter(|values| !values.is_empty())
             .map(|values| values.join("; "))
+            .or_else(|| {
+                existing_capabilities
+                    .get(&capability)
+                    .map(|declaration| declaration.purpose.clone())
+            })
+            .or_else(|| scan.usage_description_purpose(capability))
+            .or_else(|| {
+                (capability == Capability::Notifications)
+                    .then(|| default_notification_declaration().purpose)
+            })
             .ok_or_else(|| {
                 let fallback = ScanEvidence {
                     file: "src".into(),
@@ -1625,6 +1635,7 @@ struct SourceScan {
     apple_api_capabilities: BTreeSet<Capability>,
     usage_description_capabilities: BTreeSet<Capability>,
     usage_description_keys: BTreeSet<String>,
+    usage_description_values: BTreeMap<String, BTreeSet<String>>,
     required_usage_keys: BTreeMap<String, ScanEvidence>,
     capability_evidence: BTreeMap<Capability, Vec<ScanEvidence>>,
     runtime_endpoint_candidates: BTreeSet<String>,
@@ -2046,6 +2057,14 @@ impl SourceScan {
             self.entitlement_keys.extend(keys.iter().cloned());
         }
         self.record_usage_descriptions(&keys);
+        for key in &keys {
+            if let Some(value) = extract_plist_string(text, key) {
+                self.usage_description_values
+                    .entry(key.clone())
+                    .or_default()
+                    .insert(value);
+            }
+        }
         self.local_network_usage_description |= keys.contains("NSLocalNetworkUsageDescription");
         self.bonjour_services_key |= keys.contains("NSBonjourServices");
         self.bonjour_services
@@ -2103,15 +2122,15 @@ impl SourceScan {
                         .any(|item| item.trim() == "2")
                 })
         });
-        let keys = text
-            .lines()
-            .filter_map(|line| {
-                line.trim()
-                    .strip_prefix("INFOPLIST_KEY_")
-                    .and_then(|value| value.split_once('=').map(|(key, _)| key.trim().to_owned()))
-            })
-            .collect::<BTreeSet<_>>();
+        let settings = extract_xcode_info_plist_settings(text);
+        let keys = settings.keys().cloned().collect::<BTreeSet<_>>();
         self.record_usage_descriptions(&keys);
+        for (key, values) in settings {
+            self.usage_description_values
+                .entry(key)
+                .or_default()
+                .extend(values);
+        }
         self.local_network_usage_description |= keys.contains("NSLocalNetworkUsageDescription");
         if keys.contains("NSBonjourServices") {
             self.bonjour_services_key = true;
@@ -2173,6 +2192,18 @@ impl SourceScan {
         self.capability_evidence
             .get(&capability)
             .and_then(|evidence| evidence.first())
+    }
+
+    fn usage_description_purpose(&self, capability: Capability) -> Option<String> {
+        let values = self
+            .usage_description_values
+            .iter()
+            .filter(|(key, _)| usage_description_capability(key) == Some(capability))
+            .flat_map(|(_, values)| values.iter())
+            .filter(|value| !value.trim().is_empty())
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        (!values.is_empty()).then(|| values.into_iter().collect::<Vec<_>>().join("; "))
     }
 }
 
@@ -2249,6 +2280,70 @@ fn extract_plist_keys(text: &str) -> BTreeSet<String> {
         remaining = &remaining[end + "</key>".len()..];
     }
     keys
+}
+
+fn extract_plist_string(text: &str, wanted_key: &str) -> Option<String> {
+    let mut remaining = text;
+    while let Some(key_start) = remaining.find("<key>") {
+        remaining = &remaining[key_start + "<key>".len()..];
+        let key_end = remaining.find("</key>")?;
+        let key = remaining[..key_end].trim();
+        remaining = &remaining[key_end + "</key>".len()..];
+        if key != wanted_key {
+            continue;
+        }
+        let string_start = remaining.find("<string>")?;
+        let after_start = &remaining[string_start + "<string>".len()..];
+        let string_end = after_start.find("</string>")?;
+        let value = after_start[..string_end].trim();
+        return (!value.is_empty()).then(|| value.to_owned());
+    }
+    None
+}
+
+fn extract_xcode_info_plist_settings(text: &str) -> BTreeMap<String, BTreeSet<String>> {
+    let mut settings = BTreeMap::new();
+    for line in text.lines() {
+        let Some(value) = line.trim().strip_prefix("INFOPLIST_KEY_") else {
+            continue;
+        };
+        let Some((key, raw_value)) = value.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = raw_value.trim().trim_end_matches(';').trim();
+        let value = value
+            .strip_prefix('"')
+            .and_then(|value| value.strip_suffix('"'))
+            .unwrap_or(value)
+            .trim();
+        if !key.is_empty() && !value.is_empty() && !value.contains("$(") {
+            settings
+                .entry(key.to_owned())
+                .or_insert_with(BTreeSet::new)
+                .insert(value.to_owned());
+        }
+    }
+    settings
+}
+
+fn usage_description_capability(key: &str) -> Option<Capability> {
+    if key == "NSCameraUsageDescription" {
+        Some(Capability::Camera)
+    } else if key == "NSMicrophoneUsageDescription" || key == "NSSpeechRecognitionUsageDescription"
+    {
+        Some(Capability::Microphone)
+    } else if key.starts_with("NSLocation") {
+        Some(Capability::Location)
+    } else if key == "NSContactsUsageDescription" {
+        Some(Capability::Contacts)
+    } else if key.starts_with("NSHealth") {
+        Some(Capability::Health)
+    } else if key.starts_with("NSBluetooth") {
+        Some(Capability::Bluetooth)
+    } else {
+        None
+    }
 }
 
 /// Read the string members of one XML plist array. This deliberately accepts
@@ -2839,6 +2934,41 @@ let result = try await URLSession.shared.data(from: URL(string: "https://api.exa
             .capabilities
             .iter()
             .any(|item| item.capability == Capability::Microphone));
+    }
+
+    #[test]
+    fn synthesized_plan_uses_verified_apple_permission_purpose() {
+        let mut plan = crate::anky_fixture::output().birth_plan;
+        plan.capabilities.clear();
+        plan.genome.required_capabilities.clear();
+        plan.completion_contract
+            .physical_verification_capabilities
+            .clear();
+        for organ in &mut plan.embodiment {
+            organ.capability_ids.clear();
+        }
+        plan.validate().unwrap();
+
+        let purpose = "Listen only during a breathing session; audio stays on this iPhone.";
+        let project = format!("INFOPLIST_KEY_NSMicrophoneUsageDescription = \"{purpose}\";\n");
+        let (_directory, source) = candidate_source(&[
+            (
+                "BreathDetector.swift",
+                "import AVFoundation\nlet engine = AVAudioEngine()\nlet input = engine.inputNode\n",
+            ),
+            ("App.xcodeproj/project.pbxproj", &project),
+        ]);
+
+        reconcile_birth_capability_declaration(&source, &plan).unwrap();
+        let declaration = AppCapabilityUse::load(&source).unwrap().unwrap();
+        assert_eq!(
+            declaration.capabilities,
+            vec![CapabilityDeclaration {
+                capability: Capability::Microphone,
+                purpose: purpose.into(),
+                entitlement: None,
+            }]
+        );
     }
 
     #[test]

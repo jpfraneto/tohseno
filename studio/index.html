@@ -100,12 +100,21 @@
           <div class="state-actions">
             <button id="state-retry" class="primary" type="button" hidden>Retry</button>
             <button id="state-evolve" class="primary" type="button" hidden>Evolve App</button>
+            <button id="state-delete" class="danger" type="button">Delete App</button>
           </div>
           <details id="state-details" class="details">
-            <summary>Show details</summary>
+            <summary>Show live details</summary>
+            <section class="activity" aria-labelledby="activity-heading">
+              <div class="activity-heading">
+                <h2 id="activity-heading">Live activity</h2>
+                <span id="activity-tokens" aria-live="polite">Waiting for token report…</span>
+              </div>
+              <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-label="Live build activity"></div>
+              <p id="activity-empty" class="activity-empty">Waiting for the local factory…</p>
+            </section>
             <div id="detail-receipt" class="receipt"></div>
             <dl id="detail-facts" class="facts"></dl>
-            <p class="details-note">Private harness output stays on this Mac. Run <code>tohseno service logs</code> for the bounded operational log.</p>
+            <p class="details-note">This feed contains privacy-safe execution activity. Private harness output stays on this Mac; run <code>tohseno service logs</code> for the bounded operational log.</p>
           </details>
         </section>
 
@@ -147,6 +156,16 @@
       </main>
     </div>
 
+    <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-heading" aria-describedby="delete-detail">
+      <p class="kicker">Delete app</p>
+      <h1 id="delete-heading">Are you sure?</h1>
+      <p id="delete-detail" class="detail"></p>
+      <p id="delete-error" class="dialog-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="delete-cancel" class="secondary" type="button">Cancel</button>
+        <button id="delete-confirm" class="danger solid" type="button">Delete App</button>
+      </div>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script src="/app.js" defer></script>
   </body>

@@ -168,6 +168,7 @@ test("Studio uses only the Local Workspace Service API contract", () => {
     "/api/v1/workspace",
     "/api/v1/factory-defaults",
     "/api/v1/shots",
+    "/activity",
     "/api/v1/events",
     "/api/v1/companion/devices",
     "/api/v1/companion/status",
@@ -221,6 +222,26 @@ test("workspace changes stream over SSE instead of polling", () => {
   assert.doesNotMatch(script, /setInterval\([^)]*refreshWorkspace/);
 });
 
+test("Details shows live privacy-safe activity and cumulative tokens", () => {
+  assert.match(html, /id="activity-feed"[^>]*role="log"[^>]*aria-live="polite"/);
+  assert.match(html, /Waiting for token report/);
+  assert.match(script, /tohseno\.execution-activity\/1/);
+  assert.match(script, /activity\.total_tokens/);
+  assert.match(script, /window\.setTimeout\(refreshActivity, 1_000\)/);
+  assert.match(html, /Private harness output stays on this Mac/);
+});
+
+test("deleting an app requires an explicit, app-specific modal confirmation", () => {
+  assert.match(html, /<dialog id="delete-dialog"/);
+  assert.match(html, /id="delete-heading">Are you sure\?</);
+  assert.match(html, /id="delete-cancel"[^>]*>Cancel</);
+  assert.match(script, /ui\.deleteDialog\.showModal\(\)/);
+  assert.match(script, /Its source and immutable history stay safely on this Mac/);
+  assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}[^\n]*method: "DELETE"/);
+  assert.match(script, /snapshot\.shots\.filter\(\(shot\) => !shot\.retired\)/);
+  assert.doesNotMatch(script, /confirm\([^)]*delete/i);
+});
+
 test("Studio keeps private implementation material off the browser", () => {
   assert.match(html, /Private harness output stays on this Mac/);
   assert.doesNotMatch(html, /chat interface/i);
@@ -237,8 +258,8 @@ test("the collapsed surface stays small", () => {
   const scriptLines = script.split("\n").length;
   const styleLines = style.split("\n").length;
   const htmlLines = html.split("\n").length;
-  assert.ok(scriptLines < 1_180, `app.js grew back to ${scriptLines} lines`);
-  assert.ok(styleLines < 960, `style.css grew back to ${styleLines} lines`);
+  assert.ok(scriptLines < 1_240, `app.js grew back to ${scriptLines} lines`);
+  assert.ok(styleLines < 1_000, `style.css grew back to ${styleLines} lines`);
   assert.ok(htmlLines < 200, `index.html grew back to ${htmlLines} lines`);
 });
 

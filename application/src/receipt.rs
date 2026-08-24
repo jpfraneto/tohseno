@@ -17,11 +17,12 @@ use std::fs;
 use std::path::Path;
 use tohseno_engine::shot_execution::{
     execution_directory, load_completion, load_state_transition_receipt, preserved_intent,
-    ExecutionPhase, StateTransitionReceipt,
+    read_events, ExecutionPhase, StateTransitionReceipt,
 };
 use tohseno_engine::{AppKind, Engine};
 
 pub const EXECUTION_RECEIPT_SCHEMA: &str = "tohseno.execution-receipt/1";
+pub const EXECUTION_ACTIVITY_SCHEMA: &str = "tohseno.execution-activity/1";
 
 /// The most intention text one receipt will carry.
 const MAXIMUM_INTENTION_CHARACTERS: usize = 20_000;
@@ -29,6 +30,7 @@ const MAXIMUM_INTENTION_CHARACTERS: usize = 20_000;
 const MAXIMUM_EVIDENCE_CHARACTERS: usize = 8_000;
 const MAXIMUM_JOURNAL_ENTRIES: usize = 100_000;
 const MAXIMUM_JOURNAL_PAYLOAD_BYTES: u64 = 4 * 1024 * 1024;
+const MAXIMUM_ACTIVITY_ENTRIES: usize = 200;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -87,6 +89,25 @@ pub struct ExecutionReceipt {
     pub refusals: Vec<Refusal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_action: Option<String>,
+}
+
+/// A bounded, privacy-safe live projection of one execution's durable journal.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ExecutionActivity {
+    pub schema: &'static str,
+    pub execution_id: String,
+    pub complete: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<u64>,
+    pub entries: Vec<ExecutionActivityEntry>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ExecutionActivityEntry {
+    pub sequence: u64,
+    pub timestamp: String,
+    pub phase: String,
+    pub message: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -212,6 +233,50 @@ pub fn load_execution_receipt(
         next_action: completion
             .as_ref()
             .map(|record| record.authoritative_next_action.clone()),
+    }))
+}
+
+/// Load the latest execution's safe activity without disclosing harness text.
+pub fn load_execution_activity(
+    engine: &Engine,
+    workspace_id: &str,
+    shot_id: &str,
+) -> Result<Option<ExecutionActivity>, BoxError> {
+    let Some(app_name) = resolve_app_name(engine, workspace_id, shot_id)? else {
+        return Ok(None);
+    };
+    let repository = engine.ledger().working_tree(&app_name);
+    let Some(execution_id) = latest_execution_id(&repository)? else {
+        return Ok(None);
+    };
+    let execution = tohseno_engine::shot_execution::load_execution(&repository, &execution_id)?;
+    let completion = load_completion(&repository, &execution_id)?;
+    let usage = completion
+        .as_ref()
+        .and_then(|record| record.token_usage.clone())
+        .or_else(|| {
+            tohseno_engine::read_harness_usage(
+                &execution.harness,
+                &execution_directory(&repository, &execution_id).join("harness.log"),
+            )
+        });
+    let events = read_events(&repository, &execution_id)?;
+    let first = events.len().saturating_sub(MAXIMUM_ACTIVITY_ENTRIES);
+    let entries = events[first..]
+        .iter()
+        .map(|event| ExecutionActivityEntry {
+            sequence: event.sequence,
+            timestamp: event.timestamp.clone(),
+            phase: phase_label(event.phase).into(),
+            message: event.report.clone(),
+        })
+        .collect();
+    Ok(Some(ExecutionActivity {
+        schema: EXECUTION_ACTIVITY_SCHEMA,
+        execution_id,
+        complete: completion.is_some(),
+        total_tokens: usage.map(|value| value.total_tokens),
+        entries,
     }))
 }
 

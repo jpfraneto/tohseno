@@ -73,17 +73,24 @@ ready_for_phone  Your app is ready.  Plug your iPhone into this Mac and I’ll
                  install it automatically.
 installing       Installing on your iPhone…
 installed        paper is on your iPhone ✓
-failed           Couldn’t build your app.   [Retry]  [Show details]
+failed           Couldn’t build your app.   [Retry]  [Show live details]
 ```
 
 `ready_for_phone` deliberately has no Install, Resume, or Continue button. The
 persistent service resumes delivery by itself when the configured iPhone
 becomes available, and holds no expensive local resource while it waits.
 
-`Show details` is the pressure-release valve: exact status, internal execution
-phase, execution and app identities, accepted Version, coding harness, and
-inference route, plus a pointer to `tohseno service logs`. Raw harness output,
-source files, and private prompts never enter the browser.
+`Show live details` is the pressure-release valve: a live, privacy-safe feed
+from the durable execution journal, the harness-reported cumulative token
+count, exact status, internal execution phase, execution and app identities,
+accepted Version, coding harness, and inference route. Raw harness output,
+source files, and private prompts never enter the browser; the bounded raw log
+remains available through `tohseno service logs`.
+
+`Delete App` always opens an app-specific **Are you sure?** dialog. Confirming
+removes an installed copy from the connected iPhone and hides the retired app
+from Studio. Source, immutable Shot history, and private receipts stay on the
+Mac; an active build cannot be deleted.
 
 ## Evolution binds the base for you
 

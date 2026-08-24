@@ -2999,7 +2999,8 @@ impl Engine {
             // Fail before reserving or building when the harness returned only
             // a build, a generic plan, or incomplete target-user evidence.
             validate_canonical_birth_project_layout(&working, app_name)?;
-            if let Some(birth) = self.load_legacy_birth_context(app_name)? {
+            let layout = ShotLayout::at(&working);
+            let plan = if let Some(birth) = self.load_legacy_birth_context(app_name)? {
                 let blockers = birth_candidate_blockers(&birth);
                 if !blockers.is_empty() {
                     return Err(EngineError::ProtocolBodyIncomplete(format!(
@@ -3007,8 +3008,14 @@ impl Engine {
                         summarize_birth_candidate_blockers(&blockers)
                     )));
                 }
-                protocol_lifecycle::reconcile_birth_capability_declaration(&working, &birth.plan)?;
-            }
+                birth.plan
+            } else {
+                // ADR 0019 births deliberately have no harness-authored
+                // Experience Trial. Their engine-synthesized plan still owns
+                // the deterministic source-to-Fascia reconciliation.
+                read_private_planning_json(&layout, crate::conception::BIRTH_PLAN_FILE)?
+            };
+            protocol_lifecycle::reconcile_birth_capability_declaration(&working, &plan)?;
         }
         if !test_factory_no_device() {
             self.wait_for_apple_prerequisites().await?;

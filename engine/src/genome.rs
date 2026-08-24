@@ -289,8 +289,9 @@ planning skills.
 
 TOHSENO owns final deterministic build, verification, installation, launch,
 recording, and delivery after you exit. Do not run broad acceptance suites that
-TOHSENO will run again. Run only focused checks needed to implement the exact
-intention confidently.
+TOHSENO will run again. Do not launch a Simulator or device app, attach a
+console, or wait on a persistent app process. Run only focused checks needed to
+implement the exact intention confidently.
 
 Before exiting, write a factual draft to the repository-root file
 `TOHSENO_STATE_TRANSITION.json` with this exact small shape:

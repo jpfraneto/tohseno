@@ -1,0 +1,83 @@
+{
+  "schema": "tohseno.release-readiness/1",
+  "version": "0.9.9",
+  "channel": "release-candidate",
+  "ready": false,
+  "authorization": {
+    "authorized": true,
+    "authorized_by": "jpfraneto",
+    "authorized_at": "2026-08-24T16:27:19Z",
+    "authorization_form": "can we push this code to production so that it is the one that is installed when people run the installer? and also, can we push it to production so that we can make npm i -g tohseno work?"
+  },
+  "protection": {
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 21306310,
+    "verified_at": "2026-08-24T16:27:19Z"
+  },
+  "source": {
+    "accepted_product_adr": "docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md",
+    "public_installer_pin": "0.8.5",
+    "public_pin_must_remain": "0.8.5",
+    "historical_protocol_rewritten": false,
+    "recording_layer_implicit_migration": false
+  },
+  "required_local_evidence": {
+    "clean_source_commit_captured": false,
+    "rust_fmt_green": true,
+    "rust_clippy_green": true,
+    "rust_workspace_tests_green": true,
+    "apple_identity_build_green": true,
+    "apple_identity_tests_green": true,
+    "fascia_apple_tests_green": true,
+    "companion_kit_tests_green": true,
+    "companion_rust_swift_shared_vectors_green": true,
+    "contracts_build_green": true,
+    "contracts_tests_green": true,
+    "website_typecheck_green": true,
+    "website_tests_green": true,
+    "recording_compatibility_lifecycle_green": true,
+    "factory_fake_harness_end_to_end_green": true,
+    "companion_end_to_end_green": true,
+    "isolated_macos_launchagent_integration_green": true,
+    "fresh_install_green": true,
+    "reinstall_green": true,
+    "failed_update_rollback_green": true,
+    "uninstall_and_data_preservation_green": true,
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
+  },
+  "external_activation_gates": {
+    "immutable_v0_9_9_tag_published": false,
+    "immutable_release_artifacts_published": false,
+    "independent_checksum_verification_recorded": false,
+    "production_companion_relay_durable_storage_verified": false,
+    "production_companion_relay_canary_verified": false,
+    "production_apns_intentionally_enabled_or_disabled": false,
+    "public_installer_updated_after_artifact_verification": false,
+    "public_installer_byte_identity_verified": false,
+    "post_activation_service_health_verified": false,
+    "rollback_drill_recorded": false,
+    "npm_authenticated_owner_verified": false,
+    "npm_0_1_0_published": false,
+    "npm_clean_prefix_install_verified": false
+  },
+  "current_verified_evidence": {
+    "verified_at": "2026-08-24T16:27:19Z",
+    "source_commit_at_verification": "4732f63f5337a92e1ec7ddaba30277d4938088bc",
+    "worktree_clean": false,
+    "rust_result": "formatting and strict Clippy passed; 549 tests passed, 0 failures",
+    "swift_result": "apple-identity, Fascia, CompanionKit, and Companion passed; 59 tests passed, 0 failures",
+    "studio_result": "21 static contract tests passed",
+    "website_and_relay_result": "typecheck passed; 84 tests passed, 0 failures",
+    "contracts_result": "forge build passed; 81 tests passed, 0 failures",
+    "npm_result": "10 bootstrap tests and isolated pack-install passed; dry-run archive contains 12 files",
+    "golden_path_result": "TOHSENO 0.9.9 local golden path passed",
+    "factory_lifecycle_result": "0.9 factory create/evolve and recording compatibility lifecycle passed",
+    "companion_end_to_end_result": "local Companion Relay, Workspace Service, and simulator smoke passed",
+    "macos_service_lifecycle_result": "real isolated macOS service install, health, restart, pointer switch, and uninstall passed",
+    "installer_result": "fresh install, reinstall, service health, failed-update rollback, uninstall, data preservation, claim arguments, and public-pin gates passed",
+    "release_package_integrity_result": "normalized archive and release-package integrity regressions passed"
+  },
+  "blocking_reason": "The verified source still reads the Mac workspace identity through Keychain, while no stable Developer ID Application identity or signing secret is configured for immutable native releases. Publishing the current ad-hoc-signed binary would recreate the Keychain authorization prompt after updates. npm owner authentication is also absent, and npm publication remains gated on the verified native release and live manifest."
+}

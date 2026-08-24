@@ -33,7 +33,11 @@ const ui = {
   statePulse: document.querySelector("#state-pulse"),
   stateRetry: document.querySelector("#state-retry"),
   stateEvolve: document.querySelector("#state-evolve"),
+  stateDelete: document.querySelector("#state-delete"),
   stateDetails: document.querySelector("#state-details"),
+  activityTokens: document.querySelector("#activity-tokens"),
+  activityFeed: document.querySelector("#activity-feed"),
+  activityEmpty: document.querySelector("#activity-empty"),
   detailFacts: document.querySelector("#detail-facts"),
   detailReceipt: document.querySelector("#detail-receipt"),
   previewPanel: document.querySelector("#preview-panel"),
@@ -55,6 +59,11 @@ const ui = {
   proMonthly: document.querySelector("#pro-monthly"),
   proYearly: document.querySelector("#pro-yearly"),
   proNotNow: document.querySelector("#pro-not-now"),
+  deleteDialog: document.querySelector("#delete-dialog"),
+  deleteDetail: document.querySelector("#delete-detail"),
+  deleteError: document.querySelector("#delete-error"),
+  deleteCancel: document.querySelector("#delete-cancel"),
+  deleteConfirm: document.querySelector("#delete-confirm"),
   toast: document.querySelector("#toast"),
 };
 
@@ -86,10 +95,13 @@ const state = {
   // replaces the running one instead of being answered from a stale read.
   receipts: new Map(),
   receiptRequests: new Set(),
+  activity: null,
+  activityTimer: null,
   commandId: null,
   eventSource: null,
   refreshTimer: null,
   toastTimer: null,
+  deletingShotId: null,
 };
 
 class ApiError extends Error {
@@ -349,7 +361,7 @@ async function refreshWorkspace() {
     throw new Error("This Studio does not support the workspace snapshot it received.");
   }
   state.workspace = snapshot;
-  state.shots = [...snapshot.shots].sort((left, right) => {
+  state.shots = snapshot.shots.filter((shot) => !shot.retired).sort((left, right) => {
     if (left.sort_index !== right.sort_index) return left.sort_index - right.sort_index;
     return left.display_name.localeCompare(right.display_name);
   });
@@ -559,10 +571,16 @@ function renderAppState() {
     ui.statePulse.hidden = false;
     ui.stateRetry.hidden = true;
     ui.stateEvolve.hidden = true;
+    ui.stateDelete.hidden = true;
     ui.detailFacts.replaceChildren();
+    renderActivity(null);
     return;
   }
   const presentation = shot.presentation;
+  ui.stateDelete.hidden = false;
+  ui.stateDelete.disabled = Boolean(shot.execution && (state.workspace?.active_executions || [])
+    .some((execution) => execution.execution_id === shot.execution.execution_id));
+  ui.stateDelete.title = ui.stateDelete.disabled ? "Wait for this build to finish before deleting it." : "";
   ui.stateKicker.textContent = presentation.state === "installed" ? "" : shot.display_name;
   ui.stateHeadline.textContent = presentation.headline;
   ui.stateDetail.textContent = presentation.state === "failed" ? "" : presentation.detail || "";
@@ -571,6 +589,39 @@ function renderAppState() {
   ui.stateEvolve.hidden = presentation.state !== "installed" || shot.kind !== "factory_shot";
   ui.stateEvolve.textContent = `Evolve ${shot.display_name}`;
   renderDetails(shot);
+}
+
+function openDeleteDialog() {
+  const shot = selectedShot();
+  if (!shot || ui.stateDelete.disabled) return;
+  state.deletingShotId = shot.shot_id;
+  ui.deleteDetail.textContent = `${shot.display_name} will be removed from your iPhone and hidden here. Its source and immutable history stay safely on this Mac.`;
+  ui.deleteError.hidden = true;
+  ui.deleteConfirm.disabled = false;
+  ui.deleteConfirm.textContent = "Delete App";
+  ui.deleteDialog.showModal();
+}
+
+async function confirmDelete() {
+  const shot = state.shots.find((candidate) => candidate.shot_id === state.deletingShotId);
+  if (!shot) return ui.deleteDialog.close();
+  ui.deleteConfirm.disabled = true;
+  ui.deleteConfirm.textContent = "Deleting…";
+  ui.deleteError.hidden = true;
+  try {
+    const receipt = await api(`/api/v1/shots/${encodeURIComponent(shot.shot_id)}`, { method: "DELETE" });
+    ui.deleteDialog.close();
+    openApps();
+    await refreshWorkspace();
+    showToast(receipt.phone_app_removed
+      ? `${shot.display_name} was deleted from your iPhone.`
+      : `${shot.display_name} was deleted.`);
+  } catch (error) {
+    ui.deleteError.textContent = error.message;
+    ui.deleteError.hidden = false;
+    ui.deleteConfirm.disabled = false;
+    ui.deleteConfirm.textContent = "Delete App";
+  }
 }
 
 function renderDetails(shot) {
@@ -609,7 +660,45 @@ function renderDetails(shot) {
     fact(ui.detailFacts, "Accepted at", formatTimestamp(shot.latest_version_created_at));
   }
   if (shot.bundle_identifier) fact(ui.detailFacts, "Bundle", shot.bundle_identifier);
+  renderActivity(shot);
   renderReceipt(shot);
+}
+
+function renderActivity(shot) {
+  window.clearTimeout(state.activityTimer);
+  ui.activityFeed.replaceChildren();
+  const activity = state.activity;
+  const current = shot?.execution?.execution_id;
+  const available = activity?.execution_id === current;
+  ui.activityEmpty.hidden = available && activity.entries.length;
+  ui.activityEmpty.textContent = current ? "Connecting to this execution…" : "Waiting for the local factory…";
+  ui.activityTokens.textContent = available && activity.total_tokens !== undefined
+    ? `${Number(activity.total_tokens).toLocaleString()} tokens ${activity.complete ? "total" : "reported so far"}`
+    : available && activity.complete ? "No token total reported" : "Waiting for token report…";
+  if (available) for (const entry of activity.entries) {
+    const row = element("div", "activity-entry");
+    const time = element("time", null, new Date(entry.timestamp).toLocaleTimeString([], {
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }));
+    time.dateTime = entry.timestamp;
+    row.append(time, element("span", "activity-phase", entry.phase.replaceAll("_", " ")), element("p", null, entry.message));
+    ui.activityFeed.append(row);
+  }
+  if (ui.stateDetails.open && current && (!available || !activity.complete)) {
+    state.activityTimer = window.setTimeout(refreshActivity, 1_000);
+  }
+}
+
+async function refreshActivity() {
+  const shot = selectedShot();
+  if (!shot?.execution || !ui.stateDetails.open) return;
+  try {
+    const activity = await api(`/api/v1/shots/${encodeURIComponent(shot.shot_id)}/activity`);
+    if (activity.schema === "tohseno.execution-activity/1") state.activity = activity;
+  } catch (error) {
+    if (error.status !== 404) showToast(error.message, true);
+  }
+  if (state.view === "state" && state.selectedShotId === shot.shot_id) renderActivity(shot);
 }
 
 /* --------------------------------------------------------------- receipt */
@@ -1018,6 +1107,11 @@ function bind() {
     if (normalized) ui.composeName.value = normalized;
   });
   ui.stateRetry.addEventListener("click", retry);
+  ui.stateDelete.addEventListener("click", openDeleteDialog);
+  ui.deleteCancel.addEventListener("click", () => ui.deleteDialog.close());
+  ui.deleteConfirm.addEventListener("click", confirmDelete);
+  ui.deleteDialog.addEventListener("close", () => { state.deletingShotId = null; });
+  ui.stateDetails.addEventListener("toggle", () => renderActivity(selectedShot()));
   ui.stateEvolve.addEventListener("click", () => {
     const shot = selectedShot();
     if (shot) openCompose({ mode: "evolve", shot });

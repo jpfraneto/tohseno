@@ -3,7 +3,7 @@ use crate::entitlement::{EntitlementStatus, EntitlementStore, SuccessfulDayEvide
 use crate::execution_manager;
 use crate::journal::{AdmissionMetadata, CommandJournal, JournalError};
 use crate::snapshot::{
-    build_workspace_snapshot, load_shot_icon, IconDescriptor, WorkspaceSnapshot,
+    build_workspace_snapshot, load_shot_icon, IconDescriptor, ShotKind, WorkspaceSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -263,6 +263,16 @@ pub struct CommandRecoverySummary {
     pub terminal: u64,
     pub still_running: u64,
     pub retryable_failures: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RetireShotReceipt {
+    pub schema: String,
+    pub shot_id: String,
+    pub display_name: String,
+    pub phone_app_removed: bool,
+    pub source_preserved: bool,
 }
 
 #[derive(Clone)]
@@ -879,6 +889,65 @@ impl ShotApplicationService {
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
+    /// Removes an accepted app from the connected iPhone and retires its local
+    /// projection. Source, immutable Shot history, and private receipts stay on
+    /// this Mac so a UI action can never become an accidental history eraser.
+    pub async fn retire_shot(&self, shot_id: &str) -> Result<RetireShotReceipt, ApplicationError> {
+        let snapshot = self.workspace_snapshot().await?;
+        let shot = snapshot
+            .shots
+            .iter()
+            .find(|shot| shot.shot_id == shot_id)
+            .ok_or_else(|| ApplicationError::Invalid("app does not exist".into()))?;
+        let app = self.engine.ledger().load_app(&shot.display_name)?;
+        if shot.execution.as_ref().is_some_and(|execution| {
+            snapshot
+                .active_executions
+                .iter()
+                .any(|active| active.execution_id == execution.execution_id)
+        }) {
+            return Err(ApplicationError::Invalid(
+                "this app is still building; wait for it to finish before deleting it".into(),
+            ));
+        }
+        if app.retired {
+            return Ok(retire_receipt(shot_id, &shot.display_name, false));
+        }
+
+        let mut phone_app_removed = false;
+        if shot.kind == ShotKind::FactoryShot && shot.latest_version_id.is_some() {
+            let device = tohseno_engine::DevicePipeline::ready_device()?;
+            let installed = tohseno_engine::gates::install::installed_candidate_apps(&device)
+                .map_err(tohseno_engine::EngineError::Install)?;
+            if installed
+                .iter()
+                .any(|installed| installed.bundle_id == app.bundle_id)
+            {
+                tohseno_engine::gates::install::retire(&device, &app.bundle_id)
+                    .map_err(tohseno_engine::EngineError::Install)?;
+                phone_app_removed = true;
+            }
+        }
+        self.engine.ledger().set_retired(&app.name, true)?;
+        let result = if phone_app_removed {
+            format!(
+                "{} was removed from your iPhone and retired locally.",
+                app.name
+            )
+        } else {
+            format!(
+                "{} was retired locally; no installed iPhone copy remained.",
+                app.name
+            )
+        };
+        self.events.emit(tohseno_engine::Event::result(result));
+        Ok(retire_receipt(
+            shot_id,
+            &shot.display_name,
+            phone_app_removed,
+        ))
+    }
+
     pub fn shot_icon(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
         load_shot_icon(&self.engine, &self.workspace_id, shot_id)
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
@@ -897,6 +966,15 @@ impl ShotApplicationService {
             shot_id,
         )
         .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+    }
+
+    /// Privacy-safe, durable progress for the owner's open Details surface.
+    pub fn execution_activity(
+        &self,
+        shot_id: &str,
+    ) -> Result<Option<crate::receipt::ExecutionActivity>, ApplicationError> {
+        crate::receipt::load_execution_activity(&self.engine, &self.workspace_id, shot_id)
+            .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
     pub fn shot_preview(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
@@ -1240,6 +1318,16 @@ impl ShotApplicationService {
                 .map_err(|error| ApplicationError::Invalid(error.to_string()))?;
         }
         Ok(())
+    }
+}
+
+fn retire_receipt(shot_id: &str, display_name: &str, phone_app_removed: bool) -> RetireShotReceipt {
+    RetireShotReceipt {
+        schema: "tohseno.retire-shot-receipt/1".into(),
+        shot_id: shot_id.into(),
+        display_name: display_name.into(),
+        phone_app_removed,
+        source_preserved: true,
     }
 }
 
@@ -2200,6 +2288,57 @@ mod tests {
         );
         assert!(snapshot.shots[0].expression_id.is_some());
         assert_eq!(snapshot.shots[0].latest_version_id, None);
+    }
+
+    #[tokio::test]
+    async fn retiring_an_uninstalled_app_preserves_its_source_and_history() {
+        let temporary = tempfile::tempdir().unwrap();
+        let temporary_root = temporary.path().canonicalize().unwrap();
+        let ledger = tohseno_engine::Ledger::at_homes(
+            temporary_root.join("family"),
+            temporary_root.join("machine"),
+        );
+        ledger.initialize().unwrap();
+        ledger
+            .create_app("fixture", "org.tohseno.genesis.owner.fixture")
+            .unwrap();
+        let shot_id = ShotId::from_bytes([0x44; 32]);
+        let builder_id = tohseno_protocol::identity::BuilderId::parse(
+            "eip155:4663:0x1111111111111111111111111111111111111111",
+        )
+        .unwrap();
+        ledger
+            .bind_protocol_identity("fixture", shot_id, builder_id)
+            .unwrap();
+        let source = ledger.working_tree("fixture");
+        let events = EventBus::default();
+        let service = ShotApplicationService::new(
+            Engine::at(ledger, events.clone(), tohseno_engine::Config::default()),
+            CommandJournal::open(temporary_root.join("service")).unwrap(),
+            events,
+            "workspace_fixture",
+        );
+
+        let receipt = service.retire_shot(&shot_id.to_string()).await.unwrap();
+        assert_eq!(receipt.schema, "tohseno.retire-shot-receipt/1");
+        assert!(!receipt.phone_app_removed);
+        assert!(receipt.source_preserved);
+        assert!(source.is_dir());
+        assert!(
+            service
+                .engine()
+                .ledger()
+                .load_app("fixture")
+                .unwrap()
+                .retired
+        );
+        assert!(service
+            .workspace_snapshot()
+            .await
+            .unwrap()
+            .shots
+            .iter()
+            .any(|shot| shot.shot_id == shot_id.to_string() && shot.retired));
     }
 
     #[test]

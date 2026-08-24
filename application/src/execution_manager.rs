@@ -525,15 +525,10 @@ fn runner_claim_is_held(execution: &PreparedExecution) -> Result<bool, Box<dyn s
 fn start_background_runner(
     execution: &mut PreparedExecution,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let directory = execution_directory(&execution.repository, &execution.execution_id);
-    let log_path = directory.join("harness.log");
     update_phase(
         execution,
         ExecutionPhase::RunnerStarted,
-        format!(
-            "The unattended Shot runner started; private harness output is retained at {}.",
-            log_path.display()
-        ),
+        "The unattended Shot runner started; private harness output remains in the local operational log.",
     )?;
     if let Err(error) = spawn_background_runner(execution) {
         update_phase(
@@ -1280,13 +1275,19 @@ fn is_repairable_implementation_defect(diagnostic: &str) -> bool {
         "network",
         "DNS",
         "protocol body is incomplete",
-        "conformance",
         "lineage",
     ]
     .iter()
     .any(|marker| diagnostic.contains(marker));
     if external_or_protocol {
         return false;
+    }
+    // Gate diagnostics classify source-owned defects explicitly. They remain
+    // implementation repairs even when the gate protects protocol integrity:
+    // the protocol boundary stays strict while the one bounded Shot fixes the
+    // app before the user ever sees an unsealed candidate.
+    if diagnostic.contains("classification=app_problem") {
+        return true;
     }
     [
         "does not build",
@@ -2280,6 +2281,17 @@ mod tests {
             "the local Shot protocol body is incomplete: conformance failed",
         ] {
             assert!(!is_repairable_implementation_defect(diagnostic));
+        }
+    }
+
+    #[test]
+    fn source_owned_acceptance_gaps_get_the_one_bounded_repair() {
+        for diagnostic in [
+            "gate=fascia.capability_reconciliation category=protocol_integrity expected=an intent-level purpose classification=app_problem missing={Microphone}",
+            "gate=apple.privacy_usage_description category=apple_platform_requirement expected=NSMicrophoneUsageDescription classification=app_problem",
+            "gate=intent.capability_implementation category=intent_fidelity expected=the real Release implementation classification=app_problem",
+        ] {
+            assert!(is_repairable_implementation_defect(diagnostic));
         }
     }
 

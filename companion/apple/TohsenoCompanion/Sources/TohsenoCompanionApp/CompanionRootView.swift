@@ -225,7 +225,9 @@ struct YourAppsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            CompanionHeader(connection: model.connection)
+            CompanionHeader(connection: model.connection, syncing: model.syncing) {
+                await model.syncNow()
+            }
 
             if model.apps.isEmpty {
                 Spacer()
@@ -258,7 +260,7 @@ struct YourAppsView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 28)
                 }
-                .refreshable { await model.refresh() }
+                .refreshable { await model.syncNow() }
             }
 
             if let notice = model.notice {
@@ -272,6 +274,8 @@ struct YourAppsView: View {
 
 private struct CompanionHeader: View {
     let connection: CompanionConnectionState
+    let syncing: Bool
+    let onSync: () async -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -281,12 +285,30 @@ private struct CompanionHeader: View {
                 .font(.system(size: 14, weight: .medium))
             Text(connectionText)
                 .font(.system(size: 12, weight: .medium))
+            Button {
+                Task { await onSync() }
+            } label: {
+                Group {
+                    if syncing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                .frame(width: 28, height: 28)
+                .background(Tohseno.carbon, in: Circle())
+                .overlay(Circle().strokeBorder(Tohseno.iron))
+            }
+            .buttonStyle(.plain)
+            .disabled(syncing)
+            .accessibilityLabel(syncing ? "Syncing with Mac" : "Sync with Mac")
         }
         .foregroundStyle(connectionColor)
         .padding(.horizontal, 24)
         .padding(.top, 14)
         .padding(.bottom, 6)
-        .accessibilityElement(children: .combine)
     }
 
     private var connectionText: String {
@@ -346,7 +368,7 @@ struct AppTile: View {
     private var status: String {
         switch presentation.state {
         case .waiting: "Waiting"
-        case .building: "Evolving"
+        case .building: "Building"
         case .readyForPhone: "Ready to install"
         case .installing: "Installing"
         case .installed: "Installed"
@@ -430,7 +452,7 @@ struct AppView: View {
         }
         .companionInlineNavigationTitle(shot.displayName)
         .scrollDismissesKeyboard(.interactively)
-        .refreshable { await model.refresh() }
+        .refreshable { await model.syncNow() }
     }
 
     private var composer: some View {
@@ -447,6 +469,10 @@ struct AppView: View {
 
             ScreenshotPicker(attachments: $model.attachments)
 
+            Text("Opening this app never starts a build. Evolve App sends one request.")
+                .font(.system(size: 12))
+                .foregroundStyle(Tohseno.ash)
+
             Button {
                 Task { await model.evolve() }
             } label: {
@@ -454,7 +480,7 @@ struct AppView: View {
                     ProgressView()
                         .tint(Tohseno.void)
                 } else {
-                    Text("Evolve")
+                    Text("Evolve App")
                 }
             }
             .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))

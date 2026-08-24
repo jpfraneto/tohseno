@@ -61,7 +61,7 @@ public struct TohsenoPresentation: Equatable, Sendable {
         case .waiting:
             Self(state: state, headline: "Waiting…")
         case .building:
-            Self(state: state, headline: "Evolving \(appName)…")
+            Self(state: state, headline: "Building \(appName)…")
         case .readyForPhone:
             Self(
                 state: state,

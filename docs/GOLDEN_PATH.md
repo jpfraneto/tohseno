@@ -289,5 +289,5 @@ The highest remaining architectural risks are:
    telemetry.** Private logs are deliberately content-free, so diagnosis still
    relies on walking several durable stores rather than one correlated trace.
 5. **Release gate — repository source is not deployment evidence.** The public
-   installer, production relay, APNs, and immutable 0.9.0 artifacts remain
+   installer, production relay, APNs, and immutable 0.9.9 artifacts remain
    governed by [`STATE.md`](STATE.md) and the release runbook.
