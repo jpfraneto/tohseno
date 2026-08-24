@@ -311,7 +311,7 @@ cp -RP \
 cp -RP "$build_root/dist/genesis/." "$package/share/genesis/"
 
 jq -n \
-  --arg version "0.9.9" \
+  --arg version "1.0.0" \
   --arg codename "COMPANION" \
   --arg target "$target" \
   --arg source_commit "$source_commit" \
@@ -365,7 +365,7 @@ fi
     --arg target "$target" \
     --argjson dirty "$source_dirty" \
     '.schema == "tohseno.release/1"
-     and .version == "0.9.9"
+     and .version == "1.0.0"
      and .codename == "COMPANION"
      and .target == $target
      and .source_commit == $source_commit

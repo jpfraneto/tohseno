@@ -139,7 +139,7 @@ IDs must never be added to them.
 
 ## Private companion relay
 
-`apps/companion-relay` is a separate TOHSENO 0.9.9 service for the private
+`apps/companion-relay` is a separate TOHSENO 1.0.0 service for the private
 iPhone companion channel. It does not share routes or state with the temporary
 browser-intention relay. The companion relay stores only bounded opaque pairing
 responses and signed encrypted envelopes. It supplies short-lived pairing

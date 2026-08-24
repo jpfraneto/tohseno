@@ -1,4 +1,4 @@
-//! Private product entitlement state for TOHSENO 0.9.9.
+//! Private product entitlement state for TOHSENO 1.0.0.
 //!
 //! This is deliberately not protocol state. It lives beside the Local
 //! Workspace Service command journal and contains no intention, app name,
@@ -239,8 +239,8 @@ impl EntitlementStore {
         self.complete_genesis_at(utc, local_date_now(utc))
     }
 
-    /// Migrates an already-paired pre-0.9.9 installation without erasing its
-    /// device or workspace. The first 0.9.9 service observation becomes the
+    /// Migrates an already-paired pre-1.0.0 installation without erasing its
+    /// device or workspace. The first 1.0.0 service observation becomes the
     /// deterministic trial anchor; no app count is converted into days.
     pub fn migrate_existing_pairing_at(
         &self,

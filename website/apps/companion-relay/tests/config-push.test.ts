@@ -32,7 +32,7 @@ describe("companion relay configuration", () => {
     expect(config.limits.clockSkewMs).toBe(300_000);
     expect(safeCompanionStartupSummary(config)).toEqual({
       service: "tohseno-companion-relay",
-      version: "0.9.9",
+      version: "1.0.0",
       environment: "test",
       host: "127.0.0.1",
       port: 3100,

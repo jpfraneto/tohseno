@@ -1,4 +1,4 @@
-# TOHSENO 0.9.9
+# TOHSENO 1.0.0
 
 The intended front door is:
 
@@ -140,12 +140,12 @@ The intended installed layout uses a user LaunchAgent and the stable
 
 ## Release status and authority
 
-The repository source targets 0.9.9. Neither `tohseno@0.1.0` nor native 0.9.9
+The repository source targets 1.0.0. Neither `tohseno@1.0.0` nor native 1.0.0
 is claimed published by this source change. The public one-line installer remains
-pinned to immutable 0.8.5 until 0.9.9 artifacts are published and independently
+pinned to immutable 0.8.5 until 1.0.0 artifacts are published and independently
 verified by an authorized owner; no source checkout is installed on user Macs.
-See [current state](docs/STATE.md), the [0.9.9 readiness runbook](docs/runbooks/V0_9_9_READINESS.md),
-and the [npm publication runbook](docs/runbooks/NPM_0_1_0.md).
+See [current state](docs/STATE.md), the [1.0.0 readiness runbook](docs/runbooks/V1_0_0_READINESS.md),
+and the [npm publication runbook](docs/runbooks/NPM_1_0_0.md).
 
 `protocol/` remains normative over prose. Historical protocol bytes,
 Builder identities, signatures, and public-node validation remain unchanged.

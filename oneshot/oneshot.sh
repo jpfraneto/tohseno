@@ -2,7 +2,7 @@
 set -eu
 
 repository="https://github.com/jpfraneto/tohseno"
-version="v0.9.9"
+version="v1.0.0"
 start_studio="${TOHSENO_START_STUDIO:-}"
 claim_token=""
 claim_requested=0
@@ -131,7 +131,7 @@ case "$macos_major" in
   '' | *[!0-9]*) fail "Could not parse the macOS version." ;;
 esac
 if [ "$macos_major" -lt 13 ]; then
-  fail "TOHSENO 0.9.9 requires macOS 13 or later."
+  fail "TOHSENO 1.0.0 requires macOS 13 or later."
 fi
 
 case "$(uname -m)" in
@@ -475,7 +475,7 @@ verify_artifact "$package_name"
     [ -L "$release_stage/share/fascia/apple/FASCIA.json" ] ||
     [ ! -f "$release_stage/share/genesis/GENESIS.json" ] ||
     [ -L "$release_stage/share/genesis/GENESIS.json" ]; then
-    fail "The staged 0.9.9 release is incomplete or unsafe."
+    fail "The staged 1.0.0 release is incomplete or unsafe."
   fi
   chmod 0755 \
     "$release_stage/bin/tohseno" \
@@ -541,13 +541,13 @@ verify_artifact "$package_name"
     /usr/bin/plutil -extract "$1" raw -o - "$release_manifest" 2>/dev/null
   }
   if [ "$(manifest_value schema)" != "tohseno.release/1" ] ||
-    [ "$(manifest_value version)" != "0.9.9" ] ||
+    [ "$(manifest_value version)" != "1.0.0" ] ||
     [ "$(manifest_value codename)" != "COMPANION" ] ||
     [ "$(manifest_value target)" != "$target" ] ||
     [ "$(manifest_value channel)" != "stable" ] ||
     [ "$(manifest_value dirty)" != "false" ] ||
     [ "$(manifest_value prerelease)" != "false" ]; then
-    fail "The immutable release manifest is not an authorized clean 0.9.9 package."
+    fail "The immutable release manifest is not an authorized clean 1.0.0 package."
   fi
   manifest_source_commit="$(manifest_value source_commit)"
   manifest_source_state="$(manifest_value source_state_sha256)"
@@ -574,13 +574,13 @@ verify_artifact "$package_name"
 
   installed_version="$("$release_stage/bin/tohseno" --version 2>/dev/null)" ||
     fail "The TOHSENO executable did not start from its private stage."
-  if [ "$installed_version" != "tohseno 0.9.9" ]; then
-    fail "The downloaded executable is not the pinned 0.9.9 release."
+  if [ "$installed_version" != "tohseno 1.0.0" ]; then
+    fail "The downloaded executable is not the pinned 1.0.0 release."
   fi
   helper_version="$("$release_stage/bin/tohseno-apple-identity" --version 2>/dev/null)" ||
     fail "The Apple identity helper did not start from its private stage."
-  if [ "$helper_version" != "tohseno-apple-identity 0.9.9" ]; then
-    fail "The downloaded Apple identity helper is not the pinned 0.9.9 release."
+  if [ "$helper_version" != "tohseno-apple-identity 1.0.0" ]; then
+    fail "The downloaded Apple identity helper is not the pinned 1.0.0 release."
   fi
 
   release_nonce="${release_stage##*.release-stage.}"
@@ -807,7 +807,7 @@ HELPER_LAUNCHER
   }
 
   service_install_status=0
-  install_and_verify_service "0.9.9" service || service_install_status=$?
+  install_and_verify_service "1.0.0" service || service_install_status=$?
   if [ "$service_install_status" -ne 0 ]; then
     "$install_directory/$command_name" service uninstall >/dev/null 2>&1 || true
     if [ "$had_current" -eq 1 ]; then
@@ -823,7 +823,7 @@ HELPER_LAUNCHER
           "TOHSENO installer: update health failed; restored the previous release pointer, but its service could not be started." >&2
       fi
     fi
-    fail "The 0.9.9 Local Workspace Service did not pass its verified health check."
+    fail "The 1.0.0 Local Workspace Service did not pass its verified health check."
   fi
   release_committed=1
 

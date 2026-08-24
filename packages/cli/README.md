@@ -1,7 +1,7 @@
 # TOHSENO npm bootstrap
 
-`tohseno@0.1.0` is the dependency-free Node 20+ front door for the native
-TOHSENO 0.9.9 Mac product. It is not the factory: it locates or securely
+`tohseno@1.0.0` is the dependency-free Node 20+ front door for the native
+TOHSENO 1.0.0 Mac product. It is not the factory: it locates or securely
 installs the authorized native release in the existing no-sudo
 `~/.tohseno/` layout and delegates to `~/.tohseno/bin/tohseno`.
 
@@ -21,5 +21,5 @@ npm pack --dry-run
 ```
 
 Publishing is a manual owner action documented in
-`../../docs/runbooks/NPM_0_1_0.md`. This repository does not publish or change
+`../../docs/runbooks/NPM_1_0_0.md`. This repository does not publish or change
 the npm dist-tag automatically.

@@ -108,7 +108,7 @@ trap 'exit 1' HUP INT TERM
 for dependency in cargo curl python3 security swift xcodebuild xcrun; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency is unavailable"
 done
-test "$(uname -s)" = "Darwin" || fail "the 0.9 factory lifecycle requires macOS"
+test "$(uname -s)" = "Darwin" || fail "the 1.0 factory lifecycle requires macOS"
 
 (cd "$repository_root" && cargo build --locked -p tohseno >/dev/null)
 (cd "$repository_root" && swift build --package-path apple-identity >/dev/null)
@@ -119,9 +119,9 @@ for executable in "$binary" "$identity_helper" "$fixture_harness"; do
   test -f "$executable" && test ! -L "$executable" && test -x "$executable" ||
     fail "a factory lifecycle executable was not built safely"
 done
-test "$("$binary" --version)" = "tohseno 0.9.9" || fail "TOHSENO 0.9.9 was not built"
-test "$("$identity_helper" --version)" = "tohseno-apple-identity 0.9.9" ||
-  fail "the 0.9.9 Apple identity helper was not built"
+test "$("$binary" --version)" = "tohseno 1.0.0" || fail "TOHSENO 1.0.0 was not built"
+test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.0.0" ||
+  fail "the 1.0.0 Apple identity helper was not built"
 
 family="$temporary_root/data"
 machine="$family"
@@ -576,4 +576,4 @@ for hidden_or_retired in intent install refresh retire adopt token; do
   fi
 done
 
-printf '%s\n' "0.9 factory create/evolve and recording compatibility lifecycle passed"
+printf '%s\n' "1.0 factory create/evolve and recording compatibility lifecycle passed"

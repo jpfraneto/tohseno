@@ -317,8 +317,8 @@ pub async fn run_with(
         workspace.clone(),
         application.clone(),
     )?);
-    // A pre-0.9.9 paired installation keeps its identity and capability. Its
-    // first 0.9.9 service observation becomes a deterministic trial anchor;
+    // A pre-1.0.0 paired installation keeps its identity and capability. Its
+    // first 1.0.0 service observation becomes a deterministic trial anchor;
     // existing app count never fabricates successful days.
     if entitlement.state()?.phase == tohseno_application::EntitlementPhase::GenesisIncomplete
         && companion.devices()?.iter().any(|device| !device.revoked)

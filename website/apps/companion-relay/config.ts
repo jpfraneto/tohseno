@@ -182,7 +182,7 @@ export function safeCompanionStartupSummary(
 ): Record<string, string | number | boolean> {
   return {
     service: "tohseno-companion-relay",
-    version: "0.9.9",
+    version: "1.0.0",
     environment: config.nodeEnv,
     host: config.host,
     port: config.port,

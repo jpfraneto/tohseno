@@ -29,7 +29,7 @@ of each asset, so the old dashboard cannot quietly return.
 
 ## Underneath: persistent local factory
 
-ADR 0015 defines the persistent local boundary, refined for 0.9.9 by ADR 0020.
+ADR 0015 defines the persistent local boundary, refined for 1.0.0 by ADR 0020.
 TOHSENO is an intention-led app factory whose private backend is the owner's
 Mac. A persistent **Local Workspace Service** hosts loopback-only Studio, owns
 the durable private command and event journals, monitors execution, and
@@ -180,7 +180,7 @@ billing recovery, and safe uninstall remain available.
 Create/Evolve admission is enforced in `ShotApplicationService`, below CLI,
 Studio, and Companion. Commands durably accepted before the boundary finish;
 new commands do not enter the journal afterward. The phone receives only the
-encrypted private `product.entitlement` projection. A pre-0.9.9 paired user
+encrypted private `product.entitlement` projection. A pre-1.0.0 paired user
 starts a deterministic fresh trial with zero fabricated days. Debug source
 checkouts may explicitly set `TOHSENO_DEVELOPMENT_ENTITLEMENT=1`; that path is
 absent from release builds.
@@ -192,7 +192,7 @@ receipts. The local service verifies a release-pinned public key and exact
 installation bind before changing entitlement. Monthly is $9.99 and yearly is
 $99. Billing is configuration-gated and currently inactive.
 
-The dependency-free npm bootstrap is `packages/cli`, version 0.1.0. It uses one
+The dependency-free npm bootstrap is `packages/cli`, version 1.0.0. It uses one
 fixed HTTPS manifest, refuses redirects and unapproved origins, verifies exact
 size, SHA-256, release layout/checksums, and Apple signing policy, and installs
 only into the existing user-owned layout. It has not been published.
@@ -294,20 +294,20 @@ contract generation or deployment command is active on current source.
 
 ## Repository source versus published release
 
-Repository source and native package metadata target **0.9.9**; the npm
-bootstrap targets **0.1.0**. That is not a claim that either is public, or that
+Repository source and native package metadata target **1.0.0**; the npm
+bootstrap targets **1.0.0**. That is not a claim that either is public, or that
 production billing, relay, APNs, or a new installer pin exists. As of this
 document's date:
 
 - the public installer still pins immutable **0.8.5**;
 - the published website copies must remain byte-identical to that authorized
   installer until separately authorized activation;
-- no v0.9.9 tag, GitHub release, native manifest, or npm publication exists;
+- no v1.0.0 tag, GitHub release, native manifest, or npm publication exists;
 - no production billing, companion relay, APNs credentials, DNS, or deployment has been
   activated by this change;
-- local 0.9.9 source must pass the readiness gates and be built from a clean,
+- local 1.0.0 source must pass the readiness gates and be built from a clean,
   captured commit before an owner authorizes publication.
 
-The 0.9.9 readiness and manual npm/billing owner steps are in `docs/runbooks/`.
+The 1.0.0 readiness and manual npm/billing owner steps are in `docs/runbooks/`.
 The older 0.9.0 operator runbook remains historical evidence. Until every gate
 is recorded, the public 0.8.5 pin is the honest production state.

@@ -1,6 +1,6 @@
-# TOHSENO 0.9.9 readiness and owner actions
+# TOHSENO 1.0.0 readiness and owner actions
 
-Repository source targets native 0.9.9 and npm bootstrap 0.1.0. It does not
+Repository source targets native 1.0.0 and npm bootstrap 1.0.0. It does not
 authorize or claim a Git tag, GitHub release, release manifest, npm publication,
 billing, relay/APNs, DNS, public installer repin, or contract action.
 
@@ -9,7 +9,7 @@ billing, relay/APNs, DNS, public installer repin, or contract action.
 Run the commands in `AGENTS.md`, plus:
 
 ```sh
-./scripts/test-0.9.9-golden-path.sh
+./scripts/test-1.0.0-golden-path.sh
 (cd packages/cli && npm pack --dry-run)
 ```
 
@@ -51,8 +51,8 @@ membership.
 
 - Build native archives from one clean captured commit with `scripts/release.sh`.
 - Create and independently verify `native-v1.json` at the fixed official URL.
-- Complete `BILLING_0_9_9.md` only if billing is being activated.
-- Complete `NPM_0_1_0.md` manually; do not change a live dist-tag automatically.
+- Complete `BILLING_1_0_0.md` only if billing is being activated.
+- Complete `NPM_1_0_0.md` manually; do not change a live dist-tag automatically.
 - Do not activate the production Companion Relay/APNs until its separate
   claim-capable immutable release and installer pin are independently verified.
 - Do not deploy contracts or add a deployment ceremony on `main`.

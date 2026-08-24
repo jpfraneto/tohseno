@@ -6,4 +6,4 @@ verification key. A release authorized for billing must contain exactly
 The corresponding PKCS#8 private key belongs only in the website operator's
 secret manager. If the public file is absent, Studio refuses to begin checkout.
 
-See `docs/runbooks/BILLING_0_9_9.md`.
+See `docs/runbooks/BILLING_1_0_0.md`.

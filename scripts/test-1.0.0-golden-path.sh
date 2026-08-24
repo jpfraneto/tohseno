@@ -10,4 +10,4 @@ node --test studio/tests/static_assets.test.mjs
 (cd packages/cli && npm test)
 swift test --package-path companion/apple/TohsenoCompanion --filter entitlementScreens
 
-printf '%s\n' "TOHSENO 0.9.9 local golden path passed."
+printf '%s\n' "TOHSENO 1.0.0 local golden path passed."

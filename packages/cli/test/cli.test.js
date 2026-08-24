@@ -10,14 +10,14 @@ import { createHash } from "node:crypto";
 function manifest() {
   return {
     schema: "tohseno.native-release-manifest/1",
-    native_release_version: "0.9.9",
-    minimum_npm_cli_version: "0.1.0",
+    native_release_version: "1.0.0",
+    minimum_npm_cli_version: "1.0.0",
     layout_version: "tohseno-user-release/2",
     artifacts: [
       {
         architecture: "arm64",
         target: "aarch64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-release-aarch64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0/tohseno-release-aarch64-apple-darwin.tar.gz",
         byte_size: 123,
         sha256: "ab".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },
@@ -25,7 +25,7 @@ function manifest() {
       {
         architecture: "x64",
         target: "x86_64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v0.9.9/tohseno-release-x86_64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0/tohseno-release-x86_64-apple-darwin.tar.gz",
         byte_size: 456,
         sha256: "cd".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },
@@ -41,16 +41,16 @@ test("command parsing keeps native commands opaque", () => {
 });
 
 test("stable semantic versions compare without prerelease ambiguity", () => {
-  assert.equal(compareVersions("0.1.0", "0.1.0"), 0);
-  assert.equal(compareVersions("0.1.1", "0.1.0"), 1);
-  assert.throws(() => compareVersions("0.1.0-beta", "0.1.0"));
+  assert.equal(compareVersions("1.0.0", "1.0.0"), 0);
+  assert.equal(compareVersions("1.0.1", "1.0.0"), 1);
+  assert.throws(() => compareVersions("1.0.0-beta", "1.0.0"));
 });
 
 test("manifest selects the exact architecture and enforces minimum CLI", () => {
-  assert.equal(validateManifest(manifest(), "0.1.0", "arm64").artifact.target, "aarch64-apple-darwin");
+  assert.equal(validateManifest(manifest(), "1.0.0", "arm64").artifact.target, "aarch64-apple-darwin");
   const newer = manifest();
-  newer.minimum_npm_cli_version = "0.2.0";
-  assert.throws(() => validateManifest(newer, "0.1.0", "arm64"), /too old/);
+  newer.minimum_npm_cli_version = "1.1.0";
+  assert.throws(() => validateManifest(newer, "1.0.0", "arm64"), /too old/);
   assert.throws(() => nodeArchitecture("mips"), /Apple silicon and Intel/);
 });
 
@@ -58,16 +58,16 @@ test("manifest rejects duplicate architectures, sizes, digests, and extra fields
   const duplicate = manifest();
   duplicate.artifacts[1].architecture = "arm64";
   duplicate.artifacts[1].target = "aarch64-apple-darwin";
-  assert.throws(() => validateManifest(duplicate, "0.1.0", "arm64"), /duplicate/);
+  assert.throws(() => validateManifest(duplicate, "1.0.0", "arm64"), /duplicate/);
   const size = manifest();
   size.artifacts[0].byte_size = 0;
-  assert.throws(() => validateManifest(size, "0.1.0", "arm64"), /byte size/);
+  assert.throws(() => validateManifest(size, "1.0.0", "arm64"), /byte size/);
   const digest = manifest();
   digest.artifacts[0].sha256 = "AB".repeat(32);
-  assert.throws(() => validateManifest(digest, "0.1.0", "arm64"), /SHA-256/);
+  assert.throws(() => validateManifest(digest, "1.0.0", "arm64"), /SHA-256/);
   const extra = manifest();
   extra.token = "secret";
-  assert.throws(() => validateManifest(extra, "0.1.0", "arm64"), /unexpected/);
+  assert.throws(() => validateManifest(extra, "1.0.0", "arm64"), /unexpected/);
 });
 
 test("URL allowlist rejects HTTP, credentials, ports, and unapproved hosts", () => {
@@ -99,14 +99,32 @@ test("artifact bytes require exact size and SHA-256", () => {
   assert.throws(() => verifyArtifactBytes(bytes, bytes.length, "00".repeat(32)), /SHA-256/);
 });
 
-test("manual redirect responses are rejected before their Location is followed", async () => {
+test("redirects follow only an exact allowlisted HTTPS chain", async () => {
   const original = globalThis.fetch;
-  globalThis.fetch = async () => new Response(null, { status: 302, headers: { location: "https://evil.example/release" } });
   try {
     const { fetchBounded } = await import("../src/download.js");
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response(null, { status: 302, headers: { location: "https://fixture.example/release" } })
+        : new Response("release", { status: 200 });
+    };
+    const bytes = await fetchBounded(
+      "https://fixture.example/start",
+      100,
+      new Set(["https://fixture.example"]),
+    );
+    assert.equal(new TextDecoder().decode(bytes), "release");
+    assert.equal(calls, 2);
+
+    globalThis.fetch = async () => new Response(null, {
+      status: 302,
+      headers: { location: "https://evil.example/release" },
+    });
     await assert.rejects(
       fetchBounded("https://fixture.example/manifest", 100, new Set(["https://fixture.example"])),
-      /redirect was refused/,
+      /allowlist/,
     );
   } finally {
     globalThis.fetch = original;

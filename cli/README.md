@@ -1,4 +1,4 @@
-# TOHSENO CLI 0.9.9
+# TOHSENO CLI 1.0.0
 
 `tohseno` with no arguments is the normal entry point: it ensures the local
 service is available and opens Studio at genesis, trial, Pro, or normal use.

@@ -1,4 +1,4 @@
-# TOHSENO Companion 0.9.9
+# TOHSENO Companion 1.0.0
 
 The iPhone app. It is a beautiful remote control for intent, not a mobile
 TOHSENO: the Mac remains the factory, and this app implements no second

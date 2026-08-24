@@ -5,10 +5,28 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { validatedHttpsURL } from "./manifest.js";
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 3;
+
+async function fetchAllowlisted(url, allowedOrigins) {
+  let current = validatedHttpsURL(url, allowedOrigins);
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const response = await fetch(current, {
+      redirect: "manual",
+      headers: { "user-agent": "tohseno-npm/1.0.0" },
+    });
+    if (!REDIRECT_STATUSES.has(response.status)) return response;
+    if (redirects === MAX_REDIRECTS) throw new Error("release download has too many redirects");
+    const location = response.headers.get("location");
+    if (!location) throw new Error("release download redirect is missing its destination");
+    current = validatedHttpsURL(new URL(location, current).href, allowedOrigins);
+    if (response.body) await response.body.cancel();
+  }
+  throw new Error("release download has too many redirects");
+}
+
 export async function fetchBounded(url, maximumBytes, allowedOrigins) {
-  const checked = validatedHttpsURL(url, allowedOrigins);
-  const response = await fetch(checked, { redirect: "manual", headers: { "user-agent": "tohseno-npm/0.1.0" } });
-  if (response.status >= 300 && response.status < 400) throw new Error("release download redirect was refused");
+  const response = await fetchAllowlisted(url, allowedOrigins);
   if (!response.ok) throw new Error(`release download failed with HTTP ${response.status}`);
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maximumBytes) throw new Error("release response is oversized");
@@ -18,9 +36,7 @@ export async function fetchBounded(url, maximumBytes, allowedOrigins) {
 }
 
 export async function downloadArtifact(url, destination, expectedSize, expectedDigest) {
-  const checked = validatedHttpsURL(url);
-  const response = await fetch(checked, { redirect: "manual", headers: { "user-agent": "tohseno-npm/0.1.0" } });
-  if (response.status >= 300 && response.status < 400) throw new Error("native release redirect was refused");
+  const response = await fetchAllowlisted(url);
   if (!response.ok || !response.body) throw new Error(`native release download failed with HTTP ${response.status}`);
   const declared = Number(response.headers.get("content-length"));
   if (Number.isFinite(declared) && declared !== expectedSize) throw new Error("native release declared byte size differs");

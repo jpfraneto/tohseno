@@ -125,7 +125,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-             and .product_version == "0.9.9"
+             and .product_version == "1.0.0"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"
@@ -134,7 +134,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 0.9.9'
+            grep -Fqx 'tohseno 1.0.0'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -323,7 +323,7 @@ jobs:
             release/V0_8_5_READINESS.json
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "0.9.9"
+             and .version == "1.0.0"
              and .source.public_installer_pin == "0.8.5"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
@@ -365,7 +365,7 @@ jobs:
                  and ([.required_local_evidence[] | select(. != true)] | length) == 0
                )
              )' \
-            release/V0_9_9_READINESS.json
+            release/V1_0_0_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -375,10 +375,10 @@ jobs:
       - name: Public website and installer checks
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
-          grep -Fq 'version="v0.9.9"' oneshot/oneshot.sh
+          grep -Fq 'version="v1.0.0"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
           if cmp -s website/apps/site/public/oneshot.sh oneshot/oneshot.sh; then
-            echo "unpublished 0.9 installer must not replace the live 0.8.5 pin" >&2
+            echo "unpublished 1.0 installer must not replace the live 0.8.5 pin" >&2
             exit 1
           fi
           grep -Fq 'version="v0.8.5"' website/apps/site/public/oneshot.sh
@@ -458,7 +458,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v0.9.9"',
+            '"$RELEASE_TAG" != "v1.0.0"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -474,7 +474,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v0.9.9 source commit:",
+            "TOHSENO v1.0.0 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

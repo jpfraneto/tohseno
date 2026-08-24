@@ -1,4 +1,4 @@
-# Activate TOHSENO 0.9.9 billing
+# Activate TOHSENO 1.0.0 billing
 
 Billing is inactive in repository source. Activation is a manual owner action
 and is independent from Apple Developer Program membership, npm publication,
@@ -46,7 +46,7 @@ bun run typecheck
 bun test apps/site/tests/billing.test.ts
 cd ..
 cargo test --locked -p tohseno-application billing::tests
-./scripts/test-0.9.9-golden-path.sh
+./scripts/test-1.0.0-golden-path.sh
 ```
 
 Build the clean native release and verify that

@@ -3,17 +3,17 @@
 `oneshot/oneshot.sh` is the canonical installer source. The checked-in
 `website/apps/site/public/oneshot.sh` and `install.sh` are public,
 immutable-release-pinned copies. They intentionally remain pinned to the last
-published release, **0.8.5**, until the ordered 0.9.9 activation is complete
-under `docs/runbooks/V0_9_9_READINESS.md`.
+published release, **0.8.5**, until the ordered 1.0.0 activation is complete
+under `docs/runbooks/V1_0_0_READINESS.md`.
 
-Do not copy a 0.9.9 candidate into the public directory, change the live pin,
-or declare the Companion Relay ready before every immutable 0.9.9 artifact is
+Do not copy a 1.0.0 candidate into the public directory, change the live pin,
+or declare the Companion Relay ready before every immutable 1.0.0 artifact is
 published and independently verified. Repository source version and public
 installer pin are deliberately different during release preparation.
 
-## 0.9.9 installed layout
+## 1.0.0 installed layout
 
-The 0.9.9 release contract extends the transactional release layout without
+The 1.0.0 release contract extends the transactional release layout without
 putting user app folders inside it:
 
 ```text
@@ -41,7 +41,7 @@ it remains beneath the installer-owned release directory. The service binds
 Studio only to loopback and stores its private state outside every release
 tree, so an update cannot replace app data, journals, or pairing records.
 
-## 0.9.9 installation and update transaction
+## 1.0.0 installation and update transaction
 
 After publication and pin activation, the golden flow is:
 
@@ -103,6 +103,6 @@ protocol lineage, a Shot, or an execution service.
 ## Activation gate
 
 The exact build, checksum, health, installer-pin, and rollback gates are
-recorded in `docs/runbooks/V0_9_9_READINESS.md`. Until their verification
+recorded in `docs/runbooks/V1_0_0_READINESS.md`. Until their verification
 evidence exists, the correct public behavior is the immutable 0.8.5
-installer—not an unpublished 0.9.9 URL.
+installer—not an unpublished 1.0.0 URL.

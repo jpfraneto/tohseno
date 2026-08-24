@@ -40,7 +40,7 @@ TOHSENO_CANDIDATE_BIN="$repository_root/target/debug/tohseno" \
 JSON_PATH="$temporary_root/result.json" bun -e '
   const value = await Bun.file(process.env.JSON_PATH).json();
   if (value.schema !== "tohseno.local-companion-e2e/1" ||
-      value.service_version !== "0.9.9" ||
+      value.service_version !== "1.0.0" ||
       value.relay_healthy !== true ||
       value.service_healthy !== true ||
       value.paired_devices !== 1 ||

@@ -88,7 +88,7 @@ export async function createCompanionRelayApplication(
         if (pathname === "/healthz" && requestedMethod === "GET") {
           response = json({
             schema: "tohseno.companion-relay-health/1",
-            service_version: "0.9.9",
+            service_version: "1.0.0",
             ready: config.enabled,
             push_enabled: push.mode !== "noop",
             maximum_envelope_bytes: config.limits.envelopeBytes,

@@ -282,7 +282,7 @@ describe("shared Rust relay contract", () => {
     const health = await (await fx.application.fetch(request("/healthz"))).json();
     expect(health).toEqual({
       ...relay.health,
-      service_version: "0.9.9",
+      service_version: "1.0.0",
       push_enabled: true,
     });
   });
@@ -878,7 +878,7 @@ describe("rate limits and operational surface", () => {
     const health = await fx.application.fetch(request("/healthz"));
     expect(await health.json()).toEqual({
       schema: "tohseno.companion-relay-health/1",
-      service_version: "0.9.9",
+      service_version: "1.0.0",
       ready: true,
       push_enabled: true,
       maximum_envelope_bytes: fx.config.limits.envelopeBytes,

@@ -11,7 +11,7 @@ use tohseno_application::{
 };
 
 #[test]
-fn local_0_9_9_entitlement_golden_path() {
+fn local_1_0_0_entitlement_golden_path() {
     let root = tempdir().unwrap();
     let store = EntitlementStore::open(root.path().join("service")).unwrap();
     let start = OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap();

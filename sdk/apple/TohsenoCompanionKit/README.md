@@ -1,4 +1,4 @@
-# TohsenoCompanionKit 0.9.9
+# TohsenoCompanionKit 1.0.0
 
 `TohsenoCompanionKit` is the native Apple client for TOHSENO's private
 companion channel. It does not contain a coding harness, public-node client,

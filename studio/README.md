@@ -1,4 +1,4 @@
-# TOHSENO Studio 0.9.9
+# TOHSENO Studio 1.0.0
 
 Studio is the loopback-only browser window into the persistent Local Workspace
 Service. It is not a separate backend: every creation and evolution passes

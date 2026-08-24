@@ -1,6 +1,6 @@
 {
   "name": "tohseno",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Secure bootstrap and launcher for the native TOHSENO app factory on macOS",
   "type": "module",
   "bin": {
