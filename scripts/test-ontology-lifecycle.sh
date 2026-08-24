@@ -21,8 +21,27 @@ fail() {
 cleanup() {
   cleanup_status=$?
   trap - EXIT HUP INT TERM
+  if [ "$cleanup_status" -ne 0 ]; then
+    for diagnostic in \
+      "$temporary_root/service.log" \
+      "$temporary_root/init.log" \
+      "$temporary_root/create.json"; do
+      if [ -f "$diagnostic" ] && [ ! -L "$diagnostic" ]; then
+        printf '%s: tail of %s:\n' "$script_name" "$diagnostic" >&2
+        tail -n 40 "$diagnostic" >&2
+      fi
+    done
+  fi
   if [ -n "$service_pid" ] && kill -0 "$service_pid" 2>/dev/null; then
     kill "$service_pid" 2>/dev/null || true
+    attempts=0
+    while kill -0 "$service_pid" 2>/dev/null && [ "$attempts" -lt 100 ]; do
+      sleep 0.05
+      attempts=$((attempts + 1))
+    done
+    if kill -0 "$service_pid" 2>/dev/null; then
+      kill -KILL "$service_pid" 2>/dev/null || true
+    fi
     wait "$service_pid" 2>/dev/null || true
   fi
   if [ -z "$workspace_secret_reference" ] &&

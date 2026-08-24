@@ -400,6 +400,13 @@ jobs:
           scripts/test-release-package-integrity.sh
       - name: Persistent factory and private companion end-to-end
         run: |
+          ci_keychain="$RUNNER_TEMP/tohseno-ci.keychain-db"
+          security create-keychain -p "" "$ci_keychain"
+          security set-keychain-settings -lut 21600 "$ci_keychain"
+          security unlock-keychain -p "" "$ci_keychain"
+          security default-keychain -d user -s "$ci_keychain"
+          security list-keychains -d user -s "$ci_keychain"
+          trap 'security delete-keychain "$ci_keychain" >/dev/null 2>&1 || true' EXIT
           scripts/test-ontology-lifecycle.sh
           scripts/test-local-companion-e2e.sh
           scripts/test-macos-service-lifecycle.sh
