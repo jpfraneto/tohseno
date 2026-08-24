@@ -26,12 +26,13 @@ struct ScreenshotPicker: View {
     @State private var selection: [PhotosPickerItem] = []
 
     private var picker: some View {
-        PhotosPicker(
+        let hasAttachments = !attachments.isEmpty
+        return PhotosPicker(
             selection: $selection,
             maxSelectionCount: CompanionAttachments.maximumCount,
             matching: .images
         ) {
-            addImagesLabel
+            ScreenshotPickerLabel(hasAttachments: hasAttachments)
         }
         .onChange(of: selection) { _, items in
             Task { await adopt(items) }
@@ -50,15 +51,20 @@ struct ScreenshotPicker: View {
     }
 #else
     private var picker: some View {
-        addImagesLabel
+        ScreenshotPickerLabel(hasAttachments: !attachments.isEmpty)
     }
 #endif
 
-    private var addImagesLabel: some View {
+}
+
+private struct ScreenshotPickerLabel: View {
+    let hasAttachments: Bool
+
+    var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "photo.badge.plus")
                 .font(.system(size: 17, weight: .medium))
-            Text(attachments.isEmpty ? "Add images" : "Add more")
+            Text(hasAttachments ? "Add more" : "Add images")
                 .font(.system(size: 15, weight: .medium))
         }
         .foregroundStyle(Tohseno.bone)
