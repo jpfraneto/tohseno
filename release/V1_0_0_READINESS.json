@@ -56,14 +56,14 @@
     "production_apns_intentionally_enabled_or_disabled": true,
     "public_installer_updated_after_artifact_verification": true,
     "public_installer_byte_identity_verified": true,
-    "post_activation_service_health_verified": false,
+    "post_activation_service_health_verified": true,
     "rollback_drill_recorded": false,
     "npm_authenticated_owner_verified": true,
-    "npm_1_0_0_published": false,
-    "npm_clean_prefix_install_verified": false
+    "npm_1_0_0_published": true,
+    "npm_clean_prefix_install_verified": true
   },
   "current_verified_evidence": {
-    "verified_at": "2026-08-24T20:44:48Z",
+    "verified_at": "2026-08-24T23:50:00Z",
     "source_commit_at_verification": "09a7c4c63971af4ec18d8fe4c549510102017b82",
     "worktree_clean": true,
     "rust_result": "formatting and strict Clippy passed; 549 tests passed, 0 failures",
@@ -71,13 +71,14 @@
     "studio_result": "21 static contract tests passed",
     "website_and_relay_result": "typecheck passed; 84 tests passed, 0 failures",
     "contracts_result": "forge build passed; 81 tests passed, 0 failures",
-    "npm_result": "npm owner jpfraneto authenticated; tohseno@1.0.0 passed 10 bootstrap tests and isolated pack-install; dry-run archive contains 12 files",
+    "npm_result": "npm owner jpfraneto authenticated; tohseno@1.0.0 published with latest pointing to 1.0.0; 10 bootstrap tests and a clean global-prefix registry install passed; archive contains 12 files",
     "golden_path_result": "TOHSENO 1.0.0 local golden path passed",
     "factory_lifecycle_result": "1.0 factory create/evolve and recording compatibility lifecycle passed",
     "companion_end_to_end_result": "local Companion Relay, Workspace Service, and simulator smoke passed",
     "macos_service_lifecycle_result": "real isolated macOS service install, health, restart, pointer switch, and uninstall passed",
-    "installer_result": "fresh install, reinstall, service health, failed-update rollback, uninstall, data preservation, claim arguments, and public-pin gates passed",
-    "release_package_integrity_result": "Apple Silicon and Intel 1.0.0 archives were built from clean commit 09a7c4c63971af4ec18d8fe4c549510102017b82; normalized manifests and installer regressions passed; both native executables carry valid Developer ID Application signatures for Team 84V63LKV45"
+    "installer_result": "fresh install, reinstall, service health, failed-update rollback, uninstall, data preservation, claim arguments, public-pin gates, live native manifest, live public installer byte identity, and the real 0.9.0-to-1.0.0 Mac upgrade passed",
+    "release_package_integrity_result": "Apple Silicon and Intel 1.0.0 archives were published from immutable tag commit ab88fefbc32265bf675a120faa87613997dde0fb; independent SHA-256, normalized manifest, source provenance, and Developer ID Application signature checks passed for Team 84V63LKV45",
+    "production_smoke_result": "tohseno.com health, native-v1 manifest, public installer bytes, native Mac 1.0.0 service, and physical iPhone Companion 1.0.0 build 5 verified; paired workspace relay canary remains unclaimed because relay configuration is required"
   },
   "blocking_reason": null
 }
