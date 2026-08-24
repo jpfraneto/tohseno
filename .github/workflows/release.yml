@@ -111,8 +111,8 @@ jobs:
             -k "$release_keychain_password" \
             "$signing_keychain"
           security find-identity -v -p codesigning "$signing_keychain" |
-            grep -Fq 'Developer ID Application: Anky, Inc. (84V63LKV45)'
-          TOHSENO_RELEASE_SIGNING_IDENTITY='Developer ID Application: Anky, Inc. (84V63LKV45)' \
+            grep -Fq '29B19555EB1E4241AE7A92502000B77CF881EB7C "Developer ID Application: Anky, Inc. (84V63LKV45)"'
+          TOHSENO_RELEASE_SIGNING_IDENTITY='29B19555EB1E4241AE7A92502000B77CF881EB7C' \
           TOHSENO_RELEASE_SIGNING_KEYCHAIN="$signing_keychain" \
             scripts/release.sh
       - name: Verify and name release artifacts
