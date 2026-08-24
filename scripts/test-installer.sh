@@ -123,7 +123,6 @@ write_helper "$package/bin/tohseno-apple-identity"
 printf '%s\n' '<html>Studio</html>' >"$package/share/studio/index.html"
 printf '%s\n' '// Studio' >"$package/share/studio/app.js"
 printf '%s\n' '/* Studio */' >"$package/share/studio/style.css"
-printf '%s\n' 'fixture pairing seal' >"$package/share/studio/pairing-seal.png"
 printf '%s\n' '// CompanionKit' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/Package.swift"
 printf '%s\n' '1.0.0' \

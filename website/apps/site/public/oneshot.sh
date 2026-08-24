@@ -455,8 +455,6 @@ verify_artifact "$package_name"
     [ -L "$release_stage/share/studio/app.js" ] ||
     [ ! -f "$release_stage/share/studio/style.css" ] ||
     [ -L "$release_stage/share/studio/style.css" ] ||
-    [ ! -f "$release_stage/share/studio/pairing-seal.png" ] ||
-    [ -L "$release_stage/share/studio/pairing-seal.png" ] ||
     [ ! -d "$release_stage/share/sdk/apple/TohsenoCompanionKit" ] ||
     [ -L "$release_stage/share/sdk/apple/TohsenoCompanionKit" ] ||
     [ ! -f "$release_stage/share/sdk/apple/TohsenoCompanionKit/Package.swift" ] ||
