@@ -212,12 +212,19 @@ impl AppleCapabilityProfile {
         let (xcode_version, xcode_build) = xcode_version();
         let sdk_version = command_line("xcrun", &["--sdk", "iphoneos", "--show-sdk-version"])
             .unwrap_or_else(|| "unknown".into());
-        let simulator_runtimes = simulator_runtimes();
-        // The deterministic factory lifecycle deliberately has no physical
-        // device. CoreDevice can wait indefinitely for its daemon on a fresh
-        // headless macOS runner, so the existing debug-only no-device boundary
-        // must cover capability discovery as well as final delivery.
-        let connected_devices = if crate::machine::test_factory_no_device() {
+        // The deterministic factory lifecycle deliberately has no live Apple
+        // device environment. CoreSimulator and CoreDevice can each wait
+        // indefinitely for their daemon on a fresh headless macOS runner, so
+        // the existing debug-only no-device boundary must cover dynamic
+        // capability discovery as well as final physical delivery. The
+        // runner's independent build and test gates are not bypassed.
+        let deterministic_no_device = crate::machine::test_factory_no_device();
+        let simulator_runtimes = if deterministic_no_device {
+            Vec::new()
+        } else {
+            simulator_runtimes()
+        };
+        let connected_devices = if deterministic_no_device {
             Vec::new()
         } else {
             connected_device_profiles()
