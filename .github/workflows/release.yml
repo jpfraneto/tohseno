@@ -101,6 +101,7 @@ jobs:
           security create-keychain -p "$release_keychain_password" "$signing_keychain"
           security set-keychain-settings -lut 21600 "$signing_keychain"
           security unlock-keychain -p "$release_keychain_password" "$signing_keychain"
+          security list-keychains -d user -s "$signing_keychain"
           security import "$signing_certificate" \
             -k "$signing_keychain" \
             -P "$TOHSENO_DEVELOPER_ID_P12_PASSWORD" \
