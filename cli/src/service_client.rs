@@ -15,6 +15,11 @@ use crate::workspace_service::{load_runtime, RuntimeRecord};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
+/// A long native build can briefly starve loopback responses on smaller Macs.
+/// Execution status reads are idempotent, so tolerate a bounded run of
+/// transport failures without turning healthy, durable work into a CLI error.
+const MAX_CONSECUTIVE_EXECUTION_POLL_TRANSPORT_ERRORS: u8 = 6;
+
 #[derive(Clone)]
 pub struct ServiceClient {
     http: Client,
@@ -140,10 +145,27 @@ impl ServiceClient {
     }
 
     pub async fn wait_for_execution(&self, execution_id: &str) -> Result<Value, BoxError> {
+        let mut consecutive_transport_errors = 0_u8;
         loop {
-            let value: Value = self
+            let value: Value = match self
                 .get(&format!("/api/v1/executions/{execution_id}"))
-                .await?;
+                .await
+            {
+                Ok(value) => {
+                    consecutive_transport_errors = 0;
+                    value
+                }
+                Err(error)
+                    if is_ambiguous_transport_error(&error)
+                        && consecutive_transport_errors
+                            < MAX_CONSECUTIVE_EXECUTION_POLL_TRANSPORT_ERRORS =>
+                {
+                    consecutive_transport_errors += 1;
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
             if value.get("complete").and_then(Value::as_bool) == Some(true) {
                 if value.get("accepted").and_then(Value::as_bool) == Some(true) {
                     return Ok(value);
@@ -324,6 +346,67 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(receipt["execution_id"], "execution_fixture");
+        assert_eq!(requests.load(Ordering::SeqCst), 2);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn execution_wait_tolerates_a_transient_loopback_timeout() {
+        use axum::{extract::State, routing::get, Json, Router};
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        async fn execution(State(requests): State<Arc<AtomicUsize>>) -> Json<serde_json::Value> {
+            if requests.fetch_add(1, Ordering::SeqCst) == 0 {
+                tokio::time::sleep(Duration::from_millis(80)).await;
+            }
+            Json(serde_json::json!({
+                "complete": true,
+                "accepted": true,
+                "execution_id": "execution_fixture"
+            }))
+        }
+
+        let requests = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_requests = requests.clone();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .route("/api/v1/executions/execution_fixture", get(execution))
+                    .with_state(server_requests),
+            )
+            .await
+            .unwrap();
+        });
+        let client = ServiceClient {
+            http: Client::builder()
+                .timeout(Duration::from_millis(30))
+                .build()
+                .unwrap(),
+            runtime: RuntimeRecord {
+                schema: "tohseno.local-workspace-runtime/1".into(),
+                service_version: "0.9.0".into(),
+                workspace_id: "workspace_fixture".into(),
+                studio_device_id: "device_fixture".into(),
+                origin: format!("http://{address}"),
+                port: address.port(),
+                process_id: 1,
+                started_at: "2026-08-15T12:00:00Z".into(),
+                instance_id: "service_fixture".into(),
+                csrf_token: "x".repeat(32),
+            },
+        };
+
+        let result = client
+            .wait_for_execution("execution_fixture")
+            .await
+            .unwrap();
+        assert_eq!(result["accepted"], true);
         assert_eq!(requests.load(Ordering::SeqCst), 2);
         server.abort();
     }
