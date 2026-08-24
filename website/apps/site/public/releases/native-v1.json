@@ -1,0 +1,32 @@
+{
+  "schema": "tohseno.native-release-manifest/1",
+  "native_release_version": "1.0.0",
+  "minimum_npm_cli_version": "1.0.0",
+  "layout_version": "tohseno-user-release/2",
+  "artifacts": [
+    {
+      "architecture": "arm64",
+      "target": "aarch64-apple-darwin",
+      "url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0/tohseno-release-aarch64-apple-darwin.tar.gz",
+      "byte_size": 11650474,
+      "sha256": "b620d47db3985e8009d1daf8e3c595fc51a017621672e6cf92042d626c96a24a",
+      "signing": {
+        "kind": "apple-developer-id",
+        "team_id": "84V63LKV45",
+        "designated_requirement": "identifier tohseno and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = \"84V63LKV45\""
+      }
+    },
+    {
+      "architecture": "x64",
+      "target": "x86_64-apple-darwin",
+      "url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.0/tohseno-release-x86_64-apple-darwin.tar.gz",
+      "byte_size": 12183540,
+      "sha256": "a9e345bfeed439cf65f87994404c9af23f46cca2d242aad4243125aeb3a6704a",
+      "signing": {
+        "kind": "apple-developer-id",
+        "team_id": "84V63LKV45",
+        "designated_requirement": "identifier tohseno and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and certificate leaf[subject.OU] = \"84V63LKV45\""
+      }
+    }
+  ]
+}

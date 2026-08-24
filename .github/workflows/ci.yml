@@ -324,7 +324,7 @@ jobs:
           jq -e \
             '.schema == "tohseno.release-readiness/1"
              and .version == "1.0.0"
-             and .source.public_installer_pin == "0.8.5"
+             and .source.public_installer_pin == "1.0.0"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
              and (
@@ -375,13 +375,10 @@ jobs:
       - name: Public website and installer checks
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
+          cmp website/apps/site/public/oneshot.sh oneshot/oneshot.sh
           grep -Fq 'version="v1.0.0"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
-          if cmp -s website/apps/site/public/oneshot.sh oneshot/oneshot.sh; then
-            echo "unpublished 1.0 installer must not replace the live 0.8.5 pin" >&2
-            exit 1
-          fi
-          grep -Fq 'version="v0.8.5"' website/apps/site/public/oneshot.sh
+          grep -Fq 'version="v1.0.0"' website/apps/site/public/oneshot.sh
           grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh
           test -s website/apps/site/public/oneshot.sh
           (

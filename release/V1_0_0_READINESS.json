@@ -17,8 +17,8 @@
   },
   "source": {
     "accepted_product_adr": "docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md",
-    "public_installer_pin": "0.8.5",
-    "public_pin_must_remain": "0.8.5",
+    "public_installer_pin": "1.0.0",
+    "public_pin_must_remain": "1.0.0",
     "historical_protocol_rewritten": false,
     "recording_layer_implicit_migration": false
   },
@@ -48,14 +48,14 @@
     "release_candidate_manifests_verified": true
   },
   "external_activation_gates": {
-    "immutable_v1_0_0_tag_published": false,
-    "immutable_release_artifacts_published": false,
-    "independent_checksum_verification_recorded": false,
-    "production_companion_relay_durable_storage_verified": false,
+    "immutable_v1_0_0_tag_published": true,
+    "immutable_release_artifacts_published": true,
+    "independent_checksum_verification_recorded": true,
+    "production_companion_relay_durable_storage_verified": true,
     "production_companion_relay_canary_verified": false,
-    "production_apns_intentionally_enabled_or_disabled": false,
-    "public_installer_updated_after_artifact_verification": false,
-    "public_installer_byte_identity_verified": false,
+    "production_apns_intentionally_enabled_or_disabled": true,
+    "public_installer_updated_after_artifact_verification": true,
+    "public_installer_byte_identity_verified": true,
     "post_activation_service_health_verified": false,
     "rollback_drill_recorded": false,
     "npm_authenticated_owner_verified": true,

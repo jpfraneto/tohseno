@@ -27,6 +27,9 @@ const installerPath = fileURLToPath(
 const oneshotInstallerPath = fileURLToPath(
   new URL("../public/oneshot.sh", import.meta.url),
 );
+const nativeReleaseManifestPath = fileURLToPath(
+  new URL("../public/releases/native-v1.json", import.meta.url),
+);
 const openGraphImagePath = fileURLToPath(
   new URL("../public/og.png", import.meta.url),
 );
@@ -162,7 +165,7 @@ describe("public pages", () => {
         expect(body).toContain("Take one deliberately small Shot");
         expect(body).toContain("Experience version 0001, then evolve it");
         expect(body).toContain("tohseno studio");
-        expect(body).toContain("TOHSENO 0.8.5");
+        expect(body).toContain("TOHSENO 1.0.0");
         expect(body).toContain(
           "binds only to <code>127.0.0.1</code>",
         );
@@ -267,6 +270,7 @@ describe("public pages", () => {
       ["/modules/intent-package.js", "text/javascript"],
       ["/manifest.webmanifest", "application/manifest+json"],
       ["/sw.js", "text/javascript"],
+      ["/releases/native-v1.json", "application/json"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
       ["/favicon.png", "image/png"],
@@ -324,7 +328,7 @@ describe("public pages", () => {
     const expectedOneshot = readFileSync(oneshotInstallerPath);
     expect(expected).toEqual(expectedOneshot);
     expect(expectedOneshot.byteLength).toBeGreaterThan(10_000);
-    expect(expectedOneshot.toString("utf8")).toContain('version="v0.8.5"');
+    expect(expectedOneshot.toString("utf8")).toContain('version="v1.0.0"');
     expect(expectedOneshot.toString("utf8")).toContain("--claim)");
     expect(expectedOneshot.toString("utf8")).toContain(
       "releases/download/$version/$artifact",
@@ -340,6 +344,31 @@ describe("public pages", () => {
     expect(Buffer.from(await oneshotResponse.arrayBuffer())).toEqual(
       expectedOneshot,
     );
+  });
+
+  test("serves the verified native release manifest", async () => {
+    const application = await testApplication();
+    const expected = JSON.parse(readFileSync(nativeReleaseManifestPath, "utf8"));
+    const response = await application.fetch(request("/releases/native-v1.json"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/json; charset=utf-8",
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect(await response.json()).toEqual(expected);
+    expect(expected.schema).toBe("tohseno.native-release-manifest/1");
+    expect(expected.native_release_version).toBe("1.0.0");
+    expect(expected.minimum_npm_cli_version).toBe("1.0.0");
+    expect(expected.artifacts).toHaveLength(2);
+    for (const artifact of expected.artifacts) {
+      expect(artifact.signing.kind).toBe("apple-developer-id");
+      expect(artifact.signing.team_id).toBe("84V63LKV45");
+      expect(artifact.signing.designated_requirement).toContain(
+        'certificate leaf[subject.OU] = "84V63LKV45"',
+      );
+    }
   });
 
   test("serves installer HEAD metadata without installer bytes", async () => {

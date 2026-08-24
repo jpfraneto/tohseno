@@ -35,12 +35,8 @@ grep -Fq 'version="v1.0.0"' "$installer"
 cmp \
   "$repository_root/website/apps/site/public/oneshot.sh" \
   "$repository_root/website/apps/site/public/install.sh"
-if cmp -s "$installer" "$repository_root/website/apps/site/public/oneshot.sh"; then
-  printf '%s\n' \
-    "unpublished 1.0 installer unexpectedly replaced the live public pin" >&2
-  exit 1
-fi
-grep -Fq 'version="v0.8.5"' "$repository_root/website/apps/site/public/oneshot.sh"
+cmp "$installer" "$repository_root/website/apps/site/public/oneshot.sh"
+grep -Fq 'version="v1.0.0"' "$repository_root/website/apps/site/public/oneshot.sh"
 grep -Fq -- '--claim)' "$repository_root/website/apps/site/public/oneshot.sh"
 
-printf '%s\n' "Claim installer argument and published-pin gates passed."
+printf '%s\n' "Claim installer argument and authorized public-pin gates passed."
