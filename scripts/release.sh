@@ -4,6 +4,8 @@ set -eu
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 integrity_tool="$repository_root/scripts/release-package-integrity.py"
 dirty_override="${TOHSENO_ALLOW_DIRTY_RELEASE:-0}"
+signing_identity="${TOHSENO_RELEASE_SIGNING_IDENTITY:-}"
+signing_keychain="${TOHSENO_RELEASE_SIGNING_KEYCHAIN:-}"
 case "$dirty_override" in
   0 | 1) ;;
   *)
@@ -125,6 +127,30 @@ verify_macho() {
   fi
 }
 
+sign_release_binary() {
+  binary="$1"
+  if [ -z "$signing_identity" ]; then
+    return 0
+  fi
+  if [ -n "$signing_keychain" ]; then
+    /usr/bin/codesign \
+      --force \
+      --options runtime \
+      --timestamp \
+      --keychain "$signing_keychain" \
+      --sign "$signing_identity" \
+      "$binary"
+  else
+    /usr/bin/codesign \
+      --force \
+      --options runtime \
+      --timestamp \
+      --sign "$signing_identity" \
+      "$binary"
+  fi
+  /usr/bin/codesign --verify --strict --verbose=2 "$binary"
+}
+
 if [ "$source_dirty" = false ]; then
   # Build clean releases from an immutable view of the captured commit. A
   # detached worktree prevents a concurrent edit or HEAD movement in the
@@ -241,6 +267,8 @@ mkdir -p \
 
 cp -P "$rust_binary" "$package/bin/tohseno"
 cp -P "$helper" "$package/bin/tohseno-apple-identity"
+sign_release_binary "$package/bin/tohseno"
+sign_release_binary "$package/bin/tohseno-apple-identity"
 cp -P \
   "$build_root/protocol/schemas/"*.json \
   "$package/share/protocol/schemas/"

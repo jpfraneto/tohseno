@@ -79,10 +79,42 @@ jobs:
           targets: ${{ matrix.target }}
       - name: Install Rust target
         run: rustup target add "${{ matrix.target }}"
-      - name: Assemble the verified clean-snapshot package
+      - name: Import Developer ID identity and assemble the verified package
         env:
+          TOHSENO_DEVELOPER_ID_P12: ${{ secrets.TOHSENO_DEVELOPER_ID_P12 }}
+          TOHSENO_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.TOHSENO_DEVELOPER_ID_P12_PASSWORD }}
           TOHSENO_RELEASE_TARGET: ${{ matrix.target }}
-        run: scripts/release.sh
+        run: |
+          test -n "$TOHSENO_DEVELOPER_ID_P12"
+          test -n "$TOHSENO_DEVELOPER_ID_P12_PASSWORD"
+          signing_keychain="$RUNNER_TEMP/tohseno-release.keychain-db"
+          signing_certificate="$RUNNER_TEMP/tohseno-release.p12"
+          release_keychain_password="$(openssl rand -hex 24)"
+          cleanup_signing_material() {
+            security delete-keychain "$signing_keychain" >/dev/null 2>&1 || true
+            rm -f "$signing_certificate"
+          }
+          trap cleanup_signing_material EXIT HUP INT TERM
+          printf '%s' "$TOHSENO_DEVELOPER_ID_P12" |
+            openssl base64 -d -A >"$signing_certificate"
+          chmod 0600 "$signing_certificate"
+          security create-keychain -p "$release_keychain_password" "$signing_keychain"
+          security set-keychain-settings -lut 21600 "$signing_keychain"
+          security unlock-keychain -p "$release_keychain_password" "$signing_keychain"
+          security import "$signing_certificate" \
+            -k "$signing_keychain" \
+            -P "$TOHSENO_DEVELOPER_ID_P12_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$release_keychain_password" \
+            "$signing_keychain"
+          security find-identity -v -p codesigning "$signing_keychain" |
+            grep -Fq 'Developer ID Application: Anky, Inc. (84V63LKV45)'
+          TOHSENO_RELEASE_SIGNING_IDENTITY='Developer ID Application: Anky, Inc. (84V63LKV45)' \
+          TOHSENO_RELEASE_SIGNING_KEYCHAIN="$signing_keychain" \
+            scripts/release.sh
       - name: Verify and name release artifacts
         run: |
           package="dist/release-candidate/${{ matrix.target }}"
@@ -138,6 +170,19 @@ jobs:
           verify_macho \
             "$package/bin/tohseno-apple-identity" \
             '${{ matrix.mach_o_arch }}'
+          verify_developer_id_signature() {
+            binary="$1"
+            /usr/bin/codesign --verify --strict --verbose=2 "$binary"
+            signature_details="$(/usr/bin/codesign -dv --verbose=4 "$binary" 2>&1)"
+            printf '%s\n' "$signature_details" |
+              grep -Fq 'Authority=Developer ID Application: Anky, Inc. (84V63LKV45)'
+            printf '%s\n' "$signature_details" |
+              grep -Fq 'TeamIdentifier=84V63LKV45'
+            /usr/bin/codesign -d -r- "$binary" 2>&1 |
+              grep -Fq 'anchor apple generic'
+          }
+          verify_developer_id_signature "$package/bin/tohseno"
+          verify_developer_id_signature "$package/bin/tohseno-apple-identity"
           mkdir artifacts
           cp "$package/bin/tohseno" "artifacts/tohseno-${{ matrix.target }}"
           cp \
