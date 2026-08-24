@@ -3572,7 +3572,7 @@ fn compact_diagnostic(value: &str, maximum_characters: usize) -> String {
     }
 }
 
-fn test_factory_no_device() -> bool {
+pub(crate) fn test_factory_no_device() -> bool {
     cfg!(debug_assertions) && std::env::var("TOHSENO_TEST_FACTORY_NO_DEVICE").as_deref() == Ok("1")
 }
 
