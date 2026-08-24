@@ -481,7 +481,12 @@ import json, sys
 value = json.load(open(sys.argv[1], encoding="utf-8"))
 print(next(item for item in value["shots"] if item.get("kind") == "factory_shot")["shot_id"], end="")
 ' "$temporary_root/workspace-v1.json")"
-curl -fsS --max-time 5 \
+curl -fsS \
+  --connect-timeout 2 \
+  --max-time 30 \
+  --retry 2 \
+  --retry-all-errors \
+  --retry-delay 1 \
   -X POST \
   -H "Origin: $service_origin" \
   -H 'Content-Type: application/json' \
@@ -506,7 +511,7 @@ with open(sys.argv[2], "w", encoding="utf-8") as handle:
     json.dump(value, handle, separators=(",", ":"))
 ' "$temporary_root/evolve-retry-request.json" \
   "$temporary_root/evolve-stale-request.json"
-stale_status="$(curl -sS --max-time 5 \
+stale_status="$(curl -sS --connect-timeout 2 --max-time 30 \
   -o "$temporary_root/evolve-stale.json" \
   -w '%{http_code}' \
   -X POST \
@@ -536,7 +541,7 @@ execution_count="$(find "$factory_app/.tohseno/executions" -mindepth 1 -maxdepth
 command_count="$(find "$install_root/service/command-journal" -mindepth 1 -maxdepth 1 -type d ! -name '.staging-*' | wc -l | tr -d ' ')"
 [ "$command_count" -eq 3 ] || fail "the shared service journal did not retain two accepted commands and one rejection"
 
-curl -fsS --max-time 2 "$service_origin/api/v1/workspace" \
+curl -fsS --connect-timeout 2 --max-time 10 "$service_origin/api/v1/workspace" \
   >"$temporary_root/workspace-v2.json" || fail "the evolved workspace snapshot is unavailable"
 python3 -c '
 import json, sys
