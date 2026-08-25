@@ -1,160 +1,137 @@
-# TOHSENO 1.0.0
+# TOHSENO
 
-The intended front door is:
+Some useful apps are too specific to become products. They can still exist.
+
+TOHSENO is an open-source iOS app factory that runs on your Mac. You describe a
+small app you want; TOHSENO uses your existing Codex or Claude Code setup,
+builds a native SwiftUI project, checks it, and installs it on your iPhone. The
+source lives in an ordinary Git repository that belongs to you and can continue
+without TOHSENO.
+
+When using the app teaches you something, describe what should change. TOHSENO
+evolves the same project and installs the new version on your phone.
+
+## What we care about
+
+- **Personal software.** An app can be worthwhile even when only one person
+  needs it.
+- **Ownership.** Each app is ordinary SwiftUI and Xcode source, with no
+  proprietary runtime and no TOHSENO account required.
+- **Local work.** Prompts, source, coding harnesses, builds, signing, and device
+  installation stay on your Mac.
+- **Real completion.** A generated file is not the finish line. The app must
+  build, pass its checks, install, and launch on the phone.
+- **Bounded automation.** One intention gets one implementation attempt and,
+  only for a concrete code or build defect, at most one focused repair.
+- **Honest records.** TOHSENO records what happened and does not turn missing
+  evidence into a success claim.
+
+## Start here
+
+You need a Mac running macOS 13 or later, Xcode, an iPhone, and an authenticated
+Codex or Claude Code installation.
 
 ```bash
 npm i -g tohseno
 tohseno
 ```
 
-The dependency-free npm package bootstraps a separately verified native
-release; it is not another factory. No-argument startup opens the one product
-surface and walks a fresh Mac through cable, Xcode, Apple signing, Companion
-installation, and secure pairing before the trial clock begins.
+The first run guides you through connecting the phone, Apple development
+signing, installing the TOHSENO Companion, and pairing it securely with your
+Mac. It does not require `sudo`.
 
-Describe an app. TOHSENO makes it and puts it on your iPhone.
-
-```bash
-tohseno create my-app
-```
-
-Describe what should change. TOHSENO evolves it and puts the new version on
-your iPhone.
+Then make something deliberately small:
 
 ```bash
-tohseno evolve my-app
+tohseno create water-walk
 ```
 
-Each command opens one screen with one box on it. Write the intent, optionally
-attach images, press the one button, and wait. When the app is ready TOHSENO
-installs it on your iPhone by itself — or, if the phone is not plugged in, says
-so and installs it automatically the moment it is:
+TOHSENO opens Studio. Describe the app, optionally attach reference images,
+and send the intention. The work continues in the local service if you close
+the browser or Terminal. When the app is ready, TOHSENO installs and launches
+it on the connected iPhone.
 
-```text
-Your app is ready.
-
-Plug your iPhone into this Mac
-and I’ll install it automatically.
-```
-
-There is no button to press there. TOHSENO orchestrates itself.
-
-## What it actually is
-
-A persistent private app factory on your Mac. One Local Workspace Service owns
-factory commands, executions, Studio, and synchronization with a paired iPhone.
-The Mac remains the backend: prompts, source, coding harnesses, Xcode, signing,
-installation, and acceptance stay local. Completion means the build, test,
-verification, delivery, and acceptance gates passed — never that a harness
-exited successfully.
-
-One intention gets one implementation harness invocation and, only for a
-concrete code/build failure, at most one targeted repair. Both share a
-60-minute wall-clock harness budget and a 15-minute no-source-progress limit.
-External conditions never invoke repair intelligence. Every terminal execution
-keeps a private State Transition Receipt describing what happened to persistent
-application state. See [ADR 0019](docs/adr/0019-bounded-intent-to-usable-app.md).
-
-That machinery is sophisticated and it is entirely beneath the floor. The
-product is App → Intent → App on your iPhone ([ADR 0016](docs/adr/0016-app-intent-app-on-your-iphone.md)).
-
-## Scriptable forms
-
-The human defaults are simple; nothing was taken away from automation.
+After you have used it:
 
 ```bash
-tohseno create my-app --prompt "..."
-tohseno create my-app --prompt-file MASTER_PROMPT.md --wait
-cat MASTER_PROMPT.md | tohseno create my-app
-tohseno evolve my-app --prompt "Make the first-run experience clearer" --wait
-tohseno --json create my-app --prompt-file MASTER_PROMPT.md
+tohseno evolve water-walk
+```
+
+Describe what should change. The update follows the same path into the same
+app.
+
+## Where your work lives
+
+Apps are visible folders under `~/Desktop/Tohseno`, with one Git repository per
+app. Private factory state, execution records, and pairing data live under
+`~/.tohseno`. The installed service listens only on the Mac's loopback
+interface.
+
+The iPhone Companion is a remote control for the factory on your Mac. It can
+send create and evolve intentions and receive encrypted status updates. It
+does not receive source code or private harness output. When the optional relay
+is used, it carries signed encrypted envelopes that the relay cannot read.
+
+## Use it from the Terminal
+
+The interactive path is the default, and the same operations are scriptable:
+
+```bash
+tohseno create my-app --prompt "An app that..."
+tohseno create my-app --prompt-file intention.md --wait
+tohseno evolve my-app --prompt "Make the first-run screen clearer" --wait
 tohseno studio
+tohseno service status
+tohseno service logs
 ```
 
-An evolution binds the app's exact current Expression and accepted Version at
-submission; a stale request is refused rather than rebased. Every route uses
-the same durable application service as Studio and the iPhone, so work survives
-the invoking Terminal, a closed browser, and a service restart.
-
-## Recording an ordinary app folder
-
-ADR 0014's byte-compatible recording layer remains explicit:
+Existing app folders can also use the explicit recording layer:
 
 ```bash
 tohseno init my-app
-# edit with any tools
 tohseno record my-app --note "Describe these exact files"
 ```
 
-The visible folder stays ordinary and ejectable. Existing
-`.tohseno/recording-layer-v1` folders remain `recording_only`; TOHSENO never
-silently turns them into factory Shots or rewrites their accepted records.
+## Find your way around the repository
 
-## The iPhone
+This repository contains the whole product:
 
-```text
-Your Apps  →  choose an app  →  What should change?  →  Evolve App
-```
+- [`cli/`](cli/) provides the command-line surface.
+- [`engine/`](engine/) runs the build, verification, recording, and delivery
+  lifecycle.
+- [`studio/`](studio/) is the local browser interface.
+- [`companion/`](companion/) and [`sdk/apple/`](sdk/apple/) contain the iPhone
+  Companion and its shared SDK.
+- [`website/`](website/) serves the public site and the encrypted relays.
+- [`protocol/`](protocol/) defines the exact public recording format and
+  conformance rules.
+- [`docs/adr/`](docs/adr/) records the accepted product and architecture
+  decisions.
 
-One tap. No confirmation, no version picker, no separate feedback step. If your
-Mac is asleep the phone says `Waiting for your Mac…`, you can close the app, and
-the request delivers itself later without another tap.
+If you want a current plain-language map, begin with
+[`docs/STATE.md`](docs/STATE.md). For the system boundaries, read
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). If you change governed behavior,
+read [`AGENTS.md`](AGENTS.md) first: `protocol/` is authoritative over prose.
 
-The phone is a remote control for intent, not a mobile TOHSENO: it receives
-encrypted workspace summaries and privacy-safe state, never source code or
-harness output, under an explicit revocable capability grant. The shared relay
-is a content-blind encrypted mailbox that cannot decrypt commands, interpret
-prompts, build apps, run agents, or authorize actions. Private companion
-records never enter the public `tohseno-node`.
+## Develop locally
 
-- [The Companion app](companion/apple/TohsenoCompanion/README.md)
-- [Companion SDK and conformance fixture](sdk/apple/TohsenoCompanionKit/README.md)
-
-First run is cable-first. TOHSENO builds the existing Companion with the
-detected free or paid Apple development team, installs it with CoreDevice, and
-launches one signed, expiring pairing invitation through the supported URL
-payload. The twelve recovery words are generated and shown only on the iPhone.
-
-The complete product is available during a seven-calendar-day trial. Five
-distinct days on which a Version is accepted, installed, and launched qualify
-the installation for TOHSENO Pro. Qualification locks the next new mutation
-until the person chooses $9.99 monthly or $99 yearly; fewer than five days when
-the clock ends yields no purchase offer. See [ADR 0020](docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md).
-
-## Administration
-
-Available when you want it; never in the way when you don't.
+The most useful first checks are:
 
 ```bash
-tohseno service status
-tohseno service restart
-tohseno service logs
-tohseno companion pair
-tohseno companion devices
+cargo test --locked --workspace --all-targets --all-features
+swift test --package-path companion/apple/TohsenoCompanion
+(cd website && bun run typecheck && bun test)
 ```
 
-The intended installed layout uses a user LaunchAgent and the stable
-`~/.tohseno/bin/tohseno` launcher. It requires no `sudo`. See the
-[CLI contract](cli/README.md), [Studio guide](studio/README.md), and
-[installer boundary](oneshot/README.md).
+The complete verification matrix is in [`AGENTS.md`](AGENTS.md). The current
+stable release is **1.0.0**, available through npm and the public installer.
 
-## Release status and authority
+More detail:
 
-The repository source targets 1.0.0. Neither `tohseno@1.0.0` nor native 1.0.0
-is claimed published by this source change. The public one-line installer remains
-pinned to immutable 0.8.5 until 1.0.0 artifacts are published and independently
-verified by an authorized owner; no source checkout is installed on user Macs.
-See [current state](docs/STATE.md), the [1.0.0 readiness runbook](docs/runbooks/V1_0_0_READINESS.md),
-and the [npm publication runbook](docs/runbooks/NPM_1_0_0.md).
-
-`protocol/` remains normative over prose. Historical protocol bytes,
-Builder identities, signatures, and public-node validation remain unchanged.
-
-- [Architecture decisions](docs/adr/README.md)
 - [Current runtime architecture](docs/ARCHITECTURE.md)
-- [Evolution golden path and core-loop smoke test](docs/GOLDEN_PATH.md)
-- [Threat model](docs/THREAT_MODEL.md)
+- [App → Intent → App decision](docs/adr/0016-app-intent-app-on-your-iphone.md)
+- [Bounded build lifecycle](docs/adr/0019-bounded-intent-to-usable-app.md)
+- [Cable setup, trial, and npm front door](docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md)
 - [Privacy boundary](docs/PRIVACY.md)
+- [Threat model](docs/THREAT_MODEL.md)
 - [Protocol specification](protocol/SPECIFICATION.md)
-- [Protocol conformance](protocol/CONFORMANCE.md)
-- [Frozen history](history/README.md)

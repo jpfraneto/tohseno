@@ -115,7 +115,7 @@ img {
   height: 100%;
   padding: 0 20px;
   border-left: 1px solid var(--line);
-  font: 700 11px ui-monospace, monospace;
+  font: 700 14px ui-monospace, monospace;
   letter-spacing: 0.12em;
   white-space: nowrap;
 }
@@ -333,6 +333,7 @@ img {
 .method,
 .contact-sheet,
 .ownership,
+.open-source,
 .steps,
 .chain {
   padding-top: clamp(70px, 9vw, 140px);
@@ -516,6 +517,52 @@ blockquote {
   width: 50px;
   color: var(--orange);
   font: 700 11px ui-monospace, monospace;
+}
+
+.open-source {
+  border-bottom: 2px solid var(--black);
+}
+
+.open-source-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  align-items: end;
+  gap: 9vw;
+  margin-top: 70px;
+}
+
+.open-source h2 {
+  margin: 0;
+  font-size: clamp(52px, 8vw, 124px);
+  line-height: 0.83;
+  letter-spacing: -0.07em;
+}
+
+.open-source-copy p {
+  margin: 0 0 42px;
+  font-size: clamp(20px, 2.4vw, 34px);
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.open-source-copy a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  border: 2px solid var(--black);
+  background: var(--black);
+  color: var(--bone);
+  box-shadow: 8px 8px 0 var(--orange);
+  font: 800 14px ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.open-source-copy a:hover {
+  box-shadow: 4px 4px 0 var(--orange);
+  transform: translate(4px, 4px);
 }
 
 .orange-block {
@@ -748,7 +795,8 @@ footer {
   .hero-bottom,
   .permission,
   .section-head,
-  .ownership-grid {
+  .ownership-grid,
+  .open-source-grid {
     grid-template-columns: 1fr;
   }
 
@@ -779,6 +827,10 @@ footer {
   .method .section-head h2 {
     font-size: clamp(52px, 15vw, 86px);
     line-height: 0.82;
+  }
+
+  .open-source h2 {
+    font-size: clamp(42px, 13.5vw, 72px);
   }
 
   .shot-flow {

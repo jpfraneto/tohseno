@@ -69,6 +69,7 @@ describe("public pages", () => {
     expect(body).toContain("ONE INTENTION.<br>ONE REAL ATTEMPT.");
     expect(body).toContain("MAKE SOFTWARE<br>FOR YOUR ACTUAL LIFE.");
     expect(body).toContain("THE FACTORY IS<br>A MIDWIFE.");
+    expect(body).toContain("THE FACTORY<br>IS OPEN.<br>THE APP<br>IS YOURS.");
     expect(body).toContain("FROM ZERO<br>TO YOUR PHONE.");
     expect(body).toContain("LOCAL CREATION.<br>PUBLIC PROOF.");
     expect(body).toContain("WHAT SHOULD<br>EXIST?");
@@ -109,6 +110,17 @@ describe("public pages", () => {
     expect(body).toContain("COMMUNITY <span");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
+    expect(body).toContain('<a href="#open-source">OPEN SOURCE</a>');
+    expect(body).toContain('id="open-source"');
+    expect(body).toContain("TOHSENO is open source.");
+    expect(body).toContain(
+      '>VIEW SOURCE ON GITHUB <span aria-hidden="true">↗</span></a>',
+    );
+    const primaryNavigation = body.match(
+      /<nav aria-label="Primary navigation">[\s\S]*?<\/nav>/,
+    )?.[0];
+    expect(primaryNavigation).toBeDefined();
+    expect(primaryNavigation).not.toContain("github.com");
     expect(body).toContain(
       "<title>TOHSENO — Give Every Idea a Shot</title>",
     );
@@ -213,6 +225,10 @@ describe("public pages", () => {
     expect(landingStyle).toContain(".shot-flow");
     expect(landingStyle).toContain(".shot-grid");
     expect(landingStyle).toContain(".ownership-grid");
+    expect(landingStyle).toContain(".open-source-grid");
+    expect(landingStyle).toMatch(
+      /\.nav nav a \{[\s\S]*?font: 700 14px ui-monospace, monospace;/,
+    );
     expect(landingStyle).toContain("@keyframes ticker-scroll");
     expect(landingStyle).toContain("@keyframes ticker-shake");
     expect(landingStyle).toContain("translateX(-50%)");

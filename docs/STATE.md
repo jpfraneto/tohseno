@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-22. This is the plain-language
+Written 2026-07-30, amended through 2026-08-24. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -195,7 +195,8 @@ $99. Billing is configuration-gated and currently inactive.
 The dependency-free npm bootstrap is `packages/cli`, version 1.0.0. It uses one
 fixed HTTPS manifest, refuses redirects and unapproved origins, verifies exact
 size, SHA-256, release layout/checksums, and Apple signing policy, and installs
-only into the existing user-owned layout. It has not been published.
+only into the existing user-owned layout. `tohseno@1.0.0` is published under
+the npm `latest` tag.
 
 ## Private Companion channel
 
@@ -246,34 +247,24 @@ builds, installs, and launches on an iOS Simulator. Released SDK source can
 still be vendored into a Shot so generated apps do not depend on a mutable
 `~/.tohseno/current` path.
 
-## The public website is a terminal
+## The public website
 
-`tohseno.com` is one prompt whose placeholder is `tohseno create my-app-name`.
-It speaks the same vocabulary as the Mac and the phone and adds no concept of
-its own. A person writes the whole intention first — text, pasted or dropped
-images — and only then is asked where it should go.
+`tohseno.com` is the public introduction to the local factory. It explains the
+App → Intent → App path, personal software, independent app ownership, the
+bounded build method, and the optional public record. Its install action copies
+`npm i -g tohseno`; it does not collect an intention or create a Shot.
 
-Only one destination works: the ADR 0011 encrypted handoff to their Mac, which
-prints the single-use `--claim` command and falls back to the unencrypted
-private `.tohseno-intent` download when the relay is not activated. The demo
-door replays `application/src/presentation.rs` with its exact headlines, and
-`website/apps/site/tests/terminal.test.ts` checks every replayed state against
-`fixtures/presentation-v1.json`, so the website is now a third surface bound to
-the one presentation contract.
+The navigation keeps visitors on the page for the product explanation. Its
+Open Source section explains that the factory can be inspected, run locally,
+and changed, then links to the repository. The app source remains the owner's
+ordinary SwiftUI repository, whether the owner keeps it private or publishes
+it.
 
-The third door, linking the iPhone Companion, is deliberately unbuilt and says
-so. It is recorded here so it is not quietly redesigned: when the Companion is
-published, scanning will link **the browser to the phone**, not a person to an
-account. The phone keeps the identity and does the signing, the browser holds
-only a capability the phone can revoke, and the phone forwards to the Mac it is
-already paired with. A phone is a remote control for a factory, not a factory.
-Nothing about it makes the website an origin of Shots, and ADR 0011's rule that
-possession of a one-time capability is the whole authorization still holds.
-
-The paid day and the sojourn moved into that terminal as commands and into the
-static boot block, which is the only copy a crawler or a reader without
-JavaScript sees. The published `install.sh` and `oneshot.sh` are unchanged and
-still pin the authorized release.
+The ADR 0011 encrypted Browser Draft relay remains a transport API rather than
+a public factory surface. It does not make the website an origin of Shots, and
+possession of a one-time claim capability remains its whole authorization.
+The published `install.sh` and `oneshot.sh` are byte-identical and pin the
+authorized 1.0.0 release.
 
 ## Public protocol and node remain separate
 
@@ -292,22 +283,15 @@ as a candidate on 2026-08-01 and activated by the recorded owner ceremony on
 2026-08-02. That evidence remains under `release/` and `contracts/`. No
 contract generation or deployment command is active on current source.
 
-## Repository source versus published release
+## Published release
 
-Repository source and native package metadata target **1.0.0**; the npm
-bootstrap targets **1.0.0**. That is not a claim that either is public, or that
-production billing, relay, APNs, or a new installer pin exists. As of this
-document's date:
+**1.0.0** is the current public release. The signed `v1.0.0` GitHub release,
+native manifest, public installer pin, and `tohseno@1.0.0` npm package were
+published and independently checked before activation. The public website and
+installer now serve that release.
 
-- the public installer still pins immutable **0.8.5**;
-- the published website copies must remain byte-identical to that authorized
-  installer until separately authorized activation;
-- no v1.0.0 tag, GitHub release, native manifest, or npm publication exists;
-- no production billing, companion relay, APNs credentials, DNS, or deployment has been
-  activated by this change;
-- local 1.0.0 source must pass the readiness gates and be built from a clean,
-  captured commit before an owner authorizes publication.
-
-The 1.0.0 readiness and manual npm/billing owner steps are in `docs/runbooks/`.
-The older 0.9.0 operator runbook remains historical evidence. Until every gate
-is recorded, the public 0.8.5 pin is the honest production state.
+Production billing remains configuration-gated and inactive. Companion relay
+and APNs activation remain separate operational decisions; the 1.0.0 release
+does not infer them from artifact publication. The readiness record and
+publication evidence are in `release/V1_0_0_READINESS.json`, with the operator
+steps retained in `docs/runbooks/`.
