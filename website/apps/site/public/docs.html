@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Turn one private intention into a planned, composed, independently owned native iOS shot.">
+    <meta name="description" content="Install TOHSENO, describe a personal iOS app, and receive it on your iPhone.">
     <meta name="theme-color" content="#11100e">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{BRAND}}">
     <meta property="og:title" content="Docs — {{BRAND}}">
-    <meta property="og:description" content="One planner and deterministic app factory, multiple local doors, and an independent iOS shot.">
+    <meta property="og:description" content="App to intent to an independently owned native iOS app on your iPhone.">
     <meta property="og:url" content="{{CANONICAL_ORIGIN}}/docs">
     <meta property="og:image" content="{{OG_IMAGE_URL}}">
     <meta property="og:image:width" content="1200">
@@ -37,36 +37,26 @@
       <article class="document">
         <header class="document-header">
           <p class="eyebrow">TOHSENO / DOCS</p>
-          <h1>Take another one.</h1>
-          <p class="document-intro">TOHSENO is in beta. Begin with the intention, carry it privately to your Mac, approve the local plan, and evolve the independent iOS Shot.</p>
+          <h1>App → Intent → App on your iPhone.</h1>
+          <p class="document-intro">TOHSENO is an open-source local app factory. Describe a deliberately small app or change; your Mac builds, checks, signs, installs, and launches the result on your iPhone.</p>
         </header>
 
         <nav class="docs-index" aria-label="On this page">
           <span>ON THIS PAGE</span>
-          <a href="#install">Begin and install</a>
-          <a href="#onboarding">Onboarding</a>
-          <a href="#take-shot">Take a Shot</a>
-          <a href="#follow">Follow and review</a>
-          <a href="#evolve">Feedback and Evolution</a>
+          <a href="#install">Install</a>
+          <a href="#onboarding">First run</a>
+          <a href="#create">Create an app</a>
+          <a href="#evolve">Evolve an app</a>
           <a href="#local-data">Local data</a>
-          <a href="#on-chain">On-chain status</a>
-          <a href="#legacy">Migration</a>
+          <a href="#on-chain">Registry status</a>
+          <a href="#versions">Versions</a>
         </nav>
 
         <section id="install">
-          <h2>Begin with the intention</h2>
-          <ol>
-            <li>Visit the home page and write or paste the intention.</li>
-            <li>Add zero to eight reference images and press <strong>TAKE A SHOT</strong>.</li>
-            <li>Run the one command shown on the Mac.</li>
-            <li>Continue in local Studio with the exact prompt and ordered references already present.</li>
-          </ol>
-          <p>The browser preserves the editable draft in IndexedDB. When encrypted handoff is available, it sends only temporary client-encrypted ciphertext. The Mac decrypts and validates locally. The website and relay do not create a Shot; the local engine does that after plan review.</p>
-          <p>If encrypted handoff is unavailable, download the private <code>.tohseno-intent</code> file, install normally, and run <code>tohseno intent open &lt;file&gt;</code>. The downloaded file is private and readable, not encrypted.</p>
-          <h3>Generic installer alternative</h3>
+          <h2>Install the local factory</h2>
           <pre><code>{{INSTALL_COMMAND}}</code></pre>
-          <p><strong>TOHSENO 1.0.0</strong> supports macOS 13 or newer. The generic one-line installer detects Apple Silicon or Intel, downloads the matching immutable GitHub release, verifies every checksum, installs transactionally under <code>~/.tohseno</code>, adds <code>tohseno</code> to your shell path, and opens Studio.</p>
-          <p>You do not need a TOHSENO account. Xcode is required to build and install the native Apple expression. A local Codex or Claude Code installation and its own authenticated subscription are required when you take a real Shot.</p>
+          <p>Release <strong>1.0.2</strong> keeps the npm front door and native Mac product on the same version. The npm package accepts only the authorized 1.0.2 native manifest and signed artifact.</p>
+          <p>TOHSENO supports macOS 13 or newer and does not require <code>sudo</code> or a TOHSENO account. You need Xcode, an iPhone, and an authenticated local Codex or Claude Code installation.</p>
           <div class="command-block">
             <code class="command-line" id="install-command" data-install-command data-copy-value="{{INSTALL_COMMAND}}">{{INSTALL_COMMAND}}</code>
             <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{COPIED_LABEL}}" aria-describedby="install-command">{{COPY_LABEL}}</button>
@@ -74,72 +64,49 @@
         </section>
 
         <section id="onboarding">
-          <h2>Studio checks the Mac first</h2>
+          <h2>The cable is first run</h2>
           <ol>
-            <li>Confirm macOS and the installed TOHSENO release.</li>
-            <li>Check Xcode, Simulator, and Apple signing readiness.</li>
-            <li>Detect installed Codex and Claude Code harnesses and their authentication state.</li>
-            <li>Show where private Shot data and visible app folders will live.</li>
+            <li>Connect and trust the iPhone.</li>
+            <li>Enable Developer Mode when iOS asks.</li>
+            <li>Install Xcode and add an Apple Account for development signing.</li>
+            <li>Let TOHSENO build, install, and launch its Companion.</li>
+            <li>Record the twelve recovery words shown only on the iPhone and finish secure pairing.</li>
           </ol>
-          <p>When Xcode exposes more than one certified team, TOHSENO prefers a paid team. A free Personal Team is supported, but its three-app check uses only TOHSENO bundles actually observed on the connected iPhone at install time; local Shots and Simulator builds are not iPhone slots.</p>
-          <p>Studio binds only to <code>127.0.0.1</code> and opens through an owner-only, one-time local session. If a prerequisite is missing, the onboarding screen gives the exact next action. Reopen it at any time with:</p>
+          <p>Studio binds only to <code>127.0.0.1</code> and gives one next action at a time. A free Apple Personal Team is supported; Apple provisioning limits still apply. TOHSENO Pro and Apple Developer Program membership are separate.</p>
+          <p>The complete factory trial starts after this setup succeeds. It ends at the first of five successful distinct days or seven calendar days. Qualified people may consciously choose Pro at $9.99 monthly or $99 yearly. Expiry never removes app source, repositories, history, or installed apps; it only locks new Create and Evolve work.</p>
           <pre><code>tohseno studio</code></pre>
-          <p>TOHSENO checks the stable channel at most once per day and prints a short notice only when an update exists. Update or remove the installed program with:</p>
-          <pre><code>tohseno update
-tohseno uninstall</code></pre>
-          <p><code>tohseno upgrade</code> is an alias for update. Uninstall removes the program and its exact shell PATH entry while preserving Shots, identities, feedback, and other local data.</p>
         </section>
 
-        <section id="take-shot">
-          <h2>Take one deliberately small Shot</h2>
-          <ol>
-            <li>For an imported intention, review the exact prompt, ordered references, and editable local name suggestion. Inline creation can still start here.</li>
-            <li>Choose Codex or Claude Code, its model, and the subscription route showing <code>$0.00</code>.</li>
-            <li>Keep a paired iPhone reachable, then press <strong>TAKE THE SHOT</strong> once.</li>
-            <li>Walk away while materialization, repair, verification, install, and launch continue unattended.</li>
-            <li>Return after completion to the accepted app already open on the iPhone.</li>
-          </ol>
-          <p>The selected harness runs through its supported non-interactive mode with approval prompts bypassed. TOHSENO does not proxy its private output; the engine independently validates the candidate and does not accept the Version until exact-device delivery succeeds.</p>
-        </section>
-
-        <section id="follow">
-          <h2>Follow and review the result</h2>
-          <pre><code>tohseno shot follow &lt;execution-id&gt;
-tohseno shot result &lt;execution-id&gt;</code></pre>
-          <p>Studio and the CLI read the same durable lifecycle events. TOHSENO independently compares the Git trees, verifies the candidate, installs and launches the exact build, and reports <strong>BIRTH ACCEPTED</strong> only when every gate and phone delivery pass. Failed, cancelled, and unaccepted sessions stay honestly labelled.</p>
-          <p>When the unattended run ends, a native macOS notification announces the outcome — accepted, unsealed, cancelled, or stalled — so walking away really means walking away.</p>
-          <p>Every completion record includes timestamps, outcome, digests, changed files, a diff summary, validation evidence, available cost facts, and one next action.</p>
+        <section id="create">
+          <h2>Create one deliberately small app</h2>
+          <pre><code>tohseno create</code></pre>
+          <p>Studio opens one composer. Describe the app, optionally name it, attach up to eight reference images, and choose an installed coding harness and model. If the name is blank, the implementation model chooses a concise product name inside the same implementation pass.</p>
+          <p>The persistent local service runs one bounded implementation harness and, only for a concrete code or build defect, at most one focused repair. Source generation is not completion: TOHSENO builds, verifies, development-signs, installs, and launches the accepted app on the connected iPhone. If the phone is absent, the app waits and delivery resumes automatically when it is connected.</p>
         </section>
 
         <section id="evolve">
-          <h2>Experience version 0001, then evolve it</h2>
-          <pre><code>tohseno feedback &lt;app-name&gt; --version 1 --text "What I experienced"
-tohseno evolve &lt;app-name&gt;</code></pre>
-          <p>Feedback attaches private experience to one exact accepted version. An Evolution changes the same coherent intention and preserves its stable identity, lineage, and repository; a different intention becomes a different Shot.</p>
-          <p>Choose <strong>Evolve a Shot</strong> in Studio to select the feedback, add a focused evolutionary intention and new references, then take the next Shot through the same visible human boundary.</p>
+          <h2>Use it, then describe the change</h2>
+          <pre><code>tohseno evolve &lt;app-name&gt;</code></pre>
+          <p>Write what should change and press <strong>Evolve App</strong>. TOHSENO binds the exact currently accepted base automatically and follows the same build, verification, installation, and launch path. A stale base is refused rather than silently rebased. Advanced exact-version feedback still exists, but it is not a required ceremony on the normal path.</p>
         </section>
 
         <section id="local-data">
-          <h2>Your canonical Shot stays on your Mac</h2>
-          <p>Browser Drafts stay in IndexedDB. Explicit handoff temporarily sends only opaque ciphertext. Imported Local Pending Intentions, machine identity, and installed release state live under <code>~/.tohseno</code>; uninstall preserves them. Visible Shot folders live under <code>~/Desktop/Tohseno</code>, with private intention, feedback, reference, and execution material in gitignored <code>.tohseno</code> folders.</p>
-          <p>The relay cannot decrypt the handoff and deletes ciphertext after durable local import or seven-day expiry. Studio does not upload canonical Shot data. The selected coding harness can read the local intention and references after approval and handles them under that provider’s privacy, retention, and account settings.</p>
-          <p>Every Shot remains an independent Git repository. Removing the TOHSENO command does not remove its source or history.</p>
+          <h2>The app and its TOHSENO record stay on your Mac</h2>
+          <p>Visible app folders live under <code>~/Desktop/Tohseno</code> and remain ordinary Git repositories. The app-local <code>.tohseno</code> directory is an integral metadata container, not a disposable cache and not blanket-gitignored. Its app marker, immutable evolution structure, and safe integrity material travel with the folder.</p>
+          <p>Exact intentions, inline private lineage, references, feedback, execution receipts, logs, and <code>.tohseno/private</code> remain individually gitignored because committing them could publish material explicitly marked private. Machine identity, service journals, pairing, and installed releases live separately under <code>~/.tohseno</code>. Uninstall preserves both app folders and private state.</p>
+          <p>Studio does not upload canonical Shot data. The selected coding harness can read the local intention and references and handles them under that provider’s privacy, retention, and account settings.</p>
         </section>
 
         <section id="on-chain">
-          <h2>On-chain status</h2>
-          <p>Contract generation <strong>0.8.0</strong> is deployed on Robinhood Chain mainnet (chain ID 4663) as an <strong>inactive, untrusted candidate</strong>: <code>BuilderAccountFactory</code> at <code>0xb1bd208cd2af98e701f43d06aaa889d3a594df65</code> and <code>ShotRegistry</code> at <code>0x3fe6508ba2660bc575080024f402c192a2e035a0</code>.</p>
-          <p>No TOHSENO release reads from or writes to these contracts, and activation is not authorized: it stays gated behind independent review, a production canary, and threshold activation. A defective candidate is abandoned, never repaired in place. Do not send anything to these addresses. The complete signed deployment evidence lives in the repository under <code>contracts/deployments</code> and <code>contracts/audits</code>.</p>
-          <p>Older installs could show a predicted on-chain BuilderID address through <code>tohseno identity show</code>. That prediction belongs to a retired contract generation, which <strong>will never be deployed</strong>, and it is not an address in the deployed generation: do not treat it as a durable public identity, proof of ownership, or a future deployment coordinate, and do not send anything to it.</p>
-          <p>Your local identity, Shots, feedback, and signed history remain valid and verifiable on your Mac. A future release will activate the finalized successor generation and its own public BuilderID path.</p>
+          <h2>The contract is active; the registry product is not built yet</h2>
+          <p>Contract generation <strong>0.8.0</strong> is deployed on Robinhood Chain mainnet (chain ID 4663) and is the current client-trusted generation under a threshold-signed activation: <code>BuilderAccountFactory</code> at <code>0xb1bd208cd2af98e701f43d06aaa889d3a594df65</code> and <code>ShotRegistry</code> at <code>0x3fe6508ba2660bc575080024f402c192a2e035a0</code>.</p>
+          <p>Activation identifies the exact contract instances trusted by the current client; it is not a human-audit or formal-verification claim. Repository evidence records an owner-waived pre-activation canary and release keys created on one Mac. It also does not mean people can publish apps today. Secure public BuilderAccount creation, registry RPC and transaction orchestration, publication receipts, source hosting, catalog discovery, and download are not implemented. No current TOHSENO workflow uploads an app repository to this contract.</p>
+          <p>The on-chain registry stores only Shot identity, controller, public-checkpoint head, checkpoint count, and nonce. It cannot store or serve source code by itself. A real downloadable registry requires a separate content-addressed source catalog plus verified on-chain receipts. Until those workflows exist, do not send transactions or funds to these addresses.</p>
         </section>
 
-        <section id="legacy">
-          <h2>Coming from an older install</h2>
-          <p>The installer preserves existing <code>~/.tohseno/apps</code> data byte-for-byte. Nothing is migrated or deleted during installation.</p>
-          <pre><code>tohseno migrate-legacy
-tohseno verify &lt;app-name&gt;</code></pre>
-          <p>The explicit migration copies each valid legacy app into the visible folder model and projects its frozen history without rewriting the original ledger. You can migrate every app or pass one app name.</p>
+        <section id="versions">
+          <h2>Which version is live?</h2>
+          <p><strong>TOHSENO 1.0.2</strong> is prepared as one coherent npm and native release. The repository does not claim it is public until the owner has signed the native artifacts, published the exact manifest, published npm, and deployed this site.</p>
         </section>
       </article>
     </main>

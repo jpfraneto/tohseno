@@ -306,15 +306,14 @@ async fn http_surface_is_bounded_and_rejects_private_replication() {
         .json()
         .await
         .unwrap();
-    assert!(info
-        .pointer("/active_generation")
-        .is_some_and(serde_json::Value::is_null));
+    assert_eq!(info["active_generation"], "0.8.0");
     assert!(info.pointer("/contract_configuration").is_none());
     let generation_policy = info
         .pointer("/generation_policy")
         .and_then(serde_json::Value::as_str)
         .unwrap();
-    assert!(generation_policy.contains("inactive"));
+    assert!(generation_policy.contains("active"));
+    assert!(generation_policy.contains("no live controller/registry evidence resolver"));
     assert!(generation_policy.contains("candidate authority remains unresolved"));
     let legacy_policy = info
         .pointer("/legacy_policy")
@@ -362,7 +361,7 @@ async fn http_surface_is_bounded_and_rejects_private_replication() {
 }
 
 #[tokio::test]
-async fn http_reports_all_neutral_branches_as_candidate_unresolved_while_inactive() {
+async fn http_keeps_neutral_branches_unresolved_without_live_registry_evidence() {
     let temporary = tempfile::tempdir().unwrap();
     let node = Node::new(NodeStore::open(temporary.path()).unwrap(), Vec::new()).unwrap();
     let (address, task) = spawn_node(node).await;
@@ -435,7 +434,8 @@ async fn http_reports_all_neutral_branches_as_candidate_unresolved_while_inactiv
             .and_then(serde_json::Value::as_str)
             .unwrap();
         assert!(detail.contains("neutrally valid"));
-        assert!(detail.contains("no active release-authorized contract generation"));
+        assert!(detail
+            .contains("does not resolve live generation 0.8.0 controller or registry evidence"));
     }
 
     let shot: serde_json::Value = client
@@ -717,7 +717,7 @@ async fn sync_accepts_a_retired_descriptor_but_revalidates_every_record_locally(
         .detail
         .as_deref()
         .unwrap()
-        .contains("no active release-authorized contract generation"));
+        .contains("does not resolve live generation 0.8.0 controller or registry evidence"));
     task.abort();
 }
 

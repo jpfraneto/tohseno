@@ -31,23 +31,32 @@ evolves the same project and installs the new version on your phone.
 You need a Mac running macOS 13 or later, Xcode, an iPhone, and an authenticated
 Codex or Claude Code installation.
 
+The complete factory is free during a private trial that starts after iPhone
+setup. The trial ends at the first of five successful distinct days or seven
+calendar days. If you complete five successful days, you may choose Pro at
+$9.99/month or $99/year to keep creating and evolving apps. If the trial ends,
+your source, installed apps, Git repositories, and accepted history remain
+yours; only new factory work locks. TOHSENO Pro does not include or require a
+paid Apple Developer Program membership.
+
 ```bash
 npm i -g tohseno
-tohseno
 ```
 
-The first run guides you through connecting the phone, Apple development
-signing, installing the TOHSENO Companion, and pairing it securely with your
-Mac. It does not require `sudo`.
+The install opens first run automatically and guides you through connecting the
+phone, Apple development signing, installing the TOHSENO Companion, and pairing
+it securely with your Mac. It does not require `sudo`. If you install with
+npm's lifecycle scripts disabled, run `tohseno` once afterward.
 
 Then make something deliberately small:
 
 ```bash
-tohseno create water-walk
+tohseno create
 ```
 
-TOHSENO opens Studio. Describe the app, optionally attach reference images,
-and send the intention. The work continues in the local service if you close
+TOHSENO opens Studio. Describe the app, optionally name it and attach reference
+images, and send the intention. If the name is blank, the implementation model
+chooses one from the app's purpose. The work continues in the local service if you close
 the browser or Terminal. When the app is ready, TOHSENO installs and launches
 it on the connected iPhone.
 
@@ -62,10 +71,16 @@ app.
 
 ## Where your work lives
 
-Apps are visible folders under `~/Desktop/Tohseno`, with one Git repository per
-app. Private factory state, execution records, and pairing data live under
+Apps are visible folders under `~/Desktop/Tohseno`, with one initialized Git
+repository and first commit per app. Private factory state, execution records, and pairing data live under
 `~/.tohseno`. The installed service listens only on the Mac's loopback
 interface.
+
+Each app's `.tohseno/` directory is durable app-local metadata, not a cache and
+not blanket-gitignored. Safe identity and integrity views may travel with the
+repository. Exact intentions, inline-private lineage, references, feedback,
+execution records, logs, and `.tohseno/private/` remain explicitly ignored;
+publishing a Git repository is never allowed to silently publish them.
 
 The iPhone Companion is a remote control for the factory on your Mac. It can
 send create and evolve intentions and receive encrypted status updates. It
@@ -77,7 +92,7 @@ is used, it carries signed encrypted envelopes that the relay cannot read.
 The interactive path is the default, and the same operations are scriptable:
 
 ```bash
-tohseno create my-app --prompt "An app that..."
+tohseno create --prompt "An app that..."
 tohseno create my-app --prompt-file intention.md --wait
 tohseno evolve my-app --prompt "Make the first-run screen clearer" --wait
 tohseno studio
@@ -123,8 +138,10 @@ swift test --package-path companion/apple/TohsenoCompanion
 (cd website && bun run typecheck && bun test)
 ```
 
-The complete verification matrix is in [`AGENTS.md`](AGENTS.md). The current
-stable release is **1.0.0**, available through npm and the public installer.
+The complete verification matrix is in [`AGENTS.md`](AGENTS.md). Release 1.0.2
+is prepared as one coherent native and npm version; publishing its signed
+native artifacts, public manifest, npm package, and website remains an
+explicit owner release action.
 
 More detail:
 
@@ -132,6 +149,7 @@ More detail:
 - [App → Intent → App decision](docs/adr/0016-app-intent-app-on-your-iphone.md)
 - [Bounded build lifecycle](docs/adr/0019-bounded-intent-to-usable-app.md)
 - [Cable setup, trial, and npm front door](docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md)
+- [One-command npm installation](docs/adr/0021-npm-install-enters-first-run.md)
 - [Privacy boundary](docs/PRIVACY.md)
 - [Threat model](docs/THREAT_MODEL.md)
 - [Protocol specification](protocol/SPECIFICATION.md)

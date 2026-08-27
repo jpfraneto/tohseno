@@ -47,7 +47,8 @@ struct Cli {
 enum Command {
     /// Describe an app. TOHSENO makes it and puts it on your iPhone.
     Create {
-        app_name: String,
+        /// Optional technical name. When omitted, the implementation model names the app from its purpose.
+        app_name: Option<String>,
         /// Supply the exact creation intention inline.
         #[arg(long, value_name = "TEXT")]
         prompt: Option<String>,
@@ -576,7 +577,7 @@ async fn dispatch(
             prompt_file,
             images,
             wait,
-        } => factory_create(&app_name, prompt, prompt_file, images, wait, json, bus).await?,
+        } => factory_create(app_name, prompt, prompt_file, images, wait, json, bus).await?,
         Command::Evolve {
             app_name,
             prompt,
@@ -929,7 +930,7 @@ async fn dispatch(
 
 #[allow(clippy::too_many_arguments)]
 async fn factory_create(
-    app_name: &str,
+    app_name: Option<String>,
     prompt: Option<String>,
     prompt_file: Option<PathBuf>,
     images: Vec<PathBuf>,
@@ -937,7 +938,10 @@ async fn factory_create(
     json_output: bool,
     bus: &EventBus,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let name = normalize_cli_app_name(app_name)?;
+    let name = app_name
+        .as_deref()
+        .map(normalize_cli_app_name)
+        .transpose()?;
     if images.len() > 8 {
         return Err("at most eight reference images are accepted".into());
     }
@@ -949,16 +953,21 @@ async fn factory_create(
         CreationIntention::Exact(intention) => intention,
         CreationIntention::Composer { prefill } => {
             let pending = prefill.as_deref().map(stage_local_intention).transpose()?;
-            let route = match pending.flatten() {
-                Some(pending_id) => format!("/create?name={name}&pending={pending_id}"),
-                None => format!("/create?name={name}"),
+            let route = match (name.as_deref(), pending.flatten()) {
+                (Some(name), Some(pending_id)) => {
+                    format!("/create?name={name}&pending={pending_id}")
+                }
+                (None, Some(pending_id)) => format!("/create?pending={pending_id}"),
+                (Some(name), None) => format!("/create?name={name}"),
+                (None, None) => "/create".into(),
             };
             service
                 .open_studio(&route)
                 .map_err(|error| error.to_string())?;
-            bus.emit(Event::result(format!(
-                "Describe {name}, then press Create App."
-            )));
+            bus.emit(Event::result(match name.as_deref() {
+                Some(name) => format!("Describe {name}, then press Create App."),
+                None => "Describe your app, then press Create App. TOHSENO will name it.".into(),
+            }));
             return Ok(());
         }
     };
@@ -1000,13 +1009,43 @@ async fn factory_create(
         .and_then(Value::as_str)
         .ok_or("Local Workspace Service returned no Shot ID")?;
     let completion = if wait {
+        if !json_output {
+            bus.emit(Event::result(admission_message(name.as_deref(), false)));
+        }
+        let mut previous_state = None;
         Some(
             service
-                .wait_for_execution(execution_id)
+                .wait_for_execution_with_updates(execution_id, |status| {
+                    if json_output {
+                        return;
+                    }
+                    let state = status.get("state").and_then(Value::as_str);
+                    if state != previous_state.as_deref() {
+                        if let Some(message) = progress_message(status) {
+                            bus.emit(Event::status(message));
+                        }
+                        previous_state = state.map(str::to_owned);
+                    }
+                })
                 .await
                 .map_err(|error| error.to_string())?,
         )
     } else {
+        if !json_output {
+            let queued = service
+                .execution_status(execution_id)
+                .await
+                .ok()
+                .and_then(|status| {
+                    status
+                        .get("state")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .as_deref()
+                == Some("queued");
+            bus.emit(Event::result(admission_message(name.as_deref(), queued)));
+        }
         None
     };
     if json_output {
@@ -1021,11 +1060,12 @@ async fn factory_create(
         };
         println!("{}", serde_json::to_string(&output)?);
     } else {
-        bus.emit(Event::result(if completion.is_some() {
-            format!("{name} is on your iPhone.")
-        } else {
-            format!("Building {name}. TOHSENO installs it on your iPhone when it is ready.")
-        }));
+        if completion.is_some() {
+            bus.emit(Event::result(match name.as_deref() {
+                Some(name) => format!("{name} is on your iPhone."),
+                None => "Your app is on your iPhone.".into(),
+            }));
+        }
         if io::stdout().is_terminal() {
             let _ = service.open_studio(&format!("/shots/{shot_id}"));
         }
@@ -1138,13 +1178,43 @@ async fn factory_evolve(
         .and_then(Value::as_str)
         .ok_or("Local Workspace Service returned no execution ID")?;
     let completion = if wait {
+        if !json_output {
+            bus.emit(Event::result(admission_message(Some(&name), false)));
+        }
+        let mut previous_state = None;
         Some(
             service
-                .wait_for_execution(execution_id)
+                .wait_for_execution_with_updates(execution_id, |status| {
+                    if json_output {
+                        return;
+                    }
+                    let state = status.get("state").and_then(Value::as_str);
+                    if state != previous_state.as_deref() {
+                        if let Some(message) = progress_message(status) {
+                            bus.emit(Event::status(message));
+                        }
+                        previous_state = state.map(str::to_owned);
+                    }
+                })
                 .await
                 .map_err(|error| error.to_string())?,
         )
     } else {
+        if !json_output {
+            let queued = service
+                .execution_status(execution_id)
+                .await
+                .ok()
+                .and_then(|status| {
+                    status
+                        .get("state")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .as_deref()
+                == Some("queued");
+            bus.emit(Event::result(admission_message(Some(&name), queued)));
+        }
         None
     };
     if json_output {
@@ -1159,16 +1229,55 @@ async fn factory_evolve(
         };
         println!("{}", serde_json::to_string(&output)?);
     } else {
-        bus.emit(Event::result(if completion.is_some() {
-            format!("{name} is on your iPhone.")
-        } else {
-            format!("Evolving {name}. TOHSENO installs the update on your iPhone when it is ready.")
-        }));
+        if completion.is_some() {
+            bus.emit(Event::result(format!("{name} is on your iPhone.")));
+        }
         if io::stdout().is_terminal() {
             let _ = service.open_studio(&format!("/shots/{shot_id}"));
         }
     }
     Ok(())
+}
+
+fn admission_message(name: Option<&str>, queued: bool) -> String {
+    let app = name.unwrap_or("your app");
+    let state = if queued {
+        "is waiting for this Mac to finish another app"
+    } else {
+        "was received and will start automatically"
+    };
+    format!("Got it — {app} {state}. You can close this Terminal; TOHSENO keeps working.")
+}
+
+fn progress_message(status: &Value) -> Option<String> {
+    let state = status.get("state")?.as_str()?;
+    let label = match state {
+        "queued" => "Waiting to start",
+        "planning" | "materializing" => "Making the app",
+        "building" | "testing" | "verifying" | "repairing" => "Checking the app",
+        "installing" | "launching" => "Putting it on your iPhone",
+        "waiting_for_device" => "Ready — connect and unlock your iPhone",
+        "accepted" => "Installed",
+        "failed" => "Stopped before installation",
+        "cancelled" => "Cancelled",
+        _ => return None,
+    };
+    let elapsed = status
+        .get("elapsed_seconds")
+        .and_then(Value::as_u64)
+        .map(format_elapsed)
+        .unwrap_or_else(|| "just now".into());
+    Some(format!("{label} · {elapsed} elapsed"))
+}
+
+fn format_elapsed(seconds: u64) -> String {
+    let minutes = seconds / 60;
+    let seconds = seconds % 60;
+    if minutes == 0 {
+        format!("{seconds}s")
+    } else {
+        format!("{minutes}m {seconds:02}s")
+    }
 }
 
 fn recording_record(
@@ -2180,6 +2289,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn normal_cli_admission_and_progress_are_truthful_and_plain() {
+        assert!(admission_message(Some("pocket-sip"), true)
+            .contains("waiting for this Mac to finish another app"));
+        assert!(admission_message(None, false).contains("You can close this Terminal"));
+        assert_eq!(
+            progress_message(&json!({"state":"queued","elapsed_seconds":4})).unwrap(),
+            "Waiting to start · 4s elapsed"
+        );
+        assert_eq!(
+            progress_message(&json!({"state":"materializing","elapsed_seconds":65})).unwrap(),
+            "Making the app · 1m 05s elapsed"
+        );
+        assert_eq!(
+            progress_message(&json!({"state":"waiting_for_device","elapsed_seconds":125})).unwrap(),
+            "Ready — connect and unlock your iPhone · 2m 05s elapsed"
+        );
+        for message in [
+            admission_message(None, false),
+            progress_message(&json!({"state":"building","elapsed_seconds":65})).unwrap(),
+        ] {
+            for internal in ["Shot", "Expression", "Version", "execution", "harness"] {
+                assert!(!message.contains(internal), "{message}");
+            }
+        }
+    }
+
+    #[test]
     fn cli_app_names_are_case_insensitive_without_sanitizing_unsafe_names() {
         assert_eq!(normalize_cli_app_name("THYSY").unwrap(), "thysy");
         assert!(normalize_cli_app_name("../THYSY").is_err());
@@ -2461,13 +2597,28 @@ mod tests {
         assert!(matches!(
             create.command,
             Command::Create {
-                app_name,
+                app_name: Some(app_name),
                 prompt: Some(prompt),
                 images,
                 ..
             } if app_name == "field-notebook"
                 && prompt == "Make a field notebook."
                 && images == [PathBuf::from("/tmp/reference.png")]
+        ));
+        let unnamed = Cli::try_parse_from([
+            "tohseno",
+            "create",
+            "--prompt",
+            "Keep a private log of the trails I hike.",
+        ])
+        .unwrap();
+        assert!(matches!(
+            unnamed.command,
+            Command::Create {
+                app_name: None,
+                prompt: Some(_),
+                ..
+            }
         ));
 
         let evolve = Cli::try_parse_from([

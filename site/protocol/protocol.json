@@ -1,7 +1,7 @@
 {
   "schema": "tohseno.protocol-page/2",
   "protocol": "tohseno",
-  "protocol_status": "pre-1.0, not canonical",
+  "protocol_status": "normative repository protocol with frozen versioned compatibility formats",
   "claim": "TOHSENO gives coherent human intentions persistent computational identity and lets them become and evolve as verifiable expressions.",
   "lineage_schema": "tohseno.lineage-action/2",
   "legacy_apple_record_schema": "tohseno.shot/1",
@@ -10,11 +10,13 @@
   "base_token_association_chain_id": 8453,
   "token_association_required": false,
   "token_association_is_identity": false,
-  "canonical": false,
+  "canonical": true,
   "contract_generation_definition": "0.8.0",
   "active_contract_generation": "0.8.0",
   "contracts_deployed": true,
   "protocol_page_deployed": false,
-  "stable_release": "v0.8.2",
+  "native_stable_release": "v1.0.0",
+  "npm_bootstrap_release": "1.0.1",
+  "registry_product_ready": false,
   "v0_7_contract_generation_retired": true
 }

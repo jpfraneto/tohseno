@@ -34,6 +34,10 @@ describe("terminal command surface", () => {
       kind: "create",
       argument: "my-app",
     });
+    expect(resolveCommand("tohseno create")).toEqual({
+      kind: "create",
+      argument: "",
+    });
     expect(resolveCommand("  TOHSENO   CREATE   my-app  ")).toEqual({
       kind: "create",
       argument: "my-app",
@@ -127,7 +131,7 @@ describe("terminal command surface", () => {
 
   test("every advertised command resolves to something real", () => {
     for (const command of COMMANDS) {
-      const resolved = resolveCommand(command.usage.replace("<name>", "x"));
+      const resolved = resolveCommand(command.usage.replace("[name]", "x"));
       expect(resolved.kind).not.toBe("unknown");
     }
     for (const link of LINK_COMMANDS) {

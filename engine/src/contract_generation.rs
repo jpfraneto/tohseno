@@ -67,7 +67,7 @@ impl ResolvedContractGeneration {
     }
 
     pub fn inactive_reason(&self) -> &'static str {
-        "the 0.8.0 candidate is deployed inactive on Robinhood Chain, and this build embeds no trusted release-authority root or signed chain activation"
+        "this build embeds no trusted release-authority root or signed activation, so it cannot trust the deployed generation 0.8.0 contracts"
     }
 }
 
@@ -285,9 +285,7 @@ mod tests {
         assert!(!resolved.allows_new_builder_identity());
         assert!(!resolved.allows_public_signing());
         assert!(resolved.inactive_reason().contains("no trusted"));
-        assert!(resolved
-            .inactive_reason()
-            .contains("signed chain activation"));
+        assert!(resolved.inactive_reason().contains("signed activation"));
     }
 
     #[test]

@@ -330,7 +330,7 @@ fn late_public_parent_promotes_an_unanchored_segment_deterministically() {
         .detail
         .as_deref()
         .unwrap()
-        .contains("no active release-authorized contract generation"));
+        .contains("does not resolve live generation 0.8.0 controller or registry evidence"));
     assert!(promoted.validation.authority_context_available);
     assert_eq!(promoted.validation.missing_parent, None);
 
@@ -340,10 +340,13 @@ fn late_public_parent_promotes_an_unanchored_segment_deterministically() {
 }
 
 #[test]
-fn complete_neutral_lineage_stays_candidate_unresolved_without_an_active_generation() {
+fn complete_neutral_lineage_stays_unresolved_without_live_controller_evidence() {
     let temporary = tempfile::tempdir().unwrap();
     let store = NodeStore::open(temporary.path()).unwrap();
-    assert_eq!(store.info().unwrap().active_generation, None);
+    assert_eq!(
+        store.info().unwrap().active_generation.as_deref(),
+        Some("0.8.0")
+    );
     let original_owner = TestKey::new(19);
     let next_owner = TestKey::new(20);
     let shot_id = ShotId::from_bytes([0x4d; 32]);
@@ -389,7 +392,8 @@ fn complete_neutral_lineage_stays_candidate_unresolved_without_an_active_generat
         assert_eq!(outcome.validation.missing_parent, None);
         let detail = outcome.validation.detail.unwrap();
         assert!(detail.contains("neutrally valid"));
-        assert!(detail.contains("no active release-authorized contract generation"));
+        assert!(detail
+            .contains("does not resolve live generation 0.8.0 controller or registry evidence"));
     }
 
     let shot = store.shot(shot_id).unwrap().shot;
@@ -518,7 +522,7 @@ fn unauthorized_unanchored_segment_is_retained_but_never_gains_authority() {
 }
 
 #[test]
-fn inactive_generation_preserves_a_neutral_self_declared_builder_as_unresolved() {
+fn active_generation_preserves_a_neutral_self_declared_builder_as_unresolved() {
     let temporary = tempfile::tempdir().unwrap();
     let store = NodeStore::open(temporary.path()).unwrap();
     let key = TestKey::new(14);
@@ -558,7 +562,7 @@ fn inactive_generation_preserves_a_neutral_self_declared_builder_as_unresolved()
         .detail
         .as_deref()
         .unwrap()
-        .contains("no active release-authorized contract generation"));
+        .contains("does not resolve live generation 0.8.0 controller or registry evidence"));
     assert_eq!(store.health().unwrap().stored_actions, 1);
 }
 
@@ -635,7 +639,10 @@ fn ingest_cli_preserves_one_eligible_evidence_record_without_promoting_authority
         Some("unresolved")
     );
     let reopened = NodeStore::open(node_root.path()).unwrap();
-    assert_eq!(reopened.info().unwrap().active_generation, None);
+    assert_eq!(
+        reopened.info().unwrap().active_generation.as_deref(),
+        Some("0.8.0")
+    );
     assert_eq!(reopened.health().unwrap().stored_actions, 1);
     let shot_id = action.action.shot_id;
     let view = reopened.shot(shot_id).unwrap();

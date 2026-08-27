@@ -10,7 +10,14 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0020 governs cable
+2. **`docs/adr/`** — accepted architectural decisions. ADR 0024 governs the
+   app-local `.tohseno/` Git boundary: the directory is integral and never
+   blanket-ignored, while exact private and transient paths remain ignored.
+   ADR 0022 governs
+   optional app naming: a supplied name is authoritative; when omitted, local
+   machinery reserves a technical slug and the one existing implementation
+   model chooses the user-facing product name from the intent. ADR 0021 governs
+   the one-command npm-install-to-first-run transition. ADR 0020 governs cable
    genesis, the private successful-day/entitlement authority, earned Pro,
    hosted billing receipts, and the dependency-free npm front door. ADR 0019 governs the
    bounded intent-to-usable-app transition: one implementation harness, at
@@ -24,7 +31,10 @@ protocol material, not free-form docs.
    thin projections. ADR 0015 governs the persistent local factory and private
    companion boundary beneath it while preserving ADR 0014's recording format.
    ADR 0006 governs the successor (0.8) contract generation and public-witness
-   design.
+   design. Generation 0.8.0 is deployed and is the current client-trusted
+   active generation under `release/contract-activations/`; activation does
+   not imply that secure Builder creation, registry RPC, receipts, source
+   hosting, catalog discovery, or download are implemented.
 
    ADR 0016 is a deletion decision as much as an addition: the Studio dashboard,
    its execution-pipeline renderer, its Feedback/Marketing forms, and its

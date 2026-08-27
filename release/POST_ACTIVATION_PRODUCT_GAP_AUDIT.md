@@ -1,7 +1,12 @@
 # Post-activation product lifecycle gap audit
 
-Status: preparatory implementation audit; not protocol authority, activation,
+Status: current implementation-gap audit; not protocol authority, activation,
 publication evidence, or permission to change a frozen format.
+
+Current-state note (2026-08-26): the release-authority policy, signed
+activation, and engine resolver exist, and the node reports generation 0.8.0
+while leaving controller authority unresolved. The remaining publication,
+receipt, source catalog, discovery, and feedback gaps below are current.
 
 This audit answers whether deploying and threshold-activating generation 0.8.0
 would, by itself, make the requested creation → evolution → publication →
@@ -23,28 +28,18 @@ surfaces are intentionally absent under current accepted decisions.
   accepts a session-only user API key and explicit recipient, previews HTTPS
   images, simulates first, and requires single-use confirmation.
 
-## Gap 1 — no activated-generation resolver
+## Completed gap 1 — activated-generation resolver
 
-`engine/src/contract_generation.rs` has only the `Inactive` state. It embeds the
-0.8.0 definition, sets both the trusted policy digest and signed activation head
-to `None`, and returns `false` from both public-authority gates. There is no
-release-manifest loader that pins an owner-approved policy, verifies a signed
-activation chain, checks canonical on-chain evidence, and resolves an active
-generation.
+`engine/src/contract_generation.rs` embeds the owner-approved policy digest,
+verifies the committed policy and threshold-signed activation, and resolves
+generation 0.8.0 as active. CLI protocol status and node information now report
+that active generation. Invalid, partial, untrusted, or mismatched trust roots
+remain fail-closed in the resolver tests.
 
-The same absence is projected deliberately:
-
-- CLI protocol status reports `active_generation: null`;
-- Studio reports publication disabled and has no registry RPC/relayer path;
-- generated public pages report no active generation; and
-- nodes report `active_generation: null`.
-
-Required work after an accepted trust-root decision: define the immutable
-release-manifest location and update path, verify the complete activation chain
-under the pinned digest, bind canonical target-chain evidence, expose explicit
-active/inactive resolution, and keep every failure mode fail-closed. Tests must
-prove that build definitions, deployments, untrusted policies and otherwise
-valid activations under the wrong policy never activate clients.
+This completion establishes the client trust root only. Studio still exposes no
+registry RPC/relayer path, and the node does not yet resolve live controller,
+receipt, or public-checkpoint evidence. Those limitations belong to the
+remaining gaps below and must not be described as an inactive generation.
 
 ## Gap 2 — app metadata `/3` and successor Apple Fascia do not exist
 
@@ -118,22 +113,24 @@ become Shot identity, ownership or a registry relationship until a separate
 closed ancestry-free public relation format is accepted. A token launch cannot
 stand in for publication, discovery, active generation or controller proof.
 
-## Required product sequence
+## Remaining product sequence
 
-1. Recover and complete both audits; disposition every finding.
-2. Establish the owner-approved release trust root.
-3. Authorize and perform the exact inactive deployment.
-4. Complete the real-time production canary and threshold activation.
-5. Accept an additive `/3` publication-receipt and successor-Fascia design.
-6. Implement and test activated-generation resolution and public transaction
-   orchestration.
-7. Implement receipt-aware node inventory and prove two-node discovery.
-8. Define and implement bounded remote feedback, then prove owner-controlled
+The deployment, owner-approved trust root, threshold-signed activation, and
+client resolver are complete. The activation record also preserves the fact
+that the owner waived the prescribed live canary; it does not retroactively
+claim that test or an independent human/formal audit occurred.
+
+1. Accept an additive `/3` publication-receipt and successor-Fascia design.
+2. Implement secure Builder creation plus public transaction orchestration.
+3. Implement content-addressed source hosting, receipt-aware node inventory,
+   catalog discovery, and prove two-node discovery/download.
+4. Define and implement bounded remote feedback, then prove owner-controlled
    acceptance into a later Evolution.
-9. Exercise the optional Bankr lifecycle without conflating it with any prior
+5. Exercise the optional Bankr lifecycle without conflating it with any prior
    step.
 
-Until these gaps close, the private creation/evolution lifecycle is real, the
-contract generation is an inactive definition, the node is a neutral lineage
-replicator, and Bankr is an optional private Shot relationship. No narrower
-test or deployment fact proves the complete public lifecycle.
+Until these gaps close, the private creation/evolution lifecycle is real,
+generation 0.8.0 is active, the node is a neutral lineage replicator without
+registry receipts, and Bankr is an optional private Shot relationship. No
+narrower test, deployment, or activation fact proves the complete public
+lifecycle.

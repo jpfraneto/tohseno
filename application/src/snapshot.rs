@@ -336,7 +336,7 @@ fn latest_execution(
         .unwrap_or_default();
         let observed_at = now();
         let (started_at, updated_at, elapsed_seconds) =
-            execution_timing(&execution.prepared_at, &events, &observed_at);
+            execution_timing(&execution.prepared_at, &events, &observed_at, active);
         let state_transition = if active {
             None
         } else {
@@ -375,6 +375,7 @@ fn execution_timing(
     prepared_at: &str,
     events: &[ShotExecutionEvent],
     observed_at: &str,
+    active: bool,
 ) -> (String, String, u64) {
     let started_at = events
         .first()
@@ -384,7 +385,10 @@ fn execution_timing(
         .last()
         .map(|event| event.timestamp.clone())
         .unwrap_or_else(|| prepared_at.to_owned());
-    let elapsed = elapsed_seconds_between(&started_at, observed_at);
+    // A completed execution is a historical fact. Its elapsed time ends at
+    // its last durable event and must not grow every time Studio refreshes.
+    let elapsed_until = if active { observed_at } else { &updated_at };
+    let elapsed = elapsed_seconds_between(&started_at, elapsed_until);
     (started_at, updated_at, elapsed)
 }
 
@@ -583,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn total_elapsed_uses_the_first_durable_event_across_repair_attempts() {
+    fn active_total_elapsed_uses_the_observation_across_repair_attempts() {
         let event = |sequence, phase: ExecutionPhase, timestamp: &str| ShotExecutionEvent {
             schema: "tohseno.local-shot-execution-event/1".into(),
             sequence,
@@ -602,11 +606,48 @@ mod tests {
             event(2, ExecutionPhase::Materializing, "2026-08-21T04:39:00Z"),
             event(3, ExecutionPhase::Repairing, "2026-08-21T10:39:00Z"),
         ];
-        let (started_at, updated_at, elapsed) =
-            execution_timing("2026-08-21T04:38:00Z", &events, "2026-08-21T10:50:00Z");
+        let (started_at, updated_at, elapsed) = execution_timing(
+            "2026-08-21T04:38:00Z",
+            &events,
+            "2026-08-21T10:50:00Z",
+            true,
+        );
         assert_eq!(started_at, "2026-08-21T04:38:00Z");
         assert_eq!(updated_at, "2026-08-21T10:39:00Z");
         assert_eq!(elapsed, 6 * 3_600 + 12 * 60);
+    }
+
+    #[test]
+    fn terminal_total_elapsed_freezes_at_the_last_durable_event() {
+        let event = |sequence, phase: ExecutionPhase, timestamp: &str| ShotExecutionEvent {
+            schema: "tohseno.local-shot-execution-event/1".into(),
+            sequence,
+            event: phase.event_name().into(),
+            execution_id: "execution_fixture".into(),
+            shot_id: tohseno_protocol::digest::ShotId::from_bytes([0x61; 32]),
+            version_ordinal: 1,
+            harness: "fixture".into(),
+            model: "fixture".into(),
+            timestamp: timestamp.into(),
+            phase,
+            report: "fixture".into(),
+        };
+        let events = vec![
+            event(1, ExecutionPhase::Prepared, "2026-08-21T04:38:00Z"),
+            event(
+                2,
+                ExecutionPhase::ExecutionCompleted,
+                "2026-08-21T04:53:24Z",
+            ),
+        ];
+        let (_, updated_at, elapsed) = execution_timing(
+            "2026-08-21T04:38:00Z",
+            &events,
+            "2026-08-27T10:50:00Z",
+            false,
+        );
+        assert_eq!(updated_at, "2026-08-21T04:53:24Z");
+        assert_eq!(elapsed, 15 * 60 + 24);
     }
 
     #[test]

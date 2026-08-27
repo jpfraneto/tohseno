@@ -251,7 +251,7 @@ pub fn share_workshop(
         .cloned()
         .ok_or_else(|| {
             WorkshopError::Invalid(
-                "workshop sharing requires a reviewed top-level LICENSE or COPYING file in the accepted source"
+                "before publishing, choose and review a source license. Add it as a top-level LICENSE or COPYING file, evolve the app so that license becomes part of an accepted version, then run this command again"
                     .into(),
             )
         })?;

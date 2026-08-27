@@ -1,4 +1,4 @@
-//! Private product entitlement state for TOHSENO 1.0.0.
+//! Private product entitlement state for TOHSENO 1.0.2.
 //!
 //! This is deliberately not protocol state. It lives beside the Local
 //! Workspace Service command journal and contains no intention, app name,

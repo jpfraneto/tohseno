@@ -21,14 +21,17 @@ A creation adapter should use this order:
 1. Resolve contract-generation authority before creating identity material.
    If no client-trusted activation exists, fail secure BuilderID creation
    before invoking a key helper or writing identity state. Current generation
-   0.8.0 is inactive. An explicit software-test backend may create only a
-   visibly test-only, local/private frozen-v0.7 identity; it can never
-   authorize a public action.
+   0.8.0 is active under the pinned release-authority policy and signed
+   activation, but this release still has no secure BuilderAccount creation
+   workflow. An explicit software-test backend may create only a visibly
+   test-only, local/private frozen-v0.7 identity; it can never authorize a
+   public action.
 2. For an existing private v0.7 artifact, load and verify its exact frozen
-   descriptor and initial DeviceKey. For a future activated generation,
+   descriptor and initial DeviceKey. For the active successor generation,
    acquire its local Builder DeviceKey without exporting it and derive the
-   BuilderID only under that generation's verified identity law. Never
-   substitute a v0.7 predicted address for inactive successor authority.
+   BuilderID only through the still-to-be-implemented secure identity workflow
+   under that generation's verified law. Never substitute a v0.7 predicted
+   address or test-only identity for successor authority.
 3. Generate a random 32-byte ShotID for a new Shot.
 4. Hash exact raw prompt and reference-image inputs with
    `genesis_input_sha256_from_bytes`.
@@ -204,7 +207,12 @@ Do not interpret a generation definition or predicted address as activation.
 Identity creation and public mutation must remain disabled until a separate
 trusted release policy resolves a signed activation record against observed
 target-chain code, activation block, and fresh EIP-7951 deploy-gate evidence.
-No such activation or trust root is committed for generation 0.8.0.
+Generation 0.8.0 now has that client-trusted activation. Implementations must
+verify the pinned policy and complete signed activation envelope under
+`release/contract-activations/`; copying its addresses or labeling the build
+"active" is not verification. Secure Builder creation, registry mutation, RPC
+state resolution, and receipt verification remain disabled until their
+separate product workflows are implemented.
 
 For a supplied activation, verify the exact generation definition first, then
 the domain-separated activation digest, predecessor/sequence, observed
@@ -258,10 +266,11 @@ v0.7 factory, salt, creation bytecode, and declared key; derive the salt with
 domain-separated law. Do not apply that compatibility rule to successor public
 authority. A new public commitment additionally requires a client-trusted
 activated generation and controller evidence matching that generation. The
-neutral reducer intentionally cannot infer deployment or activation evidence,
-and no generation is active today. After an Ownership action, require the new
-signer for every subsequent transition; the old signer fails even if its
-signature is cryptographically valid.
+neutral reducer intentionally cannot infer deployment or activation evidence;
+the current generation 0.8.0 activation must be supplied by client policy and
+matching live controller evidence is still required. After an Ownership
+action, require the new signer for every subsequent transition; the old signer
+fails even if its signature is cryptographically valid.
 
 Persist raw intention bytes separately when they are private. The canonical
 Intention record commits their exact digest, length, media type, and honest

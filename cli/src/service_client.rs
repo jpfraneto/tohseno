@@ -144,13 +144,28 @@ impl ServiceClient {
         decode(response).await
     }
 
+    #[cfg(test)]
     pub async fn wait_for_execution(&self, execution_id: &str) -> Result<Value, BoxError> {
+        self.wait_for_execution_with_updates(execution_id, |_| {})
+            .await
+    }
+
+    pub async fn execution_status(&self, execution_id: &str) -> Result<Value, BoxError> {
+        self.get(&format!("/api/v1/executions/{execution_id}"))
+            .await
+    }
+
+    pub async fn wait_for_execution_with_updates<F>(
+        &self,
+        execution_id: &str,
+        mut update: F,
+    ) -> Result<Value, BoxError>
+    where
+        F: FnMut(&Value),
+    {
         let mut consecutive_transport_errors = 0_u8;
         loop {
-            let value: Value = match self
-                .get(&format!("/api/v1/executions/{execution_id}"))
-                .await
-            {
+            let value: Value = match self.execution_status(execution_id).await {
                 Ok(value) => {
                     consecutive_transport_errors = 0;
                     value
@@ -166,6 +181,7 @@ impl ServiceClient {
                 }
                 Err(error) => return Err(error),
             };
+            update(&value);
             if value.get("complete").and_then(Value::as_bool) == Some(true) {
                 if value.get("accepted").and_then(Value::as_bool) == Some(true) {
                     return Ok(value);

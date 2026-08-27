@@ -3,6 +3,11 @@
 Status: proposed operational design; not an accepted trust root and not
 deployment authority.
 
+Current-state note (2026-08-26): the owner later approved the concrete policy
+and generation 0.8.0 was activated. The authoritative evidence is in
+`release/contract-activations/`; proposed and pre-activation language below is
+historical and grants no authority to repeat the ceremony.
+
 This runbook applies the closed records in `protocol/` and ADR 0006. If it ever
 disagrees with either source, the protocol and accepted ADR win. No private key,
 mnemonic, seed, keystore, recovery phrase, or password belongs in this

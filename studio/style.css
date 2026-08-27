@@ -119,6 +119,11 @@ body {
   scrollbar-gutter: stable;
 }
 
+.shell[data-view="compose"] .compose-view,
+.shell[data-view="compose"] .preview-panel {
+  overflow: hidden;
+}
+
 .gate-view {
   min-height: 68vh;
   margin: 0 auto;
@@ -367,6 +372,13 @@ h2 {
 
 /* ---------------------------------------------------------------- composer */
 
+#compose-form {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .app-name-field,
 .app-name-heading {
   display: block;
@@ -399,6 +411,7 @@ h2 {
 }
 
 #compose-intent {
+  flex: 1 1 auto;
   width: 100%;
   min-height: 190px;
   padding: 16px;
@@ -409,7 +422,7 @@ h2 {
   font: inherit;
   font-size: 16px;
   line-height: 1.6;
-  resize: vertical;
+  resize: none;
 }
 
 #compose-intent:focus {
@@ -421,8 +434,41 @@ h2 {
   color: var(--silver);
 }
 
-.attachments {
+.compose-options {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
   margin-top: 16px;
+}
+
+.attachments {
+  min-width: 0;
+}
+
+.factory-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ash);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.factory-field select {
+  max-width: 260px;
+  padding: 8px 30px 8px 11px;
+  border: 1px solid var(--iron);
+  border-radius: 9px;
+  background: var(--carbon);
+  color: var(--silver);
+  font: inherit;
+}
+
+.factory-field select:focus-visible {
+  outline: 1px solid var(--orange);
+  outline-offset: 1px;
 }
 
 .add-images {
@@ -473,6 +519,7 @@ h2 {
 }
 
 .submit-row {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -555,6 +602,8 @@ h2 {
 .preview-panel {
   min-width: 0;
   padding-right: 6px;
+  display: flex;
+  flex-direction: column;
 }
 
 .preview-heading-row {
@@ -581,7 +630,8 @@ h2 {
 }
 
 .phone-frame {
-  width: min(100%, 340px);
+  flex: none;
+  width: min(100%, 340px, calc((100dvh - 205px) * 0.461538));
   margin: 0 auto;
   padding: 9px;
   border: 1px solid #3c3c38;
@@ -939,7 +989,7 @@ h2 {
   }
 
   .phone-frame {
-    width: min(100%, 300px);
+    width: min(100%, 300px, calc((100dvh - 205px) * 0.461538));
   }
 }
 
@@ -972,6 +1022,14 @@ h2 {
     max-width: 640px;
     height: auto !important;
     overflow: visible !important;
+  }
+
+  #compose-form {
+    height: auto;
+  }
+
+  .compose-options {
+    flex-direction: column;
   }
 
   .app-grid {

@@ -55,7 +55,7 @@ const STATE_GLYPHS = Object.freeze({
 const MODES = Object.freeze({
   command: {
     sigil: "$",
-    placeholder: "tohseno create my-app-name",
+    placeholder: "tohseno create [optional-name]",
     hint: "Describe your app, attach images, and experience it on your phone. Type help for commands",
   },
   compose: {
@@ -333,6 +333,18 @@ function openLink(name) {
 }
 
 function beginComposition(requested) {
+  if (!requested.trim()) {
+    openComposer(DEFAULT_APP_NAME, "");
+    gap();
+    say("  what should it do?", "accent");
+    say("  leave naming to TOHSENO, or provide a name after create.", "muted");
+    say("  be exact. the first version is built from these words alone.", "muted");
+    say("  drop a .md file to fill this in. images too — up to eight.", "muted");
+    gap();
+    setMode("compose");
+    saveDraft();
+    return;
+  }
   const name = sanitizeAppName(requested);
   const problem = appNameProblem(name);
   if (problem) {
@@ -411,7 +423,7 @@ async function run(rawLine) {
       return;
     case "bare":
       gap();
-      say("  tohseno create <name>, or help.", "muted");
+      say("  tohseno create [name], or help.", "muted");
       return;
     case "empty":
       return;

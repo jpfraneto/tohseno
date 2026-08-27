@@ -13,7 +13,7 @@ async function fetchAllowlisted(url, allowedOrigins) {
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const response = await fetch(current, {
       redirect: "manual",
-      headers: { "user-agent": "tohseno-npm/1.0.0" },
+      headers: { "user-agent": "tohseno-npm/1.0.2" },
     });
     if (!REDIRECT_STATUSES.has(response.status)) return response;
     if (redirects === MAX_REDIRECTS) throw new Error("release download has too many redirects");

@@ -39,7 +39,7 @@ pub fn protocol_command(
                     info.product_version
                 )));
                 bus.emit(Event::status(format!(
-                    "contract generation {} is definition-only and inactive · no public authority.",
+                    "contract generation {} is active · public registry workflows are not implemented.",
                     info.contract_generation.generation
                 )));
             }
@@ -367,12 +367,12 @@ pub fn build_page(
 }
 
 pub fn network_status(json: bool, bus: &EventBus) -> Result<(), Box<dyn std::error::Error>> {
-    let status = inactive_network_status()?;
+    let status = current_network_status()?;
     if json {
         print_json(&status)?;
     } else {
         bus.emit(Event::result(format!(
-            "contract generation {} is committed but inactive.",
+            "contract generation {} is active, but the public registry path is not ready.",
             status.contract_generation.generation
         )));
         bus.emit(Event::status(status.reason));
@@ -424,7 +424,7 @@ fn public_workflow_reason(generation: &ResolvedContractGeneration) -> &'static s
     }
 }
 
-fn inactive_network_status() -> Result<NetworkStatus, Box<dyn std::error::Error>> {
+fn current_network_status() -> Result<NetworkStatus, Box<dyn std::error::Error>> {
     let generation = resolve_current_contract_generation()?;
     Ok(NetworkStatus {
         schema: "tohseno.network-status/2",
@@ -1001,7 +1001,7 @@ impl ContractGenerationSummary {
             chain_id: resolved.definition.chain.chain_id,
             conditional_create2: ConditionalCreate2Coordinates {
                 condition:
-                    "only if the exact declared init code is deployed by the declared CREATE2 deployer and later authorized by a signed activation",
+                    "definition-derived coordinates; current authority comes separately from verified deployment evidence and the signed activation",
                 deployer: resolved.definition.create2.deployer.to_string(),
                 builder_account_factory: resolved
                     .definition
@@ -1213,7 +1213,7 @@ mod tests {
 
     #[test]
     fn network_status_is_active_but_still_offline_without_the_registry_workflow() {
-        let status = serde_json::to_value(inactive_network_status().unwrap()).unwrap();
+        let status = serde_json::to_value(current_network_status().unwrap()).unwrap();
         assert_eq!(status["schema"], "tohseno.network-status/2");
         assert_eq!(status["rpc_checked"], false);
         assert_eq!(status["ready"], false);

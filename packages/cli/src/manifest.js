@@ -1,6 +1,7 @@
 import {
   ARTIFACT_ORIGINS,
   MAX_ARTIFACT_BYTES,
+  PRODUCT_VERSION,
   RELEASE_LAYOUT,
 } from "./constants.js";
 import { compareVersions, parseVersion } from "./semver.js";
@@ -45,6 +46,11 @@ export function validateManifest(value, npmVersion, architecture) {
     throw new Error("release manifest schema is unsupported");
   }
   parseVersion(value.native_release_version);
+  if (value.native_release_version !== PRODUCT_VERSION) {
+    throw new Error(
+      `tohseno@${npmVersion} requires native TOHSENO ${PRODUCT_VERSION}; the public manifest is not coherent yet`,
+    );
+  }
   parseVersion(value.minimum_npm_cli_version);
   if (compareVersions(npmVersion, value.minimum_npm_cli_version) < 0) {
     throw new Error("this npm TOHSENO is too old for the authorized native release");

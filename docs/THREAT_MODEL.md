@@ -396,7 +396,8 @@ Controls:
 - BuilderAccount device epochs, permissions, revocation, and recovery nonces;
 - visibly test-only software keys cannot authorize a public action; their
   legacy v0.7 identity escape hatch is local-only;
-- no secure BuilderID is created for the inactive 0.8.0 generation;
+- generation 0.8.0 is active, but secure BuilderID creation remains
+  unimplemented and fails closed;
 - no CLI rotation claim until the complete proof chain is verifiable.
 
 Recovery can restore authority; it cannot retract already valid historical
@@ -414,8 +415,8 @@ Controls:
 - schema, signature, payload, segment, and availability validation before
   storage;
 - unresolved authority and missing parents are explicit; no branch is promoted
-  into active-generation authority while the node reports
-  `active_generation: null`;
+  into active-generation authority merely because the node reports
+  `active_generation: "0.8.0"`; live controller evidence is still required;
 - public/replicable availability required for peer ingest;
 - explicit partial histories and missing-artifact lists;
 - bounded request, action, response, and file sizes;
@@ -475,13 +476,13 @@ Controls:
 - EIP-712 domain and live chain ID binding;
 - immutable generation definitions bind code hashes and conditional CREATE2
   arithmetic without claiming deployment;
-- a future activation must bind target-chain runtime, canonical block,
+- the current activation binds target-chain runtime, canonical block,
   transaction evidence, and a fresh complete EIP-7951 probe;
 - build definition, signed activation, and client-trusted release policy are
   distinct;
 - the current engine rejects a non-null `tohseno.app-metadata/2` registry
-  claim while no generation is active; its shipped bare coordinates remain
-  compatibility data, not a receipt;
+  claim even though generation 0.8.0 is active; its shipped bare coordinates
+  remain compatibility data, not a receipt;
 - receipt, runtime, transaction-envelope, and post-state verification;
 - no invented or undocumented production address.
 

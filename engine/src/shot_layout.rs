@@ -30,19 +30,13 @@ pub const VERSIONS_DIRECTORY: &str = "versions";
 pub const LINEAGE_FILE: &str = "lineage.jsonl";
 pub const PORTABLE_MANIFEST_FILE: &str = "shot-bundle.json";
 
-const SHOT_README: &str = r#"# TOHSENO Shot
+const SHOT_README: &str = r#"# Your iPhone app
 
-This directory is a local body of one persistent Shot. The Shot is not this folder, repository, app, or any token; those are expressions or associations that may change while its signed identity continues.
+This is an ordinary SwiftUI and Xcode project. Open the `.xcodeproj` file in Xcode to read, build, or continue developing it without TOHSENO.
 
-- `INTENTION.md` preserves the human's exact original material.
-- `GENOME.md` is the deterministic human view of the currently accepted operational constraints.
-- `EVOLUTIONARY_INTENT.md` is the private working surface for the next proposed change.
-- `.tohseno/lineage.jsonl` is the signed append-only history; `.tohseno/shot.json` is only its rebuildable local head.
-- `versions/` records immutable accepted expression states.
-- `feedback/versions/` binds private experience to an exact ExpressionID and VersionID.
-- Application source is one expression of this Shot and embeds its protocol identity when materialized.
+TOHSENO keeps the app's durable identity and integrity context in `.tohseno/`. Safe metadata can travel with this Git repository. Your exact requests, reference images, feedback, build logs, and other private working material are excluded by the managed `.gitignore` rules.
 
-Intention, Genome, evolutionary intent, feedback, Version projections, signed lineage, derived `.tohseno/` protocol views, and `.tohseno/private/` working material are private by default and excluded from ordinary source publication. Use TOHSENO's explicit verified export flow when sharing reviewed records.
+Before publishing this app, review every tracked file and choose a source license. TOHSENO's reviewed publication flow will never treat a recursive repository upload as permission to publish private material.
 "#;
 
 const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
@@ -74,14 +68,10 @@ versions/
 .tohseno/EVOLUTION_INTENT.md
 .tohseno/executions/
 .tohseno/lineage.jsonl
-.tohseno/shot.json
 .tohseno/intention.json
 .tohseno/genome.json
-.tohseno/expression.json
 .tohseno/ownership.json
-.tohseno/capabilities.lock
 .tohseno/verification.json
-.tohseno/protocol-version
 .tohseno/import.json
 .tohseno/feedback/
 .tohseno/private/
@@ -4408,18 +4398,22 @@ mod tests {
         );
         assert_eq!(fs::read(root.join(INTENTION_DOCUMENT)).unwrap(), input);
         let readme = fs::read_to_string(root.join("README.md")).unwrap();
-        assert!(readme.contains("The Shot is not this folder"));
-        assert!(readme.contains(".tohseno/lineage.jsonl"));
+        assert!(readme.contains("ordinary SwiftUI and Xcode project"));
+        assert!(readme.contains("review every tracked file"));
+        assert!(!readme.contains("ExpressionID"));
         layout.preserve_exact_intention(input).unwrap();
         assert!(layout.preserve_exact_intention(b"rewritten").is_err());
         let ignore = fs::read_to_string(root.join(".gitignore")).unwrap();
         assert!(ignore.contains("INTENTION.md"));
         assert!(ignore.contains("GENOME.md"));
         assert!(ignore.contains("versions/"));
-        assert!(ignore.contains(".tohseno/shot.json"));
+        assert!(!ignore.contains(".tohseno/\n"));
+        assert!(!ignore.contains(".tohseno/shot.json"));
         assert!(ignore.contains(".tohseno/genome.json"));
-        assert!(ignore.contains(".tohseno/expression.json"));
-        assert!(ignore.contains(".tohseno/capabilities.lock"));
+        assert!(!ignore.contains(".tohseno/expression.json"));
+        assert!(!ignore.contains(".tohseno/capabilities.lock"));
+        assert!(!ignore.contains(".tohseno/protocol-version"));
+        assert!(ignore.contains(".tohseno/lineage.jsonl"));
         assert!(ignore.contains(".tohseno/private/"));
         #[cfg(unix)]
         {
@@ -4453,7 +4447,8 @@ mod tests {
         assert!(upgraded_ignore.contains("build/"));
         assert!(upgraded_ignore.contains("custom/"));
         assert!(upgraded_ignore.contains("GENOME.md"));
-        assert!(upgraded_ignore.contains(".tohseno/capabilities.lock"));
+        assert!(!upgraded_ignore.contains(".tohseno/capabilities.lock"));
+        assert!(upgraded_ignore.contains(".tohseno/lineage.jsonl"));
     }
 
     #[test]

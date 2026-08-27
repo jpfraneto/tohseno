@@ -13,6 +13,8 @@ import { downloadArtifact, fetchBounded } from "./download.js";
 import { nodeArchitecture, validateManifest } from "./manifest.js";
 import { installRoot } from "./native.js";
 
+const INSTALL_MARKER = "tohseno-stable-install-v2\n";
+
 async function realDirectory(directory, mode = 0o700) {
   try {
     const metadata = await lstat(directory);
@@ -33,6 +35,26 @@ async function replaceableFile(pathname, allowSymlink = false) {
   }
 }
 
+export async function ensureInstallerMarker(root = installRoot()) {
+  await realDirectory(root);
+  const marker = path.join(root, ".tohseno-install-root");
+  await replaceableFile(marker);
+  const markerStage = path.join(root, `.install-marker-${randomBytes(12).toString("hex")}`);
+  await writeFile(markerStage, INSTALL_MARKER, { flag: "wx", mode: 0o600 });
+  await rename(markerStage, marker);
+  const legacy = path.join(root, ".installer-managed");
+  try {
+    const metadata = await lstat(legacy);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 128
+      || await readFile(legacy, "utf8") !== INSTALL_MARKER) {
+      throw new Error("legacy installer marker is unsafe or unrecognized");
+    }
+    await rm(legacy);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+
 async function safeHome() {
   const home = os.homedir();
   if (!path.isAbsolute(home)) throw new Error("the Mac home directory is not absolute");
@@ -45,11 +67,21 @@ async function safeHome() {
   return home;
 }
 
-function verifyAppleSignature(binary, signing) {
+export function verifyAppleSignature(binary, signing, spawn = spawnSync) {
   if (signing.kind !== "apple-developer-id") return;
-  const verified = spawnSync("/usr/bin/codesign", ["--verify", "--deep", "--strict", "-R", signing.designated_requirement, binary], { encoding: "utf8" });
+  // codesign interprets a bare -R argument as a path to a requirements file.
+  // The leading `=` is required when the manifest supplies the requirement
+  // expression inline.
+  const verified = spawn("/usr/bin/codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    "--test-requirement",
+    `=${signing.designated_requirement}`,
+    binary,
+  ], { encoding: "utf8" });
   if (verified.status !== 0) throw new Error("native Apple signature verification failed");
-  const details = spawnSync("/usr/bin/codesign", ["-dv", "--verbose=4", binary], { encoding: "utf8" });
+  const details = spawn("/usr/bin/codesign", ["-dv", "--verbose=4", binary], { encoding: "utf8" });
   if (details.status !== 0 || !details.stderr.includes(`TeamIdentifier=${signing.team_id}`)) {
     throw new Error("native Apple signing Team ID differs from the release manifest");
   }
@@ -130,7 +162,7 @@ export async function installAuthorizedNative() {
     await writeFile(launcherStage, LAUNCHER, { flag: "wx", mode: 0o755 });
     await chmod(launcherStage, 0o755);
     await rename(launcherStage, path.join(binaries, "tohseno"));
-    await writeFile(path.join(root, ".installer-managed"), "tohseno-stable-install-v2\n", { mode: 0o600 });
+    await ensureInstallerMarker(root);
     return { version: manifest.native_release_version, launcher: path.join(binaries, "tohseno") };
   } finally {
     await rm(temporary, { recursive: true, force: true });

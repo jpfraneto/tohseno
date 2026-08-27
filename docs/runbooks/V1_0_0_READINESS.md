@@ -1,8 +1,11 @@
 # TOHSENO 1.0.0 readiness and owner actions
 
-Repository source targets native 1.0.0 and npm bootstrap 1.0.0. It does not
-authorize or claim a Git tag, GitHub release, release manifest, npm publication,
-billing, relay/APNs, DNS, public installer repin, or contract action.
+This is the historical readiness runbook for native 1.0.0. Native 1.0.0, its
+Git tag, GitHub release, release manifest, and public installer pin are live.
+The separately versioned npm bootstrap is now 1.0.1 and still installs native
+1.0.0. Its observed publication facts are recorded in
+`release/NPM_1_0_1_PUBLICATION.json`. This runbook does not authorize another
+publication, billing, relay/APNs, DNS, installer repin, or contract action.
 
 ## Automated source gates
 
@@ -28,9 +31,13 @@ state and run:
 TOHSENO_INSTALL_ROOT="$(mktemp -d)/install" \
 TOHSENO_LAUNCH_AGENTS_DIR="$(mktemp -d)/launch-agents" \
 TOHSENO_DEVELOPMENT_SERVICE=1 \
-TOHSENO_COMPANION_RELAY_ORIGIN=https://companion.tohseno.com \
 cargo run --locked -p tohseno --
 ```
+
+The native service uses the Companion's fixed official relay by default and
+checks its health before starting Xcode. Debug builds may override the origin
+with an exact loopback relay for isolated verification; release builds reject
+non-official origins.
 
 Then follow exactly the one instruction Studio presents: connect the cable,
 Trust, enable Developer Mode, add the intended Apple Account in Xcode, and
@@ -52,7 +59,8 @@ membership.
 - Build native archives from one clean captured commit with `scripts/release.sh`.
 - Create and independently verify `native-v1.json` at the fixed official URL.
 - Complete `BILLING_1_0_0.md` only if billing is being activated.
-- Complete `NPM_1_0_0.md` manually; do not change a live dist-tag automatically.
+- For a future npm patch, create a version-specific publication record and do
+  not change a live dist-tag automatically.
 - Do not activate the production Companion Relay/APNs until its separate
   claim-capable immutable release and installer pin are independently verified.
 - Do not deploy contracts or add a deployment ceremony on `main`.

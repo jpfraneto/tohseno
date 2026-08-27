@@ -6,10 +6,11 @@ evidence. It is a library and a small HTTP/CLI process. It depends directly on
 `../protocol`; it does not define another lineage action or a publication
 authority.
 
-No release-authorized contract generation is active. That fact is
-load-bearing: a node may verify ordinary signed lineage neutrally, but it
-cannot promote any record to public candidate authority. Predicted v0.7
-addresses are retired offline verification inputs, not deployments,
+Contract generation 0.8.0 is release-authorized and active in the current
+client. This node revision does not resolve live BuilderAccount controller
+state, registry actions, public checkpoints, or receipts, so it still cannot
+promote an ordinary lineage record to public candidate authority. Predicted
+v0.7 addresses are retired offline verification inputs, not deployments,
 activations, or authority.
 
 ## What nodes agree on
@@ -39,7 +40,8 @@ exposed. When predecessors arrive, the derived index is deterministically
 rebuilt:
 
 - a fully reducible prefix becomes neutrally `verified` while candidate
-  authority remains `unresolved` because no generation is active;
+  authority remains `unresolved` because the node lacks matching live
+  generation 0.8.0 controller evidence;
 - a cryptographically valid action by an unauthorized signer becomes
   authority `rejected`;
 - a newly exposed adjacency violation becomes segment `rejected`.
@@ -47,8 +49,8 @@ rebuilt:
 The frozen v0.7 CREATE2 helper can reproduce the BuilderID carried by a private
 legacy artifact. It is never called by node classification and can never
 produce candidate-authority `verified`. A neutrally valid self-declared
-controller is preserved as `unresolved`, not rejected merely because no active
-generation can recognize it.
+controller is preserved as `unresolved`, not rejected merely because this node
+cannot yet resolve it against the active generation.
 
 Append-only bytes are never rewritten during promotion or rejection. A
 retained rejected observation remains retrievable by digest, but it is not an
@@ -68,12 +70,12 @@ A node does not judge whether an intention is metaphysically coherent. It does
 not turn a local or private record public, infer artifact availability,
 transfer ownership, or make an on-chain anchor contain off-chain bytes.
 
-`/v1/node` reports `active_generation: null`. Its generation policy says
-candidate authority is unavailable until a release-authorized activation is
-independently verified. Its legacy policy says v0.7 prediction is offline-only
-and ordinary signed lineage is neutral legacy evidence. The descriptor does
-not advertise the retired ShotRelations surface or any predicted address as a
-current contract configuration.
+`/v1/node` reports `active_generation: "0.8.0"`. Its generation policy also
+says candidate authority remains unresolved because live controller/registry
+evidence is not implemented in this node. Its legacy policy says v0.7
+prediction is offline-only and ordinary signed lineage is neutral legacy
+evidence. The descriptor does not advertise the retired ShotRelations surface
+or any predicted address as a current contract configuration.
 
 The protocol now defines an ancestry-free public checkpoint suitable for the
 narrow registry head. This node revision does not yet inventory checkpoint
@@ -184,7 +186,7 @@ is a derived transport view and is never signed back into lineage.
 `POST /v1/actions` accepts the closed signed lineage JSON directly, revalidates
 it locally, and preserves eligible bytes as neutral or legacy evidence. A
 successful response is not a publication receipt and never promotes candidate
-authority while `/v1/node` reports `active_generation: null`. There is no
+authority merely because `/v1/node` reports `active_generation: "0.8.0"`. There is no
 caller-selected peer URL on `POST /v1/sync`, which avoids turning the node into
 an SSRF proxy.
 

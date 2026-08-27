@@ -24,7 +24,8 @@ pub const MAX_ACTIONS_PER_SHOT: usize = 10_000;
 const MAX_IDENTITY_BYTES: usize = 4096;
 const IDENTITY_SCHEMA: &str = "tohseno.node-identity/1";
 const MAX_INTEGRITY_PARENT_FINDINGS: usize = 1024;
-const GENERATION_POLICY: &str = "inactive: public candidate authority remains unresolved until a release-authorized contract generation is activated and independently verified";
+const ACTIVE_GENERATION: &str = "0.8.0";
+const GENERATION_POLICY: &str = "generation 0.8.0 is release-authorized and active, but this node revision has no live controller/registry evidence resolver, so ordinary-lineage candidate authority remains unresolved";
 const LEGACY_POLICY: &str = "v0.7 CREATE2 prediction is a retired offline-verification helper only; generic signed lineage remains neutral legacy evidence and can never establish active public candidate authority";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -234,12 +235,12 @@ impl NodeStore {
             supported_schema_versions: vec![LINEAGE_SCHEMA_VERSION],
             stored_actions: index.actions.len(),
             indexed_shots: index.shots.len(),
-            active_generation: None,
+            active_generation: Some(ACTIVE_GENERATION.into()),
             generation_policy: GENERATION_POLICY,
             legacy_policy: LEGACY_POLICY,
             agreement: "deterministic signed-record, available-segment, and neutral reducer validity for locally possessed ordinary lineage",
             non_agreement:
-                "no active contract generation, public candidate authority, public-checkpoint inventory, universal head, artifact completeness, subjective coherence, or global consensus",
+                "no resolved public candidate authority, registry receipt or public-checkpoint inventory, universal head, artifact completeness, subjective coherence, or global consensus",
         })
     }
 
@@ -426,7 +427,7 @@ impl NodeStore {
         }
 
         match reduce_lineage(&branch) {
-            Ok(_) => inactive_generation_validation(segment.authority_context_available),
+            Ok(_) => unresolved_public_authority_validation(segment.authority_context_available),
             Err(error) => ActionValidation {
                 signed_record: SignedRecordStatus::Verified,
                 segment: SegmentStatus::Verified,
@@ -454,7 +455,7 @@ impl NodeStore {
     }
 }
 
-fn inactive_generation_validation(authority_context_available: bool) -> ActionValidation {
+fn unresolved_public_authority_validation(authority_context_available: bool) -> ActionValidation {
     ActionValidation {
         signed_record: SignedRecordStatus::Verified,
         segment: SegmentStatus::Verified,
@@ -463,7 +464,7 @@ fn inactive_generation_validation(authority_context_available: bool) -> ActionVa
         authority_context_available,
         missing_parent: None,
         detail: Some(
-            "complete lineage is neutrally valid, but candidate authority is unresolved because this node has no active release-authorized contract generation; retired v0.7 CREATE2 predictions are offline evidence only"
+            "complete lineage is neutrally valid, but candidate authority is unresolved because this node does not resolve live generation 0.8.0 controller or registry evidence; retired v0.7 CREATE2 predictions are offline evidence only"
                 .into(),
         ),
     }

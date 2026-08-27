@@ -1,6 +1,13 @@
 # Contract generation 0.8.0 migration
 
-Status: build definition committed; inactive and undeployed
+Status: historical migration design; generation 0.8.0 was later deployed and
+activated, while the public product workflows remain incomplete
+
+Current-state note (2026-08-26): inactive/undeployed statements below describe
+the migration boundary when this document was written. Current activation
+authority is in `protocol/SPECIFICATION.md` and
+`release/contract-activations/`. Frozen v0.7 retirement and the rule that
+app-metadata `/2` is not a publication receipt remain unchanged.
 
 The successor contracts are a clean generation, not an in-place upgrade. No
 TOHSENO contract was deployed from v0.7, and no hardware-backed v0.7 BuilderID

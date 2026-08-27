@@ -30,7 +30,9 @@ use tohseno_application::{
     ApplicationError, CommandJournal, CommandOrigin, CreateShotCommand, EntitlementStore,
     EvolveShotCommand, JournalError, ReferenceInput, ShotApplicationService, SubscriptionPlan,
 };
-use tohseno_engine::shot_execution::{load_completion, load_execution};
+use tohseno_engine::shot_execution::{
+    elapsed_seconds_between, load_completion, load_execution, read_events,
+};
 use tohseno_engine::{
     Engine, Event, EventBus, ExecutionPhase, LocalPendingIntention, PendingIntentionStore,
     ShotLayout,
@@ -39,8 +41,10 @@ use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
 use uuid::Uuid;
 
 use crate::cable_genesis::{
-    build_and_install_companion, launch_companion_bootstrap, project as project_genesis,
-    CableGenesisStore, CableGenesisView, CompanionInstallState, GenesisObservation,
+    build_and_install_companion_with_progress, device_digest, launch_companion_bootstrap,
+    project as project_genesis, CableGenesisStore, CableGenesisView, CompanionInstallState,
+    GenesisObservation, COMPANION_BUILD_FAILURE, COMPANION_INSTALL_FAILURE,
+    COMPANION_LAUNCH_FAILURE, COMPANION_PAIRING_FAILURE,
 };
 use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
 use crate::service_commands::ServicePaths;
@@ -207,7 +211,12 @@ struct CreateRequest {
     command_id: String,
     #[serde(default)]
     origin: ApiOrigin,
-    name: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    harness: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
     intention: String,
     #[serde(default)]
     pending_intention_id: Option<String>,
@@ -300,6 +309,11 @@ pub async fn run_with(
         entitlement.grant_development_at(OffsetDateTime::now_utc())?;
     }
     let genesis = CableGenesisStore::open(&paths.service_state)?;
+    if genesis.recover_interrupted_install()? {
+        events.emit(Event::status(
+            "An interrupted iPhone setup is ready to continue.",
+        ));
+    }
     let application = ShotApplicationService::new(
         engine,
         journal,
@@ -796,6 +810,11 @@ async fn genesis_action(
                 .acknowledge_unobservable_trust_guidance()
                 .map_err(ApiError::internal)?;
         }
+        // This action deliberately records nothing. It gives an explicit
+        // human acknowledgement a fresh projection of the machine-observed
+        // cable state without allowing the browser to claim that a device is
+        // present.
+        "check" => {}
         "open_app_store" => {
             let status = std::process::Command::new("open")
                 .arg("macappstore://itunes.apple.com/app/id497799835")
@@ -814,12 +833,24 @@ async fn genesis_action(
                 return Err(ApiError::internal("Xcode could not be opened"));
             }
         }
-        "install_companion" => {
+        "install_companion" | "retry_companion" => {
             let view = current_genesis_view(&state)?;
-            if view.step != crate::cable_genesis::GenesisStep::InstallCompanion {
+            if view.step != crate::cable_genesis::GenesisStep::InstallCompanion
+                || view.primary_action != Some(action.as_str())
+            {
                 return Err(ApiError::conflict(
                     "genesis_not_ready",
                     "complete the current iPhone setup action first",
+                ));
+            }
+            let relay = state.companion.relay_health().await.map_err(|_| {
+                ApiError::unavailable(
+                    "TOHSENO’s private iPhone connection is unavailable. Try again shortly.",
+                )
+            })?;
+            if !relay.is_some_and(|health| health.ready) {
+                return Err(ApiError::unavailable(
+                    "TOHSENO’s private iPhone connection is unavailable. Try again shortly.",
                 ));
             }
             let device = match tohseno_engine::gates::device::check().map_err(ApiError::internal)? {
@@ -831,6 +862,29 @@ async fn genesis_action(
                     ))
                 }
             };
+            if action == "retry_companion" {
+                let record = state.genesis.load().map_err(ApiError::internal)?;
+                if record.intended_device_digest.as_deref()
+                    != Some(device_digest(&device.identifier).as_str())
+                {
+                    return Err(ApiError::conflict(
+                        "iphone_changed",
+                        "connect the same iPhone that received TOHSENO",
+                    ));
+                }
+                state
+                    .genesis
+                    .set_install_state(CompanionInstallState::Launching, None, None, None)
+                    .map_err(ApiError::internal)?;
+                tokio::spawn(pair_and_launch_companion(
+                    state.genesis.clone(),
+                    state.companion.clone(),
+                    state.service_root.clone(),
+                    state.events.clone(),
+                    device,
+                ));
+                return current_genesis_view(&state).map(Json);
+            }
             let team_id = match tohseno_engine::gates::apple_signing::check() {
                 tohseno_engine::gates::apple_signing::AppleSigningState::Ready {
                     team_id, ..
@@ -860,70 +914,48 @@ async fn genesis_action(
                 let build_device = device.clone();
                 let build_project = project.clone();
                 let build_root = service_root.clone();
+                let install_genesis = genesis.clone();
+                let install_events = events.clone();
                 let built = tokio::task::spawn_blocking(move || {
-                    build_and_install_companion(
+                    build_and_install_companion_with_progress(
                         &build_project,
                         &build_root,
                         &build_device,
                         &team_id,
+                        move || {
+                            install_genesis.set_install_state(
+                                CompanionInstallState::Installing,
+                                None,
+                                None,
+                                None,
+                            )?;
+                            install_events.emit(Event::status(
+                                "Companion build verified; installing on the iPhone.",
+                            ));
+                            Ok(())
+                        },
                     )
                 })
                 .await;
                 if !matches!(built, Ok(Ok(()))) {
+                    let failed_during_install = genesis.load().is_ok_and(|record| {
+                        record.companion_install == CompanionInstallState::Installing
+                    });
+                    let message = if failed_during_install {
+                        COMPANION_INSTALL_FAILURE
+                    } else {
+                        COMPANION_BUILD_FAILURE
+                    };
                     let _ = genesis.set_install_state(
                         CompanionInstallState::Failed,
                         None,
                         None,
-                        Some("The Companion build, signing, or installation did not complete."),
+                        Some(message),
                     );
-                    events.emit(Event::status("Companion installation stopped safely."));
+                    events.emit(Event::status(message));
                     return;
                 }
-                let session = match companion.create_pairing_session().await {
-                    Ok(session) => session,
-                    Err(_) => {
-                        let _ = genesis.set_install_state(
-                            CompanionInstallState::Failed,
-                            None,
-                            None,
-                            Some("The private Companion connection is not configured yet."),
-                        );
-                        events.emit(Event::status(
-                            "Companion pairing configuration is unavailable.",
-                        ));
-                        return;
-                    }
-                };
-                let _ = genesis.set_install_state(
-                    CompanionInstallState::Launching,
-                    None,
-                    Some(&session.session_id),
-                    None,
-                );
-                let launch_device = device;
-                let launch_root = service_root;
-                let invitation = session.pairing_uri;
-                let launched = tokio::task::spawn_blocking(move || {
-                    launch_companion_bootstrap(&launch_root, &launch_device, &invitation)
-                })
-                .await;
-                if matches!(launched, Ok(Ok(()))) {
-                    let _ = genesis.set_install_state(
-                        CompanionInstallState::WaitingForPairing,
-                        None,
-                        None,
-                        None,
-                    );
-                    events.emit(Event::status("Companion is waiting for private pairing."));
-                } else {
-                    let _ = genesis.set_install_state(
-                        CompanionInstallState::Failed,
-                        None,
-                        None,
-                        Some("The Companion was installed but did not launch."),
-                    );
-                    events.emit(Event::status("Companion launch stopped safely."));
-                }
+                pair_and_launch_companion(genesis, companion, service_root, events, device).await;
             });
         }
         _ => {
@@ -934,6 +966,97 @@ async fn genesis_action(
         }
     }
     current_genesis_view(&state).map(Json)
+}
+
+async fn pair_and_launch_companion(
+    genesis: CableGenesisStore,
+    companion: Arc<CompanionCoordinator>,
+    service_root: PathBuf,
+    events: EventBus,
+    device: tohseno_engine::gates::device::Device,
+) {
+    let session = match companion.create_pairing_session().await {
+        Ok(session) => session,
+        Err(_) => {
+            let _ = genesis.set_install_state(
+                CompanionInstallState::Failed,
+                None,
+                None,
+                Some(COMPANION_PAIRING_FAILURE),
+            );
+            events.emit(Event::status(COMPANION_PAIRING_FAILURE));
+            return;
+        }
+    };
+    let session_id = session.session_id.clone();
+    let expires_at = session.expires_at.clone();
+    let _ = genesis.set_install_state(
+        CompanionInstallState::Launching,
+        None,
+        Some(&session_id),
+        None,
+    );
+    events.emit(Event::status(
+        "Companion installed; opening it on the iPhone.",
+    ));
+    let invitation = session.pairing_uri;
+    let launched = tokio::task::spawn_blocking(move || {
+        launch_companion_bootstrap(&service_root, &device, &invitation)
+    })
+    .await;
+    if matches!(launched, Ok(Ok(()))) {
+        let _ =
+            genesis.set_install_state(CompanionInstallState::WaitingForPairing, None, None, None);
+        events.emit(Event::status("Companion is waiting for private pairing."));
+        wait_for_companion_pairing(genesis, companion, events, session_id, expires_at).await;
+    } else {
+        let _ = genesis.set_install_state(
+            CompanionInstallState::Failed,
+            None,
+            None,
+            Some(COMPANION_LAUNCH_FAILURE),
+        );
+        events.emit(Event::status("Companion launch stopped safely."));
+    }
+}
+
+async fn wait_for_companion_pairing(
+    genesis: CableGenesisStore,
+    companion: Arc<CompanionCoordinator>,
+    events: EventBus,
+    session_id: String,
+    expires_at: String,
+) {
+    let Ok(expires_at) = OffsetDateTime::parse(&expires_at, &Rfc3339) else {
+        return;
+    };
+    loop {
+        if companion
+            .devices()
+            .is_ok_and(|devices| devices.iter().any(|device| !device.revoked))
+        {
+            return;
+        }
+        let Ok(record) = genesis.load() else {
+            return;
+        };
+        if record.companion_install != CompanionInstallState::WaitingForPairing
+            || record.pairing_session_id.as_deref() != Some(session_id.as_str())
+        {
+            return;
+        }
+        if OffsetDateTime::now_utc() > expires_at {
+            let _ = genesis.set_install_state(
+                CompanionInstallState::Failed,
+                None,
+                None,
+                Some(COMPANION_PAIRING_FAILURE),
+            );
+            events.emit(Event::status(COMPANION_PAIRING_FAILURE));
+            return;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }
 
 async fn shots(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
@@ -1078,7 +1201,28 @@ async fn create_shot(
     Json(request): Json<CreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
     validate_text("intention", &request.intention, MAX_INTENTION_BYTES)?;
-    let name = normalize_name(&request.name)?;
+    let harness_selection = match (request.harness.as_deref(), request.model.as_deref()) {
+        (Some(harness), model) => Some(
+            state
+                .application
+                .harness_selection(harness, model.unwrap_or("default"))
+                .map_err(ApiError::application)?,
+        ),
+        (None, Some(_)) => {
+            return Err(ApiError::bad(
+                "invalid_harness_selection",
+                "a model can only be selected with its coding harness",
+            ));
+        }
+        (None, None) => None,
+    };
+    let (name, name_was_supplied) = match request.name.as_deref().map(str::trim) {
+        Some(value) if !value.is_empty() => (normalize_name(value)?, true),
+        _ => (
+            derive_technical_name(&request.intention, state.application.engine().ledger())?,
+            false,
+        ),
+    };
     let references = decode_references(request.references)?;
     let pending = match request.pending_intention_id.as_deref() {
         Some(pending_id) => {
@@ -1103,9 +1247,11 @@ async fn create_shot(
             origin: request.origin.command_origin(),
             origin_device_id: None,
             name,
+            name_was_supplied,
             intention: request.intention,
             references,
             submitted_at: None,
+            harness_selection,
         })
         .await
         .map_err(ApiError::application)?;
@@ -1191,15 +1337,36 @@ async fn execution(
             continue;
         };
         let completion = load_completion(&repository, &execution_id).map_err(ApiError::internal)?;
+        // Publishing a completion record and advancing the durable execution
+        // phase are two atomic writes. Never expose the narrow interval between
+        // them as completion: callers using --wait must observe the terminal
+        // phase, not merely the first of those writes.
+        let terminal = execution_is_terminal(record.phase);
+        let events = read_events(&repository, &execution_id).unwrap_or_default();
+        let started_at = events
+            .first()
+            .map(|event| event.timestamp.as_str())
+            .unwrap_or(record.prepared_at.as_str());
+        let updated_at = events
+            .last()
+            .map(|event| event.timestamp.as_str())
+            .unwrap_or(record.prepared_at.as_str());
+        let elapsed_until = if terminal && completion.is_some() {
+            updated_at.to_owned()
+        } else {
+            now()
+        };
         return Ok(Json(json!({
             "schema": "tohseno.local-execution-status/1",
             "execution_id": record.execution_id,
             "shot_id": record.shot_id,
             "version_ordinal": record.version_ordinal,
             "state": privacy_safe_phase(record.phase),
-            "updated_at": record.prepared_at,
-            "complete": completion.is_some(),
-            "accepted": completion.as_ref().is_some_and(|value| {
+            "started_at": started_at,
+            "updated_at": updated_at,
+            "elapsed_seconds": elapsed_seconds_between(started_at, &elapsed_until),
+            "complete": terminal && completion.is_some(),
+            "accepted": terminal && completion.as_ref().is_some_and(|value| {
                 value.landed && value.outcome == tohseno_engine::ExecutionOutcome::Completed
             }),
         })));
@@ -1517,8 +1684,40 @@ fn pending_reference_origin(pending_id: &str, ordinal: usize) -> String {
 }
 
 fn suggest_pending_name(prompt: &str, ledger: &tohseno_engine::Ledger) -> Result<String, ApiError> {
+    derive_technical_name(prompt, ledger)
+}
+
+fn derive_technical_name(
+    prompt: &str,
+    ledger: &tohseno_engine::Ledger,
+) -> Result<String, ApiError> {
     const STOP: &[&str] = &[
-        "a", "an", "the", "app", "that", "for", "to", "and", "of", "my", "with", "only", "every",
+        "a",
+        "an",
+        "and",
+        "app",
+        "application",
+        "build",
+        "create",
+        "every",
+        "for",
+        "i",
+        "iphone",
+        "make",
+        "me",
+        "my",
+        "native",
+        "need",
+        "of",
+        "on",
+        "only",
+        "please",
+        "simple",
+        "that",
+        "the",
+        "to",
+        "want",
+        "with",
     ];
     let mut words = prompt
         .split(|character: char| !character.is_ascii_alphanumeric())
@@ -1541,11 +1740,28 @@ fn suggest_pending_name(prompt: &str, ledger: &tohseno_engine::Ledger) -> Result
         .into_iter()
         .map(|app| app.name)
         .collect::<std::collections::BTreeSet<_>>();
-    if !existing.contains(&base) {
+    if !existing.contains(&base) && tohseno_engine::ledger::validate_app_name(&base).is_ok() {
         return Ok(base);
     }
     let digest = tohseno_protocol::digest::sha256(prompt.as_bytes()).to_hex();
-    Ok(format!("{}-{}", base.trim_end_matches('-'), &digest[2..8]))
+    for suffix in std::iter::once(digest[2..8].to_owned())
+        .chain((2..=999).map(|ordinal| format!("{}-{ordinal}", &digest[2..8])))
+    {
+        let maximum_base = 62usize.saturating_sub(suffix.len());
+        let candidate_base = base
+            .get(..base.len().min(maximum_base))
+            .unwrap_or(&base)
+            .trim_end_matches('-');
+        let candidate = format!("{candidate_base}-{suffix}");
+        if !existing.contains(&candidate)
+            && tohseno_engine::ledger::validate_app_name(&candidate).is_ok()
+        {
+            return Ok(candidate);
+        }
+    }
+    Err(ApiError::internal(
+        "could not reserve a unique technical app name",
+    ))
 }
 
 fn validate_pending_submission(
@@ -1674,6 +1890,15 @@ fn privacy_safe_phase(phase: ExecutionPhase) -> &'static str {
         ExecutionPhase::ExecutionFailed => "failed",
         ExecutionPhase::ExecutionCancelled => "cancelled",
     }
+}
+
+fn execution_is_terminal(phase: ExecutionPhase) -> bool {
+    matches!(
+        phase,
+        ExecutionPhase::ExecutionCompleted
+            | ExecutionPhase::ExecutionFailed
+            | ExecutionPhase::ExecutionCancelled
+    )
 }
 
 /// Reconciliation passes run every two seconds; a full snapshot rebuild is
@@ -2015,6 +2240,19 @@ mod tests {
         assert_eq!(first, "remembers-tree-plant");
         assert_eq!(first, second);
         tohseno_engine::ledger::validate_app_name(&first).unwrap();
+
+        ledger
+            .create_app(&first, "com.tohseno.test.remembers-tree-plant")
+            .unwrap();
+        let collision =
+            derive_technical_name("An app that remembers every tree I plant", &ledger).unwrap();
+        assert_ne!(collision, first);
+        assert!(collision.starts_with("remembers-tree-plant-"));
+        tohseno_engine::ledger::validate_app_name(&collision).unwrap();
+
+        let reserved = derive_technical_name("Identity", &ledger).unwrap();
+        assert_ne!(reserved, "identity");
+        tohseno_engine::ledger::validate_app_name(&reserved).unwrap();
     }
 
     #[test]
@@ -2029,6 +2267,10 @@ mod tests {
             privacy_safe_phase(ExecutionPhase::ValidationCompleted),
             "verifying"
         );
+        assert!(!execution_is_terminal(ExecutionPhase::ValidationCompleted));
+        assert!(execution_is_terminal(ExecutionPhase::ExecutionCompleted));
+        assert!(execution_is_terminal(ExecutionPhase::ExecutionFailed));
+        assert!(execution_is_terminal(ExecutionPhase::ExecutionCancelled));
     }
 
     #[test]

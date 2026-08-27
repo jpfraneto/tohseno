@@ -44,6 +44,8 @@ const ONTOLOGY_SCHEMA_JSON: &str = include_str!("../../protocol/schemas/ontology
 pub struct ConceptionInput {
     pub schema: String,
     pub app_name: String,
+    #[serde(default = "historical_name_was_supplied")]
+    pub name_was_supplied: bool,
     pub intent_digest: Bytes32,
     pub intention_document_digest: Bytes32,
     pub intention_document_path: String,
@@ -55,6 +57,7 @@ pub struct ConceptionInput {
 impl ConceptionInput {
     pub fn new(
         app_name: impl Into<String>,
+        name_was_supplied: bool,
         prepared: &PreparedIntentPackage,
         capability_profile: AppleCapabilityProfile,
     ) -> Result<Self, ConceptionError> {
@@ -62,6 +65,7 @@ impl ConceptionInput {
         let input = Self {
             schema: CONCEPTION_INPUT_SCHEMA.into(),
             app_name: app_name.into(),
+            name_was_supplied,
             intent_digest: prepared.intention_digest,
             intention_document_digest: prepared.document_digest,
             intention_document_path: prepared.document_relative_path.clone(),
@@ -160,6 +164,10 @@ impl ConceptionInput {
         input.validate()?;
         Ok(input)
     }
+}
+
+fn historical_name_was_supplied() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -629,7 +637,7 @@ mod tests {
             document_relative_path: ".tohseno/INTENTION.md".into(),
             references: Vec::new(),
         };
-        ConceptionInput::new(app_name, &prepared, profile).unwrap()
+        ConceptionInput::new(app_name, true, &prepared, profile).unwrap()
     }
 
     /// The whole point of synthesis: the substrate a Shot needs before it can

@@ -17,9 +17,9 @@ pub mod snapshot;
 
 pub use application_service::{
     ApplicationError, CommandRecoverySummary, CreateShotCommand, CreateShotReceipt,
-    EvolveShotCommand, EvolveShotReceipt, FactoryDefaults, FeedbackReceipt, MarketingNoteReceipt,
-    ReferenceInput, RetireShotReceipt, ShotApplicationService, SubmitFeedbackCommand,
-    SubmitMarketingNoteCommand,
+    EvolveShotCommand, EvolveShotReceipt, FactoryDefaults, FactoryHarnessOption,
+    FactoryModelOption, FeedbackReceipt, MarketingNoteReceipt, ReferenceInput, RetireShotReceipt,
+    ShotApplicationService, SubmitFeedbackCommand, SubmitMarketingNoteCommand,
 };
 pub use billing::{
     installation_binding, verify_receipt, EntitlementReceiptPayload, ReceiptError,

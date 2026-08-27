@@ -243,11 +243,10 @@ acceptance and sealing.
         folder: &Path,
         app_name: &str,
         bundle_id: &str,
+        name_was_supplied: bool,
         _conception: &crate::conception::ConceptionOutput,
-        _expression: &crate::birth_plan::BirthExpressionPlan,
-        _factory: &crate::factory_identity::FactoryIdentity,
     ) -> Result<PathBuf, GenomeError> {
-        self.write_application_task(folder, app_name, bundle_id)
+        self.write_application_task(folder, app_name, bundle_id, name_was_supplied)
     }
 
     /// Refresh the one small harness contract for both creation and evolution.
@@ -258,8 +257,18 @@ acceptance and sealing.
         folder: &Path,
         app_name: &str,
         bundle_id: &str,
+        name_was_supplied: bool,
     ) -> Result<PathBuf, GenomeError> {
         self.stage_birth_substrate(folder, app_name)?;
+        let naming = if name_was_supplied {
+            format!(
+                "The person supplied `{app_name}` as the app name. Preserve that user-facing name."
+            )
+        } else {
+            format!(
+                "The person intentionally left the app name blank. `{app_name}` is only the pre-reserved technical project, target, product, and bundle slug. Infer a concise, distinctive user-facing product name from the app's primary use in the exact intention. Do not ask for another decision. Apply the chosen name everywhere a person sees it on the iPhone, including the home-screen display name and in-app title where appropriate, while keeping the technical Xcode identity `{app_name}` unchanged."
+            )
+        };
         let task = format!(
             r#"# TOHSENO task
 
@@ -283,6 +292,15 @@ TOHSENO has already staged exact engine-owned files in `TohsenoFascia/` and
 `TOHSENO/`. Do not search for, copy, or rewrite them. Add both existing
 directories to the application target; bundle `TOHSENO/fascia.json` and
 `TOHSENO/embedded-provenance.json` as resources.
+
+## Product naming
+
+{naming}
+
+Write a short, plain-language `README.md` for the person who owns this app and
+for a developer who may encounter its source later. Explain what the app does
+and how to open the root `.xcodeproj`. Do not teach TOHSENO's internal
+ontology. Do not choose or add a source license on the person's behalf.
 
 This file is the complete harness contract. Do not load TOHSENO workflow or
 planning skills.
@@ -560,5 +578,26 @@ mod tests {
         assert!(!task.contains("decisions made on the builder's behalf"));
         assert!(!task.contains("open threads"));
         assert!(!task.contains("record it yourself"));
+    }
+
+    #[test]
+    fn unnamed_birth_gives_product_naming_to_the_existing_implementation_pass() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::create_dir_all(directory.path().join(".tohseno")).unwrap();
+        Genome
+            .write_application_task(
+                directory.path(),
+                "private-trail-log",
+                "com.tohseno.test.private-trail-log",
+                false,
+            )
+            .unwrap();
+        let task = fs::read_to_string(directory.path().join(".tohseno/TASK.md")).unwrap();
+        assert!(task.contains("intentionally left the app name blank"));
+        assert!(task.contains("Infer a concise, distinctive user-facing product name"));
+        assert!(task.contains("primary use in the exact intention"));
+        assert!(task.contains("keeping the technical Xcode identity `private-trail-log` unchanged"));
+        assert!(task.contains("plain-language `README.md`"));
+        assert!(task.contains("Do not choose or add a source license"));
     }
 }

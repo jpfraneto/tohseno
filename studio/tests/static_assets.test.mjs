@@ -58,8 +58,7 @@ test("the normal path never teaches TOHSENO's ontology", () => {
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<details[\s\S]*?<\/details>/g, "")
     .split('<section id="settings-view"')[0];
-  assert.equal(count(visible, ">Take a Shot<"), 1, "the one branded creation action must stay singular");
-  const ontologyChecked = visible.replace(">Take a Shot<", "><");
+  const ontologyChecked = visible;
   for (const noun of [
     "Shot",
     "Expression",
@@ -67,7 +66,6 @@ test("the normal path never teaches TOHSENO's ontology", () => {
     "Execution",
     "Feedback",
     "Marketing",
-    "Harness",
     "Lineage",
     "Factory Control",
     "Local Truth",
@@ -83,7 +81,8 @@ test("the normal path never teaches TOHSENO's ontology", () => {
   assert.match(script, /"What should change\?"/);
   assert.match(html, />Create App</);
   assert.match(script, /"Evolve App"/);
-  assert.match(html, />Take a Shot</);
+  assert.equal(count(html, ">Create App<"), 2, "the library and composer use the same action");
+  assert.doesNotMatch(visible, /\bShot\b/);
   assert.match(html, /\+ Add images/);
 });
 
@@ -103,6 +102,8 @@ test("the workspace is a compact app rail, one intent surface, and one honest ph
   assert.match(style, /\.app-icon-name/);
   assert.match(style, /height: 100dvh/);
   assert.match(style, /overflow-y: auto/);
+  assert.match(style, /\.shell\[data-view="compose"\] \.preview-panel[^}]*overflow: hidden/s);
+  assert.match(style, /\.phone-frame[^}]*100dvh - 205px/s);
   assert.match(html, /id="preview-panel"/);
   assert.match(script, /\/api\/v1\/shots\/\$\{encodeURIComponent\(shot\.shot_id\)\}\/preview/);
   assert.match(html, /Latest accepted first screen/);
@@ -110,10 +111,18 @@ test("the workspace is a compact app rail, one intent surface, and one honest ph
 });
 
 test("creation preserves one exact intent and up to eight images", () => {
+  assert.match(html, /placeholder="app name \(optional\)"/);
+  assert.match(script, /const name = enteredName \? normalizeAppName\(enteredName\) : null/);
+  assert.match(script, /name: prefilledName \|\| ""/);
+  assert.match(script, /TOHSENO will name it/);
   assert.match(html, /id="reference-input"[^>]*accept="[^"]*image\/png[^"]*"[^>]*multiple/);
   assert.match(script, /const MAX_REFERENCES = 8;/);
   assert.match(script, /api\("\/api\/v1\/shots",\s*\{\s*method: "POST"/);
-  for (const field of ["command_id", "name", "intention", "pending_intention_id", "references"]) {
+  assert.match(html, /id="compose-factory"[^>]*aria-label="Coding harness and model"/);
+  assert.match(script, /state\.factory\?\.harnesses/);
+  assert.match(script, /option\.dataset\.harness = entry\.harness\.id/);
+  assert.match(script, /option\.dataset\.model = entry\.model\.id/);
+  for (const field of ["command_id", "name", "harness", "model", "intention", "pending_intention_id", "references"]) {
     assert.match(script, new RegExp(`${field}:`));
   }
   for (const field of ["filename", "media_type", "origin", "bytes_base64url"]) {
@@ -211,7 +220,14 @@ test("Mac-to-iPhone genesis is cable-first and QR is absent", () => {
   assert.match(html, />Settings</);
   assert.doesNotMatch(html + script, /pairing-qr|qr_svg|Scan the code|Add iPhone/);
   assert.match(script, /\/api\/v1\/genesis\/actions/);
+  assert.match(script, /genesis\.primary_action === "check" \? "Done"/);
+  assert.match(script, /event\.key !== "Enter"[^\n]+state\.gateAction !== "check"/);
+  assert.match(script, /can’t verify that step yet/);
   assert.match(script, /Install TOHSENO/);
+  assert.match(script, /retry_companion: "Try Again"/);
+  assert.match(script, /Starting iPhone installation…/);
+  assert.match(script, /Checking the connected iPhone and your Apple signing setup/);
+  assert.match(script, /aria-busy/);
   assert.match(script, /method: "DELETE"/);
 });
 
@@ -252,14 +268,14 @@ test("Studio keeps private implementation material off the browser", () => {
 
 test("the collapsed surface stays small", () => {
   // These bounds are a ratchet against the dashboard returning, not a ban on
-  // capability. They were re-baselined once, for the Details-only execution
-  // receipt; the normal-path vocabulary test above is what actually guards
-  // the product surface.
+  // capability. They were re-baselined for the Details-only execution receipt
+  // keyboard-equivalent genesis checks, and the one compact harness/model
+  // choice; the normal-path vocabulary test above guards the product surface.
   const scriptLines = script.split("\n").length;
   const styleLines = style.split("\n").length;
   const htmlLines = html.split("\n").length;
-  assert.ok(scriptLines < 1_240, `app.js grew back to ${scriptLines} lines`);
-  assert.ok(styleLines < 1_000, `style.css grew back to ${styleLines} lines`);
+  assert.ok(scriptLines < 1_300, `app.js grew back to ${scriptLines} lines`);
+  assert.ok(styleLines < 1_100, `style.css grew back to ${styleLines} lines`);
   assert.ok(htmlLines < 200, `index.html grew back to ${htmlLines} lines`);
 });
 

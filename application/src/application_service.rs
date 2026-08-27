@@ -149,9 +149,11 @@ pub struct CreateShotCommand {
     pub origin: CommandOrigin,
     pub origin_device_id: Option<String>,
     pub name: String,
+    pub name_was_supplied: bool,
     pub intention: String,
     pub references: Vec<ReferenceInput>,
     pub submitted_at: Option<String>,
+    pub harness_selection: Option<HarnessSelection>,
 }
 
 #[derive(Clone, Debug)]
@@ -252,6 +254,23 @@ pub struct FactoryDefaults {
     pub model_label: Option<String>,
     pub route_id: Option<String>,
     pub route_label: Option<String>,
+    pub harnesses: Vec<FactoryHarnessOption>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FactoryHarnessOption {
+    pub id: String,
+    pub label: String,
+    pub models: Vec<FactoryModelOption>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FactoryModelOption {
+    pub id: String,
+    pub label: String,
+    pub is_default: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -461,11 +480,16 @@ impl ShotApplicationService {
                 return Ok(receipt);
             }
         }
-        let selection = match self.resolve_selection().and_then(|selection| {
-            execution_manager::validate_selection(&selection)
-                .map(|()| selection)
-                .map_err(|error| ApplicationError::Orchestration(error.to_string()))
-        }) {
+        let selection = match command
+            .harness_selection
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(|| self.resolve_selection())
+            .and_then(|selection| {
+                execution_manager::validate_selection(&selection)
+                    .map(|()| selection)
+                    .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+            }) {
             Ok(selection) => selection,
             Err(error) => {
                 return self.reject(
@@ -481,6 +505,7 @@ impl ShotApplicationService {
             .collect();
         let request = ShotRequest {
             app_name: command.name.clone(),
+            name_was_supplied: command.name_was_supplied,
             intent: Intent {
                 prompt: command.intention,
                 images: image_paths,
@@ -660,6 +685,7 @@ impl ShotApplicationService {
             .collect();
         let request = ShotRequest {
             app_name: command.name.clone(),
+            name_was_supplied: true,
             intent: Intent {
                 prompt: command.intention,
                 images: image_paths,
@@ -1021,7 +1047,35 @@ impl ShotApplicationService {
             model_label: model.map(|model| model.label.clone()),
             route_id: route.map(|route| route.id.clone()),
             route_label: route.map(|route| route.label.clone()),
+            harnesses: options
+                .iter()
+                .filter(|option| {
+                    option.installed && option.routes.iter().any(|route| route.available)
+                })
+                .map(|option| FactoryHarnessOption {
+                    id: option.id.clone(),
+                    label: option.label.clone(),
+                    models: option
+                        .models
+                        .iter()
+                        .map(|model| FactoryModelOption {
+                            id: model.id.clone(),
+                            label: model.label.clone(),
+                            is_default: model.is_default,
+                        })
+                        .collect(),
+                })
+                .collect(),
         }
+    }
+
+    pub fn harness_selection(
+        &self,
+        harness: &str,
+        model: &str,
+    ) -> Result<HarnessSelection, ApplicationError> {
+        execution_manager::selection(&self.engine, Some(harness), Some(model), None)
+            .map_err(|error| ApplicationError::Invalid(error.to_string()))
     }
 
     fn resolve_selection(&self) -> Result<HarnessSelection, ApplicationError> {
@@ -1049,9 +1103,11 @@ impl ShotApplicationService {
                     origin: record.origin,
                     origin_device_id: record.origin_device_id.clone(),
                     name: payload.name,
+                    name_was_supplied: payload.name_was_supplied,
                     intention: payload.intention,
                     references,
                     submitted_at: Some(record.submitted_at.clone()),
+                    harness_selection: payload.harness_selection,
                 })
                 .await?;
             }
@@ -1359,8 +1415,12 @@ struct ReferenceDescriptor {
 struct CreatePayload {
     schema: String,
     name: String,
+    #[serde(default = "historical_name_was_supplied")]
+    name_was_supplied: bool,
     intention: String,
     references: Vec<ReferenceDescriptor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harness_selection: Option<HarnessSelection>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1449,11 +1509,17 @@ fn create_payload(
         CreatePayload {
             schema: "tohseno.create-shot-command/1".into(),
             name: command.name.clone(),
+            name_was_supplied: command.name_was_supplied,
             intention: command.intention.clone(),
             references,
+            harness_selection: command.harness_selection.clone(),
         },
         files,
     ))
+}
+
+fn historical_name_was_supplied() -> bool {
+    true
 }
 
 fn evolve_payload(
@@ -1882,9 +1948,11 @@ mod tests {
             origin: CommandOrigin::Cli,
             origin_device_id: None,
             name: "counter".into(),
+            name_was_supplied: true,
             intention: "Remember a tap count between launches.".into(),
             references: Vec::new(),
             submitted_at: None,
+            harness_selection: None,
         };
         let companion = CreateShotCommand {
             command_id: "companion_create".into(),
@@ -1895,6 +1963,39 @@ mod tests {
         assert_eq!(
             create_payload(&cli).unwrap().0,
             create_payload(&companion).unwrap().0
+        );
+
+        let historical: CreatePayload = serde_json::from_value(serde_json::json!({
+            "schema": "tohseno.create-shot-command/1",
+            "name": "counter",
+            "intention": "Remember a tap count between launches.",
+            "references": [],
+        }))
+        .unwrap();
+        assert!(historical.name_was_supplied);
+        assert!(historical.harness_selection.is_none());
+
+        let selected = CreateShotCommand {
+            command_id: "selected_create".into(),
+            harness_selection: Some(HarnessSelection {
+                harness: "claude-code".into(),
+                model: "sonnet".into(),
+                route: "claude-subscription".into(),
+            }),
+            ..cli.clone()
+        };
+        let selected_payload = create_payload(&selected).unwrap().0;
+        assert_eq!(
+            selected_payload.harness_selection,
+            selected.harness_selection
+        );
+        assert_eq!(
+            serde_json::from_value::<CreatePayload>(
+                serde_json::to_value(selected_payload).unwrap()
+            )
+            .unwrap()
+            .harness_selection,
+            selected.harness_selection
         );
 
         let base_expression_id = ExpressionId::from_bytes([0x71; 32]);
@@ -2373,8 +2474,10 @@ mod tests {
         let payload = CreatePayload {
             schema: "tohseno.create-shot-command/1".into(),
             name: "fixture".into(),
+            name_was_supplied: true,
             intention: "Build the exact fixture.".into(),
             references: Vec::new(),
+            harness_selection: None,
         };
         journal
             .admit(

@@ -1,14 +1,15 @@
 # TOHSENO contracts
 
-Status: security-remediated successor draft, undeployed, unaudited, and not
-deployment-authorized.
+Status: generation 0.8.0 is deployed and client-trusted under the signed
+activation recorded in `../release/contract-activations/`; registry product
+workflows are not implemented.
 
 > [!WARNING]
 > The frozen v0.7 contract generation will never be deployed by the TOHSENO
 > project. Its predicted addresses are historical verification inputs, not
 > durable BuilderIDs or future coordinates. The unversioned `next`
 > deployment-plan compatibility artifact is also non-authoritative; only the
-> versioned 0.8.0 build definition is frozen, and it remains inactive. The
+> versioned 0.8.0 build definition is frozen and is the active generation. The
 > user-facing notice text lives at
 > [`release/V0_7_CONTRACT_GENERATION_NOTICE.md`](../release/V0_7_CONTRACT_GENERATION_NOTICE.md).
 
@@ -177,30 +178,37 @@ is normative. Probe output is evidence, not reusable authorization.
 
 ## Deployment status
 
-Generation 0.8.0 is deployed on Robinhood Chain mainnet as an inactive,
-untrusted candidate. There is still no deployment command on `main`.
+Generation 0.8.0 is deployed on Robinhood Chain mainnet and is active under the
+client-pinned release-authority policy and threshold-signed activation. There
+is still no deployment command on `main`.
 
 - `BuilderAccountFactory`:
   `0xb1bd208cd2af98e701f43d06aaa889d3a594df65`
 - `ShotRegistry`: `0x3fe6508ba2660bc575080024f402c192a2e035a0`
 - public evidence:
   `audits/robinhood-inactive-deployment-0.8.0-20260801T021920Z.json`
+- signed activation and trust root:
+  `../release/contract-activations/`
 
-Deployment did not activate the generation, create a Builder, publish a Shot,
-or authorize a token launch. ADR 0010 distinguishes compiler runtime templates
-from constructor-patched runtime instances for the activation record.
+Deployment itself did not activate the generation, create a Builder, publish a
+Shot, or authorize a token launch. The later activation made the generation
+eligible for client trust; it did not perform those product operations. ADR
+0010 distinguishes compiler runtime templates from constructor-patched runtime
+instances for the activation record.
 
 The v0.7 deployment, mainnet lifecycle, Genesis archive builder, and stable
 release builder fail closed. Their immutable historical implementations remain
-auditable at tag `v0.7.1`. The inactive successor deployment passed the
+auditable at tag `v0.7.1`. The successor deployment passed the
 complete EIP-7951 positive, negative, infinity-edge, and 6,900-gas hard gate.
-The immutable 0.8.0 build definition and deployment evidence are committed,
-but no activation record or release-authority trust root exists.
+The immutable 0.8.0 build definition, deployment evidence, release-authority
+trust root, and signed activation are committed. Secure public Builder creation,
+registry transaction and receipt handling, source hosting, discovery, and
+download remain unimplemented product work.
 
 See
 [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](../docs/MIGRATION_0_8_CONTRACT_GENERATION.md)
-for the exact ABI break, consumer changes, legacy verification rule, and
-future activation boundary.
+for the exact ABI break, consumer changes, legacy verification rule, and the
+historical activation boundary.
 
 ## Verification
 

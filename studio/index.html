@@ -38,7 +38,7 @@
           <div class="app-column">
             <div class="library-heading">
               <h1 id="apps-heading">Your Apps</h1>
-              <button id="new-app" class="new-app-button" type="button" hidden>Take a Shot</button>
+              <button id="new-app" class="new-app-button" type="button" hidden>Create App</button>
             </div>
             <div id="apps-loading" class="apps-loading" role="status" aria-live="polite">
               <img src="/tohseno-logo.png" alt="" aria-hidden="true">
@@ -64,8 +64,8 @@
               maxlength="63"
               autocomplete="off"
               spellcheck="false"
-              placeholder="name your app"
-              aria-label="App name">
+              placeholder="app name (optional)"
+              aria-label="App name (optional)">
             <h1 id="compose-title" class="app-name-heading" hidden></h1>
             <label id="compose-question" class="question" for="compose-intent">What do you want this app to be?</label>
             <textarea
@@ -73,17 +73,23 @@
               maxlength="4194304"
               rows="10"
               placeholder="Write or paste your intent here…"></textarea>
-            <div class="attachments">
-              <label id="reference-drop" class="add-images" for="reference-input" tabindex="0">
-                <input
-                  id="reference-input"
-                  type="file"
-                  accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp"
-                  multiple
-                  hidden>
-                + Add images
+            <div class="compose-options">
+              <div class="attachments">
+                <label id="reference-drop" class="add-images" for="reference-input" tabindex="0">
+                  <input
+                    id="reference-input"
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.heic,.webp,image/png,image/jpeg,image/heic,image/webp"
+                    multiple
+                    hidden>
+                  + Add images
+                </label>
+                <div id="reference-list" class="reference-list"></div>
+              </div>
+              <label id="compose-factory-field" class="factory-field" for="compose-factory">
+                <span>Build with</span>
+                <select id="compose-factory" aria-label="Coding harness and model"></select>
               </label>
-              <div id="reference-list" class="reference-list"></div>
             </div>
             <div class="submit-row">
               <p id="compose-status" class="status" role="status"></p>

@@ -3,13 +3,13 @@ name: release
 on:
   push:
     tags:
-      - "v1.0.0"
+      - "v1.0.2"
   workflow_dispatch:
     inputs:
       release_tag:
         description: Existing immutable stable tag to recover
         required: true
-        default: v1.0.0
+        default: v1.0.2
         type: string
 
 permissions:
@@ -32,10 +32,10 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
       - name: Verify stable-release readiness and explicit authorization
         run: |
-          test "$RELEASE_TAG" = "v1.0.0"
+          test "$RELEASE_TAG" = "v1.0.2"
           jq -e \
             '.schema == "tohseno.release-readiness/1"
-             and .version == "1.0.0"
+             and .version == "1.0.2"
              and .channel == "stable"
              and .ready == true
              and .authorization.authorized == true
@@ -51,12 +51,12 @@ jobs:
              and .protection.release_tag_ruleset_id > 0
              and ((.protection.verified_at | type) == "string")
              and (.protection.verified_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))
-             and .source.public_installer_pin == "0.8.5"
+             and .source.public_installer_pin == "1.0.2"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
              and ((.required_local_evidence | type) == "object")
              and ([.required_local_evidence[] | select(. != true)] | length) == 0' \
-            release/V1_0_0_READINESS.json
+            release/V1_0_2_READINESS.json
 
   build:
     needs: [verify, authorize-release]
@@ -133,7 +133,7 @@ jobs:
               --arg source_state "$expected_source_state" \
               --arg target '${{ matrix.target }}' \
               '.schema == "tohseno.release/1"
-               and .version == "1.0.0"
+               and .version == "1.0.2"
                and .codename == "COMPANION"
                and .target == $target
                and .source_commit == $commit
@@ -257,8 +257,8 @@ jobs:
         run: |
           release_source_commit="$(git rev-parse 'HEAD^{commit}')"
           verify_live_tag() {
-          if [ "$RELEASE_TAG" != "v1.0.0" ]; then
-            printf 'release tag must be exactly v1.0.0\n' >&2
+          if [ "$RELEASE_TAG" != "v1.0.2" ]; then
+            printf 'release tag must be exactly v1.0.2\n' >&2
             exit 1
           fi
           expected_ref="refs/tags/$RELEASE_TAG"
@@ -424,7 +424,7 @@ jobs:
           }
 
           verify_live_tag
-          release_marker="TOHSENO v1.0.0 source commit: $release_source_commit"
+          release_marker="TOHSENO v1.0.2 source commit: $release_source_commit"
           releases_json="$(
             gh api \
               --method GET \

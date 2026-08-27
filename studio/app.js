@@ -22,6 +22,8 @@ const ui = {
   composeTitle: document.querySelector("#compose-title"),
   composeQuestion: document.querySelector("#compose-question"),
   composeIntent: document.querySelector("#compose-intent"),
+  composeFactoryField: document.querySelector("#compose-factory-field"),
+  composeFactory: document.querySelector("#compose-factory"),
   composeStatus: document.querySelector("#compose-status"),
   composeSubmit: document.querySelector("#compose-submit"),
   referenceInput: document.querySelector("#reference-input"),
@@ -442,6 +444,8 @@ function render() {
 function renderGate() {
   ui.gatePrices.hidden = true;
   ui.gatePrimary.hidden = true;
+  ui.gatePrimary.disabled = false;
+  ui.gatePrimary.removeAttribute("aria-busy");
   ui.gateBack.hidden = true;
   state.gateAction = null;
   const entitlement = state.entitlement;
@@ -458,10 +462,11 @@ function renderGate() {
         begin: "Begin",
         continue: "Continue",
         open_app_store: "Open the App Store",
-        open_xcode_accounts: "Open Xcode",
+        open_xcode_accounts: "Open Xcode and show me how",
         install_companion: "Install TOHSENO",
-        create_app: "Take a Shot",
-      }[genesis.primary_action] || "Continue";
+        retry_companion: "Try Again",
+        create_app: "Create App",
+      }[genesis.primary_action] || (genesis.primary_action === "check" ? "Done" : "Continue");
       ui.gatePrimary.hidden = false;
     }
     ui.gateBack.hidden = !genesis.can_go_back;
@@ -528,7 +533,7 @@ function renderPreview() {
   ui.previewImage.removeAttribute("src");
   if (!shot) {
     ui.previewStatus.textContent = state.composeMode === "create" && state.view === "compose" ? "New app" : "";
-    ui.previewName.textContent = state.view === "compose" ? (ui.composeName.value || "New app") : "Choose an app";
+    ui.previewName.textContent = state.view === "compose" ? (ui.composeName.value || "TOHSENO will name it") : "Choose an app";
     ui.previewMessage.textContent = state.view === "compose"
       ? "Your app preview will appear after its first accepted build."
       : "Its latest accepted screen will appear here.";
@@ -836,6 +841,7 @@ function openCompose({ mode, name = "", shot = null, intent = "", updateLocation
   references.clear(true);
   references.setLocked(false);
   if (mode === "create") {
+    ui.composeFactoryField.hidden = false;
     state.selectedShotId = null;
     ui.composeName.hidden = false;
     ui.composeTitle.hidden = true;
@@ -847,6 +853,7 @@ function openCompose({ mode, name = "", shot = null, intent = "", updateLocation
       history.replaceState(null, "", name ? `/create?name=${encodeURIComponent(name)}` : "/create");
     }
   } else {
+    ui.composeFactoryField.hidden = true;
     state.selectedShotId = shot.shot_id;
     ui.composeName.hidden = true;
     ui.composeTitle.hidden = false;
@@ -857,7 +864,7 @@ function openCompose({ mode, name = "", shot = null, intent = "", updateLocation
     if (updateLocation) history.replaceState(null, "", `/shots/${encodeURIComponent(shot.shot_id)}`);
   }
   render();
-  window.setTimeout(() => (mode === "create" && !name ? ui.composeName : ui.composeIntent).focus(), 0);
+  window.setTimeout(() => ui.composeIntent.focus(), 0);
 }
 
 function openApp(shotId, updateLocation = true) {
@@ -905,13 +912,15 @@ async function submitCompose(event) {
 }
 
 async function submitCreate(intent) {
-  const name = normalizeAppName(ui.composeName.value);
-  if (!name) {
-    ui.composeStatus.textContent = "Use lowercase letters, numbers, and hyphens for the app name.";
+  const enteredName = ui.composeName.value.trim();
+  const name = enteredName ? normalizeAppName(enteredName) : null;
+  if (enteredName && !name) {
+    ui.composeStatus.textContent = "The optional name uses lowercase letters, numbers, and hyphens.";
     ui.composeName.focus();
     throw new Error("The app name is not usable.");
   }
   ui.composeStatus.textContent = "Sending…";
+  const selectedFactory = ui.composeFactory.selectedOptions[0];
   const receipt = await api("/api/v1/shots", {
     method: "POST",
     body: JSON.stringify({
@@ -919,12 +928,14 @@ async function submitCreate(intent) {
         ? `studio_pending_${state.pendingIntentionId}`
         : commandId("create"),
       name,
+      harness: selectedFactory?.dataset.harness,
+      model: selectedFactory?.dataset.model,
       intention: intent,
       pending_intention_id: state.pendingIntentionId,
       references: await references.descriptors(),
     }),
   });
-  state.drafts.set(String(receipt.shot_id), { mode: "create", name, intent });
+  state.drafts.set(String(receipt.shot_id), { mode: "create", name: name || "", intent });
   state.pendingIntentionId = null;
   ui.composeIntent.readOnly = false;
   references.setLocked(false);
@@ -935,6 +946,28 @@ async function submitCreate(intent) {
   history.replaceState(null, "", `/shots/${encodeURIComponent(receipt.shot_id)}`);
   render();
   await refreshWorkspace();
+}
+
+function renderFactoryPicker() {
+  const harnesses = Array.isArray(state.factory?.harnesses) ? state.factory.harnesses : [];
+  const options = [];
+  for (const harness of harnesses) {
+    for (const model of Array.isArray(harness.models) ? harness.models : []) {
+      options.push({ harness, model });
+    }
+  }
+  ui.composeFactory.replaceChildren();
+  for (const entry of options) {
+    const option = document.createElement("option");
+    option.value = `${entry.harness.id}:${entry.model.id}`;
+    option.dataset.harness = entry.harness.id;
+    option.dataset.model = entry.model.id;
+    option.textContent = `${entry.harness.label} · ${entry.model.label}`;
+    option.selected = entry.harness.id === state.factory?.harness_id
+      && entry.model.id === state.factory?.model_id;
+    ui.composeFactory.append(option);
+  }
+  ui.composeFactory.disabled = options.length === 0;
 }
 
 async function submitEvolve(intent) {
@@ -991,7 +1024,6 @@ function normalizeAppName(value) {
   const normalized = value.trim().toLowerCase();
   return /^[a-z0-9][a-z0-9-]{0,62}$/.test(normalized) ? normalized : null;
 }
-
 async function loadPendingIntention(pendingId, prefilledName) {
   if (!/^[a-f0-9]{32}$/.test(pendingId)) throw new Error("That prefilled intent reference is malformed.");
   const pending = await api(`/api/v1/pending-intentions/${encodeURIComponent(pendingId)}`);
@@ -1005,7 +1037,7 @@ async function loadPendingIntention(pendingId, prefilledName) {
   }
   openCompose({
     mode: "create",
-    name: prefilledName || String(pending.suggested_name || ""),
+    name: prefilledName || "",
     intent: pending.intention,
     updateLocation: false,
   });
@@ -1123,14 +1155,29 @@ function bind() {
       openCompose({ mode: "create" });
       return;
     }
+    const action = state.gateAction, currentStep = state.genesis?.step;
+    ui.gatePrimary.disabled = true;
+    ui.gatePrimary.setAttribute("aria-busy", "true");
+    if (action === "install_companion") {
+      ui.gateHeadline.textContent = "Starting iPhone installation…";
+      ui.gateDetail.textContent = "Checking the connected iPhone and your Apple signing setup.";
+      ui.gatePrimary.textContent = "Starting…";
+    }
     try {
-      state.genesis = await api(`/api/v1/genesis/actions/${encodeURIComponent(state.gateAction)}`, {
+      state.genesis = await api(`/api/v1/genesis/actions/${encodeURIComponent(action)}`, {
         method: "POST",
       });
-      render();
+      if (action === "check" && state.genesis.step === currentStep) showToast("TOHSENO can’t verify that step yet. Complete it on your iPhone, then try again.", true);
     } catch (error) {
       showToast(error.message, true);
+    } finally {
+      render();
     }
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.repeat || state.view !== "gate" || state.gateAction !== "check" || ui.gatePrimary.disabled) return;
+    event.preventDefault();
+    ui.gatePrimary.click();
   });
   ui.gateBack.addEventListener("click", () => history.back());
   for (const [button, plan] of [[ui.proMonthly, "monthly"], [ui.proYearly, "yearly"]]) {
@@ -1159,7 +1206,6 @@ function bind() {
   });
   window.addEventListener("popstate", () => applyRoute().catch((error) => showToast(error.message, true)));
 }
-
 async function applyRoute() {
   const route = new URL(window.location.href);
   if (route.pathname === "/settings") {
@@ -1214,6 +1260,7 @@ async function bootstrap() {
     }
     state.health = health;
     state.factory = factory;
+    renderFactoryPicker();
     if (state.view !== "gate") await applyRoute();
     connectEvents();
   } catch (error) {

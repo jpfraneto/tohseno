@@ -1,6 +1,6 @@
 // The website terminal's pure logic. Nothing here touches the DOM or the
 // network, so the checked-in Bun suite exercises the whole command surface,
-// the app-name rule, and the demo table directly.
+// the optional app-name rule, and the demo table directly.
 
 // Mirrors `validate_app_name` and `sanitize_component` in engine/src/ledger.rs
 // so a name this browser accepts is the same name `tohseno create` accepts on
@@ -61,8 +61,8 @@ export function appNameProblem(name) {
 export const COMMANDS = Object.freeze([
   {
     name: "create",
-    usage: "tohseno create <name>",
-    summary: "describe an app, send it to your Mac",
+    usage: "tohseno create [name]",
+    summary: "describe an app; naming it is optional",
   },
   { name: "demo", usage: "tohseno demo", summary: "watch one get built" },
   { name: "install", usage: "tohseno install", summary: "the one-line installer" },
@@ -112,7 +112,7 @@ const ALIASES = Object.freeze({
 });
 
 /// Resolves one typed line into an intent. `tohseno` is optional, so both
-/// `tohseno create my-app` and `create my-app` work.
+/// `tohseno create`, `tohseno create my-app`, and `create my-app` work.
 ///
 /// The page asks a person to describe an app, so a sentence typed at the
 /// prompt is an intention, not a mistake. Anything unrecognized that reads

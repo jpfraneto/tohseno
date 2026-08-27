@@ -1,9 +1,12 @@
-# TOHSENO protocol candidate specification
+# TOHSENO protocol specification
 
-Status: composite pre-1.0 candidate, not canonical. It contains exact frozen
-`0.7.0` (`GENESIS`) compatibility law plus additive coherent-intention `/2`,
-public-checkpoint, and contract-generation `0.8.0` law. Contract generation
-0.8.0 is an inactive build definition, not a deployment or activation.
+Status: normative for this repository. It contains exact frozen `0.7.0`
+(`GENESIS`) compatibility law plus additive coherent-intention `/2`,
+public-checkpoint, contract-generation `0.8.0`, and activation law. A contract
+generation definition is never deployment or activation evidence by itself.
+The separately deployed generation 0.8.0 contracts are the current
+client-trusted generation under the threshold-signed activation recorded in
+`release/contract-activations/`.
 
 The key words MUST, MUST NOT, REQUIRED, SHOULD, and MAY are normative.
 
@@ -28,8 +31,10 @@ complete. Its local signer and offline verifier accept only the initial
 DeviceKey committed through the exact historical CREATE2 BuilderID prediction.
 It exposes no authorize, revoke, rotate, or recover command; encrypted recovery
 material is a local backup only. The successor contract recovery design is
-specified separately, but no successor public authority is active and no
-off-chain authority-proof interface is implied.
+specified separately. Generation 0.8.0 is active as a client trust decision,
+but secure BuilderAccount creation and the off-chain authority-proof,
+registry-RPC, receipt, catalog, and artifact-publication interfaces are not
+implemented; activation does not imply any of them.
 
 Every wire object is UTF-8 JSON. Schemas are closed: unknown members, duplicate
 members, trailing JSON values, wrong-width hexadecimal values, and uppercase
@@ -457,10 +462,10 @@ at `contracts/generations/0.8.0/`. The closed schema and frozen canonical
 fixture are `schemas/contract-generation-v1.schema.json` and
 `test-vectors/contract-generation-v1.json`.
 
-Activation is a separate future release decision. Until a signed activation
-record binds a trusted release policy, this definition's digest, observed
+Activation is separate from a build definition. Until a signed activation
+record binds a trusted release policy, a definition's digest, observed
 target-chain addresses and runtime code hashes, canonical activation block,
-and deploy-gate evidence, generation 0.8.0 is inactive. A build definition
+and deploy-gate evidence, that generation is inactive. A build definition
 alone MUST NOT authorize identity creation, Shot publication, or RPC trust.
 
 The closed activation payload is `tohseno.contract-activation/1`. It binds an
@@ -493,8 +498,25 @@ least its threshold.
 
 Threshold verification proves approval under the supplied policy; it does not
 make that policy trusted. A client MUST separately pin its accepted policy
-digest. No activation instance or policy trust root is committed for 0.8.0.
-The corresponding closed schemas are
+digest.
+
+The current client pins release-authority policy digest
+`0xf14410692ebe34f6855b8dbec5cb08733aa737f1cd86f385694e4fb575df943c`
+and verifies activation sequence 1 for generation 0.8.0. That activation binds
+Robinhood Chain ID 4663, factory
+`0xb1bd208cd2af98e701f43d06aaa889d3a594df65`, registry
+`0x3fe6508ba2660bc575080024f402c192a2e035a0`, and activation block
+25511561. Its signing digest is
+`0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28`.
+The canonical policy and signed envelope live in
+`release/contract-activations/`; implementations MUST verify them rather than
+copying this prose into a trust decision.
+
+Activation establishes client trust in these exact contract instances. It
+does not prove that a BuilderAccount exists for a local user, that a Shot was
+registered, that source bytes are available, or that a product implements
+submission, discovery, download, receipt verification, or any other registry
+workflow. The corresponding closed schemas are
 `schemas/contract-activation.schema.json`,
 `schemas/release-authority-policy.schema.json`, and
 `schemas/signed-contract-activation.schema.json`.
@@ -590,9 +612,10 @@ Ownership actions are signed by the current controller and install the next
 BuilderID and controller key. Pure reduction trusts the initial declared
 BuilderID/key binding. Frozen v0.7 offline verification independently
 reproduces its exact historical BuilderID prediction. Successor public
-authority instead requires client validation against a trusted activated
-contract generation. A predicted address or build definition alone is never
-public authority, and no generation is active today.
+authority instead requires client validation against the active generation
+0.8.0 contracts and matching live controller evidence. A predicted address,
+build definition, local signature, or activation record by itself is never
+proof that a particular local Shot or Builder is publicly authorized.
 
 TokenAssociation is optional and chain-specific. Its address never supplies
 Shot, expression, version, or ownership identity. The frozen v0.7 relations

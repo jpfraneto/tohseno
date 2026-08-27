@@ -1,5 +1,12 @@
 # TOHSENO production lifecycle prompt
 
+Status: historical, partially completed operational prompt. Generation 0.8.0
+was subsequently activated under the evidence in
+`release/contract-activations/`. Do not execute this document as a current
+resume instruction, infer transaction authority from it, or repeat its
+deployment/activation phases. Current truth is defined by `protocol/`, accepted
+ADRs, and `docs/STATE.md`; the registry product workflows remain unimplemented.
+
 You are operating in the `jpfraneto/tohseno` repository. Your objective is to
 take the successor TOHSENO contract generation through independent review,
 production deployment as an inactive candidate, production canary testing,

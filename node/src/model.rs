@@ -28,8 +28,9 @@ pub struct NodeInfo {
     pub supported_schema_versions: Vec<u32>,
     pub stored_actions: usize,
     pub indexed_shots: usize,
-    /// A release-authorized contract generation, or `null` while no such
-    /// activation exists. Predicted CREATE2 coordinates are never activation.
+    /// The release-authorized contract generation this node recognizes, or
+    /// `null` only when this node carries no trusted activation. Recognition
+    /// does not imply that controller or registry evidence is implemented.
     pub active_generation: Option<String>,
     /// How this node treats current-generation public authority.
     pub generation_policy: &'static str,
@@ -77,8 +78,9 @@ pub struct ActionValidation {
     /// controller/key binding when a complete prefix is available.
     pub neutral_authority: AuthorityStatus,
     /// Authority under the active release-authorized contract generation.
-    /// This remains unresolved while `NodeInfo.active_generation` is null;
-    /// retired CREATE2 predictions cannot promote it.
+    /// This remains unresolved until the node verifies matching live
+    /// controller/registry evidence; retired CREATE2 predictions cannot
+    /// promote it.
     pub candidate_authority: AuthorityStatus,
     pub authority_context_available: bool,
     pub missing_parent: Option<Bytes32>,

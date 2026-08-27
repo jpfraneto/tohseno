@@ -65,7 +65,8 @@ pub struct HarnessOption {
     pub completion_detection: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HarnessSelection {
     pub harness: String,
     pub model: String,

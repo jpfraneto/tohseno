@@ -1,4 +1,4 @@
-name: TOHSENO 0.9 CI
+name: TOHSENO 1.0.2 CI
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tohseno-0.9-ci-${{ github.workflow }}-${{ github.ref }}
+  group: tohseno-1.0.2-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -125,7 +125,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-             and .product_version == "1.0.0"
+             and .product_version == "1.0.2"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"
@@ -134,7 +134,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 1.0.0'
+            grep -Fqx 'tohseno 1.0.2'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -272,15 +272,36 @@ jobs:
           test -s studio/app.js
           test -s site/protocol/index.html
           test -s site/protocol/protocol.json
+          test -s release/NPM_1_0_1_PUBLICATION.json
+          test -s packages/cli/tohseno-1.0.1.tgz
           node --check studio/app.js
           node --test studio/tests/static_assets.test.mjs
+          grep -Fq '<dt>Active generation</dt><dd>0.8.0</dd>' site/protocol/index.html
+          grep -Fq '<dt>Canonical</dt><dd>yes</dd>' site/protocol/index.html
           jq -e \
             '.schema == "tohseno.protocol-page/2"
              and .protocol == "tohseno"
-             and .canonical == false
+             and .canonical == true
              and .active_contract_generation == "0.8.0"
-             and .contracts_deployed == true' \
+             and .contracts_deployed == true
+             and .native_stable_release == "v1.0.0"
+             and .npm_bootstrap_release == "1.0.1"
+             and .registry_product_ready == false' \
             site/protocol/protocol.json
+          jq -e \
+            '.schema == "tohseno.npm-publication-observation/1"
+             and .package == "tohseno"
+             and .npm_version == "1.0.1"
+             and .dist_tag == "latest"
+             and .native_product_version == "1.0.0"
+             and .git.tag == null
+             and .git.github_release == null
+             and .tarball.repository_copy == "packages/cli/tohseno-1.0.1.tgz"' \
+            release/NPM_1_0_1_PUBLICATION.json
+          test "$(shasum -a 256 packages/cli/tohseno-1.0.1.tgz | awk '{print $1}')" = \
+            "$(jq -r '.tarball.sha256' release/NPM_1_0_1_PUBLICATION.json)"
+          test "$(stat -f %z packages/cli/tohseno-1.0.1.tgz)" = \
+            "$(jq -r '.tarball.byte_length' release/NPM_1_0_1_PUBLICATION.json)"
           jq -e \
             '.schema == "tohseno.genesis-candidate-report/1"
              and .candidate.version == "0.7.0"
@@ -366,6 +387,17 @@ jobs:
                )
              )' \
             release/V1_0_0_READINESS.json
+          jq -e \
+            '.schema == "tohseno.release-readiness/1"
+             and .version == "1.0.2"
+             and .channel == "release-candidate"
+             and .ready == false
+             and .authorization.authorized == false
+             and .source.public_installer_pin == "1.0.2"
+             and .source.historical_protocol_rewritten == false
+             and .source.recording_layer_implicit_migration == false
+             and .blocking_reason != null' \
+            release/V1_0_2_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -376,9 +408,9 @@ jobs:
         run: |
           cmp website/apps/site/public/oneshot.sh website/apps/site/public/install.sh
           cmp website/apps/site/public/oneshot.sh oneshot/oneshot.sh
-          grep -Fq 'version="v1.0.0"' oneshot/oneshot.sh
+          grep -Fq 'version="v1.0.2"' oneshot/oneshot.sh
           grep -Fq -- '--claim)' oneshot/oneshot.sh
-          grep -Fq 'version="v1.0.0"' website/apps/site/public/oneshot.sh
+          grep -Fq 'version="v1.0.2"' website/apps/site/public/oneshot.sh
           grep -Fq -- '--claim)' website/apps/site/public/oneshot.sh
           test -s website/apps/site/public/oneshot.sh
           (
@@ -455,7 +487,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v1.0.0"',
+            '"$RELEASE_TAG" != "v1.0.2"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -471,7 +503,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v1.0.0 source commit:",
+            "TOHSENO v1.0.2 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

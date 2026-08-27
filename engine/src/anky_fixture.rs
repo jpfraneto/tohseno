@@ -71,7 +71,7 @@ pub(crate) fn conception_input() -> ConceptionInput {
         document_relative_path: ".tohseno/EVOLUTION_INTENT.md".into(),
         references: Vec::new(),
     };
-    ConceptionInput::new("Anky", &prepared, profile()).expect("valid Anky conception input")
+    ConceptionInput::new("Anky", true, &prepared, profile()).expect("valid Anky conception input")
 }
 
 pub(crate) fn output() -> ConceptionOutput {
@@ -782,8 +782,6 @@ mod tests {
     #[test]
     fn materialization_task_is_small_and_keeps_intention_and_data_continuity_authoritative() {
         let proposed = output();
-        let expression = BirthExpressionPlan::from_birth_plan(&proposed.birth_plan).unwrap();
-        let factory = factory_identity(&proposed.birth_plan);
         let directory = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(directory.path().join(".tohseno")).unwrap();
         crate::genome::Genome
@@ -791,9 +789,8 @@ mod tests {
                 directory.path(),
                 "Anky",
                 "org.tohseno.genesis.fixture.anky",
+                true,
                 &proposed,
-                &expression,
-                &factory,
             )
             .unwrap();
         let task = std::fs::read_to_string(directory.path().join(".tohseno/TASK.md")).unwrap();

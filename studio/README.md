@@ -20,9 +20,9 @@ Studio exists to serve exactly one sentence:
 
 **App → Intent → App on your iPhone.**
 
-There is no dashboard. There is no factory-control surface. **Take a Shot** is
+There is no dashboard. There is no factory-control surface. **Create App** is
 the one branded creation action; Shot identities, Expressions, Versions,
-Executions, harnesses, inference routes, Feedback records, marketing notes,
+Executions, inference routes, Feedback records, marketing notes,
 lineage, and pairing internals remain behind the normal path.
 
 ## Four views, one workspace
@@ -41,18 +41,21 @@ composer/state surface, and preview each own their scrolling, so a long app
 library never pushes either adjacent column off screen.
 
 ```text
-/                 Your Apps          compact app rail, plus Take a Shot
-/create           the composer       name · one intent · optional images · Create App
+/                 Your Apps          compact app rail, plus Create App
+/create           the composer       optional name · intent · images · harness/model · Create App
 /shots/{id}       one app            the same composer, or its one human state
 /settings         Settings           revoke and diagnostics
 ```
 
-`tohseno create paper` with no intention opens `/create?name=paper` with the
-name already filled in. `tohseno evolve paper` opens that app's composer asking
-*What should change?*. Both then follow the same short lifecycle.
+`tohseno create` with no name or intention opens `/create`; the intent box is
+primary and the model names the app from its purpose. `tohseno create paper`
+still opens `/create?name=paper` with the explicit name already filled in.
+`tohseno evolve paper` opens that app's composer asking *What should change?*.
+Both then follow the same short lifecycle.
 
 If a `./MASTER_PROMPT.md` is present, the CLI imports its exact bytes through
-the local pending-intention store and opens `/create?name=paper&pending=…`.
+the local pending-intention store and opens `/create?pending=…` unless an
+explicit name was supplied.
 The composer is prefilled and read-only, and nothing is built until the person
 presses **Create App** once. TOHSENO never starts a build merely because a file
 exists.
@@ -60,6 +63,12 @@ exists.
 Images use the same safe reference machinery as before: up to eight validated
 reference images, 64 MB each and 160 MB combined, submitted as exact bytes with
 their canonical base64url encoding.
+
+Creation also shows one compact **Build with** dropdown. It contains only
+installed, currently usable coding harnesses and each harness's associated
+models. The configured pair is selected by default; the service validates and
+durably records the resolved choice before the one bounded implementation run.
+Routes, credentials, command arguments, and raw output remain private.
 
 ## One human state
 

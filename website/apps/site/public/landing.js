@@ -32,7 +32,7 @@ for (const button of copyButtons) {
       await copyText(command);
       window.clearTimeout(resetTimer);
       button.querySelector("[data-install-text]").textContent =
-        "COPIED. TAKE YOUR SHOT.";
+        "COPIED. OPEN TOHSENO.";
       button.querySelector("[data-copy-label]").textContent = "✓";
       status.textContent = "Install command copied.";
       resetTimer = window.setTimeout(() => resetButton(button), 1800);
@@ -44,43 +44,6 @@ for (const button of copyButtons) {
       range.selectNodeContents(commandNode);
       selection.removeAllRanges();
       selection.addRange(range);
-    }
-  });
-}
-
-const contractButton = document.querySelector("[data-copy-contract]");
-
-if (contractButton) {
-  const address = contractButton.dataset.contract;
-  const message = `$TOHSENO IS LIVE ON ROBINHOOD CHAIN ~ ${address}`;
-  const labels = [...contractButton.querySelectorAll("[data-contract-text]")];
-  let resetTimer;
-
-  contractButton.addEventListener("click", async () => {
-    try {
-      await copyText(address);
-      window.clearTimeout(resetTimer);
-      labels.forEach((label) => {
-        label.textContent = "COPIED!";
-      });
-      contractButton.setAttribute("aria-label", "Contract address copied");
-      contractButton.classList.remove("is-copied");
-      void contractButton.offsetWidth;
-      contractButton.classList.add("is-copied");
-      status.textContent = "TOHSENO contract address copied.";
-      resetTimer = window.setTimeout(() => {
-        labels.forEach((label) => {
-          label.textContent = message;
-        });
-        contractButton.setAttribute(
-          "aria-label",
-          "Copy the TOHSENO contract address",
-        );
-        contractButton.classList.remove("is-copied");
-      }, 2000);
-    } catch {
-      status.textContent =
-        "Could not copy automatically. Select the contract address and copy it.";
     }
   });
 }

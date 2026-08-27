@@ -84,6 +84,7 @@ const MAX_PROCESSED_COMMAND_RECORD_BYTES: u64 = 64 * 1024;
 const MAX_PROCESSED_COMMAND_RECORDS: usize = 100_000;
 const MAX_RELAY_PAGES_PER_RECONCILIATION: usize = 32;
 const WORKSPACE_PROJECTION_SCHEMA: &str = "tohseno.companion-workspace-projection/1";
+const OFFICIAL_COMPANION_RELAY_ORIGIN: &str = "https://companion.tohseno.com";
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -1271,6 +1272,7 @@ impl CompanionCoordinator {
                 intention,
                 references,
             } => {
+                let name_was_supplied = suggested_name.is_some();
                 let name = suggested_name
                     .map(|name| name.to_ascii_lowercase())
                     .unwrap_or_else(|| {
@@ -1291,9 +1293,11 @@ impl CompanionCoordinator {
                         origin: CommandOrigin::Companion,
                         origin_device_id: Some(record.device_id.clone()),
                         name,
+                        name_was_supplied,
                         intention,
                         references: reference_inputs,
                         submitted_at,
+                        harness_selection: None,
                     })
                     .await
                 {
@@ -1917,12 +1921,17 @@ fn cursor_after_mailbox_reset(current: u64, reset: &MailboxResetRequired) -> Res
 
 impl RelayConfiguration {
     fn from_environment() -> Result<Option<Self>, BoxError> {
-        let Some(origin) = std::env::var("TOHSENO_COMPANION_RELAY_ORIGIN")
+        let configured = std::env::var("TOHSENO_COMPANION_RELAY_ORIGIN")
             .ok()
-            .filter(|value| !value.trim().is_empty())
-        else {
-            return Ok(None);
-        };
+            .filter(|value| !value.trim().is_empty());
+        #[cfg(not(debug_assertions))]
+        if configured
+            .as_deref()
+            .is_some_and(|value| value.trim_end_matches('/') != OFFICIAL_COMPANION_RELAY_ORIGIN)
+        {
+            return Err("release builds accept only the official Companion Relay origin".into());
+        }
+        let origin = configured.unwrap_or_else(|| OFFICIAL_COMPANION_RELAY_ORIGIN.into());
         let parsed = reqwest::Url::parse(&origin)?;
         if parsed.username() != ""
             || parsed.password().is_some()

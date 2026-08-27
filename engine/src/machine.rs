@@ -55,6 +55,8 @@ const MAX_EXPERIENCE_EVIDENCE_BYTES: u64 = 64 * 1024 * 1024;
 #[derive(Clone, Debug)]
 pub struct ShotRequest {
     pub app_name: String,
+    /// True only when the person explicitly chose the app name.
+    pub name_was_supplied: bool,
     pub intent: Intent,
     /// Exact signed Feedback action commitments selected for the next
     /// Evolutionary Intent. Payload-only feedback IDs are not accepted.
@@ -561,8 +563,12 @@ impl Engine {
             existing
         } else {
             let capability_profile = AppleCapabilityProfile::discover(&self.ledger)?;
-            let input =
-                ConceptionInput::new(&request.app_name, &prepared_intention, capability_profile)?;
+            let input = ConceptionInput::new(
+                &request.app_name,
+                request.name_was_supplied,
+                &prepared_intention,
+                capability_profile,
+            )?;
             input.write(&layout)?;
             input
         };
@@ -666,9 +672,8 @@ impl Engine {
             &self.ledger.working_tree(app_name),
             app_name,
             &app.bundle_id,
+            input.name_was_supplied,
             &output,
-            &expression,
-            &factory,
         )?;
         self.conduct_accepted_creation(app_name)
     }
@@ -1776,6 +1781,7 @@ impl Engine {
             &self.ledger.working_tree(&request.app_name),
             &request.app_name,
             &app.bundle_id,
+            true,
         )?;
         let instruction = "Read .tohseno/TASK.md, implement the exact human intention, and exit. The engine owns build, verification, recording, and delivery.".into();
         Ok(Evolved::Conducted(ConductedCreation {
@@ -1831,6 +1837,7 @@ impl Engine {
             &self.ledger.working_tree(app_name),
             app_name,
             &app.bundle_id,
+            true,
         )?;
         // A latest evolution that no longer verifies (a stranded pre-repin
         // world, or an unsigned past) is honest legacy: the adoption records
@@ -3119,6 +3126,11 @@ impl Engine {
                 "evolution accepted; aligning the folder with its sealed version needs attention: {error}"
             )));
         }
+        if let Err(error) = ensure_initial_git_commit(&working) {
+            self.events.emit(Event::status(format!(
+                "the app is installed, but its first local Git commit needs attention: {error}"
+            )));
+        }
         if let Some(pending) = consumed_pending_intent {
             if let Err(error) = layout
                 .clear_evolution_feedback_selection(pending.as_bytes())
@@ -4206,6 +4218,73 @@ fn verify_recorded_builder(
     Ok(shot_id)
 }
 
+/// Give every accepted app a usable repository even when the implementation
+/// harness initialized Git but never created HEAD. Git history is a product
+/// convenience, not protocol authority; accepted source and signed lineage
+/// remain authoritative.
+fn ensure_initial_git_commit(repository: &Path) -> Result<(), std::io::Error> {
+    let git = repository.join(".git");
+    match fs::symlink_metadata(&git) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+            return Err(std::io::Error::other(
+                "the existing .git path is not a safe repository directory",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            git_success(repository, &["init", "-q", "-b", "main"])?;
+        }
+        Err(error) => return Err(error),
+    }
+
+    let head = Command::new("git")
+        .arg("-C")
+        .arg(repository)
+        .args(["rev-parse", "--verify", "HEAD"])
+        .output()?;
+    if head.status.success() {
+        return Ok(());
+    }
+
+    git_success(repository, &["add", "-A", "--", "."])?;
+    git_success(
+        repository,
+        &[
+            "-c",
+            "user.name=TOHSENO",
+            "-c",
+            "user.email=local@tohseno.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "commit",
+            "-q",
+            "--no-gpg-sign",
+            "-m",
+            "Initial app",
+        ],
+    )?;
+    git_success(repository, &["branch", "-M", "main"])
+}
+
+fn git_success(repository: &Path, arguments: &[&str]) -> Result<(), std::io::Error> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(repository)
+        .args(arguments)
+        .output()?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr);
+    Err(std::io::Error::other(format!(
+        "git {} failed: {}",
+        arguments.first().copied().unwrap_or("command"),
+        detail.trim()
+    )))
+}
+
 #[derive(Debug)]
 pub enum EngineError {
     Io(std::io::Error),
@@ -4437,6 +4516,50 @@ mod tests {
         let bundle_id = candidate_bundle_id("Alice Example", "quiet-press");
         assert_eq!(bundle_id, "org.tohseno.genesis.alice-example.quiet-press");
         install::require_candidate_namespace(&bundle_id).unwrap();
+    }
+
+    #[test]
+    fn accepted_app_repository_gets_one_safe_initial_commit() {
+        let temporary = tempfile::tempdir().unwrap();
+        let repository = temporary.path().join("app");
+        fs::create_dir(&repository).unwrap();
+        fs::write(repository.join("App.swift"), "struct App {}\n").unwrap();
+        fs::create_dir(repository.join(".tohseno")).unwrap();
+        fs::write(repository.join(".tohseno/shot.json"), "{}\n").unwrap();
+        fs::write(repository.join(".tohseno/lineage.jsonl"), "private\n").unwrap();
+        fs::write(
+            repository.join(".gitignore"),
+            ".tohseno/lineage.jsonl\n.tohseno/private/\n",
+        )
+        .unwrap();
+
+        ensure_initial_git_commit(&repository).unwrap();
+        ensure_initial_git_commit(&repository).unwrap();
+
+        let branch = Command::new("git")
+            .arg("-C")
+            .arg(&repository)
+            .args(["branch", "--show-current"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8(branch.stdout).unwrap().trim(), "main");
+        let files = Command::new("git")
+            .arg("-C")
+            .arg(&repository)
+            .args(["ls-tree", "-r", "--name-only", "HEAD"])
+            .output()
+            .unwrap();
+        let files = String::from_utf8(files.stdout).unwrap();
+        assert!(files.contains("App.swift"));
+        assert!(files.contains(".tohseno/shot.json"));
+        assert!(!files.contains(".tohseno/lineage.jsonl"));
+        let count = Command::new("git")
+            .arg("-C")
+            .arg(&repository)
+            .args(["rev-list", "--count", "HEAD"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8(count.stdout).unwrap().trim(), "1");
     }
 
     #[test]

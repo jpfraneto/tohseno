@@ -119,9 +119,9 @@ for executable in "$binary" "$identity_helper" "$fixture_harness"; do
   test -f "$executable" && test ! -L "$executable" && test -x "$executable" ||
     fail "a factory lifecycle executable was not built safely"
 done
-test "$("$binary" --version)" = "tohseno 1.0.0" || fail "TOHSENO 1.0.0 was not built"
-test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.0.0" ||
-  fail "the 1.0.0 Apple identity helper was not built"
+test "$("$binary" --version)" = "tohseno 1.0.2" || fail "TOHSENO 1.0.2 was not built"
+test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.0.2" ||
+  fail "the 1.0.2 Apple identity helper was not built"
 
 family="$temporary_root/data"
 machine="$family"
@@ -315,6 +315,17 @@ test ! -e "$factory_app/TOHSENO_STATE_TRANSITION.json" ||
   fail "the harness receipt draft leaked into app source"
 test ! -e "$factory_app/AGENTS.md" ||
   fail "factory creation used generated AGENTS.md as application governance"
+test "$(git -C "$factory_app" branch --show-current)" = "main" ||
+  fail "factory creation did not leave the app on a usable main branch"
+test "$(git -C "$factory_app" rev-list --count HEAD)" -eq 1 ||
+  fail "factory creation did not make exactly one initial Git commit"
+git -C "$factory_app" ls-tree -r --name-only HEAD |
+  grep -Fqx '.tohseno/shot.json' ||
+  fail "the initial commit omitted safe app identity metadata"
+if git -C "$factory_app" ls-tree -r --name-only HEAD |
+  grep -Eq '^\.tohseno/(lineage\.jsonl|private/|references/|executions/)'; then
+  fail "the initial commit included private TOHSENO material"
+fi
 version_one="$(find "$factory_app/versions" -type f -path '*/0001/version.json' -print | head -n 1)"
 [ -n "$version_one" ] && [ -f "$version_one" ] && [ ! -L "$version_one" ] ||
   fail "factory creation did not accept Version 0001"

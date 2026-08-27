@@ -3,6 +3,11 @@
 Status: completed once under ADR 0009. The authorization is consumed. This is
 not a reusable deployment command or activation authority.
 
+Current-state note (2026-08-26): the candidate was later activated under the
+trust root and signed evidence in `release/contract-activations/`. The
+inactive language below records the earlier deployment boundary; it is not a
+description of current generation state.
+
 Security note: the public singleton CREATE2 coordinates can be occupied by an
 exact-code third-party deployment. Accepted ADR 0008 defines the required
 fail-closed abandonment rule.

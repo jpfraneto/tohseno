@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-24. This is the plain-language
+Written 2026-07-30, amended through 2026-08-26. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -9,7 +9,7 @@ something below stops being true, update this file in the same change.
 ADR 0016 defines what a person sees. The whole product is:
 
 ```text
-tohseno create my-app     describe the app     → it installs on your iPhone
+tohseno create [my-app]   describe the app     → it installs on your iPhone
 tohseno evolve my-app     describe the change  → the update installs
 ```
 
@@ -37,7 +37,7 @@ reconciles paired Companions. CLI, Studio, and mobile commands converge on one
 Rust `ShotApplicationService`; none implements a second factory or shells out
 to another frontend.
 
-`tohseno create <name>` begins a factory birth from `--prompt`,
+`tohseno create [name]` begins a factory birth from `--prompt`,
 `--prompt-file`, or bounded piped UTF-8. With no intention in an interactive
 session it starts the service and opens the creation composer; an exact regular
 `./MASTER_PROMPT.md` prefills that composer through the durable
@@ -45,6 +45,12 @@ pending-intention store, and never starts a build on its own. Non-interactive
 invocation without an intention fails instead of waiting or creating a partial
 Shot. Exact intentions and up to eight safely checked reference images are
 preserved before execution.
+
+The name is optional. When it is omitted, the service reserves a collision-safe
+technical slug from the intention and the existing implementation model is
+instructed to choose and apply a concise user-facing product name based on the
+app's primary use. This happens inside the one bounded implementation pass;
+there is no preliminary naming or planning invocation.
 
 `tohseno evolve <name>` begins an evolutionary transaction bound to one Shot,
 one Expression, and one exact accepted base Version, and with no intention in
@@ -119,6 +125,14 @@ files. Existing `.tohseno/recording-layer-v1` directories remain
 execution is permitted. Historical accepted directories and records are read
 and verified under the law that produced them, never rewritten or re-signed.
 
+ADR 0024 distinguishes Version source from repository durability. `.tohseno/`
+is excluded from the app source-tree commitment to prevent self-reference, but
+the directory itself is not blanket-gitignored. Safe app identity, state,
+expression, capability, protocol-version, and immutable Evolution structure
+remain Git-visible. Exact intentions, inline-private lineage, references,
+feedback, executions, logs, retained artifacts, and `.tohseno/private/` stay
+explicitly ignored. Git visibility is not registry publication.
+
 ## Local Workspace Service and Studio
 
 The installed service is a user LaunchAgent named
@@ -192,11 +206,15 @@ receipts. The local service verifies a release-pinned public key and exact
 installation bind before changing entitlement. Monthly is $9.99 and yearly is
 $99. Billing is configuration-gated and currently inactive.
 
-The dependency-free npm bootstrap is `packages/cli`, version 1.0.0. It uses one
-fixed HTTPS manifest, refuses redirects and unapproved origins, verifies exact
-size, SHA-256, release layout/checksums, and Apple signing policy, and installs
-only into the existing user-owned layout. `tohseno@1.0.0` is published under
-the npm `latest` tag.
+The repository prepares `packages/cli` 1.0.2 as the dependency-free npm peer
+of native TOHSENO 1.0.2. A fresh global Mac install enters the existing
+first-run guide directly from npm postinstall. The bootstrap uses one fixed
+HTTPS manifest, refuses redirects and unapproved origins, verifies exact size,
+SHA-256, release layout/checksums, and Apple signing policy, and installs only
+into the existing user-owned layout. It now also requires the manifest's native
+version to equal 1.0.2, so publishing npm before the signed native manifest
+fails closed. The public npm `latest` and native manifest remain 1.0.1 and
+1.0.0 respectively until the separate 1.0.2 owner release actions occur.
 
 ## Private Companion channel
 
@@ -283,12 +301,36 @@ as a candidate on 2026-08-01 and activated by the recorded owner ceremony on
 2026-08-02. That evidence remains under `release/` and `contracts/`. No
 contract generation or deployment command is active on current source.
 
+This is an honest client-state claim, not an audit-quality claim. The release
+records also say the owner waived the required pre-activation canary, all three
+release-authority keys were created on one Mac, and no independent human or
+formal contract audit is claimed. The contracts are immutable; a defect
+requires abandonment or a successor rather than repair in place.
+
+Activation means the client trusts those exact factory and registry instances;
+it does not make a downloadable app registry operational. Secure public
+BuilderAccount creation, registry RPC/transaction orchestration,
+app-metadata publication receipts, source-repository hosting, catalog lookup,
+download, and node checkpoint/receipt inventory are not implemented. The
+contract stores no app code. The existing Workshop can create and verify a
+manually transported source capsule and launch the tester-built app in
+Simulator; it is neither registry submission nor iPhone distribution.
+
 ## Published release
 
-**1.0.0** is the current public release. The signed `v1.0.0` GitHub release,
-native manifest, public installer pin, and `tohseno@1.0.0` npm package were
-published and independently checked before activation. The public website and
-installer now serve that release.
+Native **1.0.0** is the current public product release. The signed `v1.0.0`
+GitHub release, native manifest, and public installer pin were published and
+independently checked before activation. The public website and installer
+serve native 1.0.0. npm's independently versioned front door is 1.0.1 and
+delegates to that native release. Publication evidence for the npm patch is in
+`release/NPM_1_0_1_PUBLICATION.json`.
+
+Native and npm **1.0.2** are the next coherent release candidate in this
+source tree. Its workflow accepts only `v1.0.2`, and
+`release/V1_0_2_READINESS.json` remains explicitly unauthorized and blocked
+until clean verification, immutable artifacts, exact public manifest bytes,
+npm publication, and website activation are recorded. Source preparation is
+not a claim that 1.0.2 is publicly available.
 
 Production billing remains configuration-gated and inactive. Companion relay
 and APNs activation remain separate operational decisions; the 1.0.0 release

@@ -2,13 +2,36 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0024](0024-app-local-tohseno-git-boundary.md) makes `.tohseno/` an
+integral Git-visible part of each app repository while retaining exact ignores
+for intentions, inline-private lineage, references, feedback, executions,
+logs, artifacts, and `.tohseno/private/`. Git visibility never substitutes for
+an explicit public-registry publication flow.
+
+[ADR 0023](0023-per-shot-harness-and-model-choice.md) adds one compact
+Studio creation choice for an installed coding harness and one of its
+associated models. The resolved selection is persisted with the private
+creation command so recovery cannot switch it, while ADR 0019's one bounded
+implementation harness and repair ceiling remain unchanged.
+
+[ADR 0022](0022-optional-model-chosen-app-name.md) makes the app name optional.
+When omitted, the factory reserves a local technical slug and gives the one
+existing implementation model responsibility for choosing the user-facing
+product name from the exact intention, with no extra planning invocation.
+
+[ADR 0021](0021-npm-install-enters-first-run.md) makes a fresh global npm
+install enter the existing first-run product surface without a second command.
+It preserves ADR 0020's verified native bootstrap and cable genesis while
+keeping local dependency installs and already-installed updates free of an
+automatic open.
+
 [ADR 0020](0020-cable-genesis-earned-pro-npm-front-door.md) defines TOHSENO
 0.9.9's complete product boundary: the first Mac↔iPhone relationship begins
 through the cable while the existing cryptographic pairing remains intact;
 the complete factory is available for at most seven calendar days; five
 accepted physical-delivery days qualify a person for $9.99 monthly or $99
 yearly Pro; factory admission is enforced below every UI; Apple membership is
-independent; and `tohseno@0.1.0` is a thin verified native-release front door.
+independent; and the npm package is a thin verified native-release front door.
 It authorizes no publication or production external activation.
 
 [ADR 0019](0019-bounded-intent-to-usable-app.md) defines the current execution

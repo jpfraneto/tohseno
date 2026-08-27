@@ -1,6 +1,6 @@
 # ADR 0007: app metadata does not self-prove publication
 
-- Status: accepted for the inactive `0.8.0` contract definition
+- Status: accepted for generation `0.8.0`; still applies after activation
 - Date: 2026-07-30
 
 ## Context

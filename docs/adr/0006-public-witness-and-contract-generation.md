@@ -1,5 +1,12 @@
 # ADR 0006: the public witness is narrow, explicit, and generation-scoped
 
+> Current-state note (2026-08-26): generation 0.8.0 was later deployed and the
+> current client pins a threshold-signed activation. Statements below that it
+> "remains inactive" describe this decision's pre-activation state. The wire
+> design and the separation between activation, controller evidence,
+> publication receipts, artifact availability, and registry product workflows
+> remain authoritative; those product workflows are still unimplemented.
+
 - Status: accepted for contract generation `0.8.0`
 - Date: 2026-07-30
 - Supersedes: ADR 0004's compatibility promise for the undeployed v0.7 public

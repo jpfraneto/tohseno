@@ -71,7 +71,8 @@ describe("public pages", () => {
     expect(body).toContain("THE FACTORY IS<br>A MIDWIFE.");
     expect(body).toContain("THE FACTORY<br>IS OPEN.<br>THE APP<br>IS YOURS.");
     expect(body).toContain("FROM ZERO<br>TO YOUR PHONE.");
-    expect(body).toContain("LOCAL CREATION.<br>PUBLIC PROOF.");
+    expect(body).toContain("A COMPLETE TRIAL. A CLEAR BOUNDARY.");
+    expect(body).toContain("LOCAL CREATION.<br>PUBLICATION IS NEXT.");
     expect(body).toContain("WHAT SHOULD<br>EXIST?");
     expect(body).toContain(NPM_INSTALL_COMMAND);
     expect(body).not.toContain(INSTALL_COMMAND);
@@ -82,21 +83,16 @@ describe("public pages", () => {
     expect(body).toContain('property="og:title" content="Open Source iOS Apps Factory"');
     expect(body).toContain('name="twitter:title" content="Open Source iOS Apps Factory"');
     expect(body).not.toContain("One App Per Day");
-    expect(body.match(/class="ticker-track"/g)).toHaveLength(2);
+    expect(body.match(/class="ticker-track"/g)).toHaveLength(1);
     expect(body).toContain("REALITY IS NOW CHEAP ENOUGH TO ANSWER.");
-    expect(body).toContain("data-copy-contract");
-    expect(body).toContain(
-      "0x364415F884FC93775A4C1825c1a3Af1f0c2D8bA3",
-    );
+    expect(body).not.toContain("data-copy-contract");
     expect(body).not.toContain("cal.com/jpfraneto/day");
-    expect(body).not.toMatch(/\$\d/u);
+    expect(body).toContain("$9.99 monthly or $99 yearly");
     expect(body).not.toContain("sojourn");
     expect(body).not.toContain("BOOK A DAY");
 
-    expect(body).toContain(
-      'href="https://dexscreener.com/robinhood/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3"',
-    );
-    expect(body).toContain(">$TOHSENO <span");
+    expect(body).not.toContain("dexscreener.com");
+    expect(body).toContain("source hosting, publication, discovery, and forking are not available yet");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain('href="#"');
@@ -122,10 +118,10 @@ describe("public pages", () => {
     expect(primaryNavigation).toBeDefined();
     expect(primaryNavigation).not.toContain("github.com");
     expect(body).toContain(
-      "<title>TOHSENO — Give Every Idea a Shot</title>",
+      "<title>TOHSENO — Make the iPhone App That Should Exist</title>",
     );
     expect(body).toContain(
-      'content="An open-source factory for turning coherent intentions into independently owned native iOS applications."',
+      'content="Describe a small app. Your Mac builds it and puts it on your iPhone."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -148,39 +144,34 @@ describe("public pages", () => {
       // Only the latest release is ever named; retired versions stay unnamed.
       expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
       if (path === "/docs") {
-        expect(body).toContain("Take another one");
-        expect(body).toContain("Studio checks the Mac first");
-        expect(body).toContain("Take one deliberately small Shot");
-        expect(body).toContain("Experience version 0001, then evolve it");
+        expect(body).toContain("App → Intent → App on your iPhone");
+        expect(body).toContain("The cable is first run");
+        expect(body).toContain("Create one deliberately small app");
+        expect(body).toContain("Use it, then describe the change");
         expect(body).toContain("tohseno studio");
-        expect(body).toContain("TOHSENO 1.0.0");
+        expect(body).toContain("Release <strong>1.0.2</strong>");
+        expect(body).toContain("TOHSENO 1.0.2");
+        expect(body).toContain("five successful distinct days or seven calendar days");
         expect(body).toContain(
           "binds only to <code>127.0.0.1</code>",
         );
-        expect(body).toContain("tohseno shot follow &lt;execution-id&gt;");
-        expect(body).toContain("tohseno shot result &lt;execution-id&gt;");
-        expect(body).toContain("<strong>BIRTH ACCEPTED</strong>");
-        expect(body).toContain("tohseno migrate-legacy");
+        expect(body).toContain("tohseno create");
+        expect(body).toContain("tohseno evolve &lt;app-name&gt;");
         expect(body).toContain("<code>~/Desktop/Tohseno</code>");
         expect(body).toContain(
           "Studio does not upload canonical Shot data",
         );
-        expect(body).toContain("<strong>TAKE THE SHOT</strong>");
-        expect(body).toContain("continue unattended");
-        // The interactive approve-and-press-Enter ceremony is retired.
-        expect(body).not.toContain("APPROVE &amp; OPEN TERMINAL");
-        expect(body).not.toContain("TOHSENO never bypasses this human boundary");
+        expect(body).toContain("not blanket-gitignored");
+        expect(body).toContain("<code>.tohseno/private</code>");
         expect(body).toContain("Robinhood Chain mainnet (chain ID 4663)");
-        expect(body).toContain("inactive, untrusted candidate");
+        expect(body).toContain("current client-trusted generation");
         expect(body).toContain("0xb1bd208cd2af98e701f43d06aaa889d3a594df65");
         expect(body).toContain("0x3fe6508ba2660bc575080024f402c192a2e035a0");
-        expect(body).toContain("activation is not authorized");
-        expect(body).not.toContain(
-          "No TOHSENO contract is deployed on any network",
-        );
+        expect(body).toContain("source hosting, catalog discovery, and download are not implemented");
+        expect(body).toContain("No current TOHSENO workflow uploads an app repository");
         expect(body).toContain(INSTALL_COMMAND);
-        expect(body).not.toContain("prepared, unpublished");
-        expect(body).not.toContain("bun run tohseno");
+        expect(body).not.toContain("inactive, untrusted candidate");
+        expect(body).not.toContain("native <strong>TOHSENO 1.0.1</strong>");
       } else {
         expect(body).toContain("The installed factory sends no TOHSENO telemetry");
         expect(body).toContain("Pending Relay Intention");
@@ -216,8 +207,8 @@ describe("public pages", () => {
     expect(landingScript).toContain("navigator.clipboard");
     expect(landingScript).toContain("document.execCommand");
     expect(landingScript).toContain("textContent");
-    expect(landingScript).toContain('"COPIED!"');
-    expect(landingScript).toContain("2000");
+    expect(landingScript).toContain('"COPIED. OPEN TOHSENO."');
+    expect(landingScript).toContain("1800");
     expect(landingScript).not.toContain("innerHTML");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
@@ -320,7 +311,7 @@ describe("public pages", () => {
     const expectedOneshot = readFileSync(oneshotInstallerPath);
     expect(expected).toEqual(expectedOneshot);
     expect(expectedOneshot.byteLength).toBeGreaterThan(10_000);
-    expect(expectedOneshot.toString("utf8")).toContain('version="v1.0.0"');
+    expect(expectedOneshot.toString("utf8")).toContain('version="v1.0.2"');
     expect(expectedOneshot.toString("utf8")).toContain("--claim)");
     expect(expectedOneshot.toString("utf8")).toContain(
       "releases/download/$version/$artifact",

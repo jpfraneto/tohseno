@@ -1,0 +1,27 @@
+{
+  "schema": "tohseno.npm-publication-observation/1",
+  "observed_at": "2026-08-27T03:31:24Z",
+  "package": "tohseno",
+  "npm_version": "1.0.1",
+  "dist_tag": "latest",
+  "published_at": "2026-08-26T16:59:50.856Z",
+  "native_product_version": "1.0.0",
+  "native_manifest": "https://tohseno.com/releases/native-v1.json",
+  "native_github_release": "https://github.com/jpfraneto/tohseno/releases/tag/v1.0.0",
+  "tarball": {
+    "url": "https://registry.npmjs.org/tohseno/-/tohseno-1.0.1.tgz",
+    "byte_length": 9448,
+    "sha1": "802b98a01f49b541b1a687cfac99af4744514959",
+    "sha256": "7b9d341572a75eb13873e4cc4c92d34952fe2ce33611114298c893f7d12e8f0a",
+    "integrity": "sha512-+Wg2W+afW2Qem7oH8BdHuOuxSHX5nCPMnZvJad5V2fcnDC8/7PIE62WbeULUlg8f9N7TcBLorqhZ6jZX9eiJPg==",
+    "file_count": 14,
+    "unpacked_byte_length": 30558,
+    "repository_copy": "packages/cli/tohseno-1.0.1.tgz"
+  },
+  "git": {
+    "tag": null,
+    "github_release": null
+  },
+  "boundary": "This is the live npm bootstrap, not a native TOHSENO 1.0.1 release. It installs and launches the separately published native 1.0.0 product.",
+  "provenance_gap": "The npm artifact was published before its exact source and this observation were committed to repository history. Preserve the matching tarball and source; do not claim commit-bound publication provenance retroactively."
+}

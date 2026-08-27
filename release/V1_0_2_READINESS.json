@@ -1,0 +1,66 @@
+{
+  "schema": "tohseno.release-readiness/1",
+  "version": "1.0.2",
+  "channel": "release-candidate",
+  "ready": false,
+  "authorization": {
+    "authorized": false,
+    "authorized_by": null,
+    "authorized_at": null,
+    "authorization_form": null
+  },
+  "protection": {
+    "immutable_release_policy_verified": false,
+    "release_tag_protection_verified": false,
+    "release_tag_ruleset_id": null,
+    "verified_at": null
+  },
+  "source": {
+    "accepted_product_adrs": [
+      "docs/adr/0016-app-intent-app-on-your-iphone.md",
+      "docs/adr/0019-bounded-intent-to-usable-app.md",
+      "docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md",
+      "docs/adr/0021-npm-install-enters-first-run.md",
+      "docs/adr/0022-optional-model-chosen-app-name.md",
+      "docs/adr/0024-app-local-tohseno-git-boundary.md"
+    ],
+    "public_installer_pin": "1.0.2",
+    "historical_protocol_rewritten": false,
+    "recording_layer_implicit_migration": false
+  },
+  "required_local_evidence": {
+    "clean_source_commit_captured": false,
+    "rust_fmt_green": false,
+    "rust_clippy_green": false,
+    "rust_workspace_tests_green": false,
+    "apple_identity_build_green": false,
+    "apple_identity_tests_green": false,
+    "fascia_apple_tests_green": false,
+    "companion_kit_tests_green": false,
+    "companion_product_tests_green": false,
+    "contracts_build_green": false,
+    "contracts_tests_green": false,
+    "studio_tests_green": false,
+    "website_typecheck_green": false,
+    "website_tests_green": false,
+    "factory_lifecycle_green": false,
+    "companion_end_to_end_green": false,
+    "isolated_macos_launchagent_integration_green": false,
+    "npm_pack_first_run_and_nameless_create_green": false,
+    "three_physical_iphone_apps_green": false,
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
+  },
+  "external_activation_gates": {
+    "immutable_v1_0_2_tag_published": false,
+    "immutable_release_artifacts_published": false,
+    "developer_id_signatures_verified": false,
+    "public_native_manifest_published": false,
+    "public_installer_updated_after_artifact_verification": false,
+    "npm_1_0_2_published": false,
+    "npm_clean_prefix_install_verified": false,
+    "website_1_0_2_deployed": false,
+    "post_activation_service_health_verified": false
+  },
+  "blocking_reason": "Owner release authorization and immutable 1.0.2 artifact evidence are not recorded yet."
+}

@@ -1,6 +1,6 @@
 {
   "name": "tohseno",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Secure bootstrap and launcher for the native TOHSENO app factory on macOS",
   "type": "module",
   "bin": {
@@ -29,6 +29,7 @@
     "access": "public"
   },
   "scripts": {
+    "postinstall": "node src/postinstall.js",
     "test": "node --test test/*.test.js",
     "test:pack": "node test/pack-install.test.js"
   }

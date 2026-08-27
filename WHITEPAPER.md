@@ -263,7 +263,7 @@ A **BuilderID** is the protocol identifier representing that authority. In the s
 
 A **DeviceKey** is a P-256 key authorized within a BuilderAccount with protocol and/or device-administration permissions. Ordinary revocation cannot remove the final active device; the final administrator may be revoked only after recovery is configured. Recovery begins a three-day delay and then permits replacement of the key set; an active administrator may cancel any time before finalization lands, including after the delay. Recovery authority, device rotation, Builder control, and Apple code-signing identity are different concerns. Apple signing is external to TOHSENO's controller-key protocol.
 
-The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics. Based on embedded ceremony evidence for the deployed contracts, this checkout's resolver treats generation 0.8.0 as active under a threshold-signed release authority; authoritative protocol prose still declares it inactive, as Section 16 records. In either reading, the public witness workflows that would use it are not implemented, so accepted product state remains local.
+The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics. The current protocol and client resolver treat generation 0.8.0 as active under a threshold-signed release authority. The public Builder, registry, receipt, catalog, and artifact workflows that would use it are not implemented, so accepted product state remains local unless a person uses a separate explicit source-sharing transport.
 
 ### 4.7 Generator and Verifier
 
@@ -678,13 +678,13 @@ Apple is the only implemented materialization profile. Its current effective gat
 
 The sealed Apple Fascia remains labeled candidate 0.7.0 by immutable-artifact policy. That does not make 0.7.0 the current product version, nor does the 0.8.2 workspace version make the composite protocol canonical 1.0. No non-Apple factory is implemented.
 
-### 16.3 Contracts, activation, and the unresolved authority contradiction
+### 16.3 Contracts and activation at the audited commit
 
 Repository ceremony evidence records that generation 0.8.0 `BuilderAccountFactory` and `ShotRegistry` contracts were deployed to Robinhood Chain, chain 4663, first as an inactive candidate. This audit did not independently query that public chain.
 
 The activation commit in this revision's ancestry adds a two-of-three release-authority policy, a threshold-signed sequence-one activation, a fresh P-256 precompile probe, independent verifier output, and owner decision records. Based on that embedded ceremony evidence for the deployed contracts, the client resolver treats generation 0.8.0 as active. Its offline network-status command reports `active` but `ready: false`, because registry verification is not implemented. The contracts themselves do not carry an on-chain activation flag.
 
-The repository does not speak with one normative voice about that activation. Higher-ranked `protocol/SPECIFICATION.md` and `protocol/IMPLEMENTERS.md` explicitly state that no activation or trust root is committed and no generation is active; current `protocol/CONFORMANCE.md` checks also assume inactivity. Root `AGENTS.md` says the same. Newly committed protocol tests, engine code, release evidence, and part of `docs/STATE.md` say the opposite. Because protocol prose is expressly authoritative over ordinary status documentation, this paper treats activation as an internally verifying implementation and ceremony event whose status is unresolved in protocol law. It does not use the generation as a settled foundation for any timeless claim.
+At the commit audited for this section, the repository did not speak with one normative voice about activation: higher-ranked protocol prose still said inactive while engine code and release evidence said active. The current repository has reconciled that contradiction in favor of the observable release state: generation 0.8.0 is the client-trusted active generation. This historical audit remains explicit because the later wording change cannot retroactively erase the discrepancy that existed at the audited commit.
 
 The activation evidence also records material security deviations. All three release-authority keys were generated on one Mac, so threshold signing does not protect against compromise of that machine. The owner record calls the required 72-hour production canary waived; real-chain BuilderAccount recovery remains unexercised. Accepted ADR 0009 makes both that canary and human or competitive audit prerequisites to activation and defines no waiver path. The ceremony therefore did not satisfy those accepted gates. Two AI reviews exist, but independent human or formal contract audit remains outstanding.
 
@@ -692,7 +692,7 @@ The activation evidence also records material security deviations. All three rel
 
 Even under the engine's active resolver state, the end-user public lifecycle is not operational. Secure successor BuilderID creation is unimplemented. A default fresh identity remains explicitly test-only; an explicit Secure Enclave request fails closed; legacy v0.7 identities cannot authorize public actions. There is no complete CLI or Studio flow to deploy a BuilderAccount, retain commit/reveal state, register a Shot, append a public checkpoint, transfer registry control, or verify a publication receipt.
 
-Application metadata `/2` cannot claim registry publication. The required successor metadata schema and Fascia revision do not exist. The node still reports no active generation and has no inventory, verification, or synchronization surface for public checkpoints or receipts, creating an implementation inconsistency with the engine's resolver. Public-action surfaces therefore remain not ready despite the activation record.
+Application metadata `/2` cannot claim registry publication. The required successor metadata schema and Fascia revision do not exist. The current node reports active generation 0.8.0 but still has no live controller resolver or inventory, verification, or synchronization surface for public checkpoints or receipts. Public-action surfaces therefore remain not ready despite the activation record.
 
 The contracts are unaudited by a human security firm and have no formal verification claim. There is no evidence here of a deployed or verified `$TOHSENO`, `$AAPL`, or per-Shot token. The optional Bankr path records a private Token Association and cannot substitute for publication.
 
