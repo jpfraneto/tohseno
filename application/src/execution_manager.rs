@@ -1265,6 +1265,12 @@ fn execution_phase_for_factory_stage(stage: FactoryStage) -> ExecutionPhase {
 }
 
 fn is_repairable_implementation_defect(diagnostic: &str) -> bool {
+    // A completed conformance report names a source or retained-artifact
+    // defect. Check it before the generic protocol-body exclusion because the
+    // Engine wraps these exact app-owned gaps in that boundary.
+    if diagnostic.contains("Shot conformance failed:") {
+        return true;
+    }
     let external_or_protocol = [
         "external_environment_constraint",
         "acceptance_pending_physical_experience",
@@ -2292,6 +2298,7 @@ mod tests {
     #[test]
     fn source_owned_acceptance_gaps_get_the_one_bounded_repair() {
         for diagnostic in [
+            "protocol body is incomplete: engine birth acceptance: Shot conformance failed: apple.bundle_version",
             "gate=fascia.capability_reconciliation category=protocol_integrity expected=an intent-level purpose classification=app_problem missing={Microphone}",
             "gate=apple.privacy_usage_description category=apple_platform_requirement expected=NSMicrophoneUsageDescription classification=app_problem",
             "gate=intent.capability_implementation category=intent_fidelity expected=the real Release implementation classification=app_problem",
