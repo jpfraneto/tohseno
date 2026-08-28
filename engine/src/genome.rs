@@ -288,9 +288,7 @@ Use the smallest appropriate implementation.
 
 For a new native iPhone app, the root project, shared scheme, target, and app
 product must be `{app_name}` and the bundle identifier must be `{bundle_id}`.
-Every target build configuration must set
-`CURRENT_PROJECT_VERSION = __TOHSENO_SHOT__;` exactly; TOHSENO owns and
-replaces that token when it seals each Version.
+Every target build configuration must set `CURRENT_PROJECT_VERSION = __TOHSENO_SHOT__;` exactly; TOHSENO replaces it when sealing each Version.
 TOHSENO has already staged exact engine-owned files in `TohsenoFascia/` and
 `TOHSENO/`. Do not search for, copy, or rewrite them. Add both existing
 directories to the application target; bundle `TOHSENO/fascia.json` and
