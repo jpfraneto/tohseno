@@ -59,7 +59,7 @@
     "apple_notarization_accepted": true,
     "stapled_ticket_verified": true,
     "clean_mac_gatekeeper_acceptance_verified": false,
-    "physical_iphone_installation_verified": false,
+    "physical_iphone_installation_verified": true,
     "independent_download_checksum_verified": false,
     "public_native_manifest_published": false,
     "public_installer_updated_after_artifact_verification": false,
@@ -68,30 +68,78 @@
     "website_1_0_2_deployed": false,
     "post_activation_service_health_verified": false
   },
+  "rejected_local_candidates": [
+    {
+      "source_commit": "ea2135326c7943f099e34e1b165b04e225423723",
+      "notary_submission_id": "0fd48891-5b33-4325-bde1-104ee1ee8b9f",
+      "dmg_sha256": "f0da1c860fb24f494eb8d1f28f90276c1bc49a354ba8be5afd8440b33ba7ae90",
+      "reason": "Rejected after first-open acceptance exposed an invalid dynamic code-signing flag, a concurrent bundled-release activation race, and acronym-bearing native JSON fields that Swift could not decode. This artifact was replaced locally and must not be distributed."
+    },
+    {
+      "source_commit": "c3fc5cf1de7a0d4edcc62f0467be7c419ee686de",
+      "notary_submission_id": "e7834294-409a-4884-8c70-57f4eac3f2e8",
+      "dmg_sha256": "5695b5db77d6a4ab3dbd8e3a81f29106236da55ade78ccb85bf46ea0a2219fc4",
+      "reason": "Superseded during continued signed first-open and create-path acceptance. This artifact is not current and must not be distributed."
+    },
+    {
+      "source_commit": "0ea51173836728c4e01765d3e4bc500942c78d71",
+      "notary_submission_id": "843bf0b4-5060-4ab6-a72c-b40daae9b881",
+      "dmg_sha256": "9201e7d2804fc1e4e9cd5abdd739a263076c8f74971d52421785c66fd4bbeb4c",
+      "reason": "Rejected after native create-path acceptance exposed session-capacity and concurrent 403 recovery failures. This artifact was replaced locally and must not be distributed."
+    },
+    {
+      "source_commit": "36f5513d64695237878efae6460f3067616e9b1d",
+      "notary_submission_id": "8b5e4f7a-78a6-4eb0-89bc-6d88741040af",
+      "dmg_sha256": "ec541b86facd6c17067d3e53a0d0bdbc3674e5224d4320e1a323c4f22448cb64",
+      "reason": "Rejected when a packaged create could not locate the bundled Apple Fascia source. This artifact was replaced locally and must not be distributed."
+    },
+    {
+      "source_commit": "c1603163af5abeb5465621b6a15c2c38c46f53a0",
+      "notary_submission_id": "64149dea-9c0b-43d1-ac66-f3eb1945e465",
+      "dmg_sha256": "60843c5442e5dd3bf45539c5ef5c834c446e554788fc9e3fb41ae92ff4c5268f",
+      "reason": "Superseded after create-path acceptance showed the compact harness task could omit the exact project-version token and the resulting conformance failure was not eligible for the one bounded repair. This artifact is not current and must not be distributed."
+    }
+  ],
   "current_verified_evidence": {
-    "verified_at": "2026-08-28T15:31:00Z",
-    "source_commit_at_verification": "ea2135326c7943f099e34e1b165b04e225423723",
+    "verified_at": "2026-08-28T18:55:35Z",
+    "source_commit_at_verification": "dc85db5b95b678872266a0279c38dbb1fc5be8a2",
     "worktree_clean_at_build": true,
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
-    "local_verification_result": "Rust formatting, strict Clippy, workspace tests, all required Swift packages including TohsenoMac, Forge, Studio, website typecheck/tests, and all three isolated lifecycle scripts passed",
+    "local_verification_result": "The exact AGENTS.md matrix passed from a detached clean worktree at the exact source commit: Rust formatting, strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The signed final app installed through Finder on the build Mac, visually presented the rotating TOHSENO loading mark, reached readiness, and survived quit/reopen without the earlier native activation/session errors.",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
+    "installed_application_cdhash": "5ad1bc35401bbc0b5417ea00618cbda584d33bc0",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "0fd48891-5b33-4325-bde1-104ee1ee8b9f",
+    "notary_submission_id": "a82a8a1c-6ab4-4e49-b5ba-ca5396542f84",
     "notary_status": "Accepted",
     "notary_status_summary": "Ready for distribution",
-    "notary_upload_at": "2026-08-28T15:28:56.890Z",
+    "notary_upload_at": "2026-08-28T17:53:12.108Z",
     "notary_issues": null,
     "stapler_validation": "accepted",
     "dmg_path": "dist/native/TOHSENO-1.0.2.dmg",
-    "dmg_size_bytes": 50806326,
-    "dmg_sha256": "f0da1c860fb24f494eb8d1f28f90276c1bc49a354ba8be5afd8440b33ba7ae90",
-    "mounted_dmg_verification": "manifest, forbidden-secret scan, universal binaries, designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, and stapled notarization ticket passed"
+    "dmg_size_bytes": 50770970,
+    "dmg_sha256": "7aca20924e2b4d20a624859864f8b4271d2ba8d45648cc661f0e731eb1973cd2",
+    "mounted_dmg_verification": "A read-only mount passed manifest verification, forbidden-secret scan, universal-binary checks, the exact Team ID designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, validation of the contained app's stapled notarization ticket, and DMG Applications-symlink verification. The DMG container itself is not claimed to carry a separate stapled ticket. Finder installation was then verified on the build Mac; independent clean-Mac acceptance remains unverified.",
+    "physical_iphone_acceptance": {
+      "device_class": "iPhone 15",
+      "app_name": "final-counter-proof",
+      "bundle_identifier": "org.tohseno.genesis.kithkui.final-counter-proof",
+      "shot_id": "0x07d5df910f16c083d798f2ebf6a3b10a0dde93c24c7b7e811796e0760c17e540",
+      "birth_execution_id": "61e800dde99fb6d959ae4fb1d7095047",
+      "evolution_execution_id": "06b40b034268ee7d9c645a2399eb25e3",
+      "installed_build_version": "2",
+      "birth_quit_reopen_restoration_verified": true,
+      "birth_install_and_launch_verified": true,
+      "evolution_install_and_launch_verified": true,
+      "accepted_evolution_count": 2,
+      "accepted_source_matches_current_tree": true,
+      "local_lineage_verification_conformant": true
+    }
   },
-  "blocking_reason": "The notarized local candidate exists, but clean-Mac and physical-iPhone acceptance, npm checks/publication, immutable upload, independent download checksum, public manifest, website activation, and owner publication authorization remain unverified."
+  "blocking_reason": "The final notarized local candidate and one fresh physical-iPhone birth/quit-reopen/evolution proof exist. Independent clean-Mac Finder/Gatekeeper acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm and website activation, and explicit owner publication authorization remain unverified."
 }

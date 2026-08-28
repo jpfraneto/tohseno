@@ -36,15 +36,36 @@ Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-The local 1.0.2 candidate built from commit `ea2135326c7943f099e34e1b165b04e225423723`
+The final local 1.0.2 release candidate built from commit
+`dc85db5b95b678872266a0279c38dbb1fc5be8a2`
 is signed with Developer ID Team `84V63LKV45`, accepted by Apple notarization
-submission `0fd48891-5b33-4325-bde1-104ee1ee8b9f`, stapled, and packaged as a
+submission `a82a8a1c-6ab4-4e49-b5ba-ca5396542f84`, stapled, and packaged as a
 locally verified DMG with SHA-256
-`f0da1c860fb24f494eb8d1f28f90276c1bc49a354ba8be5afd8440b33ba7ae90`.
-That is candidate evidence, not publication. Physical-device and clean-Mac
-acceptance, Stripe test/live setup, Bankr credentials and credits, artifact
-upload, independent downloaded-digest verification, and explicit owner
-activation have not been performed.
+`7aca20924e2b4d20a624859864f8b4271d2ba8d45648cc661f0e731eb1973cd2`.
+The exact `AGENTS.md` verification matrix passed from a detached clean worktree
+at that commit. Finder installation on the build Mac, signed first open, and
+quit/reopen all reach native readiness without the earlier code-validation,
+activation, decoding, session, or packaged-Fascia failures. Every native
+loading state uses the rotating TOHSENO mark, including the visually checked
+first-open factory load.
+
+A fresh `final-counter-proof` app then completed the physical-device acceptance
+path through this exact installed candidate: one Codex `gpt-5.6-sol` birth,
+quit/reopen while building, deterministic acceptance, installation and launch
+on an iPhone 15, followed by a first-attempt evolution that preserved the
+persistent counter while adding `+5` and last-updated behavior. Build version 2
+was installed and launched. The local verifier independently passed both
+immutable Evolutions and their contiguous signed lineage; the visible source
+exactly matches accepted snapshot `0002`, its Git repository remains present,
+and the ADR 0024 `.tohseno/` visibility boundary remains intact.
+
+Superseded local artifacts remain recorded in
+`release/V1_0_2_READINESS.json` and must not be distributed. This is candidate
+evidence, not publication. Acceptance on an independent clean Mac/user account,
+the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
+artifact upload, independent downloaded-digest verification, public download
+activation, and explicit owner publication authorization have not been
+performed.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -382,11 +403,14 @@ Native and npm **1.0.2** are the next coherent release candidate in this
 source tree. The new native SwiftUI product and managed-balance implementation
 have passed the local verification matrix; the native app is Developer ID
 signed, Apple-notarized, stapled, and packaged in the locally verified DMG
-recorded in `release/V1_0_2_READINESS.json`. The readiness record remains
-explicitly unauthorized and blocked until clean-Mac and physical-iPhone
-acceptance, immutable publication, independent download verification, exact
-public manifest bytes, npm publication, and website activation are recorded.
-Candidate evidence is not a claim that 1.0.2 is publicly available.
+recorded in `release/V1_0_2_READINESS.json`. Fresh physical-iPhone birth,
+quit/reopen, evolution, installation, launch, source preservation, and signed
+lineage verification have passed for one app through that exact candidate. The
+readiness record remains explicitly unauthorized and blocked until independent
+clean-Mac acceptance, the remaining release criteria, immutable publication,
+independent download verification, exact public manifest bytes, npm
+publication, and website activation are recorded. Candidate evidence is not a
+claim that 1.0.2 is publicly available.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay
