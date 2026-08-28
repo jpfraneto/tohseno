@@ -23,7 +23,8 @@
       "docs/adr/0021-npm-install-enters-first-run.md",
       "docs/adr/0022-optional-model-chosen-app-name.md",
       "docs/adr/0024-app-local-tohseno-git-boundary.md",
-      "docs/adr/0025-native-macos-app-factory-managed-balance.md"
+      "docs/adr/0025-native-macos-app-factory-managed-balance.md",
+      "docs/adr/0026-keyboard-first-local-registry-and-native-installer.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -59,7 +60,7 @@
     "apple_notarization_accepted": true,
     "stapled_ticket_verified": true,
     "clean_mac_gatekeeper_acceptance_verified": false,
-    "physical_iphone_installation_verified": true,
+    "physical_iphone_installation_verified": false,
     "independent_download_checksum_verified": false,
     "public_native_manifest_published": false,
     "public_installer_updated_after_artifact_verification": false,
@@ -98,48 +99,43 @@
       "notary_submission_id": "64149dea-9c0b-43d1-ac66-f3eb1945e465",
       "dmg_sha256": "60843c5442e5dd3bf45539c5ef5c834c446e554788fc9e3fb41ae92ff4c5268f",
       "reason": "Superseded after create-path acceptance showed the compact harness task could omit the exact project-version token and the resulting conformance failure was not eligible for the one bounded repair. This artifact is not current and must not be distributed."
+    },
+    {
+      "source_commit": "dc85db5b95b678872266a0279c38dbb1fc5be8a2",
+      "notary_submission_id": "a82a8a1c-6ab4-4e49-b5ba-ca5396542f84",
+      "dmg_sha256": "7aca20924e2b4d20a624859864f8b4271d2ba8d45648cc661f0e731eb1973cd2",
+      "reason": "Superseded after physical-iPhone acceptance because it predates the accepted keyboard-first Registry surface and native one-line installer decision. Its successful device proof remains historical evidence but does not verify the current candidate. This artifact must not be distributed."
     }
   ],
   "current_verified_evidence": {
-    "verified_at": "2026-08-28T18:55:35Z",
-    "source_commit_at_verification": "dc85db5b95b678872266a0279c38dbb1fc5be8a2",
+    "verified_at": "2026-08-28T20:22:31Z",
+    "source_commit_at_verification": "529db3886bba0f21ef7c250a3603460b53d345db",
     "worktree_clean_at_build": true,
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
-    "local_verification_result": "The exact AGENTS.md matrix passed from a detached clean worktree at the exact source commit: Rust formatting, strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The signed final app installed through Finder on the build Mac, visually presented the rotating TOHSENO loading mark, reached readiness, and survived quit/reopen without the earlier native activation/session errors.",
+    "local_verification_result": "The exact AGENTS.md matrix passed against the source bytes frozen in this commit: Rust formatting, strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package plus the native Mac package tests, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The universal release app was then built from the clean commit, and its packaged Swift executable contains the Registry projection while the bundled helper contains the reviewed support@anky.app welcome destination.",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
-    "installed_application_cdhash": "5ad1bc35401bbc0b5417ea00618cbda584d33bc0",
+    "candidate_application_cdhash": "99d8be2fdb3830c976cc669a09930fdd408cec48",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "a82a8a1c-6ab4-4e49-b5ba-ca5396542f84",
+    "notary_submission_id": "7bdc0e63-9dd5-4063-ae0f-e57356554f87",
     "notary_status": "Accepted",
     "notary_status_summary": "Ready for distribution",
-    "notary_upload_at": "2026-08-28T17:53:12.108Z",
+    "notary_upload_at": "2026-08-28T20:20:37.745Z",
     "notary_issues": null,
     "stapler_validation": "accepted",
     "dmg_path": "dist/native/TOHSENO-1.0.2.dmg",
-    "dmg_size_bytes": 50770970,
-    "dmg_sha256": "7aca20924e2b4d20a624859864f8b4271d2ba8d45648cc661f0e731eb1973cd2",
-    "mounted_dmg_verification": "A read-only mount passed manifest verification, forbidden-secret scan, universal-binary checks, the exact Team ID designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, validation of the contained app's stapled notarization ticket, and DMG Applications-symlink verification. The DMG container itself is not claimed to carry a separate stapled ticket. Finder installation was then verified on the build Mac; independent clean-Mac acceptance remains unverified.",
+    "dmg_size_bytes": 51069146,
+    "dmg_sha256": "f06035224391761626c7ba725ef5fd5a0a7b0fea06de8694a1b5f4d87c76d09e",
+    "mounted_dmg_verification": "A read-only mount passed manifest verification, forbidden-secret scan, universal-binary checks, the exact Team ID designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, validation of the contained app's stapled notarization ticket, and DMG Applications-symlink verification. The DMG container itself is not claimed to carry a separate stapled ticket. Finder installation and independent clean-Mac acceptance remain unverified for this exact candidate.",
     "physical_iphone_acceptance": {
-      "device_class": "iPhone 15",
-      "app_name": "final-counter-proof",
-      "bundle_identifier": "org.tohseno.genesis.kithkui.final-counter-proof",
-      "shot_id": "0x07d5df910f16c083d798f2ebf6a3b10a0dde93c24c7b7e811796e0760c17e540",
-      "birth_execution_id": "61e800dde99fb6d959ae4fb1d7095047",
-      "evolution_execution_id": "06b40b034268ee7d9c645a2399eb25e3",
-      "installed_build_version": "2",
-      "birth_quit_reopen_restoration_verified": true,
-      "birth_install_and_launch_verified": true,
-      "evolution_install_and_launch_verified": true,
-      "accepted_evolution_count": 2,
-      "accepted_source_matches_current_tree": true,
-      "local_lineage_verification_conformant": true
+      "verified_for_current_candidate": false,
+      "reason": "The successful final-counter-proof birth and evolution were performed with superseded candidate dc85db5, before the current Registry UI was packaged. They cannot verify this exact artifact."
     }
   },
-  "blocking_reason": "The final notarized local candidate and one fresh physical-iPhone birth/quit-reopen/evolution proof exist. Independent clean-Mac Finder/Gatekeeper acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm and website activation, and explicit owner publication authorization remain unverified."
+  "blocking_reason": "The exact keyboard-first Registry candidate is locally verified, Developer ID signed, Apple-notarized, stapled, and mounted-DMG verified. Finder installation and physical-iPhone acceptance for this exact artifact, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm and website activation, and explicit recorded owner publication authorization remain unverified."
 }

@@ -17,7 +17,8 @@ qualification, and subscription gating of local/BYO execution. The local 1.0.2
 candidate now has Developer ID signing and Apple notarization evidence, but it
 is not yet independently clean-Mac accepted, published, or the current public
 download. One physical-iPhone birth and evolution has passed;
-[`docs/STATE.md`](docs/STATE.md) records the exact boundary.
+that proof predates the Registry-bearing candidate, so
+[`docs/STATE.md`](docs/STATE.md) records the exact remaining boundary.
 
 When using the app teaches you something, describe what should change. TOHSENO
 evolves the same project and installs the new version on your phone.

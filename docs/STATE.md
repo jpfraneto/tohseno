@@ -46,27 +46,29 @@ and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
 The final local 1.0.2 release candidate built from commit
-`dc85db5b95b678872266a0279c38dbb1fc5be8a2`
+`529db3886bba0f21ef7c250a3603460b53d345db`
 is signed with Developer ID Team `84V63LKV45`, accepted by Apple notarization
-submission `a82a8a1c-6ab4-4e49-b5ba-ca5396542f84`, stapled, and packaged as a
+submission `7bdc0e63-9dd5-4063-ae0f-e57356554f87`, stapled, and packaged as a
 locally verified DMG with SHA-256
-`7aca20924e2b4d20a624859864f8b4271d2ba8d45648cc661f0e731eb1973cd2`.
-The exact `AGENTS.md` verification matrix passed from a detached clean worktree
-at that commit. Finder installation on the build Mac, signed first open, and
-quit/reopen all reach native readiness without the earlier code-validation,
-activation, decoding, session, or packaged-Fascia failures. Every native
-loading state uses the rotating TOHSENO mark, including the visually checked
-first-open factory load.
+`f06035224391761626c7ba725ef5fd5a0a7b0fea06de8694a1b5f4d87c76d09e`.
+The exact `AGENTS.md` verification matrix passed against the source bytes then
+frozen in that clean build commit. The read-only mounted DMG passed manifest,
+secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
+ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
+installation and first-open acceptance have not been performed for this exact
+candidate.
 
-A fresh `final-counter-proof` app then completed the physical-device acceptance
-path through this exact installed candidate: one Codex `gpt-5.6-sol` birth,
+A fresh `final-counter-proof` app completed the physical-device acceptance path
+through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
 quit/reopen while building, deterministic acceptance, installation and launch
 on an iPhone 15, followed by a first-attempt evolution that preserved the
 persistent counter while adding `+5` and last-updated behavior. Build version 2
 was installed and launched. The local verifier independently passed both
 immutable Evolutions and their contiguous signed lineage; the visible source
 exactly matches accepted snapshot `0002`, its Git repository remains present,
-and the ADR 0024 `.tohseno/` visibility boundary remains intact.
+and the ADR 0024 `.tohseno/` visibility boundary remains intact. That proof
+predates the Registry UI now packaged in `529db38`, so it is historical evidence
+and does not satisfy physical-iPhone acceptance for the current candidate.
 
 Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. This is candidate
@@ -74,7 +76,7 @@ evidence, not publication. Acceptance on an independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
 activation, and explicit owner publication authorization have not been
-performed.
+performed. The public one-line installer therefore remains disabled.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -428,12 +430,13 @@ have passed the local verification matrix; the native app is Developer ID
 signed, Apple-notarized, stapled, and packaged in the locally verified DMG
 recorded in `release/V1_0_2_READINESS.json`. Fresh physical-iPhone birth,
 quit/reopen, evolution, installation, launch, source preservation, and signed
-lineage verification have passed for one app through that exact candidate. The
-readiness record remains explicitly unauthorized and blocked until independent
-clean-Mac acceptance, the remaining release criteria, immutable publication,
-independent download verification, exact public manifest bytes, npm
-publication, and website activation are recorded. Candidate evidence is not a
-claim that 1.0.2 is publicly available.
+lineage verification passed for one app through the immediately preceding
+candidate. They must be repeated for the exact Registry-bearing artifact. The
+readiness record remains explicitly unauthorized and blocked until exact
+physical-device and independent clean-Mac acceptance, the remaining release
+criteria, immutable publication, independent download verification, exact
+public manifest bytes, npm publication, and website activation are recorded.
+Candidate evidence is not a claim that 1.0.2 is publicly available.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay
