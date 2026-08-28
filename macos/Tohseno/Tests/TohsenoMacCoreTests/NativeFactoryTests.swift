@@ -153,6 +153,53 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(launches.count, 1)
     }
 
+    func testConcurrentRejectedRequestsLaunchOneReplacementNativeSession() async throws {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tohseno-native-rejection-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: false)
+        defer {
+            NativeSessionTestURLProtocol.setHandler(nil)
+            try? FileManager.default.removeItem(at: fixture)
+        }
+        let counter = fixture.appendingPathComponent("launches")
+        let lock = fixture.appendingPathComponent("launch-lock")
+        let helper = fixture.appendingPathComponent("native-helper")
+        let rejectedToken = String(repeating: "a", count: 43)
+        let replacementToken = String(repeating: "b", count: 43)
+        let script = """
+        #!/bin/sh
+        while ! mkdir '\(lock.path)' 2>/dev/null; do sleep 1; done
+        count=0
+        if [ -f '\(counter.path)' ]; then count=$(sed -n '1p' '\(counter.path)'); fi
+        count=$((count + 1))
+        printf '%s\n' "$count" > '\(counter.path)'
+        rmdir '\(lock.path)'
+        if [ "$count" -eq 1 ]; then token='\(rejectedToken)'; else token='\(replacementToken)'; fi
+        printf '{"schema":"tohseno.native-session/1","token":"%s","token_type":"TohsenoNative","client_id":"com.tohseno.mac","instance_id":"fixture","origin":"http://127.0.0.1:1","scopes":["factory.read","factory.mutate","events.read"],"expires_at":"2099-01-01T00:00:00Z"}\n' "$token"
+        """
+        try script.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+
+        let rejection = NativeSessionRejectionBarrier(expected: 3, token: rejectedToken)
+        NativeSessionTestURLProtocol.setHandler { request, protocolInstance in
+            rejection.respond(to: request, with: protocolInstance)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [NativeSessionTestURLProtocol.self]
+        let factory = LoopbackFactoryClient(
+            helperOverride: helper,
+            urlSession: URLSession(configuration: configuration)
+        )
+        async let workspace: WorkspaceSnapshot? = try? await factory.workspace()
+        async let defaults: FactoryDefaults? = try? await factory.factoryDefaults()
+        async let readiness: ReadinessView? = try? await factory.readiness()
+        _ = await (workspace, defaults, readiness)
+
+        let launches = try String(contentsOf: counter, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(launches, "2")
+    }
+
     func testPublishedSnakeCasePreservesSwiftAcronymProperties() throws {
         struct AcronymFixture: Decodable {
             let clientID: String
@@ -264,3 +311,71 @@ private let fixtureReceipt = ExecutionReceipt(
     outcome: nil, landed: true, filesChanged: nil, diffSummary: nil,
     refusals: [], nextAction: nil
 )
+
+private final class NativeSessionTestURLProtocol: URLProtocol, @unchecked Sendable {
+    typealias Handler = @Sendable (URLRequest, NativeSessionTestURLProtocol) -> Void
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var handler: Handler?
+
+    static func setHandler(_ value: Handler?) {
+        lock.lock()
+        handler = value
+        lock.unlock()
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.lock.lock()
+        let handler = Self.handler
+        Self.lock.unlock()
+        guard let handler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+            return
+        }
+        handler(request, self)
+    }
+
+    override func stopLoading() {}
+
+    func respond(status: Int, body: Data) {
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: status, httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+}
+
+private final class NativeSessionRejectionBarrier: @unchecked Sendable {
+    private let lock = NSLock()
+    private let expected: Int
+    private let token: String
+    private var rejected: [NativeSessionTestURLProtocol] = []
+
+    init(expected: Int, token: String) {
+        self.expected = expected
+        self.token = token
+    }
+
+    func respond(to request: URLRequest, with protocolInstance: NativeSessionTestURLProtocol) {
+        let authorization = request.value(forHTTPHeaderField: "Authorization") ?? ""
+        guard authorization == "TohsenoNative \(token)" else {
+            protocolInstance.respond(status: 200, body: Data("{}".utf8))
+            return
+        }
+        lock.lock()
+        rejected.append(protocolInstance)
+        let ready = rejected.count == expected ? rejected : []
+        if !ready.isEmpty { rejected.removeAll() }
+        lock.unlock()
+        guard !ready.isEmpty else { return }
+        let body = Data(#"{"code":"native_session_rejected","message":"expired"}"#.utf8)
+        for pending in ready {
+            pending.respond(status: 403, body: body)
+        }
+    }
+}

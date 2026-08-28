@@ -221,6 +221,9 @@ impl NativeSessionAuthority {
         if !constant_time_equal(&signature, &expected) {
             return Err(NativeSessionError::Signature);
         }
+        state.sessions.retain(|_, session| {
+            session.client_id != NATIVE_CLIENT_ID || session.instance_id != instance_id
+        });
         if state.sessions.len() >= MAX_LIVE_SESSIONS {
             return Err(NativeSessionError::Capacity);
         }
@@ -398,6 +401,46 @@ mod tests {
             ),
             Err(NativeSessionError::Expired)
         ));
+    }
+
+    #[test]
+    fn a_new_signed_native_session_revokes_the_previous_one() {
+        let authority = NativeSessionAuthority::default();
+        let now = OffsetDateTime::from_unix_timestamp(1_800_000_000).unwrap();
+        let activate = || {
+            let challenge = authority.issue_challenge("service_fixture", now).unwrap();
+            let proof = NativeSessionProof::from(&challenge);
+            let bytes = tohseno_protocol::canonical::to_vec(&proof).unwrap();
+            authority
+                .activate(
+                    NativeSessionActivation {
+                        proof,
+                        signature_base64url: URL_SAFE_NO_PAD
+                            .encode(identity().sign(NATIVE_SIGNATURE_DOMAIN, &bytes)),
+                    },
+                    &identity(),
+                    "http://127.0.0.1:8888",
+                    "service_fixture",
+                    now,
+                )
+                .unwrap()
+        };
+        let first = activate();
+        let second = activate();
+        assert!(authority
+            .authorize(
+                &format!("{} {}", first.token_type, first.token),
+                "service_fixture",
+                "factory.read",
+            )
+            .is_err());
+        authority
+            .authorize(
+                &format!("{} {}", second.token_type, second.token),
+                "service_fixture",
+                "factory.read",
+            )
+            .unwrap();
     }
 
     #[test]

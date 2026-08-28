@@ -295,7 +295,13 @@ public actor LoopbackFactoryClient: FactoryServing {
                         forHTTPHeaderField: "Authorization"
                     )
                     let (bytes, response) = try await self.urlSession.bytes(for: request)
-                    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                    guard let http = response as? HTTPURLResponse else {
+                        throw FactoryClientError.invalidResponse("The local event stream was refused.")
+                    }
+                    if http.statusCode == 403 {
+                        self.invalidateNativeSession(rejected: credential)
+                    }
+                    guard http.statusCode == 200 else {
                         throw FactoryClientError.invalidResponse("The local event stream was refused.")
                     }
                     for try await line in bytes.lines where line == "event: workspace.changed" || line == "event: workspace.reconcile" {
@@ -352,7 +358,7 @@ public actor LoopbackFactoryClient: FactoryServing {
             }
             let api = try? JSONDecoder.tohseno.decode(APIErrorBody.self, from: data)
             if http.statusCode == 403, api?.code == "native_session_rejected", retrySession {
-                invalidateNativeSession()
+                invalidateNativeSession(rejected: credential)
                 return try await request(path, method: method, body: body, retrySession: false)
             }
             throw FactoryClientError.rejected(
@@ -401,7 +407,7 @@ public actor LoopbackFactoryClient: FactoryServing {
             }
             let api = try? JSONDecoder.tohseno.decode(APIErrorBody.self, from: data)
             if http.statusCode == 403, api?.code == "native_session_rejected", retrySession {
-                invalidateNativeSession()
+                invalidateNativeSession(rejected: credential)
                 return try await get(path, retrySession: false)
             }
             throw FactoryClientError.rejected(
@@ -432,7 +438,7 @@ public actor LoopbackFactoryClient: FactoryServing {
         }
         if http.statusCode == 404 { return nil }
         if http.statusCode == 403, retrySession {
-            invalidateNativeSession()
+            invalidateNativeSession(rejected: credential)
             return try await asset(path, maximum: maximum, retrySession: false)
         }
         guard http.statusCode == 200, !data.isEmpty, data.count <= maximum else {
@@ -482,7 +488,10 @@ public actor LoopbackFactoryClient: FactoryServing {
         }
     }
 
-    private func invalidateNativeSession() {
+    private func invalidateNativeSession(rejected credential: NativeSessionCredential? = nil) {
+        if let credential, nativeSession?.token != credential.token {
+            return
+        }
         nativeSession = nil
         nativeSessionGeneration &+= 1
         nativeSessionTask?.cancel()
