@@ -27,11 +27,14 @@ Principal boundaries:
 
 - browser draft ↔ encrypted relay ↔ local claim CLI;
 - human owner ↔ local CLI or Studio;
+- signed native Mac app ↔ native helper ↔ loopback Local Workspace Service;
 - browser page ↔ loopback-only Local Workspace Service;
 - iPhone Companion ↔ content-blind Companion Relay ↔ Local Workspace Service;
 - private companion authorization ↔ canonical Builder-authorized engine action;
 - immutable installed release ↔ stable launcher ↔ user LaunchAgent;
 - local engine ↔ coding agent, templates, dependencies, Xcode, and build tools;
+- local service ↔ TOHSENO managed proxy ↔ Bankr/upstream model provider;
+- native owner ↔ Stripe hosted Checkout ↔ append-only creation-balance ledger;
 - generated repository ↔ public export;
 - local record store ↔ peer node;
 - node ↔ untrusted network and peer nodes;
@@ -51,6 +54,102 @@ is sincere, that generated source is universally safe, that unavailable data
 exists, or that an authorized owner made a wise decision.
 
 ## Threats and controls
+
+### Native Mac client, bundled installation, and intelligence
+
+Threat: an arbitrary local process, malicious origin, replayed token, or
+substituted app claims native mutation authority.
+
+Controls: the helper verifies that both itself and its parent chain to the same
+Apple-anchored release Team ID, and requires the parent's exact
+`com.tohseno.mac` identifier. Copying the helper into another team's signed
+bundle therefore does not transfer native authority. The workspace key proves
+a one-use 30-second challenge; the service returns a
+15-minute token bound to the current service instance, native client ID, and
+explicit scopes. Native tokens are not browser CSRF tokens. Browser routes
+retain exact Host/Origin/CSRF enforcement. Debug-only unsigned behavior is not
+compiled into the release trust decision. Malware already executing as the
+same user can still attack local plaintext and Keychain prompts by other means.
+
+Threat: the DMG or nested factory is replaced, partially installed, rolled
+forward without recovery, or used to erase prior apps/state.
+
+Controls: Developer ID signs nested executables before the outer hardened app;
+notarization and stapling are external release gates. First open accepts an
+exact sorted SHA-256 manifest with no symlinks or special files, reads files
+without following a final symlink, stages an immutable release, atomically
+publishes stable programs/current selection, and restores the prior selection
+if any activation step fails. Existing app folders, command journals,
+identities, entitlements, and Companion state are outside the bundle. The
+website download is disabled until an HTTPS DMG URL and independently verified
+digest are both configured. No automatic update feed is active.
+
+Threat: a custom command injects a shell, a local endpoint impersonates a
+remote service, credentials leak into arguments/environment, or attachments
+escape their intended roots.
+
+Controls: custom executables must be absolute executable regular non-symlink
+files and receive only bounded literal arguments without a shell. Local
+OpenAI-compatible endpoints are explicit loopback HTTP origins with bounded
+model discovery, recorded consent, and optional Keychain bearer retrieval.
+Sensitive inherited environment names are removed. References are limited to
+eight bounded PNG/JPEG regular non-symlink files, validated by exact bytes and
+copied to durable private command inputs. These checks do not make an
+owner-selected executable or local model trustworthy.
+
+### Managed compute, Stripe, and creation balance
+
+Threat: a stolen Bankr/Stripe/operator secret reaches a Mac, generated app,
+repository, process argument, log, crash report, or release bundle.
+
+Controls: secrets exist only in the website secret manager. The native and
+Rust clients hold an installation signing key and short-lived admitted
+capability, never the provider key. Release verification scans all bundled
+bytes for forbidden secret patterns; local harness environments remove known
+sensitive names; server access logs use semantic routes and omit bodies and
+identifiers. Secret-manager and host compromise remain operator risks requiring
+rotation and incident response.
+
+Threat: a forged installation, replay, price change, model substitution,
+privacy downgrade, oversized request, or general-purpose proxy call spends
+operator credit.
+
+Controls: Ed25519 claims self-bind an opaque derived installation, action,
+exact request digest, issue/expiry, and unique claim ID. The server admits only
+the narrow completion route, allowlisted live catalog models, advertised
+privacy tier, bounded body/tokens/rate, durable command/execution IDs, and an
+explicit maximum. Pricing is server-derived with a timestamp and the local
+durable command records the estimate and approved cap. A short-lived one-use
+capability covers at most the bounded implementation/repair total and cannot
+be reused. There is no silent fallback from local/BYO to paid managed work.
+
+Threat: concurrent reservations, duplicate/reordered Stripe events, forged
+redirects, refunds/disputes, promotions, or crashes create spendable value or
+double-spend it.
+
+Controls: an append-only integer micro-USD ledger is the sole balance
+authority; paid and promotional buckets remain distinct; per-installation
+locks serialize reservation decisions; holds reduce spendable balance before
+provider use; charges and releases are idempotent. Checkout uses server-known
+Price IDs and Stripe idempotency. Redirects carry no credit authority. The
+webhook verifies the raw signature and retrieves the authoritative paid
+Checkout Session, Price, amount, currency, and payment identity. Refunds and
+disputes append compensating entries. Operator grants, revocations, and
+reconciliations require a separate hashed bearer and preserve private audit
+metadata.
+
+Threat: Bankr returns `401`, `402`, `429`, `5xx`, times out, omits usage, or
+reports usage above the reservation; a process dies around provider admission.
+
+Controls: locally decidable failures do not consume a capability. Explicit
+authentication/balance/rate failures release holds. Ambiguous outcomes append
+a pending reconciliation and retain the hold; operator health exposes the
+count, and a protected, idempotent decision either charges no more than the
+outstanding reservation or releases it. Expired unused capabilities are
+released on the next reservation; a use marker is written under the same
+account lock before forwarding. Process death after that marker remains
+intentionally ambiguous and must be reconciled against provider usage. There
+is no indefinite automatic retry.
 
 ### Encrypted web-to-local intention handoff
 

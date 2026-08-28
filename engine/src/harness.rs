@@ -7,7 +7,7 @@
 //! harness additionally carries its own permission-bypass mode so the run
 //! never stalls on an approval nobody is present to grant.
 
-use crate::config::HarnessConfig;
+use crate::config::{Config, CustomHarnessConfig, LocalEndpointConfig};
 use crate::safe_file::read_bounded_utf8;
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
@@ -63,6 +63,8 @@ pub struct HarnessOption {
     pub routes: Vec<HarnessRoute>,
     pub attachment_behavior: AttachmentBehavior,
     pub completion_detection: String,
+    #[serde(skip_serializing)]
+    pub adapter: Option<HarnessAdapter>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -71,6 +73,34 @@ pub struct HarnessSelection {
     pub harness: String,
     pub model: String,
     pub route: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<HarnessAdapter>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum HarnessAdapter {
+    CustomExecutable {
+        executable: String,
+        arguments: Vec<String>,
+    },
+    LocalOpenAi {
+        base_url: String,
+        privacy_mode: String,
+        credential_reference: Option<String>,
+    },
+    ManagedOpenAi {
+        proxy_origin: String,
+        command_id: String,
+        execution_id: String,
+        privacy_mode: String,
+        maximum_microusd: u64,
+        pricing_snapshot_at: String,
+        input_microusd_per_million: u64,
+        output_microusd_per_million: u64,
+        estimate_low_microusd: u64,
+        estimate_high_microusd: u64,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -178,32 +208,61 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
     },
 ];
 
-pub fn discover_harnesses(selected: &HarnessConfig) -> Vec<HarnessOption> {
-    let selected_id = split_command(&selected.command)
-        .and_then(|words| words.first().cloned())
-        .and_then(|program| known_harness_for_program(&program).map(|known| known.id));
-    KNOWN_HARNESSES
+pub fn discover_harnesses(config: &Config) -> Vec<HarnessOption> {
+    let selected_id = config
+        .intelligence
+        .preferred_harness
+        .as_deref()
+        .or_else(|| {
+            split_command(&config.harness.command)
+                .and_then(|words| words.first().cloned())
+                .and_then(|program| known_harness_for_program(&program).map(|known| known.id))
+        });
+    let mut options = KNOWN_HARNESSES
         .iter()
         .map(|known| describe_harness(known, selected_id == Some(known.id)))
-        .collect()
+        .collect::<Vec<_>>();
+    options.extend(
+        config
+            .intelligence
+            .custom_harnesses
+            .iter()
+            .map(|custom| custom_harness_option(custom, selected_id == Some(custom.id.as_str()))),
+    );
+    options.extend(config.intelligence.local_endpoints.iter().map(|endpoint| {
+        local_endpoint_option(endpoint, selected_id == Some(endpoint.id.as_str()))
+    }));
+    options
 }
 
-pub fn default_selection(selected: &HarnessConfig) -> Option<HarnessSelection> {
-    let harnesses = discover_harnesses(selected);
+pub fn default_selection(config: &Config) -> Option<HarnessSelection> {
+    let harnesses = discover_harnesses(config);
     let harness = harnesses
         .iter()
-        .find(|option| option.selected && option.installed)
-        .or_else(|| harnesses.iter().find(|option| option.installed))?;
+        .find(|option| option.selected && usable(option))
+        .or_else(|| harnesses.iter().find(|option| usable(option)))?;
+    let model = harness
+        .models
+        .iter()
+        .find(|model| model.is_default)
+        .or_else(|| harness.models.first())?;
     Some(HarnessSelection {
         harness: harness.id.clone(),
-        model: "default".into(),
+        model: model.id.clone(),
         route: harness
             .routes
             .iter()
             .find(|route| route.available)
             .map(|route| route.id.clone())
             .unwrap_or_else(|| "configured".into()),
+        adapter: harness.adapter.clone(),
     })
+}
+
+fn usable(option: &HarnessOption) -> bool {
+    option.installed
+        && option.authentication == AuthenticationStatus::Authenticated
+        && option.routes.iter().any(|route| route.available)
 }
 
 pub fn resolve_selection(
@@ -212,6 +271,9 @@ pub fn resolve_selection(
     validate_token("harness", &selection.harness)?;
     validate_token("model", &selection.model)?;
     validate_token("route", &selection.route)?;
+    if let Some(adapter) = &selection.adapter {
+        return resolve_configured_adapter(selection, adapter);
+    }
     if cfg!(debug_assertions)
         && selection.harness == "tohseno-test-factory"
         && selection.model == "fixture"
@@ -243,6 +305,7 @@ pub fn resolve_selection(
                 attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
                 completion_detection: "fixture process exit plus deterministic engine acceptance"
                     .into(),
+                adapter: None,
             },
             HarnessCommand {
                 program,
@@ -281,6 +344,7 @@ pub fn resolve_selection(
                 }],
                 attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
                 completion_detection: "never launched".into(),
+                adapter: None,
             },
             HarnessCommand {
                 program: PathBuf::from("/usr/bin/false"),
@@ -488,7 +552,392 @@ fn describe_harness(known: &KnownHarness, selected: bool) -> HarnessOption {
         routes,
         attachment_behavior: known.attachment_behavior,
         completion_detection: "unattended process exit plus independent workspace state".into(),
+        adapter: None,
     }
+}
+
+fn custom_harness_option(config: &CustomHarnessConfig, selected: bool) -> HarnessOption {
+    let valid = validate_configured_id(&config.id).is_ok()
+        && validate_custom_executable(&config.executable, &config.arguments).is_ok()
+        && !config.models.is_empty()
+        && config.models.len() <= 32
+        && config
+            .models
+            .iter()
+            .all(|model| validate_token("model", model).is_ok());
+    HarnessOption {
+        id: config.id.clone(),
+        label: config.label.chars().take(80).collect(),
+        command: config.executable.clone(),
+        installed: valid,
+        selected,
+        authentication: if valid {
+            AuthenticationStatus::Authenticated
+        } else {
+            AuthenticationStatus::NotDetected
+        },
+        models: config
+            .models
+            .iter()
+            .take(32)
+            .enumerate()
+            .map(|(index, model)| HarnessModel {
+                id: model.clone(),
+                label: model.clone(),
+                is_default: index == 0,
+            })
+            .collect(),
+        routes: vec![HarnessRoute {
+            id: "custom-local".into(),
+            label: "Custom executable".into(),
+            billing: "configured".into(),
+            available: valid,
+            estimated_additional_cost_usd: None,
+            cost_estimation: false,
+        }],
+        attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        completion_detection: "declared executable exit plus independent workspace state".into(),
+        adapter: Some(HarnessAdapter::CustomExecutable {
+            executable: config.executable.clone(),
+            arguments: config.arguments.clone(),
+        }),
+    }
+}
+
+fn local_endpoint_option(config: &LocalEndpointConfig, selected: bool) -> HarnessOption {
+    let valid = validate_configured_id(&config.id).is_ok()
+        && validate_local_endpoint(&config.base_url).is_ok()
+        && config.consent_to_send_source
+        && !config.models.is_empty()
+        && config.models.len() <= 32
+        && config
+            .models
+            .iter()
+            .all(|model| validate_token("model", model).is_ok())
+        && config
+            .credential_reference
+            .as_deref()
+            .is_none_or(|reference| validate_token("credential reference", reference).is_ok())
+        && matches!(
+            config.privacy_mode.as_str(),
+            "local" | "standard" | "zdr" | "private"
+        );
+    HarnessOption {
+        id: config.id.clone(),
+        label: config.label.chars().take(80).collect(),
+        command: "bundled local OpenAI-compatible adapter".into(),
+        installed: true,
+        selected,
+        authentication: if valid {
+            AuthenticationStatus::Authenticated
+        } else {
+            AuthenticationStatus::NotDetected
+        },
+        models: config
+            .models
+            .iter()
+            .take(32)
+            .enumerate()
+            .map(|(index, model)| HarnessModel {
+                id: model.clone(),
+                label: model.clone(),
+                is_default: index == 0,
+            })
+            .collect(),
+        routes: vec![HarnessRoute {
+            id: "local-openai".into(),
+            label: "Local model endpoint".into(),
+            billing: "local".into(),
+            available: valid,
+            estimated_additional_cost_usd: Some(0.0),
+            cost_estimation: true,
+        }],
+        attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+        completion_detection: "bounded local adapter exit plus independent workspace state".into(),
+        adapter: Some(HarnessAdapter::LocalOpenAi {
+            base_url: config.base_url.clone(),
+            privacy_mode: config.privacy_mode.clone(),
+            credential_reference: config.credential_reference.clone(),
+        }),
+    }
+}
+
+fn resolve_configured_adapter(
+    selection: &HarnessSelection,
+    adapter: &HarnessAdapter,
+) -> Result<(HarnessOption, HarnessCommand), String> {
+    match adapter {
+        HarnessAdapter::CustomExecutable {
+            executable,
+            arguments,
+        } => {
+            let program = validate_custom_executable(executable, arguments)?;
+            Ok((
+                HarnessOption {
+                    id: selection.harness.clone(),
+                    label: "Configured custom harness".into(),
+                    command: executable.clone(),
+                    installed: true,
+                    selected: true,
+                    authentication: AuthenticationStatus::Authenticated,
+                    models: vec![HarnessModel {
+                        id: selection.model.clone(),
+                        label: selection.model.clone(),
+                        is_default: true,
+                    }],
+                    routes: vec![HarnessRoute {
+                        id: selection.route.clone(),
+                        label: "Custom executable".into(),
+                        billing: "configured".into(),
+                        available: true,
+                        estimated_additional_cost_usd: None,
+                        cost_estimation: false,
+                    }],
+                    attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+                    completion_detection:
+                        "declared executable exit plus independent workspace state".into(),
+                    adapter: Some(adapter.clone()),
+                },
+                HarnessCommand {
+                    program,
+                    arguments: arguments.iter().map(OsString::from).collect(),
+                    environment: Vec::new(),
+                    removed_environment: sensitive_environment(),
+                },
+            ))
+        }
+        HarnessAdapter::LocalOpenAi {
+            base_url,
+            privacy_mode,
+            credential_reference,
+        } => {
+            validate_local_endpoint(base_url)?;
+            if !matches!(
+                privacy_mode.as_str(),
+                "local" | "standard" | "zdr" | "private"
+            ) {
+                return Err("local endpoint privacy mode is invalid".into());
+            }
+            let program = std::env::current_exe()
+                .map_err(|error| format!("bundled adapter is unavailable: {error}"))?;
+            let mut arguments = [
+                "local-openai-harness",
+                "--base-url",
+                base_url,
+                "--model",
+                &selection.model,
+                "--privacy",
+                privacy_mode,
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+            if let Some(reference) = credential_reference {
+                validate_token("credential reference", reference)?;
+                arguments.push("--credential-reference".into());
+                arguments.push(reference.into());
+            }
+            Ok((
+                HarnessOption {
+                    id: selection.harness.clone(),
+                    label: "Local OpenAI-compatible model".into(),
+                    command: program.display().to_string(),
+                    installed: true,
+                    selected: true,
+                    authentication: AuthenticationStatus::Authenticated,
+                    models: vec![HarnessModel {
+                        id: selection.model.clone(),
+                        label: selection.model.clone(),
+                        is_default: true,
+                    }],
+                    routes: vec![HarnessRoute {
+                        id: selection.route.clone(),
+                        label: "Local model endpoint".into(),
+                        billing: "local".into(),
+                        available: true,
+                        estimated_additional_cost_usd: Some(0.0),
+                        cost_estimation: true,
+                    }],
+                    attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+                    completion_detection:
+                        "bounded local adapter exit plus independent workspace state".into(),
+                    adapter: Some(adapter.clone()),
+                },
+                HarnessCommand {
+                    program,
+                    arguments,
+                    environment: Vec::new(),
+                    removed_environment: sensitive_environment(),
+                },
+            ))
+        }
+        HarnessAdapter::ManagedOpenAi {
+            proxy_origin,
+            command_id,
+            execution_id,
+            privacy_mode,
+            maximum_microusd,
+            pricing_snapshot_at,
+            input_microusd_per_million,
+            output_microusd_per_million,
+            estimate_low_microusd,
+            estimate_high_microusd,
+        } => {
+            validate_managed_origin(proxy_origin)?;
+            validate_token("command identifier", command_id)?;
+            validate_token("execution identifier", execution_id)?;
+            if !matches!(privacy_mode.as_str(), "standard" | "zdr" | "private") {
+                return Err("managed privacy mode is invalid".into());
+            }
+            if *maximum_microusd == 0 || *maximum_microusd > 100_000_000 {
+                return Err("managed maximum is invalid".into());
+            }
+            if pricing_snapshot_at.is_empty()
+                || pricing_snapshot_at.len() > 64
+                || pricing_snapshot_at.chars().any(char::is_control)
+                || *input_microusd_per_million == 0
+                || *output_microusd_per_million == 0
+                || *estimate_low_microusd == 0
+                || estimate_low_microusd > estimate_high_microusd
+                || estimate_high_microusd > maximum_microusd
+            {
+                return Err("managed pricing snapshot or estimate is invalid".into());
+            }
+            let program = std::env::current_exe()
+                .map_err(|error| format!("bundled managed adapter is unavailable: {error}"))?;
+            let arguments = vec![
+                "managed-open-ai-harness".into(),
+                "--proxy-origin".into(),
+                proxy_origin.into(),
+                "--model".into(),
+                selection.model.clone().into(),
+                "--privacy".into(),
+                privacy_mode.into(),
+                "--command-id".into(),
+                command_id.into(),
+                "--execution-id".into(),
+                execution_id.into(),
+                "--maximum-microusd".into(),
+                maximum_microusd.to_string().into(),
+                "--pricing-snapshot-at".into(),
+                pricing_snapshot_at.into(),
+                "--input-microusd-per-million".into(),
+                input_microusd_per_million.to_string().into(),
+                "--output-microusd-per-million".into(),
+                output_microusd_per_million.to_string().into(),
+            ];
+            Ok((
+                HarnessOption {
+                    id: selection.harness.clone(),
+                    label: "TOHSENO managed intelligence".into(),
+                    command: program.display().to_string(),
+                    installed: true,
+                    selected: true,
+                    authentication: AuthenticationStatus::Authenticated,
+                    models: vec![HarnessModel {
+                        id: selection.model.clone(),
+                        label: selection.model.clone(),
+                        is_default: true,
+                    }],
+                    routes: vec![HarnessRoute {
+                        id: selection.route.clone(),
+                        label: "TOHSENO managed intelligence".into(),
+                        billing: "managed_balance".into(),
+                        available: true,
+                        estimated_additional_cost_usd: None,
+                        cost_estimation: true,
+                    }],
+                    attachment_behavior: AttachmentBehavior::LocalPathsInIntent,
+                    completion_detection:
+                        "bounded managed adapter exit plus independent workspace state".into(),
+                    adapter: Some(adapter.clone()),
+                },
+                HarnessCommand {
+                    program,
+                    arguments,
+                    environment: Vec::new(),
+                    removed_environment: sensitive_environment(),
+                },
+            ))
+        }
+    }
+}
+
+fn validate_managed_origin(origin: &str) -> Result<(), String> {
+    if origin == "https://tohseno.com" {
+        return Ok(());
+    }
+    #[cfg(debug_assertions)]
+    if std::env::var("TOHSENO_MANAGED_ORIGIN").as_deref() == Ok(origin)
+        && (origin.starts_with("http://127.0.0.1:") || origin.starts_with("http://localhost:"))
+        && !origin.contains(['?', '#', '@'])
+        && !origin.ends_with('/')
+    {
+        return Ok(());
+    }
+    Err("managed service origin is not an approved release origin".into())
+}
+
+fn validate_configured_id(id: &str) -> Result<(), String> {
+    validate_token("configured harness", id)?;
+    if KNOWN_HARNESSES.iter().any(|known| known.id == id) {
+        return Err("configured harness ID is reserved".into());
+    }
+    Ok(())
+}
+
+fn validate_custom_executable(executable: &str, arguments: &[String]) -> Result<PathBuf, String> {
+    if arguments.len() > 32
+        || arguments
+            .iter()
+            .any(|argument| argument.is_empty() || argument.len() > 512 || argument.contains('\0'))
+    {
+        return Err("custom harness arguments are invalid".into());
+    }
+    let path = PathBuf::from(executable);
+    if !path.is_absolute() {
+        return Err("custom harness executable must be absolute".into());
+    }
+    let metadata = std::fs::symlink_metadata(&path)
+        .map_err(|error| format!("custom harness executable is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("custom harness executable must be a regular non-symlink file".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err("custom harness executable is not executable".into());
+        }
+    }
+    Ok(path)
+}
+
+fn validate_local_endpoint(base_url: &str) -> Result<(), String> {
+    if base_url.len() > 512 || base_url.contains(['?', '#', '@']) || base_url.ends_with('/') {
+        return Err("local endpoint URL is invalid".into());
+    }
+    let authority = base_url
+        .strip_prefix("http://127.0.0.1:")
+        .or_else(|| base_url.strip_prefix("http://localhost:"))
+        .ok_or("local endpoint must use explicit loopback HTTP")?;
+    let port = authority.split('/').next().unwrap_or_default();
+    if port.parse::<u16>().ok().filter(|port| *port > 0).is_none() {
+        return Err("local endpoint port is invalid".into());
+    }
+    Ok(())
+}
+
+fn sensitive_environment() -> Vec<OsString> {
+    [
+        "BANKR_API_KEY",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "TOHSENO_OPERATOR_TOKEN",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect()
 }
 
 fn authentication_and_routes(known: &KnownHarness) -> (AuthenticationStatus, Vec<HarnessRoute>) {
@@ -838,6 +1287,128 @@ mod tests {
             split_command("\"/Users/App Maker/bin/codex\""),
             Some(vec![OsString::from("/Users/App Maker/bin/codex")])
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn custom_adapter_preserves_argument_boundaries_without_a_shell() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        let executable = directory.path().join("custom harness");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 0\n").unwrap();
+        let mut permissions = std::fs::metadata(&executable).unwrap().permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&executable, permissions).unwrap();
+        let selection = HarnessSelection {
+            harness: "my-harness".into(),
+            model: "local-model".into(),
+            route: "custom-local".into(),
+            adapter: Some(HarnessAdapter::CustomExecutable {
+                executable: executable.display().to_string(),
+                arguments: vec!["literal; touch /tmp/never".into(), "$(false)".into()],
+            }),
+        };
+        let (_, command) = resolve_selection(&selection).unwrap();
+        assert_eq!(command.program, executable);
+        assert_eq!(
+            command.arguments,
+            ["literal; touch /tmp/never", "$(false)"]
+                .into_iter()
+                .map(OsString::from)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn local_adapter_requires_explicit_consent_and_loopback() {
+        let mut config = Config::default();
+        config
+            .intelligence
+            .local_endpoints
+            .push(LocalEndpointConfig {
+                id: "ollama".into(),
+                label: "Ollama".into(),
+                base_url: "http://127.0.0.1:11434/v1".into(),
+                models: vec!["qwen3-coder".into()],
+                credential_reference: None,
+                consent_to_send_source: false,
+                privacy_mode: "local".into(),
+            });
+        let unavailable = discover_harnesses(&config)
+            .into_iter()
+            .find(|option| option.id == "ollama")
+            .unwrap();
+        assert!(!unavailable.routes[0].available);
+        config.intelligence.local_endpoints[0].consent_to_send_source = true;
+        let available = discover_harnesses(&config)
+            .into_iter()
+            .find(|option| option.id == "ollama")
+            .unwrap();
+        assert!(available.routes[0].available);
+        assert_eq!(available.routes[0].billing, "local");
+        assert!(validate_local_endpoint("http://example.com:11434/v1").is_err());
+    }
+
+    #[test]
+    fn automatic_selection_honors_preference_consent_and_advertised_model() {
+        let mut config = Config::default();
+        config.intelligence.preferred_harness = Some("ollama".into());
+        config
+            .intelligence
+            .local_endpoints
+            .push(LocalEndpointConfig {
+                id: "ollama".into(),
+                label: "Ollama".into(),
+                base_url: "http://127.0.0.1:11434/v1".into(),
+                models: vec!["qwen3-coder".into()],
+                credential_reference: None,
+                consent_to_send_source: false,
+                privacy_mode: "local".into(),
+            });
+        assert_ne!(
+            default_selection(&config).map(|value| value.harness),
+            Some("ollama".into())
+        );
+        config.intelligence.local_endpoints[0].consent_to_send_source = true;
+        let selection = default_selection(&config).unwrap();
+        assert_eq!(selection.harness, "ollama");
+        assert_eq!(selection.model, "qwen3-coder");
+        assert_eq!(selection.route, "local-openai");
+    }
+
+    #[test]
+    fn managed_selection_keeps_pricing_and_cap_out_of_arguments_except_the_cap() {
+        let selection = HarnessSelection {
+            harness: "tohseno-managed".into(),
+            model: "qwen3-coder".into(),
+            route: "managed-zdr".into(),
+            adapter: Some(HarnessAdapter::ManagedOpenAi {
+                proxy_origin: "https://tohseno.com".into(),
+                command_id: "command_fixture".into(),
+                execution_id: "execution_fixture".into(),
+                privacy_mode: "zdr".into(),
+                maximum_microusd: 500_000,
+                pricing_snapshot_at: "2026-08-27T00:00:00Z".into(),
+                input_microusd_per_million: 120_000,
+                output_microusd_per_million: 360_000,
+                estimate_low_microusd: 100_000,
+                estimate_high_microusd: 400_000,
+            }),
+        };
+        let (_, command) = resolve_selection(&selection).unwrap();
+        let arguments = command
+            .arguments
+            .iter()
+            .map(|value| value.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert!(arguments.contains("--maximum-microusd 500000"));
+        assert!(arguments.contains("--pricing-snapshot-at 2026-08-27T00:00:00Z"));
+        assert!(command.environment.is_empty());
+        assert!(command
+            .removed_environment
+            .iter()
+            .any(|name| name == "BANKR_API_KEY"));
     }
 
     #[cfg(unix)]

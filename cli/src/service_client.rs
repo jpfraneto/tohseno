@@ -9,6 +9,9 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use crate::native_session::{
+    NativeSessionActivation, NativeSessionChallenge, NativeSessionCredential,
+};
 use crate::service_commands::{self, ServicePaths, SystemLaunchctl};
 use crate::workspace_identity::KEYCHAIN_NOTICE;
 use crate::workspace_service::{load_runtime, RuntimeRecord};
@@ -88,6 +91,24 @@ impl ServiceClient {
 
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, BoxError> {
         let response = self.http.get(self.url(path)?).send().await?;
+        decode(response).await
+    }
+
+    pub async fn native_session_challenge(&self) -> Result<NativeSessionChallenge, BoxError> {
+        self.get("/api/v1/native-session/challenge").await
+    }
+
+    pub async fn activate_native_session(
+        &self,
+        activation: &NativeSessionActivation,
+    ) -> Result<NativeSessionCredential, BoxError> {
+        let response = self
+            .http
+            .post(self.url("/api/v1/native-session")?)
+            .header(CONTENT_TYPE, "application/json")
+            .json(activation)
+            .send()
+            .await?;
         decode(response).await
     }
 
@@ -196,9 +217,16 @@ impl ServiceClient {
     }
 
     pub fn open_studio(&self, route: &str) -> Result<(), BoxError> {
-        let url = self.url(route)?;
+        let mut url = reqwest::Url::parse(&self.url(route)?)?;
+        // The bootstrap stays in the fragment: browsers do not send it in an
+        // HTTP request, access log, Referer, or service route. Studio consumes
+        // it into tab-scoped sessionStorage and immediately clears the URL.
+        url.set_fragment(Some(&format!(
+            "tohseno-bootstrap={}",
+            self.runtime.csrf_token
+        )));
         let status = Command::new("/usr/bin/open")
-            .arg(url)
+            .arg(url.as_str())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

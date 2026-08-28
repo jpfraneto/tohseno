@@ -27,6 +27,7 @@ tohseno-node = { path = "../node" }
 tohseno-protocol = { path = "../protocol" }
 reqwest.workspace = true
 rpassword = "=7.4.0"
+sha2 = "=0.10.9"
 zeroize = "=1.8.1"
 uuid = { version = "=1.18.1", features = ["v4", "serde"] }
 

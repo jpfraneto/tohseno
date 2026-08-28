@@ -46,6 +46,7 @@ pub fn selection(
             harness: "tohseno-test-factory".into(),
             model: "fixture".into(),
             route: "no-inference".into(),
+            adapter: None,
         });
     }
     if cfg!(debug_assertions)
@@ -58,6 +59,7 @@ pub fn selection(
             harness: "tohseno-test-nonlaunching".into(),
             model: "fixture".into(),
             route: "no-inference".into(),
+            adapter: None,
         });
     }
     let harnesses = engine.harnesses();
@@ -100,6 +102,7 @@ pub fn selection(
         harness: selected.id.clone(),
         model: selected_model.into(),
         route: selected_route.id.clone(),
+        adapter: selected.adapter.clone(),
     })
 }
 
@@ -980,6 +983,7 @@ async fn run_shot(
         harness: execution.harness.clone(),
         model: execution.model.clone(),
         route: execution.route.clone(),
+        adapter: execution.adapter.clone(),
     };
     let harness_budget_started = SystemTime::now();
     let harness_budget = bounded_duration_setting(
@@ -1932,6 +1936,7 @@ mod tests {
             harness_display_name: "Codex".into(),
             model: "default".into(),
             route: "chatgpt-subscription".into(),
+            adapter: None,
             route_billing: "subscription".into(),
             estimated_additional_cost_usd: Some(0.0),
             intention_digest: tohseno_protocol::digest::sha256(b"fixture"),

@@ -74,6 +74,7 @@ const MAX_REFERENCE_BYTES = 64 * 1024 * 1024;
 const MAX_REFERENCE_TOTAL_BYTES = 160 * 1024 * 1024;
 
 const state = {
+  studioBootstrap: null,
   csrfToken: null,
   sessionInstanceId: null,
   sessionPromise: null,
@@ -294,7 +295,10 @@ async function refreshStudioSession(force = false) {
     const response = await fetch("/api/v1/studio-session", {
       cache: "no-store",
       credentials: "same-origin",
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "X-Tohseno-Browser-Bootstrap": studioBootstrapToken(),
+      },
     });
     if (!response.ok) throw new Error(`Studio session bootstrap failed (${response.status}).`);
     const session = await response.json();
@@ -314,6 +318,23 @@ async function refreshStudioSession(force = false) {
   } finally {
     state.sessionPromise = null;
   }
+}
+
+function studioBootstrapToken() {
+  if (state.studioBootstrap) return state.studioBootstrap;
+  const key = "tohseno.studio.bootstrap.v1";
+  const prefix = "#tohseno-bootstrap=";
+  let token = sessionStorage.getItem(key) || "";
+  if (window.location.hash.startsWith(prefix)) {
+    token = window.location.hash.slice(prefix.length);
+    if (/^[A-Za-z0-9_-]{32,256}$/.test(token)) sessionStorage.setItem(key, token);
+    history.replaceState(history.state, "", `${window.location.pathname}${window.location.search}`);
+  }
+  if (!/^[A-Za-z0-9_-]{32,256}$/.test(token)) {
+    throw new Error("Open Studio from TOHSENO to begin a private local session.");
+  }
+  state.studioBootstrap = token;
+  return token;
 }
 
 async function api(path, options = {}, retryCsrf = true) {

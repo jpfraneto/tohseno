@@ -19,6 +19,14 @@ export interface AppConfig {
   trustProxy: boolean;
   relay: RelayConfig;
   billing: BillingConfig;
+  managed: ManagedConfig;
+  distribution: DistributionConfig;
+}
+
+export interface DistributionConfig {
+  macosEnabled: boolean;
+  macosUrl?: string;
+  macosSha256?: string;
 }
 
 export interface BillingConfig {
@@ -30,6 +38,24 @@ export interface BillingConfig {
   monthlyPriceId?: string;
   yearlyPriceId?: string;
   receiptSigningPrivateKey?: string;
+}
+
+export interface ManagedConfig {
+  enabled: boolean;
+  provider: "bankr" | "fake";
+  root?: string;
+  stripeSecretKey?: string;
+  stripeWebhookSecret?: string;
+  priceIds: Readonly<Record<"usd_10" | "usd_25" | "usd_50", string | undefined>>;
+  checkoutSuccessUrl?: string;
+  checkoutCancelUrl?: string;
+  bankrBaseUrl: string;
+  bankrApiKey?: string;
+  modelAllowlist: readonly string[];
+  rateLimitPerMinute: number;
+  operatorTokenSha256?: string;
+  launchFeeFundingConfirmed: boolean;
+  launchFeeFundingReference?: string;
 }
 
 export interface RelayConfig {
@@ -156,6 +182,80 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     }
   }
 
+  const managedEnabled = parseBoolean("MANAGED_COMPUTE_ENABLED", env.MANAGED_COMPUTE_ENABLED, false);
+  const managedProvider = oneOf(
+    "MANAGED_COMPUTE_PROVIDER",
+    env.MANAGED_COMPUTE_PROVIDER,
+    ["bankr", "fake"] as const,
+    "bankr",
+  );
+  const managedRoot = env.MANAGED_COMPUTE_ROOT;
+  const modelAllowlist = (env.BANKR_MODEL_ALLOWLIST ?? "")
+    .split(",").map((value) => value.trim()).filter(Boolean);
+  const launchFeeFundingConfirmed = parseBoolean(
+    "BANKR_LAUNCH_FEE_FUNDING_CONFIRMED",
+    env.BANKR_LAUNCH_FEE_FUNDING_CONFIRMED,
+    false,
+  );
+  if (managedEnabled) {
+    if (!managedRoot?.startsWith("/")) throw new Error("MANAGED_COMPUTE_ROOT must be an explicit absolute path");
+    if (managedProvider === "fake" && nodeEnv !== "test") throw new Error("the fake managed provider is available only in tests");
+    for (const [name, value] of [
+      ["STRIPE_SECRET_KEY", env.STRIPE_SECRET_KEY],
+      ["STRIPE_WEBHOOK_SECRET", env.STRIPE_WEBHOOK_SECRET],
+      ["STRIPE_BALANCE_PRICE_10", env.STRIPE_BALANCE_PRICE_10],
+      ["STRIPE_BALANCE_PRICE_25", env.STRIPE_BALANCE_PRICE_25],
+      ["STRIPE_BALANCE_PRICE_50", env.STRIPE_BALANCE_PRICE_50],
+      ["MANAGED_CHECKOUT_SUCCESS_URL", env.MANAGED_CHECKOUT_SUCCESS_URL],
+      ["MANAGED_CHECKOUT_CANCEL_URL", env.MANAGED_CHECKOUT_CANCEL_URL],
+      ["TOHSENO_OPERATOR_TOKEN_SHA256", env.TOHSENO_OPERATOR_TOKEN_SHA256],
+    ] as const) {
+      if (!value) throw new Error(`${name} is required when managed compute is enabled`);
+    }
+    if (!/^[a-f0-9]{64}$/.test(env.TOHSENO_OPERATOR_TOKEN_SHA256 ?? "")) {
+      throw new Error("TOHSENO_OPERATOR_TOKEN_SHA256 must be a lowercase SHA-256 digest");
+    }
+    if (managedProvider === "bankr" && !env.BANKR_API_KEY?.startsWith("bk_")) {
+      throw new Error("BANKR_API_KEY is required and must be a Bankr LLM Gateway key");
+    }
+    if (managedProvider === "bankr") {
+      const bankr = new URL(env.BANKR_BASE_URL ?? "https://llm.bankr.bot");
+      if (bankr.protocol !== "https:" || bankr.hostname !== "llm.bankr.bot"
+          || bankr.username || bankr.password || bankr.pathname !== "/"
+          || bankr.search || bankr.hash) {
+        throw new Error("BANKR_BASE_URL must be the bare official https://llm.bankr.bot origin");
+      }
+    }
+    if (nodeEnv === "production" && !env.STRIPE_SECRET_KEY?.startsWith("sk_live_")) {
+      throw new Error("production managed compute requires a live Stripe secret key");
+    }
+    if (!modelAllowlist.length || modelAllowlist.some((id) => !/^[A-Za-z0-9._:[\]-]{1,128}$/.test(id))) {
+      throw new Error("BANKR_MODEL_ALLOWLIST must contain bounded model identifiers");
+    }
+    for (const name of ["MANAGED_CHECKOUT_SUCCESS_URL", "MANAGED_CHECKOUT_CANCEL_URL"] as const) {
+      const url = new URL(env[name] ?? "");
+      if (url.protocol !== "https:" || url.username || url.password || url.hash) {
+        throw new Error(`${name} must be a trusted HTTPS URL`);
+      }
+    }
+    if (launchFeeFundingConfirmed && !env.BANKR_LAUNCH_FEE_FUNDING_REFERENCE) {
+      throw new Error("confirmed launch-fee funding requires BANKR_LAUNCH_FEE_FUNDING_REFERENCE");
+    }
+  }
+
+  const macosEnabled = parseBoolean("MACOS_DOWNLOAD_ENABLED", env.MACOS_DOWNLOAD_ENABLED, false);
+  if (macosEnabled) {
+    let url: URL;
+    try { url = new URL(env.MACOS_DOWNLOAD_URL ?? ""); }
+    catch { throw new Error("MACOS_DOWNLOAD_URL must be an absolute HTTPS URL"); }
+    if (url.protocol !== "https:" || url.username || url.password || url.hash) {
+      throw new Error("MACOS_DOWNLOAD_URL must be an absolute HTTPS URL without credentials or a fragment");
+    }
+    if (!/^[a-f0-9]{64}$/.test(env.MACOS_DOWNLOAD_SHA256 ?? "")) {
+      throw new Error("MACOS_DOWNLOAD_SHA256 must be the lowercase digest of the notarized DMG");
+    }
+  }
+
   return {
     nodeEnv,
     port,
@@ -179,6 +279,32 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       monthlyPriceId: env.BILLING_MONTHLY_PRICE_ID,
       yearlyPriceId: env.BILLING_YEARLY_PRICE_ID,
       receiptSigningPrivateKey: env.BILLING_RECEIPT_SIGNING_PKCS8_BASE64URL,
+    },
+    managed: {
+      enabled: managedEnabled,
+      provider: managedProvider,
+      root: managedRoot,
+      stripeSecretKey: env.STRIPE_SECRET_KEY,
+      stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      priceIds: {
+        usd_10: env.STRIPE_BALANCE_PRICE_10,
+        usd_25: env.STRIPE_BALANCE_PRICE_25,
+        usd_50: env.STRIPE_BALANCE_PRICE_50,
+      },
+      checkoutSuccessUrl: env.MANAGED_CHECKOUT_SUCCESS_URL,
+      checkoutCancelUrl: env.MANAGED_CHECKOUT_CANCEL_URL,
+      bankrBaseUrl: env.BANKR_BASE_URL ?? "https://llm.bankr.bot",
+      bankrApiKey: env.BANKR_API_KEY,
+      modelAllowlist,
+      rateLimitPerMinute: parsePositiveInteger("MANAGED_RATE_LIMIT_PER_MINUTE", env.MANAGED_RATE_LIMIT_PER_MINUTE, 30),
+      operatorTokenSha256: env.TOHSENO_OPERATOR_TOKEN_SHA256,
+      launchFeeFundingConfirmed,
+      launchFeeFundingReference: env.BANKR_LAUNCH_FEE_FUNDING_REFERENCE,
+    },
+    distribution: {
+      macosEnabled,
+      macosUrl: env.MACOS_DOWNLOAD_URL,
+      macosSha256: env.MACOS_DOWNLOAD_SHA256,
     },
   };
 }
@@ -210,5 +336,8 @@ export function safeStartupSummary(
     claimInstallerReady: config.relay.claimInstallerReady,
     billingEnabled: config.billing.enabled,
     billingProvider: config.billing.enabled ? config.billing.provider : "disabled",
+    managedComputeEnabled: config.managed.enabled,
+    managedComputeProvider: config.managed.enabled ? config.managed.provider : "disabled",
+    macosDownloadEnabled: config.distribution.macosEnabled,
   };
 }

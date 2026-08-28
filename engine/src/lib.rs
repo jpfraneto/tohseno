@@ -49,7 +49,9 @@ pub use conception::{
     synthesize, ConceptionError, ConceptionInput, ConceptionOutput, CONCEPTION_INPUT_SCHEMA,
     CONCEPTION_OUTPUT_SCHEMA,
 };
-pub use config::Config;
+pub use config::{
+    Config, CustomHarnessConfig, HarnessConfig, IntelligenceConfig, LocalEndpointConfig,
+};
 pub use events::{Event, EventBus, FactoryStage};
 pub use experience::{
     evaluate_birth, BirthReceipt, ExperienceContract, ExperienceError, ExperienceTrial,
@@ -58,8 +60,8 @@ pub use experience::{
 };
 pub use factory_identity::{FactoryIdentity, FACTORY_IDENTITY_SCHEMA};
 pub use harness::{
-    AttachmentBehavior, AuthenticationStatus, HarnessCommand, HarnessModel, HarnessOption,
-    HarnessRoute, HarnessSelection,
+    AttachmentBehavior, AuthenticationStatus, HarnessAdapter, HarnessCommand, HarnessModel,
+    HarnessOption, HarnessRoute, HarnessSelection,
 };
 pub use harness_usage::{read_harness_usage, HarnessUsage, HARNESS_USAGE_SCHEMA};
 pub use intent_envelope::{decrypt_intent_envelope, IntentEnvelopeError, INTENT_ENVELOPE_AAD};

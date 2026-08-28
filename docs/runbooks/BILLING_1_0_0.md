@@ -1,5 +1,11 @@
 # Activate TOHSENO 1.0.0 billing
 
+> Historical compatibility runbook. ADR 0025 removed recurring Pro
+> subscriptions, trial qualification, and entitlement gating from the normal
+> native product and from local/BYO factory admission. Do not use these Prices
+> or receipts for prepaid creation balance. The current optional service is
+> documented in [`MANAGED_COMPUTE.md`](MANAGED_COMPUTE.md).
+
 Billing is inactive in repository source. Activation is a manual owner action
 and is independent from Apple Developer Program membership, npm publication,
 relay/APNs activation, DNS, contracts, and the public installer.

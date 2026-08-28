@@ -4,6 +4,30 @@ This is the concrete runtime map for the private iPhone-to-Mac factory. It is
 descriptive, not protocol authority: [`protocol/`](../protocol/) and the
 accepted [ADRs](adr/README.md) win if this document disagrees with them.
 
+ADR 0025 changes the primary projection, not the factory. The implemented
+source path is:
+
+```text
+Native SwiftUI Tohseno.app
+        |
+        | bounded native loopback session + events
+        v
+Persistent Rust Local Workspace Service
+        |
+        v
+ShotApplicationService → Engine → build/sign/install/launch
+        |                                  |
+        +── local/BYO/custom/local model   +── connected development iPhone
+        |
+        └── managed execution capability → TOHSENO inference proxy → Bankr
+```
+
+The browser Studio and CLI remain support/recovery clients. The Companion and
+its encrypted relay remain optional and preserved, but neither participates in
+normal native first run or generated-app installation. External signing,
+notarization, publication, physical-device checks, and service activation are
+still separate release evidence; source existence does not imply them.
+
 ```text
 iPhone Companion
   signed command + encrypted durable outbox
@@ -24,7 +48,64 @@ mailbox; it is neither a factory nor an authority over a Shot.
 
 ## Runtime components
 
-### Companion
+### Native Mac app and native session
+
+[`macos/Tohseno`](../macos/Tohseno/) is a macOS 14 SwiftUI package with an
+ordinary app executable and a testable core. It renders the six-state workspace
+projection, uses native navigation/settings/file pickers and URL routing,
+persists its selected app, submits create/evolve exactly once per gesture, and
+receives live status from the service event stream. It performs no build,
+recording, installation, or protocol transition itself.
+
+[`cli/src/native_client.rs`](../cli/src/native_client.rs) is the bundled helper.
+In release it verifies the signed parent app against the bundle's exact Team-ID
+requirement, asks the workspace service for a one-use challenge, signs it with
+the existing workspace key, and receives a 15-minute token bound to the current
+service instance and scopes. [`cli/src/native_session.rs`](../cli/src/native_session.rs)
+owns that separate authorization state; browser Origin/CSRF sessions remain a
+different boundary.
+
+### First open, readiness, and distribution
+
+[`cli/src/native_install.rs`](../cli/src/native_install.rs) verifies the exact
+bundled factory manifest, rejects symlinks/special files, stages an immutable
+installer-owned release, and atomically publishes both stable executables and
+`current`. Any activation error restores the previous selection; state and app
+roots are never release payloads.
+
+[`cli/src/device_readiness.rs`](../cli/src/device_readiness.rs) independently
+projects macOS/Xcode/license/components, connected device, unlock/Trust,
+Developer Mode, signing team, and a real deterministic minimal build/install/
+launch/remove result. It exposes one instruction and at most one action at a
+time and does not read or mutate Companion pairing. Packaging under
+[`macos/Tohseno/Packaging`](../macos/Tohseno/Packaging/) builds universal
+executables, writes integrity metadata, supports inside-out hardened signing
+and notarization, creates the DMG, and verifies architecture, signatures,
+stapling, and forbidden-secret absence.
+
+### Intelligence and managed balance
+
+The engine's one `HarnessAdapter` enum now resolves known tools, a bounded
+owner-selected executable, a consented loopback OpenAI-compatible endpoint, or
+managed OpenAI-compatible execution. Exact adapter/model/route and, for
+managed work, pricing timestamp, estimate range, privacy tier, and maximum are
+stored with the prepared execution. Recovery never rediscovers or changes the
+route. [`cli/src/local_openai_harness.rs`](../cli/src/local_openai_harness.rs)
+uses a bounded file-plan protocol and safe atomic source writes; secrets are
+Keychain references rather than arguments.
+
+[`website/apps/site/src/managed.ts`](../website/apps/site/src/managed.ts) is the
+optional server boundary. Installation-signed claims obtain live allowlisted
+catalog/pricing, Stripe hosted pack Checkout, or a reservation. The append-only
+integer micro-USD ledger separates paid/promotional value and records holds,
+actual charges, releases, adjustments, grants/revocations, and reconciliation.
+A short-lived one-use capability reaches only the narrow Bankr completion
+proxy; no Bankr credential enters a local artifact. Ambiguous outcomes stay
+held for protected operator reconciliation. The public `/download/macos`
+route is independent and fail-closed until immutable URL and digest config
+exist.
+
+### Optional Companion
 
 The shipping iOS product is
 [`companion/apple/TohsenoCompanion`](../companion/apple/TohsenoCompanion/).
@@ -158,6 +239,11 @@ roots.
 | Visible app and accepted Shot state | normally `~/Desktop/Tohseno/<app>/` | engine | service restart; the folder remains ejectable |
 | Prepared/running execution, events, completion, private receipt | `<app>/.tohseno/executions/<execution-id>/` | execution manager and engine | service restart and, except for the limitation below, Mac restart |
 | Factory serialization lease | private machine data root | application service | released automatically when the owning process exits |
+| Native UI restoration | macOS app scene/default state | native Mac app | window closure and app relaunch |
+| Native challenge/session | service memory, scoped to service instance | Local Workspace Service | intentionally expires; not valid after service restart |
+| Installed factory programs | `~/.tohseno/releases/`, `current`, and stable `bin/` | native/legacy installer | app and service restart; rollback preserves prior selection |
+| Intelligence configuration | `~/.tohseno/service/intelligence-v1.json` plus optional Keychain references | Local Workspace Service | service and Mac restart |
+| Managed balance authority | configured server `MANAGED_COMPUTE_ROOT` | website managed service | process restart and operator backup/restore |
 
 On service startup, command recovery runs before the loopback listener opens.
 A prepared execution is started; a live detached runner is reattached; a
@@ -170,7 +256,8 @@ second intelligence pass over unknown partial mutations.
 
 The current private core is:
 
-- `companion/apple/TohsenoCompanion/` — shipping phone product.
+- `macos/Tohseno/` — primary native Mac projection and packaging.
+- `companion/apple/TohsenoCompanion/` — optional phone projection.
 - `sdk/apple/TohsenoCompanionKit/` and `companion/` — Swift/Rust private wire,
   cryptography, state, and conformance vectors.
 - `website/apps/companion-relay/` — content-blind internet mailbox.
@@ -182,8 +269,8 @@ Important but separate from this private loop:
 
 - `protocol/` is normative public protocol law; `node/`, `contracts/`, and
   `release/` concern public evidence and releases.
-- `website/apps/site/` is the public web terminal and its separate web-to-local
-  intention handoff. A relay record there is not a Shot.
+- `website/apps/site/` is the public site, managed-balance/proxy boundary, and
+  separate web-to-local intention handoff. A relay record is not a Shot.
 - `apple-identity/`, `fascia/`, and `oneshot/` support Mac identity, generated
   iOS source, and installation/release respectively.
 

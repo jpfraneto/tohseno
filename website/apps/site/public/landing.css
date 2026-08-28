@@ -201,6 +201,8 @@ img {
   text-align: left;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease;
+  color: inherit;
+  text-decoration: none;
 }
 
 .install:hover {
@@ -208,7 +210,8 @@ img {
   transform: translate(4px, 4px);
 }
 
-.install code {
+.install code,
+.install strong {
   flex: 1;
   overflow-wrap: anywhere;
   font: 700 clamp(15px, 1.8vw, 25px) ui-monospace, monospace;
@@ -607,7 +610,8 @@ blockquote {
   line-height: 1.3;
 }
 
-.steps li button {
+.steps li button,
+.steps li .step-download {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -618,6 +622,7 @@ blockquote {
   background: var(--black);
   color: var(--bone);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .steps li code {
@@ -626,7 +631,8 @@ blockquote {
   text-overflow: ellipsis;
 }
 
-.steps li button span {
+.steps li button span,
+.steps li .step-download span {
   flex: none;
   font: 700 9px ui-monospace, monospace;
 }

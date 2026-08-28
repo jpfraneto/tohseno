@@ -169,6 +169,7 @@ pub struct EvolveShotCommand {
     pub selected_feedback_actions: Vec<Bytes32>,
     pub references: Vec<ReferenceInput>,
     pub submitted_at: Option<String>,
+    pub harness_selection: Option<HarnessSelection>,
 }
 
 #[derive(Clone, Debug)]
@@ -243,7 +244,7 @@ pub struct MarketingNoteReceipt {
     pub shot_id: ShotId,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FactoryDefaults {
     pub schema: String,
@@ -257,12 +258,16 @@ pub struct FactoryDefaults {
     pub harnesses: Vec<FactoryHarnessOption>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FactoryHarnessOption {
     pub id: String,
     pub label: String,
+    pub installed: bool,
+    pub selected: bool,
+    pub authentication: String,
     pub models: Vec<FactoryModelOption>,
+    pub routes: Vec<FactoryRouteOption>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -271,6 +276,17 @@ pub struct FactoryModelOption {
     pub id: String,
     pub label: String,
     pub is_default: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FactoryRouteOption {
+    pub id: String,
+    pub label: String,
+    pub billing: String,
+    pub available: bool,
+    pub estimated_additional_cost_usd: Option<f64>,
+    pub cost_estimation: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -291,6 +307,15 @@ pub struct RetireShotReceipt {
     pub shot_id: String,
     pub display_name: String,
     pub phone_app_removed: bool,
+    pub source_preserved: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreShotReceipt {
+    pub schema: String,
+    pub shot_id: String,
+    pub display_name: String,
     pub source_preserved: bool,
 }
 
@@ -665,11 +690,16 @@ impl ShotApplicationService {
                 "stale evolution: the exact accepted base changed before admission",
             );
         }
-        let selection = match self.resolve_selection().and_then(|selection| {
-            execution_manager::validate_selection(&selection)
-                .map(|()| selection)
-                .map_err(|error| ApplicationError::Orchestration(error.to_string()))
-        }) {
+        let selection = match command
+            .harness_selection
+            .clone()
+            .map(Ok)
+            .unwrap_or_else(|| self.resolve_selection())
+            .and_then(|selection| {
+                execution_manager::validate_selection(&selection)
+                    .map(|()| selection)
+                    .map_err(|error| ApplicationError::Orchestration(error.to_string()))
+            }) {
             Ok(selection) => selection,
             Err(error) => {
                 return self.reject(
@@ -974,6 +1004,29 @@ impl ShotApplicationService {
         ))
     }
 
+    /// Restores a locally retired app to the owner's library without silently
+    /// reinstalling it on a phone or changing any accepted history.
+    pub async fn restore_shot(
+        &self,
+        shot_id: &str,
+    ) -> Result<RestoreShotReceipt, ApplicationError> {
+        let snapshot = self.workspace_snapshot().await?;
+        let shot = snapshot
+            .shots
+            .iter()
+            .find(|shot| shot.shot_id == shot_id)
+            .ok_or_else(|| ApplicationError::Invalid("app does not exist".into()))?;
+        let app = self.engine.ledger().load_app(&shot.display_name)?;
+        if app.retired {
+            self.engine.ledger().set_retired(&app.name, false)?;
+            self.events.emit(tohseno_engine::Event::result(format!(
+                "{} was restored to Your Apps. Its phone installation was not changed.",
+                app.name
+            )));
+        }
+        Ok(restore_receipt(shot_id, &shot.display_name))
+    }
+
     pub fn shot_icon(&self, shot_id: &str) -> Result<Option<IconDescriptor>, ApplicationError> {
         load_shot_icon(&self.engine, &self.workspace_id, shot_id)
             .map_err(|error| ApplicationError::Orchestration(error.to_string()))
@@ -1049,12 +1102,15 @@ impl ShotApplicationService {
             route_label: route.map(|route| route.label.clone()),
             harnesses: options
                 .iter()
-                .filter(|option| {
-                    option.installed && option.routes.iter().any(|route| route.available)
-                })
                 .map(|option| FactoryHarnessOption {
                     id: option.id.clone(),
                     label: option.label.clone(),
+                    installed: option.installed,
+                    selected: option.selected,
+                    authentication: serde_json::to_value(option.authentication)
+                        .ok()
+                        .and_then(|value| value.as_str().map(str::to_owned))
+                        .unwrap_or_else(|| "unknown".into()),
                     models: option
                         .models
                         .iter()
@@ -1062,6 +1118,18 @@ impl ShotApplicationService {
                             id: model.id.clone(),
                             label: model.label.clone(),
                             is_default: model.is_default,
+                        })
+                        .collect(),
+                    routes: option
+                        .routes
+                        .iter()
+                        .map(|route| FactoryRouteOption {
+                            id: route.id.clone(),
+                            label: route.label.clone(),
+                            billing: route.billing.clone(),
+                            available: route.available,
+                            estimated_additional_cost_usd: route.estimated_additional_cost_usd,
+                            cost_estimation: route.cost_estimation,
                         })
                         .collect(),
                 })
@@ -1130,6 +1198,7 @@ impl ShotApplicationService {
                     selected_feedback_actions: payload.selected_feedback_actions,
                     references,
                     submitted_at: Some(record.submitted_at.clone()),
+                    harness_selection: payload.harness_selection,
                 })
                 .await?;
             }
@@ -1368,11 +1437,9 @@ impl ShotApplicationService {
         if self.command_journal.contains(command_id)? {
             return Ok(());
         }
-        if let Some(entitlement) = &self.entitlement {
-            entitlement
-                .require_new_factory_mutation()
-                .map_err(|error| ApplicationError::Invalid(error.to_string()))?;
-        }
+        // ADR 0025: the owner may always use local and bring-your-own
+        // intelligence. Legacy entitlement records remain readable, but they
+        // are not an admission authority for source the owner already owns.
         Ok(())
     }
 }
@@ -1383,6 +1450,15 @@ fn retire_receipt(shot_id: &str, display_name: &str, phone_app_removed: bool) ->
         shot_id: shot_id.into(),
         display_name: display_name.into(),
         phone_app_removed,
+        source_preserved: true,
+    }
+}
+
+fn restore_receipt(shot_id: &str, display_name: &str) -> RestoreShotReceipt {
+    RestoreShotReceipt {
+        schema: "tohseno.restore-shot-receipt/1".into(),
+        shot_id: shot_id.into(),
+        display_name: display_name.into(),
         source_preserved: true,
     }
 }
@@ -1434,6 +1510,8 @@ struct EvolvePayload {
     intention: String,
     selected_feedback_actions: Vec<Bytes32>,
     references: Vec<ReferenceDescriptor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harness_selection: Option<HarnessSelection>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1546,6 +1624,7 @@ fn evolve_payload(
             intention: command.intention.clone(),
             selected_feedback_actions: selected,
             references,
+            harness_selection: command.harness_selection.clone(),
         },
         files,
     ))
@@ -1981,6 +2060,7 @@ mod tests {
                 harness: "claude-code".into(),
                 model: "sonnet".into(),
                 route: "claude-subscription".into(),
+                adapter: None,
             }),
             ..cli.clone()
         };
@@ -2012,6 +2092,7 @@ mod tests {
             selected_feedback_actions: Vec::new(),
             references: Vec::new(),
             submitted_at: None,
+            harness_selection: None,
         };
         let phone_evolution = EvolveShotCommand {
             command_id: "companion_evolve".into(),
@@ -2440,6 +2521,19 @@ mod tests {
             .shots
             .iter()
             .any(|shot| shot.shot_id == shot_id.to_string() && shot.retired));
+
+        let restored = service.restore_shot(&shot_id.to_string()).await.unwrap();
+        assert_eq!(restored.schema, "tohseno.restore-shot-receipt/1");
+        assert!(restored.source_preserved);
+        assert!(
+            !service
+                .engine()
+                .ledger()
+                .load_app("fixture")
+                .unwrap()
+                .retired
+        );
+        assert!(source.is_dir());
     }
 
     #[test]
@@ -2534,6 +2628,7 @@ mod tests {
             harness_display_name: "Fixture".into(),
             model: "fixture".into(),
             route: "fixture".into(),
+            adapter: None,
             route_billing: "none".into(),
             estimated_additional_cost_usd: Some(0.0),
             intention_digest: sha256(b"Build the exact fixture."),

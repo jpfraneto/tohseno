@@ -13,22 +13,32 @@ protocol material, not free-form docs.
 2. **`docs/adr/`** — accepted architectural decisions. ADR 0024 governs the
    app-local `.tohseno/` Git boundary: the directory is integral and never
    blanket-ignored, while exact private and transient paths remain ignored.
+   ADR 0025 governs the native macOS product transition: `Tohseno.app` is the
+   primary surface over the one existing Rust factory; Companion setup,
+   successful-day qualification, subscription gating of local/BYO execution,
+   and npm/browser first run are no longer consumer requirements; managed
+   inference instead uses an append-only balance, a constrained TOHSENO proxy,
+   and Bankr behind explicit consent and a hard reservation. ADR 0025 changes
+   no public protocol encoding and authorizes no external billing, Bankr,
+   signing, notarization, or release activation.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation
-   model chooses the user-facing product name from the intent. ADR 0021 governs
-   the one-command npm-install-to-first-run transition. ADR 0020 governs cable
-   genesis, the private successful-day/entitlement authority, earned Pro,
-   hosted billing receipts, and the dependency-free npm front door. ADR 0019 governs the
+   model chooses the user-facing product name from the intent. ADRs 0021 and
+   0020 still govern their retained installer, cable, entitlement, and receipt
+   compatibility mechanisms, but ADR 0025 supersedes their npm-first,
+   Companion-first, qualification, and subscription-gate product decisions.
+   ADR 0019 governs the
    bounded intent-to-usable-app transition: one implementation harness, at
    most one code/build repair, one shared wall-clock budget, and one private
    State Transition Receipt. ADR 0017 governs how a
    birth runs: the engine composes and accepts the Genome itself and the one
    harness invocation reads the exact intention, so there is no Conception
    phase and no `.tohseno/CONCEPTION.md`. Do not reintroduce a planning round
-   trip in front of the build. ADR 0016 governs the current user-facing
-   surface: App → Intent → App on your iPhone, with Studio and the Companion as
-   thin projections. ADR 0015 governs the persistent local factory and private
+   trip in front of the build. ADR 0016's App → Intent → App on your iPhone
+   abstraction and six-state/deletion constraints remain current; ADR 0025
+   makes the native Mac app its primary projection while Studio and Companion
+   are optional support projections. ADR 0015 governs the persistent local factory and private
    companion boundary beneath it while preserving ADR 0014's recording format.
    ADR 0006 governs the successor (0.8) contract generation and public-witness
    design. Generation 0.8.0 is deployed and is the current client-trusted

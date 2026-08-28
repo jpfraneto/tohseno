@@ -280,7 +280,7 @@ impl Engine {
     }
 
     pub fn harnesses(&self) -> Vec<HarnessOption> {
-        discover_harnesses(&self.config.harness)
+        discover_harnesses(&self.config)
     }
 
     /// Initializes the app's embedded recording ledger. The app folder is the
@@ -1920,7 +1920,7 @@ impl Engine {
     /// Compatibility handoff for callers that have not adopted prepared
     /// executions yet. Native execution uses the adapter's argument vector.
     fn preferred_agent_command(&self) -> Option<String> {
-        let selection = default_selection(&self.config.harness)?;
+        let selection = default_selection(&self.config)?;
         let (_, command) = resolve_selection(&selection).ok()?;
         Some(command.program.to_string_lossy().into_owned())
     }

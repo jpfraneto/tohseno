@@ -53,48 +53,40 @@
         </nav>
 
         <section id="install">
-          <h2>Install the local factory</h2>
-          <pre><code>{{INSTALL_COMMAND}}</code></pre>
-          <p>Release <strong>1.0.2</strong> keeps the npm front door and native Mac product on the same version. The npm package accepts only the authorized 1.0.2 native manifest and signed artifact.</p>
-          <p>TOHSENO supports macOS 13 or newer and does not require <code>sudo</code> or a TOHSENO account. You need Xcode, an iPhone, and an authenticated local Codex or Claude Code installation.</p>
-          <div class="command-block">
-            <code class="command-line" id="install-command" data-install-command data-copy-value="{{INSTALL_COMMAND}}">{{INSTALL_COMMAND}}</code>
-            <button class="copy-button" type="button" hidden data-copy-command data-copied-label="{{COPIED_LABEL}}" aria-describedby="install-command">{{COPY_LABEL}}</button>
-          </div>
+          <h2>Install the Mac app</h2>
+          <p><a href="/download/macos">Download TOHSENO for Mac</a>. The route stays unavailable until the exact Developer ID-signed, notarized, stapled DMG and its independently checked SHA-256 are published. Source support is not a download claim.</p>
+          <p>TOHSENO requires macOS 14 or newer and full Xcode. It does not require <code>sudo</code>, Node, npm, Bun, Homebrew, or a TOHSENO account. An iPhone is needed for phone installation, not for browsing existing apps or preparing local work.</p>
         </section>
 
         <section id="onboarding">
-          <h2>The cable is first run</h2>
+          <h2>One readiness instruction at a time</h2>
           <ol>
             <li>Connect and trust the iPhone.</li>
             <li>Enable Developer Mode when iOS asks.</li>
             <li>Install Xcode and add an Apple Account for development signing.</li>
-            <li>Let TOHSENO build, install, and launch its Companion.</li>
-            <li>Record the twelve recovery words shown only on the iPhone and finish secure pairing.</li>
+            <li>Choose an Apple Personal Team in Xcode when development signing requires it.</li>
+            <li>Let TOHSENO verify a minimal build, install, launch, and cleanup.</li>
           </ol>
-          <p>Studio binds only to <code>127.0.0.1</code> and gives one next action at a time. A free Apple Personal Team is supported; Apple provisioning limits still apply. TOHSENO Pro and Apple Developer Program membership are separate.</p>
-          <p>The complete factory trial starts after this setup succeeds. It ends at the first of five successful distinct days or seven calendar days. Qualified people may consciously choose Pro at $9.99 monthly or $99 yearly. Expiry never removes app source, repositories, history, or installed apps; it only locks new Create and Evolve work.</p>
-          <pre><code>tohseno studio</code></pre>
+          <p>The native app talks only to the loopback Local Workspace Service and gives one next action at a time. It never collects Apple credentials. A free Apple Personal Team is supported; Apple provisioning limits still apply. Installing or pairing the optional Companion is not a readiness or creation gate.</p>
         </section>
 
         <section id="create">
           <h2>Create one deliberately small app</h2>
-          <pre><code>tohseno create</code></pre>
-          <p>Studio opens one composer. Describe the app, optionally name it, attach up to eight reference images, and choose an installed coding harness and model. If the name is blank, the implementation model chooses a concise product name inside the same implementation pass.</p>
+          <p>Open TOHSENO's native composer. Describe the app, optionally name it, and attach up to eight exact-byte PNG or JPEG references. If the name is blank, the implementation model chooses a concise product name inside the same implementation pass.</p>
+          <p>Advanced settings detect supported subscription-backed tools and allow a bounded custom executable or explicitly consented loopback model endpoint. Managed intelligence is optional: it shows a live server-priced range, privacy tier, and hard maximum before source is sent. Local/BYO work is never gated by TOHSENO subscription or creation balance.</p>
           <p>The persistent local service runs one bounded implementation harness and, only for a concrete code or build defect, at most one focused repair. Source generation is not completion: TOHSENO builds, verifies, development-signs, installs, and launches the accepted app on the connected iPhone. If the phone is absent, the app waits and delivery resumes automatically when it is connected.</p>
         </section>
 
         <section id="evolve">
           <h2>Use it, then describe the change</h2>
-          <pre><code>tohseno evolve &lt;app-name&gt;</code></pre>
-          <p>Write what should change and press <strong>Evolve App</strong>. TOHSENO binds the exact currently accepted base automatically and follows the same build, verification, installation, and launch path. A stale base is refused rather than silently rebased. Advanced exact-version feedback still exists, but it is not a required ceremony on the normal path.</p>
+          <p>Open the app, write what should change, and press <strong>Evolve App</strong>. TOHSENO binds the exact currently accepted base automatically and follows the same build, verification, installation, and launch path. A stale base is refused rather than silently rebased.</p>
         </section>
 
         <section id="local-data">
           <h2>The app and its TOHSENO record stay on your Mac</h2>
           <p>Visible app folders live under <code>~/Desktop/Tohseno</code> and remain ordinary Git repositories. The app-local <code>.tohseno</code> directory is an integral metadata container, not a disposable cache and not blanket-gitignored. Its app marker, immutable evolution structure, and safe integrity material travel with the folder.</p>
           <p>Exact intentions, inline private lineage, references, feedback, execution receipts, logs, and <code>.tohseno/private</code> remain individually gitignored because committing them could publish material explicitly marked private. Machine identity, service journals, pairing, and installed releases live separately under <code>~/.tohseno</code>. Uninstall preserves both app folders and private state.</p>
-          <p>Studio does not upload canonical Shot data. The selected coding harness can read the local intention and references and handles them under that provider’s privacy, retention, and account settings.</p>
+          <p>TOHSENO does not upload canonical Shot data. A selected local/BYO tool handles source under its provider settings. A configured loopback endpoint requires explicit consent. Managed work alone sends admitted source through TOHSENO to Bankr and the selected model provider after privacy and maximum approval; the server ledger records usage and money movements but not source or prompts.</p>
         </section>
 
         <section id="on-chain">
@@ -106,7 +98,7 @@
 
         <section id="versions">
           <h2>Which version is live?</h2>
-          <p><strong>TOHSENO 1.0.2</strong> is prepared as one coherent npm and native release. The repository does not claim it is public until the owner has signed the native artifacts, published the exact manifest, published npm, and deployed this site.</p>
+          <p>The native Mac transition is implemented in source. It is not claimed public until the owner has signed, notarized, stapled, physically tested, uploaded, independently hashed, and activated the exact DMG. Until then the download route fails closed.</p>
         </section>
       </article>
     </main>

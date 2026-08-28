@@ -20,7 +20,6 @@
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
   <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
-  <script src="/landing.js" defer></script>
   <title>TOHSENO — Make the iPhone App That Should Exist</title>
 </head>
 <body>
@@ -45,11 +44,11 @@
       <h1>MAKE THE<br>iPHONE APP<br><em>THAT SHOULD EXIST.</em></h1>
       <div class="hero-bottom">
         <p class="lede">One coherent intention becomes a native application you can hold, use, evolve, and completely own.</p>
-        <button class="install" type="button" data-copy-install data-install-command="npm i -g tohseno" aria-label="Copy the TOHSENO install command">
-          <span class="prompt" aria-hidden="true">$</span>
-          <code data-install-text>npm i -g tohseno</code>
-          <span class="copy-mark" data-copy-label>COPY</span>
-        </button>
+        <a class="install" href="/download/macos" aria-label="Download TOHSENO for Mac">
+          <span class="prompt" aria-hidden="true">↓</span>
+          <strong>DOWNLOAD FOR MAC</strong>
+          <span class="copy-mark">macOS 14+</span>
+        </a>
       </div>
       <div class="hero-stamp" aria-hidden="true"><img src="/tohseno-logo.png" alt=""></div>
     </section>
@@ -151,7 +150,7 @@
         <li>
           <b>01</b>
           <h3>INSTALL</h3>
-          <button type="button" data-copy-install data-install-command="npm i -g tohseno"><code data-install-text>npm i -g tohseno</code><span data-copy-label>COPY</span></button>
+          <a class="step-download" href="/download/macos"><strong>DOWNLOAD FOR MAC</strong><span>macOS 14+</span></a>
         </li>
         <li><b>02</b><h3>CONNECT</h3><p>Plug your iPhone into your Mac. Tohseno guides you through Xcode, signing, and Developer Mode.</p></li>
         <li><b>03</b><h3>CREATE AN APP</h3><p>Describe what should exist. TOHSENO keeps working if you close the browser or Terminal and opens the result on your phone.</p></li>
@@ -161,9 +160,9 @@
     <section class="permission frame bone" id="before-install">
       <p class="section-no">[ 007 / BEFORE YOU INSTALL ]</p>
       <div>
-        <h2>A COMPLETE TRIAL. A CLEAR BOUNDARY.</h2>
-        <p>You need macOS 13 or later, Xcode, an iPhone, and an authenticated local Codex or Claude Code installation. A free Apple Personal Team works.</p>
-        <p>The complete factory is free until the first of five successful distinct days or seven calendar days after iPhone setup. Complete five days and you may choose Pro at $9.99 monthly or $99 yearly. If creation locks, every app, source repository, and installed result remains yours. TOHSENO Pro and Apple's paid Developer Program are separate.</p>
+        <h2>ONE MAC APP. CLEAR CHOICES.</h2>
+        <p>You need macOS 14 or later, Xcode, and an iPhone for phone installation. A free Apple Personal Team works for personal-device signing.</p>
+        <p>Bring a supported model subscription, connect an explicit local model endpoint, or approve a capped use of managed intelligence from a prepaid balance. Local creation stays available without a TOHSENO subscription. Your app, source repository, and installed result remain yours.</p>
       </div>
     </section>
 
@@ -179,9 +178,9 @@
 
   <footer class="frame">
     <div class="footer-logo"><img src="/tohseno-logo.png" alt="TOHSENO brush circle"><h2>WHAT SHOULD<br>EXIST?</h2></div>
-    <button class="install giant" type="button" data-copy-install data-install-command="npm i -g tohseno" aria-label="Copy the TOHSENO install command">
-      <span class="prompt" aria-hidden="true">$</span><code data-install-text>npm i -g tohseno</code><span data-copy-label>COPY</span>
-    </button>
+    <a class="install giant" href="/download/macos" aria-label="Download TOHSENO for Mac">
+      <span class="prompt" aria-hidden="true">↓</span><strong>DOWNLOAD FOR MAC</strong><span>macOS 14+</span>
+    </a>
     <div class="footer-links">
       <span>MAKE THE APP THAT SHOULD EXIST. USE IT. THEN MAKE IT BETTER.</span>
       <div>
@@ -192,6 +191,5 @@
     </div>
   </footer>
 
-  <p class="copy-status" role="status" aria-live="polite" aria-atomic="true"></p>
 </body>
 </html>

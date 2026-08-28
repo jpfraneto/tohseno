@@ -1251,6 +1251,7 @@ impl CompanionCoordinator {
                         selected_feedback_actions: feedback,
                         references: reference_inputs,
                         submitted_at,
+                        harness_selection: None,
                     })
                     .await
                 {

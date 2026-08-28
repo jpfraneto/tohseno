@@ -46,7 +46,6 @@ const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
-const NPM_INSTALL_COMMAND = "npm i -g tohseno";
 
 describe("public pages", () => {
   test("serves the brutalist landing page", async () => {
@@ -71,15 +70,15 @@ describe("public pages", () => {
     expect(body).toContain("THE FACTORY IS<br>A MIDWIFE.");
     expect(body).toContain("THE FACTORY<br>IS OPEN.<br>THE APP<br>IS YOURS.");
     expect(body).toContain("FROM ZERO<br>TO YOUR PHONE.");
-    expect(body).toContain("A COMPLETE TRIAL. A CLEAR BOUNDARY.");
+    expect(body).toContain("ONE MAC APP. CLEAR CHOICES.");
     expect(body).toContain("LOCAL CREATION.<br>PUBLICATION IS NEXT.");
     expect(body).toContain("WHAT SHOULD<br>EXIST?");
-    expect(body).toContain(NPM_INSTALL_COMMAND);
+    expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
-    expect(body.match(/data-copy-install/g)).toHaveLength(3);
+    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(3);
     expect(body).toContain('src="/app-breathekeeper.png"');
     expect(body).toContain('src="/app-room-tone.png"');
-    expect(body).toContain('src="/landing.js" defer');
+    expect(body).not.toContain('src="/landing.js"');
     expect(body).toContain('property="og:title" content="Open Source iOS Apps Factory"');
     expect(body).toContain('name="twitter:title" content="Open Source iOS Apps Factory"');
     expect(body).not.toContain("One App Per Day");
@@ -87,7 +86,7 @@ describe("public pages", () => {
     expect(body).toContain("REALITY IS NOW CHEAP ENOUGH TO ANSWER.");
     expect(body).not.toContain("data-copy-contract");
     expect(body).not.toContain("cal.com/jpfraneto/day");
-    expect(body).toContain("$9.99 monthly or $99 yearly");
+    expect(body).toContain("prepaid balance");
     expect(body).not.toContain("sojourn");
     expect(body).not.toContain("BOOK A DAY");
 
@@ -145,21 +144,20 @@ describe("public pages", () => {
       expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
       if (path === "/docs") {
         expect(body).toContain("App → Intent → App on your iPhone");
-        expect(body).toContain("The cable is first run");
+        expect(body).toContain("One readiness instruction at a time");
         expect(body).toContain("Create one deliberately small app");
         expect(body).toContain("Use it, then describe the change");
-        expect(body).toContain("tohseno studio");
-        expect(body).toContain("Release <strong>1.0.2</strong>");
-        expect(body).toContain("TOHSENO 1.0.2");
-        expect(body).toContain("five successful distinct days or seven calendar days");
+        expect(body).toContain("Download TOHSENO for Mac");
+        expect(body).toContain("macOS 14 or newer");
+        expect(body).toContain("Managed intelligence is optional");
         expect(body).toContain(
-          "binds only to <code>127.0.0.1</code>",
+          "loopback Local Workspace Service",
         );
-        expect(body).toContain("tohseno create");
-        expect(body).toContain("tohseno evolve &lt;app-name&gt;");
+        expect(body).not.toContain("npm i -g tohseno");
+        expect(body).not.toContain("$9.99");
         expect(body).toContain("<code>~/Desktop/Tohseno</code>");
         expect(body).toContain(
-          "Studio does not upload canonical Shot data",
+          "does not upload canonical Shot data",
         );
         expect(body).toContain("not blanket-gitignored");
         expect(body).toContain("<code>.tohseno/private</code>");
@@ -169,11 +167,13 @@ describe("public pages", () => {
         expect(body).toContain("0x3fe6508ba2660bc575080024f402c192a2e035a0");
         expect(body).toContain("source hosting, catalog discovery, and download are not implemented");
         expect(body).toContain("No current TOHSENO workflow uploads an app repository");
-        expect(body).toContain(INSTALL_COMMAND);
+        expect(body).not.toContain(INSTALL_COMMAND);
         expect(body).not.toContain("inactive, untrusted candidate");
         expect(body).not.toContain("native <strong>TOHSENO 1.0.1</strong>");
       } else {
         expect(body).toContain("The installed factory sends no TOHSENO telemetry");
+        expect(body).toContain("Native and managed intelligence");
+        expect(body).toContain("TOHSENO → Bankr → model-provider");
         expect(body).toContain("Pending Relay Intention");
         expect(body).toContain("never receives the decryption key");
         expect(body).toContain("at most seven days");
@@ -200,15 +200,10 @@ describe("public pages", () => {
       }
       const path = new URL(link, "http://localhost:3000").pathname;
       const target = await application.fetch(request(path));
-      expect(target.status).toBe(200);
+      expect(target.status).toBe(path === "/download/macos" ? 503 : 200);
     }
     expect(body).not.toContain('href="#"');
     const landingScript = readFileSync(landingScriptPath, "utf8");
-    expect(landingScript).toContain("navigator.clipboard");
-    expect(landingScript).toContain("document.execCommand");
-    expect(landingScript).toContain("textContent");
-    expect(landingScript).toContain('"COPIED. OPEN TOHSENO."');
-    expect(landingScript).toContain("1800");
     expect(landingScript).not.toContain("innerHTML");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
@@ -232,6 +227,24 @@ describe("public pages", () => {
     const response = await application.fetch(request("/healthz"));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "ok", service: "tohseno" });
+  });
+
+  test("Mac download stays fail-closed until a notarized digest is configured", async () => {
+    const unavailable = await testApplication();
+    expect((await unavailable.fetch(request("/download/macos"))).status).toBe(503);
+    const configured = await createApplication({ config: loadConfig({
+      NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
+      MACOS_DOWNLOAD_ENABLED: "true",
+      MACOS_DOWNLOAD_URL: "https://downloads.tohseno.com/Tohseno-1.0.2.dmg",
+      MACOS_DOWNLOAD_SHA256: "a".repeat(64),
+    }) });
+    const response = await configured.fetch(request("/download/macos"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://downloads.tohseno.com/Tohseno-1.0.2.dmg");
+    expect(response.headers.get("x-tohseno-sha256")).toBe("a".repeat(64));
+    const metadata = await configured.fetch(request("/api/distribution/v1/macos"));
+    expect(await metadata.json()).toEqual({ schema: "tohseno.macos-distribution/1", available: true,
+      url: "https://downloads.tohseno.com/Tohseno-1.0.2.dmg", sha256: "a".repeat(64), minimum_macos_version: "14.0" });
   });
 
   test("serves static assets with correct content types", async () => {

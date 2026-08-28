@@ -19,6 +19,7 @@ pub enum CommandKind {
 pub enum CommandOrigin {
     Cli,
     Studio,
+    Native,
     Companion,
     Conformance,
 }

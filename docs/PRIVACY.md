@@ -4,6 +4,37 @@ TOHSENO is local and private by default. Publication is an explicit,
 Builder-authorized transition; a private/local Shot does not enter the public
 Builder graph merely because it exists.
 
+The primary native Mac app talks only to the loopback Local Workspace Service
+through a short-lived, scoped native session. It does not upload source merely
+to list apps, show readiness, or install a deterministic build. Reference
+images are copied as exact validated bytes into private command input before
+execution; picker paths and symlinks do not become authority.
+
+## Intelligence routes and managed balance
+
+Privacy depends on the explicitly selected route:
+
+- a known local/BYO coding harness receives source under that provider tool's
+  own local configuration and provider policy;
+- a configured local endpoint must be loopback HTTP, requires recorded consent
+  before source is sent, and may use a Keychain credential reference;
+- a custom executable runs directly with bounded literal arguments and no
+  shell, but is still owner-selected code with the local account's access;
+- managed execution sends the admitted prompt/source through TOHSENO's HTTPS
+  proxy to Bankr and the selected upstream model provider, only after model,
+  privacy tier, estimate, and maximum are shown and accepted.
+
+Managed source and prompts are bounded in transit and memory and are not
+written to the TOHSENO server ledger or semantic access logs. The ledger keeps
+an opaque installation binding, integer balance movements, command/execution
+and reservation identifiers, model, privacy tier, provider request/usage/cost
+evidence when available, retail charge, and reconciliation state. Private
+operator grant reasons and identities are stripped from the client projection.
+Stripe receives the opaque binding and configured pack metadata, not app
+source, intention, filenames, Apple identity, or local paths. Stripe and Bankr
+retain data according to their actual deployed policies; TOHSENO must not turn
+a selected `zdr` or `private` field into a stronger promise than those policies.
+
 The optional web-to-local handoff is a transport boundary, not publication.
 Before **TAKE A SHOT**, the Browser Draft remains in browser memory and
 IndexedDB. After that explicit action, the browser sends only AES-256-GCM
@@ -45,6 +76,10 @@ capability grants, envelopes, snapshots, marketing notes, and provenance never
 enter the Public Node or ordinary canonical lineage.
 
 ## Private entitlement and billing
+
+This section describes the retained legacy subscription compatibility store.
+ADR 0025 removed it from normal native admission and from local/BYO execution;
+prepaid managed balance is the separate boundary above.
 
 Genesis progress, the trial anchor, successful-day evidence, subscription
 plan/paid-through state, monotonic provider revision, and verified receipt

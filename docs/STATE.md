@@ -1,16 +1,54 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-26. This is the plain-language
+Written 2026-07-30, amended through 2026-08-27. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
+
+## Native macOS transition
+
+ADR 0025, accepted on 2026-08-27, is the current product decision. It makes a
+native SwiftUI `Tohseno.app` the primary consumer surface over the existing
+persistent Rust factory. It supersedes npm/browser first run, mandatory
+Companion genesis, five-successful-day qualification, subscription gating of
+local/BYO work, and the visible Studio model selector. It preserves the one
+application service, durable journal, bounded engine transition, Apple
+build/sign/install path, exact protocol history, app-local Git boundary, CLI
+recovery surface, and private Companion implementation.
+
+The source implementation now exists at `macos/Tohseno`: a native SwiftUI
+navigation/client with six-state presentation, create/evolve composers,
+references, details, balance/settings, restoration, SSE updates, and exactly-once
+submission guards. It authenticates to the same loopback service through a
+signed-app helper, one-use workspace challenge, and short-lived per-instance
+scoped session. First open verifies and atomically installs a bundled universal
+factory release with rollback; scripts assemble, sign, notarize, verify, and
+package a DMG.
+
+Retirement preserves source and accepted history. The native Diagnostics
+archive exposes those apps and can restore one to the library without silently
+reinstalling it on a phone.
+
+The same source also implements Companion-independent Apple readiness;
+known/custom/loopback/managed intelligence adapters with exact durable
+selection; server-priced estimates and caps; installation-signed managed
+claims; append-only paid/promotional micro-USD balance; Stripe packs; a narrow
+Bankr completion proxy; protected grant/revocation/reconciliation operations;
+and a public Mac download route that is disabled unless an HTTPS artifact and
+exact digest are configured.
+
+None of that source is external release evidence. The published release below
+remains current until Developer ID signing, notarization/stapling, physical
+device and clean-Mac checks, Stripe test/live setup, Bankr credentials and
+credits, artifact upload, independent digest verification, and explicit owner
+activation produce evidence. Those external actions have not been performed.
 
 ## The product: App → Intent → App on your iPhone
 
 ADR 0016 defines what a person sees. The whole product is:
 
 ```text
-tohseno create [my-app]   describe the app     → it installs on your iPhone
-tohseno evolve my-app     describe the change  → the update installs
+Open Tohseno.app → describe an app   → it installs on your iPhone
+Open that app    → describe a change → the update installs
 ```
 
 Each opens one screen with one box. Externally TOHSENO speaks only in App,
@@ -22,8 +60,8 @@ concepts than it removes, it is probably wrong.
 
 `application/src/presentation.rs` is the single projection that collapses every
 internal execution phase into six human states; the workspace snapshot carries
-one `presentation` per app, Studio renders it verbatim, and the Companion
-mirrors the same table from `fixtures/presentation-v1.json`. Studio's own tests
+one `presentation` per app, and native Mac, Studio, and Companion render the
+same contract from `fixtures/presentation-v1.json`. Studio's own tests
 assert the absence of protocol vocabulary on the normal path and bound the size
 of each asset, so the old dashboard cannot quietly return.
 
@@ -173,7 +211,11 @@ Ordinary service uninstall removes only a recognized installer-owned
 LaunchAgent and preserves app folders, Builder identity, command journals,
 and companion pairing state.
 
-## Cable genesis, trial, Pro, and npm
+## Retained legacy cable, entitlement, recurring billing, and npm code
+
+The behavior in this section remains readable for installed-release
+compatibility but is superseded as a consumer product by ADR 0025. It is not a
+prerequisite or admission gate for native first run or local/BYO work.
 
 ADR 0020 makes no-argument `tohseno` the product door. A fresh installation
 walks one durable cable state machine through Xcode, Trust, Developer Mode,
@@ -217,6 +259,10 @@ fails closed. The public npm `latest` and native manifest remain 1.0.1 and
 1.0.0 respectively until the separate 1.0.2 owner release actions occur.
 
 ## Private Companion channel
+
+This channel is optional. Native readiness, create, evolve, build, generated
+app installation, and local/BYO admission do not depend on installing or
+pairing it. Existing pairings remain valid.
 
 The Companion is a signed remote interface, not a Builder identity, wallet,
 mobile IDE, source browser, coding harness, public social client, or substitute
@@ -269,8 +315,11 @@ still be vendored into a Shot so generated apps do not depend on a mutable
 
 `tohseno.com` is the public introduction to the local factory. It explains the
 App → Intent → App path, personal software, independent app ownership, the
-bounded build method, and the optional public record. Its install action copies
-`npm i -g tohseno`; it does not collect an intention or create a Shot.
+bounded build method, and the optional public record. Current website source
+links the consumer action to `/download/macos`; that route returns `503` until
+the operator configures the immutable notarized DMG URL and exact SHA-256. It
+does not collect an intention or create a Shot. The retained `/oneshot.sh` is a
+legacy/claim transport and no longer appears on the normal landing path.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -326,13 +375,16 @@ delegates to that native release. Publication evidence for the npm patch is in
 `release/NPM_1_0_1_PUBLICATION.json`.
 
 Native and npm **1.0.2** are the next coherent release candidate in this
-source tree. Its workflow accepts only `v1.0.2`, and
+source tree. The new native SwiftUI product and managed-balance implementation
+are source candidate work for that transition. Its legacy workflow accepts
+only `v1.0.2`, and
 `release/V1_0_2_READINESS.json` remains explicitly unauthorized and blocked
 until clean verification, immutable artifacts, exact public manifest bytes,
 npm publication, and website activation are recorded. Source preparation is
 not a claim that 1.0.2 is publicly available.
 
-Production billing remains configuration-gated and inactive. Companion relay
+Legacy recurring billing and the new managed Stripe/Bankr service remain
+separately configuration-gated and inactive. Companion relay
 and APNs activation remain separate operational decisions; the 1.0.0 release
 does not infer them from artifact publication. The readiness record and
 publication evidence are in `release/V1_0_0_READINESS.json`, with the operator

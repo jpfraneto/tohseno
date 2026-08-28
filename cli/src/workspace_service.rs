@@ -3,7 +3,7 @@
 use async_stream::stream;
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Path as AxumPath, State};
-use axum::http::{header, HeaderValue, Method, Request, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, Method, Request, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse, Response};
@@ -34,7 +34,8 @@ use tohseno_engine::shot_execution::{
     elapsed_seconds_between, load_completion, load_execution, read_events,
 };
 use tohseno_engine::{
-    Engine, Event, EventBus, ExecutionPhase, LocalPendingIntention, PendingIntentionStore,
+    Config, CustomHarnessConfig, Engine, Event, EventBus, ExecutionPhase, HarnessAdapter,
+    HarnessSelection, LocalEndpointConfig, LocalPendingIntention, PendingIntentionStore,
     ShotLayout,
 };
 use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
@@ -47,6 +48,17 @@ use crate::cable_genesis::{
     COMPANION_LAUNCH_FAILURE, COMPANION_PAIRING_FAILURE,
 };
 use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
+use crate::device_readiness::{
+    project as project_readiness, ReadinessStore, ReadinessView, VerificationState,
+};
+use crate::managed_compute::{
+    bounded_source_bytes, estimate as estimate_managed_cost, ManagedClient, ManagedEstimate,
+    ManagedModel,
+};
+use crate::native_session::{
+    NativeSessionActivation, NativeSessionAuthority, NativeSessionChallenge,
+    NativeSessionCredential,
+};
 use crate::service_commands::ServicePaths;
 use crate::workspace_identity::{KeychainSecretStore, SecretStore, WorkspaceIdentity};
 
@@ -88,11 +100,14 @@ struct WorkspaceState {
     events: EventBus,
     event_cursor: Arc<AtomicU64>,
     genesis: CableGenesisStore,
+    readiness: ReadinessStore,
     entitlement: EntitlementStore,
     service_root: PathBuf,
     companion_project: PathBuf,
+    readiness_project: PathBuf,
     workspace_identity: Arc<WorkspaceIdentity>,
     billing_verification_key: PathBuf,
+    native_sessions: NativeSessionAuthority,
 }
 
 #[derive(Debug)]
@@ -180,6 +195,14 @@ impl ApiError {
             message: message.into(),
         }
     }
+
+    fn payment_required(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::PAYMENT_REQUIRED,
+            code: "managed_balance_required",
+            message: message.into(),
+        }
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -217,6 +240,8 @@ struct CreateRequest {
     harness: Option<String>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    managed: Option<ManagedExecutionRequest>,
     intention: String,
     #[serde(default)]
     pending_intention_id: Option<String>,
@@ -238,6 +263,12 @@ struct EvolveRequest {
     selected_feedback_actions: Vec<String>,
     #[serde(default)]
     references: Vec<ApiReference>,
+    #[serde(default)]
+    harness: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    managed: Option<ManagedExecutionRequest>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
@@ -246,6 +277,7 @@ enum ApiOrigin {
     #[default]
     Studio,
     Cli,
+    Native,
 }
 
 impl ApiOrigin {
@@ -253,6 +285,7 @@ impl ApiOrigin {
         match self {
             Self::Studio => CommandOrigin::Studio,
             Self::Cli => CommandOrigin::Cli,
+            Self::Native => CommandOrigin::Native,
         }
     }
 }
@@ -265,6 +298,62 @@ struct EmptyRequest {}
 #[serde(deny_unknown_fields)]
 struct BillingRequest {
     plan: SubscriptionPlan,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CustomHarnessRequest {
+    id: String,
+    label: String,
+    executable: String,
+    #[serde(default)]
+    arguments: Vec<String>,
+    models: Vec<String>,
+    #[serde(default)]
+    preferred: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LocalEndpointRequest {
+    id: String,
+    label: String,
+    base_url: String,
+    models: Vec<String>,
+    #[serde(default)]
+    credential_reference: Option<String>,
+    consent_to_send_source: bool,
+    privacy_mode: String,
+    #[serde(default)]
+    preferred: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManagedExecutionRequest {
+    model: String,
+    privacy: String,
+    maximum_microusd: u64,
+    explicit_consent: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManagedEstimateRequest {
+    model: String,
+    privacy: String,
+    intention_bytes: u64,
+    reference_bytes: u64,
+    #[serde(default)]
+    source_context_bytes: u64,
+    #[serde(default)]
+    shot_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManagedCheckoutRequest {
+    pack_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -312,6 +401,12 @@ pub async fn run_with(
     if genesis.recover_interrupted_install()? {
         events.emit(Event::status(
             "An interrupted iPhone setup is ready to continue.",
+        ));
+    }
+    let readiness = ReadinessStore::open(&paths.service_state)?;
+    if readiness.recover_interrupted()? {
+        events.emit(Event::status(
+            "An interrupted iPhone readiness check is ready to retry.",
         ));
     }
     let application = ShotApplicationService::new(
@@ -372,6 +467,7 @@ pub async fn run_with(
     let companion_project = paths
         .install_root
         .join("current/share/companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj");
+    let readiness_project = paths.install_root.join("current/share/readiness/apple");
     let billing_verification_key = paths
         .install_root
         .join("current/share/billing/verification-key-p256.txt");
@@ -392,6 +488,12 @@ pub async fn run_with(
         .map(|root| root.join("companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj"))
         .unwrap_or(companion_project);
     #[cfg(debug_assertions)]
+    let readiness_project = development_repository_root
+        .as_ref()
+        .filter(|_| !readiness_project.join("HelloWorld.xcodeproj").is_dir())
+        .map(|root| root.join("engine/fixtures/hello-world"))
+        .unwrap_or(readiness_project);
+    #[cfg(debug_assertions)]
     let billing_verification_key = development_repository_root
         .as_ref()
         .filter(|_| !billing_verification_key.is_file())
@@ -404,11 +506,14 @@ pub async fn run_with(
         events: events.clone(),
         event_cursor: Arc::new(AtomicU64::new(1)),
         genesis,
+        readiness,
         entitlement,
         service_root: paths.service_state.clone(),
         companion_project,
+        readiness_project,
         workspace_identity: workspace,
         billing_verification_key,
+        native_sessions: NativeSessionAuthority::default(),
     });
     let reconciliation_companion = state.companion.clone();
     let reconciliation_application = state.application.clone();
@@ -480,8 +585,28 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         .route("/pairing-seal.png", get(studio_pairing_seal))
         .route("/api/v1/health", get(health))
         .route("/api/v1/studio-session", get(studio_session))
+        .route(
+            "/api/v1/native-session/challenge",
+            get(native_session_challenge),
+        )
+        .route("/api/v1/native-session", post(activate_native_session))
         .route("/api/v1/workspace", get(workspace))
         .route("/api/v1/factory-defaults", get(factory_defaults))
+        .route(
+            "/api/v1/intelligence/custom-harnesses",
+            post(configure_custom_harness),
+        )
+        .route(
+            "/api/v1/intelligence/local-endpoints",
+            post(configure_local_endpoint),
+        )
+        .route("/api/v1/managed/status", get(managed_status))
+        .route("/api/v1/managed/balance", get(managed_balance))
+        .route("/api/v1/managed/catalog", get(managed_catalog))
+        .route("/api/v1/managed/estimate", post(managed_estimate))
+        .route("/api/v1/managed/checkout", post(managed_checkout))
+        .route("/api/v1/readiness", get(readiness_status))
+        .route("/api/v1/readiness/actions/{action}", post(readiness_action))
         .route("/api/v1/entitlement", get(entitlement_status))
         .route("/api/v1/billing/checkout", post(billing_checkout))
         .route("/api/v1/billing/refresh", post(billing_refresh))
@@ -493,10 +618,19 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         )
         .route("/api/v1/shots", get(shots).post(create_shot))
         .route("/api/v1/shots/{shot_id}", delete(retire_shot))
+        .route("/api/v1/shots/{shot_id}/restore", post(restore_shot))
         .route("/api/v1/shots/{shot_id}/icon", get(shot_icon))
         .route("/api/v1/shots/{shot_id}/preview", get(shot_preview))
         .route("/api/v1/shots/{shot_id}/receipt", get(shot_receipt))
         .route("/api/v1/shots/{shot_id}/activity", get(shot_activity))
+        .route(
+            "/api/v1/shots/{shot_id}/open-source",
+            post(open_shot_source),
+        )
+        .route(
+            "/api/v1/shots/{shot_id}/open-on-iphone",
+            post(open_shot_on_iphone),
+        )
         .route("/api/v1/shots/{shot_id}/evolutions", post(evolve_shot))
         .route("/api/v1/executions", get(executions))
         .route("/api/v1/executions/{execution_id}", get(execution))
@@ -554,7 +688,38 @@ async fn security(
         }
         .into_response();
     }
+    let path = request.uri().path().to_owned();
+    let native_authorization = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok());
+    let native_authenticated = match native_authorization {
+        Some(authorization) => {
+            let scope = if is_mutation(request.method()) {
+                "factory.mutate"
+            } else if path == "/api/v1/events" {
+                "events.read"
+            } else {
+                "factory.read"
+            };
+            if state
+                .native_sessions
+                .authorize(authorization, &state.runtime.instance_id, scope)
+                .is_err()
+            {
+                return ApiError {
+                    status: StatusCode::FORBIDDEN,
+                    code: "native_session_rejected",
+                    message: "native client session is missing, expired, or out of scope".into(),
+                }
+                .into_response();
+            }
+            true
+        }
+        None => false,
+    };
     if is_mutation(request.method()) {
+        let is_native_activation = path == "/api/v1/native-session";
         let origin = request
             .headers()
             .get(header::ORIGIN)
@@ -568,7 +733,10 @@ async fn security(
             .get(header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.split(';').next());
-        if origin != Some(state.runtime.origin.as_str()) {
+        if !native_authenticated
+            && !is_native_activation
+            && origin != Some(state.runtime.origin.as_str())
+        {
             return ApiError {
                 status: StatusCode::FORBIDDEN,
                 code: "origin_rejected",
@@ -576,7 +744,10 @@ async fn security(
             }
             .into_response();
         }
-        if csrf != Some(state.runtime.csrf_token.as_str()) {
+        if !native_authenticated
+            && !is_native_activation
+            && csrf != Some(state.runtime.csrf_token.as_str())
+        {
             return ApiError {
                 status: StatusCode::FORBIDDEN,
                 code: "csrf_rejected",
@@ -656,13 +827,57 @@ async fn health(State(state): State<Arc<WorkspaceState>>) -> Json<HealthResponse
     })
 }
 
-async fn studio_session(State(state): State<Arc<WorkspaceState>>) -> Json<Value> {
-    Json(json!({
+async fn studio_session(
+    State(state): State<Arc<WorkspaceState>>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    let bootstrap = headers
+        .get("x-tohseno-browser-bootstrap")
+        .and_then(|value| value.to_str().ok());
+    if bootstrap != Some(state.runtime.csrf_token.as_str()) {
+        return Err(ApiError {
+            status: StatusCode::FORBIDDEN,
+            code: "studio_bootstrap_rejected",
+            message: "open Studio through the installed TOHSENO application or CLI".into(),
+        });
+    }
+    Ok(Json(json!({
         "schema": "tohseno.local-studio-session/1",
         "csrf_token": state.runtime.csrf_token,
         "origin": state.runtime.origin,
         "instance_id": state.runtime.instance_id,
-    }))
+    })))
+}
+
+async fn native_session_challenge(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<NativeSessionChallenge>, ApiError> {
+    state
+        .native_sessions
+        .issue_challenge(&state.runtime.instance_id, OffsetDateTime::now_utc())
+        .map(Json)
+        .map_err(|error| ApiError::unavailable(error.to_string()))
+}
+
+async fn activate_native_session(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<NativeSessionActivation>,
+) -> Result<Json<NativeSessionCredential>, ApiError> {
+    state
+        .native_sessions
+        .activate(
+            request,
+            &state.workspace_identity.identity,
+            &state.runtime.origin,
+            &state.runtime.instance_id,
+            OffsetDateTime::now_utc(),
+        )
+        .map(Json)
+        .map_err(|error| ApiError {
+            status: StatusCode::FORBIDDEN,
+            code: "native_session_rejected",
+            message: error.to_string(),
+        })
 }
 
 async fn workspace(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
@@ -676,6 +891,529 @@ async fn workspace(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Valu
 
 async fn factory_defaults(State(state): State<Arc<WorkspaceState>>) -> Json<Value> {
     Json(json!(state.application.factory_defaults()))
+}
+
+async fn managed_status(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
+    let client = ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!({
+        "schema": "tohseno.local-managed-status/1",
+        "installation_binding": client.installation_binding(),
+        "service_origin": client.origin(),
+        "welcome_contact_url": configured_welcome_contact_url()?,
+        "automatic_fallback": false,
+    })))
+}
+
+async fn managed_balance(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<Value>, ApiError> {
+    ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?
+        .balance()
+        .await
+        .map(|value| Json(json!(value)))
+        .map_err(|error| ApiError::unavailable(error.to_string()))
+}
+
+async fn managed_catalog(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<Value>, ApiError> {
+    ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?
+        .catalog()
+        .await
+        .map(|value| Json(json!(value)))
+        .map_err(|error| ApiError::unavailable(error.to_string()))
+}
+
+async fn managed_estimate(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<ManagedEstimateRequest>,
+) -> Result<Json<ManagedEstimate>, ApiError> {
+    let client = ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?;
+    let model = managed_model(&client, &request.model, &request.privacy).await?;
+    let source_context_bytes = match request.shot_id.as_deref() {
+        Some(shot_id) => {
+            let (name, _) = resolve_shot(&state.application, shot_id)?;
+            bounded_source_bytes(&state.application.engine().ledger().working_tree(&name))
+                .map_err(ApiError::internal)?
+        }
+        None => request.source_context_bytes,
+    };
+    estimate_managed_cost(
+        &model,
+        &request.privacy,
+        request.intention_bytes,
+        request.reference_bytes,
+        source_context_bytes,
+    )
+    .map(Json)
+    .map_err(|error| ApiError::bad("managed_estimate_invalid", error.to_string()))
+}
+
+async fn managed_checkout(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<ManagedCheckoutRequest>,
+) -> Result<Json<Value>, ApiError> {
+    ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?
+        .checkout(&request.pack_id)
+        .await
+        .map(|value| Json(json!(value)))
+        .map_err(|error| ApiError::unavailable(error.to_string()))
+}
+
+async fn managed_model(
+    client: &ManagedClient,
+    model: &str,
+    privacy: &str,
+) -> Result<ManagedModel, ApiError> {
+    let catalog = client
+        .catalog()
+        .await
+        .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    catalog
+        .models
+        .into_iter()
+        .find(|candidate| {
+            candidate.model == model && candidate.privacy_tiers.iter().any(|tier| tier == privacy)
+        })
+        .ok_or_else(|| {
+            ApiError::bad(
+                "managed_route_unavailable",
+                "the managed model or privacy tier is not currently advertised",
+            )
+        })
+}
+
+async fn managed_selection(
+    state: &WorkspaceState,
+    command_id: &str,
+    request: &ManagedExecutionRequest,
+    intention_bytes: u64,
+    reference_bytes: u64,
+    source_context_bytes: u64,
+) -> Result<HarnessSelection, ApiError> {
+    if !request.explicit_consent {
+        return Err(ApiError::bad(
+            "managed_consent_required",
+            "confirm the displayed managed-compute maximum before submitting",
+        ));
+    }
+    validate_identifier(command_id)?;
+    let client = ManagedClient::new(state.workspace_identity.identity.clone())
+        .map_err(ApiError::internal)?;
+    let model = managed_model(&client, &request.model, &request.privacy).await?;
+    let estimate = estimate_managed_cost(
+        &model,
+        &request.privacy,
+        intention_bytes,
+        reference_bytes,
+        source_context_bytes,
+    )
+    .map_err(|error| ApiError::bad("managed_estimate_invalid", error.to_string()))?;
+    if request.maximum_microusd < estimate.high_microusd || request.maximum_microusd > 100_000_000 {
+        return Err(ApiError::bad(
+            "managed_maximum_invalid",
+            "the approved maximum must cover the current server-priced high estimate and may not exceed $100",
+        ));
+    }
+    let balance = client
+        .balance()
+        .await
+        .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    if balance.spendable_microusd < request.maximum_microusd as i64 {
+        return Err(ApiError::payment_required(
+            "Managed creation balance does not cover the approved maximum. Add balance or choose a local route.",
+        ));
+    }
+    let execution_id = tohseno_application::execution_manager::command_execution_id(command_id);
+    Ok(HarnessSelection {
+        harness: "tohseno-managed".into(),
+        model: request.model.clone(),
+        route: format!("managed-{}", request.privacy),
+        adapter: Some(HarnessAdapter::ManagedOpenAi {
+            proxy_origin: client.origin().into(),
+            command_id: command_id.into(),
+            execution_id,
+            privacy_mode: request.privacy.clone(),
+            maximum_microusd: request.maximum_microusd,
+            pricing_snapshot_at: estimate.pricing_snapshot_at,
+            input_microusd_per_million: model.input_microusd_per_million,
+            output_microusd_per_million: model.output_microusd_per_million,
+            estimate_low_microusd: estimate.low_microusd,
+            estimate_high_microusd: estimate.high_microusd,
+        }),
+    })
+}
+
+fn configured_welcome_contact_url() -> Result<Option<String>, ApiError> {
+    #[cfg(debug_assertions)]
+    let configured = std::env::var("TOHSENO_WELCOME_COMPUTE_URL")
+        .ok()
+        .or_else(|| option_env!("TOHSENO_WELCOME_COMPUTE_URL").map(str::to_owned));
+    #[cfg(not(debug_assertions))]
+    let configured = option_env!("TOHSENO_WELCOME_COMPUTE_URL").map(str::to_owned);
+    let Some(value) = configured else {
+        return Ok(None);
+    };
+    if value.len() > 2_048 || value.chars().any(char::is_control) {
+        return Err(ApiError::internal(
+            "welcome compute contact configuration is invalid",
+        ));
+    }
+    let url = reqwest::Url::parse(&value)
+        .map_err(|_| ApiError::internal("welcome compute contact configuration is invalid"))?;
+    let safe_https = url.scheme() == "https"
+        && url.host_str().is_some()
+        && url.username().is_empty()
+        && url.password().is_none();
+    let safe_mail = url.scheme() == "mailto" && !url.path().is_empty() && url.fragment().is_none();
+    if !safe_https && !safe_mail {
+        return Err(ApiError::internal(
+            "welcome compute contact configuration is invalid",
+        ));
+    }
+    Ok(Some(value))
+}
+
+async fn configure_custom_harness(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<CustomHarnessRequest>,
+) -> Result<Json<Value>, ApiError> {
+    validate_identifier(&request.id)?;
+    validate_text("custom harness label", &request.label, 160)?;
+    let mut config = Config::load_or_default(state.application.engine().ledger().machine_root())
+        .map_err(ApiError::internal)?;
+    config
+        .intelligence
+        .custom_harnesses
+        .retain(|existing| existing.id != request.id);
+    config
+        .intelligence
+        .custom_harnesses
+        .push(CustomHarnessConfig {
+            id: request.id.clone(),
+            label: request.label,
+            executable: request.executable,
+            arguments: request.arguments,
+            models: request.models,
+        });
+    require_configured_harness(&config, &request.id)?;
+    if request.preferred {
+        config.intelligence.preferred_harness = Some(request.id.clone());
+    }
+    config
+        .save(state.application.engine().ledger().machine_root())
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!({
+        "schema": "tohseno.intelligence-configuration-receipt/1",
+        "harness_id": request.id,
+        "restart_required": true,
+    })))
+}
+
+async fn configure_local_endpoint(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<LocalEndpointRequest>,
+) -> Result<Json<Value>, ApiError> {
+    validate_identifier(&request.id)?;
+    validate_text("local endpoint label", &request.label, 160)?;
+    if !request.consent_to_send_source {
+        return Err(ApiError::bad(
+            "local_endpoint_consent_required",
+            "confirm that app source may be sent to this configured local endpoint",
+        ));
+    }
+    if let Some(reference) = request.credential_reference.as_deref() {
+        validate_identifier(reference)?;
+        KeychainSecretStore.get(reference).map_err(|_| {
+            ApiError::bad(
+                "credential_unavailable",
+                "the local endpoint credential is not available in macOS Keychain",
+            )
+        })?;
+    }
+    probe_local_models(
+        &request.base_url,
+        request.credential_reference.as_deref(),
+        &request.models,
+    )
+    .await?;
+    let mut config = Config::load_or_default(state.application.engine().ledger().machine_root())
+        .map_err(ApiError::internal)?;
+    config
+        .intelligence
+        .local_endpoints
+        .retain(|existing| existing.id != request.id);
+    config
+        .intelligence
+        .local_endpoints
+        .push(LocalEndpointConfig {
+            id: request.id.clone(),
+            label: request.label,
+            base_url: request.base_url,
+            models: request.models,
+            credential_reference: request.credential_reference,
+            consent_to_send_source: true,
+            privacy_mode: request.privacy_mode,
+        });
+    require_configured_harness(&config, &request.id)?;
+    if request.preferred {
+        config.intelligence.preferred_harness = Some(request.id.clone());
+    }
+    config
+        .save(state.application.engine().ledger().machine_root())
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!({
+        "schema": "tohseno.intelligence-configuration-receipt/1",
+        "harness_id": request.id,
+        "restart_required": true,
+    })))
+}
+
+fn require_configured_harness(config: &Config, id: &str) -> Result<(), ApiError> {
+    let options = tohseno_engine::harness::discover_harnesses(config);
+    let option = options
+        .iter()
+        .find(|option| option.id == id)
+        .ok_or_else(|| {
+            ApiError::bad(
+                "invalid_harness_configuration",
+                "configured harness is invalid",
+            )
+        })?;
+    if !option.installed || !option.routes.iter().any(|route| route.available) {
+        return Err(ApiError::bad(
+            "invalid_harness_configuration",
+            "configured harness is unavailable or unsafe",
+        ));
+    }
+    if options.iter().filter(|option| option.id == id).count() != 1 {
+        return Err(ApiError::bad(
+            "duplicate_harness_configuration",
+            "configured harness ID is not unique",
+        ));
+    }
+    Ok(())
+}
+
+async fn probe_local_models(
+    base_url: &str,
+    credential_reference: Option<&str>,
+    requested: &[String],
+) -> Result<(), ApiError> {
+    let parsed = reqwest::Url::parse(base_url)
+        .map_err(|_| ApiError::bad("invalid_local_endpoint", "local endpoint URL is invalid"))?;
+    if parsed.scheme() != "http"
+        || !matches!(parsed.host_str(), Some("127.0.0.1" | "localhost"))
+        || parsed.port().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(ApiError::bad(
+            "invalid_local_endpoint",
+            "local endpoint must be explicit loopback HTTP with a port",
+        ));
+    }
+    let endpoint = if base_url.trim_end_matches('/').ends_with("/v1") {
+        format!("{}/models", base_url.trim_end_matches('/'))
+    } else {
+        format!("{}/v1/models", base_url.trim_end_matches('/'))
+    };
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(ApiError::internal)?;
+    let mut request = client.get(endpoint).header("accept", "application/json");
+    let credential = credential_reference
+        .map(|reference| KeychainSecretStore.get(reference))
+        .transpose()
+        .map_err(|_| {
+            ApiError::bad(
+                "credential_unavailable",
+                "the local endpoint credential is unavailable",
+            )
+        })?;
+    if let Some(credential) = credential.as_deref() {
+        let credential = std::str::from_utf8(credential).map_err(|_| {
+            ApiError::bad(
+                "credential_invalid",
+                "the local endpoint credential is invalid",
+            )
+        })?;
+        request = request.bearer_auth(credential);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|_| ApiError::unavailable("the local model endpoint could not be reached"))?;
+    if !response.status().is_success() {
+        return Err(ApiError::unavailable(format!(
+            "the local model endpoint returned HTTP {}",
+            response.status()
+        )));
+    }
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+    use futures_util::StreamExt as _;
+    while let Some(chunk) = stream.next().await {
+        let chunk =
+            chunk.map_err(|_| ApiError::unavailable("the local model catalog was interrupted"))?;
+        if body.len().saturating_add(chunk.len()) > 1024 * 1024 {
+            return Err(ApiError::bad(
+                "model_catalog_oversized",
+                "the local model catalog is oversized",
+            ));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let value: Value = serde_json::from_slice(&body).map_err(|_| {
+        ApiError::bad(
+            "model_catalog_invalid",
+            "the local model catalog is invalid",
+        )
+    })?;
+    let advertised = value
+        .get("data")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            ApiError::bad(
+                "model_catalog_invalid",
+                "the local model catalog is invalid",
+            )
+        })?
+        .iter()
+        .filter_map(|model| model.get("id").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    if requested.is_empty()
+        || requested.len() > 32
+        || requested
+            .iter()
+            .any(|model| !advertised.contains(model.as_str()))
+    {
+        return Err(ApiError::bad(
+            "model_not_advertised",
+            "every selected model must be advertised by the local endpoint",
+        ));
+    }
+    Ok(())
+}
+
+fn current_readiness_view(state: &WorkspaceState) -> Result<ReadinessView, ApiError> {
+    let record = state.readiness.load().map_err(ApiError::internal)?;
+    Ok(project_readiness(
+        &record,
+        &crate::device_readiness::observe(),
+    ))
+}
+
+async fn readiness_status(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<ReadinessView>, ApiError> {
+    current_readiness_view(&state).map(Json)
+}
+
+async fn readiness_action(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(action): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<ReadinessView>, ApiError> {
+    match action.as_str() {
+        "begin" => state.readiness.begin().map_err(ApiError::internal)?,
+        "check" | "create_app" => {}
+        "open_app_store" => {
+            let status = std::process::Command::new("open")
+                .arg("macappstore://itunes.apple.com/app/id497799835")
+                .status()
+                .map_err(ApiError::internal)?;
+            if !status.success() {
+                return Err(ApiError::internal("the App Store could not be opened"));
+            }
+        }
+        "open_xcode" => {
+            let status = std::process::Command::new("open")
+                .args(["-a", "Xcode"])
+                .status()
+                .map_err(ApiError::internal)?;
+            if !status.success() {
+                return Err(ApiError::internal("Xcode could not be opened"));
+            }
+        }
+        "verify_installation" => {
+            let view = current_readiness_view(&state)?;
+            if view.step != "verify_installation" {
+                return Err(ApiError::conflict(
+                    "readiness_not_ready",
+                    "complete the current iPhone readiness step first",
+                ));
+            }
+            let observed = crate::device_readiness::observe();
+            let device = match observed.device {
+                Some(tohseno_engine::gates::device::DeviceState::Ready(device)) => device,
+                _ => {
+                    return Err(ApiError::conflict(
+                        "iphone_not_ready",
+                        "the connected iPhone is not ready for installation",
+                    ));
+                }
+            };
+            let team_id = observed.signing_team.ok_or_else(|| {
+                ApiError::conflict(
+                    "apple_account_not_ready",
+                    "add your Apple Account in Xcode first",
+                )
+            })?;
+            state
+                .readiness
+                .verification(VerificationState::Building, None)
+                .map_err(ApiError::internal)?;
+            let store = state.readiness.clone();
+            let project = state.readiness_project.clone();
+            let service_root = state.service_root.clone();
+            let events = state.events.clone();
+            tokio::spawn(async move {
+                let progress_store = store.clone();
+                let outcome = tokio::task::spawn_blocking(move || {
+                    crate::device_readiness::verify_installation(
+                        &project,
+                        &service_root,
+                        &device,
+                        &team_id,
+                        move || {
+                            progress_store.verification(VerificationState::Installing, None)?;
+                            events.emit(Event::status(
+                                "Readiness app signed; verifying iPhone installation.",
+                            ));
+                            Ok(())
+                        },
+                    )
+                })
+                .await;
+                match outcome {
+                    Ok(Ok(())) => {
+                        let _ = store.verification(VerificationState::Verified, None);
+                    }
+                    Ok(Err(error)) => {
+                        let _ =
+                            store.verification(VerificationState::Failed, Some(&error.to_string()));
+                    }
+                    Err(error) => {
+                        let _ =
+                            store.verification(VerificationState::Failed, Some(&error.to_string()));
+                    }
+                }
+            });
+        }
+        _ => return Err(ApiError::not_found("unknown readiness action")),
+    }
+    current_readiness_view(&state).map(Json)
 }
 
 async fn entitlement_status(
@@ -1083,6 +1821,18 @@ async fn retire_shot(
         .map_err(ApiError::retire_application)
 }
 
+async fn restore_shot(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .application
+        .restore_shot(&shot_id)
+        .await
+        .map(|receipt| Json(json!(receipt)))
+        .map_err(ApiError::retire_application)
+}
+
 async fn shot_icon(
     State(state): State<Arc<WorkspaceState>>,
     AxumPath(shot_id): AxumPath<String>,
@@ -1163,6 +1913,62 @@ async fn shot_preview(
     Ok(response)
 }
 
+async fn open_shot_source(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let (name, _) = resolve_shot(&state.application, &shot_id)?;
+    let source = state.application.engine().ledger().working_tree(&name);
+    let metadata = fs::symlink_metadata(&source).map_err(ApiError::internal)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(ApiError::internal("the app source folder is unsafe"));
+    }
+    let status = std::process::Command::new("open")
+        .arg("--")
+        .arg(&source)
+        .status()
+        .map_err(ApiError::internal)?;
+    if !status.success() {
+        return Err(ApiError::internal(
+            "the app source folder could not be opened",
+        ));
+    }
+    Ok(Json(json!({
+        "schema": "tohseno.open-source-receipt/1",
+        "opened": true,
+    })))
+}
+
+async fn open_shot_on_iphone(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(shot_id): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let (name, _) = resolve_shot(&state.application, &shot_id)?;
+    let app = state
+        .application
+        .engine()
+        .ledger()
+        .load_app(&name)
+        .map_err(ApiError::internal)?;
+    let device = match tohseno_engine::gates::device::check().map_err(ApiError::internal)? {
+        tohseno_engine::gates::device::DeviceState::Ready(device) => device,
+        _ => {
+            return Err(ApiError::conflict(
+                "iphone_not_ready",
+                "connect and unlock your iPhone, then try again",
+            ));
+        }
+    };
+    tohseno_engine::gates::install::launch(&device, &app.bundle_id)
+        .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    Ok(Json(json!({
+        "schema": "tohseno.open-on-iphone-receipt/1",
+        "opened": true,
+    })))
+}
+
 async fn pending_intention(
     State(state): State<Arc<WorkspaceState>>,
     AxumPath(pending_id): AxumPath<String>,
@@ -1201,20 +2007,45 @@ async fn create_shot(
     Json(request): Json<CreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
     validate_text("intention", &request.intention, MAX_INTENTION_BYTES)?;
-    let harness_selection = match (request.harness.as_deref(), request.model.as_deref()) {
-        (Some(harness), model) => Some(
+    let references = decode_references(request.references)?;
+    let harness_selection = match (
+        request.harness.as_deref(),
+        request.model.as_deref(),
+        request.managed.as_ref(),
+    ) {
+        (None, None, Some(managed)) => Some(
+            managed_selection(
+                &state,
+                &request.command_id,
+                managed,
+                request.intention.len() as u64,
+                references
+                    .iter()
+                    .map(|reference| reference.bytes.len() as u64)
+                    .sum(),
+                0,
+            )
+            .await?,
+        ),
+        (Some(harness), model, None) => Some(
             state
                 .application
                 .harness_selection(harness, model.unwrap_or("default"))
                 .map_err(ApiError::application)?,
         ),
-        (None, Some(_)) => {
+        (None, Some(_), None) => {
             return Err(ApiError::bad(
                 "invalid_harness_selection",
                 "a model can only be selected with its coding harness",
             ));
         }
-        (None, None) => None,
+        (None, None, None) => None,
+        _ => {
+            return Err(ApiError::bad(
+                "ambiguous_intelligence_selection",
+                "choose either one local/BYO route or explicit managed compute",
+            ));
+        }
     };
     let (name, name_was_supplied) = match request.name.as_deref().map(str::trim) {
         Some(value) if !value.is_empty() => (normalize_name(value)?, true),
@@ -1223,7 +2054,6 @@ async fn create_shot(
             false,
         ),
     };
-    let references = decode_references(request.references)?;
     let pending = match request.pending_intention_id.as_deref() {
         Some(pending_id) => {
             validate_pending_id(pending_id)?;
@@ -1269,6 +2099,49 @@ async fn evolve_shot(
     Json(request): Json<EvolveRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let (name, parsed_shot) = resolve_shot(&state.application, &shot_id)?;
+    let references = decode_references(request.references)?;
+    let source_context_bytes =
+        bounded_source_bytes(&state.application.engine().ledger().working_tree(&name))
+            .map_err(ApiError::internal)?;
+    let harness_selection = match (
+        request.harness.as_deref(),
+        request.model.as_deref(),
+        request.managed.as_ref(),
+    ) {
+        (None, None, Some(managed)) => Some(
+            managed_selection(
+                &state,
+                &request.command_id,
+                managed,
+                request.intention.len() as u64,
+                references
+                    .iter()
+                    .map(|reference| reference.bytes.len() as u64)
+                    .sum(),
+                source_context_bytes,
+            )
+            .await?,
+        ),
+        (Some(harness), model, None) => Some(
+            state
+                .application
+                .harness_selection(harness, model.unwrap_or("default"))
+                .map_err(ApiError::application)?,
+        ),
+        (None, Some(_), None) => {
+            return Err(ApiError::bad(
+                "invalid_harness_selection",
+                "a model can only be selected with its coding harness",
+            ));
+        }
+        (None, None, None) => None,
+        _ => {
+            return Err(ApiError::bad(
+                "ambiguous_intelligence_selection",
+                "choose either one local/BYO route or explicit managed compute",
+            ));
+        }
+    };
     let selected_feedback_actions = request
         .selected_feedback_actions
         .iter()
@@ -1297,8 +2170,9 @@ async fn evolve_shot(
             base_version_ordinal: request.base_version_ordinal,
             intention: request.intention,
             selected_feedback_actions,
-            references: decode_references(request.references)?,
+            references,
             submitted_at: None,
+            harness_selection,
         })
         .await
         .map(|receipt| {

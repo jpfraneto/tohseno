@@ -1,8 +1,14 @@
 # BANKR DEPLOYMENT CHECKLIST — $TOHSENO
 
-The vision putting on shoes. Every line below is enforced by code in
-`cli/src/bankr_launch.rs` and `cli/src/studio_server.rs`; nothing here is
-aspirational. Work top to bottom. Stop at the first unchecked box.
+> **Retired historical token-launch checklist.** The referenced Studio launch
+> implementation no longer exists, and this file authorizes no simulation or
+> broadcast. ADR 0025's managed-compute Bankr integration is a separate,
+> server-only, least-privilege LLM Gateway path; it cannot launch tokens or use
+> a wallet. Follow `docs/runbooks/MANAGED_COMPUTE.md` for that service. Keep the
+> material below only as history and do not follow its live-run steps.
+
+The prose below described a removed implementation and is not enforced by the
+current tree.
 
 Current verified state on 2026-08-01: the Keychain entry is a Bankr user key,
 and a configured Studio reports `configured: true`. The `tohseno` Shot is

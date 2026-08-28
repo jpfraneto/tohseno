@@ -1,6 +1,7 @@
 use crate::safe_file::read_bounded_utf8;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 
 const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
@@ -9,6 +10,8 @@ const MAX_CONFIG_BYTES: u64 = 1024 * 1024;
 pub struct Config {
     #[serde(default)]
     pub harness: HarnessConfig,
+    #[serde(default)]
+    pub intelligence: IntelligenceConfig,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -23,6 +26,44 @@ impl Default for HarnessConfig {
             command: default_harness_command(),
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct IntelligenceConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preferred_harness: Option<String>,
+    #[serde(default)]
+    pub custom_harnesses: Vec<CustomHarnessConfig>,
+    #[serde(default)]
+    pub local_endpoints: Vec<LocalEndpointConfig>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CustomHarnessConfig {
+    pub id: String,
+    pub label: String,
+    pub executable: String,
+    #[serde(default)]
+    pub arguments: Vec<String>,
+    pub models: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LocalEndpointConfig {
+    pub id: String,
+    pub label: String,
+    pub base_url: String,
+    pub models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_reference: Option<String>,
+    #[serde(default)]
+    pub consent_to_send_source: bool,
+    #[serde(default = "default_privacy_mode")]
+    pub privacy_mode: String,
+}
+
+fn default_privacy_mode() -> String {
+    "local".into()
 }
 
 impl Config {
@@ -57,7 +98,30 @@ impl Config {
 
     pub fn save(&self, root: &Path) -> Result<(), ConfigError> {
         fs::create_dir_all(root)?;
-        fs::write(root.join("config.toml"), toml::to_string_pretty(self)?)?;
+        let path = root.join("config.toml");
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                return Err(ConfigError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "configuration path is unsafe",
+                )))
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let mut temporary = tempfile::NamedTempFile::new_in(root)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            temporary
+                .as_file()
+                .set_permissions(fs::Permissions::from_mode(0o600))?;
+        }
+        temporary.write_all(toml::to_string_pretty(self)?.as_bytes())?;
+        temporary.as_file().sync_all()?;
+        temporary.persist(&path).map_err(|error| error.error)?;
+        fs::File::open(root)?.sync_all()?;
         Ok(())
     }
 }

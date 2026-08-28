@@ -3,10 +3,18 @@
 Some useful apps are too specific to become products. They can still exist.
 
 TOHSENO is an open-source iOS app factory that runs on your Mac. You describe a
-small app you want; TOHSENO uses your existing Codex or Claude Code setup,
-builds a native SwiftUI project, checks it, and installs it on your iPhone. The
+small app you want; TOHSENO uses an explicitly selected local, bring-your-own,
+or managed intelligence route, builds a native SwiftUI project, checks it, and installs it on your iPhone. The
 source lives in an ordinary Git repository that belongs to you and can continue
 without TOHSENO.
+
+The current transition, governed by
+[`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md), makes a
+native SwiftUI Mac application the primary product over the same Rust factory.
+It removes npm/browser first run, mandatory Companion setup, successful-day
+qualification, and subscription gating of local/BYO execution. Source support
+does not yet claim that the native app is signed, notarized, published, or the
+current public download; [`docs/STATE.md`](docs/STATE.md) records that evidence.
 
 When using the app teaches you something, describe what should change. TOHSENO
 evolves the same project and installs the new version on your phone.
@@ -17,8 +25,9 @@ evolves the same project and installs the new version on your phone.
   needs it.
 - **Ownership.** Each app is ordinary SwiftUI and Xcode source, with no
   proprietary runtime and no TOHSENO account required.
-- **Local work.** Prompts, source, coding harnesses, builds, signing, and device
-  installation stay on your Mac.
+- **Local by default.** Builds, signing, device installation, and generated
+  source stay on your Mac. A managed model sees admitted source only after an
+  explicit privacy/cost choice and hard maximum.
 - **Real completion.** A generated file is not the finish line. The app must
   build, pass its checks, install, and launch on the phone.
 - **Bounded automation.** One intention gets one implementation attempt and,
@@ -28,46 +37,32 @@ evolves the same project and installs the new version on your phone.
 
 ## Start here
 
-You need a Mac running macOS 13 or later, Xcode, an iPhone, and an authenticated
-Codex or Claude Code installation.
+You need macOS 14 or later and full Xcode. An iPhone, cable, Trust, Developer
+Mode, and an Apple Personal Team are needed only for the final phone install;
+TOHSENO never collects Apple credentials. Companion pairing is optional.
 
-The complete factory is free during a private trial that starts after iPhone
-setup. The trial ends at the first of five successful distinct days or seven
-calendar days. If you complete five successful days, you may choose Pro at
-$9.99/month or $99/year to keep creating and evolving apps. If the trial ends,
-your source, installed apps, Git repositories, and accepted history remain
-yours; only new factory work locks. TOHSENO Pro does not include or require a
-paid Apple Developer Program membership.
+The normal product is `Tohseno.app`: open it, follow one readiness instruction
+at a time, describe a deliberately small app, and press **Create App**. The app
+restores admitted work across window closure and service restart. When the
+deterministic gates pass, it installs and launches the result directly on the
+connected iPhone. After using it, open the same app and describe the change.
 
-```bash
-npm i -g tohseno
-```
+Advanced settings detect supported subscription-backed coding tools, allow a
+bounded custom executable, or configure an explicitly consented loopback
+OpenAI-compatible endpoint. Optional TOHSENO-managed intelligence uses prepaid
+creation balance and always shows the server-priced estimate, privacy tier, and
+hard maximum before source is sent. Local/BYO work has no TOHSENO subscription,
+trial, qualification, or creation-balance gate.
 
-The install opens first run automatically and guides you through connecting the
-phone, Apple development signing, installing the TOHSENO Companion, and pairing
-it securely with your Mac. It does not require `sudo`. If you install with
-npm's lifecycle scripts disabled, run `tohseno` once afterward.
-
-Then make something deliberately small:
-
-```bash
-tohseno create
-```
-
-TOHSENO opens Studio. Describe the app, optionally name it and attach reference
-images, and send the intention. If the name is blank, the implementation model
-chooses one from the app's purpose. The work continues in the local service if you close
-the browser or Terminal. When the app is ready, TOHSENO installs and launches
-it on the connected iPhone.
-
-After you have used it:
+The signed/notarized DMG is deliberately not claimed as published yet. Release
+activation requires the evidence in
+[`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
+Developers can build the unsigned universal bundle with:
 
 ```bash
-tohseno evolve water-walk
+macos/Tohseno/Packaging/build-app.sh
+macos/Tohseno/Packaging/verify-app.sh dist/native/Tohseno.app unsigned
 ```
-
-Describe what should change. The update follows the same path into the same
-app.
 
 ## Where your work lives
 
@@ -82,12 +77,12 @@ repository. Exact intentions, inline-private lineage, references, feedback,
 execution records, logs, and `.tohseno/private/` remain explicitly ignored;
 publishing a Git repository is never allowed to silently publish them.
 
-The iPhone Companion is a remote control for the factory on your Mac. It can
+The optional iPhone Companion is a remote control for the factory on your Mac. It can
 send create and evolve intentions and receive encrypted status updates. It
 does not receive source code or private harness output. When the optional relay
 is used, it carries signed encrypted envelopes that the relay cannot read.
 
-## Use it from the Terminal
+## Advanced recovery and automation from Terminal
 
 The interactive path is the default, and the same operations are scriptable:
 
@@ -112,6 +107,8 @@ tohseno record my-app --note "Describe these exact files"
 This repository contains the whole product:
 
 - [`cli/`](cli/) provides the command-line surface.
+- [`macos/Tohseno/`](macos/Tohseno/) contains the primary native Mac app and
+  distribution tooling.
 - [`engine/`](engine/) runs the build, verification, recording, and delivery
   lifecycle.
 - [`studio/`](studio/) is the local browser interface.
@@ -134,22 +131,24 @@ The most useful first checks are:
 
 ```bash
 cargo test --locked --workspace --all-targets --all-features
+swift test --package-path macos/Tohseno
 swift test --package-path companion/apple/TohsenoCompanion
 (cd website && bun run typecheck && bun test)
 ```
 
-The complete verification matrix is in [`AGENTS.md`](AGENTS.md). Release 1.0.2
-is prepared as one coherent native and npm version; publishing its signed
-native artifacts, public manifest, npm package, and website remains an
-explicit owner release action.
+The complete verification matrix is in [`AGENTS.md`](AGENTS.md). Publishing a
+signed native artifact, enabling managed Stripe/Bankr service, or activating
+the public download remains an explicit owner action backed by external
+evidence.
 
 More detail:
 
 - [Current runtime architecture](docs/ARCHITECTURE.md)
 - [App → Intent → App decision](docs/adr/0016-app-intent-app-on-your-iphone.md)
 - [Bounded build lifecycle](docs/adr/0019-bounded-intent-to-usable-app.md)
-- [Cable setup, trial, and npm front door](docs/adr/0020-cable-genesis-earned-pro-npm-front-door.md)
-- [One-command npm installation](docs/adr/0021-npm-install-enters-first-run.md)
+- [Native Mac product and managed balance](docs/adr/0025-native-macos-app-factory-managed-balance.md)
+- [Native distribution runbook](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md)
+- [Managed-compute runbook](docs/runbooks/MANAGED_COMPUTE.md)
 - [Privacy boundary](docs/PRIVACY.md)
 - [Threat model](docs/THREAT_MODEL.md)
 - [Protocol specification](protocol/SPECIFICATION.md)

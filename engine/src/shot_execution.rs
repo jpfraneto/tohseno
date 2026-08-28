@@ -141,6 +141,8 @@ pub struct PreparedExecution {
     pub harness_display_name: String,
     pub model: String,
     pub route: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<crate::harness::HarnessAdapter>,
     pub route_billing: String,
     pub estimated_additional_cost_usd: Option<f64>,
     pub intention_digest: Bytes32,
@@ -337,6 +339,7 @@ pub fn prepare_execution_with_id(
             || existing.harness != preparation.selection.harness
             || existing.model != preparation.selection.model
             || existing.route != preparation.selection.route
+            || existing.adapter != preparation.selection.adapter
             || existing.intention_digest != preparation.intention_digest
             || existing.mode != preparation.mode
         {
@@ -363,6 +366,7 @@ pub fn prepare_execution_with_id(
         harness_display_name: harness.label,
         model: preparation.selection.model.clone(),
         route: route.id.clone(),
+        adapter: preparation.selection.adapter.clone(),
         route_billing: route.billing.clone(),
         estimated_additional_cost_usd: estimated_cost(&preparation.selection)
             .map_err(ShotExecutionError::Invalid)?,
@@ -1504,6 +1508,7 @@ mod tests {
             harness: "codex".into(),
             model: "default".into(),
             route: "openai-api".into(),
+            adapter: None,
         };
         let image = repository.join(".tohseno/references/image_1.png");
         let image_bytes = fs::read(&image).unwrap();

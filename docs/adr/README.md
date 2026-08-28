@@ -2,37 +2,45 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0025](0025-native-macos-app-factory-managed-balance.md) makes the native
+SwiftUI `Tohseno.app` the primary product while keeping the persistent Rust
+service as the only factory. It removes npm/browser first run, mandatory
+Companion setup, successful-day qualification, and subscription gating of
+local/BYO execution from the consumer path; moves execution choice under
+Advanced; and defines the append-only creation-balance, Stripe-pack, managed
+proxy, Bankr, migration, packaging, and release-truth boundaries. No external
+service or release is activated by the decision.
+
 [ADR 0024](0024-app-local-tohseno-git-boundary.md) makes `.tohseno/` an
 integral Git-visible part of each app repository while retaining exact ignores
 for intentions, inline-private lineage, references, feedback, executions,
 logs, artifacts, and `.tohseno/private/`. Git visibility never substitutes for
 an explicit public-registry publication flow.
 
-[ADR 0023](0023-per-shot-harness-and-model-choice.md) adds one compact
-Studio creation choice for an installed coding harness and one of its
-associated models. The resolved selection is persisted with the private
-creation command so recovery cannot switch it, while ADR 0019's one bounded
-implementation harness and repair ceiling remain unchanged.
+[ADR 0023](0023-per-shot-harness-and-model-choice.md) added one compact Studio
+creation choice for an installed coding harness and model. ADR 0025 supersedes
+that visible product placement but preserves its exact durable per-command
+selection and ADR 0019's bounded implementation/repair ceiling.
 
 [ADR 0022](0022-optional-model-chosen-app-name.md) makes the app name optional.
 When omitted, the factory reserves a local technical slug and gives the one
 existing implementation model responsibility for choosing the user-facing
 product name from the exact intention, with no extra planning invocation.
 
-[ADR 0021](0021-npm-install-enters-first-run.md) makes a fresh global npm
-install enter the existing first-run product surface without a second command.
-It preserves ADR 0020's verified native bootstrap and cable genesis while
-keeping local dependency installs and already-installed updates free of an
-automatic open.
+[ADR 0021](0021-npm-install-enters-first-run.md) governs the retained legacy
+npm-to-first-run transition. ADR 0025 supersedes it as the normal consumer
+door; its bootstrap remains a supported compatibility/developer path.
 
-[ADR 0020](0020-cable-genesis-earned-pro-npm-front-door.md) defines TOHSENO
-0.9.9's complete product boundary: the first Mac↔iPhone relationship begins
+[ADR 0020](0020-cable-genesis-earned-pro-npm-front-door.md) defined TOHSENO
+0.9.9's product boundary: the first Mac↔iPhone relationship begins
 through the cable while the existing cryptographic pairing remains intact;
 the complete factory is available for at most seven calendar days; five
 accepted physical-delivery days qualify a person for $9.99 monthly or $99
 yearly Pro; factory admission is enforced below every UI; Apple membership is
 independent; and the npm package is a thin verified native-release front door.
-It authorizes no publication or production external activation.
+It authorizes no publication or production external activation. ADR 0025
+supersedes its Companion genesis, qualification/subscription gate, and npm
+consumer-door decisions while retaining the underlying compatibility code.
 
 [ADR 0019](0019-bounded-intent-to-usable-app.md) defines the current execution
 hot path: one implementation harness, at most one concrete code/build repair,

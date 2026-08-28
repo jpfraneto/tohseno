@@ -1,4 +1,77 @@
-# Evolution golden path
+# Native factory and optional Companion golden paths
+
+## Primary native Mac path
+
+```text
+Tohseno.app composer
+  -> signed-app helper + one-use workspace challenge
+  -> scoped native loopback session
+  -> create/evolve request with exact references and route selection
+  -> durable command journal + prepared execution
+  -> the one ShotApplicationService and detached engine runner
+  -> deterministic build/sign/install/launch gates
+  -> six-state snapshot + event stream -> restored native UI
+```
+
+On first open, the helper verifies the outer signed app and the checksum-covered
+bundled factory release. It stages an immutable installer-owned version and
+publishes launcher, Apple identity helper, and current selection as one
+rollback unit before installing the existing user LaunchAgent. It adopts
+healthy `~/.tohseno` and `~/Desktop/Tohseno` state in place; app folders,
+command journals, identities, entitlement compatibility state, and Companion
+pairings are not bundle content and are never migrated or deleted.
+
+The Swift UI is a client only. Its native session is separate from browser
+Origin/CSRF state and expires after 15 minutes or service restart. The service
+validates the exact intention, optional name, at most eight exact-byte PNG/JPEG
+references, current accepted base for evolution, and explicit intelligence
+selection. One create/evolve gesture has one local in-flight guard and the Rust
+command/execution identities supply durable idempotency across retries or app
+relaunch.
+
+Known subscription-backed tools, a bounded direct custom executable, and a
+consented loopback endpoint all continue locally. Managed work additionally
+fetches live server allowlist/pricing, recomputes a versioned range from exact
+input/source sizes, displays privacy and hard maximum, checks spendable
+balance, and persists those exact values. The server reserves that total for
+one implementation and at most one repair; a one-use capability can reach only
+the admitted completion proxy. There is no silent paid fallback.
+
+Closing the native window does not cancel an admitted command. The persistent
+service owns it, and the event stream plus a complete snapshot restore Waiting,
+Building, Ready for Phone, Installing, Installed, or Failed. A missing device
+waits without re-invoking intelligence. Open on iPhone performs the existing
+deterministic launch operation. A stale evolution is refused instead of
+rebased. Details reads the durable execution receipt and managed ledger rather
+than reconstructing claims from current settings.
+
+Retiring an app removes an installed phone copy and hides the app from the
+library, but preserves its source and accepted history. **Settings →
+Diagnostics → Retired apps** restores it to the library without silently
+reinstalling it on a phone.
+
+The normal readiness path is independent of Companion: macOS 14, full Xcode,
+license/components, cable/unlock/Trust, Developer Mode, signing team, and a
+minimal real build/install/launch/remove check. It presents one instruction and
+at most one action and never asks for Apple credentials. Companion below is an
+optional alternate origin over the same application service.
+
+Focused source checks are:
+
+```sh
+swift test --package-path macos/Tohseno
+cargo test --locked --workspace --all-targets --all-features
+macos/Tohseno/Packaging/build-app.sh
+macos/Tohseno/Packaging/verify-app.sh dist/native/Tohseno.app unsigned
+(cd website && bun run typecheck && bun test)
+```
+
+Developer ID signing, notarization/stapling, clean-Mac Gatekeeper acceptance,
+physical-device installation, Stripe test/live webhooks, Bankr live inference,
+and public download activation remain external checks and must be reported as
+unverified until performed.
+
+## Optional Companion evolution path
 
 This is the failure-walk for one real Companion evolution. It describes the
 current implementation; [`protocol/`](../protocol/) remains authoritative over

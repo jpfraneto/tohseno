@@ -2,9 +2,15 @@ mod billing;
 mod cable_genesis;
 mod companion_service;
 mod companion_simulator;
+mod device_readiness;
 mod identity_commands;
 mod installation_commands;
 mod intent_commands;
+mod local_openai_harness;
+mod managed_compute;
+mod native_client;
+mod native_install;
+mod native_session;
 mod protocol_commands;
 mod renderer;
 mod service_client;
@@ -24,6 +30,7 @@ use tohseno_application::ReferenceInput;
 use tohseno_engine::{Config, Engine, Event, EventBus, Ledger};
 use tohseno_protocol::digest::Bytes32;
 use uuid::Uuid;
+use workspace_identity::SecretStore;
 
 const MAX_TEXT_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_FEEDBACK_FILE_BYTES: u64 = 100_000;
@@ -96,6 +103,51 @@ enum Command {
         /// Development-only foreground port override.
         #[arg(long, hide = true)]
         foreground_port: Option<u16>,
+    },
+    /// Issue a bounded session to a verified native Tohseno.app parent.
+    #[command(hide = true)]
+    NativeSession,
+    /// Run the bounded built-in adapter for one configured loopback model.
+    #[command(hide = true)]
+    LocalOpenAiHarness {
+        #[arg(long)]
+        base_url: String,
+        #[arg(long)]
+        model: String,
+        #[arg(long)]
+        privacy: String,
+        #[arg(long)]
+        credential_reference: Option<String>,
+        instruction: String,
+    },
+    /// Run the bundled adapter through one admitted managed-compute route.
+    #[command(hide = true)]
+    ManagedOpenAiHarness {
+        #[arg(long)]
+        proxy_origin: String,
+        #[arg(long)]
+        model: String,
+        #[arg(long)]
+        privacy: String,
+        #[arg(long)]
+        command_id: String,
+        #[arg(long)]
+        execution_id: String,
+        #[arg(long)]
+        maximum_microusd: u64,
+        #[arg(long)]
+        pricing_snapshot_at: String,
+        #[arg(long)]
+        input_microusd_per_million: u64,
+        #[arg(long)]
+        output_microusd_per_million: u64,
+        instruction: String,
+    },
+    /// Store one local-model bearer credential from stdin in macOS Keychain.
+    #[command(hide = true)]
+    LocalModelCredential {
+        #[arg(long)]
+        reference: String,
     },
     /// Import an encrypted browser handoff or a private intent package.
     #[command(hide = true)]
@@ -673,6 +725,82 @@ async fn dispatch(
                     bus.emit(Event::result("Studio is open. The Local Workspace Service remains available after this Terminal closes."));
                 }
             }
+        }
+        Command::NativeSession => {
+            let credential = native_client::issue_session()
+                .await
+                .map_err(|error| error.to_string())?;
+            println!("{}", serde_json::to_string(&credential)?);
+        }
+        Command::LocalOpenAiHarness {
+            base_url,
+            model,
+            privacy,
+            credential_reference,
+            instruction,
+        } => {
+            local_openai_harness::run(
+                &base_url,
+                &model,
+                &privacy,
+                credential_reference.as_deref(),
+                &instruction,
+            )
+            .await?;
+        }
+        Command::ManagedOpenAiHarness {
+            proxy_origin,
+            model,
+            privacy,
+            command_id,
+            execution_id,
+            maximum_microusd,
+            pricing_snapshot_at,
+            input_microusd_per_million,
+            output_microusd_per_million,
+            instruction,
+        } => {
+            local_openai_harness::run_managed(local_openai_harness::ManagedRunRequest {
+                proxy_origin: &proxy_origin,
+                reservation: managed_compute::ManagedReservationRequest {
+                    command_id: &command_id,
+                    execution_id: &execution_id,
+                    model: &model,
+                    privacy: &privacy,
+                    maximum_microusd,
+                    pricing_snapshot_at: &pricing_snapshot_at,
+                    input_microusd_per_million,
+                    output_microusd_per_million,
+                },
+                instruction: &instruction,
+            })
+            .await?;
+        }
+        Command::LocalModelCredential { reference } => {
+            if reference.is_empty()
+                || reference.len() > 128
+                || reference
+                    .bytes()
+                    .any(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')))
+            {
+                return Err("local model credential reference is invalid".into());
+            }
+            let mut secret = zeroize::Zeroizing::new(Vec::new());
+            std::io::Read::by_ref(&mut std::io::stdin())
+                .take(16 * 1024 + 1)
+                .read_to_end(&mut secret)?;
+            while secret
+                .last()
+                .is_some_and(|byte| matches!(byte, b'\n' | b'\r'))
+            {
+                secret.pop();
+            }
+            if secret.is_empty() || secret.len() > 16 * 1024 {
+                return Err("local model credential is empty or oversized".into());
+            }
+            workspace_identity::KeychainSecretStore
+                .put(&reference, &secret)
+                .map_err(|error| error.to_string())?;
         }
         Command::Service { command } => service_admin(command, json, bus).await?,
         Command::Companion { command } => companion_admin(command, json, bus).await?,

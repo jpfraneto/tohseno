@@ -5,6 +5,7 @@ import { HttpError, withSecurityHeaders } from "./src/security.ts";
 import { INTENT_LIMITS } from "./src/intent-limits.ts";
 import { createRelayRouter } from "./src/relay-routes.ts";
 import { createBillingRouter } from "./src/billing.ts";
+import { createManagedRouter } from "./src/managed.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
@@ -177,6 +178,8 @@ const BROWSER_MODULE_PATH = /^\/modules\/[a-z0-9-]+\.js$/;
 function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
   if (pathname.startsWith("/api/billing/v1/")) return "billing";
+  if (pathname.startsWith("/api/managed/v1/")) return "managed-compute";
+  if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
   if (pathname === "/") return "landing-page";
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
@@ -247,6 +250,7 @@ export async function createApplication(
   const config = options.config ?? loadConfig();
   const relay = await createRelayRouter(config);
   const billing = await createBillingRouter(config);
+  const managed = await createManagedRouter(config);
   const log = options.log ??
     ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
   const logError = options.logError ??
@@ -292,6 +296,24 @@ export async function createApplication(
     if (canonicalResponse) return canonicalResponse;
     if (relay.handles(pathname)) return relay.fetch(request);
     if (billing.handles(pathname)) return billing.fetch(request);
+    if (managed.handles(pathname)) return managed.fetch(request);
+
+    if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") {
+      if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
+      if (!config.distribution.macosEnabled || !config.distribution.macosUrl || !config.distribution.macosSha256) {
+        return headResponse(json({ error: "The signed and notarized Mac download is not published yet." }, 503), method);
+      }
+      if (pathname === "/api/distribution/v1/macos") {
+        return headResponse(json({ schema: "tohseno.macos-distribution/1", available: true,
+          url: config.distribution.macosUrl, sha256: config.distribution.macosSha256,
+          minimum_macos_version: "14.0" }), method);
+      }
+      return headResponse(withSecurityHeaders(new Response(null, { status: 307, headers: {
+        location: config.distribution.macosUrl,
+        "x-tohseno-sha256": config.distribution.macosSha256,
+        "cache-control": "no-store",
+      } })), method);
+    }
 
     if (method !== "GET" && method !== "HEAD") {
       if (

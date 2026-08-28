@@ -1,4 +1,9 @@
-# Billing release boundary
+# Legacy subscription billing release boundary
+
+ADR 0025 retains this receipt verifier only for compatibility. Recurring Pro
+billing is not the native product's purchase surface and never gates local/BYO
+work. Prepaid managed creation balance has a separate append-only ledger and
+runbook at `docs/runbooks/MANAGED_COMPUTE.md`.
 
 This directory intentionally contains no signing secret and no active public
 verification key. A release authorized for billing must contain exactly
