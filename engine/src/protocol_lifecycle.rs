@@ -1235,17 +1235,9 @@ pub fn reference_fascia_root() -> Result<std::path::PathBuf, ProtocolLifecycleEr
         return validate_pinned_fascia_root(root);
     }
     let executable = std::env::current_exe()?;
-    if let Some(prefix) = executable.parent().and_then(Path::parent) {
-        // Release archives carry `fascia/apple` beside `bin`; conventional
-        // system installs may place the same pinned bytes under `share`.
-        for installed in [
-            prefix.join("fascia/apple"),
-            prefix.join("genesis/fascia/apple"),
-            prefix.join("share/genesis/fascia/apple"),
-        ] {
-            if installed.is_dir() {
-                return validate_pinned_fascia_root(installed);
-            }
+    for installed in installed_fascia_roots(&executable) {
+        if installed.is_dir() {
+            return validate_pinned_fascia_root(installed);
         }
     }
     if cfg!(debug_assertions) {
@@ -1257,6 +1249,24 @@ pub fn reference_fascia_root() -> Result<std::path::PathBuf, ProtocolLifecycleEr
     Err(ProtocolLifecycleError::InvalidState(
         "the pinned Apple Fascia reference tree is missing".into(),
     ))
+}
+
+fn installed_fascia_roots(executable: &Path) -> Vec<std::path::PathBuf> {
+    let Some(prefix) = executable.parent().and_then(Path::parent) else {
+        return Vec::new();
+    };
+    vec![
+        // Release archives may carry the reference beside `bin` or under
+        // their conventional `share` tree.
+        prefix.join("fascia/apple"),
+        prefix.join("share/fascia/apple"),
+        // Native installation keeps stable entry points under `bin` and
+        // atomically selects the immutable release beneath `current`.
+        prefix.join("current/share/fascia/apple"),
+        // Retained installer layouts from earlier releases.
+        prefix.join("genesis/fascia/apple"),
+        prefix.join("share/genesis/fascia/apple"),
+    ]
 }
 
 fn validate_pinned_fascia_root(
@@ -3542,6 +3552,14 @@ let result = try await URLSession.shared.data(from: URL(string: "https://api.exa
         let alternate = tempfile::tempdir().unwrap();
         fs::write(alternate.path().join("FASCIA.md"), "alternate law\n").unwrap();
         assert!(validate_pinned_fascia_root(alternate.path().to_owned()).is_err());
+    }
+
+    #[test]
+    fn installed_fascia_candidates_cover_release_and_native_layouts() {
+        let prefix = Path::new("/Users/fixture/.tohseno");
+        let candidates = installed_fascia_roots(&prefix.join("bin/tohseno"));
+        assert!(candidates.contains(&prefix.join("share/fascia/apple")));
+        assert!(candidates.contains(&prefix.join("current/share/fascia/apple")));
     }
 
     #[test]
