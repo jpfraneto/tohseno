@@ -71,8 +71,7 @@ fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>
         "identifier \"com.tohseno.mac\" and anchor apple generic and certificate leaf[subject.OU] = \"{team_id}\""
     )
     .parse()?;
-    let validation =
-        Flags::STRICT_VALIDATE | Flags::CHECK_TRUSTED_ANCHORS | Flags::NO_NETWORK_ACCESS;
+    let validation = native_dynamic_validation_flags();
     SecCode::for_self(Flags::NONE)?.check_validity(validation, &team_requirement)?;
     let mut attributes = GuestAttributes::new();
     let parent = unsafe { libc::getppid() };
@@ -83,6 +82,17 @@ fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>
     let parent_code = SecCode::copy_guest_with_attribues(None, &attributes, Flags::NONE)?;
     parent_code.check_validity(validation, &parent_requirement)?;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn native_dynamic_validation_flags() -> security_framework::os::macos::code_signing::Flags {
+    use security_framework::os::macos::code_signing::Flags;
+
+    // SecCodeCheckValidity validates running code and documents the default
+    // flag set as its standard behavior. The explicit requirements below
+    // enforce the Apple anchor, exact Team ID, and parent bundle identifier;
+    // passing static or policy flags to this dynamic API can return errSecParam.
+    Flags::NONE
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -149,5 +159,13 @@ mod tests {
             fs::write(&path, invalid).unwrap();
             assert!(read_native_team_id(&path).is_err());
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn running_native_code_uses_only_dynamic_validation_flags() {
+        use security_framework::os::macos::code_signing::Flags;
+
+        assert_eq!(native_dynamic_validation_flags(), Flags::NONE);
     }
 }
