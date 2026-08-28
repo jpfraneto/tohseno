@@ -21,7 +21,7 @@ async function copyText(text) {
 function resetButton(button) {
   const command = button.dataset.installCommand;
   button.querySelector("[data-install-text]").textContent = command;
-  button.querySelector("[data-copy-label]").textContent = "COPY";
+  button.querySelector("[data-copy-label]").textContent = "Copy";
 }
 
 for (const button of copyButtons) {
@@ -32,7 +32,7 @@ for (const button of copyButtons) {
       await copyText(command);
       window.clearTimeout(resetTimer);
       button.querySelector("[data-install-text]").textContent =
-        "COPIED. OPEN TOHSENO.";
+        "Copied — paste into Terminal";
       button.querySelector("[data-copy-label]").textContent = "✓";
       status.textContent = "Install command copied.";
       resetTimer = window.setTimeout(() => resetButton(button), 1800);

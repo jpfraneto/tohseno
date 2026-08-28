@@ -6,7 +6,7 @@ something below stops being true, update this file in the same change.
 
 ## Native macOS transition
 
-ADR 0025, accepted on 2026-08-27, is the current product decision. It makes a
+ADRs 0025 and 0026 are the current product decisions. They make a
 native SwiftUI `Tohseno.app` the primary consumer surface over the existing
 persistent Rust factory. It supersedes npm/browser first run, mandatory
 Companion genesis, five-successful-day qualification, subscription gating of
@@ -23,6 +23,15 @@ signed-app helper, one-use workspace challenge, and short-lived per-instance
 scoped session. First open verifies and atomically installs a bundled universal
 factory release with rollback; scripts assemble, sign, notarize, verify, and
 package a DMG.
+
+Every intention composer is now keyboard-first: plain Return sends through
+the existing exactly-once application-service path and Shift–Return inserts a
+line. An optional Registry destination projects the trusted helper's verified
+local Shot heads, accepted-version counts, local identity, and active network
+generation. It explicitly labels the existing identity local/test-only and
+the public Registry **Not connected** while registry RPC remains absent. Its
+quick New Shot field uses the same automatic create route; it is not a second
+factory or a publication surface.
 
 Retirement preserves source and accepted history. The native Diagnostics
 archive exposes those apps and can restore one to the library without silently
@@ -76,11 +85,13 @@ Open Tohseno.app → describe an app   → it installs on your iPhone
 Open that app    → describe a change → the update installs
 ```
 
-Each opens one screen with one box. Externally TOHSENO speaks only in App,
+Each primary create/evolve path opens one screen with one box. Externally that path speaks only in App,
 Create, Evolve, Waiting, Building, Ready, Installing, Installed, Failed, Retry,
-and Details. Shots, Expressions, Versions, executions, Feedback records,
-harnesses, inference routes, lineage, and pairing internals are all real and
-none of them appear on the normal path. If a change adds more normal-path
+and Details. The optional Registry destination deliberately uses Shot,
+Evolution, Builder, and Registry to inspect verified local history; it does
+not expose execution-pipeline or planning internals. Expressions, executions,
+Feedback records, harnesses, inference routes, and pairing internals remain
+off the normal path. If a change adds more primary-path
 concepts than it removes, it is probably wrong.
 
 `application/src/presentation.rs` is the single projection that collapses every
@@ -341,10 +352,22 @@ still be vendored into a Shot so generated apps do not depend on a mutable
 `tohseno.com` is the public introduction to the local factory. It explains the
 App → Intent → App path, personal software, independent app ownership, the
 bounded build method, and the optional public record. Current website source
-links the consumer action to `/download/macos`; that route returns `503` until
-the operator configures the immutable notarized DMG URL and exact SHA-256. It
-does not collect an intention or create a Shot. The retained `/oneshot.sh` is a
-legacy/claim transport and no longer appears on the normal landing path.
+centers a copyable `curl -fsSL https://tohseno.com/install | sh` action, with
+`/download/macos` retained as a direct DMG fallback. Both remain unavailable
+until the operator configures the immutable notarized DMG URL and exact
+SHA-256. The website does not collect an intention or create a Shot. The
+retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
+normal landing path.
+
+The same fail-closed artifact configuration now controls `/install` and its
+`/download` alias. Once activated, they emit the interactive native installer
+used by `curl -fsSL https://tohseno.com/install | sh`: it shows source, docs,
+artifact URL, and digest; waits for Return through the terminal; verifies
+SHA-256, the exact bundle and Developer ID Team, and Gatekeeper acceptance;
+then safely replaces a recognized installation and opens it without npm or
+administrator access. HEAD exposes only status/instruction headers. These
+routes remain `503` in current public configuration and are not publication
+evidence.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,

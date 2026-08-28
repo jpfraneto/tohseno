@@ -215,6 +215,83 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(decoded.managedMaximumMicrousd, 5_000_000)
     }
 
+    func testRegistryHelperViewsDecodeWithoutClaimingPublication() throws {
+        let identity = try JSONDecoder.tohseno.decode(
+            BuilderIdentityView.self,
+            from: Data(#"{"builder_id":"eip155:4663:0x1111111111111111111111111111111111111111","chain_id":4663,"account_address":"0x1111111111111111111111111111111111111111","identity_generation":"legacy_v0.7","scope":"local_only","authority_status":"test_only_non_authoritative","deployment_status":"legacy_offline_prediction","device_key_id":"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","security_level":"software_test","test_only":true}"#.utf8)
+        )
+        let network = try JSONDecoder.tohseno.decode(
+            RegistryNetworkStatus.self,
+            from: Data(#"{"schema":"tohseno.network-status/2","product_version":"1.0.2","active_generation":"0.8.0","ready":false,"rpc_checked":false,"public_authority_available":true,"reason":"registry RPC is not implemented"}"#.utf8)
+        )
+        let record = try JSONDecoder.tohseno.decode(
+            LocalRegistryRecord.self,
+            from: Data(#"{"schema":"tohseno.registry-view/2","app_name":"fixture","shot_id":"0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","local_head":"0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","local_sequence":2,"local_state":"private","local_verified":true,"active_generation":"0.8.0","public_checked":false,"public_authority_available":true,"reason":"registry RPC is not implemented"}"#.utf8)
+        )
+        let snapshot = RegistrySnapshot(builder: identity, network: network, records: [record])
+        XCTAssertEqual(snapshot.acceptedVersionCount, 2)
+        XCTAssertEqual(identity.scope, "local_only")
+        XCTAssertFalse(network.rpcChecked)
+        XCTAssertFalse(record.publicChecked)
+        XCTAssertTrue(record.localVerified)
+    }
+
+    func testRegistryHelperDrainsBoundedOutputWhileTheProcessRuns() async throws {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tohseno-registry-helper-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let helper = fixture.appendingPathComponent("tohseno")
+        let script = #"""
+        #!/bin/sh
+        case "$*" in
+          *identity*)
+            printf '%s' '{"builder_id":"eip155:4663:0x1111111111111111111111111111111111111111","chain_id":4663,"account_address":"0x1111111111111111111111111111111111111111","identity_generation":"legacy_v0.7","scope":"local_only","authority_status":"test_only_non_authoritative","deployment_status":"legacy_offline_prediction","device_key_id":"0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","security_level":"software_test","test_only":true,"padding":"'
+            ;;
+          *network*)
+            printf '%s' '{"schema":"tohseno.network-status/2","product_version":"1.0.2","active_generation":"0.8.0","ready":false,"rpc_checked":false,"public_authority_available":true,"reason":"registry RPC is not implemented","padding":"'
+            ;;
+          *registry*)
+            printf '%s' '{"schema":"tohseno.registry-view/2","app_name":"fixture","shot_id":"0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","local_head":"0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","local_sequence":2,"local_state":"private","local_verified":true,"active_generation":"0.8.0","public_checked":false,"public_authority_available":true,"reason":"registry RPC is not implemented","padding":"'
+            ;;
+          *) exit 2 ;;
+        esac
+        dd if=/dev/zero bs=20000 count=1 2>/dev/null | tr '\000' x
+        printf '"}\n'
+        """#
+        try script.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+
+        let snapshot = try await LoopbackFactoryClient(helperOverride: helper)
+            .registrySnapshot(appNames: ["fixture"])
+        XCTAssertEqual(snapshot.records.map(\.appName), ["fixture"])
+        XCTAssertEqual(snapshot.acceptedVersionCount, 2)
+        XCTAssertFalse(snapshot.network.rpcChecked)
+    }
+
+    @MainActor
+    func testRegistryRouteRestoresAsAFirstClassMacDestination() async {
+        let suite = "tohseno-native-registry-route-\(UUID().uuidString)"
+        let preferences = try! XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let factory = FakeFactory()
+        let model = TohsenoAppModel(client: factory, preferences: preferences)
+        model.route = .registry
+        let restored = TohsenoAppModel(client: factory, preferences: preferences)
+        XCTAssertEqual(restored.route, .registry)
+    }
+
+    func testComposersAdvertiseAndImplementReturnToSend() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
+        let source = try String(contentsOf: root, encoding: .utf8)
+        XCTAssertTrue(source.contains("Return sends · Shift–Return adds a line"))
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".shotSubmitOnReturn(").count - 1, 3)
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".keyboardShortcut(.return, modifiers: [])").count - 1, 3)
+        XCTAssertTrue(source.contains("press.modifiers.contains(.shift)"))
+    }
+
     func testRequiredAccessibilityIdentifiersRemainPresent() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -224,6 +301,8 @@ final class NativeFactoryTests: XCTestCase {
             "readiness.primary", "create-app.sidebar", "creation.intention",
             "creation.submit", "evolution.intention", "evolution.submit",
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
+            "registry.sidebar", "registry.quick.intention", "registry.quick.submit",
+            "registry.builder", "registry.public-status",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }
@@ -268,6 +347,30 @@ private actor FakeFactory: FactoryServing {
     func managedCatalog() async throws -> ManagedCatalog { throw FactoryClientError.transport("offline") }
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate { throw FactoryClientError.transport("offline") }
     func managedCheckout(packID: String) async throws -> ManagedCheckout { throw FactoryClientError.transport("offline") }
+    func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot {
+        let builder = BuilderIdentityView(
+            builderID: "eip155:4663:0x1111111111111111111111111111111111111111",
+            chainID: 4663,
+            accountAddress: "0x1111111111111111111111111111111111111111",
+            identityGeneration: "legacy_v0.7",
+            scope: "local_only",
+            authorityStatus: "test_only_non_authoritative",
+            deploymentStatus: "legacy_offline_prediction",
+            deviceKeyID: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            securityLevel: "software_test",
+            testOnly: true
+        )
+        let network = RegistryNetworkStatus(
+            schema: "tohseno.network-status/2",
+            productVersion: "1.0.2",
+            activeGeneration: "0.8.0",
+            ready: false,
+            rpcChecked: false,
+            publicAuthorityAvailable: true,
+            reason: "registry RPC is not implemented"
+        )
+        return RegistrySnapshot(builder: builder, network: network, records: [])
+    }
     func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt {
         createCalls += 1

@@ -96,6 +96,157 @@ function methodNotAllowed(): Response {
   });
 }
 
+function shellSingleQuote(value: string): string {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+export function renderNativeMacInstaller(
+  downloadURL: string,
+  downloadSHA256: string,
+): string {
+  const script = `#!/bin/sh
+set -eu
+
+dmg_url=__DMG_URL__
+dmg_sha256=__DMG_SHA256__
+expected_team_id='84V63LKV45'
+expected_bundle_id='com.tohseno.mac'
+source_url='https://github.com/jpfraneto/tohseno'
+docs_url='https://tohseno.com/docs'
+temp_dir=''
+mount_point=''
+staged_app=''
+target_app=''
+backup_app=''
+
+say() {
+  /usr/bin/printf '%s\\n' "$*" > /dev/tty
+}
+
+die() {
+  say "TOHSENO was not installed: $*"
+  exit 1
+}
+
+cleanup() {
+  if [ -n "$mount_point" ] && /sbin/mount | /usr/bin/grep -F " on $mount_point " >/dev/null 2>&1; then
+    /usr/bin/hdiutil detach "$mount_point" -quiet >/dev/null 2>&1 || true
+  fi
+  if [ -n "$staged_app" ] && [ -e "$staged_app" ]; then
+    case "$staged_app" in
+      "$HOME/Applications/.TOHSENO.app.install."*|"/Applications/.TOHSENO.app.install."*)
+        /bin/rm -rf "$staged_app"
+        ;;
+    esac
+  fi
+  if [ -n "$backup_app" ] && [ -n "$target_app" ] && [ ! -e "$target_app" ] && [ -e "$backup_app" ]; then
+    /bin/mv "$backup_app" "$target_app" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$temp_dir" ] && [ -d "$temp_dir" ]; then
+    case "$temp_dir" in
+      /tmp/tohseno-native-install.*) /bin/rm -rf "$temp_dir" ;;
+    esac
+  fi
+}
+
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
+
+[ -r /dev/tty ] && [ -w /dev/tty ] || {
+  /usr/bin/printf '%s\\n' 'TOHSENO needs an interactive terminal for installation.' >&2
+  exit 1
+}
+
+for tool in /usr/bin/curl /usr/bin/shasum /usr/bin/hdiutil /usr/bin/codesign /usr/sbin/spctl /usr/bin/ditto /usr/bin/open /usr/bin/sw_vers /usr/bin/uname /usr/bin/grep /usr/bin/sed /usr/bin/pgrep /sbin/mount; do
+  [ -x "$tool" ] || die "required macOS tool is missing: $tool"
+done
+
+[ "$(/usr/bin/uname -s)" = 'Darwin' ] || die 'this installer only runs on macOS.'
+architecture=$(/usr/bin/uname -m)
+case "$architecture" in
+  arm64|x86_64) ;;
+  *) die "unsupported Mac architecture: $architecture" ;;
+esac
+macos_version=$(/usr/bin/sw_vers -productVersion)
+macos_major=$(/usr/bin/printf '%s\\n' "$macos_version" | /usr/bin/sed 's/\\..*$//')
+case "$macos_major" in
+  ''|*[!0-9]*) die 'the macOS version could not be read.' ;;
+esac
+[ "$macos_major" -ge 14 ] || die "macOS 14 or newer is required; this Mac has $macos_version."
+
+say ''
+say 'You are about to download the signed and notarized TOHSENO macOS app.'
+say 'It is open source and the installer does not request administrator access or edit your shell.'
+say "Source: $source_url"
+say "Docs:   $docs_url"
+say "DMG:    $dmg_url"
+say "SHA-256: $dmg_sha256"
+say ''
+say 'Press Return to download, verify, install, and open TOHSENO. Press Control-C to cancel.'
+IFS= read -r _tohseno_confirmation < /dev/tty || exit 130
+
+if /usr/bin/pgrep -x TohsenoMacApp >/dev/null 2>&1; then
+  die 'TOHSENO is running. Quit it, then run this command again.'
+fi
+
+temp_dir=$(/usr/bin/mktemp -d /tmp/tohseno-native-install.XXXXXX) || die 'a temporary folder could not be created.'
+dmg_path="$temp_dir/TOHSENO.dmg"
+mount_point="$temp_dir/mount"
+/bin/mkdir "$mount_point"
+
+say 'Downloading the notarized DMG…'
+/usr/bin/curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --max-filesize 536870912 --output "$dmg_path" "$dmg_url" || die 'the DMG download failed.'
+
+actual_sha256=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/sed 's/[[:space:]].*$//')
+[ "$actual_sha256" = "$dmg_sha256" ] || die 'the downloaded DMG did not match the published SHA-256.'
+
+say 'Checking the app signature and notarization…'
+/usr/bin/hdiutil attach "$dmg_path" -readonly -nobrowse -noautoopen -mountpoint "$mount_point" -quiet || die 'the verified DMG could not be mounted.'
+source_app="$mount_point/TOHSENO.app"
+[ -d "$source_app" ] && [ ! -L "$source_app" ] || die 'the DMG does not contain the expected TOHSENO.app.'
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$source_app" >/dev/null 2>&1 || die 'the TOHSENO app signature is invalid.'
+signature=$(/usr/bin/codesign -d --verbose=4 "$source_app" 2>&1)
+bundle_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^Identifier=//p')
+team_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^TeamIdentifier=//p')
+[ "$bundle_id" = "$expected_bundle_id" ] || die 'the app has an unexpected bundle identifier.'
+[ "$team_id" = "$expected_team_id" ] || die 'the app was not signed by the expected TOHSENO Apple team.'
+/usr/sbin/spctl --assess --type execute --verbose=2 "$source_app" >/dev/null 2>&1 || die 'Gatekeeper did not accept the notarized TOHSENO app.'
+
+install_root='/Applications'
+if [ ! -d "$install_root" ] || [ ! -w "$install_root" ]; then
+  install_root="$HOME/Applications"
+  /bin/mkdir -p "$install_root" || die "the folder $install_root could not be created."
+fi
+target_app="$install_root/TOHSENO.app"
+staged_app="$install_root/.TOHSENO.app.install.$$"
+[ ! -e "$staged_app" ] && [ ! -L "$staged_app" ] || die 'a previous staged installation needs attention.'
+
+/usr/bin/ditto "$source_app" "$staged_app" || die 'the app could not be copied into place.'
+/usr/bin/codesign --verify --deep --strict "$staged_app" >/dev/null 2>&1 || die 'the installed copy did not preserve its signature.'
+
+if [ -e "$target_app" ] || [ -L "$target_app" ]; then
+  [ -d "$target_app" ] && [ ! -L "$target_app" ] || die "$target_app exists but is not a regular app folder."
+  existing_signature=$(/usr/bin/codesign -d --verbose=4 "$target_app" 2>&1 || true)
+  existing_bundle_id=$(/usr/bin/printf '%s\\n' "$existing_signature" | /usr/bin/sed -n 's/^Identifier=//p')
+  [ "$existing_bundle_id" = "$expected_bundle_id" ] || die 'the existing TOHSENO.app was not replaced because its identity is unrecognized.'
+  /bin/mkdir -p "$HOME/.Trash" || die 'the Trash folder could not be prepared.'
+  timestamp=$(/bin/date -u '+%Y%m%dT%H%M%SZ')
+  backup_app="$HOME/.Trash/TOHSENO.app.backup.$timestamp.$$"
+  /bin/mv "$target_app" "$backup_app" || die 'the existing TOHSENO app could not be moved safely to Trash.'
+fi
+
+/bin/mv "$staged_app" "$target_app" || die 'the verified TOHSENO app could not be installed.'
+staged_app=''
+say "Installed TOHSENO at $target_app"
+[ -z "$backup_app" ] || say "The previous version is recoverable at $backup_app"
+/usr/bin/open "$target_app" || die 'TOHSENO was installed but could not be opened.'
+say 'TOHSENO is open. Connect and unlock your iPhone, then create the app that should exist.'
+`;
+  return script
+    .replace("__DMG_URL__", shellSingleQuote(downloadURL))
+    .replace("__DMG_SHA256__", shellSingleQuote(downloadSHA256));
+}
+
 const PAGE_PATHS = ["/", "/docs", "/privacy", "/healthz"] as const;
 
 const STATIC_FILES: Record<
@@ -179,6 +330,7 @@ function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
   if (pathname.startsWith("/api/billing/v1/")) return "billing";
   if (pathname.startsWith("/api/managed/v1/")) return "managed-compute";
+  if (pathname === "/install" || pathname === "/download") return "native-installer";
   if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
   if (pathname === "/") return "landing-page";
   if (pathname === "/docs") return "docs-page";
@@ -297,6 +449,36 @@ export async function createApplication(
     if (relay.handles(pathname)) return relay.fetch(request);
     if (billing.handles(pathname)) return billing.fetch(request);
     if (managed.handles(pathname)) return managed.fetch(request);
+
+    if (pathname === "/install" || pathname === "/download") {
+      if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
+      if (!config.distribution.macosEnabled || !config.distribution.macosUrl || !config.distribution.macosSha256) {
+        const unavailable = json({
+          error: "The signed and notarized Mac installer is not published yet.",
+        }, 503);
+        const headers = new Headers(unavailable.headers);
+        headers.set("cache-control", "no-store");
+        headers.set("x-tohseno-install-status", "not-published");
+        return headResponse(new Response(unavailable.body, {
+          status: unavailable.status,
+          statusText: unavailable.statusText,
+          headers,
+        }), method);
+      }
+      const installer = renderNativeMacInstaller(
+        config.distribution.macosUrl,
+        config.distribution.macosSha256,
+      );
+      return headResponse(withSecurityHeaders(new Response(installer, {
+        headers: {
+          "content-type": "text/x-shellscript; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-tohseno-install-command": "curl -fsSL https://tohseno.com/install | sh",
+          "x-tohseno-source": PRODUCT.repositoryUrl,
+        },
+      })), method);
+    }
 
     if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();

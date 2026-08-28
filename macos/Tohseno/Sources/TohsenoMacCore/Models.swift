@@ -275,6 +275,67 @@ public struct ManagedCheckout: Codable, Equatable, Sendable {
     public let checkoutURL: String
 }
 
+public struct BuilderIdentityView: Codable, Equatable, Sendable {
+    public let builderID: String
+    public let chainID: UInt64
+    public let accountAddress: String
+    public let identityGeneration: String
+    public let scope: String
+    public let authorityStatus: String
+    public let deploymentStatus: String
+    public let deviceKeyID: String
+    public let securityLevel: String
+    public let testOnly: Bool
+}
+
+public struct RegistryNetworkStatus: Codable, Equatable, Sendable {
+    public let schema: String
+    public let productVersion: String
+    public let activeGeneration: String
+    public let ready: Bool
+    public let rpcChecked: Bool
+    public let publicAuthorityAvailable: Bool
+    public let reason: String
+}
+
+public struct LocalRegistryRecord: Codable, Equatable, Identifiable, Sendable {
+    public let schema: String
+    public let appName: String
+    public let shotID: String
+    public let localHead: String
+    public let localSequence: UInt64
+    public let localState: String
+    public let localVerified: Bool
+    public let activeGeneration: String
+    public let publicChecked: Bool
+    public let publicAuthorityAvailable: Bool
+    public let reason: String
+
+    public var id: String { shotID }
+}
+
+public struct RegistrySnapshot: Equatable, Sendable {
+    public let builder: BuilderIdentityView
+    public let network: RegistryNetworkStatus
+    public let records: [LocalRegistryRecord]
+
+    public init(
+        builder: BuilderIdentityView,
+        network: RegistryNetworkStatus,
+        records: [LocalRegistryRecord]
+    ) {
+        self.builder = builder
+        self.network = network
+        self.records = records.sorted {
+            ($0.appName, $0.shotID) < ($1.appName, $1.shotID)
+        }
+    }
+
+    public var acceptedVersionCount: UInt64 {
+        records.reduce(0) { $0 + $1.localSequence }
+    }
+}
+
 public struct CommandReceipt: Codable, Equatable, Sendable {
     public let schema: String
     public let commandID: String

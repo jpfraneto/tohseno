@@ -9,13 +9,15 @@ source lives in an ordinary Git repository that belongs to you and can continue
 without TOHSENO.
 
 The current transition, governed by
-[`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md), makes a
-native SwiftUI Mac application the primary product over the same Rust factory.
+[`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
+[`ADR 0026`](docs/adr/0026-keyboard-first-local-registry-and-native-installer.md),
+makes a native SwiftUI Mac application the primary product over the same Rust factory.
 It removes npm/browser first run, mandatory Companion setup, successful-day
 qualification, and subscription gating of local/BYO execution. The local 1.0.2
 candidate now has Developer ID signing and Apple notarization evidence, but it
-is not yet clean-Mac/physical-device accepted, published, or the current public
-download; [`docs/STATE.md`](docs/STATE.md) records that boundary.
+is not yet independently clean-Mac accepted, published, or the current public
+download. One physical-iPhone birth and evolution has passed;
+[`docs/STATE.md`](docs/STATE.md) records the exact boundary.
 
 When using the app teaches you something, describe what should change. TOHSENO
 evolves the same project and installs the new version on your phone.
@@ -47,6 +49,10 @@ at a time, describe a deliberately small app, and press **Create App**. The app
 restores admitted work across window closure and service restart. When the
 deterministic gates pass, it installs and launches the result directly on the
 connected iPhone. After using it, open the same app and describe the change.
+Plain Return sends from every intention composer; Shift–Return adds a line.
+The optional Registry tab shows verified local Shots and the identity that
+accepted them while explicitly separating that private track record from the
+not-yet-connected public Registry.
 
 Advanced settings detect supported subscription-backed coding tools, allow a
 bounded custom executable, or configure an explicitly consented loopback
@@ -58,6 +64,16 @@ trial, qualification, or creation-balance gate.
 The signed/notarized DMG is deliberately not claimed as published yet. Release
 activation requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
+After that activation, the normal installer command will be:
+
+```sh
+curl -fsSL https://tohseno.com/install | sh
+```
+
+That endpoint currently fails closed rather than serving an unactivated
+artifact. It explains the operation, waits for Return, verifies the exact DMG
+digest and Apple identity, installs without administrator access, and opens
+the app. It requires no npm, Node, Bun, or Homebrew.
 Developers can build the unsigned universal bundle with:
 
 ```bash
@@ -148,6 +164,7 @@ More detail:
 - [App → Intent → App decision](docs/adr/0016-app-intent-app-on-your-iphone.md)
 - [Bounded build lifecycle](docs/adr/0019-bounded-intent-to-usable-app.md)
 - [Native Mac product and managed balance](docs/adr/0025-native-macos-app-factory-managed-balance.md)
+- [Keyboard-first Registry and native installer](docs/adr/0026-keyboard-first-local-registry-and-native-installer.md)
 - [Native distribution runbook](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md)
 - [Managed-compute runbook](docs/runbooks/MANAGED_COMPUTE.md)
 - [Privacy boundary](docs/PRIVACY.md)

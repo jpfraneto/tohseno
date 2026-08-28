@@ -25,6 +25,7 @@ public protocol FactoryServing: Sendable {
     func managedCatalog() async throws -> ManagedCatalog
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate
     func managedCheckout(packID: String) async throws -> ManagedCheckout
+    func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot
     func performReadinessAction(_ action: String) async throws -> ReadinessView
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt
@@ -116,6 +117,28 @@ public actor LoopbackFactoryClient: FactoryServing {
             method: "POST",
             body: ManagedCheckoutBody(packID: packID)
         )
+    }
+
+    public func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot {
+        guard appNames.count <= 1_000 else {
+            throw FactoryClientError.invalidConfiguration("The local Registry app list is too large.")
+        }
+        let builder: BuilderIdentityView = try await helperJSON([
+            "--json", "advanced", "identity", "show",
+        ])
+        let network: RegistryNetworkStatus = try await helperJSON([
+            "--json", "advanced", "network", "status",
+        ])
+        var records: [LocalRegistryRecord] = []
+        records.reserveCapacity(appNames.count)
+        for name in appNames.sorted() {
+            try validateToken(name, label: "app name")
+            let record: LocalRegistryRecord = try await helperJSON([
+                "--json", "advanced", "registry", "show", "--", name,
+            ])
+            records.append(record)
+        }
+        return RegistrySnapshot(builder: builder, network: network, records: records)
     }
 
     public func performReadinessAction(_ action: String) async throws -> ReadinessView {
@@ -556,6 +579,51 @@ public actor LoopbackFactoryClient: FactoryServing {
         }.value
     }
 
+    private func helperJSON<Response: Decodable & Sendable>(
+        _ arguments: [String]
+    ) async throws -> Response {
+        let helperOverride = self.helperOverride
+        return try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = try Self.registryHelperURL(helperOverride)
+            process.arguments = arguments
+            process.standardInput = FileHandle.nullDevice
+            let output = Pipe()
+            let errors = Pipe()
+            process.standardOutput = output
+            process.standardError = errors
+            do { try process.run() }
+            catch {
+                throw FactoryClientError.invalidConfiguration(
+                    "The bundled local Registry helper could not start."
+                )
+            }
+            async let outputData = output.fileHandleForReading.readDataToEndOfFile()
+            async let errorOutputData = errors.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            let (data, errorData) = await (outputData, errorOutputData)
+            guard process.terminationStatus == 0 else {
+                let detail = String(
+                    data: errorData.prefix(2_048), encoding: .utf8
+                )?.trimmingCharacters(in: .whitespacesAndNewlines)
+                throw FactoryClientError.transport(
+                    detail?.nilIfEmpty ?? "The local Registry inspection did not complete."
+                )
+            }
+            guard !data.isEmpty, data.count <= 4 * 1024 * 1024 else {
+                throw FactoryClientError.invalidResponse(
+                    "The local Registry inspection returned invalid data."
+                )
+            }
+            do { return try JSONDecoder.tohseno.decode(Response.self, from: data) }
+            catch {
+                throw FactoryClientError.invalidResponse(
+                    "The local Registry inspection returned an invalid response."
+                )
+            }
+        }.value
+    }
+
     private static func helperURL(_ override: URL?) throws -> URL {
         if let override { return try validatedHelper(override) }
         if let configured = ProcessInfo.processInfo.environment["TOHSENO_NATIVE_HELPER"] {
@@ -565,6 +633,20 @@ public actor LoopbackFactoryClient: FactoryServing {
             Bundle.main.bundleURL
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("Helpers", isDirectory: true)
+                .appendingPathComponent("tohseno", isDirectory: false)
+        )
+    }
+
+    private static func registryHelperURL(_ override: URL?) throws -> URL {
+        if override != nil || ProcessInfo.processInfo.environment["TOHSENO_NATIVE_HELPER"] != nil {
+            return try helperURL(override)
+        }
+        return try validatedHelper(
+            Bundle.main.bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent("FactoryRelease", isDirectory: true)
+                .appendingPathComponent("bin", isDirectory: true)
                 .appendingPathComponent("tohseno", isDirectory: false)
         )
     }

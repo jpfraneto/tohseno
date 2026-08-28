@@ -11,6 +11,7 @@ public enum ReferenceTarget: Sendable {
 
 public enum AppRoute: Hashable, Sendable {
     case library
+    case registry
     case create
     case app(String)
 }
@@ -25,18 +26,22 @@ public final class TohsenoAppModel {
     public private(set) var managedStatus: ManagedStatus?
     public private(set) var managedBalance: ManagedBalance?
     public private(set) var managedCatalog: ManagedCatalog?
+    public private(set) var registrySnapshot: RegistrySnapshot?
     public private(set) var creationEstimate: ManagedEstimate?
     public private(set) var evolutionEstimates: [String: ManagedEstimate] = [:]
     public private(set) var icons: [String: Data] = [:]
     public private(set) var previews: [String: Data] = [:]
     public private(set) var managedMessage: String?
+    public private(set) var registryMessage: String?
     public private(set) var isLoading = true
+    public private(set) var isLoadingRegistry = false
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
     public var route: AppRoute = .library {
         didSet { persistRoute() }
     }
     public var creation = CreationDraft()
+    public var quickShotIntention = ""
     public var evolutions: [String: EvolutionDraft] = [:]
     public var customHarness = CustomHarnessDraft()
     public var localEndpoint = LocalEndpointDraft()
@@ -145,6 +150,23 @@ public final class TohsenoAppModel {
             managedBalance = nil
             managedCatalog = nil
             managedMessage = error.localizedDescription
+        }
+    }
+
+    public func refreshRegistry() async {
+        guard !isLoadingRegistry else { return }
+        isLoadingRegistry = true
+        defer { isLoadingRegistry = false }
+        do {
+            registrySnapshot = try await client.registrySnapshot(
+                appNames: apps.compactMap { app in
+                    app.latestVersionID == nil ? nil : app.displayName
+                }
+            )
+            registryMessage = nil
+        } catch {
+            registrySnapshot = nil
+            registryMessage = error.localizedDescription
         }
     }
 
@@ -262,6 +284,28 @@ public final class TohsenoAppModel {
         do {
             let receipt = try await client.create(creation, commandID: Self.commandID())
             creation = CreationDraft()
+            route = .app(receipt.shotID)
+            await reloadWorkspace()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func submitQuickShot() async {
+        guard !isSubmitting else { return }
+        let intention = quickShotIntention.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !intention.isEmpty else {
+            errorMessage = "Describe the new app you want to make."
+            return
+        }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let receipt = try await client.create(
+                CreationDraft(intention: intention),
+                commandID: Self.commandID()
+            )
+            quickShotIntention = ""
             route = .app(receipt.shotID)
             await reloadWorkspace()
         } catch {
@@ -518,14 +562,27 @@ public final class TohsenoAppModel {
     private func restoreRoute() {
         if let id = preferences.string(forKey: "tohseno.selected-app-id") {
             route = .app(id)
+        } else if preferences.string(forKey: "tohseno.selected-route") == "registry" {
+            route = .registry
+        } else if preferences.string(forKey: "tohseno.selected-route") == "create" {
+            route = .create
         }
     }
 
     private func persistRoute() {
-        if case let .app(id) = route {
+        switch route {
+        case let .app(id):
             preferences.set(id, forKey: "tohseno.selected-app-id")
-        } else {
+            preferences.set("app", forKey: "tohseno.selected-route")
+        case .registry:
             preferences.removeObject(forKey: "tohseno.selected-app-id")
+            preferences.set("registry", forKey: "tohseno.selected-route")
+        case .create:
+            preferences.removeObject(forKey: "tohseno.selected-app-id")
+            preferences.set("create", forKey: "tohseno.selected-route")
+        case .library:
+            preferences.removeObject(forKey: "tohseno.selected-app-id")
+            preferences.removeObject(forKey: "tohseno.selected-route")
         }
     }
 

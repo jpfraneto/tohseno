@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080908">
+  <meta name="theme-color" content="#f7f0e7">
   <meta name="description" content="Describe a small app. Your Mac builds it and puts it on your iPhone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
@@ -31,37 +31,40 @@
       <span>TOHSENO</span>
     </a>
     <nav aria-label="Primary navigation">
-      <a href="#method">METHOD</a>
-      <a href="#ownership">OWNERSHIP</a>
-      <a href="#open-source">OPEN SOURCE</a>
-      <a href="/whitepaper.pdf" target="_blank" rel="noopener">WHITEPAPER <span aria-hidden="true">↗</span></a>
+      <a href="#method">Method</a>
+      <a href="#ownership">Ownership</a>
+      <a href="#open-source">Open source</a>
+      <a href="/whitepaper.pdf" target="_blank" rel="noopener">Whitepaper <span aria-hidden="true">↗</span></a>
     </nav>
   </header>
 
   <main id="main">
     <section class="hero frame" id="top">
-      <p class="eyebrow"><span aria-hidden="true">●</span> OPEN-SOURCE FACTORY FOR NATIVE iOS APPS</p>
-      <h1>MAKE THE<br>iPHONE APP<br><em>THAT SHOULD EXIST.</em></h1>
+      <p class="eyebrow"><span aria-hidden="true">●</span> Open-source factory for native iOS apps</p>
+      <h1>Make the<br>iPhone app<br><em>that should exist.</em></h1>
       <div class="hero-bottom">
         <p class="lede">One coherent intention becomes a native application you can hold, use, evolve, and completely own.</p>
-        <a class="install" href="/download/macos" aria-label="Download TOHSENO for Mac">
-          <span class="prompt" aria-hidden="true">↓</span>
-          <strong>DOWNLOAD FOR MAC</strong>
-          <span class="copy-mark">macOS 14+</span>
-        </a>
+        <div class="installer-door">
+          <button class="install" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh" aria-label="Copy the TOHSENO installer command">
+            <span class="prompt" aria-hidden="true">$</span>
+            <code data-install-text>curl -fsSL https://tohseno.com/install | sh</code>
+            <span class="copy-mark" data-copy-label>Copy</span>
+          </button>
+          <p>Copy, paste into Terminal, and press Return. The installer shows you the source and exact download before asking permission.</p>
+        </div>
       </div>
       <div class="hero-stamp" aria-hidden="true"><img src="/tohseno-logo.png" alt=""></div>
     </section>
 
-    <section class="ticker orange-band manifesto" aria-label="Manifesto">
+    <section class="ticker orange-band manifesto" aria-label="A small manifesto">
       <div class="ticker-track">
         <div class="ticker-group">
-          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span aria-hidden="true">✳</span>
-          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span aria-hidden="true">✳</span>
+          <span>Reality is now close enough to answer.</span><span aria-hidden="true">✳</span>
+          <span>Personal software is allowed to be personal.</span>
         </div>
         <div class="ticker-group" aria-hidden="true">
-          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span>✳</span>
-          <span>REALITY IS NOW CHEAP ENOUGH TO ANSWER.</span><span>✳</span>
+          <span>Reality is now close enough to answer.</span><span>✳</span>
+          <span>Personal software is allowed to be personal.</span>
         </div>
       </div>
     </section>
@@ -69,7 +72,7 @@
     <section class="permission frame bone">
       <p class="section-no">[ 001 / PERMISSION ]</p>
       <div>
-        <h2>YOUR IDEA DOES NOT NEED TO BECOME A STARTUP BEFORE IT IS ALLOWED TO BECOME REAL.</h2>
+        <h2>Your idea does not need to become a startup before it is allowed to become real.</h2>
         <p>It does not need a business plan. It does not need a market. It does not need permission. It needs one honest encounter with reality.</p>
       </div>
     </section>
@@ -77,21 +80,21 @@
     <section class="method frame" id="method">
       <div class="section-head">
         <p>[ 002 / CREATE AN APP ]</p>
-        <h2>ONE INTENTION.<br>ONE REAL ATTEMPT.</h2>
+        <h2>One intention.<br>One real attempt.</h2>
       </div>
       <div class="shot-flow">
         <article>
-          <span>01 — INTENTION</span>
+          <span>01 — Intention</span>
           <p>“I want an app that helps me stop smoking for 21 days.”</p>
         </article>
         <div class="flow-arrow" aria-hidden="true">→</div>
         <article class="inverted">
           <span>02 — TOHSENO</span>
-          <div class="terminal-lines"><b>■</b> BOUND FIRST FORM<br><b>■</b> BUILD NATIVE SWIFTUI<br><b>■</b> VERIFY ON MAC<br><b>■</b> INSTALL ON iPHONE</div>
+          <div class="terminal-lines"><b>●</b> Hold the first form<br><b>●</b> Build native SwiftUI<br><b>●</b> Verify on your Mac<br><b>●</b> Install on your iPhone</div>
         </article>
         <div class="flow-arrow" aria-hidden="true">→</div>
         <article>
-          <span>03 — CONTACT</span>
+          <span>03 — Contact</span>
           <p>Use it with your own hands. Let the original idea lose its immunity from reality.</p>
         </article>
       </div>
@@ -101,7 +104,7 @@
     <section class="contact-sheet frame bone">
       <div class="section-head">
         <p>[ 003 / PERSONAL SOFTWARE ]</p>
-        <h2>MAKE SOFTWARE<br>FOR YOUR ACTUAL LIFE.</h2>
+        <h2>Make software<br>for your actual life.</h2>
       </div>
       <div class="shot-grid">
         <article><span>01 / BREATHWORK FACILITATOR</span><div class="mini-app"><img src="/app-breathekeeper.png" alt="Breathekeeper app icon"></div><h3>BREATHEKEEPER</h3><p>“Guide a room through timed breath journeys without touching my phone.”</p></article>
@@ -111,21 +114,21 @@
         <article><span>05 / TATTOO ARTIST</span><div class="mini-app"><img src="/app-ink-memory.png" alt="Ink Memory app icon"></div><h3>INK MEMORY</h3><p>“Photograph every healed tattoo and remember the ink recipe.”</p></article>
         <article><span>06 / TOURING MUSICIAN</span><div class="mini-app"><img src="/app-room-tone.png" alt="Room Tone app icon"></div><h3>ROOM TONE</h3><p>“Remember what every venue sounded like before tonight’s soundcheck.”</p></article>
       </div>
-      <p class="permission-line">YOU ARE ALLOWED TO MAKE SOFTWARE THAT ONLY YOU USE.</p>
+      <p class="permission-line">You are allowed to make software that only you use.</p>
     </section>
 
     <section class="ownership frame" id="ownership">
       <p class="section-no">[ 004 / OWNERSHIP ]</p>
-      <h2>THE FACTORY IS<br>A MIDWIFE.<br><em>NOT A LANDLORD.</em></h2>
+      <h2>The factory is<br>a midwife.<br><em>Not a landlord.</em></h2>
       <div class="ownership-grid">
-        <p class="big-rule">TOHSENO CAN DISAPPEAR.<br>YOUR APP MUST CONTINUE.</p>
+        <p class="big-rule">TOHSENO can disappear.<br>Your app must continue.</p>
         <ul>
-          <li><span>01</span> ORDINARY SWIFTUI + XCODE</li>
-          <li><span>02</span> ONE REPOSITORY PER APPLICATION</li>
-          <li><span>03</span> NO PROPRIETARY RUNTIME</li>
-          <li><span>04</span> NO TOHSENO ACCOUNT REQUIRED</li>
-          <li><span>05</span> CONTINUE WITH ANY MODEL — OR NONE</li>
-          <li><span>06</span> PUBLISH WHEN YOU CHOOSE</li>
+          <li><span>01</span> Ordinary SwiftUI + Xcode</li>
+          <li><span>02</span> One repository per application</li>
+          <li><span>03</span> No proprietary runtime</li>
+          <li><span>04</span> No TOHSENO account required</li>
+          <li><span>05</span> Continue with any model — or none</li>
+          <li><span>06</span> Publish when you choose</li>
         </ul>
       </div>
     </section>
@@ -133,10 +136,10 @@
     <section class="open-source frame bone" id="open-source">
       <p class="section-no">[ 005 / OPEN SOURCE ]</p>
       <div class="open-source-grid">
-        <h2>THE FACTORY<br>IS OPEN.<br>THE APP<br>IS YOURS.</h2>
+        <h2>The factory<br>is open.<br>The app<br>is yours.</h2>
         <div class="open-source-copy">
           <p>TOHSENO is open source. You can inspect how it works, run the factory locally, and change it. Every app it creates is an ordinary SwiftUI project in its own Git repository. You decide whether to keep that app private or publish it.</p>
-          <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">VIEW SOURCE ON GITHUB <span aria-hidden="true">↗</span></a>
+          <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">View source on GitHub <span aria-hidden="true">↗</span></a>
         </div>
       </div>
     </section>
@@ -144,23 +147,23 @@
     <section class="steps frame orange-block">
       <div class="section-head">
         <p>[ 006 / BEGIN ]</p>
-        <h2>FROM ZERO<br>TO YOUR PHONE.</h2>
+        <h2>From zero<br>to your phone.</h2>
       </div>
       <ol>
         <li>
           <b>01</b>
-          <h3>INSTALL</h3>
-          <a class="step-download" href="/download/macos"><strong>DOWNLOAD FOR MAC</strong><span>macOS 14+</span></a>
+          <h3>Install</h3>
+          <button class="step-download" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh"><strong data-install-text>curl -fsSL https://tohseno.com/install | sh</strong><span data-copy-label>Copy</span></button>
         </li>
-        <li><b>02</b><h3>CONNECT</h3><p>Plug your iPhone into your Mac. Tohseno guides you through Xcode, signing, and Developer Mode.</p></li>
-        <li><b>03</b><h3>CREATE AN APP</h3><p>Describe what should exist. TOHSENO keeps working if you close the browser or Terminal and opens the result on your phone.</p></li>
+        <li><b>02</b><h3>Connect</h3><p>Plug your iPhone into your Mac. TOHSENO guides you through Xcode, signing, and Developer Mode.</p></li>
+        <li><b>03</b><h3>Create an app</h3><p>Describe what should exist. TOHSENO keeps working when its window closes and opens the result on your phone.</p></li>
       </ol>
     </section>
 
     <section class="permission frame bone" id="before-install">
       <p class="section-no">[ 007 / BEFORE YOU INSTALL ]</p>
       <div>
-        <h2>ONE MAC APP. CLEAR CHOICES.</h2>
+        <h2>One Mac app. Clear choices.</h2>
         <p>You need macOS 14 or later, Xcode, and an iPhone for phone installation. A free Apple Personal Team works for personal-device signing.</p>
         <p>Bring a supported model subscription, connect an explicit local model endpoint, or approve a capped use of managed intelligence from a prepaid balance. Local creation stays available without a TOHSENO subscription. Your app, source repository, and installed result remain yours.</p>
       </div>
@@ -169,27 +172,34 @@
     <section class="chain frame bone">
       <div class="section-head">
         <p>[ 008 / PUBLIC REGISTRY ]</p>
-        <h2>LOCAL CREATION.<br>PUBLICATION IS NEXT.</h2>
+        <h2>Local creation.<br>Publication is next.</h2>
       </div>
       <p class="chain-copy">Every app belongs to its builder. The active contract generation is infrastructure, not a downloadable catalog: source hosting, publication, discovery, and forking are not available yet.</p>
-      <div class="chain-path"><span>MAC FACTORY</span><b aria-hidden="true">→</b><span>OWNED REPOSITORY</span><b aria-hidden="true">→</b><span>REVIEWED PUBLICATION</span></div>
+      <div class="chain-path"><span>Mac factory</span><b aria-hidden="true">→</b><span>Owned repository</span><b aria-hidden="true">→</b><span>Reviewed publication</span></div>
     </section>
   </main>
 
   <footer class="frame">
-    <div class="footer-logo"><img src="/tohseno-logo.png" alt="TOHSENO brush circle"><h2>WHAT SHOULD<br>EXIST?</h2></div>
-    <a class="install giant" href="/download/macos" aria-label="Download TOHSENO for Mac">
-      <span class="prompt" aria-hidden="true">↓</span><strong>DOWNLOAD FOR MAC</strong><span>macOS 14+</span>
-    </a>
+    <div class="footer-logo"><img src="/tohseno-logo.png" alt="TOHSENO brush circle"><h2>What should<br>exist?</h2></div>
+    <div class="installer-door footer-installer">
+      <button class="install giant" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh" aria-label="Copy the TOHSENO installer command">
+        <span class="prompt" aria-hidden="true">$</span><code data-install-text>curl -fsSL https://tohseno.com/install | sh</code><span data-copy-label>Copy</span>
+      </button>
+      <p>Paste it into Terminal. Read the source, confirm the signed download, press Return, and TOHSENO opens.</p>
+      <a class="direct-download" href="/download/macos">Or download the notarized DMG directly</a>
+    </div>
     <div class="footer-links">
-      <span>MAKE THE APP THAT SHOULD EXIST. USE IT. THEN MAKE IT BETTER.</span>
+      <span>Make the app that should exist. Use it. Then make it better.</span>
       <div>
-        <a href="#open-source">OPEN SOURCE</a>
-        <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">COMMUNITY <span aria-hidden="true">↗</span></a>
-        <a href="/whitepaper.pdf" target="_blank" rel="noopener">WHITEPAPER <span aria-hidden="true">↗</span></a>
+        <a href="#open-source">Open source</a>
+        <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community <span aria-hidden="true">↗</span></a>
+        <a href="/whitepaper.pdf" target="_blank" rel="noopener">Whitepaper <span aria-hidden="true">↗</span></a>
       </div>
     </div>
   </footer>
+
+  <p class="copy-status" role="status" aria-live="polite"></p>
+  <script src="/landing.js" defer></script>
 
 </body>
 </html>

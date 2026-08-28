@@ -21,6 +21,14 @@ protocol material, not free-form docs.
    and Bankr behind explicit consent and a hard reservation. ADR 0025 changes
    no public protocol encoding and authorizes no external billing, Bankr,
    signing, notarization, or release activation.
+   ADR 0026 governs the keyboard-first native creation surface, the optional
+   truthful local Registry/Builder track-record destination, and the
+   fail-closed one-line native installer. Plain Return sends from a focused
+   intention composer while Shift-Return inserts a line. The Registry may show
+   verified local Shot heads and local/test-only identity status, but it must
+   not imply public Builder authority or publication when registry RPC is not
+   implemented. `/install` and `/download` remain unavailable until the exact
+   immutable notarized DMG URL and SHA-256 are activated.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

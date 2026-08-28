@@ -36,6 +36,11 @@ public struct TohsenoRootView: View {
     private var factory: some View {
         NavigationSplitView {
             List(selection: routeBinding) {
+                Section {
+                    Label("Registry", systemImage: "point.3.connected.trianglepath.dotted")
+                        .tag(AppRoute.registry)
+                        .accessibilityIdentifier("registry.sidebar")
+                }
                 Section("Your Apps") {
                     ForEach(model.apps) { app in
                         Label {
@@ -75,6 +80,8 @@ public struct TohsenoRootView: View {
             switch model.route {
             case .library:
                 LibraryEmptyView { model.route = .create }
+            case .registry:
+                RegistryView(model: model)
             case .create:
                 CreationView(model: model)
             case .app:
@@ -124,6 +131,227 @@ private struct LibraryEmptyView: View {
     }
 }
 
+private struct RegistryView: View {
+    @Bindable var model: TohsenoAppModel
+    @FocusState private var quickShotFocused: Bool
+
+    private var canSubmitQuickShot: Bool {
+        !model.isSubmitting &&
+            !model.quickShotIntention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Registry").font(.largeTitle.bold())
+                    Text("Your verified local track record. Nothing on this screen is published publicly.")
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+
+                quickShotComposer
+
+                if model.isLoadingRegistry, model.registrySnapshot == nil {
+                    HStack(spacing: 10) {
+                        TohsenoSpinner(size: 20)
+                        Text("Verifying your local Registry…")
+                            .foregroundStyle(TohsenoTheme.silver)
+                    }
+                } else if let snapshot = model.registrySnapshot {
+                    builders(snapshot)
+                    network(snapshot.network)
+                    shots(snapshot.records)
+                } else {
+                    ContentUnavailableView {
+                        Label("Registry unavailable", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(model.registryMessage ?? "The local Registry could not be inspected.")
+                    } actions: {
+                        Button("Try Again") { Task { await model.refreshRegistry() } }
+                    }
+                }
+            }
+            .frame(maxWidth: 900, alignment: .leading)
+            .padding(40)
+        }
+        .background(TohsenoTheme.void)
+        .task {
+            await model.refreshRegistry()
+            quickShotFocused = true
+        }
+    }
+
+    private var quickShotComposer: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("New Shot").font(.title2.weight(.semibold))
+                Spacer()
+                ShotKeyboardHint()
+            }
+            TextField(
+                "Describe a new app…",
+                text: $model.quickShotIntention,
+                axis: .vertical
+            )
+            .lineLimit(1...5)
+            .textFieldStyle(.plain)
+            .font(.body)
+            .padding(13)
+            .background(TohsenoTheme.carbon)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(TohsenoTheme.iron))
+            .focused($quickShotFocused)
+            .shotSubmitOnReturn(enabled: canSubmitQuickShot) {
+                Task { await model.submitQuickShot() }
+            }
+            .accessibilityLabel("Describe a new app")
+            .accessibilityIdentifier("registry.quick.intention")
+            HStack {
+                Text("Uses your automatic intelligence route. Create App adds names, references, and advanced choices.")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+                Spacer()
+                Button {
+                    Task { await model.submitQuickShot() }
+                } label: {
+                    HStack(spacing: 7) {
+                        if model.isSubmitting {
+                            TohsenoSpinner(
+                                size: 14,
+                                stroke: TohsenoTheme.void,
+                                gap: TohsenoTheme.amber
+                            )
+                        }
+                        Text(model.isSubmitting ? "Sending…" : "Send Shot")
+                    }
+                }
+                .buttonStyle(PrimaryActionStyle())
+                .disabled(!canSubmitQuickShot)
+                .keyboardShortcut(.return, modifiers: [])
+                .accessibilityIdentifier("registry.quick.submit")
+            }
+        }
+        .padding(18)
+        .background(TohsenoTheme.graphite)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func builders(_ snapshot: RegistrySnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Builders").font(.title2.weight(.semibold))
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(alignment: .top, spacing: 13) {
+                    TohsenoMark().frame(width: 38, height: 38)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("This Mac").font(.headline)
+                        Text(compact(snapshot.builder.builderID))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(TohsenoTheme.silver)
+                    }
+                    Spacer()
+                    Label("Local only", systemImage: "lock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(TohsenoTheme.amber)
+                }
+                Divider().overlay(TohsenoTheme.iron)
+                HStack(spacing: 28) {
+                    RegistryMetric(value: "\(snapshot.records.count)", label: "verified Shots")
+                    RegistryMetric(value: "\(snapshot.acceptedVersionCount)", label: "accepted versions")
+                    RegistryMetric(value: snapshot.network.activeGeneration, label: "active generation")
+                }
+                Text("This is the existing legacy local DeviceKey track record, not a public Builder authority.")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            .padding(18)
+            .background(TohsenoTheme.graphite)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .accessibilityIdentifier("registry.builder")
+        }
+    }
+
+    private func network(_ status: RegistryNetworkStatus) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: status.rpcChecked ? "network" : "network.slash")
+                .font(.title2)
+                .foregroundStyle(TohsenoTheme.amber)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Public Registry").font(.headline)
+                Text(status.rpcChecked ? "Public witness checked" : "Not connected")
+                    .foregroundStyle(TohsenoTheme.silver)
+                Text(status.reason)
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            Spacer()
+        }
+        .padding(18)
+        .background(TohsenoTheme.carbon)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("registry.public-status")
+    }
+
+    private func shots(_ records: [LocalRegistryRecord]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Shots").font(.title2.weight(.semibold))
+            if records.isEmpty {
+                Text("Your first accepted app will appear here.")
+                    .foregroundStyle(TohsenoTheme.silver)
+            } else {
+                ForEach(records) { record in
+                    HStack(spacing: 13) {
+                        if let app = model.apps.first(where: { $0.id == record.shotID }) {
+                            AppArtwork(data: model.icons[app.id], size: 42, cornerRadius: 9)
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(record.appName).font(.headline)
+                            HStack(spacing: 8) {
+                                Label(
+                                    record.localVerified ? "Verified locally" : "Unverified",
+                                    systemImage: record.localVerified ? "checkmark.seal.fill" : "xmark.seal"
+                                )
+                                Text("Version \(record.localSequence)")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(TohsenoTheme.silver)
+                        }
+                        Spacer()
+                        Text("Private")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(TohsenoTheme.amber)
+                        Button("Open") {
+                            if let app = model.apps.first(where: { $0.id == record.shotID }) {
+                                model.route = .app(app.id)
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(TohsenoTheme.graphite)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .accessibilityIdentifier("registry.record.\(record.shotID)")
+                }
+            }
+        }
+    }
+
+    private func compact(_ value: String) -> String {
+        guard value.count > 30 else { return value }
+        return "\(value.prefix(20))…\(value.suffix(8))"
+    }
+}
+
+private struct RegistryMetric: View {
+    let value: String
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.title3.weight(.semibold))
+            Text(label).font(.caption).foregroundStyle(TohsenoTheme.silver)
+        }
+    }
+}
+
 private struct ReadinessScreen: View {
     let model: TohsenoAppModel
     let readiness: ReadinessView
@@ -162,6 +390,12 @@ private struct ReadinessScreen: View {
 private struct CreationView: View {
     @Bindable var model: TohsenoAppModel
     @State private var choosingReferences = false
+    @FocusState private var intentionFocused: Bool
+
+    private var canSubmit: Bool {
+        !model.isSubmitting &&
+            !model.creation.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         ScrollView {
@@ -176,6 +410,10 @@ private struct CreationView: View {
                     .frame(minHeight: 180)
                     .background(TohsenoTheme.carbon)
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(TohsenoTheme.iron))
+                    .focused($intentionFocused)
+                    .shotSubmitOnReturn(enabled: canSubmit) {
+                        Task { await model.submitCreation() }
+                    }
                     .accessibilityLabel("What would make your life easier?")
                     .accessibilityIdentifier("creation.intention")
                 TextField("Optional app name", text: $model.creation.name)
@@ -202,6 +440,7 @@ private struct CreationView: View {
                 .task(id: creationEstimateKey) { await model.estimateCreation() }
                 HStack {
                     RouteCostView(model: model, harness: model.creation.harness, estimate: model.creationEstimate)
+                    ShotKeyboardHint()
                     Spacer()
                     Button {
                         Task { await model.submitCreation() }
@@ -218,8 +457,8 @@ private struct CreationView: View {
                         }
                     }
                     .buttonStyle(PrimaryActionStyle())
-                    .disabled(model.isSubmitting || model.creation.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .keyboardShortcut(.return, modifiers: [.command])
+                    .disabled(!canSubmit)
+                    .keyboardShortcut(.return, modifiers: [])
                     .accessibilityIdentifier("creation.submit")
                 }
             }
@@ -234,6 +473,7 @@ private struct CreationView: View {
             model.addReferences(.success(urls), to: .creation)
             return !urls.isEmpty
         }
+        .task { intentionFocused = true }
     }
 
     private var creationEstimateKey: String {
@@ -253,12 +493,18 @@ private struct AppDetailView: View {
     @State private var choosingReferences = false
     @State private var showingDetails = false
     @State private var confirmingRetire = false
+    @FocusState private var intentionFocused: Bool
 
     private var draft: Binding<EvolutionDraft> {
         Binding(
             get: { model.evolutions[app.id] ?? EvolutionDraft() },
             set: { model.evolutions[app.id] = $0 }
         )
+    }
+
+    private var canSubmit: Bool {
+        !model.isSubmitting && app.latestVersionID != nil &&
+            !draft.wrappedValue.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -305,6 +551,10 @@ private struct AppDetailView: View {
                     .frame(minHeight: 130)
                     .background(TohsenoTheme.carbon)
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(TohsenoTheme.iron))
+                    .focused($intentionFocused)
+                    .shotSubmitOnReturn(enabled: canSubmit) {
+                        Task { await model.submitEvolution(for: app) }
+                    }
                     .accessibilityIdentifier("evolution.intention")
                 ReferenceStrip(references: draft.wrappedValue.references) { _, id in
                     draft.wrappedValue.references.removeAll { $0.id == id }
@@ -323,6 +573,7 @@ private struct AppDetailView: View {
                 .task(id: evolutionEstimateKey) { await model.estimateEvolution(for: app) }
                 HStack {
                     RouteCostView(model: model, harness: draft.wrappedValue.harness, estimate: model.evolutionEstimates[app.id])
+                    ShotKeyboardHint()
                     Spacer()
                     Button {
                         Task { await model.submitEvolution(for: app) }
@@ -339,8 +590,8 @@ private struct AppDetailView: View {
                         }
                     }
                     .buttonStyle(PrimaryActionStyle())
-                    .disabled(model.isSubmitting || draft.wrappedValue.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || app.latestVersionID == nil)
-                    .keyboardShortcut(.return, modifiers: [.command])
+                    .disabled(!canSubmit)
+                    .keyboardShortcut(.return, modifiers: [])
                     .accessibilityIdentifier("evolution.submit")
                 }
                 Divider().overlay(TohsenoTheme.iron)
@@ -367,7 +618,10 @@ private struct AppDetailView: View {
             model.addReferences(.success(urls), to: .evolution(app.id))
             return !urls.isEmpty
         }
-        .task(id: app.id) { await model.prepareEvolution(for: app) }
+        .task(id: app.id) {
+            await model.prepareEvolution(for: app)
+            intentionFocused = true
+        }
         .sheet(isPresented: $showingDetails) { ExecutionDetailsView(receipt: model.receipt, balance: model.managedBalance) }
         .confirmationDialog("Retire \(app.displayName)?", isPresented: $confirmingRetire) {
             Button("Retire App", role: .destructive) { Task { await model.retire(app) } }
@@ -593,6 +847,32 @@ private struct ReferenceStrip: View {
                     }
                 }
             }
+        }
+    }
+}
+
+private struct ShotKeyboardHint: View {
+    var body: some View {
+        Label("Return sends · Shift–Return adds a line", systemImage: "return")
+            .font(.caption)
+            .foregroundStyle(TohsenoTheme.silver)
+            .fixedSize()
+    }
+}
+
+private extension View {
+    func shotSubmitOnReturn(
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        onKeyPress(.return, phases: .down) { press in
+            if press.modifiers.contains(.shift) {
+                return .ignored
+            }
+            if enabled {
+                action()
+            }
+            return .handled
         }
     }
 }
