@@ -66,10 +66,11 @@ macos/Tohseno/Packaging/verify-app.sh dist/native/Tohseno.app unsigned
 (cd website && bun run typecheck && bun test)
 ```
 
-Developer ID signing, notarization/stapling, clean-Mac Gatekeeper acceptance,
-physical-device installation, Stripe test/live webhooks, Bankr live inference,
-and public download activation remain external checks and must be reported as
-unverified until performed.
+Developer ID signing and notarization/stapling were completed for the local
+1.0.2 candidate recorded in `release/V1_0_2_READINESS.json`. Clean-Mac
+Gatekeeper acceptance, physical-device installation, Stripe test/live
+webhooks, Bankr live inference, and public download activation remain external
+checks and must be reported as unverified until performed.
 
 ## Optional Companion evolution path
 

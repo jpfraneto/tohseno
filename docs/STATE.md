@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-27. This is the plain-language
+Written 2026-07-30, amended through 2026-08-28. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -36,11 +36,15 @@ Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-None of that source is external release evidence. The published release below
-remains current until Developer ID signing, notarization/stapling, physical
-device and clean-Mac checks, Stripe test/live setup, Bankr credentials and
-credits, artifact upload, independent digest verification, and explicit owner
-activation produce evidence. Those external actions have not been performed.
+The local 1.0.2 candidate built from commit `ea2135326c7943f099e34e1b165b04e225423723`
+is signed with Developer ID Team `84V63LKV45`, accepted by Apple notarization
+submission `0fd48891-5b33-4325-bde1-104ee1ee8b9f`, stapled, and packaged as a
+locally verified DMG with SHA-256
+`f0da1c860fb24f494eb8d1f28f90276c1bc49a354ba8be5afd8440b33ba7ae90`.
+That is candidate evidence, not publication. Physical-device and clean-Mac
+acceptance, Stripe test/live setup, Bankr credentials and credits, artifact
+upload, independent downloaded-digest verification, and explicit owner
+activation have not been performed.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -376,12 +380,13 @@ delegates to that native release. Publication evidence for the npm patch is in
 
 Native and npm **1.0.2** are the next coherent release candidate in this
 source tree. The new native SwiftUI product and managed-balance implementation
-are source candidate work for that transition. Its legacy workflow accepts
-only `v1.0.2`, and
-`release/V1_0_2_READINESS.json` remains explicitly unauthorized and blocked
-until clean verification, immutable artifacts, exact public manifest bytes,
-npm publication, and website activation are recorded. Source preparation is
-not a claim that 1.0.2 is publicly available.
+have passed the local verification matrix; the native app is Developer ID
+signed, Apple-notarized, stapled, and packaged in the locally verified DMG
+recorded in `release/V1_0_2_READINESS.json`. The readiness record remains
+explicitly unauthorized and blocked until clean-Mac and physical-iPhone
+acceptance, immutable publication, independent download verification, exact
+public manifest bytes, npm publication, and website activation are recorded.
+Candidate evidence is not a claim that 1.0.2 is publicly available.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay

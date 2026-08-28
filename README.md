@@ -12,9 +12,10 @@ The current transition, governed by
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md), makes a
 native SwiftUI Mac application the primary product over the same Rust factory.
 It removes npm/browser first run, mandatory Companion setup, successful-day
-qualification, and subscription gating of local/BYO execution. Source support
-does not yet claim that the native app is signed, notarized, published, or the
-current public download; [`docs/STATE.md`](docs/STATE.md) records that evidence.
+qualification, and subscription gating of local/BYO execution. The local 1.0.2
+candidate now has Developer ID signing and Apple notarization evidence, but it
+is not yet clean-Mac/physical-device accepted, published, or the current public
+download; [`docs/STATE.md`](docs/STATE.md) records that boundary.
 
 When using the app teaches you something, describe what should change. TOHSENO
 evolves the same project and installs the new version on your phone.
