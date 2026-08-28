@@ -302,6 +302,10 @@ public struct ReadinessView: Codable, Equatable, Sendable {
     public let detail: String
     public let primaryAction: String?
     public let primaryLabel: String?
+
+    public var isWorking: Bool {
+        step == "building_readiness" || step == "installing_readiness"
+    }
 }
 
 public struct CustomHarnessDraft: Equatable, Sendable {
@@ -368,8 +372,41 @@ public struct ExecutionRefusal: Codable, Equatable, Sendable {
 extension JSONDecoder {
     static var tohseno: JSONDecoder {
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.keyDecodingStrategy = .custom { path in
+            let source = path.last?.stringValue ?? ""
+            return TohsenoCodingKey(stringValue: tohsenoPropertyName(source))!
+        }
         return decoder
+    }
+}
+
+private struct TohsenoCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
+
+    init?(intValue: Int) {
+        stringValue = String(intValue)
+        self.intValue = intValue
+    }
+}
+
+private func tohsenoPropertyName(_ source: String) -> String {
+    let components = source.split(separator: "_", omittingEmptySubsequences: false)
+    guard components.count > 1, components.allSatisfy({ !$0.isEmpty }) else { return source }
+    return components.dropFirst().reduce(String(components[0])) { result, component in
+        let word = String(component)
+        let suffix = switch word {
+        case "id": "ID"
+        case "url": "URL"
+        case "usd": "USD"
+        default: word.prefix(1).uppercased() + word.dropFirst()
+        }
+        return result + suffix
     }
 }
 

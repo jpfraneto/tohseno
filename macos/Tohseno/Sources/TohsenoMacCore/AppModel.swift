@@ -45,6 +45,7 @@ public final class TohsenoAppModel {
     private let client: any FactoryServing
     private let preferences: UserDefaults
     private var monitoringTask: Task<Void, Never>?
+    private var readinessMonitoringTask: Task<Void, Never>?
 
     public init(client: any FactoryServing, preferences: UserDefaults = .standard) {
         self.client = client
@@ -65,6 +66,7 @@ public final class TohsenoAppModel {
         monitoringTask = Task { [weak self] in
             guard let self else { return }
             await self.reload()
+            self.startReadinessMonitoringIfNeeded()
             while !Task.isCancelled {
                 let stream = await self.client.events()
                 do {
@@ -298,8 +300,28 @@ public final class TohsenoAppModel {
         do {
             readiness = try await client.performReadinessAction(action)
             errorMessage = nil
+            startReadinessMonitoringIfNeeded()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func startReadinessMonitoringIfNeeded() {
+        guard readiness?.isWorking == true, readinessMonitoringTask == nil else { return }
+        readinessMonitoringTask = Task { [weak self] in
+            defer { self?.readinessMonitoringTask = nil }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                do {
+                    self.readiness = try await self.client.readiness()
+                    self.errorMessage = nil
+                    if self.readiness?.isWorking != true { return }
+                } catch {
+                    self.errorMessage = error.localizedDescription
+                    return
+                }
+            }
         }
     }
 

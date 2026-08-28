@@ -22,6 +22,47 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(states["accepted"], PresentedState.installed.rawValue)
     }
 
+    func testOnlyActiveReadinessStepsUseTheLoadingMark() {
+        let view = { (step: String) in
+            ReadinessView(
+                schema: "tohseno.iphone-readiness-view/1", ready: false,
+                step: step, headline: "Fixture", detail: "Fixture",
+                primaryAction: nil, primaryLabel: nil
+            )
+        }
+        XCTAssertTrue(view("building_readiness").isWorking)
+        XCTAssertTrue(view("installing_readiness").isWorking)
+        XCTAssertFalse(view("connect_iphone").isWorking)
+        XCTAssertFalse(view("verify_installation").isWorking)
+    }
+
+    @MainActor
+    func testActiveReadinessPollsUntilTheBackgroundCheckFinishes() async {
+        let verify = ReadinessView(
+            schema: "tohseno.iphone-readiness-view/1", ready: false,
+            step: "verify_installation", headline: "Verify", detail: "Verify",
+            primaryAction: "verify_installation", primaryLabel: "Verify iPhone"
+        )
+        let building = ReadinessView(
+            schema: "tohseno.iphone-readiness-view/1", ready: false,
+            step: "building_readiness", headline: "Building", detail: "Building",
+            primaryAction: nil, primaryLabel: nil
+        )
+        let failed = ReadinessView(
+            schema: "tohseno.iphone-readiness-view/1", ready: false,
+            step: "verify_installation", headline: "Try again", detail: "Xcode failed",
+            primaryAction: "verify_installation", primaryLabel: "Try Again"
+        )
+        let factory = FakeFactory(readinessResponses: [verify, building, failed])
+        let model = TohsenoAppModel(client: factory)
+        await model.reload()
+        await model.performReadinessAction()
+        XCTAssertEqual(model.readiness?.step, "building_readiness")
+        try? await Task.sleep(for: .milliseconds(1_100))
+        XCTAssertEqual(model.readiness?.step, "verify_installation")
+        XCTAssertEqual(model.readiness?.detail, "Xcode failed")
+    }
+
     @MainActor
     func testRouteRestoresAndRepairsAgainstAdoptedWorkspace() async {
         let suite = "tohseno-native-route-\(UUID().uuidString)"
@@ -81,6 +122,52 @@ final class NativeFactoryTests: XCTestCase {
         draft.managedConsent = true
     }
 
+    func testConcurrentInitialRequestsLaunchOneNativeSessionHelper() async throws {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tohseno-native-session-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let counter = fixture.appendingPathComponent("launches")
+        let helper = fixture.appendingPathComponent("native-helper")
+        let token = String(repeating: "a", count: 43)
+        let credential = """
+        {"schema":"tohseno.native-session/1","token":"\(token)","token_type":"TohsenoNative","client_id":"com.tohseno.mac","instance_id":"fixture","origin":"http://127.0.0.1:1","scopes":["factory.read","factory.mutate"],"expires_at":"2099-01-01T00:00:00Z"}
+        """
+        let script = """
+        #!/bin/sh
+        printf '1\\n' >> '\(counter.path)'
+        sleep 0.2
+        printf '%s\\n' '\(credential)'
+        """
+        try script.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
+
+        let factory = LoopbackFactoryClient(helperOverride: helper)
+        async let workspace: WorkspaceSnapshot? = try? await factory.workspace()
+        async let defaults: FactoryDefaults? = try? await factory.factoryDefaults()
+        async let readiness: ReadinessView? = try? await factory.readiness()
+        _ = await (workspace, defaults, readiness)
+
+        let launches = try String(contentsOf: counter, encoding: .utf8)
+            .split(separator: "\n")
+        XCTAssertEqual(launches.count, 1)
+    }
+
+    func testPublishedSnakeCasePreservesSwiftAcronymProperties() throws {
+        struct AcronymFixture: Decodable {
+            let clientID: String
+            let checkoutURL: String
+            let additionalCostUSD: Double
+            let managedMaximumMicrousd: UInt64
+        }
+        let data = Data(#"{"client_id":"com.tohseno.mac","checkout_url":"https://example.com","additional_cost_usd":1.25,"managed_maximum_microusd":5000000}"#.utf8)
+        let decoded = try JSONDecoder.tohseno.decode(AcronymFixture.self, from: data)
+        XCTAssertEqual(decoded.clientID, "com.tohseno.mac")
+        XCTAssertEqual(decoded.checkoutURL, "https://example.com")
+        XCTAssertEqual(decoded.additionalCostUSD, 1.25)
+        XCTAssertEqual(decoded.managedMaximumMicrousd, 5_000_000)
+    }
+
     func testRequiredAccessibilityIdentifiersRemainPresent() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -100,10 +187,16 @@ private actor FakeFactory: FactoryServing {
     private(set) var createCalls = 0
     let createDelay: Duration
     let receiptValue: ExecutionReceipt?
+    var readinessResponses: [ReadinessView]
 
-    init(createDelay: Duration = .zero, receipt: ExecutionReceipt? = nil) {
+    init(
+        createDelay: Duration = .zero,
+        receipt: ExecutionReceipt? = nil,
+        readinessResponses: [ReadinessView] = []
+    ) {
         self.createDelay = createDelay
         self.receiptValue = receipt
+        self.readinessResponses = readinessResponses
     }
     func createCallCount() -> Int { createCalls }
 
@@ -118,7 +211,10 @@ private actor FakeFactory: FactoryServing {
         FactoryDefaults(schema: "tohseno.factory-defaults/1", ready: true, harnessID: "fixture", harnessLabel: "Fixture", modelID: "default", modelLabel: "Default", routeID: "local", routeLabel: "Local", harnesses: [])
     }
     func readiness() async throws -> ReadinessView {
-        ReadinessView(schema: "tohseno.readiness/1", ready: true, step: "ready", headline: "Ready", detail: "Ready", primaryAction: nil, primaryLabel: nil)
+        if !readinessResponses.isEmpty {
+            return readinessResponses.removeFirst()
+        }
+        return ReadinessView(schema: "tohseno.readiness/1", ready: true, step: "ready", headline: "Ready", detail: "Ready", primaryAction: nil, primaryLabel: nil)
     }
     func managedStatus() async throws -> ManagedStatus { throw FactoryClientError.transport("offline") }
     func managedBalance() async throws -> ManagedBalance { throw FactoryClientError.transport("offline") }

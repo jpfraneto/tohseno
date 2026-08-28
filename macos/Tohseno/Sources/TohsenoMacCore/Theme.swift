@@ -13,17 +13,49 @@ public enum TohsenoTheme {
 }
 
 public struct TohsenoMark: View {
-    public init() {}
+    private let stroke: Color
+    private let gap: Color
+
+    public init(stroke: Color = TohsenoTheme.amber, gap: Color = TohsenoTheme.void) {
+        self.stroke = stroke
+        self.gap = gap
+    }
 
     public var body: some View {
         Circle()
-            .stroke(TohsenoTheme.amber, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            .stroke(stroke, style: StrokeStyle(lineWidth: 3, lineCap: .round))
             .overlay(alignment: .topTrailing) {
-                TohsenoTheme.void
+                gap
                     .frame(width: 7, height: 8)
                     .rotationEffect(.degrees(18))
                     .offset(x: 1, y: -1)
             }
+            .accessibilityHidden(true)
+    }
+}
+
+public struct TohsenoSpinner: View {
+    private let size: CGFloat
+    private let stroke: Color
+    private let gap: Color
+    @State private var isSpinning = false
+
+    public init(
+        size: CGFloat = 28,
+        stroke: Color = TohsenoTheme.amber,
+        gap: Color = TohsenoTheme.void
+    ) {
+        self.size = size
+        self.stroke = stroke
+        self.gap = gap
+    }
+
+    public var body: some View {
+        TohsenoMark(stroke: stroke, gap: gap)
+            .frame(width: size, height: size)
+            .rotationEffect(.degrees(isSpinning ? 360 : 0))
+            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: isSpinning)
+            .onAppear { isSpinning = true }
             .accessibilityHidden(true)
     }
 }

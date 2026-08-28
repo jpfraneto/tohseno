@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{symlink, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 
@@ -33,6 +34,7 @@ pub fn install_bundled_core_if_present() -> Result<(), BoxError> {
     ensure_private_directory(&paths.install_root)?;
     ensure_private_directory(&paths.install_root.join("releases"))?;
     ensure_private_directory(&paths.install_root.join("bin"))?;
+    let _activation_lock = acquire_activation_lock(&paths.install_root)?;
     let release = paths.install_root.join("releases").join(&release_name);
     if release.exists() {
         verify_release(&release)?;
@@ -66,17 +68,27 @@ pub fn install_bundled_core_if_present() -> Result<(), BoxError> {
     if old_current.is_none() && (launcher_existed || identity_existed) {
         return Err("stable factory programs exist without an installer-owned current release; no files were changed".into());
     }
+    let desired_current = format!("releases/{release_name}");
+    let new_launcher = release.join("bin/tohseno");
+    let new_identity_helper = release.join("bin/tohseno-apple-identity");
+    if old_current.as_deref() == Some(desired_current.as_str())
+        && launcher_existed
+        && identity_existed
+        && paths.launch_agent.exists()
+        && digest_file(&paths.launcher)? == digest_file(&new_launcher)?
+        && digest_file(&stable_identity)? == digest_file(&new_identity_helper)?
+    {
+        return Ok(());
+    }
     let had_launch_agent = paths.launch_agent.exists();
     if had_launch_agent {
         // An unrecognized or symlinked agent fails closed inside stop().
         service_commands::stop(&paths, &SystemLaunchctl).map_err(|error| error.to_string())?;
     }
-    let new_launcher = release.join("bin/tohseno");
-    let new_identity_helper = release.join("bin/tohseno-apple-identity");
     let activation = (|| -> Result<(), BoxError> {
         publish_regular(&new_launcher, &paths.launcher)?;
         publish_regular(&new_identity_helper, &stable_identity)?;
-        publish_current(&paths.install_root, &format!("releases/{release_name}"))?;
+        publish_current(&paths.install_root, &desired_current)?;
         service_commands::install(&paths, &SystemLaunchctl).map_err(|error| error.to_string())?;
         Ok(())
     })();
@@ -96,6 +108,31 @@ pub fn install_bundled_core_if_present() -> Result<(), BoxError> {
         return Err(format!("the bundled Local Workspace Service could not be activated; the prior program selection was restored: {error}").into());
     }
     Ok(())
+}
+
+fn acquire_activation_lock(install_root: &Path) -> Result<File, BoxError> {
+    let lock_path = install_root.join(".native-activation.lock");
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .write(true)
+        .create(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let file = options.open(&lock_path)?;
+    if !file.metadata()?.is_file() {
+        return Err("native activation lock is not a regular file".into());
+    }
+    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    loop {
+        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+            return Ok(file);
+        }
+        let error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::Interrupted {
+            return Err(error.into());
+        }
+    }
 }
 
 fn regular_destination_exists(path: &Path) -> Result<bool, BoxError> {
@@ -497,6 +534,9 @@ fn ensure_private_directory(path: &Path) -> Result<(), BoxError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
 
     fn release(root: &Path, launcher: &[u8], identity: &[u8]) {
         fs::create_dir_all(root.join("bin")).unwrap();
@@ -595,5 +635,24 @@ mod tests {
         }
         let fixture = tempfile::tempdir().unwrap();
         assert!(publish_current(fixture.path(), "../release").is_err());
+    }
+
+    #[test]
+    fn activation_lock_serializes_installers() {
+        let fixture = tempfile::tempdir().unwrap();
+        let first = acquire_activation_lock(fixture.path()).unwrap();
+        let root = fixture.path().to_path_buf();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (acquired_tx, acquired_rx) = mpsc::channel();
+        let contender = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            let _second = acquire_activation_lock(&root).unwrap();
+            acquired_tx.send(()).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(acquired_rx.recv_timeout(Duration::from_millis(50)).is_err());
+        drop(first);
+        acquired_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        contender.join().unwrap();
     }
 }

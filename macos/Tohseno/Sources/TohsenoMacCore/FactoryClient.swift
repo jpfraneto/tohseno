@@ -46,6 +46,8 @@ public actor LoopbackFactoryClient: FactoryServing {
     private let urlSession: URLSession
     private let helperOverride: URL?
     private var nativeSession: NativeSessionCredential?
+    private var nativeSessionTask: Task<NativeSessionCredential, Error>?
+    private var nativeSessionGeneration: UInt64 = 0
 
     public init(helperOverride: URL? = nil, urlSession: URLSession? = nil) {
         self.helperOverride = helperOverride
@@ -225,7 +227,7 @@ public actor LoopbackFactoryClient: FactoryServing {
     }
 
     public func restartService() async throws {
-        nativeSession = nil
+        invalidateNativeSession()
         try await runHelper(["service", "restart"])
     }
 
@@ -350,7 +352,7 @@ public actor LoopbackFactoryClient: FactoryServing {
             }
             let api = try? JSONDecoder.tohseno.decode(APIErrorBody.self, from: data)
             if http.statusCode == 403, api?.code == "native_session_rejected", retrySession {
-                nativeSession = nil
+                invalidateNativeSession()
                 return try await request(path, method: method, body: body, retrySession: false)
             }
             throw FactoryClientError.rejected(
@@ -399,7 +401,7 @@ public actor LoopbackFactoryClient: FactoryServing {
             }
             let api = try? JSONDecoder.tohseno.decode(APIErrorBody.self, from: data)
             if http.statusCode == 403, api?.code == "native_session_rejected", retrySession {
-                nativeSession = nil
+                invalidateNativeSession()
                 return try await get(path, retrySession: false)
             }
             throw FactoryClientError.rejected(
@@ -430,7 +432,7 @@ public actor LoopbackFactoryClient: FactoryServing {
         }
         if http.statusCode == 404 { return nil }
         if http.statusCode == 403, retrySession {
-            nativeSession = nil
+            invalidateNativeSession()
             return try await asset(path, maximum: maximum, retrySession: false)
         }
         guard http.statusCode == 200, !data.isEmpty, data.count <= maximum else {
@@ -445,17 +447,46 @@ public actor LoopbackFactoryClient: FactoryServing {
            expiry.timeIntervalSinceNow > 10 {
             return nativeSession
         }
-        let credential = try await Self.launchHelper(helperOverride)
-        guard credential.schema == "tohseno.native-session/1",
-              credential.clientID == "com.tohseno.mac",
-              credential.tokenType == "TohsenoNative",
-              credential.token.count == 43,
-              credential.scopes.contains("factory.read"),
-              credential.scopes.contains("factory.mutate") else {
-            throw FactoryClientError.invalidResponse("The native session helper returned an invalid credential.")
+
+        let generation = nativeSessionGeneration
+        let task: Task<NativeSessionCredential, Error>
+        if let nativeSessionTask {
+            task = nativeSessionTask
+        } else {
+            let pending = Task { try await Self.launchHelper(helperOverride) }
+            nativeSessionTask = pending
+            task = pending
         }
-        nativeSession = credential
-        return credential
+
+        do {
+            let credential = try await task.value
+            guard generation == nativeSessionGeneration else {
+                return try await self.credential()
+            }
+            guard credential.schema == "tohseno.native-session/1",
+                  credential.clientID == "com.tohseno.mac",
+                  credential.tokenType == "TohsenoNative",
+                  credential.token.count == 43,
+                  credential.scopes.contains("factory.read"),
+                  credential.scopes.contains("factory.mutate") else {
+                throw FactoryClientError.invalidResponse("The native session helper returned an invalid credential.")
+            }
+            nativeSession = credential
+            nativeSessionTask = nil
+            return credential
+        } catch {
+            if generation == nativeSessionGeneration {
+                nativeSessionTask = nil
+            }
+            throw error
+        }
+    }
+
+    private func invalidateNativeSession() {
+        nativeSession = nil
+        nativeSessionGeneration &+= 1
+        nativeSessionTask?.cancel()
+        nativeSessionTask = nil
     }
 
     private static func launchHelper(_ override: URL?) async throws -> NativeSessionCredential {

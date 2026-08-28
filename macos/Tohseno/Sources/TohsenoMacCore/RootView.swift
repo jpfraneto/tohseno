@@ -11,7 +11,10 @@ public struct TohsenoRootView: View {
     public var body: some View {
         Group {
             if model.isLoading, model.workspace == nil {
-                ProgressView("Opening your app factory…")
+                VStack(spacing: 14) {
+                    TohsenoSpinner(size: 44)
+                    Text("Opening your app factory…")
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let readiness = model.readiness, !readiness.ready {
                 ReadinessScreen(model: model, readiness: readiness)
@@ -127,7 +130,11 @@ private struct ReadinessScreen: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            TohsenoMark().frame(width: 72, height: 72)
+            if readiness.isWorking {
+                TohsenoSpinner(size: 72)
+            } else {
+                TohsenoMark().frame(width: 72, height: 72)
+            }
             VStack(spacing: 10) {
                 Text(readiness.headline).font(.largeTitle.weight(.semibold))
                 Text(readiness.detail)
@@ -143,7 +150,7 @@ private struct ReadinessScreen: View {
                 .disabled(model.isSubmitting)
                 .accessibilityIdentifier("readiness.primary")
             }
-            if model.isSubmitting { ProgressView().controlSize(.small) }
+            if model.isSubmitting { TohsenoSpinner(size: 18) }
         }
         .padding(56)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -196,8 +203,19 @@ private struct CreationView: View {
                 HStack {
                     RouteCostView(model: model, harness: model.creation.harness, estimate: model.creationEstimate)
                     Spacer()
-                    Button(model.isSubmitting ? "Creating…" : "Create App") {
+                    Button {
                         Task { await model.submitCreation() }
+                    } label: {
+                        HStack(spacing: 7) {
+                            if model.isSubmitting {
+                                TohsenoSpinner(
+                                    size: 14,
+                                    stroke: TohsenoTheme.void,
+                                    gap: TohsenoTheme.amber
+                                )
+                            }
+                            Text(model.isSubmitting ? "Creating…" : "Create App")
+                        }
                     }
                     .buttonStyle(PrimaryActionStyle())
                     .disabled(model.isSubmitting || model.creation.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -272,10 +290,12 @@ private struct AppDetailView: View {
                         .foregroundStyle(TohsenoTheme.silver)
                 }
                 if app.presentation.state.isInFlight {
-                    ProgressView().progressViewStyle(.linear)
-                    Text(progressLanguage(app.presentation.state))
-                        .font(.caption)
-                        .foregroundStyle(TohsenoTheme.silver)
+                    HStack(spacing: 9) {
+                        TohsenoSpinner(size: 18)
+                        Text(progressLanguage(app.presentation.state))
+                            .font(.caption)
+                            .foregroundStyle(TohsenoTheme.silver)
+                    }
                 }
                 Divider().overlay(TohsenoTheme.iron)
                 Text("What should change?").font(.title2.weight(.semibold))
@@ -304,11 +324,24 @@ private struct AppDetailView: View {
                 HStack {
                     RouteCostView(model: model, harness: draft.wrappedValue.harness, estimate: model.evolutionEstimates[app.id])
                     Spacer()
-                    Button("Evolve App") { Task { await model.submitEvolution(for: app) } }
-                        .buttonStyle(PrimaryActionStyle())
-                        .disabled(model.isSubmitting || draft.wrappedValue.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || app.latestVersionID == nil)
-                        .keyboardShortcut(.return, modifiers: [.command])
-                        .accessibilityIdentifier("evolution.submit")
+                    Button {
+                        Task { await model.submitEvolution(for: app) }
+                    } label: {
+                        HStack(spacing: 7) {
+                            if model.isSubmitting {
+                                TohsenoSpinner(
+                                    size: 14,
+                                    stroke: TohsenoTheme.void,
+                                    gap: TohsenoTheme.amber
+                                )
+                            }
+                            Text(model.isSubmitting ? "Evolving…" : "Evolve App")
+                        }
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .disabled(model.isSubmitting || draft.wrappedValue.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || app.latestVersionID == nil)
+                    .keyboardShortcut(.return, modifiers: [.command])
+                    .accessibilityIdentifier("evolution.submit")
                 }
                 Divider().overlay(TohsenoTheme.iron)
                 HStack {
