@@ -90,8 +90,9 @@ deterministic gates then passed and the app installed and launched on the
 paired physical iPhone 15. Independent inspection verifies intention bytes,
 embedded metadata, the selected Expression and Version, source
 materialization, and contiguous lineage. A same-app evolution and two more
-fresh physical-app proofs were admitted, but became blocked on device delivery
-when the iPhone disconnected; they are not recorded as accepted.
+fresh physical-app proofs completed implementation, their bounded repair where
+needed, and deterministic gates, but are waiting for device delivery because
+the iPhone disconnected; they are not recorded as accepted.
 
 Managed-compute staging now exists at the separate Railway `staging`
 environment with a durable `/data/managed-compute` root, a Keychain-held
