@@ -26,7 +26,8 @@
       "docs/adr/0025-native-macos-app-factory-managed-balance.md",
       "docs/adr/0026-keyboard-first-local-registry-and-native-installer.md",
       "docs/adr/0027-native-app-workspace-and-device-stage.md",
-      "docs/adr/0028-finder-first-install-and-native-welcome.md"
+      "docs/adr/0028-finder-first-install-and-native-welcome.md",
+      "docs/adr/0029-first-shot-before-factory.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -52,15 +53,15 @@
     "isolated_macos_launchagent_integration_green": true,
     "npm_pack_first_run_and_nameless_create_green": false,
     "three_physical_iphone_apps_green": false,
-    "release_candidate_artifacts_built_from_clean_commit": true,
-    "release_candidate_manifests_verified": true
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
   },
   "external_activation_gates": {
     "immutable_v1_0_2_tag_published": false,
     "immutable_release_artifacts_published": false,
-    "developer_id_signatures_verified": true,
-    "apple_notarization_accepted": true,
-    "stapled_ticket_verified": true,
+    "developer_id_signatures_verified": false,
+    "apple_notarization_accepted": false,
+    "stapled_ticket_verified": false,
     "clean_mac_gatekeeper_acceptance_verified": false,
     "physical_iphone_installation_verified": false,
     "independent_download_checksum_verified": false,
@@ -119,10 +120,18 @@
       "notary_submission_id": "d1d3840d-3429-4685-8c60-afd672cb52a8",
       "dmg_sha256": "adb843ab7f76e54a0b75bc87bf74b027e5c62abab8627b8714f17c1bd0b585e9",
       "reason": "Superseded by ADR 0028 and source commit a3d12313441faa51a17b3c44ca14a922e360139f. That decision replaces automatic application copying/opening with an Enter/Escape, progress-bar, verified-DMG handoff to Finder and replaces the generic empty-library screen with the native TAKE A SHOT welcome. This artifact remains valid historical notarization evidence but must not be distributed."
+    },
+    {
+      "source_commit": "aa6d96ef51892942c52ec09211658fac44a26caa",
+      "notary_submission_id": "5ea6f135-f8cd-4986-b01b-34d449152aa7",
+      "dmg_sha256": "6c4b67bb837ec60b1e07078b3d985d209fca0eba498c23ff26ab3a0a0b97182e",
+      "reason": "Superseded by ADR 0029 and source commit 232ab31fc280851d36c31675ec72f778bb421c7e. That decision makes TAKE A SHOT the real first creation surface before an empty factory, adds the existing eight-reference picker and drag/drop path, and persists only an explicit secondary Skip. This artifact remains valid historical notarization evidence but must not be distributed."
     }
   ],
   "current_verified_evidence": {
-    "superseded": false,
+    "superseded": true,
+    "superseded_by_source_commit": "232ab31fc280851d36c31675ec72f778bb421c7e",
+    "supersession_reason": "ADR 0029 changes the first-open native product surface after this artifact was built. Its valid signature and notarization remain historical evidence only.",
     "verified_at": "2026-08-29T03:42:19Z",
     "source_commit_at_verification": "aa6d96ef51892942c52ec09211658fac44a26caa",
     "worktree_clean_at_build": true,
@@ -153,16 +162,16 @@
     }
   },
   "current_source_evidence": {
-    "verified_at": "2026-08-29T03:36:04Z",
-    "source_commit_at_verification": "a3d12313441faa51a17b3c44ca14a922e360139f",
+    "verified_at": "2026-08-29T03:58:50Z",
+    "source_commit_at_verification": "232ab31fc280851d36c31675ec72f778bb421c7e",
     "worktree_clean_at_verification": true,
-    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0028's Finder-first installer and native first-open welcome: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package plus the native Mac render tests, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The generated native shell also passed /bin/sh syntax validation and a real pseudo-terminal Escape test that restored the terminal and performed no download.",
-    "release_artifact_source_commit": "aa6d96ef51892942c52ec09211658fac44a26caa",
-    "release_artifact_built": true,
-    "release_artifact_signed": true,
-    "release_artifact_notarized": true,
+    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0029's first-Shot gate: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The additional native Mac suite passed 23 tests, including the shipping-window render, persisted explicit Skip, successful first creation, and exact eight-reference ceiling.",
+    "release_artifact_source_commit": null,
+    "release_artifact_built": false,
+    "release_artifact_signed": false,
+    "release_artifact_notarized": false,
     "website_candidate_deployment_id": "e5215558-b34b-4467-8f1d-ebca59488b84",
     "website_candidate_deployment_status": "SUCCESS with MACOS_DOWNLOAD_ENABLED still false"
   },
-  "blocking_reason": "The replacement ADR 0028 universal DMG from clean source commit aa6d96ef51892942c52ec09211658fac44a26caa is Developer ID signed, accepted by Apple notarization submission 5ea6f135-f8cd-4986-b01b-34d449152aa7, stapled, and locally mounted/verified. The Finder-first website handler is deployed with public downloads still disabled. Publication remains blocked on running the exact Enter/Escape/progress/Finder handoff, Finder installation and physical-iPhone acceptance for this candidate, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm activation, and post-activation health verification. Owner publication intent is recorded but does not waive these gates."
+  "blocking_reason": "ADR 0029 source commit 232ab31fc280851d36c31675ec72f778bb421c7e passed the full local verification matrix, but no Developer ID signed, notarized, stapled replacement artifact has been built from it. The preceding ADR 0028 DMG is explicitly superseded and must not be distributed. The Finder-first website handler remains deployed with public downloads disabled. Publication also remains blocked on exact Enter/Escape/progress/Finder handoff, Finder installation and physical-iPhone acceptance for a future exact candidate, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm activation, and post-activation health verification. Owner publication intent is recorded but does not waive these gates."
 }

@@ -454,7 +454,9 @@ delegates to that native release. Publication evidence for the npm patch is in
 
 Native and npm **1.0.2** remain the next coherent release target in this source
 tree. The new native SwiftUI product, app workspace, and managed-balance
-implementation passed the previous local verification matrix. The latest
+implementation, including ADR 0029's first-Shot gate, passed the full local
+verification matrix at source commit
+`232ab31fc280851d36c31675ec72f778bb421c7e`. The latest
 Developer ID signed, Apple-notarized, stapled DMG recorded in
 `release/V1_0_2_READINESS.json` passed local mounted-DMG verification but is
 superseded by ADR 0029's first-Shot gate. Fresh physical-iPhone birth,
