@@ -55,20 +55,20 @@ Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-The most recent notarized 1.0.2 artifact was built from commit
-`529db3886bba0f21ef7c250a3603460b53d345db`
-is signed with Developer ID Team `84V63LKV45`, accepted by Apple notarization
-submission `7bdc0e63-9dd5-4063-ae0f-e57356554f87`, stapled, and packaged as a
-locally verified DMG with SHA-256
-`f06035224391761626c7ba725ef5fd5a0a7b0fea06de8694a1b5f4d87c76d09e`.
-It is now superseded by the native Build/App/Source workspace governed by ADR
-0027 and must not be distributed. The exact `AGENTS.md` verification matrix
-passed against the historical source bytes frozen in that clean build commit.
-The read-only mounted DMG passed manifest,
+The current notarized 1.0.2 artifact was built from clean commit
+`f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f`. It contains the native
+Build/App/Source workspace governed by ADR 0027, is signed with Developer ID
+Team `84V63LKV45`, accepted by Apple notarization submission
+`d1d3840d-3429-4685-8c60-afd672cb52a8`, stapled, and packaged as a locally
+verified DMG with SHA-256
+`adb843ab7f76e54a0b75bc87bf74b027e5c62abab8627b8714f17c1bd0b585e9`.
+The exact `AGENTS.md` verification matrix passed at source commit
+`598540079002fa1a63bc4103b6fb18b4bd558434`; the later clean artifact commit
+changes only release evidence. The read-only mounted DMG passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
 ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
 installation and first-open acceptance have not been performed for this exact
-candidate.
+candidate, so it is not authorized for public download activation yet.
 
 A fresh `final-counter-proof` app completed the physical-device acceptance path
 through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
@@ -84,10 +84,10 @@ so it is historical evidence and does not satisfy physical-iPhone acceptance
 for any replacement candidate.
 
 Superseded local artifacts remain recorded in
-`release/V1_0_2_READINESS.json` and must not be distributed. This is candidate
-evidence, not publication. The current source passes the full local verification
-matrix, but no replacement clean-commit DMG has been signed or notarized.
-Acceptance on an independent clean Mac/user account,
+`release/V1_0_2_READINESS.json` and must not be distributed. The current
+clean-commit candidate is signed, notarized, stapled, and locally verified,
+but this is still candidate evidence rather than publication. Acceptance on
+an independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
 activation, and explicit owner publication authorization have not been
@@ -443,12 +443,12 @@ Native and npm **1.0.2** remain the next coherent release candidate in this
 source tree. The new native SwiftUI product, app workspace, and managed-balance
 implementation have passed the local verification matrix. The latest Developer
 ID signed, Apple-notarized, stapled DMG recorded in
-`release/V1_0_2_READINESS.json` predates ADR 0027 and is superseded. A new
-artifact must be built from the captured workspace-bearing source. Fresh physical-iPhone birth,
+`release/V1_0_2_READINESS.json` was built from the captured workspace-bearing
+source and has passed local mounted-DMG verification. Fresh physical-iPhone birth,
 quit/reopen, evolution, installation, launch, source preservation, and signed
 lineage verification passed for one app through the immediately preceding
 candidate. They must be repeated for the exact replacement artifact. The
-readiness record remains explicitly unauthorized and blocked until exact
+readiness record contains explicit owner publication intent but remains blocked until exact
 physical-device and independent clean-Mac acceptance, the remaining release
 criteria, immutable publication, independent download verification, exact
 public manifest bytes, npm publication, and website activation are recorded.
