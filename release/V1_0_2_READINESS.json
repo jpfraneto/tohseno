@@ -10,10 +10,10 @@
     "authorization_form": "Explicit request in the active release session to update the cloud distribution so the public website one-line installer obtains the latest Mac app. This records owner intent but does not waive any unverified release gate."
   },
   "protection": {
-    "immutable_release_policy_verified": false,
-    "release_tag_protection_verified": false,
-    "release_tag_ruleset_id": null,
-    "verified_at": null
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 21785837,
+    "verified_at": "2026-08-29T05:09:22Z"
   },
   "source": {
     "accepted_product_adrs": [
@@ -53,17 +53,17 @@
     "isolated_macos_launchagent_integration_green": true,
     "npm_pack_first_run_and_nameless_create_green": false,
     "three_physical_iphone_apps_green": false,
-    "release_candidate_artifacts_built_from_clean_commit": false,
-    "release_candidate_manifests_verified": false
+    "release_candidate_artifacts_built_from_clean_commit": true,
+    "release_candidate_manifests_verified": true
   },
   "external_activation_gates": {
     "immutable_v1_0_2_tag_published": false,
     "immutable_release_artifacts_published": false,
-    "developer_id_signatures_verified": false,
-    "apple_notarization_accepted": false,
-    "stapled_ticket_verified": false,
+    "developer_id_signatures_verified": true,
+    "apple_notarization_accepted": true,
+    "stapled_ticket_verified": true,
     "clean_mac_gatekeeper_acceptance_verified": false,
-    "physical_iphone_installation_verified": false,
+    "physical_iphone_installation_verified": true,
     "independent_download_checksum_verified": false,
     "public_native_manifest_published": false,
     "public_installer_updated_after_artifact_verification": false,
@@ -129,36 +129,39 @@
     }
   ],
   "current_verified_evidence": {
-    "superseded": true,
-    "superseded_by_source_commit": "232ab31fc280851d36c31675ec72f778bb421c7e",
-    "supersession_reason": "ADR 0029 changes the first-open native product surface after this artifact was built. Its valid signature and notarization remain historical evidence only.",
-    "verified_at": "2026-08-29T03:42:19Z",
-    "source_commit_at_verification": "aa6d96ef51892942c52ec09211658fac44a26caa",
+    "superseded": false,
+    "verified_at": "2026-08-29T05:09:22Z",
+    "source_commit_at_verification": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
     "worktree_clean_at_build": true,
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
-    "local_verification_result": "The exact AGENTS.md matrix passed at source commit a3d12313441faa51a17b3c44ca14a922e360139f. Commit aa6d96ef51892942c52ec09211658fac44a26caa only records superseded release evidence and was clean when this universal app was built. The mounted DMG's packaged release manifest and prohibited-secret scan passed, its native executable contains the ADR 0028 first-open welcome, and its helper contains the reviewed support@anky.app welcome destination.",
+    "local_verification_result": "The exact AGENTS.md matrix passed at source commit 232ab31fc280851d36c31675ec72f778bb421c7e for ADR 0029's first-Shot gate. Commit d275d1f5948eef89cf2b422a90f9bc780dd38ac1 records the immediately preceding release-evidence update and was clean when this universal app was built. The mounted DMG's packaged release manifest and prohibited-secret scan passed, its native executable contains the real first-Shot welcome and eight-reference path, and its helper contains the reviewed support@anky.app destination.",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
-    "candidate_application_cdhash": "c0e30a7a08ceccdd56b7535b382bf9b4ff570f45",
+    "candidate_application_cdhash": "dae56c0ba36eadd5222d6283344abf261b085fd2",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "5ea6f135-f8cd-4986-b01b-34d449152aa7",
+    "notary_submission_id": "d95ff96d-a536-4777-814d-8c43ae4f7ecd",
     "notary_status": "Accepted",
     "notary_status_summary": "Ready for distribution",
-    "notary_upload_at": "2026-08-29T03:40:21.331Z",
+    "notary_upload_at": "2026-08-29T04:33:49.215Z",
     "notary_issues": null,
     "stapler_validation": "accepted",
     "dmg_path": "dist/native/TOHSENO-1.0.2.dmg",
-    "dmg_size_bytes": 51436570,
-    "dmg_sha256": "6c4b67bb837ec60b1e07078b3d985d209fca0eba498c23ff26ab3a0a0b97182e",
-    "mounted_dmg_verification": "A read-only mount passed manifest verification, forbidden-secret scan, universal-binary checks, the exact Team ID designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, validation of the contained app's stapled notarization ticket, and DMG Applications-symlink verification. The DMG container itself is not claimed to carry a separate stapled ticket. Finder installation and independent clean-Mac acceptance remain unverified for this exact candidate.",
+    "dmg_size_bytes": 51511380,
+    "dmg_sha256": "6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc",
+    "mounted_dmg_verification": "A read-only mount passed manifest verification, forbidden-secret scan, universal-binary checks, the exact Team ID designated requirement, hardened runtime, Developer ID signature, Gatekeeper assessment, validation of the contained app's stapled notarization ticket, and DMG Applications-symlink verification. The Applications alias points to /Applications. Finder installed these exact app bytes into /Applications and Gatekeeper accepted first launch on the build Mac. The DMG container itself is not claimed to carry a separate stapled ticket. Independent clean-Mac acceptance remains unverified.",
     "physical_iphone_acceptance": {
-      "verified_for_current_candidate": false,
-      "reason": "The successful final-counter-proof birth and evolution were performed with superseded candidate dc85db5. They cannot verify source commit aa6d96e or notarization submission 5ea6f135."
+      "verified_for_current_candidate": true,
+      "device": "iPhone 15, iOS 26.5.2, Developer Mode enabled, paired paid Team provisioning",
+      "birth_shot_id": "0x28e36b115a4e529a45a0f42a7bbe26a32107831e19ea28fe16195706ecbcaef1",
+      "birth_execution_id": "2c6472b1ba6d66babfd622c6fb4afc81",
+      "accepted_version_id": "0x89ca56438e0d97c0404d249fcb3ac57291ea2f5a78efe7115c2b227f4f4b32aa",
+      "accepted_expression_id": "0x53f78ce3e9f081e7b8a2b97d8530336cb0c791b05adf7e8f9fd1325c3bb90183",
+      "acceptance_summary": "A fresh Codex gpt-5.6-sol birth passed the one bounded repair, deterministic build and Simulator gates, signed physical-device build, install, and launch. The native Mac app was terminated while work was active and reopened from Finder; the service and execution continued. Version 1 reports installed on the physical iPhone, and independent local inspection verifies its intention bytes, embedded metadata, selected records, and contiguous lineage. Evolution and two additional fresh-app proofs remain in progress or waiting for the phone to reconnect."
     }
   },
   "current_source_evidence": {
@@ -166,12 +169,46 @@
     "source_commit_at_verification": "232ab31fc280851d36c31675ec72f778bb421c7e",
     "worktree_clean_at_verification": true,
     "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0029's first-Shot gate: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The additional native Mac suite passed 23 tests, including the shipping-window render, persisted explicit Skip, successful first creation, and exact eight-reference ceiling.",
-    "release_artifact_source_commit": null,
-    "release_artifact_built": false,
-    "release_artifact_signed": false,
-    "release_artifact_notarized": false,
+    "release_artifact_source_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
+    "release_artifact_built": true,
+    "release_artifact_signed": true,
+    "release_artifact_notarized": true,
     "website_candidate_deployment_id": "e5215558-b34b-4467-8f1d-ebca59488b84",
     "website_candidate_deployment_status": "SUCCESS with MACOS_DOWNLOAD_ENABLED still false"
   },
-  "blocking_reason": "ADR 0029 source commit 232ab31fc280851d36c31675ec72f778bb421c7e passed the full local verification matrix, but no Developer ID signed, notarized, stapled replacement artifact has been built from it. The preceding ADR 0028 DMG is explicitly superseded and must not be distributed. The Finder-first website handler remains deployed with public downloads disabled. Publication also remains blocked on exact Enter/Escape/progress/Finder handoff, Finder installation and physical-iPhone acceptance for a future exact candidate, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm activation, and post-activation health verification. Owner publication intent is recorded but does not waive these gates."
+  "managed_compute_staging": {
+    "railway_environment": "staging",
+    "railway_environment_id": "da870b1f-f6df-46db-93a0-b1a0d5966f01",
+    "service_url": "https://tohseno-staging.up.railway.app",
+    "deployment_id": "17cd01fa-b176-40f9-811b-4d85d8aecdd0",
+    "deployment_status": "SUCCESS with MANAGED_COMPUTE_ENABLED=false",
+    "durable_root": "/data/managed-compute",
+    "durable_volume_present": true,
+    "backup_restore_drill_verified": false,
+    "operator_token": "random token stored in Apple Keychain; only its SHA-256 is configured in Railway",
+    "checkout_success_url": "https://tohseno-staging.up.railway.app/billing/success",
+    "checkout_cancel_url": "https://tohseno-staging.up.railway.app/billing/cancel",
+    "stripe": {
+      "mode": "test",
+      "product_id": "prod_V9yIlyuMQRWj0V",
+      "price_ids": {
+        "usd_10": "price_1U9eMPJCauDLnnPmBi4BrbZq",
+        "usd_25": "price_1U9eMPJCauDLnnPmJNLgRVGQ",
+        "usd_50": "price_1U9eMPJCauDLnnPmDb307bTe"
+      },
+      "one_time_amounts_verified": true,
+      "webhook_endpoint_id": "we_1U9eOHJCauDLnnPm4I3aYr97",
+      "webhook_url": "https://tohseno-staging.up.railway.app/api/managed/v1/stripe/webhook",
+      "webhook_events_configured": true,
+      "secret_values_recorded_in_repository": false
+    },
+    "bankr": {
+      "least_privilege_llm_gateway_key_configured": false,
+      "model_allowlist_configured": false,
+      "credits_verified": false,
+      "launch_fee_funding_confirmed": false
+    },
+    "real_service_scenarios_verified": false
+  },
+  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, accepted by Gatekeeper on the build Mac, and has completed one fresh physical-iPhone birth with source and lineage verification. The protected v1.0.2 tag remains unpublished. Publication remains blocked on independent clean-Mac/user acceptance; completion of the in-progress same-app evolution and three-fresh-app device criterion after the phone reconnects; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, backup/restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; immutable artifact publication; independent downloaded-digest and public-manifest verification; public installer activation; and post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates. Owner publication intent is recorded but does not waive them."
 }

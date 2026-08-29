@@ -65,45 +65,52 @@ Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-The most recently notarized 1.0.2 artifact was built from clean commit
-`aa6d96ef51892942c52ec09211658fac44a26caa`. It contains ADR 0027's
-native Build/App/Source workspace and ADR 0028's Finder-first handoff and
-first-open welcome, is signed with Developer ID Team `84V63LKV45`, accepted by
-Apple notarization submission `5ea6f135-f8cd-4986-b01b-34d449152aa7`,
-stapled, and packaged as a locally verified DMG with SHA-256
-`6c4b67bb837ec60b1e07078b3d985d209fca0eba498c23ff26ab3a0a0b97182e`.
+The current 1.0.2 release candidate was built from clean commit
+`d275d1f5948eef89cf2b422a90f9bc780dd38ac1`. It contains ADR 0029's real
+first-Shot gate, keyboard submission, and eight-reference path in addition to
+the native Build/App/Source workspace and Finder-first handoff. It is signed
+with Developer ID Team `84V63LKV45`, accepted by Apple notarization submission
+`d95ff96d-a536-4777-814d-8c43ae4f7ecd`, stapled, and packaged as a locally
+verified universal DMG with SHA-256
+`6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc`.
 The exact `AGENTS.md` verification matrix passed at source commit
-`a3d12313441faa51a17b3c44ca14a922e360139f`; the later clean artifact commit
-changes only release evidence. The read-only mounted DMG passed manifest,
+`232ab31fc280851d36c31675ec72f778bb421c7e`; the later clean artifact commit
+changes release evidence only. A read-only mount passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
-ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
-installation and first-open acceptance were not performed for that exact
-candidate. ADR 0029's first-Shot gate now supersedes it, so it must not be
-distributed and there is no current signed release candidate.
+ID, Gatekeeper, stapled-ticket, and Applications-alias verification. Finder
+installed the exact app into `/Applications`, and Gatekeeper accepted first
+launch on the build Mac. Independent clean-Mac/user acceptance is still
+unverified.
 
-A fresh `final-counter-proof` app completed the physical-device acceptance path
-through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
-quit/reopen while building, deterministic acceptance, installation and launch
-on an iPhone 15, followed by a first-attempt evolution that preserved the
-persistent counter while adding `+5` and last-updated behavior. Build version 2
-was installed and launched. The local verifier independently passed both
-immutable Evolutions and their contiguous signed lineage; the visible source
-exactly matches accepted snapshot `0002`, its Git repository remains present,
-and the ADR 0024 `.tohseno/` visibility boundary remains intact. That proof
-predates both the Registry UI packaged in `529db38` and the native app workspace,
-so it is historical evidence and does not satisfy physical-iPhone acceptance
-for any replacement candidate.
+The exact candidate completed a fresh Codex `gpt-5.6-sol` Version 1 birth for
+`first-shot-codex-proof`. The native Mac app was terminated during admitted
+work and reopened from Finder without interrupting the service or execution.
+The one bounded repair fixed only InstallationIdentity preparation; all
+deterministic gates then passed and the app installed and launched on the
+paired physical iPhone 15. Independent inspection verifies intention bytes,
+embedded metadata, the selected Expression and Version, source
+materialization, and contiguous lineage. A same-app evolution and two more
+fresh physical-app proofs were admitted, but became blocked on device delivery
+when the iPhone disconnected; they are not recorded as accepted.
+
+Managed-compute staging now exists at the separate Railway `staging`
+environment with a durable `/data/managed-compute` root, a Keychain-held
+operator token whose digest alone is configured server-side, trusted checkout
+return URLs, exact Stripe test-mode one-time Prices for $10/$25/$50, and a
+test webhook endpoint for checkout, refund, and dispute events. Managed
+compute remains disabled because no least-privilege Bankr LLM Gateway key or
+model allowlist is available, Bankr credits and real inference are unverified,
+and no backup/restore drill or real-service scenario matrix has passed.
 
 Superseded local artifacts remain recorded in
-`release/V1_0_2_READINESS.json` and must not be distributed. The Finder-first
-website handler is deployed with downloads still disabled, while ADR 0029's
-replacement native source has no signed, notarized artifact. Acceptance on an
-independent clean Mac/user account,
-the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
-artifact upload, independent downloaded-digest verification, public download
-activation, and post-activation verification have not been performed. Owner
-publication intent is recorded, but it does not waive these gates. The public
-one-line installer therefore remains disabled.
+`release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
+`v1.0.2` is covered by active deletion and non-fast-forward protection but has
+not been created. The Finder-first website handler remains deployed with
+downloads disabled. Independent clean-Mac acceptance, the remaining physical
+device proofs, managed Bankr staging, backup/restore, immutable upload,
+independent downloaded-digest verification, public activation, and
+post-activation checks remain release gates. Owner publication intent does not
+waive them, so the public one-line installer remains disabled.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -456,18 +463,17 @@ Native and npm **1.0.2** remain the next coherent release target in this source
 tree. The new native SwiftUI product, app workspace, and managed-balance
 implementation, including ADR 0029's first-Shot gate, passed the full local
 verification matrix at source commit
-`232ab31fc280851d36c31675ec72f778bb421c7e`. The latest
-Developer ID signed, Apple-notarized, stapled DMG recorded in
-`release/V1_0_2_READINESS.json` passed local mounted-DMG verification but is
-superseded by ADR 0029's first-Shot gate. Fresh physical-iPhone birth,
-quit/reopen, evolution, installation, launch, source preservation, and signed
-lineage verification passed for one app through the immediately preceding
-candidate. They must be repeated for a future exact replacement artifact. The
-readiness record contains explicit owner publication intent but remains blocked until exact
-physical-device and independent clean-Mac acceptance, the remaining release
-criteria, immutable publication, independent download verification, exact
-public manifest bytes, npm publication, and website activation are recorded.
-Candidate evidence is not a claim that 1.0.2 is publicly available.
+`232ab31fc280851d36c31675ec72f778bb421c7e`. The current Developer ID signed,
+Apple-notarized, stapled DMG recorded in `release/V1_0_2_READINESS.json` passed
+local mounted-DMG, Finder-install, build-Mac Gatekeeper, and one fresh
+physical-iPhone birth acceptance. The readiness record contains explicit owner
+publication intent but remains blocked until independent clean-Mac acceptance,
+the queued evolution and remaining fresh-device proofs, managed Bankr staging
+and backup/restore, immutable publication, independent download verification,
+exact public manifest bytes, and website activation are recorded. ADR 0025
+supersedes npm-first consumer onboarding; an npm publication flag is not
+authority to bypass these native gates. Candidate evidence is not a claim that
+1.0.2 is publicly available.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay
