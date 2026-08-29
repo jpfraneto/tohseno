@@ -63,21 +63,19 @@ and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
 The current notarized 1.0.2 artifact was built from clean commit
-`f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f`. It contains the native
-Build/App/Source workspace governed by ADR 0027, is signed with Developer ID
-Team `84V63LKV45`, accepted by Apple notarization submission
-`d1d3840d-3429-4685-8c60-afd672cb52a8`, stapled, and packaged as a locally
-verified DMG with SHA-256
-`adb843ab7f76e54a0b75bc87bf74b027e5c62abab8627b8714f17c1bd0b585e9`.
+`aa6d96ef51892942c52ec09211658fac44a26caa`. It contains ADR 0027's
+native Build/App/Source workspace and ADR 0028's Finder-first handoff and
+first-open welcome, is signed with Developer ID Team `84V63LKV45`, accepted by
+Apple notarization submission `5ea6f135-f8cd-4986-b01b-34d449152aa7`,
+stapled, and packaged as a locally verified DMG with SHA-256
+`6c4b67bb837ec60b1e07078b3d985d209fca0eba498c23ff26ab3a0a0b97182e`.
 The exact `AGENTS.md` verification matrix passed at source commit
-`598540079002fa1a63bc4103b6fb18b4bd558434`; the later clean artifact commit
+`a3d12313441faa51a17b3c44ca14a922e360139f`; the later clean artifact commit
 changes only release evidence. The read-only mounted DMG passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
 ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
 installation and first-open acceptance have not been performed for this exact
-candidate. ADR 0028 now supersedes that candidate's automatic installer and
-empty-library behavior, so it must not be distributed and no replacement
-artifact has been built yet.
+candidate, so it is not authorized for public download activation yet.
 
 A fresh `final-counter-proof` app completed the physical-device acceptance path
 through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
@@ -93,11 +91,10 @@ so it is historical evidence and does not satisfy physical-iPhone acceptance
 for any replacement candidate.
 
 Superseded local artifacts remain recorded in
-`release/V1_0_2_READINESS.json` and must not be distributed. Source commit
-`a3d12313441faa51a17b3c44ca14a922e360139f` supersedes the latest signed and
-notarized candidate with ADR 0028's Finder-first handoff and first-open
-welcome, so a replacement clean-commit artifact is required. Acceptance on an
-independent clean Mac/user account,
+`release/V1_0_2_READINESS.json` and must not be distributed. The current
+clean-commit ADR 0028 candidate is signed, notarized, stapled, and locally
+verified, while the Finder-first website handler is deployed with downloads
+still disabled. Acceptance on an independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
 activation, and post-activation verification have not been performed. Owner
