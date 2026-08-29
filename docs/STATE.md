@@ -93,10 +93,11 @@ so it is historical evidence and does not satisfy physical-iPhone acceptance
 for any replacement candidate.
 
 Superseded local artifacts remain recorded in
-`release/V1_0_2_READINESS.json` and must not be distributed. The current
-source supersedes the latest signed and notarized candidate with ADR 0028's
-Finder-first handoff and first-open welcome, so a replacement clean-commit
-artifact is required. Acceptance on an independent clean Mac/user account,
+`release/V1_0_2_READINESS.json` and must not be distributed. Source commit
+`a3d12313441faa51a17b3c44ca14a922e360139f` supersedes the latest signed and
+notarized candidate with ADR 0028's Finder-first handoff and first-open
+welcome, so a replacement clean-commit artifact is required. Acceptance on an
+independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
 activation, and post-activation verification have not been performed. Owner

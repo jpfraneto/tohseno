@@ -25,7 +25,8 @@
       "docs/adr/0024-app-local-tohseno-git-boundary.md",
       "docs/adr/0025-native-macos-app-factory-managed-balance.md",
       "docs/adr/0026-keyboard-first-local-registry-and-native-installer.md",
-      "docs/adr/0027-native-app-workspace-and-device-stage.md"
+      "docs/adr/0027-native-app-workspace-and-device-stage.md",
+      "docs/adr/0028-finder-first-install-and-native-welcome.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -51,15 +52,15 @@
     "isolated_macos_launchagent_integration_green": true,
     "npm_pack_first_run_and_nameless_create_green": false,
     "three_physical_iphone_apps_green": false,
-    "release_candidate_artifacts_built_from_clean_commit": true,
-    "release_candidate_manifests_verified": true
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
   },
   "external_activation_gates": {
     "immutable_v1_0_2_tag_published": false,
     "immutable_release_artifacts_published": false,
-    "developer_id_signatures_verified": true,
-    "apple_notarization_accepted": true,
-    "stapled_ticket_verified": true,
+    "developer_id_signatures_verified": false,
+    "apple_notarization_accepted": false,
+    "stapled_ticket_verified": false,
     "clean_mac_gatekeeper_acceptance_verified": false,
     "physical_iphone_installation_verified": false,
     "independent_download_checksum_verified": false,
@@ -112,10 +113,17 @@
       "notary_submission_id": "7bdc0e63-9dd5-4063-ae0f-e57356554f87",
       "dmg_sha256": "f06035224391761626c7ba725ef5fd5a0a7b0fea06de8694a1b5f4d87c76d09e",
       "reason": "Superseded by ADR 0027 and source commit 598540079002fa1a63bc4103b6fb18b4bd558434, which replace the undifferentiated app-detail composer with the native Build/App/Source workspace, bounded live source activity, version-aware Simulator stage, and permanent cable handoff. The artifact remains valid historical notarization evidence but must not be distributed."
+    },
+    {
+      "source_commit": "f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f",
+      "notary_submission_id": "d1d3840d-3429-4685-8c60-afd672cb52a8",
+      "dmg_sha256": "adb843ab7f76e54a0b75bc87bf74b027e5c62abab8627b8714f17c1bd0b585e9",
+      "reason": "Superseded by ADR 0028 and source commit a3d12313441faa51a17b3c44ca14a922e360139f. That decision replaces automatic application copying/opening with an Enter/Escape, progress-bar, verified-DMG handoff to Finder and replaces the generic empty-library screen with the native TAKE A SHOT welcome. This artifact remains valid historical notarization evidence but must not be distributed."
     }
   ],
   "current_verified_evidence": {
-    "superseded": false,
+    "superseded": true,
+    "superseded_by_source_commit": "a3d12313441faa51a17b3c44ca14a922e360139f",
     "verified_at": "2026-08-29T03:15:14Z",
     "source_commit_at_verification": "f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f",
     "worktree_clean_at_build": true,
@@ -146,14 +154,13 @@
     }
   },
   "current_source_evidence": {
-    "verified_at": "2026-08-29T02:53:19Z",
-    "source_commit_at_verification": "598540079002fa1a63bc4103b6fb18b4bd558434",
+    "verified_at": "2026-08-29T03:36:04Z",
+    "source_commit_at_verification": "a3d12313441faa51a17b3c44ca14a922e360139f",
     "worktree_clean_at_verification": true,
-    "local_verification_result": "The exact AGENTS.md matrix passed for the native Build/App/Source workspace: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package including the native Mac visual render and decoder compatibility tests, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts.",
-    "release_artifact_source_commit": "f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f",
-    "release_artifact_built": true,
-    "release_artifact_signed": true,
-    "release_artifact_notarized": true
+    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0028's Finder-first installer and native first-open welcome: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package plus the native Mac render tests, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The generated native shell also passed /bin/sh syntax validation and a real pseudo-terminal Escape test that restored the terminal and performed no download.",
+    "release_artifact_built": false,
+    "release_artifact_signed": false,
+    "release_artifact_notarized": false
   },
-  "blocking_reason": "The replacement universal DMG from clean source commit f30a75b4aebaf5abaa92211c914bfb9b1fa19b0f is Developer ID signed, accepted by Apple notarization submission d1d3840d-3429-4685-8c60-afd672cb52a8, stapled, and locally verified. Publication remains blocked on Finder installation and physical-iPhone acceptance for this exact candidate, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm and website activation, and post-activation health verification. Owner publication intent is recorded but does not waive these gates."
+  "blocking_reason": "Source commit a3d12313441faa51a17b3c44ca14a922e360139f contains the fully verified ADR 0028 Finder-first installer and native TAKE A SHOT welcome, but no replacement universal DMG has been built, signed, notarized, stapled, or verified from that commit. The previous notarized artifact is superseded and must not be distributed. Replacement Finder installation and physical-iPhone acceptance, independent clean-Mac acceptance, the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable tag and HTTPS artifact publication, independent downloaded-digest verification, public manifest/download activation, npm and website activation, and post-activation health verification remain unverified. Owner publication intent is recorded but does not waive these gates."
 }
