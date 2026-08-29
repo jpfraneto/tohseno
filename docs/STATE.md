@@ -6,7 +6,7 @@ something below stops being true, update this file in the same change.
 
 ## Native macOS transition
 
-ADRs 0025 through 0028 are the current product decisions. They make a
+ADRs 0025 through 0029 are the current product decisions. They make a
 native SwiftUI `Tohseno.app` the primary consumer surface over the existing
 persistent Rust factory. It supersedes npm/browser first run, mandatory
 Companion genesis, five-successful-day qualification, subscription gating of
@@ -24,12 +24,15 @@ scoped session. First open verifies and atomically installs a bundled universal
 factory release with rollback; scripts assemble, sign, notarize, verify, and
 package a DMG.
 
-On a genuinely empty first open, the native detail area now says **WELCOME TO
-TOHSENO**, **TAKE A SHOT**, and **This is where your ideas transform into
-apps.** Its one action remains **Create an App** and opens the existing
-keyboard-first composer. No onboarding flag, tutorial, account, or second
-command path exists; a library that already contains apps keeps the ordinary
-selection surface.
+When the workspace has never recorded a Shot, the native window stops before
+showing the factory and says **WELCOME TO TOHSENO**, **TAKE A SHOT**, and
+**This is where your ideas transform into apps.** This is the actual existing
+keyboard-first creation composer: Return or **Create App** sends, Shift-Return
+adds a line, and up to eight PNG/JPEG references can be picked or dropped. A
+secondary **Skip** beside Create App persists a local bypass and reveals the
+ordinary empty library. Any preserved Shot record prevents the gate from
+returning. This adds no tutorial, account, planning phase, or second command
+path.
 
 Selecting an app now opens a native Build/App/Source workspace. Build is the
 default and shows the simple Intent → Source → Simulator → Your iPhone path,
@@ -62,7 +65,7 @@ Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-The current notarized 1.0.2 artifact was built from clean commit
+The most recently notarized 1.0.2 artifact was built from clean commit
 `aa6d96ef51892942c52ec09211658fac44a26caa`. It contains ADR 0027's
 native Build/App/Source workspace and ADR 0028's Finder-first handoff and
 first-open welcome, is signed with Developer ID Team `84V63LKV45`, accepted by
@@ -74,8 +77,9 @@ The exact `AGENTS.md` verification matrix passed at source commit
 changes only release evidence. The read-only mounted DMG passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
 ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
-installation and first-open acceptance have not been performed for this exact
-candidate, so it is not authorized for public download activation yet.
+installation and first-open acceptance were not performed for that exact
+candidate. ADR 0029's first-Shot gate now supersedes it, so it must not be
+distributed and there is no current signed release candidate.
 
 A fresh `final-counter-proof` app completed the physical-device acceptance path
 through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
@@ -91,10 +95,10 @@ so it is historical evidence and does not satisfy physical-iPhone acceptance
 for any replacement candidate.
 
 Superseded local artifacts remain recorded in
-`release/V1_0_2_READINESS.json` and must not be distributed. The current
-clean-commit ADR 0028 candidate is signed, notarized, stapled, and locally
-verified, while the Finder-first website handler is deployed with downloads
-still disabled. Acceptance on an independent clean Mac/user account,
+`release/V1_0_2_READINESS.json` and must not be distributed. The Finder-first
+website handler is deployed with downloads still disabled, while ADR 0029's
+replacement native source has no signed, notarized artifact. Acceptance on an
+independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
 activation, and post-activation verification have not been performed. Owner
@@ -448,15 +452,15 @@ serve native 1.0.0. npm's independently versioned front door is 1.0.1 and
 delegates to that native release. Publication evidence for the npm patch is in
 `release/NPM_1_0_1_PUBLICATION.json`.
 
-Native and npm **1.0.2** remain the next coherent release candidate in this
-source tree. The new native SwiftUI product, app workspace, and managed-balance
-implementation have passed the local verification matrix. The latest Developer
-ID signed, Apple-notarized, stapled DMG recorded in
-`release/V1_0_2_READINESS.json` was built from the captured workspace-bearing
-source and has passed local mounted-DMG verification. Fresh physical-iPhone birth,
+Native and npm **1.0.2** remain the next coherent release target in this source
+tree. The new native SwiftUI product, app workspace, and managed-balance
+implementation passed the previous local verification matrix. The latest
+Developer ID signed, Apple-notarized, stapled DMG recorded in
+`release/V1_0_2_READINESS.json` passed local mounted-DMG verification but is
+superseded by ADR 0029's first-Shot gate. Fresh physical-iPhone birth,
 quit/reopen, evolution, installation, launch, source preservation, and signed
 lineage verification passed for one app through the immediately preceding
-candidate. They must be repeated for the exact replacement artifact. The
+candidate. They must be repeated for a future exact replacement artifact. The
 readiness record contains explicit owner publication intent but remains blocked until exact
 physical-device and independent clean-Mac acceptance, the remaining release
 criteria, immutable publication, independent download verification, exact

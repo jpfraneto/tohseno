@@ -40,7 +40,11 @@ protocol material, not free-form docs.
    the pinned DMG, reveals its exact Downloads location, and leaves the
    familiar drag into Applications to Finder. It also replaces the empty
    first-run placeholder with the small TAKE A SHOT invitation while keeping
-   Create an App as the primary-path action and adding no onboarding state.
+   Create an App as the primary-path action. ADR 0029 supersedes only that
+   passive welcome composition: before an empty factory appears, TAKE A SHOT
+   is the real existing creation composer, accepts up to eight picked or
+   dropped PNG/JPEG references, and offers an explicit persisted Skip beside
+   Create App. It adds no second factory or command path.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

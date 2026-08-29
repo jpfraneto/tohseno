@@ -38,6 +38,7 @@ public final class TohsenoAppModel {
     public private(set) var isLoadingRegistry = false
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
+    public private(set) var hasSkippedFirstShot: Bool
     public var route: AppRoute = .library {
         didSet { persistRoute() }
     }
@@ -57,11 +58,16 @@ public final class TohsenoAppModel {
     public init(client: any FactoryServing, preferences: UserDefaults = .standard) {
         self.client = client
         self.preferences = preferences
+        hasSkippedFirstShot = preferences.bool(forKey: "tohseno.first-shot-skipped")
         restoreRoute()
     }
 
     public var apps: [AppSummary] { workspace?.visibleApps ?? [] }
     public var archivedApps: [AppSummary] { workspace?.archivedApps ?? [] }
+    public var shouldPresentFirstShot: Bool {
+        guard let workspace else { return false }
+        return workspace.shots.isEmpty && !hasSkippedFirstShot
+    }
 
     public var selectedApp: AppSummary? {
         guard case let .app(id) = route else { return nil }
@@ -334,6 +340,12 @@ public final class TohsenoAppModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public func skipFirstShot() {
+        hasSkippedFirstShot = true
+        preferences.set(true, forKey: "tohseno.first-shot-skipped")
+        route = .library
     }
 
     public func submitEvolution(for app: AppSummary) async {

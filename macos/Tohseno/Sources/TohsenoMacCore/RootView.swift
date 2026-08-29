@@ -18,6 +18,8 @@ public struct TohsenoRootView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let readiness = model.readiness, !readiness.ready {
                 ReadinessScreen(model: model, readiness: readiness)
+            } else if model.shouldPresentFirstShot {
+                FirstShotView(model: model)
             } else {
                 factory
             }
@@ -79,7 +81,7 @@ public struct TohsenoRootView: View {
         } detail: {
             switch model.route {
             case .library:
-                LibraryEmptyView(hasApps: !model.apps.isEmpty) { model.route = .create }
+                LibraryEmptyView { model.route = .create }
             case .registry:
                 RegistryView(model: model)
             case .create:
@@ -88,7 +90,7 @@ public struct TohsenoRootView: View {
                 if let app = model.selectedApp {
                     AppDetailView(model: model, app: app)
                 } else {
-                    LibraryEmptyView(hasApps: !model.apps.isEmpty) { model.route = .create }
+                    LibraryEmptyView { model.route = .create }
                 }
             }
         }
@@ -138,10 +140,14 @@ public struct TohsenoBuildWorkspaceFixtureView: View {
 /// Offscreen first-open projection used to keep the welcome composition calm
 /// at the same size as the shipping window.
 public struct TohsenoWelcomeFixtureView: View {
-    public init() {}
+    @Bindable private var model: TohsenoAppModel
+
+    public init(model: TohsenoAppModel) {
+        self.model = model
+    }
 
     public var body: some View {
-        LibraryEmptyView(hasApps: false) {}
+        FirstShotView(model: model)
             .background(TohsenoTheme.void)
             .foregroundStyle(TohsenoTheme.bone)
             .tint(TohsenoTheme.amber)
@@ -149,60 +155,155 @@ public struct TohsenoWelcomeFixtureView: View {
 }
 #endif
 
+private struct FirstShotView: View {
+    @Bindable var model: TohsenoAppModel
+    @State private var choosingReferences = false
+    @State private var isDropTargeted = false
+    @FocusState private var intentionFocused: Bool
+
+    private var canSubmit: Bool {
+        !model.isSubmitting &&
+            !model.creation.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                TohsenoMark()
+                    .frame(width: 58, height: 58)
+                    .padding(.bottom, 28)
+
+                Text("WELCOME TO TOHSENO")
+                    .font(.caption.weight(.semibold))
+                    .tracking(2.4)
+                    .foregroundStyle(TohsenoTheme.silver)
+                    .padding(.bottom, 10)
+
+                Text("TAKE A SHOT")
+                    .font(.system(size: 38, weight: .semibold, design: .rounded))
+                    .tracking(0.5)
+                    .accessibilityIdentifier("onboarding.take-a-shot")
+
+                Text("This is where your ideas transform into apps.")
+                    .font(.title3)
+                    .foregroundStyle(TohsenoTheme.silver)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 9)
+
+                ZStack(alignment: .topLeading) {
+                    if model.creation.intention.isEmpty {
+                        Text("Describe the app that should exist…")
+                            .foregroundStyle(TohsenoTheme.ash)
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 14)
+                            .allowsHitTesting(false)
+                    }
+                    TextEditor(text: $model.creation.intention)
+                        .font(.body)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .frame(minHeight: 132)
+                        .focused($intentionFocused)
+                        .shotSubmitOnReturn(enabled: canSubmit) {
+                            Task { await model.submitCreation() }
+                        }
+                        .accessibilityLabel("Describe the app that should exist")
+                        .accessibilityIdentifier("onboarding.intention")
+                }
+                .background(TohsenoTheme.carbon)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(
+                            isDropTargeted ? TohsenoTheme.amber : TohsenoTheme.iron,
+                            style: StrokeStyle(lineWidth: isDropTargeted ? 2 : 1, dash: [7, 5])
+                        )
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.top, 30)
+
+                ReferenceStrip(references: model.creation.references) { _, id in
+                    model.creation.references.removeAll { $0.id == id }
+                }
+                .padding(.top, model.creation.references.isEmpty ? 0 : 14)
+
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                    Text("Drop PNG or JPEG images · \(model.creation.references.count)/8")
+                    Button("Choose Images…") { choosingReferences = true }
+                        .buttonStyle(.link)
+                        .disabled(model.creation.references.count >= 8)
+                        .accessibilityIdentifier("onboarding.references")
+                }
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.silver)
+                .padding(.top, 12)
+
+                HStack(spacing: 16) {
+                    Button {
+                        Task { await model.submitCreation() }
+                    } label: {
+                        HStack(spacing: 7) {
+                            if model.isSubmitting {
+                                TohsenoSpinner(
+                                    size: 14,
+                                    stroke: TohsenoTheme.void,
+                                    gap: TohsenoTheme.amber
+                                )
+                            }
+                            Text(model.isSubmitting ? "Creating…" : "Create App")
+                        }
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .disabled(!canSubmit)
+                    .keyboardShortcut(.return, modifiers: [])
+                    .accessibilityIdentifier("onboarding.submit")
+
+                    Button("Skip") { model.skipFirstShot() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(TohsenoTheme.silver)
+                        .disabled(model.isSubmitting)
+                        .accessibilityIdentifier("onboarding.skip")
+                }
+                .padding(.top, 24)
+
+                Text("Return sends · Shift–Return adds a line")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.ash)
+                    .padding(.top, 13)
+            }
+            .frame(maxWidth: 620)
+            .padding(48)
+            .frame(maxWidth: .infinity, minHeight: 680)
+            .accessibilityIdentifier("onboarding.welcome")
+        }
+        .background(TohsenoTheme.void)
+        .fileImporter(
+            isPresented: $choosingReferences,
+            allowedContentTypes: [.png, .jpeg],
+            allowsMultipleSelection: true
+        ) { result in
+            model.addReferences(result, to: .creation)
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            model.addReferences(.success(urls), to: .creation)
+            return !urls.isEmpty
+        } isTargeted: { isDropTargeted = $0 }
+        .task { intentionFocused = true }
+    }
+}
+
 private struct LibraryEmptyView: View {
-    let hasApps: Bool
     let create: () -> Void
 
     var body: some View {
-        Group {
-            if hasApps {
-                ContentUnavailableView {
-                    Label("Your Apps", systemImage: "square.grid.2x2")
-                } description: {
-                    Text("Choose an app to see what is happening, its source, and its iPhone stage.")
-                } actions: {
-                    Button("Create App", action: create)
-                        .buttonStyle(PrimaryActionStyle())
-                        .accessibilityIdentifier("create-app.empty")
-                }
-            } else {
-                VStack(spacing: 0) {
-                    TohsenoMark()
-                        .frame(width: 58, height: 58)
-                        .padding(.bottom, 28)
-
-                    Text("WELCOME TO TOHSENO")
-                        .font(.caption.weight(.semibold))
-                        .tracking(2.4)
-                        .foregroundStyle(TohsenoTheme.silver)
-                        .padding(.bottom, 10)
-
-                    Text("TAKE A SHOT")
-                        .font(.system(size: 38, weight: .semibold, design: .rounded))
-                        .tracking(0.5)
-                        .accessibilityIdentifier("onboarding.take-a-shot")
-
-                    Text("This is where your ideas transform into apps.")
-                        .font(.title3)
-                        .foregroundStyle(TohsenoTheme.silver)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 9)
-
-                    Button("Create an App", action: create)
-                        .buttonStyle(PrimaryActionStyle())
-                        .keyboardShortcut(.defaultAction)
-                        .accessibilityIdentifier("create-app.empty")
-                        .padding(.top, 30)
-
-                    Text("Describe what should exist. Press Return to send it.")
-                        .font(.caption)
-                        .foregroundStyle(TohsenoTheme.ash)
-                        .padding(.top, 13)
-                }
-                .frame(maxWidth: 560)
-                .padding(48)
-                .accessibilityIdentifier("onboarding.welcome")
-            }
+        ContentUnavailableView {
+            Label("Your Apps", systemImage: "square.grid.2x2")
+        } description: {
+            Text("Choose an app to see what is happening, its source, and its iPhone stage.")
+        } actions: {
+            Button("Create App", action: create)
+                .buttonStyle(PrimaryActionStyle())
+                .accessibilityIdentifier("create-app.empty")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -499,9 +600,14 @@ private struct CreationView: View {
                 ReferenceStrip(references: model.creation.references) { _, id in
                     model.creation.references.removeAll { $0.id == id }
                 }
-                Button("Add reference images…") { choosingReferences = true }
-                    .disabled(model.creation.references.count >= 8)
-                    .accessibilityIdentifier("creation.references")
+                HStack {
+                    Button("Add reference images…") { choosingReferences = true }
+                        .disabled(model.creation.references.count >= 8)
+                        .accessibilityIdentifier("creation.references")
+                    Text("or drop PNG/JPEG images here · \(model.creation.references.count)/8")
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
                 if model.defaults?.ready != true, model.managedCatalog?.models.isEmpty == false {
                     ManagedAccessCard(model: model)
                 }

@@ -33,9 +33,16 @@ final class NativeFactoryTests: XCTestCase {
 
     @MainActor
     func testFirstOpenWelcomeRendersAtTheShippingWindowSize() throws {
+        let suite = "tohseno-welcome-render-fixture-\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = TohsenoAppModel(
+            client: FakeFactory(workspaceShots: []),
+            preferences: preferences
+        )
         let size = NSSize(width: 862, height: 720)
         let host = NSHostingView(
-            rootView: TohsenoWelcomeFixtureView()
+            rootView: TohsenoWelcomeFixtureView(model: model)
                 .frame(width: size.width, height: size.height)
                 .environment(\.colorScheme, .dark)
         )
@@ -364,7 +371,78 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(source.contains("WELCOME TO TOHSENO"))
         XCTAssertTrue(source.contains("TAKE A SHOT"))
         XCTAssertTrue(source.contains("This is where your ideas transform into apps."))
-        XCTAssertTrue(source.contains("Describe what should exist. Press Return to send it."))
+        XCTAssertTrue(source.contains("Describe the app that should exist…"))
+        XCTAssertTrue(source.contains("Drop PNG or JPEG images"))
+        XCTAssertTrue(source.contains("Button(\"Skip\")"))
+        XCTAssertTrue(source.contains(".dropDestination(for: URL.self)"))
+    }
+
+    @MainActor
+    func testFirstShotGatePersistsOnlyAnExplicitSkip() async {
+        let suite = "tohseno-first-shot-gate-\(UUID().uuidString)"
+        let preferences = try! XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+
+        let emptyFactory = FakeFactory(workspaceShots: [])
+        let model = TohsenoAppModel(client: emptyFactory, preferences: preferences)
+        await model.reload()
+        XCTAssertTrue(model.shouldPresentFirstShot)
+        XCTAssertFalse(model.hasSkippedFirstShot)
+
+        model.skipFirstShot()
+        XCTAssertFalse(model.shouldPresentFirstShot)
+        XCTAssertEqual(model.route, .library)
+
+        let restored = TohsenoAppModel(client: emptyFactory, preferences: preferences)
+        await restored.reload()
+        XCTAssertTrue(restored.hasSkippedFirstShot)
+        XCTAssertFalse(restored.shouldPresentFirstShot)
+
+        let existingShot = TohsenoAppModel(client: FakeFactory(), preferences: UserDefaults.standard)
+        await existingShot.reload()
+        XCTAssertFalse(existingShot.shouldPresentFirstShot)
+    }
+
+    @MainActor
+    func testFirstShotAcceptsEightReferencesAndRejectsTheNinth() throws {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tohseno-first-shot-references-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: fixture, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+
+        let urls = try (1...9).map { index in
+            let url = fixture.appendingPathComponent("reference-\(index).png")
+            try Data([0x89, 0x50, 0x4E, 0x47]).write(to: url)
+            return url
+        }
+        let model = TohsenoAppModel(client: FakeFactory(workspaceShots: []))
+        model.addReferences(.success(Array(urls.prefix(8))), to: .creation)
+        XCTAssertEqual(model.creation.references.count, 8)
+        XCTAssertNil(model.errorMessage)
+
+        model.addReferences(.success([urls[8]]), to: .creation)
+        XCTAssertEqual(model.creation.references.count, 8)
+        XCTAssertTrue(model.errorMessage?.contains("at most eight") == true)
+    }
+
+    @MainActor
+    func testCreatingTheFirstShotNaturallyRevealsItsApp() async {
+        let suite = "tohseno-first-shot-submit-\(UUID().uuidString)"
+        let preferences = try! XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let factory = FakeFactory(workspaceShots: [])
+        let model = TohsenoAppModel(client: factory, preferences: preferences)
+        await model.reload()
+        XCTAssertTrue(model.shouldPresentFirstShot)
+
+        model.creation.intention = "Make a tiny app for remembering one good thing."
+        await model.submitCreation()
+
+        let createCalls = await factory.createCallCount()
+        XCTAssertEqual(createCalls, 1)
+        XCTAssertEqual(model.route, .app("shot_fixture"))
+        XCTAssertFalse(model.shouldPresentFirstShot)
+        XCTAssertFalse(model.hasSkippedFirstShot)
     }
 
     func testRequiredAccessibilityIdentifiersRemainPresent() throws {
@@ -375,6 +453,8 @@ final class NativeFactoryTests: XCTestCase {
         for identifier in [
             "readiness.primary", "create-app.sidebar", "creation.intention",
             "creation.submit", "evolution.intention", "evolution.submit",
+            "onboarding.intention", "onboarding.references", "onboarding.submit",
+            "onboarding.skip",
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
             "app.workspace-tabs", "app.change", "app.files", "app.build-log",
             "app.preview", "app.iphone-handoff", "app.open-source",
@@ -390,15 +470,18 @@ private actor FakeFactory: FactoryServing {
     private(set) var createCalls = 0
     let createDelay: Duration
     let receiptValue: ExecutionReceipt?
+    var workspaceShots: [AppSummary]?
     var readinessResponses: [ReadinessView]
 
     init(
         createDelay: Duration = .zero,
         receipt: ExecutionReceipt? = nil,
+        workspaceShots: [AppSummary]? = nil,
         readinessResponses: [ReadinessView] = []
     ) {
         self.createDelay = createDelay
         self.receiptValue = receipt
+        self.workspaceShots = workspaceShots
         self.readinessResponses = readinessResponses
     }
     func createCallCount() -> Int { createCalls }
@@ -407,7 +490,7 @@ private actor FakeFactory: FactoryServing {
         WorkspaceSnapshot(
             schema: "tohseno.workspace-snapshot/1", workspaceID: "workspace_fixture",
             snapshotVersion: 1, generatedAt: "2026-08-27T00:00:00Z", serviceVersion: "1.0.2",
-            shots: [fixtureApp], activeExecutions: []
+            shots: workspaceShots ?? [fixtureApp], activeExecutions: []
         )
     }
     func factoryDefaults() async throws -> FactoryDefaults {
@@ -452,6 +535,9 @@ private actor FakeFactory: FactoryServing {
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt {
         createCalls += 1
         try await Task.sleep(for: createDelay)
+        if workspaceShots?.contains(where: { $0.id == fixtureApp.id }) == false {
+            workspaceShots?.append(fixtureApp)
+        }
         return CommandReceipt(schema: "tohseno.create-shot-receipt/1", commandID: commandID, shotID: "shot_fixture", executionID: "execution_fixture", state: "accepted")
     }
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt { try await create(CreationDraft(intention: draft.intention), commandID: commandID) }

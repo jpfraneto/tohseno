@@ -2,10 +2,17 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0029](0029-first-shot-before-factory.md) makes TAKE A SHOT the real
+first creation surface before the factory whenever the workspace has never
+recorded a Shot. It uses the existing Return-to-send command path, accepts up
+to eight dropped or picked PNG/JPEG references, and offers one persisted,
+secondary Skip without changing protocol or activating publication.
+
 [ADR 0028](0028-finder-first-install-and-native-welcome.md) makes the native
 one-liner an Enter/Escape, progress-bar, verified-DMG handoff to Finder and
-gives a genuinely empty first open the small TAKE A SHOT invitation. It adds
-no onboarding state and does not activate publication.
+gives a genuinely empty first open the small TAKE A SHOT invitation. ADR 0029
+supersedes its passive, no-state welcome composition; the Finder handoff stays
+accepted and publication remains inactive.
 
 [ADR 0027](0027-native-app-workspace-and-device-stage.md) makes the native
 selected-app surface a Build/App/Source workspace with bounded owner-local
