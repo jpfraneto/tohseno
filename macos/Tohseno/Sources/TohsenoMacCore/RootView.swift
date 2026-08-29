@@ -115,6 +115,27 @@ public struct TohsenoRootView: View {
     }
 }
 
+#if DEBUG
+/// Offscreen visual-QA projection. It renders the exact production app-detail
+/// view without asking NavigationSplitView or the owner's live service to
+/// participate in a test image.
+public struct TohsenoBuildWorkspaceFixtureView: View {
+    @Bindable private var model: TohsenoAppModel
+
+    public init(model: TohsenoAppModel) {
+        self.model = model
+    }
+
+    public var body: some View {
+        if let app = model.apps.first {
+            AppDetailView(model: model, app: app)
+        } else {
+            Color.clear
+        }
+    }
+}
+#endif
+
 private struct LibraryEmptyView: View {
     let create: () -> Void
 
@@ -487,12 +508,603 @@ private struct CreationView: View {
     }
 }
 
+private enum AppWorkspaceTab: String, CaseIterable, Identifiable {
+    case build = "Build"
+    case app = "App"
+    case source = "Source"
+
+    var id: String { rawValue }
+}
+
 private struct AppDetailView: View {
     @Bindable var model: TohsenoAppModel
     let app: AppSummary
-    @State private var choosingReferences = false
+    @State private var tab = AppWorkspaceTab.build
+    @State private var showingEvolution = false
     @State private var showingDetails = false
     @State private var confirmingRetire = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            workspaceHeader
+            Divider()
+            HStack(spacing: 0) {
+                ScrollView {
+                    Group {
+                        switch tab {
+                        case .build:
+                            BuildWorkspaceView(model: model, app: app)
+                        case .app:
+                            AppWorkspaceView(
+                                model: model,
+                                app: app,
+                                change: { showingEvolution = true },
+                                details: showDetails
+                            )
+                        case .source:
+                            SourceWorkspaceView(
+                                model: model,
+                                app: app,
+                                details: showDetails,
+                                retire: { confirmingRetire = true }
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(28)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider()
+
+                ScrollView {
+                    IPhoneWorkspaceView(model: model, app: app)
+                        .padding(22)
+                }
+                .frame(minWidth: 280, idealWidth: 330, maxWidth: 360)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .foregroundStyle(.primary)
+        .task(id: app.id) { await model.prepareEvolution(for: app) }
+        .sheet(isPresented: $showingEvolution) {
+            EvolutionComposerSheet(model: model, app: app, isPresented: $showingEvolution)
+        }
+        .sheet(isPresented: $showingDetails) {
+            ExecutionDetailsView(receipt: model.receipt, balance: model.managedBalance)
+        }
+        .confirmationDialog("Retire \(app.displayName)?", isPresented: $confirmingRetire) {
+            Button("Retire App", role: .destructive) { Task { await model.retire(app) } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the app from Your Apps. Its source and history stay on this Mac and remain recoverable.")
+        }
+    }
+
+    private var workspaceHeader: some View {
+        HStack(spacing: 14) {
+            AppArtwork(data: model.icons[app.id], size: 48, cornerRadius: 11)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(app.displayName)
+                    .font(.title2.weight(.semibold))
+                    .lineLimit(1)
+                Label(app.presentation.headline, systemImage: stateSymbol(app.presentation.state))
+                    .font(.caption)
+                    .foregroundStyle(app.presentation.state == .failed ? .red : .secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 12)
+            Picker("Workspace", selection: $tab) {
+                ForEach(AppWorkspaceTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 225)
+            .accessibilityIdentifier("app.workspace-tabs")
+            if app.latestVersionID != nil, !app.presentation.state.isInFlight {
+                Button("What should change?") { showingEvolution = true }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("app.change")
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background(.bar)
+    }
+
+    private func showDetails() {
+        Task {
+            await model.showReceipt(for: app)
+            showingDetails = true
+        }
+    }
+
+    private func stateSymbol(_ state: PresentedState) -> String {
+        switch state {
+        case .waiting: "clock"
+        case .building: "hammer.fill"
+        case .readyForPhone: "cable.connector"
+        case .installing: "arrow.down.to.line.compact"
+        case .installed: "checkmark.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        }
+    }
+}
+
+private struct BuildWorkspaceView: View {
+    let model: TohsenoAppModel
+    let app: AppSummary
+
+    private var activity: ExecutionActivity? { model.activities[app.id] }
+    private var files: [ExecutionActivityFile] { activity?.files ?? [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Build")
+                    .font(.largeTitle.bold())
+                Text(app.presentation.detail ?? progressLanguage(app.presentation.state))
+                    .foregroundStyle(.secondary)
+            }
+
+            GroupBox {
+                BuildJourney(state: app.presentation.state)
+                    .padding(.vertical, 8)
+            } label: {
+                Label("From idea to iPhone", systemImage: "point.forward.to.point.capsulepath")
+            }
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 0) {
+                    if files.isEmpty {
+                        ContentUnavailableView(
+                            "No source changes yet",
+                            systemImage: "doc.badge.ellipsis",
+                            description: Text(app.presentation.state.isInFlight
+                                ? "Files appear here as the app takes shape."
+                                : "This build did not report changed source files.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 115)
+                    } else {
+                        ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                            SourceFileRow(file: file)
+                            if index != files.indices.last { Divider() }
+                        }
+                        if activity?.filesTruncated == true {
+                            Text("Showing the first \(files.count) of \(activity?.fileCount ?? files.count) files.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 10)
+                        }
+                    }
+                }
+                .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                Label(fileHeading, systemImage: "doc.on.doc")
+            }
+            .accessibilityIdentifier("app.files")
+
+            GroupBox {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let entries = activity?.entries, !entries.isEmpty {
+                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                            ActivityRow(entry: entry, isLast: index == entries.indices.last)
+                        }
+                    } else {
+                        HStack(spacing: 10) {
+                            if app.presentation.state.isInFlight { TohsenoSpinner(size: 18) }
+                            Text(app.presentation.state.isInFlight
+                                ? "Waiting for the first factory update…"
+                                : "No build log is available for this app yet.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+                    }
+                }
+                .padding(.top, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } label: {
+                HStack {
+                    Label("Build log", systemImage: "text.alignleft")
+                    Spacer()
+                    if let tokens = activity?.totalTokens {
+                        Text("\(tokens.formatted()) tokens")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .accessibilityIdentifier("app.build-log")
+        }
+    }
+
+    private var fileHeading: String {
+        let count = activity?.fileCount ?? files.count
+        return count == 1 ? "1 source file changed" : "\(count) source files changed"
+    }
+}
+
+private struct BuildJourney: View {
+    let state: PresentedState
+    private let stages = [
+        ("Intent", "text.bubble"),
+        ("Source", "curlybraces"),
+        ("Simulator", "iphone"),
+        ("iPhone", "cable.connector"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(Array(stages.enumerated()), id: \.offset) { index, stage in
+                VStack(spacing: 7) {
+                    ZStack {
+                        Circle()
+                            .fill(color(for: index).opacity(isReached(index) ? 1 : 0.11))
+                            .frame(width: 34, height: 34)
+                        if isActive(index), state != .failed, state != .installed {
+                            TohsenoSpinner(size: 22, stroke: .white, gap: color(for: index))
+                        } else {
+                            Image(systemName: symbol(for: index, fallback: stage.1))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(isReached(index) ? .white : .secondary)
+                        }
+                    }
+                    Text(stage.0)
+                        .font(.caption.weight(isActive(index) ? .semibold : .regular))
+                        .foregroundStyle(isReached(index) ? .primary : .secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+                if index < stages.count - 1 {
+                    Capsule()
+                        .fill(index < activeIndex ? TohsenoTheme.amber : Color.secondary.opacity(0.18))
+                        .frame(height: 2)
+                        .offset(y: -11)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Build path: intent, source, Simulator, your iPhone")
+    }
+
+    private var activeIndex: Int {
+        switch state {
+        case .waiting: 0
+        case .building, .failed: 1
+        case .readyForPhone: 2
+        case .installing, .installed: 3
+        }
+    }
+
+    private func isReached(_ index: Int) -> Bool { index <= activeIndex }
+    private func isActive(_ index: Int) -> Bool { index == activeIndex }
+    private func color(for index: Int) -> Color {
+        state == .failed && index == activeIndex ? .red : TohsenoTheme.amber
+    }
+    private func symbol(for index: Int, fallback: String) -> String {
+        if state == .failed && index == activeIndex { return "exclamationmark" }
+        if state == .installed && index == stages.count - 1 { return "checkmark" }
+        if index < activeIndex { return "checkmark" }
+        return fallback
+    }
+}
+
+private struct ActivityRow: View {
+    let entry: ExecutionActivityEntry
+    let isLast: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(isLast ? TohsenoTheme.amber : Color.secondary.opacity(0.4))
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 5)
+                if !isLast {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.18))
+                        .frame(width: 1, height: 34)
+                }
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(entry.message)
+                    .textSelection(.enabled)
+                Text("Update \(entry.sequence)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, isLast ? 0 : 12)
+        }
+    }
+}
+
+private struct SourceFileRow: View {
+    let file: ExecutionActivityFile
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 18)
+            Text(file.path)
+                .font(.system(.body, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            Spacer()
+            if let additions = file.additions, additions > 0 {
+                Text("+\(additions)").foregroundStyle(.green)
+            }
+            if let deletions = file.deletions, deletions > 0 {
+                Text("−\(deletions)").foregroundStyle(.red)
+            }
+        }
+        .font(.caption)
+        .padding(.vertical, 8)
+    }
+
+    private var icon: String {
+        if file.status.contains("D") { return "doc.badge.minus" }
+        if file.status.contains("A") || file.status == "??" { return "doc.badge.plus" }
+        if file.status.contains("R") { return "arrow.right.doc.on.clipboard" }
+        return "doc.badge.ellipsis"
+    }
+
+    private var color: Color {
+        if file.status.contains("D") { return .red }
+        if file.status.contains("A") || file.status == "??" { return .green }
+        return TohsenoTheme.amber
+    }
+}
+
+private struct AppWorkspaceView: View {
+    let model: TohsenoAppModel
+    let app: AppSummary
+    let change: () -> Void
+    let details: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Your app")
+                    .font(.largeTitle.bold())
+                Text("The accepted app, its next change, and the device it lives on.")
+                    .foregroundStyle(.secondary)
+            }
+            GroupBox {
+                VStack(alignment: .leading, spacing: 18) {
+                    LabeledContent("Status", value: app.presentation.headline)
+                    if let ordinal = app.latestVersionOrdinal {
+                        LabeledContent("Accepted version", value: "\(ordinal)")
+                    }
+                    if let bundleIdentifier = app.bundleIdentifier {
+                        LabeledContent("Bundle", value: bundleIdentifier)
+                    }
+                    Divider()
+                    Button("What should change?", action: change)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(app.latestVersionID == nil || app.presentation.state.isInFlight)
+                    Text("Describe one change. Return sends; Shift–Return adds a line.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 5)
+            } label: {
+                Label("App overview", systemImage: "app.dashed")
+            }
+            HStack {
+                if app.presentation.state == .installed {
+                    Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("app.open-on-iphone")
+                }
+                Button("Details…", action: details)
+            }
+        }
+    }
+}
+
+private struct SourceWorkspaceView: View {
+    let model: TohsenoAppModel
+    let app: AppSummary
+    let details: () -> Void
+    let retire: () -> Void
+
+    private var files: [ExecutionActivityFile] { model.activities[app.id]?.files ?? [] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Source")
+                    .font(.largeTitle.bold())
+                Text("This app's source and complete Git history stay on your Mac.")
+                    .foregroundStyle(.secondary)
+            }
+            Button("Open Source Folder") { Task { await model.openSource(for: app) } }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .accessibilityIdentifier("app.open-source")
+            GroupBox("Latest changes") {
+                VStack(alignment: .leading, spacing: 0) {
+                    if files.isEmpty {
+                        Text(model.receipt?.diffSummary ?? "No file-level summary is available yet.")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 70, alignment: .leading)
+                    } else {
+                        ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
+                            SourceFileRow(file: file)
+                            if index != files.indices.last { Divider() }
+                        }
+                    }
+                }
+                .padding(.top, 5)
+            }
+            HStack {
+                Button("Details…", action: details)
+                Spacer()
+                Button("Retire App…", role: .destructive, action: retire)
+            }
+        }
+    }
+}
+
+private struct IPhoneWorkspaceView: View {
+    let model: TohsenoAppModel
+    let app: AppSummary
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Label("iPhone", systemImage: "iphone")
+                    .font(.headline)
+                Spacer()
+                if model.previews[app.id] != nil {
+                    Text("SIMULATOR")
+                        .font(.caption2.weight(.semibold))
+                        .tracking(1)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            IPhonePreview(data: model.previews[app.id], state: app.presentation.state)
+                .accessibilityIdentifier("app.preview")
+            Text(model.previews[app.id] == nil
+                ? "The Simulator appears here as soon as the first verified app is ready."
+                : "Latest verified Simulator capture · not interactive")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            DeviceHandoffCard(model: model, app: app)
+        }
+    }
+}
+
+private struct IPhonePreview: View {
+    let data: Data?
+    let state: PresentedState
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 38, style: .continuous)
+                .fill(Color.black)
+            Group {
+                if let data, let image = NSImage(data: data) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .accessibilityLabel("Latest verified iPhone Simulator preview")
+                } else {
+                    VStack(spacing: 14) {
+                        if state.isInFlight {
+                            TohsenoSpinner(size: 38, stroke: TohsenoTheme.amber, gap: .black)
+                        } else {
+                            TohsenoMark(stroke: TohsenoTheme.amber, gap: .black)
+                                .frame(width: 38, height: 38)
+                        }
+                        Text(previewMessage)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(30)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 31, style: .continuous))
+            .padding(7)
+            Capsule()
+                .fill(Color.black)
+                .frame(width: 72, height: 21)
+                .padding(.top, 13)
+        }
+        .aspectRatio(0.51, contentMode: .fit)
+        .frame(maxHeight: 410)
+        .shadow(color: .black.opacity(0.2), radius: 14, y: 7)
+    }
+
+    private var previewMessage: String {
+        switch state {
+        case .waiting: "Preparing the app"
+        case .building: "Building for Simulator"
+        case .readyForPhone: "Preview is being prepared"
+        case .installing: "Installing on your iPhone"
+        case .installed: "Preview unavailable"
+        case .failed: "Build stopped safely"
+        }
+    }
+}
+
+private struct DeviceHandoffCard: View {
+    let model: TohsenoAppModel
+    let app: AppSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .top, spacing: 11) {
+                Image(systemName: symbol)
+                    .font(.title2)
+                    .foregroundStyle(app.presentation.state == .failed ? .red : TohsenoTheme.amber)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.headline)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if app.presentation.state == .installed {
+                Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("app.open-on-iphone")
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.secondary.opacity(0.18)))
+        .accessibilityIdentifier("app.iphone-handoff")
+    }
+
+    private var title: String {
+        switch app.presentation.state {
+        case .waiting, .building, .readyForPhone: "Connect & unlock your iPhone"
+        case .installing: "Installing over the cable"
+        case .installed: "Your app is on your iPhone"
+        case .failed: "Your source is safe"
+        }
+    }
+
+    private var detail: String {
+        switch app.presentation.state {
+        case .waiting, .building: "You can connect it now. TOHSENO will use it when the verified build is ready."
+        case .readyForPhone: "Keep the cable connected. Installation begins as soon as the phone is ready."
+        case .installing: "Keep the iPhone unlocked until the app opens."
+        case .installed: "The cable is only needed to install a new build."
+        case .failed: "Open Build to see where work stopped. Nothing accepted was replaced."
+        }
+    }
+
+    private var symbol: String {
+        switch app.presentation.state {
+        case .installing: "arrow.down.to.line.compact"
+        case .installed: "checkmark.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        default: "cable.connector"
+        }
+    }
+}
+
+private struct EvolutionComposerSheet: View {
+    @Bindable var model: TohsenoAppModel
+    let app: AppSummary
+    @Binding var isPresented: Bool
+    @State private var choosingReferences = false
     @FocusState private var intentionFocused: Bool
 
     private var draft: Binding<EvolutionDraft> {
@@ -508,137 +1120,89 @@ private struct AppDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .top, spacing: 16) {
-                    AppArtwork(data: model.icons[app.id], size: 72, cornerRadius: 15)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(app.displayName).font(.largeTitle.bold())
-                        Label(app.presentation.headline, systemImage: app.presentation.state == .failed ? "exclamationmark.triangle" : "circle.fill")
-                            .foregroundStyle(app.presentation.state == .failed ? .red : TohsenoTheme.silver)
-                    }
-                    Spacer()
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("What should change?")
+                        .font(.title.bold())
+                    Text("One clear change to \(app.displayName).")
+                        .foregroundStyle(.secondary)
                 }
-                if let detail = app.presentation.detail {
-                    Text(detail).foregroundStyle(TohsenoTheme.silver)
-                }
-                if let data = model.previews[app.id], let image = NSImage(data: data) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 520, maxHeight: 360)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
-                        .accessibilityLabel("Latest accepted first-screen preview")
-                        .accessibilityIdentifier("app.preview")
-                    Text("Latest accepted preview — not interactive")
-                        .font(.caption)
-                        .foregroundStyle(TohsenoTheme.silver)
-                }
-                if app.presentation.state.isInFlight {
-                    HStack(spacing: 9) {
-                        TohsenoSpinner(size: 18)
-                        Text(progressLanguage(app.presentation.state))
-                            .font(.caption)
-                            .foregroundStyle(TohsenoTheme.silver)
-                    }
-                }
-                Divider().overlay(TohsenoTheme.iron)
-                Text("What should change?").font(.title2.weight(.semibold))
-                TextEditor(text: draft.intention)
-                    .scrollContentBackground(.hidden)
-                    .padding(10)
-                    .frame(minHeight: 130)
-                    .background(TohsenoTheme.carbon)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(TohsenoTheme.iron))
-                    .focused($intentionFocused)
-                    .shotSubmitOnReturn(enabled: canSubmit) {
-                        Task { await model.submitEvolution(for: app) }
-                    }
-                    .accessibilityIdentifier("evolution.intention")
-                ReferenceStrip(references: draft.wrappedValue.references) { _, id in
-                    draft.wrappedValue.references.removeAll { $0.id == id }
-                }
-                Button("Add reference images…") { choosingReferences = true }
-                    .disabled(draft.wrappedValue.references.count >= 8)
-                AdvancedRouteDisclosure(
+                Spacer()
+                Button("Cancel") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+            TextEditor(text: draft.intention)
+                .font(.body)
+                .padding(10)
+                .frame(minHeight: 150)
+                .background(Color(nsColor: .textBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 9))
+                .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.secondary.opacity(0.22)))
+                .focused($intentionFocused)
+                .shotSubmitOnReturn(enabled: canSubmit, action: submit)
+                .accessibilityIdentifier("evolution.intention")
+            ReferenceStrip(references: draft.wrappedValue.references) { _, id in
+                draft.wrappedValue.references.removeAll { $0.id == id }
+            }
+            Button("Add reference images…") { choosingReferences = true }
+                .disabled(draft.wrappedValue.references.count >= 8)
+            AdvancedRouteDisclosure(
+                model: model,
+                harness: draft.harness,
+                selectedModel: draft.model,
+                privacy: draft.managedPrivacy,
+                maximumMicrousd: draft.managedMaximumMicrousd,
+                consent: draft.managedConsent,
+                estimate: model.evolutionEstimates[app.id]
+            )
+            .task(id: evolutionEstimateKey) { await model.estimateEvolution(for: app) }
+            Spacer(minLength: 0)
+            HStack {
+                RouteCostView(
                     model: model,
-                    harness: draft.harness,
-                    selectedModel: draft.model,
-                    privacy: draft.managedPrivacy,
-                    maximumMicrousd: draft.managedMaximumMicrousd,
-                    consent: draft.managedConsent,
+                    harness: draft.wrappedValue.harness,
                     estimate: model.evolutionEstimates[app.id]
                 )
-                .task(id: evolutionEstimateKey) { await model.estimateEvolution(for: app) }
-                HStack {
-                    RouteCostView(model: model, harness: draft.wrappedValue.harness, estimate: model.evolutionEstimates[app.id])
-                    ShotKeyboardHint()
-                    Spacer()
-                    Button {
-                        Task { await model.submitEvolution(for: app) }
-                    } label: {
-                        HStack(spacing: 7) {
-                            if model.isSubmitting {
-                                TohsenoSpinner(
-                                    size: 14,
-                                    stroke: TohsenoTheme.void,
-                                    gap: TohsenoTheme.amber
-                                )
-                            }
-                            Text(model.isSubmitting ? "Evolving…" : "Evolve App")
+                ShotKeyboardHint()
+                Spacer()
+                Button(action: submit) {
+                    HStack(spacing: 7) {
+                        if model.isSubmitting {
+                            TohsenoSpinner(size: 14, stroke: .white, gap: TohsenoTheme.amber)
                         }
+                        Text(model.isSubmitting ? "Sending…" : "Send change")
                     }
-                    .buttonStyle(PrimaryActionStyle())
-                    .disabled(!canSubmit)
-                    .keyboardShortcut(.return, modifiers: [])
-                    .accessibilityIdentifier("evolution.submit")
                 }
-                Divider().overlay(TohsenoTheme.iron)
-                HStack {
-                    if app.presentation.state == .installed {
-                        Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
-                            .accessibilityIdentifier("app.open-on-iphone")
-                    }
-                    Button("Open Source Folder") { Task { await model.openSource(for: app) } }
-                    Button("Details…") {
-                        Task { await model.showReceipt(for: app); showingDetails = true }
-                    }
-                    Spacer()
-                    Button("Retire…", role: .destructive) { confirmingRetire = true }
-                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canSubmit)
+                .keyboardShortcut(.return, modifiers: [])
+                .accessibilityIdentifier("evolution.submit")
             }
-            .frame(maxWidth: 820, alignment: .leading)
-            .padding(40)
         }
-        .fileImporter(isPresented: $choosingReferences, allowedContentTypes: [.png, .jpeg], allowsMultipleSelection: true) { result in
+        .padding(26)
+        .frame(minWidth: 650, minHeight: 500)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .foregroundStyle(.primary)
+        .fileImporter(
+            isPresented: $choosingReferences,
+            allowedContentTypes: [.png, .jpeg],
+            allowsMultipleSelection: true
+        ) { result in
             model.addReferences(result, to: .evolution(app.id))
         }
         .dropDestination(for: URL.self) { urls, _ in
             model.addReferences(.success(urls), to: .evolution(app.id))
             return !urls.isEmpty
         }
-        .task(id: app.id) {
-            await model.prepareEvolution(for: app)
-            intentionFocused = true
-        }
-        .sheet(isPresented: $showingDetails) { ExecutionDetailsView(receipt: model.receipt, balance: model.managedBalance) }
-        .confirmationDialog("Retire \(app.displayName)?", isPresented: $confirmingRetire) {
-            Button("Retire App", role: .destructive) { Task { await model.retire(app) } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes the app from Your Apps. Its source and history stay on this Mac and remain recoverable.")
-        }
+        .onAppear { intentionFocused = true }
     }
 
-    private func progressLanguage(_ state: PresentedState) -> String {
-        switch state {
-        case .waiting: "Waiting for the local factory"
-        case .building: "Creating the interface and checking the build"
-        case .readyForPhone: "The build is ready for your connected iPhone"
-        case .installing: "Installing the verified build on your iPhone"
-        case .installed: "Installed"
-        case .failed: "Stopped safely"
+    private func submit() {
+        guard canSubmit else { return }
+        Task {
+            await model.submitEvolution(for: app)
+            if model.errorMessage == nil { isPresented = false }
         }
     }
 
@@ -652,6 +1216,17 @@ private struct AppDetailView: View {
             String(value.references.reduce(0) { $0 + $1.data.count }),
             app.id
         ].joined(separator: ":")
+    }
+}
+
+private func progressLanguage(_ state: PresentedState) -> String {
+    switch state {
+    case .waiting: "Waiting for the local factory."
+    case .building: "Creating the interface, writing source, and checking the build."
+    case .readyForPhone: "The verified build is ready for your connected iPhone."
+    case .installing: "Installing the verified build on your iPhone."
+    case .installed: "The latest accepted version is installed."
+    case .failed: "Work stopped safely. The build log explains where."
     }
 }
 

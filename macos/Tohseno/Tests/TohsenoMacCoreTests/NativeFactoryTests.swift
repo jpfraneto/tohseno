@@ -1,8 +1,36 @@
 import Foundation
+import AppKit
+import SwiftUI
 import XCTest
 @testable import TohsenoMacCore
 
 final class NativeFactoryTests: XCTestCase {
+    @MainActor
+    func testNativeBuildWorkspaceRendersAtTheShippingWindowSize() async throws {
+        let suite = "tohseno-render-fixture-\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = TohsenoAppModel(client: UIFixtureFactoryClient(), preferences: preferences)
+        model.route = .app(UIFixtureFactoryClient.appID)
+        await model.reload()
+
+        let size = NSSize(width: 862, height: 720)
+        let host = NSHostingView(
+            rootView: TohsenoBuildWorkspaceFixtureView(model: model)
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        XCTAssertGreaterThan(png.count, 20_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_UI_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     func testHumanPresentationHasExactlySixStates() {
         XCTAssertEqual(PresentedState.allCases.map(\.rawValue), [
             "waiting", "building", "ready_for_phone", "installing", "installed", "failed",
@@ -236,6 +264,23 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(record.localVerified)
     }
 
+    func testExecutionActivityDecodesLiveFilesAndRemainsCompatibleWithOlderHelper() throws {
+        let current = try JSONDecoder.tohseno.decode(
+            ExecutionActivity.self,
+            from: Data(#"{"schema":"tohseno.execution-activity/1","execution_id":"execution_fixture","complete":false,"file_count":1,"files_truncated":false,"files":[{"status":"A","path":"Fixture/App.swift","additions":12,"deletions":0}],"entries":[{"sequence":1,"timestamp":"2026-08-28T00:00:00Z","phase":"building","message":"Writing the interface."}]}"#.utf8)
+        )
+        XCTAssertEqual(current.fileCount, 1)
+        XCTAssertEqual(current.files?.first?.path, "Fixture/App.swift")
+        XCTAssertEqual(current.entries.first?.message, "Writing the interface.")
+
+        let older = try JSONDecoder.tohseno.decode(
+            ExecutionActivity.self,
+            from: Data(#"{"schema":"tohseno.execution-activity/1","execution_id":"execution_fixture","complete":true,"entries":[]}"#.utf8)
+        )
+        XCTAssertNil(older.files)
+        XCTAssertNil(older.fileCount)
+    }
+
     func testRegistryHelperDrainsBoundedOutputWhileTheProcessRuns() async throws {
         let fixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("tohseno-registry-helper-\(UUID().uuidString)", isDirectory: true)
@@ -301,6 +346,8 @@ final class NativeFactoryTests: XCTestCase {
             "readiness.primary", "create-app.sidebar", "creation.intention",
             "creation.submit", "evolution.intention", "evolution.submit",
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
+            "app.workspace-tabs", "app.change", "app.files", "app.build-log",
+            "app.preview", "app.iphone-handoff", "app.open-source",
             "registry.sidebar", "registry.quick.intention", "registry.quick.submit",
             "registry.builder", "registry.public-status",
         ] {
@@ -379,6 +426,7 @@ private actor FakeFactory: FactoryServing {
     }
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt { try await create(CreationDraft(intention: draft.intention), commandID: commandID) }
     func receipt(for appID: String) async throws -> ExecutionReceipt? { receiptValue }
+    func activity(for appID: String) async throws -> ExecutionActivity? { nil }
     func icon(for appID: String) async throws -> Data? { nil }
     func preview(for appID: String) async throws -> Data? { nil }
     func openOnPhone(for appID: String) async throws {}

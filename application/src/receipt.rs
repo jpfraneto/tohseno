@@ -17,7 +17,7 @@ use std::fs;
 use std::path::Path;
 use tohseno_engine::shot_execution::{
     execution_directory, load_completion, load_state_transition_receipt, preserved_intent,
-    read_events, ExecutionPhase, StateTransitionReceipt,
+    read_events, workspace_changed_files, ChangedFile, ExecutionPhase, StateTransitionReceipt,
 };
 use tohseno_engine::{AppKind, Engine};
 
@@ -31,6 +31,7 @@ const MAXIMUM_EVIDENCE_CHARACTERS: usize = 8_000;
 const MAXIMUM_JOURNAL_ENTRIES: usize = 100_000;
 const MAXIMUM_JOURNAL_PAYLOAD_BYTES: u64 = 4 * 1024 * 1024;
 const MAXIMUM_ACTIVITY_ENTRIES: usize = 200;
+const MAXIMUM_ACTIVITY_FILES: usize = 200;
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -99,6 +100,9 @@ pub struct ExecutionActivity {
     pub complete: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<u64>,
+    pub file_count: usize,
+    pub files_truncated: bool,
+    pub files: Vec<ChangedFile>,
     pub entries: Vec<ExecutionActivityEntry>,
 }
 
@@ -271,11 +275,21 @@ pub fn load_execution_activity(
             message: event.report.clone(),
         })
         .collect();
+    let mut files = completion
+        .as_ref()
+        .map(|record| record.files_changed.clone())
+        .unwrap_or_else(|| workspace_changed_files(&execution).unwrap_or_default());
+    let file_count = files.len();
+    let files_truncated = file_count > MAXIMUM_ACTIVITY_FILES;
+    files.truncate(MAXIMUM_ACTIVITY_FILES);
     Ok(Some(ExecutionActivity {
         schema: EXECUTION_ACTIVITY_SCHEMA,
         execution_id,
         complete: completion.is_some(),
         total_tokens: usage.map(|value| value.total_tokens),
+        file_count,
+        files_truncated,
+        files,
         entries,
     }))
 }
@@ -475,5 +489,30 @@ mod tests {
     fn long_material_is_bounded_with_an_honest_ellipsis() {
         assert_eq!(bounded("abcdef", 3), "abc…");
         assert_eq!(bounded("abc", 3), "abc");
+    }
+
+    #[test]
+    fn activity_file_projection_is_bounded_and_owner_readable() {
+        let activity = ExecutionActivity {
+            schema: EXECUTION_ACTIVITY_SCHEMA,
+            execution_id: "execution_fixture".into(),
+            complete: false,
+            total_tokens: None,
+            file_count: 1,
+            files_truncated: false,
+            files: vec![ChangedFile {
+                status: "A".into(),
+                path: "CampanitaApp.swift".into(),
+                additions: Some(38),
+                deletions: Some(0),
+            }],
+            entries: Vec::new(),
+        };
+
+        let value = serde_json::to_value(activity).unwrap();
+        assert_eq!(value["file_count"], 1);
+        assert_eq!(value["files_truncated"], false);
+        assert_eq!(value["files"][0]["path"], "CampanitaApp.swift");
+        assert!(value.get("total_tokens").is_none());
     }
 }

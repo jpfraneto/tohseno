@@ -1875,8 +1875,9 @@ async fn shot_receipt(
     })?))
 }
 
-/// Durable semantic progress and metered usage for the open Details surface.
-/// Raw harness output remains in the private on-disk operational log.
+/// Durable semantic progress, bounded owner-local file names, and metered
+/// usage for the native Build surface. Raw harness output remains in the
+/// private on-disk operational log.
 async fn shot_activity(
     State(state): State<Arc<WorkspaceState>>,
     AxumPath(shot_id): AxumPath<String>,

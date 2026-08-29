@@ -801,14 +801,25 @@ pub fn workspace_fingerprint(execution: &PreparedExecution) -> Result<String, Sh
 pub fn privacy_safe_workspace_progress(
     execution: &PreparedExecution,
 ) -> Result<String, ShotExecutionError> {
+    let files = workspace_changed_files(execution)?;
+    Ok(workspace_progress_from_changes(&files))
+}
+
+/// The source changes currently visible inside this execution's captured Git
+/// boundary. This is for the owner's loopback-native workspace only: the
+/// capture excludes TOHSENO's private execution directory and compares
+/// against the execution's own baseline, so pre-existing owner work is never
+/// attributed to the active request.
+pub fn workspace_changed_files(
+    execution: &PreparedExecution,
+) -> Result<Vec<ChangedFile>, ShotExecutionError> {
     let directory = execution_directory(&execution.repository, &execution.execution_id);
     let current_tree = capture_tree(&execution.repository, &directory)?;
-    let files = changed_files(
+    changed_files(
         &execution.repository,
         &execution.baseline.tree,
         &current_tree,
-    )?;
-    Ok(workspace_progress_from_changes(&files))
+    )
 }
 
 fn workspace_progress_from_changes(files: &[ChangedFile]) -> String {

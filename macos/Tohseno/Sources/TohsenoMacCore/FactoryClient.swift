@@ -30,6 +30,7 @@ public protocol FactoryServing: Sendable {
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt
     func receipt(for appID: String) async throws -> ExecutionReceipt?
+    func activity(for appID: String) async throws -> ExecutionActivity?
     func icon(for appID: String) async throws -> Data?
     func preview(for appID: String) async throws -> Data?
     func openOnPhone(for appID: String) async throws
@@ -204,6 +205,14 @@ public actor LoopbackFactoryClient: FactoryServing {
     public func receipt(for appID: String) async throws -> ExecutionReceipt? {
         do {
             return try await request("/api/v1/shots/\(try pathToken(appID))/receipt")
+        } catch FactoryClientError.rejected(code: "not_found", message: _) {
+            return nil
+        }
+    }
+
+    public func activity(for appID: String) async throws -> ExecutionActivity? {
+        do {
+            return try await request("/api/v1/shots/\(try pathToken(appID))/activity")
         } catch FactoryClientError.rejected(code: "not_found", message: _) {
             return nil
         }

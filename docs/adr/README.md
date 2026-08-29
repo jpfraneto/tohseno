@@ -2,6 +2,18 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0027](0027-native-app-workspace-and-device-stage.md) makes the native
+selected-app surface a Build/App/Source workspace with bounded owner-local
+activity, changed source files, an honest latest Simulator capture, and a
+permanent automatic cable-handoff card. It keeps internal execution concepts
+and raw harness output out of the normal path and does not restore the deleted
+Studio dashboard or claim an interactive embedded Simulator.
+
+[ADR 0026](0026-keyboard-first-local-registry-and-native-installer.md) makes
+plain Return submit each focused native composer, adds the truthful local
+Registry/Builder track-record destination, and defines the fail-closed
+one-line native installer without activating publication.
+
 [ADR 0025](0025-native-macos-app-factory-managed-balance.md) makes the native
 SwiftUI `Tohseno.app` the primary product while keeping the persistent Rust
 service as the only factory. It removes npm/browser first run, mandatory

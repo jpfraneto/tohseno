@@ -29,6 +29,12 @@ protocol material, not free-form docs.
    not imply public Builder authority or publication when registry RPC is not
    implemented. `/install` and `/download` remain unavailable until the exact
    immutable notarized DMG URL and SHA-256 are activated.
+   ADR 0027 governs the native selected-app workspace: Build/App/Source tabs,
+   bounded owner-local semantic activity and changed-file projection, an
+   honest non-interactive Simulator capture, a permanent cable handoff card,
+   and a button-gated keyboard-first evolution composer. It does not restore
+   the deleted Studio dashboard or expose internal phases, identities, raw
+   harness output, prompts, or protocol controls on the normal path.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

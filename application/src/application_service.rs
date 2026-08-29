@@ -1047,7 +1047,7 @@ impl ShotApplicationService {
         .map_err(|error| ApplicationError::Orchestration(error.to_string()))
     }
 
-    /// Privacy-safe, durable progress for the owner's open Details surface.
+    /// Bounded durable progress for the owner's loopback-native Build surface.
     pub fn execution_activity(
         &self,
         shot_id: &str,

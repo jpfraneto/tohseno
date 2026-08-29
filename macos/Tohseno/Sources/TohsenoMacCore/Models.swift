@@ -423,6 +423,37 @@ public struct ExecutionReceipt: Codable, Equatable, Sendable {
     public let nextAction: String?
 }
 
+public struct ExecutionActivity: Codable, Equatable, Sendable {
+    public let schema: String
+    public let executionID: String
+    public let complete: Bool
+    public let totalTokens: UInt64?
+    /// Optional for compatibility with a locally installed helper from before
+    /// the native workspace exposed its bounded source-file projection.
+    public let fileCount: Int?
+    public let filesTruncated: Bool?
+    public let files: [ExecutionActivityFile]?
+    public let entries: [ExecutionActivityEntry]
+}
+
+public struct ExecutionActivityFile: Codable, Equatable, Identifiable, Sendable {
+    public let status: String
+    public let path: String
+    public let additions: UInt64?
+    public let deletions: UInt64?
+
+    public var id: String { "\(status):\(path)" }
+}
+
+public struct ExecutionActivityEntry: Codable, Equatable, Identifiable, Sendable {
+    public let sequence: UInt64
+    public let timestamp: String
+    public let phase: String
+    public let message: String
+
+    public var id: UInt64 { sequence }
+}
+
 public struct ExecutionRefusal: Codable, Equatable, Sendable {
     public let check: String
     public let status: String

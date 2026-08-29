@@ -23,6 +23,7 @@ public final class TohsenoAppModel {
     public private(set) var defaults: FactoryDefaults?
     public private(set) var readiness: ReadinessView?
     public private(set) var receipt: ExecutionReceipt?
+    public private(set) var activities: [String: ExecutionActivity] = [:]
     public private(set) var managedStatus: ManagedStatus?
     public private(set) var managedBalance: ManagedBalance?
     public private(set) var managedCatalog: ManagedCatalog?
@@ -49,6 +50,7 @@ public final class TohsenoAppModel {
 
     private let client: any FactoryServing
     private let preferences: UserDefaults
+    private var previewVersions: [String: String] = [:]
     private var monitoringTask: Task<Void, Never>?
     private var readinessMonitoringTask: Task<Void, Never>?
 
@@ -101,6 +103,7 @@ public final class TohsenoAppModel {
             await refreshAssets()
             await refreshManaged()
             repairRoute()
+            await refreshSelectedAppDetails()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -112,9 +115,7 @@ public final class TohsenoAppModel {
             workspace = try await client.workspace()
             repairRoute()
             await refreshAssets()
-            if let selectedApp {
-                receipt = try await client.receipt(for: selectedApp.id)
-            }
+            await refreshSelectedAppDetails()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -127,9 +128,31 @@ public final class TohsenoAppModel {
             if icons[app.id] == nil, let data = try? await client.icon(for: app.id) {
                 icons[app.id] = data
             }
-            if previews[app.id] == nil, let data = try? await client.preview(for: app.id) {
-                previews[app.id] = data
+            if let versionID = app.latestVersionID,
+               previewVersions[app.id] != versionID {
+                previews[app.id] = nil
+                if let data = try? await client.preview(for: app.id) {
+                    previews[app.id] = data
+                    previewVersions[app.id] = versionID
+                }
             }
+        }
+    }
+
+    private func refreshSelectedAppDetails() async {
+        guard let selectedApp else {
+            receipt = nil
+            return
+        }
+        async let latestReceipt = client.receipt(for: selectedApp.id)
+        async let latestActivity = client.activity(for: selectedApp.id)
+        do {
+            receipt = try await latestReceipt
+            if let activity = try await latestActivity {
+                activities[selectedApp.id] = activity
+            }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -370,7 +393,12 @@ public final class TohsenoAppModel {
     }
 
     public func showReceipt(for app: AppSummary) async {
-        do { receipt = try await client.receipt(for: app.id) }
+        do {
+            async let latestReceipt = client.receipt(for: app.id)
+            async let latestActivity = client.activity(for: app.id)
+            receipt = try await latestReceipt
+            if let activity = try await latestActivity { activities[app.id] = activity }
+        }
         catch { errorMessage = error.localizedDescription }
     }
 
@@ -382,6 +410,9 @@ public final class TohsenoAppModel {
         do {
             let latest = try await client.receipt(for: app.id)
             receipt = latest
+            if let activity = try await client.activity(for: app.id) {
+                activities[app.id] = activity
+            }
             guard let latest else {
                 evolutions[app.id] = EvolutionDraft()
                 return

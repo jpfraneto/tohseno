@@ -3,7 +3,22 @@ import TohsenoMacCore
 
 @main
 struct TohsenoMacApp: App {
-    @State private var model = TohsenoAppModel(client: LoopbackFactoryClient())
+    @State private var model: TohsenoAppModel
+
+    init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["TOHSENO_UI_FIXTURE"] == "1" {
+            let fixture = TohsenoAppModel(
+                client: UIFixtureFactoryClient(),
+                preferences: UserDefaults(suiteName: "tohseno-ui-fixture") ?? .standard
+            )
+            fixture.route = .app(UIFixtureFactoryClient.appID)
+            _model = State(initialValue: fixture)
+            return
+        }
+        #endif
+        _model = State(initialValue: TohsenoAppModel(client: LoopbackFactoryClient()))
+    }
 
     var body: some Scene {
         WindowGroup("TOHSENO", id: "factory") {
