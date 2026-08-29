@@ -101,7 +101,11 @@ return URLs, exact Stripe test-mode one-time Prices for $10/$25/$50, and a
 test webhook endpoint for checkout, refund, and dispute events. Managed
 compute remains disabled because no least-privilege Bankr LLM Gateway key or
 model allowlist is available, Bankr credits and real inference are unverified,
-and no backup/restore drill or real-service scenario matrix has passed.
+and no backup/restore drill or real-service scenario matrix has passed. The
+Railway volume API reports no manual backup and no schedule; the current CLI
+credential can inspect that state but is not authorized to create a backup or
+set daily/weekly schedules, so backup administration still requires an
+authorized Railway owner session.
 
 Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
