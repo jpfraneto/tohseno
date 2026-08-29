@@ -104,20 +104,21 @@ export function renderNativeMacInstaller(
   downloadURL: string,
   downloadSHA256: string,
 ): string {
+  const artifactPathComponent = new URL(downloadURL).pathname.split("/").at(-1) ?? "";
+  const downloadName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.dmg$/.test(artifactPathComponent)
+    ? artifactPathComponent
+    : "TOHSENO.dmg";
   const script = `#!/bin/sh
 set -eu
 
 dmg_url=__DMG_URL__
 dmg_sha256=__DMG_SHA256__
+download_name=__DOWNLOAD_NAME__
 expected_team_id='84V63LKV45'
 expected_bundle_id='com.tohseno.mac'
-source_url='https://github.com/jpfraneto/tohseno'
-docs_url='https://tohseno.com/docs'
 temp_dir=''
 mount_point=''
-staged_app=''
-target_app=''
-backup_app=''
+tty_state=''
 
 say() {
   /usr/bin/printf '%s\\n' "$*" > /dev/tty
@@ -129,18 +130,12 @@ die() {
 }
 
 cleanup() {
+  if [ -n "$tty_state" ]; then
+    /bin/stty "$tty_state" < /dev/tty >/dev/null 2>&1 || true
+    tty_state=''
+  fi
   if [ -n "$mount_point" ] && /sbin/mount | /usr/bin/grep -F " on $mount_point " >/dev/null 2>&1; then
     /usr/bin/hdiutil detach "$mount_point" -quiet >/dev/null 2>&1 || true
-  fi
-  if [ -n "$staged_app" ] && [ -e "$staged_app" ]; then
-    case "$staged_app" in
-      "$HOME/Applications/.TOHSENO.app.install."*|"/Applications/.TOHSENO.app.install."*)
-        /bin/rm -rf "$staged_app"
-        ;;
-    esac
-  fi
-  if [ -n "$backup_app" ] && [ -n "$target_app" ] && [ ! -e "$target_app" ] && [ -e "$backup_app" ]; then
-    /bin/mv "$backup_app" "$target_app" >/dev/null 2>&1 || true
   fi
   if [ -n "$temp_dir" ] && [ -d "$temp_dir" ]; then
     case "$temp_dir" in
@@ -157,7 +152,7 @@ trap 'exit 130' HUP INT TERM
   exit 1
 }
 
-for tool in /usr/bin/curl /usr/bin/shasum /usr/bin/hdiutil /usr/bin/codesign /usr/sbin/spctl /usr/bin/ditto /usr/bin/open /usr/bin/sw_vers /usr/bin/uname /usr/bin/grep /usr/bin/sed /usr/bin/pgrep /sbin/mount; do
+for tool in /usr/bin/curl /usr/bin/shasum /usr/bin/hdiutil /usr/bin/codesign /usr/sbin/spctl /usr/bin/open /usr/bin/sw_vers /usr/bin/uname /usr/bin/grep /usr/bin/sed /bin/dd /bin/stty /sbin/mount; do
   [ -x "$tool" ] || die "required macOS tool is missing: $tool"
 done
 
@@ -175,27 +170,46 @@ esac
 [ "$macos_major" -ge 14 ] || die "macOS 14 or newer is required; this Mac has $macos_version."
 
 say ''
-say 'You are about to download the signed and notarized TOHSENO macOS app.'
-say 'It is open source and the installer does not request administrator access or edit your shell.'
-say "Source: $source_url"
-say "Docs:   $docs_url"
-say "DMG:    $dmg_url"
-say "SHA-256: $dmg_sha256"
-say ''
-say 'Press Return to download, verify, install, and open TOHSENO. Press Control-C to cancel.'
-IFS= read -r _tohseno_confirmation < /dev/tty || exit 130
-
-if /usr/bin/pgrep -x TohsenoMacApp >/dev/null 2>&1; then
-  die 'TOHSENO is running. Quit it, then run this command again.'
-fi
+say 'You will install the TOHSENO installer.'
+say 'Enter to continue. Esc to exit.'
+escape_character=$(/usr/bin/printf '\\033')
+while :; do
+  tty_state=$(/bin/stty -g < /dev/tty) || die 'the terminal state could not be read.'
+  /bin/stty -echo -icanon min 1 time 0 < /dev/tty || die 'the terminal could not enter confirmation mode.'
+  confirmation=$(/bin/dd bs=1 count=1 2>/dev/null < /dev/tty || true)
+  /bin/stty "$tty_state" < /dev/tty || true
+  tty_state=''
+  case "$confirmation" in
+    '') say ''; break ;;
+    "$escape_character") say ''; say 'Nothing was installed.'; exit 0 ;;
+    *) /usr/bin/printf '\\a' > /dev/tty ;;
+  esac
+done
 
 temp_dir=$(/usr/bin/mktemp -d /tmp/tohseno-native-install.XXXXXX) || die 'a temporary folder could not be created.'
 dmg_path="$temp_dir/TOHSENO.dmg"
 mount_point="$temp_dir/mount"
 /bin/mkdir "$mount_point"
+downloads_dir="$HOME/Downloads"
+/bin/mkdir -p "$downloads_dir" || die 'the Downloads folder could not be prepared.'
+destination="$downloads_dir/$download_name"
+[ ! -L "$destination" ] || die "$destination is a symbolic link and was left untouched."
+if [ -e "$destination" ]; then
+  [ -f "$destination" ] || die "$destination already exists and is not a regular file."
+  existing_sha256=$(/usr/bin/shasum -a 256 "$destination" | /usr/bin/sed 's/[[:space:]].*$//')
+  if [ "$existing_sha256" = "$dmg_sha256" ]; then
+    say ''
+    say 'TOHSENO is ready.'
+    say "$destination"
+    say 'Double-click it, then drag TOHSENO into Applications.'
+    /usr/bin/open -R "$destination" || die 'the verified installer could not be revealed in Finder.'
+    exit 0
+  fi
+  die "$destination already exists with different contents. Move it elsewhere, then try again."
+fi
 
-say 'Downloading the notarized DMG…'
-/usr/bin/curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --max-filesize 536870912 --output "$dmg_path" "$dmg_url" || die 'the DMG download failed.'
+say 'Downloading TOHSENO…'
+/usr/bin/curl --fail --location --progress-bar --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --max-filesize 536870912 --output "$dmg_path" "$dmg_url" 2> /dev/tty || die 'the DMG download failed.'
 
 actual_sha256=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/sed 's/[[:space:]].*$//')
 [ "$actual_sha256" = "$dmg_sha256" ] || die 'the downloaded DMG did not match the published SHA-256.'
@@ -212,39 +226,19 @@ team_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^TeamIdentif
 [ "$team_id" = "$expected_team_id" ] || die 'the app was not signed by the expected TOHSENO Apple team.'
 /usr/sbin/spctl --assess --type execute --verbose=2 "$source_app" >/dev/null 2>&1 || die 'Gatekeeper did not accept the notarized TOHSENO app.'
 
-install_root='/Applications'
-if [ ! -d "$install_root" ] || [ ! -w "$install_root" ]; then
-  install_root="$HOME/Applications"
-  /bin/mkdir -p "$install_root" || die "the folder $install_root could not be created."
-fi
-target_app="$install_root/TOHSENO.app"
-staged_app="$install_root/.TOHSENO.app.install.$$"
-[ ! -e "$staged_app" ] && [ ! -L "$staged_app" ] || die 'a previous staged installation needs attention.'
-
-/usr/bin/ditto "$source_app" "$staged_app" || die 'the app could not be copied into place.'
-/usr/bin/codesign --verify --deep --strict "$staged_app" >/dev/null 2>&1 || die 'the installed copy did not preserve its signature.'
-
-if [ -e "$target_app" ] || [ -L "$target_app" ]; then
-  [ -d "$target_app" ] && [ ! -L "$target_app" ] || die "$target_app exists but is not a regular app folder."
-  existing_signature=$(/usr/bin/codesign -d --verbose=4 "$target_app" 2>&1 || true)
-  existing_bundle_id=$(/usr/bin/printf '%s\\n' "$existing_signature" | /usr/bin/sed -n 's/^Identifier=//p')
-  [ "$existing_bundle_id" = "$expected_bundle_id" ] || die 'the existing TOHSENO.app was not replaced because its identity is unrecognized.'
-  /bin/mkdir -p "$HOME/.Trash" || die 'the Trash folder could not be prepared.'
-  timestamp=$(/bin/date -u '+%Y%m%dT%H%M%SZ')
-  backup_app="$HOME/.Trash/TOHSENO.app.backup.$timestamp.$$"
-  /bin/mv "$target_app" "$backup_app" || die 'the existing TOHSENO app could not be moved safely to Trash.'
-fi
-
-/bin/mv "$staged_app" "$target_app" || die 'the verified TOHSENO app could not be installed.'
-staged_app=''
-say "Installed TOHSENO at $target_app"
-[ -z "$backup_app" ] || say "The previous version is recoverable at $backup_app"
-/usr/bin/open "$target_app" || die 'TOHSENO was installed but could not be opened.'
-say 'TOHSENO is open. Connect and unlock your iPhone, then create the app that should exist.'
+/usr/bin/hdiutil detach "$mount_point" -quiet || die 'the verified DMG could not be closed cleanly.'
+mount_point=''
+/bin/mv "$dmg_path" "$destination" || die 'the verified installer could not be moved into Downloads.'
+say ''
+say 'TOHSENO is ready.'
+say "$destination"
+say 'Double-click it, then drag TOHSENO into Applications.'
+/usr/bin/open -R "$destination" || die 'the verified installer could not be revealed in Finder.'
 `;
   return script
     .replace("__DMG_URL__", shellSingleQuote(downloadURL))
-    .replace("__DMG_SHA256__", shellSingleQuote(downloadSHA256));
+    .replace("__DMG_SHA256__", shellSingleQuote(downloadSHA256))
+    .replace("__DOWNLOAD_NAME__", shellSingleQuote(downloadName));
 }
 
 const PAGE_PATHS = ["/", "/docs", "/privacy", "/healthz"] as const;

@@ -95,9 +95,14 @@ MACOS_DOWNLOAD_SHA256=<exact-lowercase-digest>
 ```
 
 Verify `GET /api/distribution/v1/macos`, `HEAD /download/macos`, the landing
-button, CDN behavior, and the downloaded digest. A source merge, Git tag,
-successful local build, or notarization submission alone is not permission to
-set `MACOS_DOWNLOAD_ENABLED=true`.
+button, CDN behavior, and the downloaded digest. From a clean interactive Mac
+terminal, verify that the canonical command accepts only Enter or Escape,
+restores the terminal on exit, displays the download progress, verifies before
+exposure, places the exact DMG in Downloads, and reveals it in Finder without
+copying, replacing, or opening an application. Complete the ordinary Finder
+drag and first-open walkthrough with the exact downloaded bytes. A source
+merge, Git tag, successful local build, or notarization submission alone is
+not permission to set `MACOS_DOWNLOAD_ENABLED=true`.
 
 Rollback the download by setting `MACOS_DOWNLOAD_ENABLED=false`; do not replace
 bytes at an existing immutable URL. Repair requires a new candidate and the

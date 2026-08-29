@@ -31,6 +31,25 @@ final class NativeFactoryTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testFirstOpenWelcomeRendersAtTheShippingWindowSize() throws {
+        let size = NSSize(width: 862, height: 720)
+        let host = NSHostingView(
+            rootView: TohsenoWelcomeFixtureView()
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        XCTAssertGreaterThan(png.count, 12_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_WELCOME_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     func testHumanPresentationHasExactlySixStates() {
         XCTAssertEqual(PresentedState.allCases.map(\.rawValue), [
             "waiting", "building", "ready_for_phone", "installing", "installed", "failed",
@@ -335,6 +354,17 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".shotSubmitOnReturn(").count - 1, 3)
         XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".keyboardShortcut(.return, modifiers: [])").count - 1, 3)
         XCTAssertTrue(source.contains("press.modifiers.contains(.shift)"))
+    }
+
+    func testFirstOpenWelcomeKeepsTheProductPromiseSmall() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
+        let source = try String(contentsOf: root, encoding: .utf8)
+        XCTAssertTrue(source.contains("WELCOME TO TOHSENO"))
+        XCTAssertTrue(source.contains("TAKE A SHOT"))
+        XCTAssertTrue(source.contains("This is where your ideas transform into apps."))
+        XCTAssertTrue(source.contains("Describe what should exist. Press Return to send it."))
     }
 
     func testRequiredAccessibilityIdentifiersRemainPresent() throws {

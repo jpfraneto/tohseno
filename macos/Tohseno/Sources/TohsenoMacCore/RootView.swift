@@ -79,7 +79,7 @@ public struct TohsenoRootView: View {
         } detail: {
             switch model.route {
             case .library:
-                LibraryEmptyView { model.route = .create }
+                LibraryEmptyView(hasApps: !model.apps.isEmpty) { model.route = .create }
             case .registry:
                 RegistryView(model: model)
             case .create:
@@ -88,7 +88,7 @@ public struct TohsenoRootView: View {
                 if let app = model.selectedApp {
                     AppDetailView(model: model, app: app)
                 } else {
-                    LibraryEmptyView { model.route = .create }
+                    LibraryEmptyView(hasApps: !model.apps.isEmpty) { model.route = .create }
                 }
             }
         }
@@ -134,21 +134,77 @@ public struct TohsenoBuildWorkspaceFixtureView: View {
         }
     }
 }
+
+/// Offscreen first-open projection used to keep the welcome composition calm
+/// at the same size as the shipping window.
+public struct TohsenoWelcomeFixtureView: View {
+    public init() {}
+
+    public var body: some View {
+        LibraryEmptyView(hasApps: false) {}
+            .background(TohsenoTheme.void)
+            .foregroundStyle(TohsenoTheme.bone)
+            .tint(TohsenoTheme.amber)
+    }
+}
 #endif
 
 private struct LibraryEmptyView: View {
+    let hasApps: Bool
     let create: () -> Void
 
     var body: some View {
-        ContentUnavailableView {
-            Label("Your Apps", systemImage: "square.grid.2x2")
-        } description: {
-            Text("Personal iPhone apps you make live here, with their source and history on this Mac.")
-        } actions: {
-            Button("Create App", action: create)
-                .buttonStyle(PrimaryActionStyle())
-                .accessibilityIdentifier("create-app.empty")
+        Group {
+            if hasApps {
+                ContentUnavailableView {
+                    Label("Your Apps", systemImage: "square.grid.2x2")
+                } description: {
+                    Text("Choose an app to see what is happening, its source, and its iPhone stage.")
+                } actions: {
+                    Button("Create App", action: create)
+                        .buttonStyle(PrimaryActionStyle())
+                        .accessibilityIdentifier("create-app.empty")
+                }
+            } else {
+                VStack(spacing: 0) {
+                    TohsenoMark()
+                        .frame(width: 58, height: 58)
+                        .padding(.bottom, 28)
+
+                    Text("WELCOME TO TOHSENO")
+                        .font(.caption.weight(.semibold))
+                        .tracking(2.4)
+                        .foregroundStyle(TohsenoTheme.silver)
+                        .padding(.bottom, 10)
+
+                    Text("TAKE A SHOT")
+                        .font(.system(size: 38, weight: .semibold, design: .rounded))
+                        .tracking(0.5)
+                        .accessibilityIdentifier("onboarding.take-a-shot")
+
+                    Text("This is where your ideas transform into apps.")
+                        .font(.title3)
+                        .foregroundStyle(TohsenoTheme.silver)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 9)
+
+                    Button("Create an App", action: create)
+                        .buttonStyle(PrimaryActionStyle())
+                        .keyboardShortcut(.defaultAction)
+                        .accessibilityIdentifier("create-app.empty")
+                        .padding(.top, 30)
+
+                    Text("Describe what should exist. Press Return to send it.")
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.ash)
+                        .padding(.top, 13)
+                }
+                .frame(maxWidth: 560)
+                .padding(48)
+                .accessibilityIdentifier("onboarding.welcome")
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

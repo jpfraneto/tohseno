@@ -35,6 +35,12 @@ protocol material, not free-form docs.
    and a button-gated keyboard-first evolution composer. It does not restore
    the deleted Studio dashboard or expose internal phases, identities, raw
    harness output, prompts, or protocol controls on the normal path.
+   ADR 0028 governs the Finder-first native handoff and first-open welcome:
+   the one-liner asks only for Enter or Escape, visibly downloads and verifies
+   the pinned DMG, reveals its exact Downloads location, and leaves the
+   familiar drag into Applications to Finder. It also replaces the empty
+   first-run placeholder with the small TAKE A SHOT invitation while keeping
+   Create an App as the primary-path action and adding no onboarding state.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

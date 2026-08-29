@@ -1,12 +1,12 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-28. This is the plain-language
+Written 2026-07-30, amended through 2026-08-29. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
 ## Native macOS transition
 
-ADRs 0025, 0026, and 0027 are the current product decisions. They make a
+ADRs 0025 through 0028 are the current product decisions. They make a
 native SwiftUI `Tohseno.app` the primary consumer surface over the existing
 persistent Rust factory. It supersedes npm/browser first run, mandatory
 Companion genesis, five-successful-day qualification, subscription gating of
@@ -23,6 +23,13 @@ signed-app helper, one-use workspace challenge, and short-lived per-instance
 scoped session. First open verifies and atomically installs a bundled universal
 factory release with rollback; scripts assemble, sign, notarize, verify, and
 package a DMG.
+
+On a genuinely empty first open, the native detail area now says **WELCOME TO
+TOHSENO**, **TAKE A SHOT**, and **This is where your ideas transform into
+apps.** Its one action remains **Create an App** and opens the existing
+keyboard-first composer. No onboarding flag, tutorial, account, or second
+command path exists; a library that already contains apps keeps the ordinary
+selection surface.
 
 Selecting an app now opens a native Build/App/Source workspace. Build is the
 default and shows the simple Intent → Source → Simulator → Your iPhone path,
@@ -68,7 +75,9 @@ changes only release evidence. The read-only mounted DMG passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
 ID, Gatekeeper, stapled-ticket, and Applications-symlink verification. Finder
 installation and first-open acceptance have not been performed for this exact
-candidate, so it is not authorized for public download activation yet.
+candidate. ADR 0028 now supersedes that candidate's automatic installer and
+empty-library behavior, so it must not be distributed and no replacement
+artifact has been built yet.
 
 A fresh `final-counter-proof` app completed the physical-device acceptance path
 through superseded candidate `dc85db5`: one Codex `gpt-5.6-sol` birth,
@@ -85,13 +94,14 @@ for any replacement candidate.
 
 Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. The current
-clean-commit candidate is signed, notarized, stapled, and locally verified,
-but this is still candidate evidence rather than publication. Acceptance on
-an independent clean Mac/user account,
+source supersedes the latest signed and notarized candidate with ADR 0028's
+Finder-first handoff and first-open welcome, so a replacement clean-commit
+artifact is required. Acceptance on an independent clean Mac/user account,
 the broader three-fresh-app criterion, managed Stripe/Bankr staging, immutable
 artifact upload, independent downloaded-digest verification, public download
-activation, and explicit owner publication authorization have not been
-performed. The public one-line installer therefore remains disabled.
+activation, and post-activation verification have not been performed. Owner
+publication intent is recorded, but it does not waive these gates. The public
+one-line installer therefore remains disabled.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -378,13 +388,14 @@ normal landing path.
 
 The same fail-closed artifact configuration now controls `/install` and its
 `/download` alias. Once activated, they emit the interactive native installer
-used by `curl -fsSL https://tohseno.com/install | sh`: it shows source, docs,
-artifact URL, and digest; waits for Return through the terminal; verifies
-SHA-256, the exact bundle and Developer ID Team, and Gatekeeper acceptance;
-then safely replaces a recognized installation and opens it without npm or
-administrator access. HEAD exposes only status/instruction headers. These
-routes remain `503` in current public configuration and are not publication
-evidence.
+used by `curl -fsSL https://tohseno.com/install | sh`: it asks for Enter or
+Escape, shows one download progress bar, and invisibly verifies SHA-256, the
+exact bundle and Developer ID Team, and Gatekeeper acceptance. It places the
+verified DMG in Downloads, prints that exact path, and reveals it in Finder so
+the person performs the familiar drag into Applications. It does not copy,
+replace, or open an application, request administrator access, or edit a shell
+profile. HEAD exposes only status/instruction headers. These routes remain
+`503` in current public configuration and are not publication evidence.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,

@@ -2,6 +2,11 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0028](0028-finder-first-install-and-native-welcome.md) makes the native
+one-liner an Enter/Escape, progress-bar, verified-DMG handoff to Finder and
+gives a genuinely empty first open the small TAKE A SHOT invitation. It adds
+no onboarding state and does not activate publication.
+
 [ADR 0027](0027-native-app-workspace-and-device-stage.md) makes the native
 selected-app surface a Build/App/Source workspace with bounded owner-local
 activity, changed source files, an honest latest Simulator capture, and a
