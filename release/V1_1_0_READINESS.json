@@ -18,10 +18,10 @@
     "authorization_form": null
   },
   "protection": {
-    "immutable_release_policy_verified": false,
-    "release_tag_protection_verified": false,
-    "release_tag_ruleset_id": null,
-    "verified_at": null
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 21880500,
+    "verified_at": "2026-08-30T21:34:39Z"
   },
   "required_local_evidence": {
     "clean_source_commit_captured": false,
