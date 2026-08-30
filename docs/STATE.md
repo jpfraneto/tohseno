@@ -109,8 +109,9 @@ authorized Railway owner session.
 Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
 `v1.0.2` is covered by active deletion and non-fast-forward protection but has
-not been created. The Finder-first website handler remains deployed with
-downloads disabled. Independent clean-Mac acceptance, managed Bankr staging,
+not been created. ADR 0030's system-aware direct-download landing is deployed
+and healthy, while both the native download and compatibility installer remain
+disabled. Independent clean-Mac acceptance, managed Bankr staging,
 backup/restore, immutable upload,
 independent downloaded-digest verification, public activation, and
 post-activation checks remain release gates. Owner publication intent does not

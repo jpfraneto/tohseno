@@ -27,7 +27,8 @@
       "docs/adr/0026-keyboard-first-local-registry-and-native-installer.md",
       "docs/adr/0027-native-app-workspace-and-device-stage.md",
       "docs/adr/0028-finder-first-install-and-native-welcome.md",
-      "docs/adr/0029-first-shot-before-factory.md"
+      "docs/adr/0029-first-shot-before-factory.md",
+      "docs/adr/0030-system-aware-direct-native-download.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -217,8 +218,9 @@
     "release_artifact_built": true,
     "release_artifact_signed": true,
     "release_artifact_notarized": true,
-    "website_candidate_deployment_id": "e5215558-b34b-4467-8f1d-ebca59488b84",
-    "website_candidate_deployment_status": "SUCCESS with MACOS_DOWNLOAD_ENABLED still false"
+    "website_candidate_source_commit": "cdcbcda0dc47313ed383569b9beecf3c5686809f",
+    "website_candidate_deployment_id": "5d0409d6-0044-4f5b-b7da-559088fd6fd3",
+    "website_candidate_deployment_status": "SUCCESS; ADR 0030's system-aware direct-download landing is live, health is green, and /download/macos plus compatibility /install still fail closed with HTTP 503"
   },
   "managed_compute_staging": {
     "railway_environment": "staging",
