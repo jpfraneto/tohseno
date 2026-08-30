@@ -2,7 +2,7 @@ export const PRODUCT = Object.freeze({
   repositoryUrl: "https://github.com/jpfraneto/tohseno",
   installCommand: "curl -fsSL https://tohseno.com/oneshot.sh | bash",
   copy: {
-    BRAND: "TOHSENO",
+    BRAND: "Tohseno",
     COPY_LABEL: "COPY INSTALLER",
     COPIED_LABEL: "INSTALLER COPIED",
     FOOTER_OPERATOR: "Currently operated by Anky, Inc.",
