@@ -78,6 +78,10 @@ describe("public pages", () => {
     expect(body).toContain("Make the<br>iPhone app<br><em>that should exist.</em>");
     expect(body).not.toContain("Ship iPhone apps.<br><em>Person to person.</em>");
     expect(body).not.toContain('href="/registry"');
+    const registry = await (await application.fetch(request("/registry"))).text();
+    expect(registry).toContain("Pre-launch verification.");
+    expect(registry).toContain("No public app or write path is claimed.");
+    expect(registry).not.toContain("The network is ready.");
   });
 
   test("serves the person-to-person landing page after launch", async () => {
