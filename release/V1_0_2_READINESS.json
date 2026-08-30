@@ -223,9 +223,21 @@
     "release_artifact_built": true,
     "release_artifact_signed": true,
     "release_artifact_notarized": true,
-    "website_candidate_source_commit": "cdcbcda0dc47313ed383569b9beecf3c5686809f",
-    "website_candidate_deployment_id": "5d0409d6-0044-4f5b-b7da-559088fd6fd3",
-    "website_candidate_deployment_status": "SUCCESS; ADR 0030's system-aware direct-download landing is live, health is green, and /download/macos plus compatibility /install still fail closed with HTTP 503"
+    "website_candidate_source_commit": "ef0a9e01179dbcd5bfa077ad1e613ce19076b315",
+    "website_candidate_deployment_id": "46887cef-395f-4651-8083-fac2d280b3ab",
+    "website_candidate_deployment_status": "SUCCESS; ADR 0031's release-candidate channel is visible on the system-aware landing, health is green, metadata reports release-candidate, and /download/macos redirects with the exact configured digest",
+    "release_candidate_publication": {
+      "tag": "v1.0.2-rc.1",
+      "prerelease": true,
+      "target_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
+      "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2-rc.1/TOHSENO-1.0.2.dmg",
+      "artifact_size_bytes": 51511380,
+      "artifact_sha256": "6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc",
+      "origin_round_trip_sha256_verified": true,
+      "public_download_round_trip_sha256_verified": true,
+      "public_health_verified": true,
+      "verified_at": "2026-08-30T12:12:18Z"
+    }
   },
   "managed_compute_staging": {
     "railway_environment": "staging",
@@ -266,5 +278,5 @@
     },
     "real_service_scenarios_verified": false
   },
-  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, and accepted by Gatekeeper on the build Mac. Three fresh apps and a same-app Version 2 evolution have now passed deterministic gates, signed installation, launch, and acceptance on the physical iPhone 15; all three source trees and histories verify, and an obsolete Version 1 evolution was durably refused without creating an execution. The protected v1.0.2 tag remains unpublished. Publication remains blocked on independent clean-Mac/user acceptance; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, authorized Railway backups and a restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; immutable artifact publication; independent downloaded-digest and public-manifest verification; public download activation; and post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates. Owner publication intent is recorded but does not waive them."
+  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, and accepted by Gatekeeper on the build Mac. Three fresh apps and a same-app Version 2 evolution have passed deterministic gates, signed installation, launch, and acceptance on the physical iPhone 15; all three source trees and histories verify, and an obsolete Version 1 evolution was durably refused without creating an execution. Under ADR 0031, exact candidate digest 6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc is public as prerelease v1.0.2-rc.1, the origin and tohseno.com round trips matched, the production API identifies release-candidate, and health is green. The protected stable v1.0.2 tag remains unpublished. Stable promotion remains blocked on independent clean-Mac/user acceptance; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, authorized Railway backups and a restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; stable immutable publication; independent stable downloaded-digest and public-manifest verification; stable download activation; and stable post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates."
 }
