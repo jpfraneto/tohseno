@@ -87,6 +87,31 @@ public struct EvolutionRequest: Equatable, Sendable {
     }
 }
 
+public struct ProjectEvolutionRequest: Equatable, Sendable {
+    public let commandID: String
+    public let projectID: String
+    public let baseSourceState: String
+    public let intention: String
+    public let references: [CompanionReferenceBlob]
+    public let followUpTo: String?
+
+    public init(
+        commandID: String = UUID().uuidString.lowercased(),
+        projectID: String,
+        baseSourceState: String,
+        intention: String,
+        references: [CompanionReferenceBlob] = [],
+        followUpTo: String? = nil
+    ) {
+        self.commandID = commandID
+        self.projectID = projectID
+        self.baseSourceState = baseSourceState
+        self.intention = intention
+        self.references = references
+        self.followUpTo = followUpTo
+    }
+}
+
 public struct CreateShotRequest: Equatable, Sendable {
     public let commandID: String
     public let suggestedName: String?
@@ -384,6 +409,26 @@ public actor TohsenoCompanionClient {
                 intention: request.intention,
                 selectedFeedbackActionCommitments: request.selectedFeedbackActionCommitments,
                 references: descriptors
+            ),
+            references: request.references
+        )
+    }
+
+    public func requestProjectEvolution(
+        _ request: ProjectEvolutionRequest
+    ) async throws -> CommandReceipt {
+        let descriptors = try request.references.map { reference in
+            try reference.validate()
+            return reference.descriptor
+        }
+        return try await queue(
+            commandID: request.commandID,
+            payload: .projectEvolveRequest(
+                projectID: request.projectID,
+                baseSourceState: request.baseSourceState,
+                intention: request.intention,
+                references: descriptors,
+                followUpTo: request.followUpTo
             ),
             references: request.references
         )
@@ -704,6 +749,7 @@ public actor TohsenoCompanionClient {
         let payloadDescriptors: [CompanionReferenceDescriptor] = switch payload {
         case let .shotCreateRequest(_, _, values): values
         case let .shotEvolveRequest(_, _, _, _, _, _, values): values
+        case let .projectEvolveRequest(_, _, _, values, _): values
         default: []
         }
         guard payloadDescriptors == expectedDescriptors else {
@@ -1242,6 +1288,7 @@ public actor TohsenoCompanionClient {
         switch command.payload {
         case let .shotCreateRequest(_, _, values): values
         case let .shotEvolveRequest(_, _, _, _, _, _, values): values
+        case let .projectEvolveRequest(_, _, _, values, _): values
         default: []
         }
     }

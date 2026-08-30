@@ -51,6 +51,7 @@ use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingS
 use crate::device_readiness::{
     project as project_readiness, ReadinessStore, ReadinessView, VerificationState,
 };
+use crate::living_project::{AdoptionRequest, LivingProjectService, ProjectEvolutionRequest};
 use crate::managed_compute::{
     bounded_source_bytes, estimate as estimate_managed_cost, ManagedClient, ManagedEstimate,
     ManagedModel,
@@ -96,6 +97,7 @@ pub struct RuntimeRecord {
 struct WorkspaceState {
     runtime: RuntimeRecord,
     application: ShotApplicationService,
+    living_projects: Arc<LivingProjectService>,
     companion: Arc<CompanionCoordinator>,
     events: EventBus,
     event_cursor: Arc<AtomicU64>,
@@ -271,6 +273,20 @@ struct EvolveRequest {
     managed: Option<ManagedExecutionRequest>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectEvolveRequest {
+    command_id: String,
+    #[serde(default)]
+    origin: ApiOrigin,
+    base_source_state: String,
+    intention: String,
+    #[serde(default)]
+    references: Vec<ApiReference>,
+    #[serde(default)]
+    follow_up_to: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum ApiOrigin {
@@ -293,6 +309,12 @@ impl ApiOrigin {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EmptyRequest {}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenameCompanionDeviceRequest {
+    display_name: String,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -421,10 +443,20 @@ pub async fn run_with(
     // service restart cannot strand received, validated, accepted, or running
     // commands.
     application.recover_commands().await?;
+    let living_projects = Arc::new(LivingProjectService::open(
+        &paths.service_state,
+        application.clone(),
+    )?);
+    if living_projects.recover_interrupted()? > 0 {
+        events.emit(Event::status(
+            "Interrupted adopted-project work was recovered without losing its request.",
+        ));
+    }
     let companion = Arc::new(CompanionCoordinator::open(
         paths.service_state.clone(),
         workspace.clone(),
         application.clone(),
+        living_projects.clone(),
     )?);
     // A pre-1.0.0 paired installation keeps its identity and capability. Its
     // first 1.0.0 service observation becomes a deterministic trial anchor;
@@ -502,6 +534,7 @@ pub async fn run_with(
     let state = Arc::new(WorkspaceState {
         runtime: runtime.clone(),
         application,
+        living_projects,
         companion,
         events: events.clone(),
         event_cursor: Arc::new(AtomicU64::new(1)),
@@ -517,11 +550,13 @@ pub async fn run_with(
     });
     let reconciliation_companion = state.companion.clone();
     let reconciliation_application = state.application.clone();
+    let reconciliation_living_projects = state.living_projects.clone();
     let reconciliation_events = events.clone();
     let reconciliation_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(2));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         let mut last_workspace_digest = None;
+        let mut last_living_project_digest = None;
         let mut last_fingerprint = None;
         let mut ticks_since_full_pass = WORKSPACE_SNAPSHOT_BACKSTOP_TICKS;
         loop {
@@ -537,6 +572,18 @@ pub async fn run_with(
             }
             let _ = reconciliation_companion.reconcile_relay_once().await;
             let _ = reconciliation_companion.publish_workspace_changes().await;
+            let _ = reconciliation_living_projects
+                .retry_ready_installations_once()
+                .await;
+            if let Ok(digest) = privacy_safe_living_project_digest(&reconciliation_living_projects)
+            {
+                if last_living_project_digest != Some(digest) {
+                    reconciliation_events.emit(Event::status(
+                        "A connected project's evolution state changed.",
+                    ));
+                }
+                last_living_project_digest = Some(digest);
+            }
             // Rebuilding the snapshot walks every app tree and reverifies every
             // lineage, so an unconditional pass here costs a fifth of a core
             // forever and grows with the workspace. The stat-only fingerprint
@@ -591,6 +638,25 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         )
         .route("/api/v1/native-session", post(activate_native_session))
         .route("/api/v1/workspace", get(workspace))
+        .route("/api/v1/projects", get(projects))
+        .route("/api/v1/projects/adopt", post(adopt_project))
+        .route("/api/v1/projects/{project_id}", get(project))
+        .route(
+            "/api/v1/projects/{project_id}/activity",
+            get(project_activity),
+        )
+        .route(
+            "/api/v1/projects/{project_id}/open-source",
+            post(open_project_source),
+        )
+        .route(
+            "/api/v1/projects/{project_id}/open-on-iphone",
+            post(open_project_on_iphone),
+        )
+        .route(
+            "/api/v1/projects/{project_id}/evolutions",
+            get(project_evolutions).post(project_evolution),
+        )
         .route("/api/v1/factory-defaults", get(factory_defaults))
         .route(
             "/api/v1/intelligence/custom-harnesses",
@@ -650,7 +716,7 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         .route("/api/v1/companion/devices", get(devices))
         .route(
             "/api/v1/companion/devices/{device_id}",
-            delete(revoke_device),
+            post(rename_device).delete(revoke_device),
         )
         .route("/api/v1/companion/status", get(companion_status))
         .route(
@@ -881,12 +947,254 @@ async fn activate_native_session(
 }
 
 async fn workspace(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
-    state
+    let mut snapshot = state
         .application
         .workspace_snapshot()
         .await
-        .map(|snapshot| Json(json!(snapshot)))
+        .map_err(ApiError::internal)?;
+    state
+        .living_projects
+        .merge_workspace(&mut snapshot)
+        .map_err(ApiError::internal)?;
+    Ok(Json(json!(snapshot)))
+}
+
+async fn projects(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
+    state
+        .living_projects
+        .list_projects()
+        .map(|projects| {
+            Json(json!({
+                "schema": "tohseno.living-project-list/1",
+                "projects": projects,
+            }))
+        })
         .map_err(ApiError::internal)
+}
+
+async fn project(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .living_projects
+        .project(&project_id)
+        .map_err(ApiError::internal)?
+        .map(|project| Json(json!(project)))
+        .ok_or_else(|| ApiError::not_found("adopted project does not exist"))
+}
+
+async fn open_project_source(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let project = state
+        .living_projects
+        .project(&project_id)
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::not_found("adopted project does not exist"))?;
+    let source = PathBuf::from(project.source_path);
+    let metadata = fs::symlink_metadata(&source).map_err(ApiError::internal)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(ApiError::conflict(
+            "project_source_unavailable",
+            "the adopted source folder moved or is unavailable",
+        ));
+    }
+    let status = std::process::Command::new("open")
+        .arg("--")
+        .arg(source)
+        .status()
+        .map_err(ApiError::internal)?;
+    if !status.success() {
+        return Err(ApiError::internal(
+            "the project source folder could not be opened",
+        ));
+    }
+    Ok(Json(json!({
+        "schema": "tohseno.open-project-source-receipt/1",
+        "opened": true,
+    })))
+}
+
+async fn open_project_on_iphone(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+    Json(_empty): Json<EmptyRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let project = state
+        .living_projects
+        .project(&project_id)
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::not_found("adopted project does not exist"))?;
+    let device = match tohseno_engine::gates::device::inventory().map_err(ApiError::internal)? {
+        tohseno_engine::gates::device::DeviceInventoryState::Ready(mut devices)
+            if devices.len() == 1 =>
+        {
+            devices.remove(0)
+        }
+        tohseno_engine::gates::device::DeviceInventoryState::Ready(_) => {
+            return Err(ApiError::conflict(
+                "iphone_selection_required",
+                "more than one iPhone is reachable; disconnect the other iPhones and try again",
+            ))
+        }
+        _ => {
+            return Err(ApiError::conflict(
+                "iphone_not_ready",
+                "connect and unlock the associated iPhone, then try again",
+            ))
+        }
+    };
+    tohseno_engine::gates::install::launch_owner_app(&device, &project.bundle_identifier)
+        .map_err(|error| ApiError::unavailable(error.to_string()))?;
+    Ok(Json(json!({
+        "schema": "tohseno.open-project-on-iphone-receipt/1",
+        "opened": true,
+    })))
+}
+
+async fn project_evolutions(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    if state
+        .living_projects
+        .project(&project_id)
+        .map_err(ApiError::internal)?
+        .is_none()
+    {
+        return Err(ApiError::not_found("adopted project does not exist"));
+    }
+    state
+        .living_projects
+        .evolutions(&project_id)
+        .map(|evolutions| {
+            Json(json!({
+                "schema": "tohseno.project-evolution-list/1",
+                "project_id": project_id,
+                "evolutions": evolutions,
+            }))
+        })
+        .map_err(ApiError::internal)
+}
+
+async fn project_activity(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Result<Json<Value>, ApiError> {
+    let project = state
+        .living_projects
+        .project(&project_id)
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::not_found("adopted project does not exist"))?;
+    let evolution_id = project
+        .latest_evolution_id
+        .ok_or_else(|| ApiError::not_found("this project has no evolution activity yet"))?;
+    let evolution = state
+        .living_projects
+        .evolution(&project_id, &evolution_id)
+        .map_err(ApiError::internal)?
+        .ok_or_else(|| ApiError::not_found("project evolution activity is unavailable"))?;
+    let files = evolution
+        .observed_changed_files
+        .iter()
+        .take(200)
+        .map(|path| {
+            json!({
+                "status": if evolution.preexisting_dirty_paths.contains(path) { "P" } else { "M" },
+                "path": path,
+                "additions": null,
+                "deletions": null,
+            })
+        })
+        .collect::<Vec<_>>();
+    let entries = evolution
+        .events
+        .iter()
+        .map(|event| {
+            json!({
+                "sequence": event.sequence,
+                "timestamp": event.at,
+                "phase": event.status.as_str(),
+                "message": event.summary,
+            })
+        })
+        .collect::<Vec<_>>();
+    let files_truncated = evolution.observed_changed_files.len() > files.len();
+    Ok(Json(json!({
+        "schema": "tohseno.execution-activity/1",
+        "execution_id": evolution.evolution_id,
+        "complete": matches!(evolution.status, crate::living_project::EvolutionStatus::Completed | crate::living_project::EvolutionStatus::Failed),
+        "total_tokens": null,
+        "file_count": evolution.observed_changed_files.len(),
+        "files_truncated": files_truncated,
+        "files": files,
+        "entries": entries,
+    })))
+}
+
+async fn project_evolution(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+    Json(request): Json<ProjectEvolveRequest>,
+) -> Result<Json<Value>, ApiError> {
+    if !matches!(request.origin, ApiOrigin::Native | ApiOrigin::Studio) {
+        return Err(ApiError::bad(
+            "invalid_project_origin",
+            "this endpoint accepts only the native owner-local project surface",
+        ));
+    }
+    validate_text("intention", &request.intention, MAX_INTENTION_BYTES)?;
+    let references = decode_references(request.references)?;
+    state
+        .living_projects
+        .submit_evolution(ProjectEvolutionRequest {
+            command_id: request.command_id.clone(),
+            project_id: project_id.clone(),
+            base_source_state: request.base_source_state,
+            intention: request.intention,
+            originating_device_id: None,
+            references,
+            follow_up_to: request.follow_up_to,
+        })
+        .map(|evolution| {
+            Json(json!({
+                "schema": "tohseno.project-evolve-receipt/1",
+                "command_id": request.command_id,
+                "shot_id": project_id,
+                "execution_id": evolution.evolution_id,
+                "state": "accepted",
+            }))
+        })
+        .map_err(|error| match error.to_string().as_str() {
+            "stale_project_source_state" => ApiError::conflict(
+                "stale_project_source_state",
+                "the project changed after this request was composed; refresh and send it again",
+            ),
+            "command_id_conflict" => ApiError::conflict(
+                "command_conflict",
+                "this command ID is already bound to different project input",
+            ),
+            "project_has_active_evolution" => ApiError::conflict(
+                "project_busy",
+                "this project already has an evolution in progress",
+            ),
+            _ => ApiError::internal(error),
+        })
+}
+
+async fn adopt_project(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<AdoptionRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let living = state.living_projects.clone();
+    tokio::task::spawn_blocking(move || living.adoption(request))
+        .await
+        .map_err(ApiError::internal)?
+        .map(|result| Json(json!(result)))
+        .map_err(|error| ApiError::bad("project_adoption_failed", error.to_string()))
 }
 
 async fn factory_defaults(State(state): State<Arc<WorkspaceState>>) -> Json<Value> {
@@ -2359,6 +2667,21 @@ async fn revoke_device(
         .map_err(ApiError::internal)
 }
 
+async fn rename_device(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(device_id): AxumPath<String>,
+    Json(request): Json<RenameCompanionDeviceRequest>,
+) -> Result<Json<Value>, ApiError> {
+    let device = state
+        .companion
+        .rename_device(&device_id, &request.display_name)
+        .map_err(|error| ApiError::bad("invalid_device_name", error.to_string()))?;
+    state
+        .events
+        .emit(Event::status("Companion device name changed."));
+    Ok(Json(json!(device)))
+}
+
 async fn companion_status(
     State(state): State<Arc<WorkspaceState>>,
 ) -> Result<Json<Value>, ApiError> {
@@ -2866,6 +3189,14 @@ fn privacy_safe_workspace_digest(
         shots: &snapshot.shots,
         active_executions: &snapshot.active_executions,
     })?;
+    Ok(tohseno_protocol::digest::sha256(&bytes))
+}
+
+fn privacy_safe_living_project_digest(
+    projects: &LivingProjectService,
+) -> Result<Bytes32, BoxError> {
+    let summaries = projects.summaries()?;
+    let bytes = tohseno_protocol::canonical::to_vec(&summaries)?;
     Ok(tohseno_protocol::digest::sha256(&bytes))
 }
 

@@ -1,6 +1,33 @@
-# Native factory and optional Companion golden paths
+# Living-project and retained factory golden paths
 
-## Primary native Mac path
+## Primary adopted-project path
+
+```text
+Mac: Adopt Existing App
+  -> xcodebuild scheme/settings inspection
+  -> versioned project_<uuid> record outside the repository
+  -> real unsigned Simulator adoption build
+  -> encrypted project summary/history snapshot
+  -> paired Companion
+
+Companion: Request a change
+  -> persist images + signed project.evolve.request in encrypted outbox
+  -> content-blind relay
+  -> Mac authenticates, routes stable project ID, persists before receipt
+  -> configured harness edits exact source root
+  -> xcodebuild iphoneos + codesign verify
+  -> devicectl install one resolved iPhone
+  -> exact bundle inventory verification
+  -> Completed history on both surfaces
+```
+
+If the phone is absent, locked, untrusted, lacks Developer Mode, or cannot be
+selected unambiguously, the verified build becomes **Ready to install**. The
+background retry does not rerun the harness and resumes only installation.
+The full operational instructions are in
+[`LIVING_CONNECTION.md`](LIVING_CONNECTION.md).
+
+## Retained generated-Shot Mac path
 
 ```text
 Tohseno.app composer
@@ -50,11 +77,12 @@ library, but preserves its source and accepted history. **Settings →
 Diagnostics → Retired apps** restores it to the library without silently
 reinstalling it on a phone.
 
-The normal readiness path is independent of Companion: macOS 14, full Xcode,
-license/components, cable/unlock/Trust, Developer Mode, signing team, and a
-minimal real build/install/launch/remove check. It presents one instruction and
-at most one action and never asks for Apple credentials. Companion below is an
-optional alternate origin over the same application service.
+The retained readiness compatibility API is independent of Companion: macOS
+14, full Xcode, license/components, cable/unlock/Trust, Developer Mode, signing
+team, and a minimal real build/install/launch/remove check. It presents one
+instruction and at most one action and never asks for Apple credentials. It is
+not the primary living-project onboarding, which installs and authenticates
+Companion as the normal phone request surface.
 
 Focused source checks are:
 
@@ -72,7 +100,7 @@ Gatekeeper acceptance, physical-device installation, Stripe test/live
 webhooks, Bankr live inference, and public download activation remain external
 checks and must be reported as unverified until performed.
 
-## Optional Companion evolution path
+## Retained protocol-Shot Companion evolution path
 
 This is the failure-walk for one real Companion evolution. It describes the
 current implementation; [`protocol/`](../protocol/) remains authoritative over

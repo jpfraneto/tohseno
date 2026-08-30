@@ -15,6 +15,7 @@ pub const MAX_ICON_DIMENSION: u32 = 2_048;
 pub enum ShotKind {
     FactoryShot,
     RecordingOnly,
+    AdoptedProject,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -79,6 +80,35 @@ pub struct ExecutionSummary {
     pub failure_code: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvolutionHistorySummary {
+    pub evolution_id: String,
+    pub requested_at: String,
+    pub request_summary: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completion_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installation_summary: Option<String>,
+}
+
+impl EvolutionHistorySummary {
+    fn validate(&self) -> Result<()> {
+        validate_identifier("evolution history ID", &self.evolution_id)?;
+        parse_timestamp(&self.requested_at)?;
+        validate_text("evolution request summary", &self.request_summary, 2_048)?;
+        validate_identifier("evolution status", &self.status)?;
+        if let Some(summary) = &self.completion_summary {
+            validate_text("evolution completion summary", summary, 2_048)?;
+        }
+        if let Some(summary) = &self.installation_summary {
+            validate_text("evolution installation summary", summary, 2_048)?;
+        }
+        Ok(())
+    }
+}
+
 impl ExecutionSummary {
     pub fn validate(&self) -> Result<()> {
         validate_identifier("execution ID", &self.execution_id)?;
@@ -103,6 +133,8 @@ pub struct ShotSummary {
     pub bundle_identifier: Option<String>,
     pub kind: ShotKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_state: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<IconDescriptor>,
     pub icon_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +147,8 @@ pub struct ShotSummary {
     pub latest_version_created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<ExecutionSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_evolutions: Vec<EvolutionHistorySummary>,
     pub archived: bool,
     pub retired: bool,
     pub sort_index: i64,
@@ -154,6 +188,9 @@ impl ShotSummary {
         if let Some(expression_id) = &self.expression_id {
             validate_identifier("Expression ID", expression_id)?;
         }
+        if let Some(source_state) = &self.source_state {
+            validate_identifier("project source state", source_state)?;
+        }
         if let Some(version_id) = &self.latest_version_id {
             validate_identifier("Version ID", version_id)?;
         }
@@ -170,6 +207,17 @@ impl ShotSummary {
                 "execution summary belongs to a different Shot",
             )?;
         }
+        require(
+            self.recent_evolutions.len() <= 20,
+            "too many recent evolutions",
+        )?;
+        for evolution in &self.recent_evolutions {
+            evolution.validate()?;
+        }
+        require(
+            self.kind == ShotKind::AdoptedProject || self.recent_evolutions.is_empty(),
+            "only adopted projects carry private evolution history",
+        )?;
         require(
             !(self.kind == ShotKind::RecordingOnly
                 && (self.expression_id.is_some() || self.latest_version_id.is_some())),
@@ -201,8 +249,25 @@ impl ShotSummary {
                 "recording-only folders cannot advertise factory lineage actions",
             )?;
         }
+        if self.kind == ShotKind::AdoptedProject {
+            require(
+                self.expression_id.is_none()
+                    && self.latest_version_id.is_none()
+                    && self.source_state.is_some()
+                    && !actions.contains(&CapabilityAction::FeedbackWrite)
+                    && !actions.contains(&CapabilityAction::MarketingWrite),
+                "adopted projects use private project state, not Shot lineage",
+            )?;
+        }
+        if self.kind != ShotKind::AdoptedProject {
+            require(
+                self.source_state.is_none(),
+                "only adopted projects carry private source state",
+            )?;
+        }
         if actions.contains(&CapabilityAction::FeedbackWrite)
-            || actions.contains(&CapabilityAction::ShotEvolve)
+            || (actions.contains(&CapabilityAction::ShotEvolve)
+                && self.kind == ShotKind::FactoryShot)
         {
             require(
                 self.expression_id.is_some() && self.latest_version_id.is_some(),
@@ -327,6 +392,7 @@ mod tests {
                 display_name: "Fixture".into(),
                 bundle_identifier: None,
                 kind,
+                source_state: (kind == ShotKind::AdoptedProject).then(|| "state_fixture".into()),
                 icon: None,
                 icon_revision: 1,
                 expression_id: None,
@@ -334,6 +400,7 @@ mod tests {
                 latest_version_ordinal: None,
                 latest_version_created_at: None,
                 execution: None,
+                recent_evolutions: vec![],
                 archived: false,
                 retired: false,
                 sort_index: 0,
@@ -349,6 +416,23 @@ mod tests {
             },
             next_cursor: 1,
         }
+    }
+
+    #[test]
+    fn bounded_private_history_belongs_only_to_adopted_projects() {
+        let mut value = snapshot(ShotKind::AdoptedProject);
+        value.shots[0].recent_evolutions = vec![EvolutionHistorySummary {
+            evolution_id: "evolution_fixture".into(),
+            requested_at: "2026-08-30T00:00:00Z".into(),
+            request_summary: "Change X to Y.".into(),
+            status: "completed".into(),
+            completion_summary: Some("Built and installed.".into()),
+            installation_summary: Some("Verified exact bundle on Owner iPhone.".into()),
+        }];
+        value.validate().unwrap();
+        value.shots[0].kind = ShotKind::FactoryShot;
+        value.shots[0].source_state = None;
+        assert!(value.validate().is_err());
     }
 
     #[test]

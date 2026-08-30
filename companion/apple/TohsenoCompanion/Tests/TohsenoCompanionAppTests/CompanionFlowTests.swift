@@ -11,6 +11,7 @@ actor StubBackend: CompanionBackend {
     var unacknowledged = 0
     var reachable = true
     private(set) var submissions: [EvolutionRequest] = []
+    private(set) var projectSubmissions: [ProjectEvolutionRequest] = []
     private(set) var creations: [CreateShotRequest] = []
     private(set) var reconciles = 0
     private(set) var synchronizations = 0
@@ -75,6 +76,16 @@ actor StubBackend: CompanionBackend {
         return CommandReceipt(commandID: request.commandID, state: .received)
     }
 
+    func requestProjectEvolution(_ request: ProjectEvolutionRequest) async throws -> CommandReceipt {
+        if let failure {
+            self.failure = nil
+            throw failure
+        }
+        projectSubmissions.append(request)
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: request.commandID, state: .received)
+    }
+
     func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt {
         if let failure {
             self.failure = nil
@@ -112,7 +123,7 @@ func model(_ backend: StubBackend) async -> CompanionModel {
     return model
 }
 
-@Suite("Create or choose app → one intent → App")
+@Suite("Choose an app → request its next evolution")
 struct CompanionFlowTests {
     @MainActor
     @Test("The main CTA sends one new-app intent through the durable backend")
@@ -230,6 +241,35 @@ struct CompanionFlowTests {
     }
 
     @MainActor
+    @Test("An adopted project routes one request by stable project identity")
+    func adoptedProjectEvolution() async throws {
+        let adopted = ShotSummary(
+            shotID: "project_fixture",
+            displayName: "Fixture",
+            bundleIdentifier: "com.example.fixture",
+            kind: .adoptedProject,
+            sourceState: "state_fixture",
+            iconRevision: 1,
+            sortIndex: 0,
+            supportedCompanionActions: [.workspaceRead, .shotEvolve]
+        )
+        let backend = StubBackend(shots: [adopted])
+        let subject = await model(backend)
+        subject.open(try #require(subject.apps.first))
+        subject.intent = "Change X to Y."
+
+        #expect(subject.canEvolve)
+        await subject.evolve()
+
+        let submissions = await backend.projectSubmissions
+        #expect(submissions.count == 1)
+        #expect(submissions[0].projectID == "project_fixture")
+        #expect(submissions[0].baseSourceState == "state_fixture")
+        #expect(submissions[0].intention == "Change X to Y.")
+        #expect(await backend.submissions.isEmpty)
+    }
+
+    @MainActor
     @Test("Manual Sync reconciles once and never submits an app mutation")
     func manualSyncIsReadOnly() async {
         let backend = StubBackend(shots: [shot(version: 4)])
@@ -302,6 +342,14 @@ struct CompanionFlowTests {
         #expect(
             CompanionModel.humanRejection("stale_base_version")
                 == "This app changed while your request was waiting. Review it and try again."
+        )
+        #expect(
+            CompanionModel.humanRejection("stale_project_source_state")
+                == "This app changed while your request was waiting. Review it and try again."
+        )
+        #expect(
+            CompanionModel.humanRejection("project_busy")
+                == "This app is already being changed. Wait for it to finish, then send the next request."
         )
         #expect(
             CompanionModel.humanRejection("device_revoked")

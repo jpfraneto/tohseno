@@ -309,6 +309,7 @@ fn resolve_app_name(
             (ShotKind::FactoryShot, Some(value)) => value.to_string(),
             (ShotKind::FactoryShot, None) => continue,
             (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+            (ShotKind::AdoptedProject, _) => continue,
         };
         if stable_id == shot_id {
             return Ok(Some(app.name));

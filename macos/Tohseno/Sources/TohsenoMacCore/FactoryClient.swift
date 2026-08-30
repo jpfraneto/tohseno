@@ -27,6 +27,12 @@ public protocol FactoryServing: Sendable {
     func managedCheckout(packID: String) async throws -> ManagedCheckout
     func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot
     func performReadinessAction(_ action: String) async throws -> ReadinessView
+    func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult
+    func pairedCompanionDevices() async throws -> [PairedCompanionDevice]
+    func createCompanionPairingSession() async throws -> CompanionPairingSession
+    func companionPairingSession(id: String) async throws -> CompanionPairingSession
+    func renameCompanionDevice(id: String, displayName: String) async throws -> PairedCompanionDevice
+    func revokeCompanionDevice(id: String) async throws -> PairedCompanionDevice
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt
     func receipt(for appID: String) async throws -> ExecutionReceipt?
@@ -157,6 +163,56 @@ public actor LoopbackFactoryClient: FactoryServing {
         return ReadinessView(genesis: genesis)
     }
 
+    public func adoptProject(
+        path: String,
+        scheme: String? = nil
+    ) async throws -> ProjectAdoptionResult {
+        guard path.hasPrefix("/"), !path.contains("\0") else {
+            throw FactoryClientError.invalidConfiguration(
+                "Choose a local Xcode project or workspace."
+            )
+        }
+        return try await request(
+            "/api/v1/projects/adopt",
+            method: "POST",
+            body: AdoptProjectBody(path: path, scheme: scheme, harness: nil, model: nil)
+        )
+    }
+
+    public func pairedCompanionDevices() async throws -> [PairedCompanionDevice] {
+        let response: CompanionDeviceListResponse = try await request("/api/v1/companion/devices")
+        return response.devices
+    }
+
+    public func createCompanionPairingSession() async throws -> CompanionPairingSession {
+        try await request(
+            "/api/v1/companion/pairing-sessions", method: "POST", body: EmptyBody()
+        )
+    }
+
+    public func companionPairingSession(id: String) async throws -> CompanionPairingSession {
+        try await request("/api/v1/companion/pairing-sessions/\(try pathToken(id))")
+    }
+
+    public func renameCompanionDevice(
+        id: String,
+        displayName: String
+    ) async throws -> PairedCompanionDevice {
+        try await request(
+            "/api/v1/companion/devices/\(try pathToken(id))",
+            method: "POST",
+            body: RenameCompanionDeviceBody(displayName: displayName)
+        )
+    }
+
+    public func revokeCompanionDevice(id: String) async throws -> PairedCompanionDevice {
+        try await request(
+            "/api/v1/companion/devices/\(try pathToken(id))",
+            method: "DELETE",
+            body: EmptyBody()
+        )
+    }
+
     public func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt {
         let managed = try managedBody(
             harness: draft.harness,
@@ -182,6 +238,19 @@ public actor LoopbackFactoryClient: FactoryServing {
         draft: EvolutionDraft,
         commandID: String
     ) async throws -> CommandReceipt {
+        if let sourceState = app.sourceState {
+            let body = ProjectEvolveBody(
+                commandID: commandID,
+                baseSourceState: sourceState,
+                intention: draft.intention,
+                references: draft.references.map(APIReference.init)
+            )
+            return try await request(
+                "/api/v1/projects/\(try pathToken(app.shotID))/evolutions",
+                method: "POST",
+                body: body
+            )
+        }
         guard let expressionID = app.expressionID,
               let versionID = app.latestVersionID,
               let ordinal = app.latestVersionOrdinal else {
@@ -222,7 +291,8 @@ public actor LoopbackFactoryClient: FactoryServing {
 
     public func activity(for appID: String) async throws -> ExecutionActivity? {
         do {
-            return try await request("/api/v1/shots/\(try pathToken(appID))/activity")
+            let resource = appID.hasPrefix("project_") ? "projects" : "shots"
+            return try await request("/api/v1/\(resource)/\(try pathToken(appID))/activity")
         } catch FactoryClientError.rejected(code: "not_found", message: _) {
             return nil
         }
@@ -237,16 +307,18 @@ public actor LoopbackFactoryClient: FactoryServing {
     }
 
     public func openOnPhone(for appID: String) async throws {
+        let resource = appID.hasPrefix("project_") ? "projects" : "shots"
         let _: EmptyResponse = try await request(
-            "/api/v1/shots/\(try pathToken(appID))/open-on-iphone",
+            "/api/v1/\(resource)/\(try pathToken(appID))/open-on-iphone",
             method: "POST",
             body: EmptyBody()
         )
     }
 
     public func openSource(for appID: String) async throws {
+        let resource = appID.hasPrefix("project_") ? "projects" : "shots"
         let _: EmptyResponse = try await request(
-            "/api/v1/shots/\(try pathToken(appID))/open-source",
+            "/api/v1/\(resource)/\(try pathToken(appID))/open-source",
             method: "POST",
             body: EmptyBody()
         )
@@ -684,6 +756,18 @@ public actor LoopbackFactoryClient: FactoryServing {
 }
 
 private struct EmptyBody: Encodable, Sendable {}
+private struct AdoptProjectBody: Encodable, Sendable {
+    let path: String
+    let scheme: String?
+    let harness: String?
+    let model: String?
+}
+private struct CompanionDeviceListResponse: Decodable, Sendable {
+    let devices: [PairedCompanionDevice]
+}
+private struct RenameCompanionDeviceBody: Encodable, Sendable {
+    let displayName: String
+}
 private struct EmptyResponse: Codable, Sendable { init() {} }
 
 private struct CableGenesisResponse: Decodable, Sendable {
@@ -720,9 +804,9 @@ private extension ReadinessView {
         let ready = genesis.step == "first_shot"
         let explanation = switch genesis.step {
         case "pick_up_iphone":
-            "Tohseno turns an intention into a native iPhone app you own. Its source and history stay on this Mac, and Tohseno Companion keeps your iPhone connected to this factory."
+            "Tohseno keeps the iPhone apps you use connected to the Mac, source project, and coding harness that evolve them."
         case "first_shot":
-            "Tohseno Companion is connected to this Mac. Your private app factory is ready."
+            "Tohseno Companion completed an authenticated exchange with this Mac. Adopt an existing project to start the living connection."
         default:
             genesis.detail ?? "Tohseno checks this step locally and advances only when it can observe success."
         }
@@ -859,6 +943,15 @@ private struct EvolveBody: Encodable, Sendable {
     let managed: ManagedExecutionBody?
     let selectedFeedbackActions: [String] = []
     let references: [APIReference]
+}
+
+private struct ProjectEvolveBody: Encodable, Sendable {
+    let commandID: String
+    let origin = "native"
+    let baseSourceState: String
+    let intention: String
+    let references: [APIReference]
+    let followUpTo: String? = nil
 }
 
 private func validateToken(_ value: String, label: String) throws {

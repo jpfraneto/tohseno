@@ -249,7 +249,7 @@ pub fn project(record: &ReadinessRecord, observed: &ReadinessObservation) -> Rea
         ),
         VerificationState::Building => view(false, "building_readiness", "Building the readiness app…", "Xcode is compiling and signing the deterministic test app. Keep the iPhone connected and unlocked.", None, None),
         VerificationState::Installing => view(false, "installing_readiness", "Checking installation on your iPhone…", "The signed test app is being installed and opened. It will be removed after the check.", None, None),
-        VerificationState::Verified => view(true, "ready", "Your app factory is ready", "Create an app whenever you are ready. The Companion is not required.", Some("create_app"), Some("Create App")),
+        VerificationState::Verified => view(true, "ready", "This Mac can build for your iPhone", "Adopt an existing iOS project, connect the Companion, and request the next change from your phone. Creating a first app remains available as a secondary path.", None, None),
     }
 }
 

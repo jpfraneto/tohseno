@@ -2,6 +2,12 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0033](0033-living-project-connection.md) makes the durable connection
+between an iPhone app, its owner-local source project, the Companion, one coding
+harness, and truthful Xcode/device delivery the primary product. Adopted
+projects use a private versioned record and signed project command; they are
+never fabricated as protocol Shots, and creation remains a secondary path.
+
 [ADR 0031](0031-public-release-candidate-for-clean-mac-acceptance.md) allows
 the exact signed, notarized, digest-pinned DMG to use an explicitly labeled
 public prerelease channel for testing the real website-to-Finder path on a

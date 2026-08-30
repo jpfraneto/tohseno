@@ -13,6 +13,7 @@ public protocol CompanionBackend: Sendable {
     func iconBytes(for descriptor: IconDescriptor) async throws -> Data?
     func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt
     func requestEvolution(_ request: EvolutionRequest) async throws -> CommandReceipt
+    func requestProjectEvolution(_ request: ProjectEvolutionRequest) async throws -> CommandReceipt
     /// Signed commands this phone has written that the Mac has not acknowledged.
     func unacknowledgedCommandCount() async throws -> Int
     func createIdentity() async throws -> RecoveryPhrase

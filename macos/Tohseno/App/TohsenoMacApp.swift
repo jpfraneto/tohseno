@@ -57,7 +57,7 @@ private struct TohsenoMenuBarView: View {
     @Environment(\.openWindow) private var openWindow
 
     private var status: (String, String) {
-        if model.isLoading { return ("Opening your app factory…", "circle.dotted") }
+        if model.isLoading { return ("Opening your connected projects…", "circle.dotted") }
         if model.errorMessage != nil { return ("Needs attention", "exclamationmark.triangle.fill") }
         if model.readiness?.ready != true { return ("Finish setup", "iphone.badge.exclamationmark") }
         return ("Factory ready", "checkmark.circle.fill")

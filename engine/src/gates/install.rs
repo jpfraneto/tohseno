@@ -57,6 +57,114 @@ pub fn install(device: &Device, app: &Path, bundle_id: &str) -> Result<(), Insta
     Ok(())
 }
 
+/// Installs one owner-selected adopted app and verifies the exact bundle in
+/// the physical device inventory. Unlike candidate Shot delivery this does
+/// not impose Tohseno's generated bundle namespace: the durable adoption
+/// record is the explicit mutation authority.
+pub fn install_owner_app(device: &Device, app: &Path, bundle_id: &str) -> Result<(), InstallError> {
+    validate_owner_bundle_id(bundle_id)?;
+    let metadata = fs::symlink_metadata(app)?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_dir()
+        || app.extension().and_then(|value| value.to_str()) != Some("app")
+    {
+        return Err(InstallError::Artifact(app.display().to_string()));
+    }
+    run_checked(
+        "xcrun",
+        [
+            "devicectl".as_ref(),
+            "device".as_ref(),
+            "install".as_ref(),
+            "app".as_ref(),
+            "--device".as_ref(),
+            device.identifier.as_ref(),
+            app.as_os_str(),
+        ],
+        None,
+    )?;
+    if !is_bundle_installed(device, bundle_id)? {
+        return Err(InstallError::VerificationMissing(bundle_id.into()));
+    }
+    Ok(())
+}
+
+pub fn is_bundle_installed(device: &Device, bundle_id: &str) -> Result<bool, InstallError> {
+    validate_owner_bundle_id(bundle_id)?;
+    let json_path = temporary_json_path("installed-owner-app");
+    let json_output = json_path.to_string_lossy().into_owned();
+    let mut arguments = vec![
+        "devicectl",
+        "device",
+        "info",
+        "apps",
+        "--device",
+        &device.identifier,
+    ];
+    if devicectl_supports_bundle_filter() {
+        arguments.extend(["--bundle-id", bundle_id]);
+    }
+    arguments.extend(["--json-output", json_output.as_str()]);
+    let result = run_checked("xcrun", arguments, None);
+    let json = read_bounded_utf8(&json_path, MAX_DEVICECTL_JSON_BYTES);
+    let _ = fs::remove_file(&json_path);
+    result?;
+    parse_bundle_installed(&json?, bundle_id)
+}
+
+fn devicectl_supports_bundle_filter() -> bool {
+    std::process::Command::new("xcrun")
+        .args(["devicectl", "device", "info", "apps", "--help"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .is_some_and(|output| String::from_utf8_lossy(&output.stdout).contains("--bundle-id"))
+}
+
+fn parse_bundle_installed(json: &str, bundle_id: &str) -> Result<bool, InstallError> {
+    let response: InstalledAppsResponse = serde_json::from_str(json)?;
+    Ok(response
+        .result
+        .apps
+        .iter()
+        .any(|app| app.bundle_identifier == bundle_id))
+}
+
+pub fn launch_owner_app(device: &Device, bundle_id: &str) -> Result<(), InstallError> {
+    validate_owner_bundle_id(bundle_id)?;
+    if !is_bundle_installed(device, bundle_id)? {
+        return Err(InstallError::VerificationMissing(bundle_id.into()));
+    }
+    run_checked(
+        "xcrun",
+        [
+            "devicectl",
+            "device",
+            "process",
+            "launch",
+            "--device",
+            &device.identifier,
+            "--terminate-existing",
+            bundle_id,
+        ],
+        None,
+    )?;
+    Ok(())
+}
+
+fn validate_owner_bundle_id(bundle_id: &str) -> Result<(), InstallError> {
+    if bundle_id.is_empty()
+        || bundle_id.len() > 255
+        || !bundle_id.contains('.')
+        || !bundle_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+    {
+        return Err(InstallError::BundleIdentifier(bundle_id.into()));
+    }
+    Ok(())
+}
+
 /// Reads the connected phone's actual app inventory through devicectl's
 /// stable file-based JSON interface. Local Shot history is deliberately not
 /// evidence that an app consumes a provisioning slot on this device.
@@ -184,6 +292,9 @@ pub enum InstallError {
     Io(std::io::Error),
     Json(serde_json::Error),
     BundleNamespace(String),
+    BundleIdentifier(String),
+    Artifact(String),
+    VerificationMissing(String),
 }
 
 impl std::fmt::Display for InstallError {
@@ -195,6 +306,14 @@ impl std::fmt::Display for InstallError {
             Self::BundleNamespace(bundle_id) => write!(
                 formatter,
                 "refusing candidate device mutation for unnamespaced bundle identifier: {bundle_id}"
+            ),
+            Self::BundleIdentifier(bundle_id) => {
+                write!(formatter, "invalid adopted application bundle identifier: {bundle_id}")
+            }
+            Self::Artifact(path) => write!(formatter, "invalid adopted application artifact: {path}"),
+            Self::VerificationMissing(bundle_id) => write!(
+                formatter,
+                "devicectl returned from installation but {bundle_id} was absent from the device inventory"
             ),
         }
     }
@@ -258,6 +377,13 @@ mod tests {
                 "{unsafe_id}"
             );
         }
+    }
+
+    #[test]
+    fn adopted_install_verification_requires_the_exact_bundle_inventory_entry() {
+        let json = r#"{"result":{"apps":[{"bundleIdentifier":"com.example.other","name":"Other"},{"bundleIdentifier":"com.example.owner","name":"Owner"}]}}"#;
+        assert!(parse_bundle_installed(json, "com.example.owner").unwrap());
+        assert!(!parse_bundle_installed(json, "com.example.missing").unwrap());
     }
 
     #[test]

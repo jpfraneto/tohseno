@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import CoreImage.CIFilterBuiltins
 
 public struct TohsenoSettingsView: View {
     @Bindable private var model: TohsenoAppModel
@@ -14,6 +16,21 @@ public struct TohsenoSettingsView: View {
                 LabeledContent("App storage", value: "~/Desktop/Tohseno")
                 Button("Check Again") { Task { await model.reload() } }
                 Button("Restart Local Factory Safely") { Task { await model.restartService() } }
+                Section("Companion devices") {
+                    if model.pairedCompanionDevices.isEmpty {
+                        Text("No iPhone Companion is paired yet.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(model.pairedCompanionDevices) { device in
+                        PairedCompanionDeviceRow(model: model, device: device)
+                    }
+                    Button("Pair Another iPhone") {
+                        Task { await model.beginCompanionPairing() }
+                    }
+                    if let session = model.companionPairingSession {
+                        CompanionPairingCard(session: session)
+                    }
+                }
             }
             .padding(20)
             .tabItem { Label("Factory", systemImage: "gearshape.2") }
@@ -153,4 +170,85 @@ public struct TohsenoSettingsView: View {
             }
         }
     }
+}
+
+private struct PairedCompanionDeviceRow: View {
+    let model: TohsenoAppModel
+    let device: PairedCompanionDevice
+    @State private var name: String
+
+    init(model: TohsenoAppModel, device: PairedCompanionDevice) {
+        self.model = model
+        self.device = device
+        _name = State(initialValue: device.displayName)
+    }
+
+    var body: some View {
+        HStack {
+            Image(systemName: device.revoked ? "iphone.slash" : "iphone.gen3")
+            TextField("iPhone name", text: $name)
+                .disabled(device.revoked)
+            Text(device.revoked ? "Revoked" : "Paired")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !device.revoked, name != device.displayName {
+                Button("Rename") {
+                    Task { await model.renameCompanionDevice(device, to: name) }
+                }
+            }
+            if !device.revoked {
+                Button("Revoke", role: .destructive) {
+                    Task { await model.revokeCompanionDevice(device) }
+                }
+            }
+        }
+        .accessibilityIdentifier("settings.companion.\(device.id)")
+    }
+}
+
+private struct CompanionPairingCard: View {
+    let session: CompanionPairingSession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if session.state == "waiting", let image = pairingQRCode(session.pairingURI) {
+                HStack(alignment: .top, spacing: 16) {
+                    Image(nsImage: image)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 150, height: 150)
+                        .accessibilityLabel("Companion pairing QR code")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Open Tohseno Companion and scan this code.")
+                        Text("This one-use invitation expires at \(session.expiresAt).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Copy Pairing Link") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(session.pairingURI, forType: .string)
+                        }
+                    }
+                }
+            } else if session.state == "paired" {
+                Label("\(session.deviceName ?? "iPhone") exchanged an authenticated snapshot with this Mac.", systemImage: "checkmark.shield.fill")
+            } else {
+                Text("Pairing \(session.state). Create a new one-use invitation to retry.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+private func pairingQRCode(_ value: String) -> NSImage? {
+    let filter = CIFilter.qrCodeGenerator()
+    filter.message = Data(value.utf8)
+    filter.correctionLevel = "M"
+    guard let output = filter.outputImage?.transformed(
+        by: CGAffineTransform(scaleX: 8, y: 8)
+    ) else { return nil }
+    let representation = NSCIImageRep(ciImage: output)
+    let image = NSImage(size: representation.size)
+    image.addRepresentation(representation)
+    return image
 }

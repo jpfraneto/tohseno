@@ -58,9 +58,6 @@ private struct CompanionNavigation: View {
                     }
                 }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            CompanionBottomBar(model: model)
-        }
     }
 
     private var path: Binding<[CompanionRoute]> {
@@ -119,38 +116,6 @@ private extension View {
     }
 }
 
-private struct CompanionBottomBar: View {
-    @Bindable var model: CompanionModel
-
-    var body: some View {
-        HStack {
-            Spacer()
-            Button {
-                guard model.screen != .create else { return }
-                withAnimation(.easeInOut(duration: 0.2)) { model.openCreate() }
-            } label: {
-                HStack(spacing: 9) {
-                    TohsenoMark(size: 26)
-                        .padding(3)
-                        .background(Tohseno.void, in: RoundedRectangle(cornerRadius: 8))
-                    Text("New App")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .foregroundStyle(Tohseno.void)
-                .padding(.vertical, 10)
-                .padding(.horizontal, 18)
-                .background(Tohseno.orange, in: Capsule())
-            }
-            .accessibilityLabel("Create a new app")
-            Spacer()
-        }
-        .padding(.top, 9)
-        .padding(.bottom, 7)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) { Divider().opacity(0.45) }
-    }
-}
-
 private struct CompanionBackground: View {
     var body: some View {
         ZStack {
@@ -204,7 +169,7 @@ struct YourAppsView: View {
                     Image(systemName: "square.grid.2x2")
                         .font(.system(size: 30, weight: .light))
                         .foregroundStyle(Tohseno.ash)
-                    Text("Apps you make on your Mac appear here.")
+                    Text("Adopt an existing iPhone app in Tohseno on your Mac. Once connected, it appears here ready for change requests.")
                         .font(.system(size: 16))
                         .foregroundStyle(Tohseno.ash)
                         .multilineTextAlignment(.center)
@@ -321,6 +286,10 @@ struct AppTile: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.76)
                 .frame(maxWidth: .infinity)
+            Text("This Mac · \(status)")
+                .font(.system(size: 10))
+                .foregroundStyle(Tohseno.ash)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
@@ -411,6 +380,10 @@ struct AppView: View {
 
                 composer
 
+                if let history = shot.recentEvolutions, !history.isEmpty {
+                    EvolutionHistoryView(history: history)
+                }
+
                 if let notice = model.notice {
                     NoticeView(text: notice)
                 }
@@ -455,6 +428,45 @@ struct AppView: View {
             .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))
             .disabled(!model.canEvolve)
             .padding(.top, 6)
+        }
+    }
+}
+
+private struct EvolutionHistoryView: View {
+    let history: [EvolutionHistorySummary]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Previous changes")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Tohseno.bone)
+            ForEach(history) { evolution in
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(evolution.requestSummary)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Tohseno.bone)
+                            .lineLimit(3)
+                        Spacer()
+                        Text(evolution.status.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Tohseno.ash)
+                    }
+                    if let completion = evolution.completionSummary {
+                        Text(completion)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Tohseno.ash)
+                    }
+                    if let installation = evolution.installationSummary {
+                        Text(installation)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Tohseno.ash)
+                    }
+                }
+                .padding(12)
+                .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Tohseno.iron))
+            }
         }
     }
 }

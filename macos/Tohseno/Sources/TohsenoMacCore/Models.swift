@@ -43,16 +43,29 @@ public struct ExecutionSummary: Codable, Equatable, Sendable {
     public let updatedAt: String
 }
 
+public struct ProjectEvolutionSummary: Codable, Equatable, Identifiable, Sendable {
+    public let evolutionID: String
+    public let requestedAt: String
+    public let requestSummary: String
+    public let status: String
+    public let completionSummary: String?
+    public let installationSummary: String?
+
+    public var id: String { evolutionID }
+}
+
 public struct AppSummary: Codable, Equatable, Identifiable, Sendable {
     public let shotID: String
     public let displayName: String
     public let bundleIdentifier: String?
+    public var sourceState: String? = nil
     public let icon: IconDescriptor
     public let expressionID: String?
     public let latestVersionID: String?
     public let latestVersionOrdinal: UInt64?
     public let latestVersionCreatedAt: String?
     public let execution: ExecutionSummary?
+    public var recentEvolutions: [ProjectEvolutionSummary]? = nil
     public let presentation: Presentation
     public let archived: Bool
     public let retired: Bool
@@ -122,6 +135,57 @@ public struct FactoryDefaults: Codable, Equatable, Sendable {
     public let routeID: String?
     public let routeLabel: String?
     public let harnesses: [FactoryHarnessOption]
+}
+
+public struct AdoptedProject: Codable, Equatable, Identifiable, Sendable {
+    public let projectID: String
+    public let displayName: String
+    public let sourcePath: String
+    public let containerPath: String
+    public let scheme: String
+    public let bundleIdentifier: String
+    public let currentSourceState: String
+    public let build: AdoptedProjectBuild
+    public let recovery: String?
+
+    public var id: String { projectID }
+}
+
+public struct AdoptedProjectBuild: Codable, Equatable, Sendable {
+    public let status: String
+    public let failureCategory: String?
+    public let summary: String?
+}
+
+public struct ProjectAdoptionResult: Codable, Equatable, Sendable {
+    public let schema: String
+    public let status: String
+    public let schemeCandidates: [String]
+    public let project: AdoptedProject?
+    public let message: String?
+}
+
+public struct PairedCompanionDevice: Codable, Equatable, Identifiable, Sendable {
+    public let deviceID: String
+    public let deviceIDAbbreviation: String
+    public let displayName: String
+    public let pairedAt: String
+    public let lastSeen: String
+    public let syncState: String
+    public let revoked: Bool
+
+    public var id: String { deviceID }
+}
+
+public struct CompanionPairingSession: Codable, Equatable, Identifiable, Sendable {
+    public let schema: String
+    public let sessionID: String
+    public let state: String
+    public let expiresAt: String
+    public let pairingURI: String
+    public let deviceName: String?
+
+    public var id: String { sessionID }
 }
 
 public struct ReferenceDraft: Equatable, Identifiable, Sendable {

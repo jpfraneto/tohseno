@@ -18,6 +18,8 @@ pub const WORKSPACE_SNAPSHOT_SCHEMA: &str = "tohseno.companion-workspace-snapsho
 pub enum ShotKind {
     FactoryShot,
     RecordingOnly,
+    /// Private owner-local source project. It has no public Shot lineage.
+    AdoptedProject,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -58,6 +60,21 @@ pub struct ExecutionSummary {
     pub state_transition: Option<StateTransitionReceipt>,
 }
 
+/// Bounded private continuity projected to the owner UI. The authoritative
+/// adopted-project record remains in the versioned living-project store.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvolutionHistorySummary {
+    pub evolution_id: String,
+    pub requested_at: String,
+    pub request_summary: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completion_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installation_summary: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShotSummary {
@@ -66,6 +83,10 @@ pub struct ShotSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle_identifier: Option<String>,
     pub kind: ShotKind,
+    /// Private source-state token for an adopted project. Never a protocol
+    /// Expression or Version identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_state: Option<String>,
     pub icon: IconDescriptor,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expression_id: Option<ExpressionId>,
@@ -77,6 +98,8 @@ pub struct ShotSummary {
     pub latest_version_created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<ExecutionSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_evolutions: Vec<EvolutionHistorySummary>,
     /// The one human state a person sees. Studio renders this instead of
     /// interpreting execution phases for itself.
     pub presentation: Presentation,
@@ -127,6 +150,7 @@ pub fn build_workspace_snapshot(
             (ShotKind::FactoryShot, Some(shot_id)) => shot_id.to_string(),
             (ShotKind::FactoryShot, None) => continue,
             (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+            (ShotKind::AdoptedProject, _) => continue,
         };
         let latest_execution = latest_execution(engine, &app.name, &stable_id)?;
         let execution = latest_execution
@@ -165,12 +189,14 @@ pub fn build_workspace_snapshot(
             display_name: app.name,
             bundle_identifier: (kind == ShotKind::FactoryShot).then_some(app.bundle_id),
             kind,
+            source_state: None,
             icon,
             expression_id,
             latest_version_id,
             latest_version_ordinal,
             latest_version_created_at: accepted_at,
             execution,
+            recent_evolutions: Vec::new(),
             presentation,
             archived: false,
             retired: app.retired,
@@ -207,6 +233,7 @@ pub fn load_shot_icon(
             (ShotKind::FactoryShot, Some(value)) => value.to_string(),
             (ShotKind::FactoryShot, None) => continue,
             (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+            (ShotKind::AdoptedProject, _) => continue,
         };
         if stable_id == shot_id {
             return discover_icon(engine, &app.name).map(Some);
@@ -230,6 +257,7 @@ pub fn load_shot_preview(
             (ShotKind::FactoryShot, Some(value)) => value.to_string(),
             (ShotKind::FactoryShot, None) => continue,
             (ShotKind::RecordingOnly, _) => recording_id(workspace_id, &app.name),
+            (ShotKind::AdoptedProject, _) => continue,
         };
         if stable_id != shot_id {
             continue;

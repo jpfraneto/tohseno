@@ -74,6 +74,16 @@ struct PresentationTests {
         #expect(TohsenoPresentation.of(shot(version: 3)).state == .installed)
         #expect(TohsenoPresentation.of(shot(version: 3)).headline == "anky updated ✓")
         #expect(TohsenoPresentation.of(shot(version: nil)).state == .waiting)
+        let adopted = ShotSummary(
+            shotID: "project_fixture",
+            displayName: "Fixture",
+            kind: .adoptedProject,
+            sourceState: "state_fixture",
+            iconRevision: 1,
+            sortIndex: 0,
+            supportedCompanionActions: [.workspaceRead, .shotEvolve]
+        )
+        #expect(TohsenoPresentation.of(adopted).state == .installed)
     }
 
     @Test("Waiting for the cable asks for the cable and claims nothing")

@@ -29,6 +29,14 @@ pub enum DeviceState {
     DeveloperModeRequired,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DeviceInventoryState {
+    Ready(Vec<Device>),
+    CableMissing,
+    TrustRequired,
+    DeveloperModeRequired,
+}
+
 #[derive(Debug)]
 pub enum DeviceError {
     Command(CommandError),
@@ -49,6 +57,20 @@ impl std::fmt::Display for DeviceError {
 impl std::error::Error for DeviceError {}
 
 pub fn check() -> Result<DeviceState, DeviceError> {
+    Ok(match inventory()? {
+        DeviceInventoryState::Ready(mut devices) => {
+            // Compatibility for the older single-device engine path. New
+            // owner-project delivery consumes `inventory` directly and must
+            // resolve exactly one device before mutating it.
+            DeviceState::Ready(devices.remove(0))
+        }
+        DeviceInventoryState::CableMissing => DeviceState::CableMissing,
+        DeviceInventoryState::TrustRequired => DeviceState::TrustRequired,
+        DeviceInventoryState::DeveloperModeRequired => DeviceState::DeveloperModeRequired,
+    })
+}
+
+pub fn inventory() -> Result<DeviceInventoryState, DeviceError> {
     let json_path = temporary_json_path("devices");
     // Xcode 26 explicitly says file-based JSON is its only stable scripting API.
     let output = run_checked(
@@ -67,7 +89,7 @@ pub fn check() -> Result<DeviceState, DeviceError> {
     let _ = fs::remove_file(&json_path);
     output?;
     let usb_registry = usb_registry();
-    parse_with_usb_registry(&json?, &usb_registry)
+    parse_inventory_with_usb_registry(&json?, &usb_registry)
 }
 
 /// Privacy-minimal pre-CoreDevice observation used only to project the cable
@@ -89,13 +111,22 @@ fn usb_registry() -> String {
 
 #[cfg(test)]
 fn parse(json: &str) -> Result<DeviceState, DeviceError> {
-    parse_with_usb_registry(json, "")
+    Ok(match parse_inventory_with_usb_registry(json, "")? {
+        DeviceInventoryState::Ready(mut devices) => DeviceState::Ready(devices.remove(0)),
+        DeviceInventoryState::CableMissing => DeviceState::CableMissing,
+        DeviceInventoryState::TrustRequired => DeviceState::TrustRequired,
+        DeviceInventoryState::DeveloperModeRequired => DeviceState::DeveloperModeRequired,
+    })
 }
 
-fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState, DeviceError> {
+fn parse_inventory_with_usb_registry(
+    json: &str,
+    usb_registry: &str,
+) -> Result<DeviceInventoryState, DeviceError> {
     let response: Response = serde_json::from_str(json).map_err(DeviceError::Json)?;
     let mut saw_reachable_untrusted = false;
     let mut saw_reachable_without_developer_mode = false;
+    let mut ready = Vec::new();
 
     for entry in response.result.devices {
         if entry.hardware_properties.reality.as_deref() != Some("physical")
@@ -123,7 +154,7 @@ fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState
             saw_reachable_without_developer_mode = true;
             continue;
         }
-        return Ok(DeviceState::Ready(Device {
+        ready.push(Device {
             identifier: entry.identifier,
             udid: entry.hardware_properties.udid,
             name: entry
@@ -139,19 +170,23 @@ fn parse_with_usb_registry(json: &str, usb_registry: &str) -> Result<DeviceState
                 .connection_properties
                 .transport_type
                 .unwrap_or_else(|| "unknown".into()),
-        }));
+        });
     }
 
-    if saw_reachable_untrusted {
-        Ok(DeviceState::TrustRequired)
+    ready.sort_by(|left, right| left.identifier.cmp(&right.identifier));
+    ready.dedup_by(|left, right| left.identifier == right.identifier);
+    if !ready.is_empty() {
+        Ok(DeviceInventoryState::Ready(ready))
+    } else if saw_reachable_untrusted {
+        Ok(DeviceInventoryState::TrustRequired)
     } else if saw_reachable_without_developer_mode {
-        Ok(DeviceState::DeveloperModeRequired)
+        Ok(DeviceInventoryState::DeveloperModeRequired)
     } else if usb_registry.contains("iPhone") || usb_registry.contains("Apple Mobile Device") {
         // USB sees the phone but CoreDevice does not yet know it, which is the
         // observable pre-Trust state.
-        Ok(DeviceState::TrustRequired)
+        Ok(DeviceInventoryState::TrustRequired)
     } else {
-        Ok(DeviceState::CableMissing)
+        Ok(DeviceInventoryState::CableMissing)
     }
 }
 
@@ -313,5 +348,31 @@ mod tests {
             parse(&response("usb", "disconnected", "paired", "enabled")).unwrap(),
             DeviceState::Ready(_)
         ));
+    }
+
+    #[test]
+    fn inventory_preserves_multiple_ready_targets_for_fail_closed_selection() {
+        let first = response("usb", "disconnected", "paired", "enabled");
+        let second_device = first
+            .replace("core-device-id", "second-core-device-id")
+            .replace("device-udid", "second-device-udid")
+            .replace("Test iPhone", "Second iPhone");
+        let first_value: serde_json::Value = serde_json::from_str(&first).unwrap();
+        let second_value: serde_json::Value = serde_json::from_str(&second_device).unwrap();
+        let combined = serde_json::json!({
+            "result": {
+                "devices": [
+                    first_value["result"]["devices"][0].clone(),
+                    second_value["result"]["devices"][0].clone()
+                ]
+            }
+        });
+        let DeviceInventoryState::Ready(devices) =
+            parse_inventory_with_usb_registry(&combined.to_string(), "").unwrap()
+        else {
+            panic!("two ready devices were not preserved");
+        };
+        assert_eq!(devices.len(), 2);
+        assert_ne!(devices[0].identifier, devices[1].identifier);
     }
 }

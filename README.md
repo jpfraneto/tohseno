@@ -1,14 +1,22 @@
 # Tohseno
 
-Some useful apps are too specific to become products. They can still exist.
+Tohseno keeps a native iPhone app connected to the Mac project and coding
+harness that evolve it.
 
-Tohseno is an open-source iOS app factory that runs on your Mac. You describe a
-small app you want; Tohseno uses an explicitly selected local, bring-your-own,
-or managed intelligence route, builds a native SwiftUI project, checks it, and installs it on your iPhone. The
-source lives in an ordinary Git repository that belongs to you and can continue
-without Tohseno.
+Create an iPhone app with any coding agent, adopt its Xcode project in
+Tohseno, and use the app. When it needs something, request that concrete change
+from Tohseno Companion. The Mac durably receives the request, evolves the exact
+project, builds it with Xcode, and installs the verified update on the reachable
+owner iPhone. If Apple requires Trust, Developer Mode, unlock, or a cable,
+Tohseno preserves the build and names that one action instead of claiming
+success.
 
-The current transition, governed by
+The generated-app factory remains available as a secondary way to make a first
+app. It is not the product's center. The primary value begins once a concrete
+project and working app exist.
+
+This direction is governed by
+[`ADR 0033`](docs/adr/0033-living-project-connection.md), building on
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
 [`ADR 0032`](docs/adr/0032-native-companion-onboarding-and-product-presence.md),
 makes a native SwiftUI Mac application the primary product over the same Rust factory.
@@ -21,13 +29,13 @@ public prerelease for a second clean-Mac walkthrough. One physical-iPhone birth
 and evolution has passed; that proof predates the ADR 0032 replacement, so
 [`docs/STATE.md`](docs/STATE.md) records the exact remaining boundary.
 
-When using the app teaches you something, describe what should change. Tohseno
-evolves the same project and installs the new version on your phone.
+The implementation and current limitations are described in
+[`docs/LIVING_CONNECTION.md`](docs/LIVING_CONNECTION.md).
 
 ## What we care about
 
-- **Personal software.** An app can be worthwhile even when only one person
-  needs it.
+- **Contact before imagination.** A working app and one noticed change are a
+  better starting point than a blank product prompt.
 - **Ownership.** Each app is ordinary SwiftUI and Xcode source, with no
   proprietary runtime and no Tohseno account required.
 - **Local by default.** Builds, signing, device installation, and generated
@@ -46,12 +54,18 @@ You need macOS 14 or later and full Xcode. An iPhone, cable, Trust, Developer
 Mode, and an Apple Personal Team are needed for Companion and generated-app
 installation; Tohseno never collects Apple credentials.
 
-The normal product is `Tohseno.app`: open it, follow one readiness instruction
-at a time, describe a deliberately small app, and press **Create App**. The app
-restores admitted work across window closure and service restart. When the
-deterministic gates pass, it installs and launches the result directly on the
-connected iPhone. After using it, open the same app and describe the change.
-Plain Return sends from every intention composer; Shift–Return adds a line.
+The normal product is `Tohseno.app`: open it, connect one working coding
+harness, complete the observable Apple/Companion steps, and choose **Adopt
+Existing App**. Select an exact `.xcodeproj` or `.xcworkspace`; Tohseno infers
+the iOS app scheme and asks only when more than one real candidate remains. It
+does not restructure the selected repository. The adopted app appears on the
+Mac and in the paired Companion. After using it, open it in Companion and send
+one text, voice, or screenshot-backed change request.
+
+The app restores admitted work across window closure, service restart, and
+ordinary phone/Mac relaunch. Plain Return sends from Mac intention composers;
+Shift–Return adds a line. **Create App** remains a secondary path when there is
+no existing project.
 The optional Registry tab shows verified local Shots and the identity that
 accepted them while explicitly separating that private track record from the
 not-yet-connected public Registry.
@@ -84,10 +98,12 @@ macos/Tohseno/Packaging/verify-app.sh dist/native/Tohseno.app unsigned
 
 ## Where your work lives
 
-Apps are visible folders under `~/Desktop/Tohseno`, with one initialized Git
-repository and first commit per app. Private factory state, execution records, and pairing data live under
-`~/.tohseno`. The installed service listens only on the Mac's loopback
-interface.
+Adopted source stays exactly where the owner selected it. Its versioned private
+pointer, stable Tohseno project ID, build/install observations, and evolution
+history live under `~/.tohseno/service/living-projects-v1`. Generated apps are
+still visible folders under `~/Desktop/Tohseno`. Private factory state,
+execution records, and pairing records live under `~/.tohseno`; identities and
+secrets use Keychain. The installed service listens only on Mac loopback.
 
 Each app's `.tohseno/` directory is durable app-local metadata, not a cache and
 not blanket-gitignored. Safe identity and integrity views may travel with the
@@ -95,14 +111,16 @@ repository. Exact intentions, inline-private lineage, references, feedback,
 execution records, logs, and `.tohseno/private/` remain explicitly ignored;
 publishing a Git repository is never allowed to silently publish them.
 
-The optional iPhone Companion is a remote control for the factory on your Mac. It can
-send create and evolve intentions and receive encrypted status updates. It
-does not receive source code or private harness output. When the optional relay
-is used, it carries signed encrypted envelopes that the relay cannot read.
+The iPhone Companion is the normal request surface for an adopted app. It sends
+durably queued evolution requests and receives encrypted status/history. It
+does not receive source code, raw harness output, credentials, or signing
+material. The current transport uses the existing content-blind relay; it
+carries signed end-to-end-encrypted envelopes that the relay cannot read.
 
 ## Advanced recovery and automation from Terminal
 
-The interactive path is the default, and the same operations are scriptable:
+The interactive adoption path is the default. Generated Shot creation and
+evolution remain scriptable recovery/secondary operations:
 
 ```bash
 tohseno create --prompt "An app that..."
@@ -162,6 +180,7 @@ evidence.
 More detail:
 
 - [Current runtime architecture](docs/ARCHITECTURE.md)
+- [Living connection implementation and test](docs/LIVING_CONNECTION.md)
 - [App → Intent → App decision](docs/adr/0016-app-intent-app-on-your-iphone.md)
 - [Bounded build lifecycle](docs/adr/0019-bounded-intent-to-usable-app.md)
 - [Native Mac product and managed balance](docs/adr/0025-native-macos-app-factory-managed-balance.md)

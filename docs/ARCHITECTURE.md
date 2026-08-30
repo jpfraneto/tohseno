@@ -1,30 +1,31 @@
-# Tohseno v0 architecture
+# Tohseno living-connection architecture
 
 This is the concrete runtime map for the private iPhone-to-Mac factory. It is
 descriptive, not protocol authority: [`protocol/`](../protocol/) and the
 accepted [ADRs](adr/README.md) win if this document disagrees with them.
 
-ADR 0025 changes the primary projection, not the factory. The implemented
-source path is:
+ADR 0033 adds a private adopted-project boundary without changing public
+protocol encodings. The primary implemented path is:
 
 ```text
-Native SwiftUI Tohseno.app
+Native SwiftUI Tohseno.app -> Adopt existing Xcode project
         |
         | bounded native loopback session + events
         v
 Persistent Rust Local Workspace Service
         |
         v
-ShotApplicationService → Engine → build/sign/install/launch
+LivingProjectService → harness → xcodebuild/codesign/devicectl/verify
         |                                  |
-        +── local/BYO/custom/local model   +── connected development iPhone
-        |
-        └── managed execution capability → TOHSENO inference proxy → Bankr
+        +── private versioned history      +── exactly one resolved owner iPhone
 ```
 
-The browser Studio and CLI remain support/recovery clients. The Companion and
-its encrypted relay remain optional and preserved, but neither participates in
-normal native first run or generated-app installation. External signing,
+The existing `ShotApplicationService → Engine` remains the generated-app
+factory and public-record compatibility path. It is not used to fabricate a
+protocol Shot identity for arbitrary adopted source.
+
+The browser Studio and CLI remain support/recovery clients. Companion and its
+encrypted relay are the normal phone request path for adopted projects. External signing,
 notarization, publication, physical-device checks, and service activation are
 still separate release evidence; source existence does not imply them.
 
@@ -40,11 +41,11 @@ iPhone Companion
   authenticate -> admit -> journal -> execute
                     |
                     v
-       ordinary app folder / Shot
+       exact adopted source folder / private project record
 ```
 
 The iPhone is the wand. The Mac is the factory. The relay is a bounded opaque
-mailbox; it is neither a factory nor an authority over a Shot.
+mailbox; it is neither a factory nor an authority over a project or Shot.
 
 ## Runtime components
 
@@ -64,6 +65,24 @@ the existing workspace key, and receives a 15-minute token bound to the current
 service instance and scopes. [`cli/src/native_session.rs`](../cli/src/native_session.rs)
 owns that separate authorization state; browser Origin/CSRF sessions remain a
 different boundary.
+
+### Adopted project record and execution
+
+[`cli/src/living_project.rs`](../cli/src/living_project.rs) owns the private
+`tohseno.private-living-project-store/1` records. Adoption canonicalizes an
+exact Xcode project/workspace, asks only for a genuinely ambiguous app scheme,
+reads Xcode build settings, Git state, and bounded repository instructions,
+then performs a real Simulator build. It writes no metadata into the selected
+repository.
+
+An adopted-project request is a private signed `project.evolve.request`,
+deliberately separate from public Shot evolution. It is persisted and indexed
+by command ID before acknowledgement. The selected harness receives a bounded
+execution packet and runs in the exact source root. After it exits
+successfully, a signed generic-iOS Xcode build and codesign gate must pass.
+CoreDevice installation is attempted only against exactly one reachable
+iPhone; the exact bundle must appear in inventory before the state can become
+Installed. The saved artifact and retry state survive service/Mac restart.
 
 ### First open, readiness, and distribution
 
@@ -105,7 +124,7 @@ held for protected operator reconciliation. The public `/download/macos`
 route is independent and fail-closed until immutable URL and digest config
 exist.
 
-### Optional Companion
+### iPhone Companion
 
 The shipping iOS product is
 [`companion/apple/TohsenoCompanion`](../companion/apple/TohsenoCompanion/).
@@ -257,7 +276,7 @@ second intelligence pass over unknown partial mutations.
 The current private core is:
 
 - `macos/Tohseno/` — primary native Mac projection and packaging.
-- `companion/apple/TohsenoCompanion/` — optional phone projection.
+- `companion/apple/TohsenoCompanion/` — primary phone request projection.
 - `sdk/apple/TohsenoCompanionKit/` and `companion/` — Swift/Rust private wire,
   cryptography, state, and conformance vectors.
 - `website/apps/companion-relay/` — content-blind internet mailbox.

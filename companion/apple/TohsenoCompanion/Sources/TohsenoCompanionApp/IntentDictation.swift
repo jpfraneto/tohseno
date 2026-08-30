@@ -60,6 +60,9 @@ private final class IntentDictationController {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
         recognitionRequest = request
 
         do {

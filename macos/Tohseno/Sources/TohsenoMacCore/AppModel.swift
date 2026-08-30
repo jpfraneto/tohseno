@@ -38,6 +38,10 @@ public final class TohsenoAppModel {
     public private(set) var isLoadingRegistry = false
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
+    public private(set) var adoptionSchemeCandidates: [String] = []
+    public private(set) var pendingAdoptionPath: String?
+    public private(set) var pairedCompanionDevices: [PairedCompanionDevice] = []
+    public private(set) var companionPairingSession: CompanionPairingSession?
     public private(set) var hasSkippedFirstShot: Bool
     public var route: AppRoute = .library {
         didSet { persistRoute() }
@@ -54,6 +58,7 @@ public final class TohsenoAppModel {
     private var previewVersions: [String: String] = [:]
     private var monitoringTask: Task<Void, Never>?
     private var readinessMonitoringTask: Task<Void, Never>?
+    private var pairingMonitoringTask: Task<Void, Never>?
 
     public init(client: any FactoryServing, preferences: UserDefaults = .standard) {
         self.client = client
@@ -72,8 +77,7 @@ public final class TohsenoAppModel {
         return readiness.deviceName ?? readiness.deviceProductType
     }
     public var shouldPresentFirstShot: Bool {
-        guard let workspace else { return false }
-        return workspace.shots.isEmpty && !hasSkippedFirstShot
+        false
     }
 
     public var selectedApp: AppSummary? {
@@ -113,6 +117,7 @@ public final class TohsenoAppModel {
             self.readiness = try await readiness
             self.workspace = try await workspace
             self.defaults = try await defaults
+            await refreshCompanionDevices()
             await refreshAssets()
             await refreshManaged()
             repairRoute()
@@ -133,6 +138,98 @@ public final class TohsenoAppModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public func adoptProject(at path: String, scheme: String? = nil) async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let result = try await client.adoptProject(path: path, scheme: scheme)
+            if result.status == "needs_scheme" {
+                pendingAdoptionPath = path
+                adoptionSchemeCandidates = result.schemeCandidates
+                return
+            }
+            guard result.status == "adopted", let project = result.project else {
+                throw FactoryClientError.invalidResponse(
+                    result.message ?? "The project adoption response was incomplete."
+                )
+            }
+            pendingAdoptionPath = nil
+            adoptionSchemeCandidates = []
+            await reloadWorkspace()
+            route = .app(project.projectID)
+            if project.build.status == "failed" {
+                errorMessage = project.build.summary
+                    ?? "The project was adopted, but its first Simulator build needs attention."
+            } else {
+                errorMessage = nil
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func cancelSchemeChoice() {
+        pendingAdoptionPath = nil
+        adoptionSchemeCandidates = []
+    }
+
+    public func refreshCompanionDevices() async {
+        do {
+            pairedCompanionDevices = try await client.pairedCompanionDevices()
+        } catch {
+            // Pairing management is useful but must not make the local project
+            // library disappear when the relay is temporarily unavailable.
+        }
+    }
+
+    public func beginCompanionPairing() async {
+        pairingMonitoringTask?.cancel()
+        do {
+            let session = try await client.createCompanionPairingSession()
+            companionPairingSession = session
+            pairingMonitoringTask = Task { [weak self] in
+                guard let self else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard !Task.isCancelled else { return }
+                    do {
+                        let current = try await self.client.companionPairingSession(id: session.id)
+                        self.companionPairingSession = current
+                        if current.state == "paired" {
+                            await self.refreshCompanionDevices()
+                            return
+                        }
+                        if current.state == "expired" || current.state == "cancelled" { return }
+                    } catch {
+                        self.errorMessage = error.localizedDescription
+                        return
+                    }
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func renameCompanionDevice(_ device: PairedCompanionDevice, to name: String) async {
+        do {
+            _ = try await client.renameCompanionDevice(id: device.id, displayName: name)
+            await refreshCompanionDevices()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func revokeCompanionDevice(_ device: PairedCompanionDevice) async {
+        do {
+            _ = try await client.revokeCompanionDevice(id: device.id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        await refreshCompanionDevices()
     }
 
     public func refreshAssets() async {

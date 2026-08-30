@@ -112,6 +112,14 @@ public actor UIFixtureFactoryClient: FactoryServing {
     public func managedCheckout(packID: String) async throws -> ManagedCheckout { throw FactoryClientError.transport("UI fixture") }
     public func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot { throw FactoryClientError.transport("UI fixture") }
     public func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
+    public func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult {
+        throw FactoryClientError.transport("UI fixture")
+    }
+    public func pairedCompanionDevices() async throws -> [PairedCompanionDevice] { [] }
+    public func createCompanionPairingSession() async throws -> CompanionPairingSession { throw FactoryClientError.transport("UI fixture") }
+    public func companionPairingSession(id: String) async throws -> CompanionPairingSession { throw FactoryClientError.transport("UI fixture") }
+    public func renameCompanionDevice(id: String, displayName: String) async throws -> PairedCompanionDevice { throw FactoryClientError.transport("UI fixture") }
+    public func revokeCompanionDevice(id: String) async throws -> PairedCompanionDevice { throw FactoryClientError.transport("UI fixture") }
     public func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt { throw FactoryClientError.transport("UI fixture") }
     public func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt { throw FactoryClientError.transport("UI fixture") }
     public func openOnPhone(for appID: String) async throws {}

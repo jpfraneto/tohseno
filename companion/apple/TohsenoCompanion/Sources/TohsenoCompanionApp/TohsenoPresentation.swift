@@ -52,7 +52,7 @@ public struct TohsenoPresentation: Equatable, Sendable {
     /// Derive the presentation for one app in the synchronized snapshot.
     public static func of(_ shot: ShotSummary) -> Self {
         let state = shot.execution.map { TohsenoPresentedState.from($0.state) }
-            ?? (shot.latestVersionID == nil ? .waiting : .installed)
+            ?? (shot.kind == .adoptedProject || shot.latestVersionID != nil ? .installed : .waiting)
         return forState(state, appName: shot.displayName)
     }
 

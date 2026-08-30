@@ -453,9 +453,9 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
     }
     view(
         GenesisStep::FirstShot,
-        "Take your first Shot.",
+        "Your iPhone and this Mac are connected.",
+        Some("Adopt an existing iOS project, or use Create App as a secondary path."),
         None,
-        Some("create_app"),
         false,
         false,
     )

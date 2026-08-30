@@ -4,9 +4,64 @@ Written 2026-07-30, amended through 2026-08-30. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
+## Current product direction: the living connection
+
+ADR 0033 is the latest product decision. Tohseno is now centered on maintaining
+the relationship between an iPhone app, its existing Xcode source project, the
+owner's intent/history, a configured coding harness, Companion requests, and
+the real Xcode/CoreDevice return path. Generated Shot creation remains a
+secondary compatibility path; the old empty-workspace first-Shot composer is
+no longer first run.
+
+The implemented vertical slice is:
+
+```text
+Adopt .xcodeproj/.xcworkspace on Mac
+  -> private stable project_<uuid> record, repository untouched
+  -> encrypted workspace projection to paired Companion
+  -> signed project.evolve.request + durable encrypted phone outbox
+  -> authenticated/idempotent Mac admission, persisted before receipt
+  -> configured harness in the exact source directory
+  -> signed iphoneos xcodebuild + codesign verification
+  -> exact devicectl install + bundle-inventory verification
+  -> durable status/history on Mac and iPhone
+```
+
+Adoption inspects schemes, bundle ID, deployment target, signing-team setting,
+Git revision/dirty paths, repository instruction files, and a real unsigned
+Simulator build. It keeps a versioned external record under
+`~/.tohseno/service/living-projects-v1`; choosing the same container/scheme
+again preserves the same project ID. Evolution records retain the exact
+request, attachment copies, starting state, pre-existing dirty paths, harness,
+changed-file observation, build attempts, per-device installation attempts,
+completion/recovery text, and follow-up relationship. Rollback is explicitly
+unavailable rather than risking unrelated dirty work.
+
+Pairing remains the existing one-use, two-minute, signed and encrypted flow.
+Phone identity/secrets live in iOS Keychain; the Mac identity lives in Keychain;
+durable projections/outboxes are encrypted in Application Support; revocation
+increments local authority immediately and revokes both relay mailboxes. Mac
+Settings now lists, renames, revokes, and starts QR pairing for additional
+personal devices.
+
+The install path selects a physical iPhone only when exactly one reachable
+CoreDevice target exists. More than one target fails closed instead of choosing
+the first phone. `Installed` requires a successful devicectl install followed
+by an exact bundle-ID inventory query. Device absence, lock, Trust, Developer
+Mode, and multiple-device ambiguity retain the verified artifact as **Ready to
+install** with the smallest action. The background retry performs no device
+polling unless a saved build is actually waiting.
+
+This source change has not been signed, notarized, published, or promoted, and
+does not alter the public protocol encodings or the RC2 evidence below. A real
+physical-device adoption/evolution/install acceptance still requires owner
+interaction. See [`LIVING_CONNECTION.md`](LIVING_CONNECTION.md) for the local
+runbook and exact limitations.
+
 ## Native macOS transition
 
-ADRs 0025 through 0032 are the current product decisions. They make a
+ADRs 0025 through 0032 describe the prior native transition retained beneath
+ADR 0033. They make a
 native SwiftUI `Tohseno.app` the primary consumer surface over the existing
 persistent Rust factory. It supersedes npm/browser first run, mandatory
 five-successful-day qualification, subscription gating of
@@ -33,14 +88,11 @@ Mac app shows staged progress. It does not install the disposable readiness
 app used by the retained compatibility API. The running application also has a
 menu-bar item drawn from the repository's Tohseno SVG.
 
-When the workspace has never recorded a Shot, the native window then shows the
-actual existing keyboard-first creation composer with iPhone-oriented starting
-capabilities. A person can select capabilities to seed editable natural-language
-intention text, attach up to eight PNG/JPEG references, and send with Return or
-**Create App**; Shift-Return adds a line. A secondary **Skip** persists a local
-bypass and reveals the ordinary empty library. Any preserved Shot record
-prevents the gate from returning. This adds no account, planning phase, or
-second command path.
+When the workspace has no apps, the native window now explains the connection
+and offers **Adopt Existing App** first and **Create a First App** second. The
+former selects an existing Xcode container; the latter retains the existing
+keyboard-first generated Shot composer. The deleted first-run Take a Shot gate,
+Skip preference, and intimidating empty textarea do not return.
 
 Selecting an app now opens a native Build/App/Source workspace. Build is the
 default and shows the simple Intent → Source → Simulator → Your iPhone path,
@@ -145,9 +197,10 @@ exact digest as a **release-candidate**. Independent clean-Mac Companion and
 creation acceptance for RC2 remains unverified; stable `v1.0.2` is not
 published.
 
-## The product: App → Intent → App on your iPhone
+## Retained generated-Shot product machinery
 
-ADR 0016 defines what a person sees. The whole product is:
+ADR 0016 still defines the retained generated-Shot projection. Under ADR 0033
+it is secondary to adopting and evolving a living project:
 
 ```text
 Open Tohseno.app → describe an app   → it installs on your iPhone

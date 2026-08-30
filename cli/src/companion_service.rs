@@ -58,6 +58,7 @@ use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
+use crate::living_project::{LivingProjectService, ProjectEvolutionRequest};
 use crate::workspace_identity::WorkspaceIdentity;
 
 const DEVICE_SCHEMA: &str = "tohseno.companion-device-record/1";
@@ -263,6 +264,7 @@ pub struct CompanionCoordinator {
     service_root: PathBuf,
     workspace: Arc<WorkspaceIdentity>,
     application: ShotApplicationService,
+    living_projects: Arc<LivingProjectService>,
     sessions: Mutex<PairingSessionStore>,
     session_views: Mutex<BTreeMap<String, RuntimePairing>>,
     replay: Mutex<ReplayWindow>,
@@ -277,6 +279,7 @@ impl CompanionCoordinator {
         service_root: PathBuf,
         workspace: Arc<WorkspaceIdentity>,
         application: ShotApplicationService,
+        living_projects: Arc<LivingProjectService>,
     ) -> Result<Self, BoxError> {
         ensure_private_directory(&service_root.join("devices"))?;
         ensure_private_directory(&service_root.join("inbox/envelopes"))?;
@@ -288,6 +291,7 @@ impl CompanionCoordinator {
             service_root,
             workspace,
             application,
+            living_projects,
             sessions: Mutex::new(PairingSessionStore::default()),
             session_views: Mutex::new(BTreeMap::new()),
             replay: Mutex::new(ReplayWindow::new(65_536)?),
@@ -784,6 +788,29 @@ impl CompanionCoordinator {
         Ok(summaries)
     }
 
+    pub fn rename_device(
+        &self,
+        device_id: &str,
+        display_name: &str,
+    ) -> Result<DeviceSummary, BoxError> {
+        let display_name = display_name.trim();
+        if display_name.is_empty()
+            || display_name.chars().count() > 80
+            || display_name.chars().any(char::is_control)
+        {
+            return Err("Companion device name must be 1..=80 visible characters".into());
+        }
+        let mut record = self
+            .load_device(device_id)?
+            .ok_or("paired device does not exist")?;
+        if record.revoked {
+            return Err("revoked device cannot be renamed".into());
+        }
+        record.display_name = display_name.into();
+        self.store_device(&record)?;
+        Ok(device_summary(record))
+    }
+
     /// Reconcile every active phone-to-Mac payload mailbox once. The Local
     /// Workspace Service invokes this independently of Studio, so reference
     /// chunks and commands continue after every Terminal and browser window
@@ -915,16 +942,7 @@ impl CompanionCoordinator {
             record.relay_revocation_complete = true;
             self.store_device(&record)?;
         }
-        Ok(DeviceSummary {
-            device_id_abbreviation: abbreviate(&record.device_id),
-            device_id: record.device_id,
-            display_name: record.display_name,
-            capabilities: record.capability.body.allowed_actions,
-            paired_at: record.paired_at,
-            last_seen: record.last_seen,
-            sync_state: "revoked",
-            revoked: true,
-        })
+        Ok(device_summary(record))
     }
 
     pub async fn process_envelope(
@@ -1268,6 +1286,54 @@ impl CompanionCoordinator {
                     rejection_code: None,
                 }
             }
+            CommandPayload::ProjectEvolveRequest {
+                project_id,
+                base_source_state,
+                intention,
+                references,
+                follow_up_to,
+            } => {
+                if self.living_projects.project(&project_id)?.is_none() {
+                    return Ok(rejection(&command_id, "unknown_project"));
+                }
+                let reference_inputs = match self.reference_inputs(&record, references) {
+                    Ok(Some(inputs)) => inputs,
+                    Ok(None) => return Ok(rejection(&command_id, "reference_blob_missing")),
+                    Err(_) => return Ok(rejection(&command_id, "reference_blob_invalid")),
+                };
+                let receipt = match self
+                    .living_projects
+                    .submit_evolution(ProjectEvolutionRequest {
+                        command_id: command_id.clone(),
+                        project_id: project_id.clone(),
+                        base_source_state,
+                        intention,
+                        originating_device_id: Some(record.device_id.clone()),
+                        references: reference_inputs,
+                        follow_up_to,
+                    }) {
+                    Ok(receipt) => receipt,
+                    Err(error) if error.to_string() == "stale_project_source_state" => {
+                        return Ok(rejection(&command_id, "stale_project_source_state"));
+                    }
+                    Err(error) if error.to_string() == "command_id_conflict" => {
+                        return Ok(rejection(&command_id, "command_id_conflict"));
+                    }
+                    Err(error) if error.to_string() == "project_has_active_evolution" => {
+                        return Ok(rejection(&command_id, "project_busy"));
+                    }
+                    Err(_) => return Ok(failure(&command_id)),
+                };
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Accepted,
+                    shot_id: Some(project_id),
+                    execution_id: Some(receipt.evolution_id),
+                    result_id: None,
+                    rejection_code: None,
+                }
+            }
             CommandPayload::ShotCreateRequest {
                 suggested_name,
                 intention,
@@ -1352,7 +1418,8 @@ impl CompanionCoordinator {
         &self,
         record: &DeviceRecord,
     ) -> Result<ConvertedWorkspace, BoxError> {
-        let local = self.application.workspace_snapshot().await?;
+        let mut local = self.application.workspace_snapshot().await?;
+        self.living_projects.merge_workspace(&mut local)?;
         convert_snapshot(local, record)
     }
 
@@ -1899,6 +1966,19 @@ impl CompanionCoordinator {
     }
 }
 
+fn device_summary(record: DeviceRecord) -> DeviceSummary {
+    DeviceSummary {
+        device_id_abbreviation: abbreviate(&record.device_id),
+        device_id: record.device_id,
+        display_name: record.display_name,
+        capabilities: record.capability.body.allowed_actions,
+        paired_at: record.paired_at,
+        last_seen: record.last_seen,
+        sync_state: if record.revoked { "revoked" } else { "ready" },
+        revoked: record.revoked,
+    }
+}
+
 struct RelayMailboxProvision {
     created: MailboxCreated,
     write_capability: String,
@@ -2287,6 +2367,7 @@ fn convert_snapshot(
         let kind = match shot.kind {
             tohseno_application::ShotKind::FactoryShot => ShotKind::FactoryShot,
             tohseno_application::ShotKind::RecordingOnly => ShotKind::RecordingOnly,
+            tohseno_application::ShotKind::AdoptedProject => ShotKind::AdoptedProject,
         };
         let execution = shot.execution.map(convert_execution).transpose()?;
         let icon_blob = validated_icon_blob(shot.icon)?;
@@ -2312,6 +2393,11 @@ fn convert_snapshot(
                 actions.push(CapabilityAction::ShotEvolve);
             }
             actions
+        } else if kind == ShotKind::AdoptedProject {
+            vec![
+                CapabilityAction::WorkspaceRead,
+                CapabilityAction::ShotEvolve,
+            ]
         } else {
             vec![CapabilityAction::WorkspaceRead]
         };
@@ -2320,6 +2406,7 @@ fn convert_snapshot(
             display_name: shot.display_name,
             bundle_identifier: shot.bundle_identifier,
             kind,
+            source_state: shot.source_state,
             icon: Some(icon),
             icon_revision,
             expression_id: shot.expression_id.map(|value| value.to_string()),
@@ -2327,6 +2414,20 @@ fn convert_snapshot(
             latest_version_ordinal: shot.latest_version_ordinal,
             latest_version_created_at: shot.latest_version_created_at,
             execution,
+            recent_evolutions: shot
+                .recent_evolutions
+                .into_iter()
+                .map(
+                    |value| tohseno_companion::snapshot::EvolutionHistorySummary {
+                        evolution_id: value.evolution_id,
+                        requested_at: value.requested_at,
+                        request_summary: value.request_summary,
+                        status: value.status,
+                        completion_summary: value.completion_summary,
+                        installation_summary: value.installation_summary,
+                    },
+                )
+                .collect(),
             archived: shot.archived,
             retired: shot.retired,
             sort_index: i64::try_from(shot.sort_index).unwrap_or(i64::MAX),
@@ -3769,6 +3870,7 @@ mod tests {
             display_name: "fixture".into(),
             bundle_identifier: Some("org.tohseno.genesis.fixture".into()),
             kind: ShotKind::FactoryShot,
+            source_state: None,
             icon: None,
             icon_revision: 1,
             expression_id: None,
@@ -3776,6 +3878,7 @@ mod tests {
             latest_version_ordinal: None,
             latest_version_created_at: None,
             execution,
+            recent_evolutions: vec![],
             archived: false,
             retired: false,
             sort_index: 0,

@@ -8,8 +8,7 @@ coding harness. Everything it does goes through the released
 
 ```text
 Your Apps (a compact adaptive icon grid)
-    ├─ Choose App → What should change? → Evolve
-    └─ New App    → What should it be?     → Create App
+    └─ Choose adopted app → What should change? → Evolve
 ```
 
 That is the whole product.
@@ -42,19 +41,17 @@ revocable underneath; that vocabulary never appears here.
 **Your Apps.** After a short restoration state, the Companion uses the whole
 screen for a compact, scrollable icon grid. Each app has the real icon where
 the Mac has one, a one-letter mark where it does not, a short name, and one
-status-colored dot. There are no oversized cards or decorative dock competing
-with the apps. A native material bar stays at the bottom with the main New App
-action. A read-only Sync button beside Mac connected requests the newest
+status-colored dot. There are no oversized cards, generic feed, or decorative
+creation dock competing with the apps. A read-only Sync button beside Mac connected requests the newest
 encrypted workspace projection and reports when the Mac cannot be reached.
 Opening an app uses native stack navigation, including the iPhone's standard
 left-edge swipe to return to Your Apps, and never submits a build.
 
-**New app.** The bottom action opens one compact intent composer for an app
-name, intention, and optional screenshots. Create App sends that single intent
-through the same signed Companion backend as every other action. Both this
-composer and an existing app's evolution composer include a microphone button:
-spoken words appear live in the normal intent field and remain editable before
-submission.
+Generated-app creation remains a compatibility route in the model/SDK, but is
+not a primary Companion destination. The normal phone action starts from an
+app already adopted on the Mac. Its evolution composer includes native speech
+recognition and screenshot attachments; spoken text stays editable and a
+failed transcription is never reported as success.
 
 **One app.** The app's name, its current state if it has one, and the box:
 

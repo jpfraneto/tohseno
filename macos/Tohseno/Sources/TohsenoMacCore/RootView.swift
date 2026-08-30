@@ -1,5 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
+#if canImport(AppKit)
+import AppKit
+#endif
 
 public struct TohsenoRootView: View {
     @Bindable private var model: TohsenoAppModel
@@ -13,13 +16,13 @@ public struct TohsenoRootView: View {
             if model.isLoading, model.workspace == nil {
                 VStack(spacing: 14) {
                     TohsenoSpinner(size: 44)
-                    Text("Opening your app factory…")
+                    Text("Opening your connected projects…")
                 }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let defaults = model.defaults, !defaults.ready {
+                HarnessReadinessScreen(model: model, defaults: defaults)
             } else if let readiness = model.readiness, !readiness.ready {
                 ReadinessScreen(model: model, readiness: readiness)
-            } else if model.shouldPresentFirstShot {
-                FirstShotView(model: model)
             } else {
                 factory
             }
@@ -33,15 +36,33 @@ public struct TohsenoRootView: View {
         } message: {
             Text(model.errorMessage ?? "Something stopped safely.")
         }
+        .confirmationDialog(
+            "Choose the app scheme",
+            isPresented: schemeChoiceBinding,
+            titleVisibility: .visible
+        ) {
+            ForEach(model.adoptionSchemeCandidates, id: \.self) { scheme in
+                Button(scheme) {
+                    guard let path = model.pendingAdoptionPath else { return }
+                    Task { await model.adoptProject(at: path, scheme: scheme) }
+                }
+            }
+            Button("Cancel", role: .cancel) { model.cancelSchemeChoice() }
+        } message: {
+            Text("Tohseno found more than one iOS app scheme. Choose the one installed on your iPhone.")
+        }
     }
 
     private var factory: some View {
         NavigationSplitView {
             List(selection: routeBinding) {
                 Section {
-                    Label("Registry", systemImage: "point.3.connected.trianglepath.dotted")
-                        .tag(AppRoute.registry)
-                        .accessibilityIdentifier("registry.sidebar")
+                    Button(action: chooseProject) {
+                        Label("Adopt Existing App", systemImage: "folder.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.isSubmitting)
+                    .accessibilityIdentifier("adopt-app.sidebar")
                 }
                 Section("Your Apps") {
                     ForEach(model.apps) { app in
@@ -61,9 +82,12 @@ public struct TohsenoRootView: View {
                     }
                 }
                 Section {
-                    Label("Create App", systemImage: "plus")
+                    Label("Create App", systemImage: "plus.circle")
                         .tag(AppRoute.create)
                         .accessibilityIdentifier("create-app.sidebar")
+                    Label("Local Records", systemImage: "point.3.connected.trianglepath.dotted")
+                        .tag(AppRoute.registry)
+                        .accessibilityIdentifier("registry.sidebar")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -81,7 +105,7 @@ public struct TohsenoRootView: View {
         } detail: {
             switch model.route {
             case .library:
-                LibraryEmptyView { model.route = .create }
+                LibraryEmptyView(adopt: chooseProject) { model.route = .create }
             case .registry:
                 RegistryView(model: model)
             case .create:
@@ -90,7 +114,7 @@ public struct TohsenoRootView: View {
                 if let app = model.selectedApp {
                     AppDetailView(model: model, app: app)
                 } else {
-                    LibraryEmptyView { model.route = .create }
+                    LibraryEmptyView(adopt: chooseProject) { model.route = .create }
                 }
             }
         }
@@ -103,6 +127,28 @@ public struct TohsenoRootView: View {
 
     private var errorBinding: Binding<Bool> {
         Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.dismissError() } })
+    }
+
+    private var schemeChoiceBinding: Binding<Bool> {
+        Binding(
+            get: { !model.adoptionSchemeCandidates.isEmpty },
+            set: { if !$0 { model.cancelSchemeChoice() } }
+        )
+    }
+
+    private func chooseProject() {
+        #if canImport(AppKit)
+        let panel = NSOpenPanel()
+        panel.title = "Adopt an iPhone app"
+        panel.message = "Choose one Xcode project or workspace. Tohseno will inspect it without restructuring it."
+        panel.prompt = "Adopt"
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.treatsFilePackagesAsDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await model.adoptProject(at: url.path) }
+        #endif
     }
 
     private func stateSymbol(_ state: PresentedState) -> String {
@@ -147,163 +193,13 @@ public struct TohsenoWelcomeFixtureView: View {
     }
 
     public var body: some View {
-        FirstShotView(model: model)
+        LibraryEmptyView(adopt: {}, create: {})
             .background(TohsenoTheme.void)
             .foregroundStyle(TohsenoTheme.bone)
             .tint(TohsenoTheme.amber)
     }
 }
 #endif
-
-private struct FirstShotView: View {
-    @Bindable var model: TohsenoAppModel
-    @State private var choosingReferences = false
-    @State private var isDropTargeted = false
-    @FocusState private var intentionFocused: Bool
-
-    private var canSubmit: Bool {
-        !model.isSubmitting &&
-            !model.creation.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                TohsenoMark()
-                    .frame(width: 58, height: 58)
-                    .padding(.bottom, 28)
-
-                Text("Welcome to Tohseno")
-                    .font(.caption.weight(.semibold))
-                    .tracking(2.4)
-                    .foregroundStyle(TohsenoTheme.silver)
-                    .padding(.bottom, 10)
-
-                Text("Take a Shot")
-                    .font(.system(size: 38, weight: .semibold, design: .rounded))
-                    .tracking(0.5)
-                    .accessibilityIdentifier("onboarding.take-a-shot")
-
-                Text("Your private app factory for iPhone.")
-                    .font(.title3)
-                    .foregroundStyle(TohsenoTheme.silver)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 9)
-
-                Text("Describe something useful, Tohseno builds and checks the native app, and Tohseno Companion keeps it connected to your iPhone. Your source and app history stay on this Mac.")
-                    .font(.body)
-                    .foregroundStyle(TohsenoTheme.silver)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 560)
-                    .padding(.top, 12)
-
-                StarterCapabilitiesView(
-                    intention: $model.creation.intention,
-                    deviceDescription: model.connectedDeviceDescription
-                )
-                .padding(.top, 26)
-
-                ZStack(alignment: .topLeading) {
-                    if model.creation.intention.isEmpty {
-                        Text("Describe the app that should exist…")
-                            .foregroundStyle(TohsenoTheme.ash)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 14)
-                            .allowsHitTesting(false)
-                    }
-                    TextEditor(text: $model.creation.intention)
-                        .font(.body)
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .frame(minHeight: 132)
-                        .focused($intentionFocused)
-                        .shotSubmitOnReturn(enabled: canSubmit) {
-                            Task { await model.submitCreation() }
-                        }
-                        .accessibilityLabel("Describe the app that should exist")
-                        .accessibilityIdentifier("onboarding.intention")
-                }
-                .background(TohsenoTheme.carbon)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            isDropTargeted ? TohsenoTheme.amber : TohsenoTheme.iron,
-                            style: StrokeStyle(lineWidth: isDropTargeted ? 2 : 1, dash: [7, 5])
-                        )
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.top, 22)
-
-                ReferenceStrip(references: model.creation.references) { _, id in
-                    model.creation.references.removeAll { $0.id == id }
-                }
-                .padding(.top, model.creation.references.isEmpty ? 0 : 14)
-
-                HStack(spacing: 8) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                    Text("Drop PNG or JPEG images · \(model.creation.references.count)/8")
-                    Button("Choose Images…") { choosingReferences = true }
-                        .buttonStyle(.link)
-                        .disabled(model.creation.references.count >= 8)
-                        .accessibilityIdentifier("onboarding.references")
-                }
-                .font(.caption)
-                .foregroundStyle(TohsenoTheme.silver)
-                .padding(.top, 12)
-
-                HStack(spacing: 16) {
-                    Button {
-                        Task { await model.submitCreation() }
-                    } label: {
-                        HStack(spacing: 7) {
-                            if model.isSubmitting {
-                                TohsenoSpinner(
-                                    size: 14,
-                                    stroke: TohsenoTheme.void,
-                                    gap: TohsenoTheme.amber
-                                )
-                            }
-                            Text(model.isSubmitting ? "Creating…" : "Create App")
-                        }
-                    }
-                    .buttonStyle(PrimaryActionStyle())
-                    .disabled(!canSubmit)
-                    .keyboardShortcut(.return, modifiers: [])
-                    .accessibilityIdentifier("onboarding.submit")
-
-                    Button("Skip") { model.skipFirstShot() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(TohsenoTheme.silver)
-                        .disabled(model.isSubmitting)
-                        .accessibilityIdentifier("onboarding.skip")
-                }
-                .padding(.top, 24)
-
-                Text("Return sends · Shift–Return adds a line")
-                    .font(.caption)
-                    .foregroundStyle(TohsenoTheme.ash)
-                    .padding(.top, 13)
-            }
-            .frame(maxWidth: 620)
-            .padding(48)
-            .frame(maxWidth: .infinity, minHeight: 680)
-            .accessibilityIdentifier("onboarding.welcome")
-        }
-        .background(TohsenoTheme.void)
-        .fileImporter(
-            isPresented: $choosingReferences,
-            allowedContentTypes: [.png, .jpeg],
-            allowsMultipleSelection: true
-        ) { result in
-            model.addReferences(result, to: .creation)
-        }
-        .dropDestination(for: URL.self) { urls, _ in
-            model.addReferences(.success(urls), to: .creation)
-            return !urls.isEmpty
-        } isTargeted: { isDropTargeted = $0 }
-        .task { intentionFocused = true }
-    }
-}
 
 private struct StarterCapability: Identifiable, Sendable {
     let id: String
@@ -417,16 +313,20 @@ private struct StarterCapabilitiesView: View {
 }
 
 private struct LibraryEmptyView: View {
+    let adopt: () -> Void
     let create: () -> Void
 
     var body: some View {
         ContentUnavailableView {
-            Label("Your Apps", systemImage: "square.grid.2x2")
+            Label("Keep an iPhone app connected", systemImage: "iphone.and.arrow.forward")
         } description: {
-            Text("Choose an app to see what is happening, its source, and its iPhone stage.")
+            Text("Tohseno connects the app you use on your iPhone to the source and coding harness on this Mac.")
         } actions: {
-            Button("Create App", action: create)
+            Button("Adopt Existing App", action: adopt)
                 .buttonStyle(PrimaryActionStyle())
+                .accessibilityIdentifier("adopt-app.empty")
+            Button("Create a First App", action: create)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("create-app.empty")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -678,9 +578,9 @@ private struct ReadinessScreen: View {
             }
             if readiness.step == "welcome" {
                 HStack(alignment: .top, spacing: 14) {
-                    OnboardingPoint(icon: "text.bubble", title: "Describe it", detail: "Say what would make your life easier.")
-                    OnboardingPoint(icon: "hammer", title: "Make it", detail: "Tohseno builds and checks a real native app.")
-                    OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Companion keeps your iPhone linked to this Mac.")
+                    OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Start with an app already useful on your iPhone.")
+                    OnboardingPoint(icon: "bubble.left.and.text.bubble.right", title: "Request", detail: "Ask for one concrete change in Companion.")
+                    OnboardingPoint(icon: "macbook", title: "Reconnect", detail: "This Mac evolves, builds, and returns the app.")
                 }
                 .frame(maxWidth: 660)
             }
@@ -719,6 +619,58 @@ private struct ReadinessScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("readiness.\(readiness.step)")
+    }
+}
+
+private struct HarnessReadinessScreen: View {
+    let model: TohsenoAppModel
+    let defaults: FactoryDefaults
+
+    var body: some View {
+        VStack(spacing: 22) {
+            TohsenoMark().frame(width: 72, height: 72)
+            VStack(spacing: 10) {
+                Text("Connect a coding harness").font(.largeTitle.weight(.semibold))
+                Text("Tohseno needs one working coding agent before it connects your iPhone. Credentials stay in that agent's own authentication store.")
+                    .foregroundStyle(TohsenoTheme.silver)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 560)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(defaults.harnesses) { harness in
+                    Label {
+                        HStack {
+                            Text(harness.label)
+                            Spacer()
+                            Text(harnessStatus(harness))
+                                .foregroundStyle(TohsenoTheme.silver)
+                        }
+                    } icon: {
+                        Image(systemName: harness.installed ? "terminal.fill" : "terminal")
+                    }
+                }
+            }
+            .frame(maxWidth: 500)
+            HStack {
+                SettingsLink { Text("Open Settings") }
+                    .buttonStyle(PrimaryActionStyle())
+                Button("Check Again") { Task { await model.reload() } }
+            }
+            Text("Choose Intelligence in Settings. For Codex: install the CLI if missing, then sign in with Codex itself. Tohseno never asks for provider or Apple credentials in onboarding.")
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.ash)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 520)
+        }
+        .padding(56)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("readiness.harness")
+    }
+
+    private func harnessStatus(_ harness: FactoryHarnessOption) -> String {
+        if !harness.installed { return "Not installed" }
+        if harness.authentication == .notDetected { return "Sign in required" }
+        return harness.selected ? "Selected" : "Available"
     }
 }
 
@@ -950,7 +902,8 @@ private struct AppDetailView: View {
             .pickerStyle(.segmented)
             .frame(width: 225)
             .accessibilityIdentifier("app.workspace-tabs")
-            if app.latestVersionID != nil, !app.presentation.state.isInFlight {
+            if app.latestVersionID != nil || app.sourceState != nil,
+               !app.presentation.state.isInFlight {
                 Button("What should change?") { showingEvolution = true }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("app.change")
@@ -1000,7 +953,7 @@ private struct BuildWorkspaceView: View {
                 BuildJourney(state: app.presentation.state)
                     .padding(.vertical, 8)
             } label: {
-                Label("From idea to iPhone", systemImage: "point.forward.to.point.capsulepath")
+                Label("From request to iPhone", systemImage: "point.forward.to.point.capsulepath")
             }
 
             GroupBox {
@@ -1065,6 +1018,41 @@ private struct BuildWorkspaceView: View {
                 }
             }
             .accessibilityIdentifier("app.build-log")
+
+            if let history = app.recentEvolutions, !history.isEmpty {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(history.enumerated()), id: \.element.id) { index, evolution in
+                            VStack(alignment: .leading, spacing: 5) {
+                                HStack {
+                                    Text(evolution.requestSummary)
+                                        .font(.body.weight(.medium))
+                                        .lineLimit(3)
+                                    Spacer()
+                                    Text(evolution.status.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let completion = evolution.completionSummary {
+                                    Text(completion)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let installation = evolution.installationSummary {
+                                    Text(installation)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 9)
+                            if index != history.indices.last { Divider() }
+                        }
+                    }
+                } label: {
+                    Label("Evolution history", systemImage: "clock.arrow.circlepath")
+                }
+                .accessibilityIdentifier("app.evolution-history")
+            }
         }
     }
 
@@ -1461,7 +1449,7 @@ private struct EvolutionComposerSheet: View {
     }
 
     private var canSubmit: Bool {
-        !model.isSubmitting && app.latestVersionID != nil &&
+        !model.isSubmitting && (app.sourceState != nil || app.latestVersionID != nil) &&
             !draft.wrappedValue.intention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 

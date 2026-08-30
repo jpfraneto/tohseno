@@ -83,6 +83,17 @@ pub enum CommandPayload {
         selected_feedback_action_commitments: Vec<String>,
         references: Vec<ReferenceDescriptor>,
     },
+    /// Private evolution of an owner-adopted source project. The project and
+    /// source-state identities are not public Shot lineage identifiers.
+    #[serde(rename = "project.evolve.request")]
+    ProjectEvolveRequest {
+        project_id: String,
+        base_source_state: String,
+        intention: String,
+        references: Vec<ReferenceDescriptor>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        follow_up_to: Option<String>,
+    },
     #[serde(rename = "shot.create.request")]
     ShotCreateRequest {
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -99,6 +110,7 @@ impl CommandPayload {
             Self::FeedbackSubmit { .. } => CapabilityAction::FeedbackWrite,
             Self::MarketingSubmit { .. } => CapabilityAction::MarketingWrite,
             Self::ShotEvolveRequest { .. } => CapabilityAction::ShotEvolve,
+            Self::ProjectEvolveRequest { .. } => CapabilityAction::ShotEvolve,
             Self::ShotCreateRequest { .. } => CapabilityAction::ShotCreate,
         }
     }
@@ -154,6 +166,21 @@ impl CommandPayload {
                 )?;
                 for commitment in selected_feedback_action_commitments {
                     decode_array::<32>("feedback action commitment", commitment)?;
+                }
+                validate_references(references)
+            }
+            Self::ProjectEvolveRequest {
+                project_id,
+                base_source_state,
+                intention,
+                references,
+                follow_up_to,
+            } => {
+                validate_identifier("project ID", project_id)?;
+                validate_identifier("project source state", base_source_state)?;
+                validate_text("project evolution intention", intention, MAX_TEXT_BYTES)?;
+                if let Some(value) = follow_up_to {
+                    validate_identifier("follow-up evolution ID", value)?;
                 }
                 validate_references(references)
             }

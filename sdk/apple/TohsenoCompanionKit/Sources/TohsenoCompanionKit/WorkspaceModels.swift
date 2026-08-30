@@ -3,6 +3,7 @@ import Foundation
 public enum ShotKind: String, Codable, Sendable {
     case factoryShot = "factory_shot"
     case recordingOnly = "recording_only"
+    case adoptedProject = "adopted_project"
 }
 
 public enum ExecutionStatus: String, Codable, CaseIterable, Sendable {
@@ -133,11 +134,65 @@ public struct ExecutionSummary: Codable, Equatable, Sendable {
     }
 }
 
+public struct EvolutionHistorySummary: Codable, Equatable, Sendable, Identifiable {
+    public let evolutionID: String
+    public let requestedAt: String
+    public let requestSummary: String
+    public let status: String
+    public let completionSummary: String?
+    public let installationSummary: String?
+
+    public var id: String { evolutionID }
+
+    enum CodingKeys: String, CodingKey {
+        case evolutionID = "evolution_id"
+        case requestedAt = "requested_at"
+        case requestSummary = "request_summary"
+        case status
+        case completionSummary = "completion_summary"
+        case installationSummary = "installation_summary"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var expected: Set<String> = [
+            "evolution_id", "requested_at", "request_summary", "status",
+        ]
+        if container.contains(.completionSummary) { expected.insert("completion_summary") }
+        if container.contains(.installationSummary) { expected.insert("installation_summary") }
+        try requireExactKeys(decoder, expected)
+        evolutionID = try container.decode(String.self, forKey: .evolutionID)
+        requestedAt = try container.decode(String.self, forKey: .requestedAt)
+        requestSummary = try container.decode(String.self, forKey: .requestSummary)
+        status = try container.decode(String.self, forKey: .status)
+        completionSummary = try container.decodeIfPresent(String.self, forKey: .completionSummary)
+        installationSummary = try container.decodeIfPresent(String.self, forKey: .installationSummary)
+    }
+
+    public func validate() throws {
+        try requireIdentifier(evolutionID, field: "evolution_id")
+        _ = try CompanionTimestamp.parse(requestedAt)
+        try requireBoundedText(requestSummary, field: "request_summary", maximum: 2_048)
+        try requireIdentifier(status, field: "status")
+        if let completionSummary {
+            try requireBoundedText(
+                completionSummary, field: "completion_summary", maximum: 2_048
+            )
+        }
+        if let installationSummary {
+            try requireBoundedText(
+                installationSummary, field: "installation_summary", maximum: 2_048
+            )
+        }
+    }
+}
+
 public struct ShotSummary: Codable, Equatable, Sendable {
     public let shotID: String
     public let displayName: String
     public let bundleIdentifier: String?
     public let kind: ShotKind
+    public let sourceState: String?
     public let icon: IconDescriptor?
     public let iconRevision: UInt64
     public let expressionID: String?
@@ -145,6 +200,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
     public let latestVersionOrdinal: UInt64?
     public let latestVersionCreatedAt: String?
     public let execution: ExecutionSummary?
+    public let recentEvolutions: [EvolutionHistorySummary]?
     public let archived: Bool
     public let retired: Bool
     public let sortIndex: Int64
@@ -155,12 +211,14 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         case displayName = "display_name"
         case bundleIdentifier = "bundle_identifier"
         case kind, icon
+        case sourceState = "source_state"
         case iconRevision = "icon_revision"
         case expressionID = "expression_id"
         case latestVersionID = "latest_version_id"
         case latestVersionOrdinal = "latest_version_ordinal"
         case latestVersionCreatedAt = "latest_version_created_at"
         case execution, archived, retired
+        case recentEvolutions = "recent_evolutions"
         case sortIndex = "sort_index"
         case supportedCompanionActions = "supported_companion_actions"
     }
@@ -170,6 +228,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         displayName: String,
         bundleIdentifier: String? = nil,
         kind: ShotKind,
+        sourceState: String? = nil,
         icon: IconDescriptor? = nil,
         iconRevision: UInt64,
         expressionID: String? = nil,
@@ -177,6 +236,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         latestVersionOrdinal: UInt64? = nil,
         latestVersionCreatedAt: String? = nil,
         execution: ExecutionSummary? = nil,
+        recentEvolutions: [EvolutionHistorySummary]? = nil,
         archived: Bool = false,
         retired: Bool = false,
         sortIndex: Int64,
@@ -186,6 +246,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         self.displayName = displayName
         self.bundleIdentifier = bundleIdentifier
         self.kind = kind
+        self.sourceState = sourceState
         self.icon = icon
         self.iconRevision = iconRevision
         self.expressionID = expressionID
@@ -193,6 +254,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         self.latestVersionOrdinal = latestVersionOrdinal
         self.latestVersionCreatedAt = latestVersionCreatedAt
         self.execution = execution
+        self.recentEvolutions = recentEvolutions
         self.archived = archived
         self.retired = retired
         self.sortIndex = sortIndex
@@ -207,9 +269,11 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         ]
         let optionals: [(CodingKeys, String)] = [
             (.bundleIdentifier, "bundle_identifier"), (.icon, "icon"),
+            (.sourceState, "source_state"),
             (.expressionID, "expression_id"), (.latestVersionID, "latest_version_id"),
             (.latestVersionOrdinal, "latest_version_ordinal"),
             (.latestVersionCreatedAt, "latest_version_created_at"), (.execution, "execution"),
+            (.recentEvolutions, "recent_evolutions"),
         ]
         for (key, name) in optionals where container.contains(key) { expected.insert(name) }
         try requireExactKeys(decoder, expected)
@@ -217,6 +281,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         displayName = try container.decode(String.self, forKey: .displayName)
         bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier)
         kind = try container.decode(ShotKind.self, forKey: .kind)
+        sourceState = try container.decodeIfPresent(String.self, forKey: .sourceState)
         icon = try container.decodeIfPresent(IconDescriptor.self, forKey: .icon)
         iconRevision = try container.decode(UInt64.self, forKey: .iconRevision)
         expressionID = try container.decodeIfPresent(String.self, forKey: .expressionID)
@@ -224,6 +289,9 @@ public struct ShotSummary: Codable, Equatable, Sendable {
         latestVersionOrdinal = try container.decodeIfPresent(UInt64.self, forKey: .latestVersionOrdinal)
         latestVersionCreatedAt = try container.decodeIfPresent(String.self, forKey: .latestVersionCreatedAt)
         execution = try container.decodeIfPresent(ExecutionSummary.self, forKey: .execution)
+        recentEvolutions = try container.decodeIfPresent(
+            [EvolutionHistorySummary].self, forKey: .recentEvolutions
+        )
         archived = try container.decode(Bool.self, forKey: .archived)
         retired = try container.decode(Bool.self, forKey: .retired)
         sortIndex = try container.decode(Int64.self, forKey: .sortIndex)
@@ -256,6 +324,7 @@ public struct ShotSummary: Codable, Equatable, Sendable {
             throw TohsenoCompanionError.invalidEncoding("Version fields are incomplete")
         }
         if let expressionID { try requireIdentifier(expressionID, field: "expression_id") }
+        if let sourceState { try requireIdentifier(sourceState, field: "source_state") }
         if let latestVersionID { try requireIdentifier(latestVersionID, field: "latest_version_id") }
         if let latestVersionOrdinal, latestVersionOrdinal == 0 {
             throw TohsenoCompanionError.invalidEncoding("Version ordinal must be positive")
@@ -267,7 +336,19 @@ public struct ShotSummary: Codable, Equatable, Sendable {
                 throw TohsenoCompanionError.invalidEncoding("execution belongs to another Shot")
             }
         }
+        guard (recentEvolutions?.count ?? 0) <= 20 else {
+            throw TohsenoCompanionError.invalidEncoding("too many recent evolutions")
+        }
+        for evolution in recentEvolutions ?? [] { try evolution.validate() }
+        guard kind == .adoptedProject || recentEvolutions?.isEmpty != false else {
+            throw TohsenoCompanionError.invalidEncoding(
+                "only adopted projects have private evolution history"
+            )
+        }
         guard !(kind == .recordingOnly && (expressionID != nil || latestVersionID != nil)),
+              kind == .adoptedProject
+                ? (sourceState != nil && expressionID == nil && latestVersionID == nil)
+                : sourceState == nil,
               !(archived && retired),
               supportedCompanionActions == Array(Set(supportedCompanionActions)).sorted()
         else { throw TohsenoCompanionError.invalidEncoding("invalid Shot summary") }

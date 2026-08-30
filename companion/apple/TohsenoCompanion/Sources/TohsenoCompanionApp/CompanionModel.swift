@@ -163,7 +163,10 @@ public final class CompanionModel {
 
     private func adopt(_ shots: [ShotSummary]) {
         apps = shots
-            .filter { $0.kind == .factoryShot && !$0.retired && !$0.archived }
+            .filter {
+                ($0.kind == .factoryShot || $0.kind == .adoptedProject)
+                    && !$0.retired && !$0.archived
+            }
             .sorted { left, right in
                 left.sortIndex == right.sortIndex
                     ? left.displayName < right.displayName
@@ -202,8 +205,10 @@ public final class CompanionModel {
     /// The Mac's protocol reasons, said the way a person would say them.
     static func humanRejection(_ code: String?) -> String {
         switch code {
-        case "stale_base_version":
+        case "stale_base_version", "stale_project_source_state":
             "This app changed while your request was waiting. Review it and try again."
+        case "project_busy":
+            "This app is already being changed. Wait for it to finish, then send the next request."
         case "device_revoked", "device_not_paired", "capability_rejected":
             "This iPhone no longer has access to your Mac."
         case "unknown_shot":
@@ -284,9 +289,11 @@ public final class CompanionModel {
         guard entitlement?.factoryMutationsAllowed != false else { return false }
         guard !presentation(for: shot).state.inFlight else { return false }
         return !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && shot.expressionID != nil
-            && shot.latestVersionID != nil
-            && shot.latestVersionOrdinal != nil
+            && (shot.kind == .adoptedProject
+                ? shot.sourceState != nil
+                : shot.expressionID != nil
+                    && shot.latestVersionID != nil
+                    && shot.latestVersionOrdinal != nil)
             && !busy
     }
 
@@ -297,26 +304,33 @@ public final class CompanionModel {
     /// so the person can close TOHSENO immediately — a Mac that is offline or
     /// busy receives it later without another tap.
     public func evolve() async {
-        guard case let .app(shotID) = screen,
-              let shot = app(shotID),
-              let expression = shot.expressionID,
-              let version = shot.latestVersionID,
-              let ordinal = shot.latestVersionOrdinal,
-              canEvolve
-        else { return }
+        guard case let .app(shotID) = screen, let shot = app(shotID), canEvolve else { return }
         busy = true
         defer { busy = false }
         do {
-            _ = try await backend.requestEvolution(EvolutionRequest(
-                // The exact accepted base is bound here, at submission. A base
-                // that has already moved is refused by the Mac, never rebased.
-                shotID: shot.shotID,
-                baseExpressionID: expression,
-                baseVersionID: version,
-                baseVersionOrdinal: ordinal,
-                intention: intent,
-                references: attachments
-            ))
+            if shot.kind == .adoptedProject, let sourceState = shot.sourceState {
+                _ = try await backend.requestProjectEvolution(ProjectEvolutionRequest(
+                    projectID: shot.shotID,
+                    baseSourceState: sourceState,
+                    intention: intent,
+                    references: attachments
+                ))
+            } else if let expression = shot.expressionID,
+                      let version = shot.latestVersionID,
+                      let ordinal = shot.latestVersionOrdinal {
+                _ = try await backend.requestEvolution(EvolutionRequest(
+                    // The exact accepted base is bound here, at submission. A
+                    // moved base is refused by the Mac, never silently rebased.
+                    shotID: shot.shotID,
+                    baseExpressionID: expression,
+                    baseVersionID: version,
+                    baseVersionOrdinal: ordinal,
+                    intention: intent,
+                    references: attachments
+                ))
+            } else {
+                return
+            }
             intent = ""
             attachments = []
             notice = nil
@@ -346,7 +360,7 @@ public final class CompanionModel {
     public func presentation(for shot: ShotSummary) -> TohsenoPresentation {
         // Nothing this phone wrote has reached the Mac, so nothing about the
         // build can be claimed yet.
-        if justSent.contains(shot.shotID), unacknowledged > 0 || shot.execution == nil {
+        if justSent.contains(shot.shotID) {
             return unacknowledged > 0
                 ? .waitingForMac(appName: shot.displayName)
                 : TohsenoPresentation.forState(.building, appName: shot.displayName)

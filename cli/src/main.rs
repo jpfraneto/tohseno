@@ -6,6 +6,7 @@ mod device_readiness;
 mod identity_commands;
 mod installation_commands;
 mod intent_commands;
+mod living_project;
 mod local_openai_harness;
 mod managed_compute;
 mod native_client;
@@ -39,7 +40,7 @@ const MAX_FEEDBACK_FILE_BYTES: u64 = 100_000;
 #[command(
     name = "tohseno",
     version,
-    about = "Create and evolve native apps in your private local factory",
+    about = "Keep iPhone apps connected to the Mac that builds and evolves them",
     disable_help_subcommand = true
 )]
 struct Cli {
@@ -52,7 +53,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Describe an app. TOHSENO makes it and puts it on your iPhone.
+    /// Secondary generated-app path: describe an app for the local factory.
     Create {
         /// Optional technical name. When omitted, the implementation model names the app from its purpose.
         app_name: Option<String>,
@@ -2707,7 +2708,7 @@ mod tests {
         let create_help = Cli::try_parse_from(["tohseno", "create", "--help"])
             .unwrap_err()
             .to_string();
-        assert!(create_help.contains("puts it on your iPhone"));
+        assert!(create_help.contains("Secondary generated-app path"));
         assert!(create_help.contains("--prompt"));
         assert!(create_help.contains("--prompt-file"));
         assert!(create_help.contains("--image"));

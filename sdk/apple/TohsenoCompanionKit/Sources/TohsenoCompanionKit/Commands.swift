@@ -76,6 +76,13 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         selectedFeedbackActionCommitments: [String],
         references: [CompanionReferenceDescriptor]
     )
+    case projectEvolveRequest(
+        projectID: String,
+        baseSourceState: String,
+        intention: String,
+        references: [CompanionReferenceDescriptor],
+        followUpTo: String?
+    )
     case shotCreateRequest(
         suggestedName: String?,
         intention: String,
@@ -88,6 +95,7 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case .feedbackSubmit: .feedbackWrite
         case .marketingSubmit: .marketingWrite
         case .shotEvolveRequest: .shotEvolve
+        case .projectEvolveRequest: .shotEvolve
         case .shotCreateRequest: .shotCreate
         }
     }
@@ -107,12 +115,16 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case selectedFeedbackActionCommitments = "selected_feedback_action_commitments"
         case references
         case suggestedName = "suggested_name"
+        case projectID = "project_id"
+        case baseSourceState = "base_source_state"
+        case followUpTo = "follow_up_to"
     }
 
     private enum Kind: String, Codable {
         case feedback = "feedback.submit"
         case marketing = "marketing.submit"
         case evolve = "shot.evolve.request"
+        case projectEvolve = "project.evolve.request"
         case create = "shot.create.request"
         case workspaceSnapshot = "workspace.snapshot.request"
     }
@@ -158,6 +170,19 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 ),
                 references: container.decode([CompanionReferenceDescriptor].self, forKey: .references)
             )
+        case .projectEvolve:
+            var expected: Set<String> = [
+                "command_kind", "project_id", "base_source_state", "intention", "references",
+            ]
+            if container.contains(.followUpTo) { expected.insert("follow_up_to") }
+            try requireExactKeys(decoder, expected)
+            self = try .projectEvolveRequest(
+                projectID: container.decode(String.self, forKey: .projectID),
+                baseSourceState: container.decode(String.self, forKey: .baseSourceState),
+                intention: container.decode(String.self, forKey: .intention),
+                references: container.decode([CompanionReferenceDescriptor].self, forKey: .references),
+                followUpTo: container.decodeIfPresent(String.self, forKey: .followUpTo)
+            )
         case .create:
             var expected: Set<String> = ["command_kind", "intention", "references"]
             if container.contains(.suggestedName) { expected.insert("suggested_name") }
@@ -198,6 +223,13 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             try container.encode(intention, forKey: .intention)
             try container.encode(commitments, forKey: .selectedFeedbackActionCommitments)
             try container.encode(references, forKey: .references)
+        case let .projectEvolveRequest(projectID, sourceState, intention, references, followUpTo):
+            try container.encode(Kind.projectEvolve, forKey: .commandKind)
+            try container.encode(projectID, forKey: .projectID)
+            try container.encode(sourceState, forKey: .baseSourceState)
+            try container.encode(intention, forKey: .intention)
+            try container.encode(references, forKey: .references)
+            try container.encodeIfPresent(followUpTo, forKey: .followUpTo)
         case let .shotCreateRequest(suggestedName, intention, references):
             try container.encode(Kind.create, forKey: .commandKind)
             try container.encodeIfPresent(suggestedName, forKey: .suggestedName)
@@ -231,6 +263,12 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             }
             try requireBoundedText(intention, field: "intention", maximum: 1024 * 1024)
             for commitment in commitments { _ = try Base64URL.decode(commitment, expectedBytes: 32) }
+            try Self.validateReferences(references)
+        case let .projectEvolveRequest(projectID, sourceState, intention, references, followUpTo):
+            try requireIdentifier(projectID, field: "project_id")
+            try requireIdentifier(sourceState, field: "base_source_state")
+            try requireBoundedText(intention, field: "intention", maximum: 1024 * 1024)
+            if let followUpTo { try requireIdentifier(followUpTo, field: "follow_up_to") }
             try Self.validateReferences(references)
         case let .shotCreateRequest(suggestedName, intention, references):
             if let suggestedName {
@@ -274,6 +312,16 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 "selected_feedback_action_commitments": .array(commitments.map { .string($0) }),
                 "shot_id": .string(shotID),
             ])
+        case let .projectEvolveRequest(projectID, sourceState, intention, references, followUpTo):
+            var value: [String: CanonicalValue] = [
+                "base_source_state": .string(sourceState),
+                "command_kind": .string("project.evolve.request"),
+                "intention": .string(intention),
+                "project_id": .string(projectID),
+                "references": .array(references.map { $0.canonicalValue() }),
+            ]
+            if let followUpTo { value["follow_up_to"] = .string(followUpTo) }
+            return .object(value)
         case let .shotCreateRequest(suggestedName, intention, references):
             var value: [String: CanonicalValue] = [
                 "command_kind": .string("shot.create.request"), "intention": .string(intention),

@@ -270,6 +270,32 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(decoded.managedMaximumMicrousd, 5_000_000)
     }
 
+    func testAdoptedProjectSnapshotDecodesPrivateSourceAndHistory() throws {
+        let data = Data(#"""
+        {
+          "shot_id":"project_fixture",
+          "display_name":"Fixture",
+          "bundle_identifier":"com.example.fixture",
+          "source_state":"state_fixture",
+          "icon":{"revision":"icon_fixture","blob_id":"icon_fixture","media_type":"image/png","byte_length":1,"placeholder":true},
+          "expression_id":null,
+          "latest_version_id":null,
+          "latest_version_ordinal":null,
+          "latest_version_created_at":null,
+          "execution":null,
+          "recent_evolutions":[{"evolution_id":"evolution_fixture","requested_at":"2026-08-30T00:00:00Z","request_summary":"Change X to Y.","status":"completed","completion_summary":"Built and installed.","installation_summary":"Verified exact bundle."}],
+          "presentation":{"state":"installed","headline":"Fixture is ready","detail":null},
+          "archived":false,
+          "retired":false,
+          "sort_index":0
+        }
+        """#.utf8)
+        let app = try JSONDecoder.tohseno.decode(AppSummary.self, from: data)
+        XCTAssertEqual(app.sourceState, "state_fixture")
+        XCTAssertEqual(app.recentEvolutions?.first?.evolutionID, "evolution_fixture")
+        XCTAssertEqual(app.recentEvolutions?.first?.requestSummary, "Change X to Y.")
+    }
+
     func testRegistryHelperViewsDecodeWithoutClaimingPublication() throws {
         let identity = try JSONDecoder.tohseno.decode(
             BuilderIdentityView.self,
@@ -364,20 +390,17 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(source.contains("press.modifiers.contains(.shift)"))
     }
 
-    func testFirstOpenWelcomeKeepsTheProductPromiseSmall() throws {
+    func testFirstOpenCentersTheLivingConnectionInsteadOfBlankCanvas() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
         let source = try String(contentsOf: root, encoding: .utf8)
-        XCTAssertTrue(source.contains("Welcome to Tohseno"))
-        XCTAssertTrue(source.contains("Take a Shot"))
-        XCTAssertTrue(source.contains("Your private app factory for iPhone."))
-        XCTAssertTrue(source.contains("Start with what it should do"))
-        XCTAssertTrue(source.contains("Features I want:"))
-        XCTAssertTrue(source.contains("Describe the app that should exist…"))
-        XCTAssertTrue(source.contains("Drop PNG or JPEG images"))
-        XCTAssertTrue(source.contains("Button(\"Skip\")"))
-        XCTAssertTrue(source.contains(".dropDestination(for: URL.self)"))
+        XCTAssertTrue(source.contains("Keep an iPhone app connected"))
+        XCTAssertTrue(source.contains("Adopt Existing App"))
+        XCTAssertTrue(source.contains("Create a First App"))
+        XCTAssertTrue(source.contains("Connect a coding harness"))
+        XCTAssertTrue(source.contains("Ask for one concrete change in Companion."))
+        XCTAssertFalse(source.contains("Describe the app that should exist…"))
     }
 
     func testConsumerBundleAndMenuBarUseTohsenoBranding() throws {
@@ -421,7 +444,7 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
-    func testFirstShotGatePersistsOnlyAnExplicitSkip() async {
+    func testEmptyFactoryNoLongerGatesOnAFirstShotComposer() async {
         let suite = "tohseno-first-shot-gate-\(UUID().uuidString)"
         let preferences = try! XCTUnwrap(UserDefaults(suiteName: suite))
         defer { preferences.removePersistentDomain(forName: suite) }
@@ -429,7 +452,7 @@ final class NativeFactoryTests: XCTestCase {
         let emptyFactory = FakeFactory(workspaceShots: [])
         let model = TohsenoAppModel(client: emptyFactory, preferences: preferences)
         await model.reload()
-        XCTAssertTrue(model.shouldPresentFirstShot)
+        XCTAssertFalse(model.shouldPresentFirstShot)
         XCTAssertFalse(model.hasSkippedFirstShot)
 
         model.skipFirstShot()
@@ -469,14 +492,14 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
-    func testCreatingTheFirstShotNaturallyRevealsItsApp() async {
+    func testSecondaryCreatePathStillRevealsItsApp() async {
         let suite = "tohseno-first-shot-submit-\(UUID().uuidString)"
         let preferences = try! XCTUnwrap(UserDefaults(suiteName: suite))
         defer { preferences.removePersistentDomain(forName: suite) }
         let factory = FakeFactory(workspaceShots: [])
         let model = TohsenoAppModel(client: factory, preferences: preferences)
         await model.reload()
-        XCTAssertTrue(model.shouldPresentFirstShot)
+        XCTAssertFalse(model.shouldPresentFirstShot)
 
         model.creation.intention = "Make a tiny app for remembering one good thing."
         await model.submitCreation()
@@ -495,15 +518,14 @@ final class NativeFactoryTests: XCTestCase {
         let source = try String(contentsOf: root, encoding: .utf8)
         for identifier in [
             "readiness.primary", "create-app.sidebar", "creation.intention",
+            "adopt-app.sidebar", "adopt-app.empty",
             "creation.submit", "evolution.intention", "evolution.submit",
-            "onboarding.intention", "onboarding.references", "onboarding.submit",
-            "onboarding.skip",
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
             "app.workspace-tabs", "app.change", "app.files", "app.build-log",
             "app.preview", "app.iphone-handoff", "app.open-source",
             "registry.sidebar", "registry.quick.intention", "registry.quick.submit",
             "registry.builder", "registry.public-status",
-            "creation.starters", "readiness.progress",
+            "creation.starters", "readiness.progress", "readiness.harness",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }
@@ -576,6 +598,14 @@ private actor FakeFactory: FactoryServing {
         return RegistrySnapshot(builder: builder, network: network, records: [])
     }
     func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
+    func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult {
+        throw FactoryClientError.transport("fixture")
+    }
+    func pairedCompanionDevices() async throws -> [PairedCompanionDevice] { [] }
+    func createCompanionPairingSession() async throws -> CompanionPairingSession { throw FactoryClientError.transport("fixture") }
+    func companionPairingSession(id: String) async throws -> CompanionPairingSession { throw FactoryClientError.transport("fixture") }
+    func renameCompanionDevice(id: String, displayName: String) async throws -> PairedCompanionDevice { throw FactoryClientError.transport("fixture") }
+    func revokeCompanionDevice(id: String) async throws -> PairedCompanionDevice { throw FactoryClientError.transport("fixture") }
     func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt {
         createCalls += 1
         try await Task.sleep(for: createDelay)
