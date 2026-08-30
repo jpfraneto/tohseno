@@ -75,11 +75,18 @@
     "website_1_0_2_deployed": false,
     "post_activation_service_health_verified": false,
     "release_candidate_v1_0_2_rc_1_published": true,
+    "release_candidate_v1_0_2_rc_2_published": true,
     "release_candidate_origin_checksum_verified": true,
-    "release_candidate_download_activated": false,
+    "release_candidate_download_activated": true,
     "release_candidate_health_verified": true
   },
   "rejected_local_candidates": [
+    {
+      "source_commit": "67e6cde2cb67754a23f431554b51a40bc947b7e3",
+      "notary_submission_id": "f10ef1b6-ae68-4524-9f0c-4b0ede215332",
+      "dmg_sha256": "d6a40bac111260a9cef3072b7926ebb052f65b848cf66e2b22ca7023503c1965",
+      "reason": "Rejected before publication when visual inspection of the mounted Finder composition found insufficient contrast between Finder's dark icon labels and the DMG background. The exact label backdrop correction was committed as 15381917bc8851752e59306fe2d7f6ff9d2e9ec8, and the app was rebuilt and notarized again from that clean commit. These bytes were never activated and must not be distributed."
+    },
     {
       "source_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
       "notary_submission_id": "d95ff96d-a536-4777-814d-8c43ae4f7ecd",
@@ -221,33 +228,72 @@
       "verified_at": "2026-08-30T11:49:47Z"
     }
   },
+  "replacement_candidate_evidence": {
+    "tag": "v1.0.2-rc.2",
+    "prerelease": true,
+    "verified_at": "2026-08-30T13:37:25Z",
+    "artifact_source_commit": "15381917bc8851752e59306fe2d7f6ff9d2e9ec8",
+    "full_matrix_source_commit": "67e6cde2cb67754a23f431554b51a40bc947b7e3",
+    "website_source_commit": "d72b396889575cb080a420681144f1a202051fe9",
+    "worktree_clean_at_build": true,
+    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0032: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build and all 81 contract tests, 21 Studio static tests, website typecheck and 104 tests, and all three isolated lifecycle scripts. The native Mac suite passed 25 tests and the Companion product suite passed 27 tests. After Finder visual QA found low label contrast, only the DMG background changed; the replacement universal app was rebuilt, signed, and notarized from the resulting clean artifact commit.",
+    "welcome_compute_url": "mailto:support@anky.app",
+    "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
+    "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
+    "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
+    "bundle_identifier": "com.tohseno.mac",
+    "candidate_application_cdhash": "2e764abc26421fb92b7d3f26f995e12c83be8d8f",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "notary_submission_id": "8586451e-b32e-4064-9b0a-805c9978165f",
+    "notary_status": "Accepted",
+    "notary_upload_at": "2026-08-30T13:24:16.840Z",
+    "stapler_validation": "accepted",
+    "dmg_path": "dist/native/Tohseno-1.0.2-rc.2.dmg",
+    "dmg_size_bytes": 46622258,
+    "dmg_sha256": "352c154675e59ab98cc5c0da4d804fa259564e66217ce9ddd28f7939f6c1bdcb",
+    "mounted_dmg_verification": "The read-only mounted DMG contains a regular Tohseno.app and an Applications alias resolving exactly to /Applications. Manifest, prohibited-secret, universal-binary, Team ID, hardened-runtime, Developer ID, Gatekeeper, and stapled-ticket checks passed against the mounted app. Finder restored icon view, bounds 120/120/760/500, Tohseno.app position 145/214, Applications position 495/214, and the visually inspected branded background with readable labels.",
+    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.0.2-rc.2",
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2-rc.2/Tohseno-1.0.2-rc.2.dmg",
+    "origin_round_trip_sha256_verified": true,
+    "public_download_round_trip_sha256_verified": true,
+    "website_candidate_deployment_id": "86a81e20-b180-467e-92b1-fed4cf7ed0a4",
+    "website_candidate_deployment_status": "SUCCESS; health, release-candidate metadata, exact URL and digest, public redirect, full downloaded-byte round trip, Tohseno website spelling, Mac-specific Download for this Mac browser logic, and retained one-line installer pin were verified",
+    "public_health_verified": true,
+    "download_activated": true,
+    "clean_mac_acceptance_verified_for_rc_2": false,
+    "physical_iphone_companion_acceptance_verified_for_rc_2": false,
+    "public_registry_catalog_rpc_available": false,
+    "stable_promotion": false
+  },
   "current_source_evidence": {
-    "verified_at": "2026-08-29T03:58:50Z",
-    "source_commit_at_verification": "232ab31fc280851d36c31675ec72f778bb421c7e",
+    "verified_at": "2026-08-30T13:37:25Z",
+    "source_commit_at_verification": "67e6cde2cb67754a23f431554b51a40bc947b7e3",
     "worktree_clean_at_verification": true,
-    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0029's first-Shot gate: Rust formatting and strict Clippy, the locked all-target/all-feature Rust workspace tests, every listed Swift build/test package, Forge build/tests, Studio static tests, website typecheck/tests, and all three isolated lifecycle scripts. The additional native Mac suite passed 23 tests, including the shipping-window render, persisted explicit Skip, successful first creation, and exact eight-reference ceiling.",
-    "release_artifact_source_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
+    "local_verification_result": "The exact AGENTS.md matrix passed for ADR 0032, including strict Rust checks, all listed Swift suites, 81 contract tests, 21 Studio tests, 104 website tests, and all three isolated lifecycle scripts. Native Mac passed 25 tests and the Companion product passed 27 tests. Finder layout visual QA then changed only the DMG background before the final clean artifact commit.",
+    "release_artifact_source_commit": "15381917bc8851752e59306fe2d7f6ff9d2e9ec8",
     "release_artifact_built": true,
     "release_artifact_signed": true,
     "release_artifact_notarized": true,
-    "website_candidate_source_commit": "ef0a9e01179dbcd5bfa077ad1e613ce19076b315",
-    "website_candidate_deployment_id": "46887cef-395f-4651-8083-fac2d280b3ab",
-    "website_candidate_deployment_status": "REJECTED AND DISABLED; clean-Mac acceptance reached Gatekeeper and first open, product acceptance failed under ADR 0032, and production deployment 69a33859-d149-423f-8d74-79028defad3a now keeps the download endpoint fail-closed while /healthz remains green",
+    "website_candidate_source_commit": "d72b396889575cb080a420681144f1a202051fe9",
+    "website_candidate_deployment_id": "86a81e20-b180-467e-92b1-fed4cf7ed0a4",
+    "website_candidate_deployment_status": "SUCCESS; replacement RC2 is active only on the release-candidate channel and the exact configured bytes, digest, health, public branding, and Mac download logic were verified",
     "release_candidate_publication": {
-      "tag": "v1.0.2-rc.1",
+      "tag": "v1.0.2-rc.2",
       "prerelease": true,
-      "target_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
-      "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2-rc.1/TOHSENO-1.0.2.dmg",
-      "artifact_size_bytes": 51511380,
-      "artifact_sha256": "6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc",
+      "target_commit": "15381917bc8851752e59306fe2d7f6ff9d2e9ec8",
+      "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2-rc.2/Tohseno-1.0.2-rc.2.dmg",
+      "artifact_size_bytes": 46622258,
+      "artifact_sha256": "352c154675e59ab98cc5c0da4d804fa259564e66217ce9ddd28f7939f6c1bdcb",
       "origin_round_trip_sha256_verified": true,
       "public_download_round_trip_sha256_verified": true,
       "public_health_verified": true,
-      "verified_at": "2026-08-30T12:12:18Z",
-      "acceptance_result": "rejected",
-      "download_activated": false,
-      "deactivation_deployment_id": "69a33859-d149-423f-8d74-79028defad3a",
-      "deactivated_at": "2026-08-30T12:27:31Z"
+      "verified_at": "2026-08-30T13:37:25Z",
+      "acceptance_result": "awaiting independent clean-Mac acceptance",
+      "download_activated": true,
+      "activation_deployment_id": "86a81e20-b180-467e-92b1-fed4cf7ed0a4"
     }
   },
   "managed_compute_staging": {
@@ -289,5 +335,5 @@
     },
     "real_service_scenarios_verified": false
   },
-  "blocking_reason": "Public prerelease v1.0.2-rc.1 reached an independent fresh Mac, matched its recorded digest, passed Gatekeeper, installed, and opened, but failed product acceptance for the native DMG, naming, onboarding, Companion setup, progress, menu-bar presence, guided creation, Codex discovery, and Registry expectations recorded by ADR 0032. Production deployment 69a33859-d149-423f-8d74-79028defad3a disables the download and /api/distribution/v1/macos returns 503 while /healthz is green. The immutable rejected prerelease remains historical evidence. A replacement v1.0.2-rc.2 must pass the full local matrix, clean-source build, Developer ID signing, notarization, stapling, exact hashing, origin round trip, and another independent clean-Mac acceptance. Stable promotion also remains blocked on the managed-compute, backup/restore, stable publication, independent digest, manifest, activation, and post-activation gates already recorded here."
+  "blocking_reason": "Replacement prerelease v1.0.2-rc.2 passed the full local matrix, clean-source universal build, Developer ID signing, Apple notarization submission 8586451e-b32e-4064-9b0a-805c9978165f, stapling, mounted Finder-layout inspection, exact hashing, GitHub origin round trip, tohseno.com round trip, release-candidate metadata, and production health. It is active only for independent acceptance. Stable promotion remains blocked until the exact RC2 bytes pass a fresh-Mac Finder, Gatekeeper, first-open explanation, Companion build/install/launch/pairing, menu-bar, guided creation, Codex discovery, and local Registry walkthrough. Public Registry/catalog listing remains unavailable because registry RPC/catalog discovery is not implemented and must not be fabricated. Stable promotion also remains blocked on managed-compute, authorized backup/restore, stable immutable publication, independent stable digest and manifest verification, stable activation, and stable post-activation health. The rejected v1.0.2-rc.1 remains immutable historical evidence and must not be distributed."
 }

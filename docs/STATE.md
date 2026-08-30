@@ -130,10 +130,20 @@ Independent clean-Mac installation reached Gatekeeper and first open but failed
 product acceptance for the DMG composition, naming, onboarding, Companion
 setup, progress, menu-bar presence, guided creation, Codex discovery, and
 Registry expectations now governed by ADR 0032. Production deployment
-`69a33859-d149-423f-8d74-79028defad3a` disables the download; `/healthz` is
-green and `/api/distribution/v1/macos` fails closed with 503. The rejected
-prerelease remains immutable evidence and must not be distributed again. A new
-`v1.0.2-rc.2` candidate has not been published or activated.
+`69a33859-d149-423f-8d74-79028defad3a` disabled that candidate. The rejected
+prerelease remains immutable evidence and must not be distributed again.
+
+Replacement prerelease `v1.0.2-rc.2` targets clean artifact commit
+`15381917bc8851752e59306fe2d7f6ff9d2e9ec8`. Apple accepted notarization
+submission `8586451e-b32e-4064-9b0a-805c9978165f`; the stapled universal app
+passed mounted-DMG signature, manifest, Gatekeeper, and Finder-layout checks.
+Its immutable 46,622,258-byte DMG has SHA-256
+`352c154675e59ab98cc5c0da4d804fa259564e66217ce9ddd28f7939f6c1bdcb`, and
+both the GitHub origin and `tohseno.com` round trips matched it. Production
+deployment `86a81e20-b180-467e-92b1-fed4cf7ed0a4` is healthy and exposes that
+exact digest as a **release-candidate**. Independent clean-Mac Companion and
+creation acceptance for RC2 remains unverified; stable `v1.0.2` is not
+published.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -416,8 +426,9 @@ it **Download for this Mac** on macOS and states the real Mac requirement on
 iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
-exact SHA-256, and release channel. It is currently disabled after
-`v1.0.2-rc.1` failed product acceptance; stable `v1.0.2` remains unpublished.
+exact SHA-256, and release channel. It currently serves the exact verified
+`v1.0.2-rc.2` bytes on the labeled release-candidate channel; stable `v1.0.2`
+remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
 normal landing path.
@@ -501,9 +512,10 @@ acceptance and disabled download. Source now contains the replacement Finder
 DMG layout, Tohseno consumer spelling, explanatory onboarding,
 Companion-first setup and progress, menu-bar SVG presence, guided creation
 capabilities, broader Codex discovery, and an explicit local-versus-published
-Registry boundary. A clean committed `v1.0.2-rc.2` artifact has not yet been
-signed, notarized, published, or accepted. Stable promotion remains blocked
-until replacement acceptance, managed Bankr staging and backup/restore, stable
+Registry boundary. The clean committed `v1.0.2-rc.2` artifact is signed,
+notarized, stapled, origin-verified, and active only as a public prerelease.
+Stable promotion remains blocked until independent replacement acceptance,
+managed Bankr staging and backup/restore, stable
 immutable publication, independent stable download verification, exact public
 manifest bytes, and stable website activation are recorded. ADR 0025
 supersedes npm-first consumer onboarding; an npm publication flag is not

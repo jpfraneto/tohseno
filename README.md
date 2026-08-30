@@ -16,8 +16,9 @@ It removes npm/browser first run, successful-day qualification, and
 subscription gating of local/BYO execution. First setup installs and pairs the
 Tohseno Companion as the real iPhone readiness proof. Public candidate
 `v1.0.2-rc.1` passed clean-Mac download and Gatekeeper but failed product
-acceptance and is disabled. One physical-iPhone birth and evolution has passed;
-that proof predates the ADR 0032 replacement candidate, so
+acceptance and is disabled. Replacement candidate `v1.0.2-rc.2` is the active
+public prerelease for a second clean-Mac walkthrough. One physical-iPhone birth
+and evolution has passed; that proof predates the ADR 0032 replacement, so
 [`docs/STATE.md`](docs/STATE.md) records the exact remaining boundary.
 
 When using the app teaches you something, describe what should change. Tohseno
@@ -63,9 +64,10 @@ creation balance and always shows the server-priced estimate, privacy tier, and
 hard maximum before source is sent. Local/BYO work has no Tohseno subscription,
 trial, qualification, or creation-balance gate.
 
-The signed/notarized `v1.0.2-rc.1` DMG is rejected and the public download is
-disabled while `v1.0.2-rc.2` is prepared. Stable activation
-still requires the evidence in
+The signed/notarized `v1.0.2-rc.1` DMG is rejected. The signed, notarized, and
+origin-verified `v1.0.2-rc.2` DMG is active only on the public
+release-candidate channel for independent acceptance. Stable activation still
+requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
 The normal website action downloads the signed, notarized DMG directly. On a
 Mac the page labels it **Download for this Mac**; while acceptance is pending,
