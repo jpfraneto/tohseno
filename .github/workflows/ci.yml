@@ -392,7 +392,10 @@ jobs:
              and .version == "1.0.2"
              and .channel == "release-candidate"
              and .ready == false
-             and .authorization.authorized == false
+             and .authorization.authorized == true
+             and .authorization.authorized_by == "jpfraneto (repository owner)"
+             and (.authorization.authorized_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))
+             and (.authorization.authorization_form | length) > 0
              and .source.public_installer_pin == "1.0.2"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
