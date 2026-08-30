@@ -1,26 +1,26 @@
-# TOHSENO
+# Tohseno
 
 Some useful apps are too specific to become products. They can still exist.
 
-TOHSENO is an open-source iOS app factory that runs on your Mac. You describe a
-small app you want; TOHSENO uses an explicitly selected local, bring-your-own,
+Tohseno is an open-source iOS app factory that runs on your Mac. You describe a
+small app you want; Tohseno uses an explicitly selected local, bring-your-own,
 or managed intelligence route, builds a native SwiftUI project, checks it, and installs it on your iPhone. The
 source lives in an ordinary Git repository that belongs to you and can continue
-without TOHSENO.
+without Tohseno.
 
 The current transition, governed by
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
-[`ADR 0030`](docs/adr/0030-system-aware-direct-native-download.md),
+[`ADR 0032`](docs/adr/0032-native-companion-onboarding-and-product-presence.md),
 makes a native SwiftUI Mac application the primary product over the same Rust factory.
-It removes npm/browser first run, mandatory Companion setup, successful-day
-qualification, and subscription gating of local/BYO execution. The local 1.0.2
-candidate now has Developer ID signing and Apple notarization evidence, but it
-is not yet independently clean-Mac accepted, published, or the current public
-download. One physical-iPhone birth and evolution has passed;
-that proof predates the Registry-bearing candidate, so
+It removes npm/browser first run, successful-day qualification, and
+subscription gating of local/BYO execution. First setup installs and pairs the
+Tohseno Companion as the real iPhone readiness proof. Public candidate
+`v1.0.2-rc.1` passed clean-Mac download and Gatekeeper but failed product
+acceptance and is disabled. One physical-iPhone birth and evolution has passed;
+that proof predates the ADR 0032 replacement candidate, so
 [`docs/STATE.md`](docs/STATE.md) records the exact remaining boundary.
 
-When using the app teaches you something, describe what should change. TOHSENO
+When using the app teaches you something, describe what should change. Tohseno
 evolves the same project and installs the new version on your phone.
 
 ## What we care about
@@ -28,7 +28,7 @@ evolves the same project and installs the new version on your phone.
 - **Personal software.** An app can be worthwhile even when only one person
   needs it.
 - **Ownership.** Each app is ordinary SwiftUI and Xcode source, with no
-  proprietary runtime and no TOHSENO account required.
+  proprietary runtime and no Tohseno account required.
 - **Local by default.** Builds, signing, device installation, and generated
   source stay on your Mac. A managed model sees admitted source only after an
   explicit privacy/cost choice and hard maximum.
@@ -42,8 +42,8 @@ evolves the same project and installs the new version on your phone.
 ## Start here
 
 You need macOS 14 or later and full Xcode. An iPhone, cable, Trust, Developer
-Mode, and an Apple Personal Team are needed only for the final phone install;
-TOHSENO never collects Apple credentials. Companion pairing is optional.
+Mode, and an Apple Personal Team are needed for Companion and generated-app
+installation; Tohseno never collects Apple credentials.
 
 The normal product is `Tohseno.app`: open it, follow one readiness instruction
 at a time, describe a deliberately small app, and press **Create App**. The app
@@ -55,15 +55,16 @@ The optional Registry tab shows verified local Shots and the identity that
 accepted them while explicitly separating that private track record from the
 not-yet-connected public Registry.
 
-Advanced settings detect supported subscription-backed coding tools, allow a
+The creation screen visibly lists detected subscription-backed coding tools,
+including Codex, and advanced settings allow a
 bounded custom executable, or configure an explicitly consented loopback
-OpenAI-compatible endpoint. Optional TOHSENO-managed intelligence uses prepaid
+OpenAI-compatible endpoint. Optional Tohseno-managed intelligence uses prepaid
 creation balance and always shows the server-priced estimate, privacy tier, and
-hard maximum before source is sent. Local/BYO work has no TOHSENO subscription,
+hard maximum before source is sent. Local/BYO work has no Tohseno subscription,
 trial, qualification, or creation-balance gate.
 
-The signed/notarized DMG is available through an explicitly labeled public
-1.0.2 release-candidate channel for clean-Mac acceptance. Stable activation
+The signed/notarized `v1.0.2-rc.1` DMG is rejected and the public download is
+disabled while `v1.0.2-rc.2` is prepared. Stable activation
 still requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
 The normal website action downloads the signed, notarized DMG directly. On a

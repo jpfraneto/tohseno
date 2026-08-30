@@ -20,7 +20,7 @@ struct FirstRunView: View {
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Tohseno.bone)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("TOHSENO on your Mac is completing the private connection. You can revoke this iPhone from the Mac at any time.")
+            Text("Tohseno on your Mac is completing the private connection. You can revoke this iPhone from the Mac at any time.")
                 .font(.system(size: 16))
                 .foregroundStyle(Tohseno.ash)
                 .fixedSize(horizontal: false, vertical: true)

@@ -22,7 +22,7 @@ struct TohsenoCompanion: App {
                 CompanionRootView(model: model)
             } else {
                 ContentUnavailableView(
-                    "TOHSENO can’t use this iPhone’s private storage",
+                    "Tohseno can’t use this iPhone’s private storage",
                     systemImage: "exclamationmark.shield"
                 )
             }

@@ -6,10 +6,10 @@ something below stops being true, update this file in the same change.
 
 ## Native macOS transition
 
-ADRs 0025 through 0029 are the current product decisions. They make a
+ADRs 0025 through 0032 are the current product decisions. They make a
 native SwiftUI `Tohseno.app` the primary consumer surface over the existing
 persistent Rust factory. It supersedes npm/browser first run, mandatory
-Companion genesis, five-successful-day qualification, subscription gating of
+five-successful-day qualification, subscription gating of
 local/BYO work, and the visible Studio model selector. It preserves the one
 application service, durable journal, bounded engine transition, Apple
 build/sign/install path, exact protocol history, app-local Git boundary, CLI
@@ -24,15 +24,23 @@ scoped session. First open verifies and atomically installs a bundled universal
 factory release with rollback; scripts assemble, sign, notarize, verify, and
 package a DMG.
 
-When the workspace has never recorded a Shot, the native window stops before
-showing the factory and says **WELCOME TO TOHSENO**, **TAKE A SHOT**, and
-**This is where your ideas transform into apps.** This is the actual existing
-keyboard-first creation composer: Return or **Create App** sends, Shift-Return
-adds a line, and up to eight PNG/JPEG references can be picked or dropped. A
-secondary **Skip** beside Create App persists a local bypass and reveals the
-ordinary empty library. Any preserved Shot record prevents the gate from
-returning. This adds no tutorial, account, planning phase, or second command
-path.
+On first open, the native window explains that Tohseno turns an intention into
+a native iPhone app, keeps source and history on the owner's Mac, and uses
+Tohseno Companion to connect the phone to the local factory. The one existing
+genesis path observes the Apple readiness gates, builds, signs, installs, and
+launches the real Companion, and waits for its private pairing proof while the
+Mac app shows staged progress. It does not install the disposable readiness
+app used by the retained compatibility API. The running application also has a
+menu-bar item drawn from the repository's Tohseno SVG.
+
+When the workspace has never recorded a Shot, the native window then shows the
+actual existing keyboard-first creation composer with iPhone-oriented starting
+capabilities. A person can select capabilities to seed editable natural-language
+intention text, attach up to eight PNG/JPEG references, and send with Return or
+**Create App**; Shift-Return adds a line. A secondary **Skip** persists a local
+bypass and reveals the ordinary empty library. Any preserved Shot record
+prevents the gate from returning. This adds no account, planning phase, or
+second command path.
 
 Selecting an app now opens a native Build/App/Source workspace. Build is the
 default and shows the simple Intent → Source → Simulator → Your iPhone path,
@@ -44,28 +52,33 @@ visible beside every tab: it uses the actual latest verified Simulator
 capture, labels it non-interactive, and keeps the connect-and-unlock cable
 handoff central while automatic installation is pending.
 
-Every intention composer is now keyboard-first: plain Return sends through
+Every intention composer is keyboard-first: plain Return sends through
 the existing exactly-once application-service path and Shift–Return inserts a
-line. An optional Registry destination projects the trusted helper's verified
-local Shot heads, accepted-version counts, local identity, and active network
-generation. It explicitly labels the existing identity local/test-only and
-the public Registry **Not connected** while registry RPC remains absent. Its
-quick New Shot field uses the same automatic create route; it is not a second
-factory or a publication surface.
+line. The creation settings are open by default so discovered Codex and other
+authenticated harnesses are visible; discovery checks bounded standalone,
+Homebrew/global, Volta, npm-global, Bun, and installed NVM locations without
+executing a user shell. An optional Registry destination projects the trusted
+helper's verified local Shot heads under **Apps on this Mac**, plus
+accepted-version counts, local identity, and active network generation. A
+separate **Published apps** area explicitly reports that no public catalog is
+available while registry RPC remains absent. Its quick New Shot field uses the
+same automatic create route; it is not a second factory or a publication
+surface.
 
 Retirement preserves source and accepted history. The native Diagnostics
 archive exposes those apps and can restore one to the library without silently
 reinstalling it on a phone.
 
-The same source also implements Companion-independent Apple readiness;
-known/custom/loopback/managed intelligence adapters with exact durable
+The same source also retains Companion-independent Apple readiness for
+compatibility clients; the primary native path uses the paired Companion as
+governed by ADR 0032. It implements known/custom/loopback/managed intelligence adapters with exact durable
 selection; server-priced estimates and caps; installation-signed managed
 claims; append-only paid/promotional micro-USD balance; Stripe packs; a narrow
 Bankr completion proxy; protected grant/revocation/reconciliation operations;
 and a public Mac download route that is disabled unless an HTTPS artifact and
 exact digest are configured.
 
-The current 1.0.2 release candidate was built from clean commit
+The rejected `v1.0.2-rc.1` candidate was built from clean commit
 `d275d1f5948eef89cf2b422a90f9bc780dd38ac1`. It contains ADR 0029's real
 first-Shot gate, keyboard submission, and eight-reference path in addition to
 the native Build/App/Source workspace and Finder-first handoff. It is signed
@@ -78,11 +91,11 @@ The exact `AGENTS.md` verification matrix passed at source commit
 changes release evidence only. A read-only mount passed manifest,
 secret-pattern, universal-binary, exact Team ID, hardened-runtime, Developer
 ID, Gatekeeper, stapled-ticket, and Applications-alias verification. Finder
-installed the exact app into `/Applications`, and Gatekeeper accepted first
-launch on the build Mac. Independent clean-Mac/user acceptance is still
-unverified.
+installed the exact app into `/Applications`, Gatekeeper accepted first launch
+on both the build Mac and an independent clean Mac, and that independent test
+then rejected its product experience under ADR 0032.
 
-The exact candidate completed three fresh Codex `gpt-5.6-sol` births and a
+Before that rejection, the exact candidate completed three fresh Codex `gpt-5.6-sol` births and a
 same-app Version 2 evolution on the paired physical iPhone 15. The native Mac
 app was terminated during admitted work and reopened from Finder without
 losing the service, execution, source, or history. Each app passed its bounded
@@ -110,14 +123,17 @@ Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
 `v1.0.2` is covered by active deletion and non-fast-forward protection but has
 not been created. ADR 0030's system-aware direct-download landing is deployed
-and healthy. Under ADR 0031, the exact signed, notarized, stapled candidate is
+and healthy. Under ADR 0031, the exact signed, notarized, stapled candidate was
 published as GitHub prerelease `v1.0.2-rc.1`; a fresh origin round trip matched
-SHA-256 `6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc`,
-and the production download points to that release candidate for clean-Mac
-acceptance. Independent clean-Mac acceptance, managed Bankr staging,
-backup/restore, stable immutable publication, independent stable download
-verification, stable activation, and post-activation checks remain release
-gates.
+SHA-256 `6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc`.
+Independent clean-Mac installation reached Gatekeeper and first open but failed
+product acceptance for the DMG composition, naming, onboarding, Companion
+setup, progress, menu-bar presence, guided creation, Codex discovery, and
+Registry expectations now governed by ADR 0032. Production deployment
+`69a33859-d149-423f-8d74-79028defad3a` disables the download; `/healthz` is
+green and `/api/distribution/v1/macos` fails closed with 503. The rejected
+prerelease remains immutable evidence and must not be distributed again. A new
+`v1.0.2-rc.2` candidate has not been published or activated.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -400,9 +416,9 @@ it **Download for this Mac** on macOS and states the real Mac requirement on
 iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
-exact SHA-256, and release channel. It currently serves the explicitly labeled
-`v1.0.2-rc.1` channel for independent acceptance; stable `v1.0.2` remains
-unpublished. The website does not collect an intention or create a Shot. The
+exact SHA-256, and release channel. It is currently disabled after
+`v1.0.2-rc.1` failed product acceptance; stable `v1.0.2` remains unpublished.
+The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
 normal landing path.
 
@@ -415,9 +431,8 @@ acceptance. It places the verified DMG in Downloads, prints that exact path,
 and reveals it in Finder so the person performs the familiar drag into
 Applications. It does not copy, replace, or open an application, request
 administrator access, or edit a shell profile. HEAD exposes only
-status/instruction headers. They currently use the same release-candidate
-artifact configuration; their continued compatibility does not make the
-candidate stable publication evidence.
+status/instruction headers. They are currently disabled by the same fail-closed
+artifact configuration.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -480,12 +495,17 @@ verification matrix at source commit
 Apple-notarized, stapled DMG recorded in `release/V1_0_2_READINESS.json` passed
 local mounted-DMG, Finder-install, build-Mac Gatekeeper, and one fresh
 physical-iPhone birth acceptance. The readiness record contains explicit owner
-publication intent. The exact candidate is now public as prerelease
-`v1.0.2-rc.1`, and the website download is activated against its origin-checked
-digest solely for independent clean-Mac acceptance. Stable promotion remains
-blocked until that acceptance, managed Bankr staging and backup/restore,
-stable immutable publication, independent stable download verification, exact
-public manifest bytes, and stable website activation are recorded. ADR 0025
+publication intent. The exact `v1.0.2-rc.1` candidate reached an independent
+clean Mac and passed Gatekeeper, but ADR 0032 records its failed product
+acceptance and disabled download. Source now contains the replacement Finder
+DMG layout, Tohseno consumer spelling, explanatory onboarding,
+Companion-first setup and progress, menu-bar SVG presence, guided creation
+capabilities, broader Codex discovery, and an explicit local-versus-published
+Registry boundary. A clean committed `v1.0.2-rc.2` artifact has not yet been
+signed, notarized, published, or accepted. Stable promotion remains blocked
+until replacement acceptance, managed Bankr staging and backup/restore, stable
+immutable publication, independent stable download verification, exact public
+manifest bytes, and stable website activation are recorded. ADR 0025
 supersedes npm-first consumer onboarding; an npm publication flag is not
 authority to bypass these native gates. Candidate evidence is not a claim that
 1.0.2 is publicly available.

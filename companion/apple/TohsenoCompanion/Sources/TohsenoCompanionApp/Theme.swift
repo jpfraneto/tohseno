@@ -65,9 +65,9 @@ struct WordmarkView: View {
     var body: some View {
         HStack(spacing: 10) {
             Circle().fill(Tohseno.orange).frame(width: 8, height: 8)
-            Text("TOHSENO")
+            Text("Tohseno")
                 .font(.system(size: 13, weight: .bold))
-                .kerning(4)
+                .kerning(1.5)
                 .foregroundStyle(Tohseno.bone)
         }
     }

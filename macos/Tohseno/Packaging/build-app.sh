@@ -44,6 +44,7 @@ mkdir -p "$contents/MacOS" "$contents/Helpers" "$contents/Resources" \
   "$release/bin" "$release/share/billing" "$release/share/protocol" \
   "$release/share/fascia" "$release/share/readiness/apple" "$release/share/studio"
 cp "$package_root/Packaging/Info.plist" "$contents/Info.plist"
+cp "$repository_root/website/apps/site/public/logo.svg" "$contents/Resources/TohsenoLogo.svg"
 cp "$swift_bin" "$contents/MacOS/TohsenoMacApp"
 lipo -create \
   "$repository_root/target/aarch64-apple-darwin/release/tohseno" \

@@ -413,7 +413,7 @@ struct CompanionFlowTests {
 
         await subject.pair(scanned: "tohseno://pair/v1/fixture")
 
-        #expect(subject.notice == "TOHSENO couldn’t reach the development relay on your Mac. The USB cable installs and debugs the app, but it doesn’t carry Companion messages. Connect both devices to the same Wi‑Fi, then try again.")
+        #expect(subject.notice == "Tohseno couldn’t reach the development relay on your Mac. The USB cable installs and debugs the app, but it doesn’t carry Companion messages. Connect both devices to the same Wi‑Fi, then try again.")
     }
 
     @MainActor

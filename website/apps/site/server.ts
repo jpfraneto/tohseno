@@ -216,8 +216,8 @@ actual_sha256=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/sed 's/[[:space:]]
 
 say 'Checking the app signature and notarization…'
 /usr/bin/hdiutil attach "$dmg_path" -readonly -nobrowse -noautoopen -mountpoint "$mount_point" -quiet || die 'the verified DMG could not be mounted.'
-source_app="$mount_point/TOHSENO.app"
-[ -d "$source_app" ] && [ ! -L "$source_app" ] || die 'the DMG does not contain the expected TOHSENO.app.'
+source_app="$mount_point/Tohseno.app"
+[ -d "$source_app" ] && [ ! -L "$source_app" ] || die 'the DMG does not contain the expected Tohseno.app.'
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$source_app" >/dev/null 2>&1 || die 'the TOHSENO app signature is invalid.'
 signature=$(/usr/bin/codesign -d --verbose=4 "$source_app" 2>&1)
 bundle_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^Identifier=//p')

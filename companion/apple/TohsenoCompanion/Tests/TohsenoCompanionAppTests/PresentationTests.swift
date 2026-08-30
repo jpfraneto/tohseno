@@ -30,6 +30,23 @@ struct PresentationTests {
         #expect(project.components(separatedBy: "INFOPLIST_FILE = Info.plist;").count - 1 == 2)
     }
 
+    @Test("The paired Companion never restores the removed trial gate")
+    func noTrialGateInTheProductView() throws {
+        let package = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: package.appendingPathComponent(
+                "Sources/TohsenoCompanionApp/CompanionRootView.swift"
+            ),
+            encoding: .utf8
+        )
+        #expect(!source.contains("CompanionEntitlementView"))
+        #expect(!source.contains("Continue with TOHSENO Pro"))
+        #expect(source.contains("case .entitlementDecision, .trialEnded, .apps, .create, .app:"))
+    }
+
     @Test("Every execution state the Mac can send is projected the same way here")
     func matchesTheSharedTable() throws {
         let table = try PresentationFixture.executionStates()
@@ -73,7 +90,7 @@ struct PresentationTests {
         let waiting = TohsenoPresentation.waitingForMac(appName: "anky")
         #expect(waiting.state == .waiting)
         #expect(waiting.headline == "Waiting for your Mac…")
-        #expect(waiting.detail?.contains("close TOHSENO") == true)
+        #expect(waiting.detail?.contains("close Tohseno") == true)
     }
 
     @Test("Internal phases collapse into one human sentence")

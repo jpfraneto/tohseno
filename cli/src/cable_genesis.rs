@@ -11,10 +11,10 @@ use uuid::Uuid;
 
 const GENESIS_SCHEMA: &str = "tohseno.private-cable-genesis/1";
 const MAXIMUM_RECORD_BYTES: u64 = 64 * 1024;
-pub const COMPANION_BUILD_FAILURE: &str = "TOHSENO could not build and sign the iPhone app. Open Xcode and check your Apple Account, then try again.";
+pub const COMPANION_BUILD_FAILURE: &str = "Tohseno could not build and sign the iPhone app. Open Xcode and check your Apple Account, then try again.";
 pub const COMPANION_INSTALL_FAILURE: &str = "The app was built and signed, but your iPhone did not accept the installation. Keep it connected and unlocked, then try again.";
 pub const COMPANION_PAIRING_FAILURE: &str =
-    "TOHSENO is installed, but its private connection did not start. Try again.";
+    "Tohseno Companion is installed, but its private connection did not start. Try again.";
 const LEGACY_COMPANION_PAIRING_FAILURE: &str =
     "The private Companion connection is not configured yet.";
 pub const COMPANION_LAUNCH_FAILURE: &str = "The Companion was installed but did not launch.";
@@ -90,6 +90,11 @@ pub struct CableGenesisView {
     pub primary_action: Option<&'static str>,
     pub can_go_back: bool,
     pub automatically_observed: bool,
+    pub companion_install_state: CompanionInstallState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_product_type: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -268,6 +273,10 @@ impl CableGenesisStore {
 }
 
 pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> CableGenesisView {
+    let connected_device = observed.device.as_ref().and_then(|state| match state {
+        DeviceState::Ready(device) => Some(device),
+        _ => None,
+    });
     let view = |step, instruction, detail, primary_action, can_go_back, automatically_observed| {
         CableGenesisView {
             schema: "tohseno.cable-genesis-view/1",
@@ -277,6 +286,14 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
             primary_action,
             can_go_back,
             automatically_observed,
+            companion_install_state: record.companion_install,
+            device_name: connected_device.map(|device| device.name.clone()),
+            device_product_type: connected_device.and_then(|device| {
+                device
+                    .marketing_name
+                    .clone()
+                    .or(device.product_type.clone())
+            }),
         }
     };
     if !record.begun {
@@ -301,7 +318,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
     }
     if !observed.xcode_ready {
         if !record.pre_xcode_trust_guidance_seen {
-            return view(GenesisStep::TrustMac, "Unlock your iPhone and tap Trust.", Some("Xcode is not installed yet, so TOHSENO will verify trust after Xcode is ready."), Some("continue"), true, false);
+            return view(GenesisStep::TrustMac, "Unlock your iPhone and tap Trust.", Some("Xcode is not installed yet, so Tohseno will verify trust after Xcode is ready."), Some("continue"), true, false);
         }
         return view(
             GenesisStep::InstallXcode,
@@ -349,7 +366,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         return view(
             GenesisStep::AddAppleAccount,
             "Add your Apple Account in Xcode.",
-            Some("TOHSENO will open Xcode. In the Mac menu bar choose Xcode → Settings… → Accounts, click +, and sign in. A free Personal Team works. Return here when Xcode shows your account; TOHSENO detects it automatically."),
+            Some("Tohseno will open Xcode. In the Mac menu bar choose Xcode → Settings… → Accounts, click +, and sign in. A free Personal Team works. Return here when Xcode shows your account; Tohseno detects it automatically."),
             Some("open_xcode_accounts"),
             true,
             true,
@@ -376,9 +393,9 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
             return view(
                 GenesisStep::InstallCompanion,
                 if pairing_retry {
-                    "Finish connecting TOHSENO on your iPhone."
+                    "Finish connecting Tohseno Companion on your iPhone."
                 } else {
-                    "Install TOHSENO on your iPhone."
+                    "Install Tohseno Companion on your iPhone."
                 },
                 failure,
                 Some(if pairing_retry {
@@ -393,7 +410,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         CompanionInstallState::Building => {
             return view(
                 GenesisStep::InstallCompanion,
-                "Building TOHSENO for your iPhone…",
+                "Building Tohseno Companion for your iPhone…",
                 Some("Xcode is compiling and signing the app. This can take a few minutes. Keep your iPhone connected and unlocked."),
                 None,
                 false,
@@ -403,8 +420,8 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         CompanionInstallState::Installing => {
             return view(
                 GenesisStep::InstallCompanion,
-                "Installing TOHSENO on your iPhone…",
-                Some("The build finished. TOHSENO is copying the app to your iPhone. Keep it connected and unlocked."),
+                "Installing Tohseno Companion on your iPhone…",
+                Some("The build finished. Tohseno is copying the Companion to your iPhone. Keep it connected and unlocked."),
                 None,
                 false,
                 true,
@@ -413,8 +430,8 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         CompanionInstallState::Launching => {
             return view(
                 GenesisStep::InstallCompanion,
-                "Opening TOHSENO on your iPhone…",
-                Some("The app is installed. TOHSENO is launching it and starting your private connection."),
+                "Opening Tohseno Companion on your iPhone…",
+                Some("The Companion is installed. Tohseno is launching it and starting your private connection."),
                 None,
                 false,
                 true,
@@ -425,7 +442,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         {
             return view(
                 GenesisStep::Pairing,
-                "Finish setup in TOHSENO on your iPhone.",
+                "Finish setup in Tohseno Companion on your iPhone.",
                 Some("This screen continues automatically when your private connection is ready."),
                 None,
                 false,
@@ -754,16 +771,25 @@ mod tests {
         };
         let building = project(&record, &observed());
         assert_eq!(building.step, GenesisStep::InstallCompanion);
-        assert_eq!(building.instruction, "Building TOHSENO for your iPhone…");
+        assert_eq!(
+            building.instruction,
+            "Building Tohseno Companion for your iPhone…"
+        );
         assert!(building.detail.unwrap().contains("few minutes"));
         record.companion_install = CompanionInstallState::Installing;
         let installing = project(&record, &observed());
-        assert_eq!(installing.instruction, "Installing TOHSENO on your iPhone…");
+        assert_eq!(
+            installing.instruction,
+            "Installing Tohseno Companion on your iPhone…"
+        );
         assert!(installing.detail.unwrap().contains("build finished"));
         record.companion_install = CompanionInstallState::Launching;
         let launching = project(&record, &observed());
-        assert_eq!(launching.instruction, "Opening TOHSENO on your iPhone…");
-        assert!(launching.detail.unwrap().contains("app is installed"));
+        assert_eq!(
+            launching.instruction,
+            "Opening Tohseno Companion on your iPhone…"
+        );
+        assert!(launching.detail.unwrap().contains("Companion is installed"));
         record.companion_install = CompanionInstallState::Failed;
         record.last_error = Some(COMPANION_INSTALL_FAILURE.into());
         assert_eq!(
@@ -774,7 +800,7 @@ mod tests {
         let retry = project(&record, &observed());
         assert_eq!(
             retry.instruction,
-            "Finish connecting TOHSENO on your iPhone."
+            "Finish connecting Tohseno Companion on your iPhone."
         );
         assert_eq!(retry.detail, Some(COMPANION_PAIRING_FAILURE));
         assert_eq!(retry.primary_action, Some("retry_companion"));
@@ -783,7 +809,7 @@ mod tests {
         assert_eq!(pairing.step, GenesisStep::Pairing);
         assert_eq!(
             pairing.instruction,
-            "Finish setup in TOHSENO on your iPhone."
+            "Finish setup in Tohseno Companion on your iPhone."
         );
         assert_eq!(pairing.primary_action, None);
         let mut paired = observed();

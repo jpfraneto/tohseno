@@ -18,11 +18,7 @@ public struct CompanionRootView: View {
                     CompanionLoadingView()
                 case .firstRun:
                     FirstRunView(model: model)
-                case .entitlementDecision:
-                    CompanionEntitlementView(trialEnded: false)
-                case .trialEnded:
-                    CompanionEntitlementView(trialEnded: true)
-                case .apps, .create, .app:
+                case .entitlementDecision, .trialEnded, .apps, .create, .app:
                     CompanionNavigation(model: model)
                 }
             }
@@ -152,33 +148,6 @@ private struct CompanionBottomBar: View {
         .padding(.bottom, 7)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) { Divider().opacity(0.45) }
-    }
-}
-
-private struct CompanionEntitlementView: View {
-    let trialEnded: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            TohsenoMark(size: 88)
-            Text(trialEnded ? "Your TOHSENO trial has ended." : "Continue with TOHSENO Pro.")
-                .font(.system(size: 28, weight: .semibold))
-                .multilineTextAlignment(.center)
-            Text(trialEnded
-                 ? "Everything you made is still here."
-                 : "TOHSENO Pro is completed on your Mac. $9.99 monthly or $99 yearly.")
-                .font(.system(size: 16))
-                .foregroundStyle(Tohseno.ash)
-                .multilineTextAlignment(.center)
-            if !trialEnded {
-                Text("$99 yearly saves about two months.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Tohseno.ash)
-            }
-            Spacer()
-        }
-        .padding(32)
     }
 }
 

@@ -20,7 +20,7 @@ public struct TohsenoSettingsView: View {
 
             Form {
                 Section {
-                    Text("Local and bring-your-own routes use the provider configuration you selected. Managed work sends only necessary context through TOHSENO and Bankr to the chosen upstream provider. Your generated source remains on this Mac.")
+                    Text("Local and bring-your-own routes use the provider configuration you selected. Managed work sends only necessary context through Tohseno and Bankr to the chosen upstream provider. Your generated source remains on this Mac.")
                         .foregroundStyle(.secondary)
                     ForEach(model.defaults?.harnesses ?? []) { option in
                         LabeledContent(option.label, value: option.installed ? (option.authentication == .notDetected ? "Needs sign-in" : "Available") : "Not installed")
@@ -126,7 +126,7 @@ public struct TohsenoSettingsView: View {
                 Section("Privacy and updates") {
                     Link("Read Privacy Explanation", destination: URL(string: "https://tohseno.com/privacy")!)
                     Link("Check for Updates", destination: URL(string: "https://tohseno.com/download/macos")!)
-                    Text("Updates are manual in this release. TOHSENO verifies the bundled factory before selecting it; no automatic update feed is active.")
+                    Text("Updates are manual in this release. Tohseno verifies the bundled factory before selecting it; no automatic update feed is active.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

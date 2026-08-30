@@ -64,22 +64,32 @@ candidate may be distributed through ADR 0031's explicitly labeled public
 release-candidate channel so this acceptance exercises the real website
 download path:
 
-1. Mount the DMG, drag TOHSENO to Applications, eject it, and open it through
-   Finder. Gatekeeper must accept it without bypass instructions.
-2. Confirm the app shows one readiness instruction at a time and never asks
-   for Apple credentials. Complete Xcode license/components, cable, unlock,
-   Trust, Developer Mode, and Personal Team guidance.
+1. Mount the DMG and confirm Finder restores the branded app-to-Applications
+   drag window. Drag `Tohseno.app` to Applications, eject it, and open it
+   through Finder. Gatekeeper must accept it without bypass instructions.
+2. Confirm the app explains Tohseno before setup, uses `Tohseno` consumer
+   spelling, shows the SVG menu-bar item, presents one readiness instruction at
+   a time, and never asks for Apple credentials. Complete Xcode
+   license/components, cable, unlock, Trust, Developer Mode, and Personal Team
+   guidance.
 3. Quit during setup and during admitted work; reopen and verify restoration.
-4. Create with a supported local/BYO route. Verify an ordinary Git repository,
-   deterministic build gates, direct iPhone install/launch, and no Companion
-   prerequisite.
-5. Evolve the same app, exercise stale-base refusal, unplug/replug recovery,
+4. Verify the readiness app is Tohseno Companion, the staged progress bar
+   advances through build/install/launch/pairing, and the Mac does not advance
+   until the Companion proves its private workspace pairing. Confirm apps on
+   the Mac appear on the phone.
+5. Confirm a signed-in Codex installation appears in the open **Choose
+   intelligence** control. Select guided iPhone capabilities, edit the seeded
+   intention, and create through that route. Verify an ordinary Git repository,
+   deterministic build gates, and direct iPhone install/launch.
+6. Evolve the same app, exercise stale-base refusal, unplug/replug recovery,
    Open Source, Open on iPhone, retry, and Details.
-6. Install over an existing healthy CLI/Studio workspace. Verify in-place
+7. Confirm Registry lists locally verified apps under **Apps on this Mac** and
+   shows no published app cards while registry RPC/catalog discovery is absent.
+8. Install over an existing healthy CLI/Studio workspace. Verify in-place
    adoption and that apps, history, identity, private records, and pairings are
    unchanged. Force a service activation failure in an isolated fixture and
    verify rollback to the prior selected release.
-7. Search the app and DMG for Stripe, Bankr, operator, signing, relay, and test
+9. Search the app and DMG for Stripe, Bankr, operator, signing, relay, and test
    secrets. Verify both architectures and the exact factory manifest again.
 
 Physical iPhone installation, Developer ID signing, notarization, Gatekeeper,
@@ -98,7 +108,7 @@ that channel. Then configure the website:
 ```text
 MACOS_DOWNLOAD_ENABLED=true
 MACOS_DOWNLOAD_CHANNEL=release-candidate
-MACOS_DOWNLOAD_URL=https://…/TOHSENO-1.0.2.dmg
+MACOS_DOWNLOAD_URL=https://…/Tohseno-1.0.2-rc.2.dmg
 MACOS_DOWNLOAD_SHA256=<exact-lowercase-digest>
 ```
 

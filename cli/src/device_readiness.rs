@@ -218,32 +218,32 @@ pub fn project(record: &ReadinessRecord, observed: &ReadinessObservation) -> Rea
         primary_label: label,
     };
     if !record.begun {
-        return view(false, "welcome", "One intention. One app. Yours.", "TOHSENO turns one coherent intention into a native iPhone app you own, use, and evolve.", Some("begin"), Some("Set Up This Mac"));
+        return view(false, "welcome", "One intention. One app. Yours.", "Tohseno turns one coherent intention into a native iPhone app you own, use, and evolve.", Some("begin"), Some("Set Up This Mac"));
     }
     if !observed.macos_supported {
-        return view(false, "unsupported_macos", "This macOS version is not supported", "TOHSENO for Mac requires macOS 14 or later. Your existing source and history are unchanged.", None, None);
+        return view(false, "unsupported_macos", "This macOS version is not supported", "Tohseno for Mac requires macOS 14 or later. Your existing source and history are unchanged.", None, None);
     }
     if !observed.xcode_ready {
         return view(false, "install_xcode", "Install the full Xcode app", "Xcode is a large Apple download. Install it from the Mac App Store, then open it once so Apple can finish setup.", Some("open_app_store"), Some("Open Xcode in the App Store"));
     }
     if !observed.components_ready {
-        return view(false, "finish_xcode", "Let Xcode finish its setup", "Open Xcode, accept Apple's license if asked, and allow required components to install. TOHSENO advances only after Xcode reports that setup is complete.", Some("open_xcode"), Some("Open Xcode"));
+        return view(false, "finish_xcode", "Let Xcode finish its setup", "Open Xcode, accept Apple's license if asked, and allow required components to install. Tohseno advances only after Xcode reports that setup is complete.", Some("open_xcode"), Some("Open Xcode"));
     }
     match observed.device.as_ref() {
-        None | Some(device::DeviceState::CableMissing) => return view(false, "connect_iphone", "Connect and unlock your iPhone", "Use a cable. Keep the phone unlocked while TOHSENO checks Apple's device state.", Some("check"), Some("Check Again")),
-        Some(device::DeviceState::TrustRequired) => return view(false, "trust_mac", "Trust this Mac on your iPhone", "Unlock the iPhone, tap Trust, and enter its passcode. TOHSENO cannot claim this step for you.", Some("check"), Some("Check Again")),
+        None | Some(device::DeviceState::CableMissing) => return view(false, "connect_iphone", "Connect and unlock your iPhone", "Use a cable. Keep the phone unlocked while Tohseno checks Apple's device state.", Some("check"), Some("Check Again")),
+        Some(device::DeviceState::TrustRequired) => return view(false, "trust_mac", "Trust this Mac on your iPhone", "Unlock the iPhone, tap Trust, and enter its passcode. Tohseno cannot claim this step for you.", Some("check"), Some("Check Again")),
         Some(device::DeviceState::DeveloperModeRequired) => return view(false, "developer_mode", "Turn on Developer Mode", "On iPhone open Settings → Privacy & Security → Developer Mode. Turn it on and let the phone restart, then reconnect and unlock it.", Some("check"), Some("Check Again")),
         Some(device::DeviceState::Ready(_)) => {}
     }
     if observed.signing_team.is_none() {
-        return view(false, "apple_account", "Add your Apple Account in Xcode", "TOHSENO never asks for your Apple credentials. In Xcode choose Settings → Accounts, add your account, and make sure a Personal Team or development team appears.", Some("open_xcode"), Some("Open Xcode"));
+        return view(false, "apple_account", "Add your Apple Account in Xcode", "Tohseno never asks for your Apple credentials. In Xcode choose Settings → Accounts, add your account, and make sure a Personal Team or development team appears.", Some("open_xcode"), Some("Open Xcode"));
     }
     match record.verification {
         VerificationState::Pending | VerificationState::Failed => view(
             false,
             "verify_installation",
             "Verify this iPhone with a tiny readiness app",
-            record.last_error.as_deref().unwrap_or("TOHSENO will build, sign, install, open, and remove a deterministic test app. It does not use the Companion and does not touch your app source."),
+            record.last_error.as_deref().unwrap_or("Tohseno will build, sign, install, open, and remove a deterministic test app. It does not touch your app source."),
             Some("verify_installation"),
             Some(if record.verification == VerificationState::Failed { "Try Again" } else { "Verify iPhone" }),
         ),
@@ -301,7 +301,7 @@ pub fn verify_installation(
             &format!("DEVELOPMENT_TEAM={team_id}"),
             "CODE_SIGN_STYLE=Automatic",
             &format!("PRODUCT_BUNDLE_IDENTIFIER={READINESS_BUNDLE_ID}"),
-            "INFOPLIST_KEY_CFBundleDisplayName=TOHSENO Readiness",
+            "INFOPLIST_KEY_CFBundleDisplayName=Tohseno Readiness",
             "-allowProvisioningUpdates",
             "build",
         ])

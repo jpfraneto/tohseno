@@ -114,8 +114,8 @@
 				DEVELOPMENT_TEAM = 84V63LKV45;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TOHSENO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by TOHSENO on your Mac.";
+				INFOPLIST_KEY_CFBundleDisplayName = "Tohseno Companion";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by Tohseno on your Mac.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach screenshots to describe what should change.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -138,8 +138,8 @@
 				DEVELOPMENT_TEAM = 84V63LKV45;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = TOHSENO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by TOHSENO on your Mac.";
+				INFOPLIST_KEY_CFBundleDisplayName = "Tohseno Companion";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Scan the pairing code shown by Tohseno on your Mac.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Attach screenshots to describe what should change.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

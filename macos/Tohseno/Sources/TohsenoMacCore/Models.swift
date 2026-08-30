@@ -363,9 +363,49 @@ public struct ReadinessView: Codable, Equatable, Sendable {
     public let detail: String
     public let primaryAction: String?
     public let primaryLabel: String?
+    public let automaticallyObserved: Bool
+    public let progress: Double?
+    public let deviceName: String?
+    public let deviceProductType: String?
+    public let companionConnected: Bool
+
+    public init(
+        schema: String,
+        ready: Bool,
+        step: String,
+        headline: String,
+        detail: String,
+        primaryAction: String?,
+        primaryLabel: String?,
+        automaticallyObserved: Bool = false,
+        progress: Double? = nil,
+        deviceName: String? = nil,
+        deviceProductType: String? = nil,
+        companionConnected: Bool = false
+    ) {
+        self.schema = schema
+        self.ready = ready
+        self.step = step
+        self.headline = headline
+        self.detail = detail
+        self.primaryAction = primaryAction
+        self.primaryLabel = primaryLabel
+        self.automaticallyObserved = automaticallyObserved
+        self.progress = progress
+        self.deviceName = deviceName
+        self.deviceProductType = deviceProductType
+        self.companionConnected = companionConnected
+    }
 
     public var isWorking: Bool {
-        step == "building_readiness" || step == "installing_readiness"
+        [
+            "building_companion", "installing_companion", "launching_companion",
+            "pairing_companion",
+        ].contains(step)
+    }
+
+    public var shouldMonitor: Bool {
+        isWorking || automaticallyObserved
     }
 }
 

@@ -838,7 +838,7 @@ async fn studio_session(
         return Err(ApiError {
             status: StatusCode::FORBIDDEN,
             code: "studio_bootstrap_rejected",
-            message: "open Studio through the installed TOHSENO application or CLI".into(),
+            message: "open Studio through the installed Tohseno application or CLI".into(),
         });
     }
     Ok(Json(json!({
@@ -1583,12 +1583,12 @@ async fn genesis_action(
             }
             let relay = state.companion.relay_health().await.map_err(|_| {
                 ApiError::unavailable(
-                    "TOHSENO’s private iPhone connection is unavailable. Try again shortly.",
+                    "Tohseno’s private iPhone connection is unavailable. Try again shortly.",
                 )
             })?;
             if !relay.is_some_and(|health| health.ready) {
                 return Err(ApiError::unavailable(
-                    "TOHSENO’s private iPhone connection is unavailable. Try again shortly.",
+                    "Tohseno’s private iPhone connection is unavailable. Try again shortly.",
                 ));
             }
             let device = match tohseno_engine::gates::device::check().map_err(ApiError::internal)? {
@@ -1607,7 +1607,7 @@ async fn genesis_action(
                 {
                     return Err(ApiError::conflict(
                         "iphone_changed",
-                        "connect the same iPhone that received TOHSENO",
+                        "connect the same iPhone that received Tohseno Companion",
                     ));
                 }
                 state

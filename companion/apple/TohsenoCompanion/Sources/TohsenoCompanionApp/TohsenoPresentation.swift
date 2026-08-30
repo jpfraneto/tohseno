@@ -82,7 +82,7 @@ public struct TohsenoPresentation: Equatable, Sendable {
         Self(
             state: .waiting,
             headline: "Waiting for your Mac…",
-            detail: "You can close TOHSENO. This request is saved and sends itself."
+            detail: "You can close Tohseno. This request is saved and sends itself."
         )
     }
 }

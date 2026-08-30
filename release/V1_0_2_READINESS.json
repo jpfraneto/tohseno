@@ -29,7 +29,8 @@
       "docs/adr/0028-finder-first-install-and-native-welcome.md",
       "docs/adr/0029-first-shot-before-factory.md",
       "docs/adr/0030-system-aware-direct-native-download.md",
-      "docs/adr/0031-public-release-candidate-for-clean-mac-acceptance.md"
+      "docs/adr/0031-public-release-candidate-for-clean-mac-acceptance.md",
+      "docs/adr/0032-native-companion-onboarding-and-product-presence.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -64,7 +65,7 @@
     "developer_id_signatures_verified": true,
     "apple_notarization_accepted": true,
     "stapled_ticket_verified": true,
-    "clean_mac_gatekeeper_acceptance_verified": false,
+    "clean_mac_gatekeeper_acceptance_verified": true,
     "physical_iphone_installation_verified": true,
     "independent_download_checksum_verified": false,
     "public_native_manifest_published": false,
@@ -75,10 +76,16 @@
     "post_activation_service_health_verified": false,
     "release_candidate_v1_0_2_rc_1_published": true,
     "release_candidate_origin_checksum_verified": true,
-    "release_candidate_download_activated": true,
+    "release_candidate_download_activated": false,
     "release_candidate_health_verified": true
   },
   "rejected_local_candidates": [
+    {
+      "source_commit": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
+      "notary_submission_id": "d95ff96d-a536-4777-814d-8c43ae4f7ecd",
+      "dmg_sha256": "6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc",
+      "reason": "Rejected after independent clean-Mac acceptance. Gatekeeper accepted the public bytes and the app installed and opened, but the DMG lacked a persisted drag-to-Applications Finder composition, consumer branding used TOHSENO instead of Tohseno, first open did not explain the product or guide app ideas, readiness installed a disposable test app instead of the paired Companion, installation had no progress bar, the running factory had no menu-bar presence, Codex discovery was too narrow for launchd, and the public Registry/catalog remained unavailable. The candidate was disabled in production deployment 69a33859-d149-423f-8d74-79028defad3a and must not be distributed again."
+    },
     {
       "source_commit": "ea2135326c7943f099e34e1b165b04e225423723",
       "notary_submission_id": "0fd48891-5b33-4325-bde1-104ee1ee8b9f",
@@ -135,7 +142,7 @@
     }
   ],
   "current_verified_evidence": {
-    "superseded": false,
+    "superseded": true,
     "verified_at": "2026-08-29T05:09:22Z",
     "source_commit_at_verification": "d275d1f5948eef89cf2b422a90f9bc780dd38ac1",
     "worktree_clean_at_build": true,
@@ -225,7 +232,7 @@
     "release_artifact_notarized": true,
     "website_candidate_source_commit": "ef0a9e01179dbcd5bfa077ad1e613ce19076b315",
     "website_candidate_deployment_id": "46887cef-395f-4651-8083-fac2d280b3ab",
-    "website_candidate_deployment_status": "SUCCESS; ADR 0031's release-candidate channel is visible on the system-aware landing, health is green, metadata reports release-candidate, and /download/macos redirects with the exact configured digest",
+    "website_candidate_deployment_status": "REJECTED AND DISABLED; clean-Mac acceptance reached Gatekeeper and first open, product acceptance failed under ADR 0032, and production deployment 69a33859-d149-423f-8d74-79028defad3a now keeps the download endpoint fail-closed while /healthz remains green",
     "release_candidate_publication": {
       "tag": "v1.0.2-rc.1",
       "prerelease": true,
@@ -236,7 +243,11 @@
       "origin_round_trip_sha256_verified": true,
       "public_download_round_trip_sha256_verified": true,
       "public_health_verified": true,
-      "verified_at": "2026-08-30T12:12:18Z"
+      "verified_at": "2026-08-30T12:12:18Z",
+      "acceptance_result": "rejected",
+      "download_activated": false,
+      "deactivation_deployment_id": "69a33859-d149-423f-8d74-79028defad3a",
+      "deactivated_at": "2026-08-30T12:27:31Z"
     }
   },
   "managed_compute_staging": {
@@ -278,5 +289,5 @@
     },
     "real_service_scenarios_verified": false
   },
-  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, and accepted by Gatekeeper on the build Mac. Three fresh apps and a same-app Version 2 evolution have passed deterministic gates, signed installation, launch, and acceptance on the physical iPhone 15; all three source trees and histories verify, and an obsolete Version 1 evolution was durably refused without creating an execution. Under ADR 0031, exact candidate digest 6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc is public as prerelease v1.0.2-rc.1, the origin and tohseno.com round trips matched, the production API identifies release-candidate, and health is green. The protected stable v1.0.2 tag remains unpublished. Stable promotion remains blocked on independent clean-Mac/user acceptance; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, authorized Railway backups and a restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; stable immutable publication; independent stable downloaded-digest and public-manifest verification; stable download activation; and stable post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates."
+  "blocking_reason": "Public prerelease v1.0.2-rc.1 reached an independent fresh Mac, matched its recorded digest, passed Gatekeeper, installed, and opened, but failed product acceptance for the native DMG, naming, onboarding, Companion setup, progress, menu-bar presence, guided creation, Codex discovery, and Registry expectations recorded by ADR 0032. Production deployment 69a33859-d149-423f-8d74-79028defad3a disables the download and /api/distribution/v1/macos returns 503 while /healthz is green. The immutable rejected prerelease remains historical evidence. A replacement v1.0.2-rc.2 must pass the full local matrix, clean-source build, Developer ID signing, notarization, stapling, exact hashing, origin round trip, and another independent clean-Mac acceptance. Stable promotion also remains blocked on the managed-compute, backup/restore, stable publication, independent digest, manifest, activation, and post-activation gates already recorded here."
 }

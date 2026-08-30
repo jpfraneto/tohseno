@@ -80,7 +80,7 @@ public final class CompanionModel {
               url.host?.lowercased() == "pair",
               url.path.hasPrefix("/v1/")
         else {
-            notice = "Reconnect this iPhone to your Mac and open TOHSENO there."
+            notice = "Reconnect this iPhone to your Mac and open Tohseno there."
             return
         }
         pendingCableInvitation = url.absoluteString
@@ -362,7 +362,7 @@ public final class CompanionModel {
         } catch TohsenoCompanionError.identityAlreadyExists {
             recoveryWords = nil
         } catch {
-            notice = "TOHSENO could not create this iPhone's identity."
+            notice = "Tohseno could not create this iPhone's identity."
         }
     }
 
@@ -395,9 +395,9 @@ public final class CompanionModel {
         return switch error {
         case .transportUnavailable:
 #if DEBUG
-            "TOHSENO couldn’t reach the development relay on your Mac. The USB cable installs and debugs the app, but it doesn’t carry Companion messages. Connect both devices to the same Wi‑Fi, then try again."
+            "Tohseno couldn’t reach the development relay on your Mac. The USB cable installs and debugs the app, but it doesn’t carry Companion messages. Connect both devices to the same Wi‑Fi, then try again."
 #else
-            "TOHSENO couldn’t reach your Mac. Check this iPhone’s internet connection, then try again."
+            "Tohseno couldn’t reach your Mac. Check this iPhone’s internet connection, then try again."
 #endif
         case .invitationExpired:
             "The private connection expired. Reconnect this iPhone to your Mac."

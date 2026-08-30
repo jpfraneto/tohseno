@@ -75,7 +75,11 @@ public actor LoopbackFactoryClient: FactoryServing {
     }
 
     public func readiness() async throws -> ReadinessView {
-        try await request("/api/v1/readiness")
+        let genesis: CableGenesisResponse = try await request("/api/v1/genesis")
+        guard genesis.schema == "tohseno.cable-genesis-view/1" else {
+            throw FactoryClientError.invalidResponse("The local Companion setup response is invalid.")
+        }
+        return ReadinessView(genesis: genesis)
     }
 
     public func managedStatus() async throws -> ManagedStatus {
@@ -144,7 +148,13 @@ public actor LoopbackFactoryClient: FactoryServing {
 
     public func performReadinessAction(_ action: String) async throws -> ReadinessView {
         try validateToken(action, label: "readiness action")
-        return try await request("/api/v1/readiness/actions/\(action)", method: "POST", body: EmptyBody())
+        let genesis: CableGenesisResponse = try await request(
+            "/api/v1/genesis/actions/\(action)", method: "POST", body: EmptyBody()
+        )
+        guard genesis.schema == "tohseno.cable-genesis-view/1" else {
+            throw FactoryClientError.invalidResponse("The local Companion setup response is invalid.")
+        }
+        return ReadinessView(genesis: genesis)
     }
 
     public func create(_ draft: CreationDraft, commandID: String) async throws -> CommandReceipt {
@@ -675,6 +685,80 @@ public actor LoopbackFactoryClient: FactoryServing {
 
 private struct EmptyBody: Encodable, Sendable {}
 private struct EmptyResponse: Codable, Sendable { init() {} }
+
+private struct CableGenesisResponse: Decodable, Sendable {
+    let schema: String
+    let step: String
+    let instruction: String
+    let detail: String?
+    let primaryAction: String?
+    let automaticallyObserved: Bool
+    let companionInstallState: String
+    let deviceName: String?
+    let deviceProductType: String?
+}
+
+private extension ReadinessView {
+    init(genesis: CableGenesisResponse) {
+        let projectedStep: String
+        switch genesis.step {
+        case "install_companion":
+            if genesis.companionInstallState == "building" {
+                projectedStep = "building_companion"
+            } else if genesis.companionInstallState == "installing" {
+                projectedStep = "installing_companion"
+            } else if genesis.companionInstallState == "launching" {
+                projectedStep = "launching_companion"
+            } else {
+                projectedStep = "install_companion"
+            }
+        case "pairing": projectedStep = "pairing_companion"
+        case "pick_up_iphone": projectedStep = "welcome"
+        default: projectedStep = genesis.step
+        }
+
+        let ready = genesis.step == "first_shot"
+        let explanation = switch genesis.step {
+        case "pick_up_iphone":
+            "Tohseno turns an intention into a native iPhone app you own. Its source and history stay on this Mac, and Tohseno Companion keeps your iPhone connected to this factory."
+        case "first_shot":
+            "Tohseno Companion is connected to this Mac. Your private app factory is ready."
+        default:
+            genesis.detail ?? "Tohseno checks this step locally and advances only when it can observe success."
+        }
+        let label: String? = switch genesis.primaryAction {
+        case "begin": "Set Up Tohseno"
+        case "continue": "Continue"
+        case "check": "Check Again"
+        case "open_app_store": "Open Xcode in the App Store"
+        case "open_xcode_accounts": "Open Xcode"
+        case "install_companion": "Install Tohseno Companion"
+        case "retry_companion": "Reconnect Tohseno Companion"
+        default: nil
+        }
+        let progress: Double? = switch projectedStep {
+        case "building_companion": 0.62
+        case "installing_companion": 0.78
+        case "launching_companion": 0.88
+        case "pairing_companion": 0.95
+        default: nil
+        }
+        self.init(
+            schema: "tohseno.native-onboarding-view/1",
+            ready: ready,
+            step: projectedStep,
+            headline: ready ? "Your iPhone is connected" : genesis.instruction,
+            detail: explanation,
+            primaryAction: ready ? nil : genesis.primaryAction,
+            primaryLabel: label,
+            automaticallyObserved: genesis.automaticallyObserved,
+            progress: progress,
+            deviceName: genesis.deviceName,
+            deviceProductType: genesis.deviceProductType,
+            companionConnected: ready
+        )
+    }
+}
 
 private struct RetireResponse: Codable, Sendable {
     let schema: String

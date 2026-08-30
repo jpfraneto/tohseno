@@ -84,36 +84,37 @@ final class NativeFactoryTests: XCTestCase {
                 primaryAction: nil, primaryLabel: nil
             )
         }
-        XCTAssertTrue(view("building_readiness").isWorking)
-        XCTAssertTrue(view("installing_readiness").isWorking)
+        XCTAssertTrue(view("building_companion").isWorking)
+        XCTAssertTrue(view("installing_companion").isWorking)
+        XCTAssertTrue(view("pairing_companion").isWorking)
         XCTAssertFalse(view("connect_iphone").isWorking)
-        XCTAssertFalse(view("verify_installation").isWorking)
+        XCTAssertFalse(view("install_companion").isWorking)
     }
 
     @MainActor
     func testActiveReadinessPollsUntilTheBackgroundCheckFinishes() async {
         let verify = ReadinessView(
             schema: "tohseno.iphone-readiness-view/1", ready: false,
-            step: "verify_installation", headline: "Verify", detail: "Verify",
-            primaryAction: "verify_installation", primaryLabel: "Verify iPhone"
+            step: "install_companion", headline: "Install", detail: "Install",
+            primaryAction: "install_companion", primaryLabel: "Install Companion"
         )
         let building = ReadinessView(
             schema: "tohseno.iphone-readiness-view/1", ready: false,
-            step: "building_readiness", headline: "Building", detail: "Building",
+            step: "building_companion", headline: "Building", detail: "Building",
             primaryAction: nil, primaryLabel: nil
         )
         let failed = ReadinessView(
             schema: "tohseno.iphone-readiness-view/1", ready: false,
-            step: "verify_installation", headline: "Try again", detail: "Xcode failed",
-            primaryAction: "verify_installation", primaryLabel: "Try Again"
+            step: "install_companion", headline: "Try again", detail: "Xcode failed",
+            primaryAction: "install_companion", primaryLabel: "Try Again"
         )
         let factory = FakeFactory(readinessResponses: [verify, building, failed])
         let model = TohsenoAppModel(client: factory)
         await model.reload()
         await model.performReadinessAction()
-        XCTAssertEqual(model.readiness?.step, "building_readiness")
+        XCTAssertEqual(model.readiness?.step, "building_companion")
         try? await Task.sleep(for: .milliseconds(1_100))
-        XCTAssertEqual(model.readiness?.step, "verify_installation")
+        XCTAssertEqual(model.readiness?.step, "install_companion")
         XCTAssertEqual(model.readiness?.detail, "Xcode failed")
     }
 
@@ -368,13 +369,55 @@ final class NativeFactoryTests: XCTestCase {
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
         let source = try String(contentsOf: root, encoding: .utf8)
-        XCTAssertTrue(source.contains("WELCOME TO TOHSENO"))
-        XCTAssertTrue(source.contains("TAKE A SHOT"))
-        XCTAssertTrue(source.contains("This is where your ideas transform into apps."))
+        XCTAssertTrue(source.contains("Welcome to Tohseno"))
+        XCTAssertTrue(source.contains("Take a Shot"))
+        XCTAssertTrue(source.contains("Your private app factory for iPhone."))
+        XCTAssertTrue(source.contains("Start with what it should do"))
+        XCTAssertTrue(source.contains("Features I want:"))
         XCTAssertTrue(source.contains("Describe the app that should exist…"))
         XCTAssertTrue(source.contains("Drop PNG or JPEG images"))
         XCTAssertTrue(source.contains("Button(\"Skip\")"))
         XCTAssertTrue(source.contains(".dropDestination(for: URL.self)"))
+    }
+
+    func testConsumerBundleAndMenuBarUseTohsenoBranding() throws {
+        let package = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let infoData = try Data(contentsOf: package.appendingPathComponent("Packaging/Info.plist"))
+        let info = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
+        )
+        XCTAssertEqual(info["CFBundleDisplayName"] as? String, "Tohseno")
+        XCTAssertEqual(info["CFBundleName"] as? String, "Tohseno")
+
+        let app = try String(
+            contentsOf: package.appendingPathComponent("App/TohsenoMacApp.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(app.contains("MenuBarExtra"))
+        XCTAssertTrue(app.contains("TohsenoLogo"))
+        XCTAssertFalse(app.contains("WindowGroup(\"TOHSENO\""))
+        let build = try String(
+            contentsOf: package.appendingPathComponent("Packaging/build-app.sh"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(build.contains("public/logo.svg"))
+        XCTAssertTrue(build.contains("Resources/TohsenoLogo.svg"))
+    }
+
+    func testDmgPersistsTheFinderDragComposition() throws {
+        let package = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let script = try String(
+            contentsOf: package.appendingPathComponent("Packaging/create-dmg.sh"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(script.contains("set background picture of view_options"))
+        XCTAssertTrue(script.contains("set position of item \"Tohseno.app\""))
+        XCTAssertTrue(script.contains("set position of item \"Applications\""))
+        XCTAssertTrue(script.contains("-volname Tohseno"))
     }
 
     @MainActor
@@ -460,6 +503,7 @@ final class NativeFactoryTests: XCTestCase {
             "app.preview", "app.iphone-handoff", "app.open-source",
             "registry.sidebar", "registry.quick.intention", "registry.quick.submit",
             "registry.builder", "registry.public-status",
+            "creation.starters", "readiness.progress",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }

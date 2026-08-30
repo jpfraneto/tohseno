@@ -47,7 +47,7 @@ public final class TohsenoAppModel {
     public var evolutions: [String: EvolutionDraft] = [:]
     public var customHarness = CustomHarnessDraft()
     public var localEndpoint = LocalEndpointDraft()
-    public var advancedExpanded = false
+    public var advancedExpanded = true
 
     private let client: any FactoryServing
     private let preferences: UserDefaults
@@ -64,6 +64,13 @@ public final class TohsenoAppModel {
 
     public var apps: [AppSummary] { workspace?.visibleApps ?? [] }
     public var archivedApps: [AppSummary] { workspace?.archivedApps ?? [] }
+    public var connectedDeviceDescription: String? {
+        guard let readiness else { return nil }
+        if let product = readiness.deviceProductType, product != readiness.deviceName {
+            return [readiness.deviceName, product].compactMap { $0 }.joined(separator: " · ")
+        }
+        return readiness.deviceName ?? readiness.deviceProductType
+    }
     public var shouldPresentFirstShot: Bool {
         guard let workspace else { return false }
         return workspace.shots.isEmpty && !hasSkippedFirstShot
@@ -386,7 +393,7 @@ public final class TohsenoAppModel {
     }
 
     private func startReadinessMonitoringIfNeeded() {
-        guard readiness?.isWorking == true, readinessMonitoringTask == nil else { return }
+        guard readiness?.shouldMonitor == true, readinessMonitoringTask == nil else { return }
         readinessMonitoringTask = Task { [weak self] in
             defer { self?.readinessMonitoringTask = nil }
             while !Task.isCancelled {
@@ -395,7 +402,7 @@ public final class TohsenoAppModel {
                 do {
                     self.readiness = try await self.client.readiness()
                     self.errorMessage = nil
-                    if self.readiness?.isWorking != true { return }
+                    if self.readiness?.shouldMonitor != true { return }
                 } catch {
                     self.errorMessage = error.localizedDescription
                     return
@@ -531,14 +538,14 @@ public final class TohsenoAppModel {
         let selected = effectiveHarnessID.flatMap { id in defaults?.harnesses.first { $0.id == id } }
         let route = selected?.routes.first(where: \.available)
         switch route?.billing {
-        case "none", "local": return "$0 paid to TOHSENO; your Mac still uses electricity and hardware."
+        case "none", "local": return "$0 paid to Tohseno; your Mac still uses electricity and hardware."
         case "subscription": return "Incremental provider cost is unknown or covered by your provider plan."
         case "api": return "Provider usage may be billed. A reliable estimate is unavailable for this route."
         case "managed":
             if let estimate = route?.estimatedAdditionalCostUSD {
                 return "Estimated managed cost: up to \(estimate.formatted(.currency(code: "USD")))."
             }
-            return "TOHSENO will show an estimate and maximum before managed work starts."
+            return "Tohseno will show an estimate and maximum before managed work starts."
         default:
             return defaults?.ready == true
                 ? "Automatic uses your best available configured route."
@@ -581,10 +588,10 @@ public final class TohsenoAppModel {
     public func exportSupportReport() {
         #if canImport(AppKit)
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "TOHSENO Support Report.txt"
+        panel.nameFieldStringValue = "Tohseno Support Report.txt"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let lines = [
-            "TOHSENO support report",
+            "Tohseno support report",
             "Generated: \(ISO8601DateFormatter().string(from: Date()))",
             "Service: \(workspace?.serviceVersion ?? "unavailable")",
             "Apps: \(apps.count)",

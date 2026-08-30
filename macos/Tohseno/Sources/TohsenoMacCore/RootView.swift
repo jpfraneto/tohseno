@@ -28,7 +28,7 @@ public struct TohsenoRootView: View {
         .foregroundStyle(TohsenoTheme.bone)
         .tint(TohsenoTheme.amber)
         .task { model.start() }
-        .alert("TOHSENO", isPresented: errorBinding) {
+        .alert("Tohseno", isPresented: errorBinding) {
             Button("OK") { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "Something stopped safely.")
@@ -72,7 +72,7 @@ public struct TohsenoRootView: View {
             .safeAreaInset(edge: .top) {
                 HStack(spacing: 10) {
                     TohsenoMark().frame(width: 28, height: 28)
-                    Text("TOHSENO").font(.headline).tracking(2.5)
+                    Text("Tohseno").font(.headline).tracking(1.2)
                     Spacer()
                 }
                 .padding(14)
@@ -173,22 +173,35 @@ private struct FirstShotView: View {
                     .frame(width: 58, height: 58)
                     .padding(.bottom, 28)
 
-                Text("WELCOME TO TOHSENO")
+                Text("Welcome to Tohseno")
                     .font(.caption.weight(.semibold))
                     .tracking(2.4)
                     .foregroundStyle(TohsenoTheme.silver)
                     .padding(.bottom, 10)
 
-                Text("TAKE A SHOT")
+                Text("Take a Shot")
                     .font(.system(size: 38, weight: .semibold, design: .rounded))
                     .tracking(0.5)
                     .accessibilityIdentifier("onboarding.take-a-shot")
 
-                Text("This is where your ideas transform into apps.")
+                Text("Your private app factory for iPhone.")
                     .font(.title3)
                     .foregroundStyle(TohsenoTheme.silver)
                     .multilineTextAlignment(.center)
                     .padding(.top, 9)
+
+                Text("Describe something useful, Tohseno builds and checks the native app, and Tohseno Companion keeps it connected to your iPhone. Your source and app history stay on this Mac.")
+                    .font(.body)
+                    .foregroundStyle(TohsenoTheme.silver)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 560)
+                    .padding(.top, 12)
+
+                StarterCapabilitiesView(
+                    intention: $model.creation.intention,
+                    deviceDescription: model.connectedDeviceDescription
+                )
+                .padding(.top, 26)
 
                 ZStack(alignment: .topLeading) {
                     if model.creation.intention.isEmpty {
@@ -219,7 +232,7 @@ private struct FirstShotView: View {
                         )
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.top, 30)
+                .padding(.top, 22)
 
                 ReferenceStrip(references: model.creation.references) { _, id in
                     model.creation.references.removeAll { $0.id == id }
@@ -292,6 +305,117 @@ private struct FirstShotView: View {
     }
 }
 
+private struct StarterCapability: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let requirement: String
+}
+
+private struct StarterCapabilitiesView: View {
+    @Binding var intention: String
+    let deviceDescription: String?
+    @State private var selected: Set<String> = []
+
+    private static let marker = "\n\nFeatures I want:\n"
+    private static let options = [
+        StarterCapability(
+            id: "quick-capture", title: "Quick capture", systemImage: "bolt.fill",
+            requirement: "Let me capture something in a few seconds."
+        ),
+        StarterCapability(
+            id: "photos", title: "Photos & camera", systemImage: "camera.fill",
+            requirement: "Let me take or choose photos when they add useful context."
+        ),
+        StarterCapability(
+            id: "reminders", title: "Reminders", systemImage: "checklist",
+            requirement: "Help me remember what matters and mark it complete."
+        ),
+        StarterCapability(
+            id: "notifications", title: "Notifications", systemImage: "bell.fill",
+            requirement: "Notify me only at useful moments I choose."
+        ),
+        StarterCapability(
+            id: "location", title: "Location", systemImage: "location.fill",
+            requirement: "Use my location only when it is necessary for the feature."
+        ),
+        StarterCapability(
+            id: "offline", title: "Works offline", systemImage: "iphone.gen3",
+            requirement: "Keep the core experience useful without an internet connection."
+        ),
+        StarterCapability(
+            id: "share", title: "Share from apps", systemImage: "square.and.arrow.up",
+            requirement: "Accept useful items shared from other iPhone apps."
+        ),
+        StarterCapability(
+            id: "private", title: "Private by default", systemImage: "lock.fill",
+            requirement: "Keep personal data on my devices unless I explicitly export it."
+        ),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Start with what it should do")
+                    .font(.headline)
+                Text(deviceDescription.map { "Choose useful building blocks for \($0), then edit the description below." }
+                    ?? "Choose a few useful building blocks, then edit the description below.")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 138), spacing: 9)], spacing: 9) {
+                ForEach(Self.options) { option in
+                    let isSelected = selected.contains(option.id)
+                    Button {
+                        if isSelected {
+                            selected.remove(option.id)
+                        } else {
+                            selected.insert(option.id)
+                        }
+                        updateIntention()
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : option.systemImage)
+                                .foregroundStyle(isSelected ? TohsenoTheme.void : TohsenoTheme.amber)
+                            Text(option.title)
+                                .font(.caption.weight(.semibold))
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 9)
+                        .frame(maxWidth: .infinity)
+                        .background(isSelected ? TohsenoTheme.amber : TohsenoTheme.graphite)
+                        .foregroundStyle(isSelected ? TohsenoTheme.void : TohsenoTheme.bone)
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(TohsenoTheme.iron))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("creation.starter.\(option.id)")
+                }
+            }
+        }
+        .padding(16)
+        .background(TohsenoTheme.carbon)
+        .clipShape(RoundedRectangle(cornerRadius: 13))
+        .accessibilityIdentifier("creation.starters")
+    }
+
+    private func updateIntention() {
+        let base = intention.components(separatedBy: Self.marker).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let chosen = Self.options.filter { selected.contains($0.id) }
+        guard !chosen.isEmpty else {
+            intention = base
+            return
+        }
+        let opening = base.isEmpty
+            ? "Build a simple personal iPhone app that makes one part of my daily life easier."
+            : base
+        let requirements = chosen.map { "• \($0.requirement)" }.joined(separator: "\n")
+        intention = opening + Self.marker + requirements
+    }
+}
+
 private struct LibraryEmptyView: View {
     let create: () -> Void
 
@@ -323,7 +447,7 @@ private struct RegistryView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Registry").font(.largeTitle.bold())
-                    Text("Your verified local track record. Nothing on this screen is published publicly.")
+                    Text("Apps on this Mac, with published apps added only when the public Registry can verify them.")
                         .foregroundStyle(TohsenoTheme.silver)
                 }
 
@@ -337,8 +461,8 @@ private struct RegistryView: View {
                     }
                 } else if let snapshot = model.registrySnapshot {
                     builders(snapshot)
-                    network(snapshot.network)
-                    shots(snapshot.records)
+                    publishedApps(snapshot.network)
+                    appsOnThisMac(snapshot.records)
                 } else {
                     ContentUnavailableView {
                         Label("Registry unavailable", systemImage: "exclamationmark.triangle")
@@ -447,31 +571,35 @@ private struct RegistryView: View {
         }
     }
 
-    private func network(_ status: RegistryNetworkStatus) -> some View {
-        HStack(alignment: .top, spacing: 13) {
-            Image(systemName: status.rpcChecked ? "network" : "network.slash")
-                .font(.title2)
-                .foregroundStyle(TohsenoTheme.amber)
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Public Registry").font(.headline)
-                Text(status.rpcChecked ? "Public witness checked" : "Not connected")
-                    .foregroundStyle(TohsenoTheme.silver)
-                Text(status.reason)
-                    .font(.caption)
-                    .foregroundStyle(TohsenoTheme.silver)
+    private func publishedApps(_ status: RegistryNetworkStatus) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Published apps").font(.title2.weight(.semibold))
+            HStack(alignment: .top, spacing: 13) {
+                Image(systemName: status.rpcChecked ? "network" : "network.slash")
+                    .font(.title2)
+                    .foregroundStyle(TohsenoTheme.amber)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(status.rpcChecked ? "Public Registry checked" : "Public Registry not connected")
+                        .font(.headline)
+                    Text("No public app catalog is available in this build.")
+                        .foregroundStyle(TohsenoTheme.silver)
+                    Text(status.reason)
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                Spacer()
             }
-            Spacer()
+            .padding(18)
+            .background(TohsenoTheme.carbon)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .accessibilityIdentifier("registry.public-status")
         }
-        .padding(18)
-        .background(TohsenoTheme.carbon)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .accessibilityIdentifier("registry.public-status")
     }
 
-    private func shots(_ records: [LocalRegistryRecord]) -> some View {
+    private func appsOnThisMac(_ records: [LocalRegistryRecord]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Shots").font(.title2.weight(.semibold))
+            Text("Apps on this Mac").font(.title2.weight(.semibold))
             if records.isEmpty {
                 Text("Your first accepted app will appear here.")
                     .foregroundStyle(TohsenoTheme.silver)
@@ -535,7 +663,7 @@ private struct ReadinessScreen: View {
     let readiness: ReadinessView
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 22) {
             if readiness.isWorking {
                 TohsenoSpinner(size: 72)
             } else {
@@ -547,6 +675,35 @@ private struct ReadinessScreen: View {
                     .foregroundStyle(TohsenoTheme.silver)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 560)
+            }
+            if readiness.step == "welcome" {
+                HStack(alignment: .top, spacing: 14) {
+                    OnboardingPoint(icon: "text.bubble", title: "Describe it", detail: "Say what would make your life easier.")
+                    OnboardingPoint(icon: "hammer", title: "Make it", detail: "Tohseno builds and checks a real native app.")
+                    OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Companion keeps your iPhone linked to this Mac.")
+                }
+                .frame(maxWidth: 660)
+            }
+            if let device = model.connectedDeviceDescription, readiness.step != "welcome" {
+                Label(device, systemImage: "iphone.gen3")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            if readiness.isWorking, let progress = readiness.progress {
+                VStack(spacing: 7) {
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .tint(TohsenoTheme.amber)
+                    HStack {
+                        Text("Setting up Tohseno Companion")
+                        Spacer()
+                        Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+                }
+                .frame(maxWidth: 500)
+                .accessibilityIdentifier("readiness.progress")
             }
             if readiness.primaryAction != nil {
                 Button(readiness.primaryLabel ?? "Continue") {
@@ -562,6 +719,29 @@ private struct ReadinessScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("readiness.\(readiness.step)")
+    }
+}
+
+private struct OnboardingPoint: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(TohsenoTheme.amber)
+            Text(title).font(.headline)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.silver)
+                .multilineTextAlignment(.center)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 122, alignment: .top)
+        .background(TohsenoTheme.carbon)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -581,6 +761,10 @@ private struct CreationView: View {
                 Text("Create App").font(.largeTitle.bold())
                 Text("What would make your life easier?")
                     .font(.title2.weight(.semibold))
+                StarterCapabilitiesView(
+                    intention: $model.creation.intention,
+                    deviceDescription: model.connectedDeviceDescription
+                )
                 TextEditor(text: $model.creation.intention)
                     .font(.body)
                     .scrollContentBackground(.hidden)
@@ -1244,7 +1428,7 @@ private struct DeviceHandoffCard: View {
 
     private var detail: String {
         switch app.presentation.state {
-        case .waiting, .building: "You can connect it now. TOHSENO will use it when the verified build is ready."
+        case .waiting, .building: "You can connect it now. Tohseno will use it when the verified build is ready."
         case .readyForPhone: "Keep the cable connected. Installation begins as soon as the phone is ready."
         case .installing: "Keep the iPhone unlocked until the app opens."
         case .installed: "The cable is only needed to install a new build."
@@ -1414,7 +1598,7 @@ private struct AppArtwork: View {
 }
 
 private struct AdvancedRouteDisclosure: View {
-    let model: TohsenoAppModel
+    @Bindable var model: TohsenoAppModel
     @Binding var harness: String?
     @Binding var selectedModel: String?
     @Binding var privacy: String
@@ -1423,7 +1607,7 @@ private struct AdvancedRouteDisclosure: View {
     let estimate: ManagedEstimate?
 
     var body: some View {
-        DisclosureGroup("Advanced") {
+        DisclosureGroup("Choose intelligence", isExpanded: $model.advancedExpanded) {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("Intelligence", selection: $harness) {
                     Text("Automatic — \(model.defaults?.harnessLabel ?? "best available")").tag(String?.none)
@@ -1431,7 +1615,7 @@ private struct AdvancedRouteDisclosure: View {
                         Text("\(option.label) — \(availability(option))").tag(Optional(option.id))
                     }
                     if model.managedCatalog?.models.isEmpty == false {
-                        Text("TOHSENO managed intelligence — uses creation balance")
+                        Text("Tohseno managed intelligence — uses creation balance")
                             .tag(Optional("tohseno-managed"))
                     }
                 }
@@ -1451,7 +1635,7 @@ private struct AdvancedRouteDisclosure: View {
                         }
                     }
                     .accessibilityIdentifier("advanced.model")
-                    Text("TOHSENO will use this exact selection for this request and will not substitute another route during recovery.")
+                    Text("Tohseno will use this exact selection for this request and will not substitute another route during recovery.")
                         .font(.caption)
                         .foregroundStyle(TohsenoTheme.silver)
                 }
@@ -1501,7 +1685,7 @@ private struct AdvancedRouteDisclosure: View {
             Text("Spendable creation balance: \(model.signedCurrency(balance.spendableMicrousd))")
                 .font(.caption)
         }
-        Text("Managed work sends necessary app context through TOHSENO and Bankr to the selected upstream provider under this privacy tier. It never activates automatically.")
+        Text("Managed work sends necessary app context through Tohseno and Bankr to the selected upstream provider under this privacy tier. It never activates automatically.")
             .font(.caption)
             .foregroundStyle(TohsenoTheme.silver)
     }
@@ -1541,7 +1725,7 @@ private struct ManagedAccessCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("No local intelligence route is ready").font(.headline)
-            Text("You can use TOHSENO-managed intelligence with creation balance, or configure your own route in Settings.")
+            Text("You can use Tohseno-managed intelligence with creation balance, or configure your own route in Settings.")
                 .foregroundStyle(TohsenoTheme.silver)
             if let balance = model.managedBalance {
                 Text("Available balance: \(model.signedCurrency(balance.spendableMicrousd))")

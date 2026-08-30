@@ -139,7 +139,12 @@ static KNOWN_HARNESSES: [KnownHarness; 5] = [
         aliases: &[],
         label: "Codex",
         binaries: &["codex"],
-        home_paths: &[".local/bin/codex"],
+        home_paths: &[
+            ".local/bin/codex",
+            ".volta/bin/codex",
+            ".npm-global/bin/codex",
+            ".bun/bin/codex",
+        ],
         models: &[("default", "Configured default")],
         default_route: "chatgpt-subscription",
         attachment_behavior: AttachmentBehavior::NativeImageArguments,
@@ -1059,7 +1064,18 @@ fn find_executable(known: &KnownHarness) -> Option<PathBuf> {
         .iter()
         .map(|relative| home.join(relative))
         .find(|candidate| is_executable(candidate));
-    from_home.or_else(|| find_nvm_executable(&home, known))
+    let from_global = ["/opt/homebrew/bin", "/usr/local/bin"]
+        .into_iter()
+        .flat_map(|directory| {
+            known
+                .binaries
+                .iter()
+                .map(move |binary| Path::new(directory).join(binary))
+        })
+        .find(|candidate| is_executable(candidate));
+    from_home
+        .or(from_global)
+        .or_else(|| find_nvm_executable(&home, known))
 }
 
 /// NVM does not expose its selected Node installation to launchd. Resolve the
@@ -1067,41 +1083,57 @@ fn find_executable(known: &KnownHarness) -> Option<PathBuf> {
 /// an npm-installed harness without inheriting the user's entire shell PATH.
 fn find_nvm_executable(home: &Path, known: &KnownHarness) -> Option<PathBuf> {
     let nvm = home.join(".nvm");
-    let alias = read_bounded_utf8(&nvm.join("alias/default"), 256).ok()?;
-    let alias = alias.trim();
-    if alias.is_empty()
-        || alias.len() > 64
-        || alias
-            .bytes()
-            .any(|byte| !(byte.is_ascii_digit() || byte == b'.'))
-    {
-        return None;
-    }
-    let prefix = format!("v{alias}");
     let mut versions = std::fs::read_dir(nvm.join("versions/node"))
         .ok()?
         .take(128)
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|candidate| {
-            candidate
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| {
-                    name == prefix
-                        || name
-                            .strip_prefix(&prefix)
-                            .is_some_and(|suffix| suffix.starts_with('.'))
-                })
-        })
+        .filter(|candidate| candidate.is_dir())
         .collect::<Vec<_>>();
     versions.sort();
-    versions.into_iter().rev().find_map(|version| {
+
+    let configured = read_bounded_utf8(&nvm.join("alias/default"), 256)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|alias| {
+            !alias.is_empty()
+                && alias.len() <= 64
+                && alias
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || byte == b'.')
+        });
+    let matches_default = |version: &&PathBuf| {
+        let Some(alias) = configured.as_deref() else {
+            return false;
+        };
+        let prefix = format!("v{alias}");
+        version
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| {
+                name == prefix
+                    || name
+                        .strip_prefix(&prefix)
+                        .is_some_and(|suffix| suffix.starts_with('.'))
+            })
+    };
+    let executable_in = |version: &Path| {
         known
             .binaries
             .iter()
             .map(|binary| version.join("bin").join(binary))
             .find(|candidate| is_executable(candidate))
-    })
+    };
+    versions
+        .iter()
+        .rev()
+        .find(matches_default)
+        .and_then(|version| executable_in(version))
+        .or_else(|| {
+            versions
+                .into_iter()
+                .rev()
+                .find_map(|version| executable_in(&version))
+        })
 }
 
 /// npm launchers commonly use `#!/usr/bin/env node`. Prepending the selected
@@ -1441,5 +1473,23 @@ mod tests {
             .map(|(_, value)| value)
             .unwrap();
         assert_eq!(std::env::split_paths(configured_path).next(), Some(bin));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn launchd_discovers_an_nvm_harness_without_a_default_alias() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let bin = root.path().join(".nvm/versions/node/v24.1.0/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let executable = bin.join("codex");
+        std::fs::write(&executable, b"#!/bin/sh\n").unwrap();
+        let mut permissions = std::fs::metadata(&executable).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&executable, permissions).unwrap();
+
+        let codex = known_harness("codex").unwrap();
+        assert_eq!(find_nvm_executable(root.path(), codex), Some(executable));
     }
 }

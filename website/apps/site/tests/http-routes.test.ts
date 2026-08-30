@@ -288,7 +288,7 @@ describe("public pages", () => {
     }
 
     const sha256 = "b".repeat(64);
-    const downloadURL = "https://downloads.tohseno.com/TOHSENO-1.0.2.dmg";
+    const downloadURL = "https://downloads.tohseno.com/Tohseno-1.0.2-rc.2.dmg";
     const configured = await createApplication({ config: loadConfig({
       NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
       MACOS_DOWNLOAD_ENABLED: "true",
@@ -322,7 +322,7 @@ describe("public pages", () => {
     expect(body).toContain("/usr/sbin/spctl --assess --type execute");
     expect(body).toContain("/usr/bin/hdiutil attach");
     expect(body).toContain("downloads_dir=\"$HOME/Downloads\"");
-    expect(body).toContain("download_name='TOHSENO-1.0.2.dmg'");
+    expect(body).toContain("download_name='Tohseno-1.0.2-rc.2.dmg'");
     expect(body).toContain("Double-click it, then drag TOHSENO into Applications.");
     expect(body).toContain("/usr/bin/open -R \"$destination\"");
     expect(body).not.toContain("/usr/bin/ditto");
