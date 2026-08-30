@@ -10,7 +10,7 @@ without TOHSENO.
 
 The current transition, governed by
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
-[`ADR 0026`](docs/adr/0026-keyboard-first-local-registry-and-native-installer.md),
+[`ADR 0030`](docs/adr/0030-system-aware-direct-native-download.md),
 makes a native SwiftUI Mac application the primary product over the same Rust factory.
 It removes npm/browser first run, mandatory Companion setup, successful-day
 qualification, and subscription gating of local/BYO execution. The local 1.0.2
@@ -65,16 +65,12 @@ trial, qualification, or creation-balance gate.
 The signed/notarized DMG is deliberately not claimed as published yet. Release
 activation requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
-After that activation, the normal installer command will be:
-
-```sh
-curl -fsSL https://tohseno.com/install | sh
-```
-
-That endpoint currently fails closed rather than serving an unactivated
-artifact. It explains the operation, waits for Return, verifies the exact DMG
-digest and Apple identity, installs without administrator access, and opens
-the app. It requires no npm, Node, Bun, or Homebrew.
+After activation, the normal website action downloads the signed, notarized
+DMG directly. On a Mac the page labels it **Download for this Mac**; on another
+system it states the real macOS 14-or-newer requirement. The download endpoint
+currently fails closed rather than serving an unactivated artifact. The
+retained shell installer is a compatibility path, not the consumer door. The
+normal install requires no Terminal, npm, Node, Bun, or Homebrew.
 Developers can build the unsigned universal bundle with:
 
 ```bash

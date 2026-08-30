@@ -1,49 +1,59 @@
-const copyButtons = [...document.querySelectorAll("[data-copy-install]")];
-const status = document.querySelector(".copy-status");
+const downloadLinks = [...document.querySelectorAll("[data-installer-download]")];
 
-async function copyText(text) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
+function detectSystem() {
+  const clientPlatform = navigator.userAgentData?.platform ?? "";
+  const legacyPlatform = navigator.platform ?? "";
+  const platform = `${clientPlatform} ${legacyPlatform}`;
+  const userAgent = navigator.userAgent ?? "";
 
-  const input = document.createElement("textarea");
-  input.value = text;
-  input.setAttribute("readonly", "");
-  input.className = "copy-fallback";
-  document.body.append(input);
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-  if (!copied) throw new Error("Copy failed");
+  if (
+    /iPhone|iPad|iPod/i.test(platform) ||
+    /iPhone|iPad|iPod/i.test(userAgent) ||
+    (/Mac/i.test(platform) && navigator.maxTouchPoints > 1)
+  ) return "ios";
+  if (/Mac/i.test(platform)) return "macos";
+  if (/Windows|Win32|Win64/i.test(platform) || /Windows/i.test(userAgent)) return "windows";
+  if (/Android/i.test(platform) || /Android/i.test(userAgent)) return "android";
+  if (/CrOS/i.test(userAgent)) return "chromeos";
+  if (/Linux/i.test(platform) || /Linux/i.test(userAgent)) return "linux";
+  return "unknown";
 }
 
-function resetButton(button) {
-  const command = button.dataset.installCommand;
-  button.querySelector("[data-install-text]").textContent = command;
-  button.querySelector("[data-copy-label]").textContent = "Copy";
-}
+const system = detectSystem();
+const systemCopy = {
+  macos: {
+    title: "Download for this Mac",
+    detail: "macOS 14+ · Apple silicon and Intel",
+  },
+  ios: {
+    title: "Download for Mac",
+    detail: "Open this page on a Mac running macOS 14+",
+  },
+  windows: {
+    title: "Download for Mac",
+    detail: "You’re on Windows · TOHSENO requires macOS 14+",
+  },
+  android: {
+    title: "Download for Mac",
+    detail: "You’re on Android · TOHSENO requires macOS 14+",
+  },
+  chromeos: {
+    title: "Download for Mac",
+    detail: "You’re on ChromeOS · TOHSENO requires macOS 14+",
+  },
+  linux: {
+    title: "Download for Mac",
+    detail: "You’re on Linux · TOHSENO requires macOS 14+",
+  },
+  unknown: {
+    title: "Download for Mac",
+    detail: "TOHSENO requires macOS 14 or later",
+  },
+}[system];
 
-for (const button of copyButtons) {
-  let resetTimer;
-  button.addEventListener("click", async () => {
-    const command = button.dataset.installCommand;
-    try {
-      await copyText(command);
-      window.clearTimeout(resetTimer);
-      button.querySelector("[data-install-text]").textContent =
-        "Copied — paste into Terminal";
-      button.querySelector("[data-copy-label]").textContent = "✓";
-      status.textContent = "Install command copied.";
-      resetTimer = window.setTimeout(() => resetButton(button), 1800);
-    } catch {
-      status.textContent = "Could not copy automatically. Select the command and copy it.";
-      const commandNode = button.querySelector("[data-install-text]");
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(commandNode);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  });
+for (const link of downloadLinks) {
+  link.dataset.detectedSystem = system;
+  link.querySelector("[data-download-title]").textContent = systemCopy.title;
+  link.querySelector("[data-download-detail]").textContent = systemCopy.detail;
+  link.setAttribute("aria-label", `${systemCopy.title}. ${systemCopy.detail}`);
 }

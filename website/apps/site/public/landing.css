@@ -245,7 +245,6 @@ img {
   box-shadow: var(--soft-shadow);
   color: var(--ink);
   text-align: left;
-  cursor: pointer;
   transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
@@ -255,21 +254,33 @@ img {
   transform: translateY(-2px);
 }
 
-.install code,
-.install strong {
+.download-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.download-copy strong {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
   font: 600 clamp(13px, 1.55vw, 20px) "Plex Mono", ui-monospace, monospace;
 }
 
-.install .prompt {
+.download-copy small {
+  color: var(--muted);
+  font: 500 10px/1.4 "Plex Mono", ui-monospace, monospace;
+  letter-spacing: 0.025em;
+}
+
+.download-icon {
   color: var(--coral);
   font: 600 22px "Plex Mono", ui-monospace, monospace;
 }
 
-.copy-mark,
-.install > span:last-child {
+.download-mark {
   flex: none;
   color: var(--muted);
   font: 500 10px "Plex Mono", ui-monospace, monospace;
@@ -691,19 +702,26 @@ blockquote {
   overflow: hidden;
   background: var(--cream);
   color: var(--ink);
-  cursor: pointer;
   text-align: left;
 }
 
-.steps li .step-download strong {
+.step-download-copy {
+  display: flex;
   min-width: 0;
-  overflow: hidden;
-  font: 500 11px "Plex Mono", ui-monospace, monospace;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.steps li .step-download span {
+.steps li .step-download strong {
+  font: 500 11px "Plex Mono", ui-monospace, monospace;
+}
+
+.steps li .step-download small {
+  color: var(--muted);
+  font: 500 9px/1.35 "Plex Mono", ui-monospace, monospace;
+}
+
+.steps li .step-download > span:last-child {
   flex: none;
   color: var(--coral);
   font: 500 10px "Plex Mono", ui-monospace, monospace;
@@ -784,18 +802,8 @@ footer {
   min-height: 104px;
 }
 
-.giant code {
+.giant strong {
   font-size: clamp(15px, 2.6vw, 34px);
-}
-
-.direct-download {
-  display: inline-block;
-  margin: 16px 4px 0;
-  color: #8f5948;
-  font: 500 12px "Plex Mono", ui-monospace, monospace;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 4px;
 }
 
 .footer-links {
@@ -817,19 +825,6 @@ footer {
 
 .footer-links a:hover {
   color: var(--coral);
-}
-
-.copy-status {
-  position: fixed;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
-.copy-fallback {
-  position: fixed;
-  opacity: 0;
 }
 
 @media (max-width: 900px) {
@@ -964,7 +959,7 @@ footer {
     padding: 18px 16px;
   }
 
-  .install code {
+  .download-copy strong {
     font-size: 12px;
     line-height: 1.5;
   }

@@ -392,23 +392,26 @@ still be vendored into a Shot so generated apps do not depend on a mutable
 `tohseno.com` is the public introduction to the local factory. It explains the
 App → Intent → App path, personal software, independent app ownership, the
 bounded build method, and the optional public record. Current website source
-centers a copyable `curl -fsSL https://tohseno.com/install | sh` action, with
-`/download/macos` retained as a direct DMG fallback. Both remain unavailable
-until the operator configures the immutable notarized DMG URL and exact
-SHA-256. The website does not collect an intention or create a Shot. The
+centers one ordinary `/download/macos` link. Browser platform detection labels
+it **Download for this Mac** on macOS and states the real Mac requirement on
+iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
+fallback without JavaScript remains **Download for Mac**. The route remains
+unavailable until the operator configures the immutable notarized DMG URL and
+exact SHA-256. The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
 normal landing path.
 
-The same fail-closed artifact configuration now controls `/install` and its
-`/download` alias. Once activated, they emit the interactive native installer
-used by `curl -fsSL https://tohseno.com/install | sh`: it asks for Enter or
-Escape, shows one download progress bar, and invisibly verifies SHA-256, the
-exact bundle and Developer ID Team, and Gatekeeper acceptance. It places the
-verified DMG in Downloads, prints that exact path, and reveals it in Finder so
-the person performs the familiar drag into Applications. It does not copy,
-replace, or open an application, request administrator access, or edit a shell
-profile. HEAD exposes only status/instruction headers. These routes remain
-`503` in current public configuration and are not publication evidence.
+The same fail-closed artifact configuration controls the retained `/install`
+and `/download` shell compatibility aliases. Once activated, they emit the
+interactive native installer previously used by the normal landing path: it
+asks for Enter or Escape, shows one download progress bar, and invisibly
+verifies SHA-256, the exact bundle and Developer ID Team, and Gatekeeper
+acceptance. It places the verified DMG in Downloads, prints that exact path,
+and reveals it in Finder so the person performs the familiar drag into
+Applications. It does not copy, replace, or open an application, request
+administrator access, or edit a shell profile. HEAD exposes only
+status/instruction headers. These routes remain `503` in current public
+configuration and are not publication evidence.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,

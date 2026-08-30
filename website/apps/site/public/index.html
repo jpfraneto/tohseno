@@ -45,12 +45,15 @@
       <div class="hero-bottom">
         <p class="lede">One coherent intention becomes a native application you can hold, use, evolve, and completely own.</p>
         <div class="installer-door">
-          <button class="install" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh" aria-label="Copy the TOHSENO installer command">
-            <span class="prompt" aria-hidden="true">$</span>
-            <code data-install-text>curl -fsSL https://tohseno.com/install | sh</code>
-            <span class="copy-mark" data-copy-label>Copy</span>
-          </button>
-          <p>Copy, paste into Terminal, and press Return. The installer shows you the source and exact download before asking permission.</p>
+          <a class="install" href="/download/macos" data-installer-download aria-label="Download TOHSENO for Mac">
+            <span class="download-icon" aria-hidden="true">↓</span>
+            <span class="download-copy">
+              <strong data-download-title>Download for Mac</strong>
+              <small data-download-detail>macOS 14+ · Apple silicon and Intel</small>
+            </span>
+            <span class="download-mark" aria-hidden="true">DMG</span>
+          </a>
+          <p>Download the signed, notarized installer. Open it and drag TOHSENO into Applications.</p>
         </div>
       </div>
       <div class="hero-stamp" aria-hidden="true"><img src="/tohseno-logo.png" alt=""></div>
@@ -153,7 +156,10 @@
         <li>
           <b>01</b>
           <h3>Install</h3>
-          <button class="step-download" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh"><strong data-install-text>curl -fsSL https://tohseno.com/install | sh</strong><span data-copy-label>Copy</span></button>
+          <a class="step-download" href="/download/macos" data-installer-download aria-label="Download TOHSENO for Mac">
+            <span class="step-download-copy"><strong data-download-title>Download for Mac</strong><small data-download-detail>macOS 14+ · Universal installer</small></span>
+            <span aria-hidden="true">DMG ↓</span>
+          </a>
         </li>
         <li><b>02</b><h3>Connect</h3><p>Plug your iPhone into your Mac. TOHSENO guides you through Xcode, signing, and Developer Mode.</p></li>
         <li><b>03</b><h3>Create an app</h3><p>Describe what should exist. TOHSENO keeps working when its window closes and opens the result on your phone.</p></li>
@@ -182,11 +188,15 @@
   <footer class="frame">
     <div class="footer-logo"><img src="/tohseno-logo.png" alt="TOHSENO brush circle"><h2>What should<br>exist?</h2></div>
     <div class="installer-door footer-installer">
-      <button class="install giant" type="button" data-copy-install data-install-command="curl -fsSL https://tohseno.com/install | sh" aria-label="Copy the TOHSENO installer command">
-        <span class="prompt" aria-hidden="true">$</span><code data-install-text>curl -fsSL https://tohseno.com/install | sh</code><span data-copy-label>Copy</span>
-      </button>
-      <p>Paste it into Terminal. Read the source, confirm the signed download, press Return, and TOHSENO opens.</p>
-      <a class="direct-download" href="/download/macos">Or download the notarized DMG directly</a>
+      <a class="install giant" href="/download/macos" data-installer-download aria-label="Download TOHSENO for Mac">
+        <span class="download-icon" aria-hidden="true">↓</span>
+        <span class="download-copy">
+          <strong data-download-title>Download for Mac</strong>
+          <small data-download-detail>macOS 14+ · Apple silicon and Intel</small>
+        </span>
+        <span class="download-mark" aria-hidden="true">DMG</span>
+      </a>
+      <p>Open the signed, notarized DMG and drag TOHSENO into Applications.</p>
     </div>
     <div class="footer-links">
       <span>Make the app that should exist. Use it. Then make it better.</span>
@@ -198,7 +208,6 @@
     </div>
   </footer>
 
-  <p class="copy-status" role="status" aria-live="polite"></p>
   <script src="/landing.js" defer></script>
 
 </body>

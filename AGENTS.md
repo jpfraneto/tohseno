@@ -45,6 +45,12 @@ protocol material, not free-form docs.
    is the real existing creation composer, accepts up to eight picked or
    dropped PNG/JPEG references, and offers an explicit persisted Skip beside
    Create App. It adds no second factory or command path.
+   ADR 0030 supersedes the one-line command only as the website's normal
+   consumer door: the landing page detects the visitor's system and links
+   directly to the fail-closed macOS DMG route. The immutable HTTPS artifact,
+   exact SHA-256, Developer ID, notarization, Gatekeeper, Finder handoff, and
+   publication gates remain mandatory; no release is activated by that
+   decision.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

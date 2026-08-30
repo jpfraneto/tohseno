@@ -46,7 +46,6 @@ const landingStylePath = fileURLToPath(
   new URL("../public/landing.css", import.meta.url),
 );
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
-const NATIVE_INSTALL_COMMAND = "curl -fsSL https://tohseno.com/install | sh";
 
 describe("public pages", () => {
   test("serves the warm pastel landing page", async () => {
@@ -76,11 +75,12 @@ describe("public pages", () => {
     expect(body).toContain("What should<br>exist?");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
-    expect(body.match(/data-copy-install/g)).toHaveLength(3);
-    expect(
-      body.split(`data-install-command="${NATIVE_INSTALL_COMMAND}"`).length - 1,
-    ).toBe(3);
-    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
+    expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
+    expect(body.match(/data-installer-download/g)).toHaveLength(3);
+    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(3);
+    expect(body).toContain("Download for Mac");
+    expect(body).toContain("macOS 14+");
+    expect(body).not.toContain("paste into Terminal");
     expect(body).toContain('src="/app-breathekeeper.png"');
     expect(body).toContain('src="/app-room-tone.png"');
     expect(body).toContain('src="/landing.js"');
@@ -211,9 +211,15 @@ describe("public pages", () => {
     expect(body).not.toContain('href="#"');
     const landingScript = readFileSync(landingScriptPath, "utf8");
     expect(landingScript).not.toContain("innerHTML");
-    expect(landingScript).toContain('querySelectorAll("[data-copy-install]")');
-    expect(landingScript).toContain("navigator.clipboard.writeText(text)");
-    expect(landingScript).toContain("Copied — paste into Terminal");
+    expect(landingScript).toContain('querySelectorAll("[data-installer-download]")');
+    expect(landingScript).toContain("navigator.userAgentData?.platform");
+    expect(landingScript).toContain("navigator.maxTouchPoints > 1");
+    expect(landingScript).toContain('title: "Download for this Mac"');
+    for (const system of ["iPhone", "Windows", "Android", "ChromeOS", "Linux"]) {
+      expect(landingScript).toContain(system);
+    }
+    expect(landingScript).not.toContain("navigator.clipboard");
+    expect(landingScript).not.toContain("execCommand");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toContain("@font-face");

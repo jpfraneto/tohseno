@@ -2,6 +2,12 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0030](0030-system-aware-direct-native-download.md) makes an ordinary,
+system-aware **Download for this Mac** link the canonical website installation
+door. It removes shell-command copying from the normal landing path while
+preserving the immutable DMG, exact digest, notarization, Gatekeeper, Finder,
+and fail-closed release boundaries.
+
 [ADR 0029](0029-first-shot-before-factory.md) makes TAKE A SHOT the real
 first creation surface before the factory whenever the workspace has never
 recorded a Shot. It uses the existing Return-to-send command path, accepts up
