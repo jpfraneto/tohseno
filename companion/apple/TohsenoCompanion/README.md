@@ -1,17 +1,17 @@
-# TOHSENO Companion 1.0.2
+# TOHSENO Companion 1.1.0
 
-The iPhone app. It is a beautiful remote control for intent, not a mobile
-TOHSENO: the Mac remains the factory, and this app implements no second
+The iPhone app. It is the human authority and remote control, not a mobile
+factory: the Mac remains the factory, and this app implements no second
 protocol, no second backend, no second synchronization mechanism, and no mobile
 coding harness. Everything it does goes through the released
 `sdk/apple/TohsenoCompanionKit`.
 
 ```text
-Your Apps (a compact adaptive icon grid)
-    └─ Choose adopted app → What should change? → Evolve
+Apps · Registry · Profile
+  Apps     → Create / choose app / Evolve
+  Registry → exact public release → Install or Fork
+  Profile  → DeviceKey-signed profile / permissioned alias request
 ```
-
-That is the whole product.
 
 ## Layout
 
@@ -47,9 +47,8 @@ encrypted workspace projection and reports when the Mac cannot be reached.
 Opening an app uses native stack navigation, including the iPhone's standard
 left-edge swipe to return to Your Apps, and never submits a build.
 
-Generated-app creation remains a compatibility route in the model/SDK, but is
-not a primary Companion destination. The normal phone action starts from an
-app already adopted on the Mac. Its evolution composer includes native speech
+Generated-app creation is one clear Companion action routed to the same Mac
+factory. The evolution composer includes native speech
 recognition and screenshot attachments; spoken text stays editable and a
 failed transcription is never reported as success.
 
@@ -74,9 +73,22 @@ No feedback-saving step. No version picker. No execution configuration. The
 screen says that opening is read-only; only the explicit Evolve App button
 sends one request. It stays disabled while that app already has work in flight.
 
-The encrypted private entitlement projection can replace the app with the Pro
-decision or trial-ended screen. Checkout is completed on the Mac; no payment
-data or billing history is sent to this app.
+Legacy entitlement projections remain decodable but do not replace the current
+person-to-person product or gate local/BYO execution.
+
+**Registry.** The phone browses real catalog releases and opens one exact
+ShotID/release digest. Install and Fork queue a signed, encrypted,
+replay-protected command containing only those identifiers and the bounded
+action. The Mac independently resolves and verifies the official release; the
+phone never supplies an executable URL or source tree.
+
+**Profile.** A separate P-256 Builder DeviceKey is created with the strongest
+this-device-only Secure Enclave/Keychain mechanism. Its private scalar never
+leaves the iPhone and is not a pairing, recovery, installation, or Apple
+signing key. Publication approval displays the complete bounded release/action
+summary, recomputes digests, and signs only after the person's explicit tap.
+Public profile updates and alias claims use the same exact-digest, low-s P-256
+boundary; aliases remain pending until explicit server policy review.
 
 ## What one tap means
 
@@ -134,11 +146,14 @@ promises — one tap sends exactly one command, an empty box cannot be sent, an
 unreachable Mac is not an error, a busy Mac just waits, a refusal becomes one
 human sentence, and pairing lands directly in Your Apps. Crypto, envelopes,
 durability, and reconciliation stay covered by the SDK's own tests rather than
-being re-tested here.
+being re-tested here. The SDK tests additionally cover Builder DeviceKey,
+publication canonicalization, active-generation digest interoperability, and
+durable Install/Fork commands; the website Registry tests consume compatible
+P-256 canonical payloads.
 
 ## Not in this app
 
-Shots, Expressions, Versions, executions, command identifiers, capabilities,
-relay terminology, synchronization internals, and cryptographic identity are
-all real underneath and none of them are shown. There is no source browser, no
-build log, no model picker, and no chat.
+Expressions, Versions, executions, command identifiers, capabilities, relay
+terminology, and synchronization internals are not normal UI. Shot/release and
+Builder trust facts appear only where needed for public Registry and Profile.
+There is no source browser, build log, model picker, or chat on the phone.

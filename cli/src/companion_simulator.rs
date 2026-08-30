@@ -982,6 +982,7 @@ fn apply_event(
         | WorkspaceEventPayload::ExecutionUpdated { .. }
         | WorkspaceEventPayload::ExecutionWaitingForDevice { .. }
         | WorkspaceEventPayload::IconBlob { .. }
+        | WorkspaceEventPayload::PublicationApprovalRequested { .. }
         | WorkspaceEventPayload::DeviceRevoked { .. } => {}
     }
     state.snapshot.validate()?;

@@ -1,11 +1,12 @@
-# Tohseno living-connection architecture
+# Tohseno person-to-person native software architecture
 
-This is the concrete runtime map for the private iPhone-to-Mac factory. It is
+This is the concrete runtime map for the public network and private iPhone-to-Mac factory. It is
 descriptive, not protocol authority: [`protocol/`](../protocol/) and the
 accepted [ADRs](adr/README.md) win if this document disagrees with them.
 
-ADR 0033 adds a private adopted-project boundary without changing public
-protocol encodings. The primary implemented path is:
+ADR 0034 connects ADR 0033's private adopted-project boundary to a signed
+public source catalog without changing frozen protocol encodings or the
+deployed generation-0.8 ABI. The primary implemented paths are:
 
 ```text
 Native SwiftUI Tohseno.app -> Adopt existing Xcode project
@@ -17,17 +18,30 @@ Persistent Rust Local Workspace Service
         v
 LivingProjectService → harness → xcodebuild/codesign/devicectl/verify
         |                                  |
-        +── private versioned history      +── exactly one resolved owner iPhone
+       +── private versioned history      +── exactly one resolved owner iPhone
+
+Builder Companion DeviceKey -> signed catalog + Registry authorization
+        |                                      |
+        v                                      v
+Mac deterministic source snapshot -> public Registry/catalog/blob service
+                                                |
+                         immutable Shot/release link
+                                                |
+                                                v
+Recipient Companion request -> recipient Mac verifies chain/receipt/source
+                                                |
+                                                v
+                                Xcode build + recipient signing + iPhone
 ```
 
-The existing `ShotApplicationService → Engine` remains the generated-app
-factory and public-record compatibility path. It is not used to fabricate a
-protocol Shot identity for arbitrary adopted source.
+The existing `ShotApplicationService → Engine` remains the one generated-app
+factory. Existing source starts a truthful new local root at `tohseno init`;
+it does not receive fabricated historical lineage.
 
-The browser Studio and CLI remain support/recovery clients. Companion and its
-encrypted relay are the normal phone request path for adopted projects. External signing,
-notarization, publication, physical-device checks, and service activation are
-still separate release evidence; source existence does not imply them.
+The native app and CLI are Mac clients. Companion and its encrypted relay are
+the normal human authorization path. Apple release signing/notarization,
+physical-device checks, on-chain publication, and service activation remain
+separate evidence; source existence does not imply any of them.
 
 ```text
 iPhone Companion
@@ -44,8 +58,10 @@ iPhone Companion
        exact adopted source folder / private project record
 ```
 
-The iPhone is the wand. The Mac is the factory. The relay is a bounded opaque
-mailbox; it is neither a factory nor an authority over a project or Shot.
+The Companion is the human's Tohseno authority. The Mac is the factory. The
+Registry is the shared public witness and discovery layer. The relay is a
+bounded opaque mailbox; it is neither a factory nor an authority over a
+project or Shot.
 
 ## Runtime components
 
@@ -83,6 +99,41 @@ successfully, a signed generic-iOS Xcode build and codesign gate must pass.
 CoreDevice installation is attempted only against exactly one reachable
 iPhone; the exact bundle must appear in inventory before the state can become
 Installed. The saved artifact and retry state survive service/Mac restart.
+
+### Public release, catalog, and recipient execution
+
+[`network/`](../network/) owns the closed `tohseno.catalog-release/1` model,
+deterministic sanitized tar creation/extraction, narrow Xcode build-safety
+classifier, and exact public release evidence verifier. The catalog signature
+binds source bytes and tree, build recipe, permissions, optional immutable fork
+parent, active generation, ShotID, BuilderID, checkpoint sequence, and public
+checkpoint digest. It contains no private intention, absolute path, prompt,
+Apple credential, or installation fact.
+
+[`cli/src/network_commands.rs`](../cli/src/network_commands.rs) implements
+`init`, `deploy`, `status`, `install`, and `fork`. Publication jobs and
+Companion approvals are private durable records. Receive accepts only official
+Tohseno links/IDs, verifies active activation and deployed runtime hashes, live
+BuilderAccount key authority, exact transaction receipt/block/event, current
+Registry head, manifest signature, and source digest before safe extraction.
+An install-only import cannot become a new public Shot; a fork gets a new
+random ShotID and retains the exact signed parent release.
+
+[`website/apps/site/src/registry.ts`](../website/apps/site/src/registry.ts)
+provides the durable catalog, private expiring staging, immutable blob
+transport, verified receipt metadata, signed Builder profiles, permissioned
+alias requests, and the constrained transaction state machine. The operator
+store is not authority. Release finalization reads fresh chain state, and Mac
+clients verify it again.
+
+Recipient build and signing stay in
+[`cli/src/living_project.rs`](../cli/src/living_project.rs). Green sources can
+build automatically; named non-Green behavior requires an explicit Mac review,
+and unsupported behavior never enters `xcodebuild`. The build uses the
+recipient's locally selected development team and a recipient-local bundle
+namespace. Installed means `devicectl` succeeded and exact bundle inventory on
+one physical iPhone agrees. Repeating the same exact install refreshes local
+signing without AI or a Registry mutation.
 
 ### First open, readiness, and distribution
 
@@ -263,6 +314,9 @@ roots.
 | Installed factory programs | `~/.tohseno/releases/`, `current`, and stable `bin/` | native/legacy installer | app and service restart; rollback preserves prior selection |
 | Intelligence configuration | `~/.tohseno/service/intelligence-v1.json` plus optional Keychain references | Local Workspace Service | service and Mac restart |
 | Managed balance authority | configured server `MANAGED_COMPUTE_ROOT` | website managed service | process restart and operator backup/restore |
+| Local network imports and delivery evidence | `~/.tohseno/service/living-projects-v1/` and visible `~/Developer/Tohseno/` source | Local Workspace Service | service/Mac restart; owner source remains visible |
+| Publication approval jobs | `~/.tohseno/service/network-publications-v1/` | Mac + Companion signatures | service/Mac/phone reconnect |
+| Public catalog, staging, blobs, profiles, alias requests | configured durable `REGISTRY_ROOT` | Registry service; signed/chain facts remain independently verifiable | process restart and operator backup/restore |
 
 On service startup, command recovery runs before the loopback listener opens.
 A prepared execution is started; a live detached runner is reattached; a
@@ -273,13 +327,15 @@ second intelligence pass over unknown partial mutations.
 
 ## Repository map and authority
 
-The current private core is:
+The current product core is:
 
 - `macos/Tohseno/` — primary native Mac projection and packaging.
 - `companion/apple/TohsenoCompanion/` — primary phone request projection.
 - `sdk/apple/TohsenoCompanionKit/` and `companion/` — Swift/Rust private wire,
   cryptography, state, and conformance vectors.
 - `website/apps/companion-relay/` — content-blind internet mailbox.
+- `network/` and `website/apps/site/src/registry.ts` — public release model,
+  sanitized source transport, catalog, verifier, and constrained relayer.
 - `cli/`, `application/`, and `engine/` — Local Workspace Service, durable
   application boundary, and Mac factory.
 - `studio/` — thin local UI served by the service.

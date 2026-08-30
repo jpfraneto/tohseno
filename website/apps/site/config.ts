@@ -21,6 +21,23 @@ export interface AppConfig {
   billing: BillingConfig;
   managed: ManagedConfig;
   distribution: DistributionConfig;
+  registry: RegistryConfig;
+}
+
+export interface RegistryConfig {
+  enabled: boolean;
+  root?: string;
+  rpcUrl?: string;
+  chainId: 4663;
+  factoryAddress: `0x${string}`;
+  registryAddress: `0x${string}`;
+  activationSigningDigest: `0x${string}`;
+  globalRequestsPerMinute: number;
+  sourceRequestsPerMinute: number;
+  maxStagingRecords: number;
+  maxStagingBytes: number;
+  relayerEnabled: boolean;
+  relayerPrivateKey?: `0x${string}`;
 }
 
 export interface DistributionConfig {
@@ -263,6 +280,32 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     }
   }
 
+  const registryEnabled = parseBoolean("REGISTRY_ENABLED", env.REGISTRY_ENABLED, false);
+  const registryRoot = env.REGISTRY_ROOT;
+  const registryRpcUrl = env.ROBINHOOD_RPC_URL;
+  const registryRelayerEnabled = parseBoolean(
+    "REGISTRY_RELAYER_ENABLED",
+    env.REGISTRY_RELAYER_ENABLED,
+    false,
+  );
+  if (registryEnabled) {
+    if (!registryRoot?.startsWith("/")) {
+      throw new Error("REGISTRY_ROOT must be an explicit absolute path when the Registry is enabled");
+    }
+    let rpc: URL;
+    try { rpc = new URL(registryRpcUrl ?? ""); }
+    catch { throw new Error("ROBINHOOD_RPC_URL must be an absolute HTTPS URL"); }
+    if (rpc.protocol !== "https:" || rpc.username || rpc.password || rpc.hash) {
+      throw new Error("ROBINHOOD_RPC_URL must be an HTTPS URL without credentials or a fragment");
+    }
+  }
+  if (registryRelayerEnabled) {
+    if (!registryEnabled) throw new Error("REGISTRY_ENABLED must be true before its relayer can be enabled");
+    if (!/^0x[0-9a-f]{64}$/.test(env.REGISTRY_RELAYER_PRIVATE_KEY ?? "")) {
+      throw new Error("REGISTRY_RELAYER_PRIVATE_KEY must be one dedicated lowercase private key");
+    }
+  }
+
   return {
     nodeEnv,
     port,
@@ -314,6 +357,21 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       macosUrl: env.MACOS_DOWNLOAD_URL,
       macosSha256: env.MACOS_DOWNLOAD_SHA256,
     },
+    registry: {
+      enabled: registryEnabled,
+      root: registryRoot,
+      rpcUrl: registryRpcUrl,
+      chainId: 4663,
+      factoryAddress: "0xb1bd208cd2af98e701f43d06aaa889d3a594df65",
+      registryAddress: "0x3fe6508ba2660bc575080024f402c192a2e035a0",
+      activationSigningDigest: "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28",
+      globalRequestsPerMinute: parsePositiveInteger("REGISTRY_GLOBAL_RATE", env.REGISTRY_GLOBAL_RATE, 1_200),
+      sourceRequestsPerMinute: parsePositiveInteger("REGISTRY_SOURCE_RATE", env.REGISTRY_SOURCE_RATE, 120),
+      maxStagingRecords: parsePositiveInteger("REGISTRY_MAX_STAGING_RECORDS", env.REGISTRY_MAX_STAGING_RECORDS, 1_000),
+      maxStagingBytes: parsePositiveInteger("REGISTRY_MAX_STAGING_BYTES", env.REGISTRY_MAX_STAGING_BYTES, 10 * 1024 * 1024 * 1024),
+      relayerEnabled: registryRelayerEnabled,
+      relayerPrivateKey: env.REGISTRY_RELAYER_PRIVATE_KEY as `0x${string}` | undefined,
+    },
   };
 }
 
@@ -348,5 +406,7 @@ export function safeStartupSummary(
     managedComputeProvider: config.managed.enabled ? config.managed.provider : "disabled",
     macosDownloadEnabled: config.distribution.macosEnabled,
     macosDownloadChannel: config.distribution.macosChannel,
+    registryEnabled: config.registry.enabled,
+    registryRelayerEnabled: config.registry.relayerEnabled,
   };
 }

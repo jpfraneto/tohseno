@@ -3,6 +3,14 @@ import XCTest
 @testable import TohsenoCompanionKit
 
 final class CryptoTests: XCTestCase {
+    func testActiveBuilderIDUsesTheExactCAIP10Width() {
+        let valid = "eip155:4663:0x" + String(repeating: "1", count: 40)
+        XCTAssertEqual(valid.count, 54)
+        XCTAssertTrue(PublicationApprovalRequest.isActiveBuilderID(valid))
+        XCTAssertFalse(PublicationApprovalRequest.isActiveBuilderID(valid + "1"))
+        XCTAssertFalse(PublicationApprovalRequest.isActiveBuilderID(valid.uppercased()))
+    }
+
     func testLocalNetworkHTTPRelayRequiresAnExplicitDevelopmentAllowance() throws {
         let localURL = URL(string: "http://tohseno-mac.local:3100")!
         XCTAssertThrowsError(try RelayEndpoint(id: "official-v1", baseURL: localURL))

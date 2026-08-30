@@ -3,7 +3,8 @@
 This document applies to the coherent-intention lineage protocol, the Local
 Workspace Service, Studio, the private Companion channel and relay, the local
 Apple factory, portable Shot bundles, protocol nodes, and the optional public
-contracts. It describes security claims the implementation can test. It does
+contracts, signed public catalog, immutable source service, and constrained
+generation-0.8 relayer. It describes security claims the implementation can test. It does
 not treat an LLM, a device, a relay, a node, a chain, or a signed artifact as
 inherently trusted.
 
@@ -22,6 +23,9 @@ Protected assets:
 - availability and integrity of the Local Workspace Service command journal;
 - integrity and causal order of signed lineage and public-checkpoint evidence;
 - honest artifact availability and verification evidence.
+- the Companion-held non-exportable Builder DeviceKey and signed public
+  release/profile/alias authorization;
+- exact public source bytes and recipient-local build/sign/install evidence.
 
 Principal boundaries:
 
@@ -41,6 +45,10 @@ Principal boundaries:
 - off-chain lineage ↔ optional chain anchor;
 - Shot identity ↔ optional token relation;
 - current schema ↔ legacy records and imported bundles.
+- Builder Companion ↔ Mac publication job ↔ constrained relayer;
+- on-chain Registry witness ↔ signed off-chain catalog and immutable blob;
+- public link ↔ recipient Companion request ↔ independent Mac verification ↔
+  recipient Xcode and physical iPhone.
 
 ## Claims
 
@@ -52,6 +60,69 @@ available, it can prove that the signer was authorized for that action.
 TOHSENO cannot prove that an intention is subjectively coherent, that feedback
 is sincere, that generated source is universally safe, that unavailable data
 exists, or that an authorized owner made a wise decision.
+
+## Person-to-person invariants
+
+1. No release is discoverable without a valid Companion-held Builder DeviceKey
+   signature and current BuilderAccount authorization.
+2. Neither Mac nor server can forge a Builder publication.
+3. Companion commands carry only bounded ShotID/release/action facts; the Mac
+   resolves the official release independently and never executes a supplied
+   arbitrary URL.
+4. Signed artifact SHA-256, bounded extraction, and recomputed source-tree
+   commitment prevent catalog substitution and path escape.
+5. A release becomes visible only after exact transaction receipt, canonical
+   block, Registry event, current head/sequence, and public checkpoint agree.
+6. Public checkpoints never contain source, intention, artifact, private
+   lineage, installation, or end-user facts.
+7. One-tap automatic build is limited to the Green profile. Named review cases
+   need explicit local review; unsupported cases never enter `xcodebuild`.
+8. Apple credentials stay in local Apple tooling. Installed requires exact
+   bundle inventory on the intended physical iPhone.
+9. Refresh changes local signing/provisioning only and creates no release or
+   Registry action.
+10. Aliases cannot change Shot identity. Fork gets a new random ShotID and
+    never reuses parent authority.
+
+### Public catalog and executable-source boundary
+
+Threat: Mac or server alters a release, substitutes bytes, exposes staged
+source early, or invents a receipt.
+
+Controls: Companion signs the canonical closed release, including source
+digest/tree/build recipe/permissions and exact checkpoint. Staging uses opaque
+capability, owner-only atomic storage, exact declared length, streaming digest,
+short TTL, cleanup, and record/byte/rate limits. Finalization independently
+checks the successful active-Registry receipt, block, event, current head and
+authorized DeviceKey before atomically promoting content-addressed bytes. The
+server revalidates canonical block and live authority before public discovery,
+so a reorg or revoked DeviceKey removes stale evidence from normal reads. The
+publishing and receiving Macs repeat static, chain, receipt, runtime-code, and
+source verification rather than trusting the server's completion response.
+
+Threat: downloaded Xcode source executes arbitrary build-time code or escapes
+its destination.
+
+Controls: deterministic tar permits only normalized bounded regular files and
+directories; secret paths/content, symlinks, hard links, special files,
+traversal, collisions, and excessive trees fail closed. The Green classifier
+requires an ordinary app target and refuses scripts, build rules, unverified or
+unpinned package/plugin behavior, custom executables, extensions, and
+unsupported entitlements. Signed dependency-lock digests are recomputed from
+the extracted snapshot before any build. Source remains visible for review; no
+downloaded source is silently rewritten.
+
+Threat: profile or scarce alias becomes an alternate identity or hoarding
+primitive.
+
+Controls: profiles are closed, canonical, low-s P-256 signed, bound to current
+BuilderAccount key authority, and monotonic by nonce. Builder handles are
+unique metadata; app slugs are unique only inside one Builder namespace.
+External attestations fail closed until an official provider verifier is
+configured and therefore cannot be self-asserted. Global alias requests require
+an existing installable Shot, current Builder authorization, expiry,
+replay-resistant request ID, rate limits, audit storage, and explicit policy
+review. Canonical `/s/<ShotID>` resolution never depends on an alias.
 
 ## Threats and controls
 
@@ -761,9 +832,10 @@ builds and must never be set in a production LaunchAgent.
 - Treat absence and partial replication as normal, not as validation failure.
 - Never construct a public checkpoint or on-chain record from a genome,
   intention, feedback, private material, or a digest derived from those values.
-- This source tree has no deployment command. Do not deploy these contracts.
-  Any future workflow requires separate review, exact human authorization, and
-  the actual-target EIP-7951 hard gate immediately before broadcast.
+- This source tree has no contract-generation deployment command. Do not
+  redeploy generation 0.8. Ordinary publication may use only the constrained
+  active-generation factory/Registry relayer after exact Companion approval;
+  any other broadcast requires separate review and authorization.
 - Preserve failed materialization evidence privately; never advance canonical
   version state on failure.
 

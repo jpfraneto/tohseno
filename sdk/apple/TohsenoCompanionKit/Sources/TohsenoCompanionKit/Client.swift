@@ -459,6 +459,57 @@ public actor TohsenoCompanionClient {
         try await queue(commandID: commandID, payload: .workspaceSnapshotRequest)
     }
 
+    /// Share only the Builder DeviceKey's public coordinates with the paired
+    /// Mac. This never uses or exports the Builder private scalar.
+    public func announceBuilderDevice(
+        _ builderDevice: BuilderDeviceAnnouncement,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try builderDevice.validate(allowSoftwareTest: builderDevice.testOnly)
+        return try await queue(
+            commandID: commandID,
+            payload: .builderIdentityAnnounce(builderDevice: builderDevice)
+        )
+    }
+
+    /// Return the two exact signatures produced only after the app has shown
+    /// and explicitly approved one structured publication request.
+    public func approvePublication(
+        jobID: String,
+        catalog: BuilderDeviceSignature,
+        registry: BuilderDeviceSignature,
+        approvedAt: String,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try await queue(
+            commandID: commandID,
+            payload: .publicationApprove(
+                jobID: jobID,
+                catalog: catalog,
+                registry: registry,
+                approvedAt: approvedAt
+            )
+        )
+    }
+
+    /// Ask the paired Mac to resolve and verify one exact immutable release.
+    /// No arbitrary URL crosses the private command boundary.
+    public func requestNetworkRelease(
+        action: NetworkReleaseAction,
+        shotID: String,
+        releaseDigest: String,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try await queue(
+            commandID: commandID,
+            payload: .networkReleaseRequest(
+                action: action,
+                shotID: shotID,
+                releaseDigest: releaseDigest
+            )
+        )
+    }
+
     public func reconcile() async throws {
         await enterReconciliation()
         defer { leaveReconciliation() }
@@ -1111,7 +1162,8 @@ public actor TohsenoCompanionClient {
             workspace = workspace.updatingExecution(execution)
         case let .executionCompleted(execution), let .executionFailed(execution):
             workspace = workspace.updatingExecution(execution, terminal: true)
-        case .productEntitlement, .commandAcknowledged, .commandRejected, .deviceRevoked:
+        case .productEntitlement, .commandAcknowledged, .commandRejected, .deviceRevoked,
+             .publicationApprovalRequested:
             break
         case .workspaceSnapshot:
             break

@@ -5,6 +5,11 @@ is not release evidence. The public download stays disabled until the exact
 candidate has been signed with Developer ID, notarized, stapled, independently
 verified, uploaded, and activated by digest.
 
+For 1.1.0, perform this artifact ceremony inside the ordering and production
+acceptance defined by
+[`PERSON_TO_PERSON_NETWORK.md`](PERSON_TO_PERSON_NETWORK.md). Historical 1.0.2
+candidate evidence cannot authorize or describe a 1.1.0 artifact.
+
 ## Build an unsigned candidate
 
 Use a clean checkout on a supported Mac with Xcode, Swift 6, Rust, both Apple

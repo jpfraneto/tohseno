@@ -1,19 +1,20 @@
 # The living connection
 
-This is the implementation and local acceptance guide for ADR 0033. It is
+This is the implementation and acceptance guide for ADRs 0033 and 0034. It is
 descriptive; `protocol/` remains authoritative over public encodings.
 
 ## Product boundary
 
-Tohseno connects one person's native iPhone app to its source project on their
-Mac, the intent/history explaining it, one configured coding harness, the
-Companion request surface, and the Apple build/install return path.
+Tohseno connects a person's native iPhone app to its exact Mac source and can,
+only through a separate explicit Ship action, make one immutable release travel
+to another person. Private evolution history stays private. Public release
+contains sanitized source, a closed build recipe and permission declaration,
+Companion-held Builder authorization, and generation-0.8 Registry evidence.
 
-It does not require an adopted project to become a protocol Shot, rewrite its
-repository, publish it, commit it, push it, deploy it, collect Apple
-credentials, install on strangers' phones, or expose raw prompts/logs on the
-normal phone path. The generated Shot factory, CLI, local Registry, and browser
-Studio remain secondary compatibility/support surfaces.
+Adoption and evolution never rewrite Git, commit, push, publish, or expose raw
+prompts/logs implicitly. Publication is separate and deliberate. Recipient
+installation keeps Apple credentials in Xcode and signs locally for the
+recipient's own phone.
 
 ## Adopt a project
 
@@ -134,6 +135,36 @@ Tohseno cannot honestly perform these Apple-controlled actions:
 
 Apple credentials are never entered into Tohseno.
 
+## Ship and receive
+
+From an existing project, `tohseno init` reserves a stable random candidate
+ShotID and ends with `Ready. Next: tohseno deploy`. Deploy deterministically
+excludes VCS internals, build products, user data, private Tohseno state,
+environment files, Apple material, and known secret paths. Symlinks, special
+files, traversal, Unicode collisions, oversized content, and high-confidence
+secret findings fail closed.
+
+Companion receives the complete structured catalog release and Registry action,
+recomputes both digests, verifies the active factory-derived BuilderID, shows a
+bounded human summary, and signs only after explicit approval. The durable Mac
+job stages exact source, asks the constrained relayer to deploy the predicted
+BuilderAccount if necessary and submit only the permitted Registry action, and
+does not return the link until the public catalog verifies the receipt and
+current head.
+
+Install and Fork requests cross the same private signed/encrypted Companion
+boundary. The Mac receives only ShotID, exact release digest, and action; it
+resolves the official URL itself. It verifies activation, contract runtime,
+Builder authority, receipt, event, current head, catalog signature, artifact
+digest, safe extraction, source tree, and build classification. Green source
+may build automatically. Review source is visible and needs the explicit
+**I Reviewed the Source — Build** action. Unsupported source never builds.
+
+Install signs a stable recipient-local bundle with the recipient's Xcode team.
+Fork reserves a separate random child ShotID and records the immutable parent.
+Repeating Install for the same release performs a no-AI signing refresh and
+records the observed embedded provisioning expiration.
+
 ## Run locally
 
 Build/test the Mac app and launch its Swift package executable:
@@ -183,6 +214,19 @@ cryptographic admission/revocation, durable outbox replay, routing,
 state-machine transitions, harness command construction, Xcode/install error
 classification, storage round trips, and UI models. Simulator builds validate
 Apple project compilation; they do not prove signing or physical installation.
+
+The isolated public-network harness is:
+
+```sh
+./scripts/test-network-e2e.sh
+```
+
+It exercises real generation-0.8 contract fixtures, P-256-controlled register
+and append, deterministic source round-trip and unsafe-source refusal, narrow
+build classification, a real unsigned Xcode build, signed catalog staging and
+promotion, discovery, signed profile/alias requests, and separate recipient
+fork identity. It uses test keys and a chain verifier only at explicit external
+boundaries; production code has no fake-success branch.
 
 ## Current limitations and next remote milestone
 

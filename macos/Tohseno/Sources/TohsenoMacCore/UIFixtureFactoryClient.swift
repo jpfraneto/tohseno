@@ -111,6 +111,8 @@ public actor UIFixtureFactoryClient: FactoryServing {
     public func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate { throw FactoryClientError.transport("UI fixture") }
     public func managedCheckout(packID: String) async throws -> ManagedCheckout { throw FactoryClientError.transport("UI fixture") }
     public func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot { throw FactoryClientError.transport("UI fixture") }
+    public func deploy(projectID: String) async throws -> PublicationPreparationView { throw FactoryClientError.transport("UI fixture") }
+    public func receiveNetworkRelease(shotID: String, releaseDigest: String, action: NetworkReceiveAction, approveMacReview: Bool) async throws -> NetworkReceiveView { throw FactoryClientError.transport("UI fixture") }
     public func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
     public func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult {
         throw FactoryClientError.transport("UI fixture")

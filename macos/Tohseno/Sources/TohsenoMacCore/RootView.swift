@@ -85,9 +85,12 @@ public struct TohsenoRootView: View {
                     Label("Create App", systemImage: "plus.circle")
                         .tag(AppRoute.create)
                         .accessibilityIdentifier("create-app.sidebar")
-                    Label("Local Records", systemImage: "point.3.connected.trianglepath.dotted")
+                    Label("Registry", systemImage: "point.3.connected.trianglepath.dotted")
                         .tag(AppRoute.registry)
                         .accessibilityIdentifier("registry.sidebar")
+                    Label("Profile", systemImage: "person.crop.circle")
+                        .tag(AppRoute.profile)
+                        .accessibilityIdentifier("profile.sidebar")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -108,6 +111,8 @@ public struct TohsenoRootView: View {
                 LibraryEmptyView(adopt: chooseProject) { model.route = .create }
             case .registry:
                 RegistryView(model: model)
+            case .profile:
+                ProfileView(model: model)
             case .create:
                 CreationView(model: model)
             case .app:
@@ -347,7 +352,7 @@ private struct RegistryView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Registry").font(.largeTitle.bold())
-                    Text("Apps on this Mac, with published apps added only when the public Registry can verify them.")
+                    Text("Native apps published by people, verified against their signed source and current chain head.")
                         .foregroundStyle(TohsenoTheme.silver)
                 }
 
@@ -360,8 +365,7 @@ private struct RegistryView: View {
                             .foregroundStyle(TohsenoTheme.silver)
                     }
                 } else if let snapshot = model.registrySnapshot {
-                    builders(snapshot)
-                    publishedApps(snapshot.network)
+                    publishedApps(snapshot)
                     appsOnThisMac(snapshot.records)
                 } else {
                     ContentUnavailableView {
@@ -471,28 +475,78 @@ private struct RegistryView: View {
         }
     }
 
-    private func publishedApps(_ status: RegistryNetworkStatus) -> some View {
+    private func publishedApps(_ snapshot: RegistrySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Published apps").font(.title2.weight(.semibold))
-            HStack(alignment: .top, spacing: 13) {
-                Image(systemName: status.rpcChecked ? "network" : "network.slash")
-                    .font(.title2)
+            if let message = model.networkActionMessage {
+                Label(message, systemImage: "arrow.triangle.2.circlepath")
+                    .font(.subheadline)
                     .foregroundStyle(TohsenoTheme.amber)
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(status.rpcChecked ? "Public Registry checked" : "Public Registry not connected")
-                        .font(.headline)
-                    Text("No public app catalog is available in this build.")
-                        .foregroundStyle(TohsenoTheme.silver)
-                    Text(status.reason)
-                        .font(.caption)
-                        .foregroundStyle(TohsenoTheme.silver)
-                }
-                Spacer()
             }
-            .padding(18)
-            .background(TohsenoTheme.carbon)
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            if let review = model.networkReview {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Requires review on your Mac", systemImage: "exclamationmark.shield")
+                        .font(.headline)
+                    Text(review.reasons).font(.caption).foregroundStyle(TohsenoTheme.silver)
+                    Button("I Reviewed the Source — Build") {
+                        Task { await model.approveNetworkReview() }
+                    }
+                    .buttonStyle(PrimaryActionStyle())
+                    .disabled(model.isSubmitting)
+                }
+                .padding(16).background(TohsenoTheme.carbon)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(TohsenoTheme.amber))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            Group {
+                if snapshot.published.isEmpty {
+                HStack(alignment: .top, spacing: 13) {
+                    Image(systemName: snapshot.network.ready ? "network" : "network.slash")
+                        .font(.title2).foregroundStyle(TohsenoTheme.amber)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(snapshot.network.ready ? "The catalog is reachable" : "Public Registry not connected")
+                            .font(.headline)
+                        Text(snapshot.network.reason).foregroundStyle(TohsenoTheme.silver)
+                    }
+                }
+                .padding(18).background(TohsenoTheme.carbon)
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                } else {
+                    ForEach(snapshot.published) { app in
+                    HStack(alignment: .top, spacing: 14) {
+                        Image(systemName: "app.dashed").font(.title).foregroundStyle(TohsenoTheme.amber)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(app.release.display.name).font(.headline)
+                            Text(app.release.display.description).foregroundStyle(TohsenoTheme.silver).lineLimit(3)
+                            Label("Signed checkpoint \(app.release.checkpointSequence)", systemImage: "signature")
+                                .font(.caption).foregroundStyle(TohsenoTheme.amber)
+                            Text("Fresh chain state is verified on Install or Fork.")
+                                .font(.caption2).foregroundStyle(TohsenoTheme.silver)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 8) {
+                            Button("Install") {
+                                Task { await model.receive(app, action: .install) }
+                            }
+                            .buttonStyle(PrimaryActionStyle())
+                            .disabled(model.isSubmitting)
+                            if app.release.permissions.forkAllowed {
+                                Button("Fork") {
+                                    Task { await model.receive(app, action: .fork) }
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(model.isSubmitting)
+                            }
+                            Link("Details", destination: URL(string: "https://tohseno.com\(app.route)")!)
+                                .font(.caption)
+                        }
+                    }
+                    .padding(18).background(TohsenoTheme.graphite)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+            }
             .accessibilityIdentifier("registry.public-status")
         }
     }
@@ -554,6 +608,56 @@ private struct RegistryMetric: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value).font(.title3.weight(.semibold))
             Text(label).font(.caption).foregroundStyle(TohsenoTheme.silver)
+        }
+    }
+}
+
+private struct ProfileView: View {
+    @Bindable var model: TohsenoAppModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Profile").font(.largeTitle.bold())
+                    Text("Your public Builder identity is controlled by the Secure Enclave key on Tohseno Companion.")
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                VStack(alignment: .leading, spacing: 14) {
+                    Label(
+                        model.pairedCompanionDevices.isEmpty
+                            ? "Connect Tohseno Companion to become a Builder"
+                            : "Builder authority lives on your iPhone",
+                        systemImage: model.pairedCompanionDevices.isEmpty
+                            ? "iphone.gen3.slash" : "iphone.gen3.badge.play"
+                    )
+                    .font(.title2.weight(.semibold))
+                    Text("This Mac prepares source and builds. It cannot publish without the human approval and DeviceKey signature produced on Companion.")
+                        .foregroundStyle(TohsenoTheme.silver)
+                    if model.pairedCompanionDevices.isEmpty {
+                        Button("Connect Companion") { Task { await model.beginCompanionPairing() } }
+                            .buttonStyle(PrimaryActionStyle())
+                    }
+                }
+                .padding(22).background(TohsenoTheme.graphite)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                if let snapshot = model.registrySnapshot {
+                    HStack(spacing: 34) {
+                        RegistryMetric(value: "\(snapshot.published.count)", label: "network releases visible")
+                        RegistryMetric(value: "\(snapshot.records.count)", label: "private apps on this Mac")
+                        RegistryMetric(value: snapshot.network.activeGeneration, label: "contract generation")
+                    }
+                    .padding(22).background(TohsenoTheme.carbon)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
+                }
+            }
+            .frame(maxWidth: 820, alignment: .leading).padding(40)
+        }
+        .background(TohsenoTheme.void)
+        .task {
+            await model.refreshCompanionDevices()
+            await model.refreshRegistry()
         }
     }
 }
@@ -1238,6 +1342,11 @@ private struct AppWorkspaceView: View {
                         .accessibilityIdentifier("app.open-on-iphone")
                 }
                 Button("Details…", action: details)
+                Spacer()
+                Button("Ship…") { Task { await model.ship(app) } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.isSubmitting || app.presentation.state.isInFlight)
+                    .accessibilityIdentifier("app.ship")
             }
         }
     }

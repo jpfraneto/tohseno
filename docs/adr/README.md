@@ -2,6 +2,13 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0034](0034-person-to-person-native-software.md) makes Tohseno the
+person-to-person native software network: the Mac remains the factory, the
+Companion owns Builder publication authority, generation 0.8 remains the
+public checkpoint witness, and a signed content-addressed catalog carries
+buildable source between people. It adds no contract generation and preserves
+Apple's signing, Xcode, Trust, Developer Mode, and physical-install truth.
+
 [ADR 0033](0033-living-project-connection.md) makes the durable connection
 between an iPhone app, its owner-local source project, the Companion, one coding
 harness, and truthful Xcode/device delivery the primary product. Adopted

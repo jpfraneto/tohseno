@@ -29,6 +29,10 @@ pub enum CapabilityAction {
     ShotCreate,
     #[serde(rename = "shot.evolve")]
     ShotEvolve,
+    #[serde(rename = "publication.authorize")]
+    PublicationAuthorize,
+    #[serde(rename = "network.receive")]
+    NetworkReceive,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -113,8 +117,8 @@ impl CapabilityGrantBody {
         validate_identifier("workspace ID", &self.workspace_id)?;
         validate_identifier("device ID", &self.device_id)?;
         require(
-            !self.allowed_actions.is_empty() && self.allowed_actions.len() <= 6,
-            "capability grant must contain one to six actions",
+            !self.allowed_actions.is_empty() && self.allowed_actions.len() <= 8,
+            "capability grant must contain one to eight actions",
         )?;
         require(
             self.allowed_actions

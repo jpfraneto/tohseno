@@ -413,12 +413,12 @@ fn active_generation_label(generation: &ResolvedContractGeneration) -> Option<St
         .then(|| generation.definition.generation.clone())
 }
 
-/// Why public workflows are unavailable right now, in either state: inactive
-/// builds lack authority, and active builds still lack the registry
-/// RPC/receipt workflow, which is separate implementation work.
+/// This compatibility projection is deliberately offline. Exact public
+/// release verification belongs to the Install/Fork path because it requires
+/// one catalog release digest and its receipt evidence.
 fn public_workflow_reason(generation: &ResolvedContractGeneration) -> &'static str {
     if generation.allows_public_signing() {
-        "the generation is active, but the registry verification workflow is not implemented in this build"
+        "the generation is active; exact public releases are verified with fresh RPC state during install or fork"
     } else {
         generation.inactive_reason()
     }
@@ -447,12 +447,11 @@ fn ensure_public_verification_available() -> Result<(), Box<dyn std::error::Erro
             generation.inactive_reason()
         )
         .into()),
-        // Activation authorizes public verification, but the registry
-        // RPC/receipt workflow is separate implementation work; until it
-        // exists an activated build must still refuse rather than pass a
-        // local-only check off as a public one.
+        // This command has only a private local lineage record and therefore
+        // lacks the exact catalog release and receipt required for a public
+        // check. The network receive commands own that evidence-bearing path.
         ContractGenerationState::Active => Err(
-            "public verification unavailable: the registry verification workflow is not implemented in this build; no RPC was contacted"
+            "public verification unavailable: this local-record command has no catalog release digest; use the exact Install or Fork link; no RPC was contacted"
                 .into(),
         ),
     }
@@ -487,7 +486,7 @@ pub fn registry_show(
             record.sequence
         )));
         bus.emit(Event::status(if generation.allows_public_signing() {
-            "public witness not checked: the registry workflow is not implemented in this build."
+            "public witness not checked in this local-only view; Install and Fork verify exact release evidence."
         } else {
             "public witness not checked: no contract generation is active."
         }));
@@ -1212,7 +1211,7 @@ mod tests {
     }
 
     #[test]
-    fn network_status_is_active_but_still_offline_without_the_registry_workflow() {
+    fn compatibility_network_status_stays_offline_and_points_to_exact_release_verification() {
         let status = serde_json::to_value(current_network_status().unwrap()).unwrap();
         assert_eq!(status["schema"], "tohseno.network-status/2");
         assert_eq!(status["rpc_checked"], false);
@@ -1222,7 +1221,7 @@ mod tests {
         assert!(status["reason"]
             .as_str()
             .unwrap()
-            .contains("registry verification workflow is not implemented"));
+            .contains("verified with fresh RPC state during install or fork"));
     }
 
     #[test]
@@ -1232,6 +1231,6 @@ mod tests {
             .to_string();
         assert!(error.starts_with("public verification unavailable:"));
         assert!(error.contains("no RPC was contacted"));
-        assert!(error.contains("not implemented"));
+        assert!(error.contains("no catalog release digest"));
     }
 }

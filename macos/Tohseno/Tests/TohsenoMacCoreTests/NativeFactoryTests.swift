@@ -597,6 +597,23 @@ private actor FakeFactory: FactoryServing {
         )
         return RegistrySnapshot(builder: builder, network: network, records: [])
     }
+    func deploy(projectID: String) async throws -> PublicationPreparationView {
+        PublicationPreparationView(
+            schema: "tohseno.publication-preparation/1",
+            jobID: "publication_fixture",
+            projectID: projectID,
+            shotID: "0x" + String(repeating: "11", count: 32),
+            status: "waiting_for_companion"
+        )
+    }
+    func receiveNetworkRelease(
+        shotID: String,
+        releaseDigest: String,
+        action: NetworkReceiveAction,
+        approveMacReview: Bool
+    ) async throws -> NetworkReceiveView {
+        throw FactoryClientError.transport("fixture")
+    }
     func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
     func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult {
         throw FactoryClientError.transport("fixture")

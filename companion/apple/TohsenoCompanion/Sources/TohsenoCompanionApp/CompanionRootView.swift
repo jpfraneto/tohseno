@@ -28,43 +28,116 @@ public struct CompanionRootView: View {
         .preferredColorScheme(.dark)
         .task { model.start() }
         .onOpenURL { url in
-            Task { await model.bootstrapFromCable(url) }
+            Task { await model.handleIncomingURL(url) }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { model.pendingPublication != nil },
+                set: { if !$0 { model.dismissPublication() } }
+            )
+        ) {
+            if let request = model.pendingPublication {
+                PublicationApprovalView(model: model, request: request)
+            }
+        }
+        .sheet(item: $model.linkedPublicRelease) { app in
+            PublicReleaseDetailView(model: model, app: app)
+        }
+    }
+}
+
+private struct PublicationApprovalView: View {
+    @Bindable var model: CompanionModel
+    let request: PublicationApprovalRequest
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("SHIP TO TOHSENO").font(.caption.weight(.bold)).tracking(1.5)
+                        .foregroundStyle(Tohseno.orange)
+                    Text("Ship \(request.appName)?").font(.largeTitle.weight(.bold))
+                    Text("This exact source snapshot will become public and independently verifiable.")
+                        .foregroundStyle(Tohseno.ash)
+                }
+                Group {
+                    LabeledContent("Source", value: "\(request.sourceFileCount) files · \(ByteCountFormatter.string(fromByteCount: Int64(request.sourceByteLength), countStyle: .file))")
+                    LabeledContent("Install", value: request.installAllowed ? "Allowed" : "Not allowed")
+                    LabeledContent("Fork", value: request.forkAllowed ? "Allowed" : "Not allowed")
+                    LabeledContent("Link", value: request.requestedRoute)
+                    LabeledContent("Checkpoint", value: "#\(request.checkpointSequence)")
+                }
+                .font(.subheadline)
+                Spacer()
+                Button {
+                    Task { await model.approvePublication() }
+                } label: {
+                    Text(model.busy ? "Approving…" : "Ship to Tohseno")
+                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent).disabled(model.busy)
+                Button("Not now", role: .cancel) { model.dismissPublication() }
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(28)
+            .presentationDetents([.medium, .large])
+            .interactiveDismissDisabled(model.busy)
         }
     }
 }
 
 private enum CompanionRoute: Hashable {
-    case create
     case app(String)
+}
+
+private enum CompanionTab: Hashable {
+    case apps, registry, create, profile
 }
 
 private struct CompanionNavigation: View {
     @Bindable var model: CompanionModel
+    @State private var selectedTab: CompanionTab = .apps
 
     var body: some View {
-        NavigationStack(path: path) {
-            YourAppsView(model: model)
-                .companionRootNavigationBar()
-                .navigationDestination(for: CompanionRoute.self) { route in
-                    switch route {
-                    case .create:
-                        CreateAppView(model: model)
-                            .companionDestinationNavigationBar()
-                    case let .app(shotID):
-                        if let shot = model.app(shotID) {
-                            AppView(model: model, shot: shot)
-                                .companionDestinationNavigationBar()
+        TabView(selection: $selectedTab) {
+            NavigationStack(path: appPath) {
+                YourAppsView(model: model)
+                    .companionRootNavigationBar()
+                    .navigationDestination(for: CompanionRoute.self) { route in
+                        switch route {
+                        case let .app(shotID):
+                            if let shot = model.app(shotID) {
+                                AppView(model: model, shot: shot)
+                                    .companionDestinationNavigationBar()
+                            }
                         }
                     }
-                }
+            }
+            .tabItem { Label("Apps", systemImage: "square.grid.2x2") }
+            .tag(CompanionTab.apps)
+
+            PublicRegistryView(model: model)
+                .tabItem { Label("Registry", systemImage: "globe.americas.fill") }
+                .tag(CompanionTab.registry)
+
+            NavigationStack { CreateAppView(model: model).companionDestinationNavigationBar() }
+                .tabItem { Label("Create", systemImage: "plus.circle.fill") }
+                .tag(CompanionTab.create)
+
+            BuilderProfileView(model: model)
+                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                .tag(CompanionTab.profile)
+        }
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .create { model.openCreate() }
+            else if tab == .apps, model.screen == .create { model.openApps() }
         }
     }
 
-    private var path: Binding<[CompanionRoute]> {
+    private var appPath: Binding<[CompanionRoute]> {
         Binding(
             get: {
                 switch model.screen {
-                case .create: [.create]
                 case let .app(shotID): [.app(shotID)]
                 default: []
                 }
@@ -75,8 +148,6 @@ private struct CompanionNavigation: View {
                     return
                 }
                 switch route {
-                case .create:
-                    if model.screen != .create { model.openCreate() }
                 case let .app(shotID):
                     if model.screen != .app(shotID), let shot = model.app(shotID) {
                         model.open(shot)
@@ -84,6 +155,152 @@ private struct CompanionNavigation: View {
                 }
             }
         )
+    }
+}
+
+private struct PublicRegistryView: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.publicApps.isEmpty {
+                    ContentUnavailableView(
+                        "A network made by people",
+                        systemImage: "point.3.connected.trianglepath.dotted",
+                        description: Text(model.networkNotice ?? "The first verified public app will appear here.")
+                    )
+                } else {
+                    List(model.publicApps) { app in
+                        NavigationLink {
+                            PublicReleaseDetailView(model: model, app: app)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(app.release.display.name).font(.headline)
+                                Text(app.release.display.description)
+                                    .font(.subheadline).foregroundStyle(Tohseno.ash).lineLimit(3)
+                                HStack {
+                                    Label("Signed", systemImage: "signature")
+                                    if app.release.permissions.forkAllowed {
+                                        Label("Forkable", systemImage: "arrow.triangle.branch")
+                                    }
+                                }
+                                .font(.caption).foregroundStyle(Tohseno.orange)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                    .refreshable { await model.refreshPublicNetwork() }
+                }
+            }
+            .navigationTitle("Registry")
+        }
+    }
+}
+
+private struct PublicReleaseDetailView: View {
+    @Bindable var model: CompanionModel
+    let app: PublicAppRelease
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(app.release.display.name).font(.largeTitle.weight(.bold))
+                    Text(app.release.display.description).foregroundStyle(Tohseno.ash)
+                }
+                Section("Signed release") {
+                    LabeledContent("Builder", value: "…\(app.release.builderID.suffix(18))")
+                    LabeledContent("Checkpoint", value: "#\(app.release.checkpointSequence)")
+                    LabeledContent("Source", value: "Available")
+                    LabeledContent("Fork", value: app.release.permissions.forkAllowed ? "Allowed" : "Not allowed")
+                    Text("Your Mac verifies the exact release and fresh chain state before Install or Fork.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                Section {
+                    Button {
+                        Task { await model.requestNetworkRelease(app, action: .install) }
+                    } label: {
+                        Label(model.busy ? "Queuing…" : "Install", systemImage: "iphone.and.arrow.forward")
+                    }
+                    .disabled(model.busy)
+                    if app.release.permissions.forkAllowed {
+                        Button {
+                            Task { await model.requestNetworkRelease(app, action: .fork) }
+                        } label: {
+                            Label("Fork", systemImage: "arrow.triangle.branch")
+                        }
+                        .disabled(model.busy)
+                    }
+                }
+                if let notice = model.networkNotice {
+                    Section("Status") { Text(notice).foregroundStyle(Tohseno.ash) }
+                }
+            }
+            .navigationTitle("Registry")
+        }
+    }
+}
+
+private struct BuilderProfileView: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Builder identity") {
+                    if let identity = model.builderDevice {
+                        Label("Protected by this iPhone", systemImage: "iphone.gen3.badge.play")
+                        LabeledContent("DeviceKey", value: compact(identity.keyID))
+                        LabeledContent("Security", value: identity.securityLevel == "secure_enclave" ? "Secure Enclave" : "Test only")
+                    } else {
+                        Label("Secure Enclave identity unavailable", systemImage: "exclamationmark.shield")
+                    }
+                }
+                Section("Public work") {
+                    LabeledContent("Published apps", value: "\(model.publicApps.count)")
+                    Text("Your BuilderID becomes public only when you explicitly approve Ship to Tohseno.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                Section("Public profile") {
+                    TextField("Display name", text: $model.profileDisplayName)
+                    TextField("Builder handle", text: $model.profileHandle)
+                    Button {
+                        Task { await model.savePublicProfile() }
+                    } label: {
+                        Label(model.busy ? "Signing…" : "Sign & Update Profile", systemImage: "person.crop.circle.badge.checkmark")
+                    }
+                    .disabled(model.busy || model.profileDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Text("Profile changes are signed by this iPhone and checked against the current BuilderAccount.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                Section("Global alias request") {
+                    TextField("Alias", text: $model.requestedAlias)
+                    Button {
+                        Task { await model.requestGlobalAlias() }
+                    } label: {
+                        Label("Sign Alias Request", systemImage: "link.badge.plus")
+                    }
+                    .disabled(model.busy || model.requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Text("Aliases are convenience routes, not Shot identity. Every request is rate-limited and requires explicit policy review.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                if let status = model.profileNotice {
+                    Section("Profile status") { Text(status).foregroundStyle(Tohseno.ash) }
+                }
+                Section("Private connection") {
+                    Label(model.connection == .connected ? "Mac connected" : "Mac currently offline",
+                          systemImage: model.connection == .connected ? "checkmark.circle.fill" : "desktopcomputer")
+                    Text("Pairing capabilities and private intentions never enter your public profile.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+            }
+            .navigationTitle("Profile")
+        }
+    }
+
+    private func compact(_ value: String) -> String {
+        value.count > 22 ? "\(value.prefix(12))…\(value.suffix(8))" : value
     }
 }
 

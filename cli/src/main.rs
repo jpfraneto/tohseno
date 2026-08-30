@@ -12,6 +12,7 @@ mod managed_compute;
 mod native_client;
 mod native_install;
 mod native_session;
+mod network_commands;
 mod protocol_commands;
 mod renderer;
 mod service_client;
@@ -89,15 +90,56 @@ enum Command {
         #[arg(long)]
         wait: bool,
     },
-    /// Initialize the explicit app-local recording layer (ADR 0014 compatibility).
-    Init { app_name: String },
-    /// Record the current app tree through the explicit recording layer.
-    Record {
-        app_name: Option<String>,
-        #[arg(long, value_name = "TEXT")]
-        note: Option<String>,
-        #[arg(long, value_name = "PATH", conflicts_with = "note")]
-        note_file: Option<PathBuf>,
+    /// Connect an existing Xcode app to Tohseno without restructuring it.
+    Init {
+        #[arg(value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+        /// Choose one exact Xcode scheme when the project has several app targets.
+        #[arg(long, value_name = "SCHEME")]
+        scheme: Option<String>,
+    },
+    /// Prepare, approve on Companion, and publish the current app.
+    Deploy {
+        /// Inspect and package without requesting approval or publishing.
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long, hide = true)]
+        project_id: Option<String>,
+    },
+    /// Show this project's local, Companion, and public network readiness.
+    Status,
+    /// Verify, locally sign, and install one exact public Shot release.
+    Install {
+        /// Canonical Shot link, tohseno:// install link, or 32-byte ShotID.
+        shot: String,
+        /// Pin one immutable release instead of resolving the current release.
+        #[arg(long, value_name = "DIGEST")]
+        release: Option<String>,
+        /// Materialize the verified owner-visible source in this new folder.
+        #[arg(long, value_name = "DIRECTORY")]
+        into: Option<PathBuf>,
+        /// Confirm that the named non-Green build reasons were reviewed locally.
+        #[arg(long)]
+        approve_mac_review: bool,
+    },
+    /// Materialize one exact public release as a new local Shot.
+    Fork {
+        /// Canonical Shot link, tohseno:// fork link, or 32-byte ShotID.
+        shot: String,
+        /// Pin one immutable release instead of resolving the current release.
+        #[arg(long, value_name = "DIGEST")]
+        release: Option<String>,
+        /// Materialize the mutable fork in this new folder.
+        #[arg(long, value_name = "DIRECTORY")]
+        into: Option<PathBuf>,
+        /// Confirm that the named non-Green build reasons were reviewed locally.
+        #[arg(long)]
+        approve_mac_review: bool,
+    },
+    /// Explicit compatibility namespace for ADR 0014 recording tools.
+    Recording {
+        #[command(subcommand)]
+        command: RecordingCommand,
     },
     /// Ensure the persistent Local Workspace Service is healthy, open Studio, and return.
     Studio {
@@ -322,6 +364,20 @@ enum Command {
     Shot {
         #[command(subcommand)]
         command: ShotExecutionCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum RecordingCommand {
+    /// Initialize the historical app-local recording layer.
+    Init { app_name: String },
+    /// Record the current app tree through the historical recording layer.
+    Record {
+        app_name: Option<String>,
+        #[arg(long, value_name = "TEXT")]
+        note: Option<String>,
+        #[arg(long, value_name = "PATH", conflicts_with = "note")]
+        note_file: Option<PathBuf>,
     },
 }
 
@@ -651,28 +707,70 @@ async fn dispatch(
             )
             .await?;
         }
-        Command::Init { app_name } => {
-            let app_name = normalize_cli_app_name(&app_name)?;
-            let engine = Engine::discover(bus.clone())?;
-            engine.initialize_app(&app_name)?;
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string(&json!({
-                        "schema": "tohseno.recording-initialization-receipt/1",
-                        "name": app_name,
-                        "kind": "recording_only",
-                    }))?
-                );
-            }
-        }
-        Command::Record {
-            app_name,
-            note,
-            note_file,
+        Command::Init { path, scheme } => network_commands::init(path, scheme, json, bus).await?,
+        Command::Deploy {
+            dry_run,
+            project_id,
+        } => network_commands::deploy(dry_run, project_id.as_deref(), json, bus).await?,
+        Command::Status => network_commands::status(json, bus).await?,
+        Command::Install {
+            shot,
+            release,
+            into,
+            approve_mac_review,
         } => {
-            recording_record(app_name, note, note_file, json, bus)?;
+            network_commands::receive(
+                &shot,
+                release.as_deref(),
+                into,
+                network_commands::ReceiveKind::Install,
+                approve_mac_review,
+                json,
+                bus,
+            )
+            .await?
         }
+        Command::Fork {
+            shot,
+            release,
+            into,
+            approve_mac_review,
+        } => {
+            network_commands::receive(
+                &shot,
+                release.as_deref(),
+                into,
+                network_commands::ReceiveKind::Fork,
+                approve_mac_review,
+                json,
+                bus,
+            )
+            .await?
+        }
+        Command::Recording { command } => match command {
+            RecordingCommand::Init { app_name } => {
+                let app_name = normalize_cli_app_name(&app_name)?;
+                let engine = Engine::discover(bus.clone())?;
+                engine.initialize_app(&app_name)?;
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&json!({
+                            "schema": "tohseno.recording-initialization-receipt/1",
+                            "name": app_name,
+                            "kind": "recording_only",
+                        }))?
+                    );
+                }
+            }
+            RecordingCommand::Record {
+                app_name,
+                note,
+                note_file,
+            } => {
+                recording_record(app_name, note, note_file, json, bus)?;
+            }
+        },
         Command::Advanced { command } => {
             if command.is_empty() {
                 return Err(
@@ -709,21 +807,24 @@ async fn dispatch(
                 let service = service_client::ServiceClient::ensure_running()
                     .await
                     .map_err(|error| error.to_string())?;
-                service
-                    .open_studio("/")
-                    .map_err(|error| error.to_string())?;
+                let opened = std::process::Command::new("/usr/bin/open")
+                    .args(["-a", "Tohseno"])
+                    .status()?;
+                if !opened.success() {
+                    return Err("macOS could not open Tohseno.app".into());
+                }
                 if json {
                     println!(
                         "{}",
                         serde_json::to_string(&json!({
-                            "schema": "tohseno.studio-opened/1",
-                            "origin": service.runtime().origin,
+                            "schema": "tohseno.native-app-opened/1",
+                            "application": "Tohseno.app",
                             "workspace_id": service.runtime().workspace_id,
                             "service_version": service.runtime().service_version,
                         }))?
                     );
                 } else {
-                    bus.emit(Event::result("Studio is open. The Local Workspace Service remains available after this Terminal closes."));
+                    bus.emit(Event::result("Tohseno is open. The Local Workspace Service remains available after this Terminal closes."));
                 }
             }
         }
@@ -2704,7 +2805,7 @@ mod tests {
     }
 
     #[test]
-    fn create_and_evolve_are_factory_commands_while_init_and_record_preserve_recording() {
+    fn init_and_deploy_are_the_network_path_while_recording_is_explicit() {
         let create_help = Cli::try_parse_from(["tohseno", "create", "--help"])
             .unwrap_err()
             .to_string();
@@ -2776,9 +2877,11 @@ mod tests {
             .to_string();
         assert!(evolve_help.contains("--prompt-file"));
         assert!(evolve_help.contains("--feedback-action"));
-        assert!(Cli::try_parse_from(["tohseno", "init", "recording-app"]).is_ok());
+        assert!(Cli::try_parse_from(["tohseno", "init", "/tmp/App.xcodeproj"]).is_ok());
+        assert!(Cli::try_parse_from(["tohseno", "deploy", "--dry-run"]).is_ok());
         assert!(Cli::try_parse_from([
             "tohseno",
+            "recording",
             "record",
             "recording-app",
             "--note-file",
@@ -2797,7 +2900,11 @@ mod tests {
             "create",
             "evolve",
             "init",
-            "record",
+            "deploy",
+            "status",
+            "install",
+            "fork",
+            "recording",
             "studio",
             "service",
             "companion",
@@ -2814,7 +2921,6 @@ mod tests {
         ] {
             assert!(!help.contains(&format!("  {hidden}")), "exposed {hidden}");
         }
-        assert!(!help.contains("  install"));
         for removed in ["refresh", "retire", "adopt"] {
             assert!(
                 Cli::try_parse_from(["tohseno", removed]).is_err(),

@@ -12,6 +12,7 @@ public enum ReferenceTarget: Sendable {
 public enum AppRoute: Hashable, Sendable {
     case library
     case registry
+    case profile
     case create
     case app(String)
 }
@@ -34,6 +35,8 @@ public final class TohsenoAppModel {
     public private(set) var previews: [String: Data] = [:]
     public private(set) var managedMessage: String?
     public private(set) var registryMessage: String?
+    public private(set) var networkActionMessage: String?
+    public private(set) var networkReview: NetworkReviewRequest?
     public private(set) var isLoading = true
     public private(set) var isLoadingRegistry = false
     public private(set) var isSubmitting = false
@@ -271,6 +274,22 @@ public final class TohsenoAppModel {
         catch { errorMessage = error.localizedDescription }
     }
 
+    public func ship(_ app: AppSummary) async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        defer { isSubmitting = false }
+        do {
+            let request = try await client.deploy(projectID: app.id)
+            guard request.schema == "tohseno.publication-preparation/1",
+                  request.projectID == app.id,
+                  request.status == "waiting_for_companion"
+            else { throw FactoryClientError.invalidResponse("The Ship request was not durably prepared.") }
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     public func refreshManaged() async {
         do {
             managedStatus = try await client.managedStatus()
@@ -301,6 +320,93 @@ public final class TohsenoAppModel {
             registrySnapshot = nil
             registryMessage = error.localizedDescription
         }
+    }
+
+    public func receive(_ app: PublicRegistryRelease, action: NetworkReceiveAction) async {
+        await receive(
+            shotID: app.release.shotID,
+            releaseDigest: app.releaseDigest,
+            action: action
+        )
+    }
+
+    private func receive(
+        shotID: String,
+        releaseDigest: String,
+        action: NetworkReceiveAction,
+        approveMacReview: Bool = false
+    ) async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        networkActionMessage = action == .install
+            ? "Verifying, building, and signing on this Mac…"
+            : "Verifying and materializing the exact source…"
+        defer { isSubmitting = false }
+        do {
+            let result = try await client.receiveNetworkRelease(
+                shotID: shotID,
+                releaseDigest: releaseDigest,
+                action: action,
+                approveMacReview: approveMacReview
+            )
+            guard result.schema == "tohseno.network-receive-result/1",
+                  result.releaseDigest == releaseDigest,
+                  result.shotID == shotID else {
+                throw FactoryClientError.invalidResponse("The local network action returned different release facts.")
+            }
+            networkActionMessage = action == .install
+                ? (result.installationStatus == "installed"
+                    ? "Installed on your iPhone."
+                    : "Ready for your iPhone. Connect and unlock it to finish installation.")
+                : "Fork ready in \(result.sourcePath)."
+            networkReview = nil
+            await reloadWorkspace()
+            await refreshRegistry()
+        } catch {
+            networkActionMessage = nil
+            let message = error.localizedDescription
+            if message.contains("Requires review on your Mac:") {
+                networkReview = NetworkReviewRequest(
+                    shotID: shotID,
+                    releaseDigest: releaseDigest,
+                    action: action,
+                    reasons: message
+                )
+                errorMessage = nil
+            } else {
+                errorMessage = message
+            }
+        }
+    }
+
+    public func approveNetworkReview() async {
+        guard let review = networkReview else { return }
+        await receive(
+            shotID: review.shotID,
+            releaseDigest: review.releaseDigest,
+            action: review.action,
+            approveMacReview: true
+        )
+    }
+
+    public func openNetworkLink(_ url: URL) async {
+        guard url.scheme?.lowercased() == "tohseno",
+              let host = url.host?.lowercased(),
+              host == "install" || host == "fork",
+              let shot = url.path.split(separator: "/").first.map(String.init),
+              shot.count == 64,
+              let release = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "release" })?.value
+        else {
+            errorMessage = "This Tohseno link is incomplete or invalid."
+            return
+        }
+        route = .registry
+        await receive(
+            shotID: "0x\(shot)",
+            releaseDigest: release,
+            action: host == "install" ? .install : .fork
+        )
     }
 
     public func estimateCreation() async {
@@ -711,6 +817,8 @@ public final class TohsenoAppModel {
             route = .app(id)
         } else if preferences.string(forKey: "tohseno.selected-route") == "registry" {
             route = .registry
+        } else if preferences.string(forKey: "tohseno.selected-route") == "profile" {
+            route = .profile
         } else if preferences.string(forKey: "tohseno.selected-route") == "create" {
             route = .create
         }
@@ -724,6 +832,9 @@ public final class TohsenoAppModel {
         case .registry:
             preferences.removeObject(forKey: "tohseno.selected-app-id")
             preferences.set("registry", forKey: "tohseno.selected-route")
+        case .profile:
+            preferences.removeObject(forKey: "tohseno.selected-app-id")
+            preferences.set("profile", forKey: "tohseno.selected-route")
         case .create:
             preferences.removeObject(forKey: "tohseno.selected-app-id")
             preferences.set("create", forKey: "tohseno.selected-route")

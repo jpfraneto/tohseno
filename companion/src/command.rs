@@ -4,6 +4,7 @@ use crate::canonical;
 use crate::capability::CapabilityAction;
 use crate::crypto::{base64url, decode_array, sha256};
 use crate::identity::CompanionIdentity;
+use crate::publication::{BuilderDeviceAnnouncement, BuilderDeviceSignature};
 use crate::reference::MAX_REFERENCE_BLOB_BYTES;
 use crate::{
     parse_timestamp, require, validate_identifier, validate_text, Result, MAX_CLOCK_SKEW_SECONDS,
@@ -17,6 +18,13 @@ pub const COMMAND_SIGNATURE_DOMAIN: &[u8] = b"tohseno.companion.command-signatur
 pub const MAX_COMMAND_AGE_SECONDS: i64 = 30 * 24 * 60 * 60;
 pub const MAX_REFERENCES: usize = 8;
 pub const MAX_REFERENCE_BYTES: u64 = MAX_REFERENCE_BLOB_BYTES as u64;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkReleaseAction {
+    Install,
+    Fork,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -101,6 +109,29 @@ pub enum CommandPayload {
         intention: String,
         references: Vec<ReferenceDescriptor>,
     },
+    /// Publish only the Builder DeviceKey's public coordinates to the paired
+    /// Mac. The private scalar remains non-exportable on Companion.
+    #[serde(rename = "builder.identity.announce")]
+    BuilderIdentityAnnounce {
+        builder_device: BuilderDeviceAnnouncement,
+    },
+    /// Return signatures for exactly one previously displayed structured
+    /// publication request. Mac-side admission binds these to the durable job.
+    #[serde(rename = "publication.approve")]
+    PublicationApprove {
+        job_id: String,
+        catalog: BuilderDeviceSignature,
+        registry: Box<BuilderDeviceSignature>,
+        approved_at: String,
+    },
+    /// Request one exact immutable public release. The paired Mac resolves all
+    /// URLs itself and independently verifies Builder, chain, and source.
+    #[serde(rename = "network.release.request")]
+    NetworkReleaseRequest {
+        action: NetworkReleaseAction,
+        shot_id: String,
+        release_digest: String,
+    },
 }
 
 impl CommandPayload {
@@ -112,6 +143,10 @@ impl CommandPayload {
             Self::ShotEvolveRequest { .. } => CapabilityAction::ShotEvolve,
             Self::ProjectEvolveRequest { .. } => CapabilityAction::ShotEvolve,
             Self::ShotCreateRequest { .. } => CapabilityAction::ShotCreate,
+            Self::BuilderIdentityAnnounce { .. } | Self::PublicationApprove { .. } => {
+                CapabilityAction::PublicationAuthorize
+            }
+            Self::NetworkReleaseRequest { .. } => CapabilityAction::NetworkReceive,
         }
     }
 
@@ -195,8 +230,44 @@ impl CommandPayload {
                 validate_text("creation intention", intention, MAX_TEXT_BYTES)?;
                 validate_references(references)
             }
+            Self::BuilderIdentityAnnounce { builder_device } => builder_device.validate(),
+            Self::PublicationApprove {
+                job_id,
+                catalog,
+                registry,
+                approved_at,
+            } => {
+                validate_identifier("publication job ID", job_id)?;
+                catalog.validate()?;
+                registry.validate()?;
+                require(
+                    catalog.signer == registry.signer,
+                    "publication signatures must use one Builder DeviceKey",
+                )?;
+                parse_timestamp(approved_at).map(|_| ())
+            }
+            Self::NetworkReleaseRequest {
+                shot_id,
+                release_digest,
+                ..
+            } => {
+                validate_protocol_hex32("network ShotID", shot_id)?;
+                validate_protocol_hex32("network release digest", release_digest)
+            }
         }
     }
+}
+
+fn validate_protocol_hex32(label: &str, value: &str) -> Result<()> {
+    require(
+        value.len() == 66
+            && value.starts_with("0x")
+            && value[2..]
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+            && value[2..].bytes().any(|byte| byte != b'0'),
+        format!("{label} must be 32 lowercase nonzero hex bytes"),
+    )
 }
 
 fn validate_references(references: &[ReferenceDescriptor]) -> Result<()> {

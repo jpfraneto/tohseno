@@ -4,14 +4,13 @@ Written 2026-07-30, amended through 2026-08-30. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
-## Current product direction: the living connection
+## Current product direction: person-to-person native software
 
-ADR 0033 is the latest product decision. Tohseno is now centered on maintaining
-the relationship between an iPhone app, its existing Xcode source project, the
-owner's intent/history, a configured coding harness, Companion requests, and
-the real Xcode/CoreDevice return path. Generated Shot creation remains a
-secondary compatibility path; the old empty-workspace first-Shot composer is
-no longer first run.
+ADR 0034 is the latest product decision. It retains ADR 0033's living private
+connection and makes one explicit Companion-approved release capable of
+traveling to another person as signed, buildable source. The Mac is the factory,
+Companion is the human authority, the Registry is the public witness and
+discovery layer, and immutable links carry ShotID plus exact release digest.
 
 The implemented vertical slice is:
 
@@ -25,6 +24,15 @@ Adopt .xcodeproj/.xcworkspace on Mac
   -> signed iphoneos xcodebuild + codesign verification
   -> exact devicectl install + bundle-inventory verification
   -> durable status/history on Mac and iPhone
+
+Explicit Ship
+  -> deterministic sanitized source snapshot
+  -> exact catalog + Registry action approved by Companion DeviceKey
+  -> active generation-0.8 BuilderAccount/RegisterShot or AppendCheckpoint
+  -> receipt/head/source verified public catalog release and canonical link
+  -> recipient Companion Install/Fork request
+  -> recipient Mac independently verifies chain, receipt, manifest, and source
+  -> narrow Xcode build + recipient-local Apple signing + physical install proof
 ```
 
 Adoption inspects schemes, bundle ID, deployment target, signing-team setting,
@@ -52,11 +60,14 @@ Mode, and multiple-device ambiguity retain the verified artifact as **Ready to
 install** with the smallest action. The background retry performs no device
 polling unless a saved build is actually waiting.
 
-This source change has not been signed, notarized, published, or promoted, and
-does not alter the public protocol encodings or the RC2 evidence below. A real
-physical-device adoption/evolution/install acceptance still requires owner
-interaction. See [`LIVING_CONNECTION.md`](LIVING_CONNECTION.md) for the local
-runbook and exact limitations.
+The 1.1.0 source implementation includes the public catalog/blob service,
+constrained active-generation relayer, DeviceKey publication approval,
+deterministic source security, live receipt/head verification, Install/Fork,
+recipient signing/refresh, native Registry and Profile surfaces, signed profile
+updates, permissioned alias requests, and the isolated network E2E harness. It
+changes no public protocol encoding or deployed ABI. Source completion does not
+claim the 1.1.0 DMG is signed/notarized/published or that second-person physical
+acceptance has occurred; those remain release evidence, not software inference.
 
 ## Native macOS transition
 
@@ -109,13 +120,14 @@ the existing exactly-once application-service path and Shift–Return inserts a
 line. The creation settings are open by default so discovered Codex and other
 authenticated harnesses are visible; discovery checks bounded standalone,
 Homebrew/global, Volta, npm-global, Bun, and installed NVM locations without
-executing a user shell. An optional Registry destination projects the trusted
-helper's verified local Shot heads under **Apps on this Mac**, plus
-accepted-version counts, local identity, and active network generation. A
-separate **Published apps** area explicitly reports that no public catalog is
-available while registry RPC remains absent. Its quick New Shot field uses the
-same automatic create route; it is not a second factory or a publication
-surface.
+executing a user shell. The Registry destination projects the trusted helper's
+verified local Shot heads under **Apps on this Mac**, plus accepted-version
+counts, local identity, and active network generation. A separate **Published
+apps** area reads the production signed catalog. Catalog reachability is not
+shown as chain verification: the exact manifest, receipt, active generation,
+current Builder DeviceKey authority, current Shot state, and source bytes are
+verified by the Mac only after the person chooses Install or Fork. Its quick
+New Shot field uses the same automatic create route; it is not a second factory.
 
 Retirement preserves source and accepted history. The native Diagnostics
 archive exposes those apps and can restore one to the library without silently
@@ -533,14 +545,13 @@ release-authority keys were created on one Mac, and no independent human or
 formal contract audit is claimed. The contracts are immutable; a defect
 requires abandonment or a successor rather than repair in place.
 
-Activation means the client trusts those exact factory and registry instances;
-it does not make a downloadable app registry operational. Secure public
-BuilderAccount creation, registry RPC/transaction orchestration,
-app-metadata publication receipts, source-repository hosting, catalog lookup,
-download, and node checkpoint/receipt inventory are not implemented. The
-contract stores no app code. The existing Workshop can create and verify a
-manually transported source capsule and launch the tester-built app in
-Simulator; it is neither registry submission nor iPhone distribution.
+Activation means the client trusts those exact factory and registry instances.
+ADR 0034 now connects them to secure public BuilderAccount bootstrap, constrained
+Registry transaction orchestration, signed catalog receipts, content-addressed
+source hosting, discovery, exact download, and independent recipient
+verification. The contract still stores no app code, private intention,
+artifact digest, or installation identity; those facts remain off-chain under
+the signed catalog and local privacy boundaries.
 
 ## Published release
 
@@ -551,29 +562,16 @@ serve native 1.0.0. npm's independently versioned front door is 1.0.1 and
 delegates to that native release. Publication evidence for the npm patch is in
 `release/NPM_1_0_1_PUBLICATION.json`.
 
-Native and npm **1.0.2** remain the next coherent release target in this source
-tree. The new native SwiftUI product, app workspace, and managed-balance
-implementation, including ADR 0029's first-Shot gate, passed the full local
-verification matrix at source commit
-`232ab31fc280851d36c31675ec72f778bb421c7e`. The current Developer ID signed,
-Apple-notarized, stapled DMG recorded in `release/V1_0_2_READINESS.json` passed
-local mounted-DMG, Finder-install, build-Mac Gatekeeper, and one fresh
-physical-iPhone birth acceptance. The readiness record contains explicit owner
-publication intent. The exact `v1.0.2-rc.1` candidate reached an independent
-clean Mac and passed Gatekeeper, but ADR 0032 records its failed product
-acceptance and disabled download. Source now contains the replacement Finder
-DMG layout, Tohseno consumer spelling, explanatory onboarding,
-Companion-first setup and progress, menu-bar SVG presence, guided creation
-capabilities, broader Codex discovery, and an explicit local-versus-published
-Registry boundary. The clean committed `v1.0.2-rc.2` artifact is signed,
-notarized, stapled, origin-verified, and active only as a public prerelease.
-Stable promotion remains blocked until independent replacement acceptance,
-managed Bankr staging and backup/restore, stable
-immutable publication, independent stable download verification, exact public
-manifest bytes, and stable website activation are recorded. ADR 0025
-supersedes npm-first consumer onboarding; an npm publication flag is not
-authority to bypass these native gates. Candidate evidence is not a claim that
-1.0.2 is publicly available.
+Native **1.1.0** is the next product release target in source. It must not reuse
+the immutable 1.0.2 candidate evidence. The `v1.0.2-rc.1` rejection and
+`v1.0.2-rc.2` signed/notarized candidate remain historical evidence under
+`release/V1_0_2_READINESS.json`; neither proves 1.1.0. Stable 1.1.0 activation
+still requires a clean committed universal build, Developer ID signing,
+notarization, stapling, mounted-DMG/Gatekeeper/manifest/hash verification,
+clean-Mac acceptance, Companion install/pair, a real production Shot through
+the normal approval flow, and second-person physical Install/Fork/Refresh
+evidence. The website and Registry write path must remain dark until that order
+can produce no broken advertising window.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay

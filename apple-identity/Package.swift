@@ -5,6 +5,7 @@ import PackageDescription
 let package = Package(
     name: "tohseno-apple-identity",
     platforms: [
+        .iOS(.v17),
         .macOS(.v13),
     ],
     products: [

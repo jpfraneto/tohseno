@@ -75,6 +75,38 @@ workspace capability or Builder authority. Private companion commands,
 capability grants, envelopes, snapshots, marketing notes, and provenance never
 enter the Public Node or ordinary canonical lineage.
 
+## Deliberate public source release
+
+Shipping is a separate, explicit disclosure. Before Companion approval the Mac
+shows that buildable source will become public. The deterministic snapshot
+excludes VCS internals, build products, DerivedData, user data, caches,
+environment files, private `.tohseno` state, pairing/relay state, logs, Apple
+provisioning/signing material, and known secret paths. High-confidence secret
+findings fail closed and report paths without contents. `.gitignore` is not the
+privacy boundary.
+
+The public signed catalog release may contain display name/description, ShotID,
+BuilderID, release ID/time, source artifact and tree digests/sizes, Xcode
+container/scheme/original bundle/minimum iOS/dependency-lock/build-safety facts,
+install/fork declarations, optional immutable fork parent, generation, and
+public checkpoint binding. It never contains private intentions, references,
+prompts, private lineage, absolute paths, local environment, pairing or relay
+capabilities, Apple credentials/profiles/certificates/keys, recipient identity,
+device ID, Apple team, or install activity.
+
+The operator necessarily observes publisher/reader IP, timing, requested public
+Shot/release/blob, and transfer size. Staged bytes are capability-protected and
+not publicly readable; they expire before authorization. Published source is
+intentionally public and immutable by digest. Install and Fork activity remains
+local and is not posted on-chain or written to the public catalog.
+
+Builder profiles are explicitly public and linkable. The profile contains only
+the signed display name, granted handle, optional avatar digest, verified
+external attestations, update time, nonce, and BuilderID. An X attestation maps
+an external account to BuilderID but never replaces DeviceKey authority. Global
+alias requests are auditable policy records and canonical Shot links work
+without them.
+
 ## Private entitlement and billing
 
 This section describes the retained legacy subscription compatibility store.

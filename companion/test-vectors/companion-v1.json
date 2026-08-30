@@ -86,7 +86,7 @@
     }
   },
   "capability": {
-    "body_canonical_base64url": "eyJhbGxvd2VkX2FjdGlvbnMiOlsid29ya3NwYWNlLnJlYWQiLCJleGVjdXRpb24ucmVhZCIsImZlZWRiYWNrLndyaXRlIiwibWFya2V0aW5nLndyaXRlIiwic2hvdC5jcmVhdGUiLCJzaG90LmV2b2x2ZSJdLCJjYXBhYmlsaXR5X2lkIjoiY2FwYWJpbGl0eV92ZWN0b3JfMDAxIiwiZGV2aWNlX2lkIjoiZGV2aWNlX3hEVF9fZHBldzdDcVlxczVubkNlOTVJMyIsImV4cGlyZXNfYXQiOiIyMDI2LTA4LTE2VDEyOjAxOjAxWiIsImlzc3VlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDFaIiwicmV2b2NhdGlvbl9lcG9jaCI6MCwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tY2FwYWJpbGl0eS1ncmFudC8xIiwic3R1ZGlvX3NpZ25pbmdfcHVibGljX2tleSI6ImlvamozWFFKOFpYOVV0c3RQTHBkY3NwbkNiOGRsQkliODNTSUFiUVBiMXciLCJ3b3Jrc3BhY2VfaWQiOiJ3b3Jrc3BhY2VfdmVjdG9yXzAwMSJ9",
+    "body_canonical_base64url": "eyJhbGxvd2VkX2FjdGlvbnMiOlsid29ya3NwYWNlLnJlYWQiLCJleGVjdXRpb24ucmVhZCIsImZlZWRiYWNrLndyaXRlIiwibWFya2V0aW5nLndyaXRlIiwic2hvdC5jcmVhdGUiLCJzaG90LmV2b2x2ZSIsInB1YmxpY2F0aW9uLmF1dGhvcml6ZSIsIm5ldHdvcmsucmVjZWl2ZSJdLCJjYXBhYmlsaXR5X2lkIjoiY2FwYWJpbGl0eV92ZWN0b3JfMDAxIiwiZGV2aWNlX2lkIjoiZGV2aWNlX3hEVF9fZHBldzdDcVlxczVubkNlOTVJMyIsImV4cGlyZXNfYXQiOiIyMDI2LTA4LTE2VDEyOjAxOjAxWiIsImlzc3VlZF9hdCI6IjIwMjYtMDgtMTVUMTI6MDE6MDFaIiwicmV2b2NhdGlvbl9lcG9jaCI6MCwic2NoZW1hIjoidG9oc2Vuby5jb21wYW5pb24tY2FwYWJpbGl0eS1ncmFudC8xIiwic3R1ZGlvX3NpZ25pbmdfcHVibGljX2tleSI6ImlvamozWFFKOFpYOVV0c3RQTHBkY3NwbkNiOGRsQkliODNTSUFiUVBiMXciLCJ3b3Jrc3BhY2VfaWQiOiJ3b3Jrc3BhY2VfdmVjdG9yXzAwMSJ9",
     "grant": {
       "schema": "tohseno.companion-capability-grant/1",
       "capability_id": "capability_vector_001",
@@ -98,17 +98,19 @@
         "feedback.write",
         "marketing.write",
         "shot.create",
-        "shot.evolve"
+        "shot.evolve",
+        "publication.authorize",
+        "network.receive"
       ],
       "issued_at": "2026-08-15T12:01:01Z",
       "expires_at": "2026-08-16T12:01:01Z",
       "revocation_epoch": 0,
       "studio_signing_public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
-      "signature": "3RHaylAYIMvBALOjH-a6uCl-KW5d0D--9BWtoz-2JfraEtdkLOQP4-0Laq3wpWhM1lJmHWStJ-El1wDyLGTCCQ"
+      "signature": "flm1sE0yWIbdsIXaPJwSLvYGIZr4MBt8aXX3TRErGTGG94VTdT0YKUMNlxKi7Mw55Ch62gTehgKKvOScMlfyCw"
     }
   },
   "pairing_acceptance": {
-    "canonical_base64url": "eyJjYXBhYmlsaXR5X2dyYW50Ijp7ImFsbG93ZWRfYWN0aW9ucyI6WyJ3b3Jrc3BhY2UucmVhZCIsImV4ZWN1dGlvbi5yZWFkIiwiZmVlZGJhY2sud3JpdGUiLCJtYXJrZXRpbmcud3JpdGUiLCJzaG90LmNyZWF0ZSIsInNob3QuZXZvbHZlIl0sImNhcGFiaWxpdHlfaWQiOiJjYXBhYmlsaXR5X3ZlY3Rvcl8wMDEiLCJkZXZpY2VfaWQiOiJkZXZpY2VfeERUX19kcGV3N0NxWXFzNW5uQ2U5NUkzIiwiZXhwaXJlc19hdCI6IjIwMjYtMDgtMTZUMTI6MDE6MDFaIiwiaXNzdWVkX2F0IjoiMjAyNi0wOC0xNVQxMjowMTowMVoiLCJyZXZvY2F0aW9uX2Vwb2NoIjowLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1jYXBhYmlsaXR5LWdyYW50LzEiLCJzaWduYXR1cmUiOiIzUkhheWxBWUlNdkJBTE9qSC1hNnVDbC1LVzVkMEQtLTlCV3Rvei0ySmZyYUV0ZGtMT1FQNC0wTGFxM3dwV2hNMWxKbUhXU3RKLUVsMXdEeUxHVENDUSIsInN0dWRpb19zaWduaW5nX3B1YmxpY19rZXkiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3Iiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifSwiY29tbWFuZF9tYWlsYm94X2lkIjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJjb21tYW5kX21haWxib3hfd3JpdGVfY2FwYWJpbGl0eSI6IkRnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzQiLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLWdyYW50LXBhY2thZ2UvMSIsInN0dWRpb19hZ3JlZW1lbnRfcHVibGljX2tleSI6InpvMDYwY3kyTS14N2NNRjRGS1hIYnMwQ2xvVUZEVFJIUmJvRmh3NVlmVmsifQ",
+    "canonical_base64url": "eyJjYXBhYmlsaXR5X2dyYW50Ijp7ImFsbG93ZWRfYWN0aW9ucyI6WyJ3b3Jrc3BhY2UucmVhZCIsImV4ZWN1dGlvbi5yZWFkIiwiZmVlZGJhY2sud3JpdGUiLCJtYXJrZXRpbmcud3JpdGUiLCJzaG90LmNyZWF0ZSIsInNob3QuZXZvbHZlIiwicHVibGljYXRpb24uYXV0aG9yaXplIiwibmV0d29yay5yZWNlaXZlIl0sImNhcGFiaWxpdHlfaWQiOiJjYXBhYmlsaXR5X3ZlY3Rvcl8wMDEiLCJkZXZpY2VfaWQiOiJkZXZpY2VfeERUX19kcGV3N0NxWXFzNW5uQ2U5NUkzIiwiZXhwaXJlc19hdCI6IjIwMjYtMDgtMTZUMTI6MDE6MDFaIiwiaXNzdWVkX2F0IjoiMjAyNi0wOC0xNVQxMjowMTowMVoiLCJyZXZvY2F0aW9uX2Vwb2NoIjowLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1jYXBhYmlsaXR5LWdyYW50LzEiLCJzaWduYXR1cmUiOiJmbG0xc0UweVdJYmRzSVhhUEp3U0x2WUdJWnI0TUJ0OGFYWDNUUkVyR1RHRzk0VlRkVDBZS1VNTmx4S2k3TXc1NUNoNjJnVGVoZ0tLdk9TY01sZnlDdyIsInN0dWRpb19zaWduaW5nX3B1YmxpY19rZXkiOiJpb2pqM1hRSjhaWDlVdHN0UExwZGNzcG5DYjhkbEJJYjgzU0lBYlFQYjF3Iiwid29ya3NwYWNlX2lkIjoid29ya3NwYWNlX3ZlY3Rvcl8wMDEifSwiY29tbWFuZF9tYWlsYm94X2lkIjoiMDAxMTIyMzM0NDU1NjY3Nzg4OTlhYWJiY2NkZGVlZmYiLCJjb21tYW5kX21haWxib3hfd3JpdGVfY2FwYWJpbGl0eSI6IkRnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzRPRGc0T0RnNE9EZzQiLCJzY2hlbWEiOiJ0b2hzZW5vLmNvbXBhbmlvbi1wYWlyaW5nLWdyYW50LXBhY2thZ2UvMSIsInN0dWRpb19hZ3JlZW1lbnRfcHVibGljX2tleSI6InpvMDYwY3kyTS14N2NNRjRGS1hIYnMwQ2xvVUZEVFJIUmJvRmh3NVlmVmsifQ",
     "acceptance": {
       "schema": "tohseno.companion-pairing-grant-package/1",
       "capability_grant": {
@@ -122,13 +124,15 @@
           "feedback.write",
           "marketing.write",
           "shot.create",
-          "shot.evolve"
+          "shot.evolve",
+          "publication.authorize",
+          "network.receive"
         ],
         "issued_at": "2026-08-15T12:01:01Z",
         "expires_at": "2026-08-16T12:01:01Z",
         "revocation_epoch": 0,
         "studio_signing_public_key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
-        "signature": "3RHaylAYIMvBALOjH-a6uCl-KW5d0D--9BWtoz-2JfraEtdkLOQP4-0Laq3wpWhM1lJmHWStJ-El1wDyLGTCCQ"
+        "signature": "flm1sE0yWIbdsIXaPJwSLvYGIZr4MBt8aXX3TRErGTGG94VTdT0YKUMNlxKi7Mw55Ch62gTehgKKvOScMlfyCw"
       },
       "studio_agreement_public_key": "zo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVk",
       "command_mailbox_id": "00112233445566778899aabbccddeeff",

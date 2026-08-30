@@ -6,6 +6,7 @@ import { INTENT_LIMITS } from "./src/intent-limits.ts";
 import { createRelayRouter } from "./src/relay-routes.ts";
 import { createBillingRouter } from "./src/billing.ts";
 import { createManagedRouter } from "./src/managed.ts";
+import { createRegistryRouter } from "./src/registry.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
@@ -324,9 +325,11 @@ function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
   if (pathname.startsWith("/api/billing/v1/")) return "billing";
   if (pathname.startsWith("/api/managed/v1/")) return "managed-compute";
+  if (pathname.startsWith("/api/registry/v1/")) return "registry-api";
   if (pathname === "/install" || pathname === "/download") return "native-installer";
   if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
   if (pathname === "/") return "landing-page";
+  if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")) return "public-registry";
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
   if (pathname === "/healthz") return "health";
@@ -397,6 +400,7 @@ export async function createApplication(
   const relay = await createRelayRouter(config);
   const billing = await createBillingRouter(config);
   const managed = await createManagedRouter(config);
+  const registry = await createRegistryRouter(config);
   const log = options.log ??
     ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
   const logError = options.logError ??
@@ -424,8 +428,11 @@ export async function createApplication(
       LANDING_STYLE_REVISION: landingStyleRevision,
       DOWNLOAD_CHANNEL: config.distribution.macosChannel,
     });
+  const networkLaunchEnabled = config.registry.enabled
+    && config.registry.relayerEnabled
+    && config.distribution.macosEnabled;
   const [landingPage, docsPage, privacyPage] = await Promise.all([
-    renderPage("index.html"),
+    renderPage(networkLaunchEnabled ? "index-network.html" : "index.html"),
     renderPage("docs.html"),
     renderPage("privacy.html"),
   ]);
@@ -444,6 +451,18 @@ export async function createApplication(
     if (relay.handles(pathname)) return relay.fetch(request);
     if (billing.handles(pathname)) return billing.fetch(request);
     if (managed.handles(pathname)) return managed.fetch(request);
+    if (registry.handles(pathname)) return registry.fetch(request);
+
+    if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")) {
+      if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
+      let content: string | undefined;
+      if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);
+      else if (/^\/s\/[0-9a-f]{64}$/.test(pathname)) content = await registry.renderShot(`0x${pathname.slice(3)}`);
+      else if (/^\/@[^/]+$/.test(pathname)) content = await registry.renderBuilder(decodeURIComponent(pathname.slice(2)));
+      else content = await registry.renderHumanRoute(pathname);
+      if (!content) throw new HttpError(404, "Not found");
+      return headResponse(html(content), method);
+    }
 
     if (pathname === "/install" || pathname === "/download") {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();

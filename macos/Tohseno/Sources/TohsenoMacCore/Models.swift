@@ -378,21 +378,87 @@ public struct LocalRegistryRecord: Codable, Equatable, Identifiable, Sendable {
     public var id: String { shotID }
 }
 
+public struct PublicRegistryRelease: Codable, Equatable, Identifiable, Sendable {
+    public struct Release: Codable, Equatable, Sendable {
+        public struct Display: Codable, Equatable, Sendable {
+            public let name: String
+            public let description: String
+            public let builderHandle: String?
+
+            enum CodingKeys: String, CodingKey {
+                case name, description
+                case builderHandle = "builder_handle"
+            }
+        }
+
+        public struct Permissions: Codable, Equatable, Sendable {
+            public let installAllowed: Bool
+            public let forkAllowed: Bool
+
+            enum CodingKeys: String, CodingKey {
+                case installAllowed = "install_allowed"
+                case forkAllowed = "fork_allowed"
+            }
+        }
+
+        public let shotID: String
+        public let builderID: String
+        public let checkpointSequence: UInt64
+        public let display: Display
+        public let permissions: Permissions
+
+        enum CodingKeys: String, CodingKey {
+            case shotID = "shot_id"
+            case builderID = "builder_id"
+            case checkpointSequence = "checkpoint_sequence"
+            case display, permissions
+        }
+    }
+
+    public let releaseDigest: String
+    public let route: String
+    public let release: Release
+    public let sourceURL: String
+
+    public var id: String { releaseDigest }
+
+    enum CodingKeys: String, CodingKey {
+        case releaseDigest = "release_digest"
+        case route, release
+        case sourceURL = "source_url"
+    }
+}
+
+public struct NetworkReviewRequest: Equatable, Sendable {
+    public let shotID: String
+    public let releaseDigest: String
+    public let action: NetworkReceiveAction
+    public let reasons: String
+}
+
+struct PublicCatalogPage: Codable, Sendable {
+    let schema: String
+    let releases: [PublicRegistryRelease]
+}
+
 public struct RegistrySnapshot: Equatable, Sendable {
     public let builder: BuilderIdentityView
     public let network: RegistryNetworkStatus
     public let records: [LocalRegistryRecord]
+    public let published: [PublicRegistryRelease]
 
     public init(
         builder: BuilderIdentityView,
         network: RegistryNetworkStatus,
-        records: [LocalRegistryRecord]
+        records: [LocalRegistryRecord],
+        published: [PublicRegistryRelease] = []
     ) {
         self.builder = builder
         self.network = network
         self.records = records.sorted {
             ($0.appName, $0.shotID) < ($1.appName, $1.shotID)
         }
+        self.published = published
     }
 
     public var acceptedVersionCount: UInt64 {
@@ -406,6 +472,49 @@ public struct CommandReceipt: Codable, Equatable, Sendable {
     public let shotID: String
     public let executionID: String
     public let state: String
+}
+
+public struct PublicationPreparationView: Codable, Equatable, Sendable {
+    public let schema: String
+    public let jobID: String
+    public let projectID: String
+    public let shotID: String
+    public let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case schema, status
+        case jobID = "job_id"
+        case projectID = "project_id"
+        case shotID = "shot_id"
+    }
+}
+
+public enum NetworkReceiveAction: String, Codable, Sendable {
+    case install
+    case fork
+}
+
+public struct NetworkReceiveView: Codable, Equatable, Sendable {
+    public let schema: String
+    public let action: String
+    public let shotID: String
+    public let releaseDigest: String
+    public let builderID: String
+    public let sourcePath: String
+    public let projectID: String
+    public let candidateShotID: String?
+    public let installationStatus: String
+
+    enum CodingKeys: String, CodingKey {
+        case schema, action
+        case shotID = "shot_id"
+        case releaseDigest = "release_digest"
+        case builderID = "builder_id"
+        case sourcePath = "source_path"
+        case projectID = "project_id"
+        case candidateShotID = "candidate_shot_id"
+        case installationStatus = "installation_status"
+    }
 }
 
 public struct NativeSessionCredential: Codable, Equatable, Sendable {

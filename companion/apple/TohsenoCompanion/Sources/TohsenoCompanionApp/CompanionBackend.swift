@@ -14,6 +14,20 @@ public protocol CompanionBackend: Sendable {
     func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt
     func requestEvolution(_ request: EvolutionRequest) async throws -> CommandReceipt
     func requestProjectEvolution(_ request: ProjectEvolutionRequest) async throws -> CommandReceipt
+    func announceBuilderDevice(_ builderDevice: BuilderDeviceAnnouncement, commandID: String) async throws -> CommandReceipt
+    func approvePublication(
+        jobID: String,
+        catalog: BuilderDeviceSignature,
+        registry: BuilderDeviceSignature,
+        approvedAt: String,
+        commandID: String
+    ) async throws -> CommandReceipt
+    func requestNetworkRelease(
+        action: NetworkReleaseAction,
+        shotID: String,
+        releaseDigest: String,
+        commandID: String
+    ) async throws -> CommandReceipt
     /// Signed commands this phone has written that the Mac has not acknowledged.
     func unacknowledgedCommandCount() async throws -> Int
     func createIdentity() async throws -> RecoveryPhrase

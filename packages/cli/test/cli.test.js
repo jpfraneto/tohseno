@@ -16,14 +16,14 @@ import path from "node:path";
 function manifest() {
   return {
     schema: "tohseno.native-release-manifest/1",
-    native_release_version: "1.0.2",
-    minimum_npm_cli_version: "1.0.2",
+    native_release_version: "1.1.0",
+    minimum_npm_cli_version: "1.1.0",
     layout_version: "tohseno-user-release/2",
     artifacts: [
       {
         architecture: "arm64",
         target: "aarch64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2/tohseno-release-aarch64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.1.0/tohseno-release-aarch64-apple-darwin.tar.gz",
         byte_size: 123,
         sha256: "ab".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },
@@ -31,7 +31,7 @@ function manifest() {
       {
         architecture: "x64",
         target: "x86_64-apple-darwin",
-        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2/tohseno-release-x86_64-apple-darwin.tar.gz",
+        url: "https://github.com/jpfraneto/tohseno/releases/download/v1.1.0/tohseno-release-x86_64-apple-darwin.tar.gz",
         byte_size: 456,
         sha256: "cd".repeat(32),
         signing: { kind: "release-package", team_id: null, designated_requirement: null },
@@ -53,19 +53,19 @@ test("stable semantic versions compare without prerelease ambiguity", () => {
 });
 
 test("manifest selects the exact architecture and enforces minimum CLI", () => {
-  assert.equal(validateManifest(manifest(), "1.0.2", "arm64").artifact.target, "aarch64-apple-darwin");
+  assert.equal(validateManifest(manifest(), "1.1.0", "arm64").artifact.target, "aarch64-apple-darwin");
   const newer = manifest();
-  newer.minimum_npm_cli_version = "1.1.0";
-  assert.throws(() => validateManifest(newer, "1.0.2", "arm64"), /too old/);
+  newer.minimum_npm_cli_version = "1.1.1";
+  assert.throws(() => validateManifest(newer, "1.1.0", "arm64"), /too old/);
   assert.throws(() => nodeArchitecture("mips"), /Apple silicon and Intel/);
 });
 
-test("npm 1.0.2 refuses a stale native release manifest", () => {
+test("npm 1.1.0 refuses a stale native release manifest", () => {
   const stale = manifest();
   stale.native_release_version = "1.0.0";
   assert.throws(
-    () => validateManifest(stale, "1.0.2", "arm64"),
-    /requires native TOHSENO 1\.0\.2/,
+    () => validateManifest(stale, "1.1.0", "arm64"),
+    /requires native TOHSENO 1\.1\.0/,
   );
 });
 
@@ -73,16 +73,16 @@ test("manifest rejects duplicate architectures, sizes, digests, and extra fields
   const duplicate = manifest();
   duplicate.artifacts[1].architecture = "arm64";
   duplicate.artifacts[1].target = "aarch64-apple-darwin";
-  assert.throws(() => validateManifest(duplicate, "1.0.2", "arm64"), /duplicate/);
+  assert.throws(() => validateManifest(duplicate, "1.1.0", "arm64"), /duplicate/);
   const size = manifest();
   size.artifacts[0].byte_size = 0;
-  assert.throws(() => validateManifest(size, "1.0.2", "arm64"), /byte size/);
+  assert.throws(() => validateManifest(size, "1.1.0", "arm64"), /byte size/);
   const digest = manifest();
   digest.artifacts[0].sha256 = "AB".repeat(32);
-  assert.throws(() => validateManifest(digest, "1.0.2", "arm64"), /SHA-256/);
+  assert.throws(() => validateManifest(digest, "1.1.0", "arm64"), /SHA-256/);
   const extra = manifest();
   extra.token = "secret";
-  assert.throws(() => validateManifest(extra, "1.0.2", "arm64"), /unexpected/);
+  assert.throws(() => validateManifest(extra, "1.1.0", "arm64"), /unexpected/);
 });
 
 test("URL allowlist rejects HTTP, credentials, ports, and unapproved hosts", () => {
@@ -170,7 +170,7 @@ test("only a fresh global Mac install starts first run automatically", async () 
   await startFreshGlobalInstall({
     platform: "darwin",
     environment: { npm_config_global: "true" },
-    findInstalledNative: async () => ({ version: "1.0.2" }),
+    findInstalledNative: async () => ({ version: "1.1.0" }),
     repairInstallerMarker: async () => {},
     spawn: () => { throw new Error("must not start twice"); },
   });

@@ -284,6 +284,8 @@ pub fn deterministic_vectors() -> Result<SharedVectors> {
                 CapabilityAction::MarketingWrite,
                 CapabilityAction::ShotCreate,
                 CapabilityAction::ShotEvolve,
+                CapabilityAction::PublicationAuthorize,
+                CapabilityAction::NetworkReceive,
             ],
             issued_at: "2026-08-15T12:01:01Z".into(),
             expires_at: Some("2026-08-16T12:01:01Z".into()),
@@ -798,7 +800,7 @@ mod tests {
                 &canonical::to_vec(&vectors.command.command).unwrap(),
             )
             .unwrap(),
-            PhoneToMacPayload::Command(vectors.command.command.clone())
+            PhoneToMacPayload::Command(Box::new(vectors.command.command.clone()))
         );
         vectors
             .snapshot_request_command

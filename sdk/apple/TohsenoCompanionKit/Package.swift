@@ -18,9 +18,15 @@ let package = Package(
             targets: ["TohsenoCompanionInteropProbe"]
         ),
     ],
+    dependencies: [
+        .package(path: "../../../apple-identity"),
+    ],
     targets: [
         .target(
             name: "TohsenoCompanionKit",
+            dependencies: [
+                .product(name: "TohsenoAppleIdentity", package: "apple-identity"),
+            ],
             resources: [
                 .process("Resources"),
             ]

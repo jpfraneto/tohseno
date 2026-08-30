@@ -26,6 +26,8 @@ public protocol FactoryServing: Sendable {
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate
     func managedCheckout(packID: String) async throws -> ManagedCheckout
     func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot
+    func deploy(projectID: String) async throws -> PublicationPreparationView
+    func receiveNetworkRelease(shotID: String, releaseDigest: String, action: NetworkReceiveAction, approveMacReview: Bool) async throws -> NetworkReceiveView
     func performReadinessAction(_ action: String) async throws -> ReadinessView
     func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult
     func pairedCompanionDevices() async throws -> [PairedCompanionDevice]
@@ -137,9 +139,34 @@ public actor LoopbackFactoryClient: FactoryServing {
         let builder: BuilderIdentityView = try await helperJSON([
             "--json", "advanced", "identity", "show",
         ])
-        let network: RegistryNetworkStatus = try await helperJSON([
-            "--json", "advanced", "network", "status",
-        ])
+        var published: [PublicRegistryRelease] = []
+        var publicRegistryAvailable = false
+        if let url = URL(string: "https://tohseno.com/api/registry/v1/shots") {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            request.cachePolicy = .reloadRevalidatingCacheData
+            if let (data, response) = try? await urlSession.data(for: request),
+               let http = response as? HTTPURLResponse,
+               http.statusCode == 200,
+               data.count <= 2 * 1024 * 1024,
+               let page = try? JSONDecoder().decode(PublicCatalogPage.self, from: data),
+               page.schema == "tohseno.catalog-page/1",
+               page.releases.count <= 100 {
+                published = page.releases
+                publicRegistryAvailable = true
+            }
+        }
+        let network = RegistryNetworkStatus(
+            schema: "tohseno.registry-network-status/1",
+            productVersion: "1.1.0",
+            activeGeneration: "0.8.0",
+            ready: publicRegistryAvailable,
+            rpcChecked: false,
+            publicAuthorityAvailable: publicRegistryAvailable,
+            reason: publicRegistryAvailable
+                ? "Catalog reachable. The Mac verifies the exact signed release and fresh chain state before Install or Fork."
+                : "The public Registry could not be reached. Local apps remain private and available."
+        )
         var records: [LocalRegistryRecord] = []
         records.reserveCapacity(appNames.count)
         for name in appNames.sorted() {
@@ -149,7 +176,35 @@ public actor LoopbackFactoryClient: FactoryServing {
             ])
             records.append(record)
         }
-        return RegistrySnapshot(builder: builder, network: network, records: records)
+        return RegistrySnapshot(
+            builder: builder,
+            network: network,
+            records: records,
+            published: published
+        )
+    }
+
+    public func deploy(projectID: String) async throws -> PublicationPreparationView {
+        try validateToken(projectID, label: "project ID")
+        return try await helperJSON([
+            "--json", "deploy", "--project-id", projectID,
+        ])
+    }
+
+    public func receiveNetworkRelease(
+        shotID: String,
+        releaseDigest: String,
+        action: NetworkReceiveAction,
+        approveMacReview: Bool = false
+    ) async throws -> NetworkReceiveView {
+        try validateDigest(shotID, label: "ShotID")
+        try validateDigest(releaseDigest, label: "release digest")
+        var arguments = [
+            "--json", action.rawValue, shotID,
+            "--release", releaseDigest,
+        ]
+        if approveMacReview { arguments.append("--approve-mac-review") }
+        return try await helperJSON(arguments)
     }
 
     public func performReadinessAction(_ action: String) async throws -> ReadinessView {
@@ -960,6 +1015,15 @@ private func validateToken(_ value: String, label: String) throws {
               (65...90).contains($0) || (97...122).contains($0) ||
               (48...57).contains($0) || $0 == 45 || $0 == 95
           }) else {
+        throw FactoryClientError.invalidConfiguration("The \(label) is invalid.")
+    }
+}
+
+private func validateDigest(_ value: String, label: String) throws {
+    guard value.utf8.count == 66, value.hasPrefix("0x"),
+          value.dropFirst(2).utf8.allSatisfy({
+              (48...57).contains($0) || (97...102).contains($0)
+          }), value.dropFirst(2).contains(where: { $0 != "0" }) else {
         throw FactoryClientError.invalidConfiguration("The \(label) is invalid.")
     }
 }

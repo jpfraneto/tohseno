@@ -14,6 +14,7 @@ pub mod icon;
 pub mod identity;
 pub mod journal;
 pub mod pairing;
+pub mod publication;
 pub mod reference;
 pub mod relay_client;
 pub mod snapshot;

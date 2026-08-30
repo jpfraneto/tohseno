@@ -84,6 +84,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
     case commandAcknowledged(CommandReceipt)
     case commandRejected(CommandReceipt)
     case deviceRevoked(deviceID: String, revocationEpoch: UInt64)
+    case publicationApprovalRequested(PublicationApprovalRequest)
 
     private enum Keys: String, CodingKey {
         case eventKind = "event_kind"
@@ -96,6 +97,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case execution, receipt
         case deviceID = "device_id"
         case revocationEpoch = "revocation_epoch"
+        case request
     }
 
     private enum Kind: String, Codable {
@@ -115,6 +117,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case commandAcknowledged = "command.acknowledged"
         case commandRejected = "command.rejected"
         case deviceRevoked = "device.revoked"
+        case publicationApprovalRequested = "publication.approval.requested"
     }
 
     public init(from decoder: Decoder) throws {
@@ -179,6 +182,11 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
                 deviceID: container.decode(String.self, forKey: .deviceID),
                 revocationEpoch: container.decode(UInt64.self, forKey: .revocationEpoch)
             )
+        case .publicationApprovalRequested:
+            try requireExactKeys(decoder, ["event_kind", "request"])
+            self = try .publicationApprovalRequested(
+                container.decode(PublicationApprovalRequest.self, forKey: .request)
+            )
         }
     }
 
@@ -238,6 +246,9 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
             try container.encode(Kind.deviceRevoked, forKey: .eventKind)
             try container.encode(deviceID, forKey: .deviceID)
             try container.encode(epoch, forKey: .revocationEpoch)
+        case let .publicationApprovalRequested(request):
+            try container.encode(Kind.publicationApprovalRequested, forKey: .eventKind)
+            try container.encode(request, forKey: .request)
         }
     }
 
@@ -270,6 +281,8 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case let .deviceRevoked(deviceID, epoch):
             try requireIdentifier(deviceID, field: "device_id")
             guard epoch > 0 else { throw TohsenoCompanionError.invalidEncoding("revocation epoch") }
+        case let .publicationApprovalRequested(request):
+            try request.validate()
         }
     }
 

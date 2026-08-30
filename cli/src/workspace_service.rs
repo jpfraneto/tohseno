@@ -310,6 +310,13 @@ impl ApiOrigin {
 #[serde(deny_unknown_fields)]
 struct EmptyRequest {}
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NetworkInstallRequest {
+    #[serde(default)]
+    mac_review_approved: bool,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RenameCompanionDeviceRequest {
@@ -551,6 +558,7 @@ pub async fn run_with(
     let reconciliation_companion = state.companion.clone();
     let reconciliation_application = state.application.clone();
     let reconciliation_living_projects = state.living_projects.clone();
+    let reconciliation_service_root = state.service_root.clone();
     let reconciliation_events = events.clone();
     let reconciliation_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(2));
@@ -572,8 +580,19 @@ pub async fn run_with(
             }
             let _ = reconciliation_companion.reconcile_relay_once().await;
             let _ = reconciliation_companion.publish_workspace_changes().await;
+            let _ = crate::network_commands::resume_publications_once(
+                &reconciliation_service_root,
+                &reconciliation_living_projects,
+            )
+            .await;
+            let _ =
+                crate::network_commands::resume_receive_requests_once(&reconciliation_service_root)
+                    .await;
             let _ = reconciliation_living_projects
                 .retry_ready_installations_once()
+                .await;
+            let _ = reconciliation_living_projects
+                .retry_ready_network_installations_once()
                 .await;
             if let Ok(digest) = privacy_safe_living_project_digest(&reconciliation_living_projects)
             {
@@ -652,6 +671,10 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         .route(
             "/api/v1/projects/{project_id}/open-on-iphone",
             post(open_project_on_iphone),
+        )
+        .route(
+            "/api/v1/projects/{project_id}/network-install",
+            post(install_network_project),
         )
         .route(
             "/api/v1/projects/{project_id}/evolutions",
@@ -1047,12 +1070,36 @@ async fn open_project_on_iphone(
             ))
         }
     };
-    tohseno_engine::gates::install::launch_owner_app(&device, &project.bundle_identifier)
+    let bundle_identifier = project
+        .network_delivery
+        .as_ref()
+        .filter(|delivery| delivery.status == "installed")
+        .map(|delivery| delivery.local_bundle_identifier.as_str())
+        .unwrap_or(&project.bundle_identifier);
+    tohseno_engine::gates::install::launch_owner_app(&device, bundle_identifier)
         .map_err(|error| ApiError::unavailable(error.to_string()))?;
     Ok(Json(json!({
         "schema": "tohseno.open-project-on-iphone-receipt/1",
         "opened": true,
     })))
+}
+
+async fn install_network_project(
+    State(state): State<Arc<WorkspaceState>>,
+    AxumPath(project_id): AxumPath<String>,
+    Json(request): Json<NetworkInstallRequest>,
+) -> Result<Json<Value>, ApiError> {
+    state
+        .living_projects
+        .install_network_project(&project_id, request.mac_review_approved)
+        .await
+        .map(|project| {
+            Json(json!({
+                "schema": "tohseno.network-installation-result/1",
+                "project": project,
+            }))
+        })
+        .map_err(|error| ApiError::conflict("network_install_failed", error.to_string()))
 }
 
 async fn project_evolutions(

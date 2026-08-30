@@ -96,6 +96,39 @@ pub struct DeviceInstallation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkImportKind {
+    Install,
+    Fork,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkProjectOrigin {
+    pub kind: NetworkImportKind,
+    pub parent_shot_id: String,
+    pub parent_release_digest: String,
+    pub source_artifact_sha256: String,
+    pub builder_id: String,
+    pub verified_at: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkDeliveryState {
+    pub release_digest: String,
+    pub status: String,
+    pub local_bundle_identifier: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provisioning_expires_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProjectBuildState {
     pub status: String,
@@ -142,6 +175,16 @@ pub struct LivingProjectRecord {
     pub instructions: Vec<RepositoryInstruction>,
     pub git: Option<GitObservation>,
     pub current_source_state: String,
+    /// Random public identity reserved exactly once when this project joins
+    /// the person-to-person path. It is not derived from its name or Git.
+    #[serde(default)]
+    pub candidate_shot_id: Option<String>,
+    #[serde(default)]
+    pub latest_publication: Option<ProjectPublication>,
+    #[serde(default)]
+    pub network_origin: Option<NetworkProjectOrigin>,
+    #[serde(default)]
+    pub network_delivery: Option<NetworkDeliveryState>,
     pub build: ProjectBuildState,
     #[serde(default)]
     pub associated_companion_device_ids: Vec<String>,
@@ -152,6 +195,18 @@ pub struct LivingProjectRecord {
     pub last_successful_installation: Option<String>,
     pub recovery: Option<String>,
     pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectPublication {
+    pub release_digest: String,
+    pub public_checkpoint_digest: String,
+    pub checkpoint_sequence: u64,
+    pub status: String,
+    pub public_url: Option<String>,
+    pub transaction_hash: Option<String>,
     pub updated_at: String,
 }
 
@@ -350,6 +405,8 @@ pub struct AdoptionRequest {
     pub harness: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    #[serde(default)]
+    pub network_origin: Option<NetworkProjectOrigin>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -457,6 +514,238 @@ impl LivingProjectService {
         }
     }
 
+    pub fn record_publication(
+        &self,
+        project_id: &str,
+        publication: ProjectPublication,
+    ) -> Result<LivingProjectRecord, BoxError> {
+        if publication.release_digest.len() != 66
+            || publication.public_checkpoint_digest.len() != 66
+            || publication.checkpoint_sequence == 0
+            || publication.status != "published"
+            || publication.public_url.as_deref().is_none_or(|value| {
+                !value.starts_with("https://tohseno.com/") || value.contains(['?', '#'])
+            })
+        {
+            return Err("public publication receipt is invalid".into());
+        }
+        let mut project = self.project(project_id)?.ok_or("unknown living project")?;
+        if let Some(existing) = &project.latest_publication {
+            if publication.checkpoint_sequence < existing.checkpoint_sequence {
+                return Err("public publication receipt moved backwards".into());
+            }
+            if publication.checkpoint_sequence == existing.checkpoint_sequence
+                && publication != *existing
+            {
+                return Err("public publication receipt conflicts at one checkpoint".into());
+            }
+        }
+        project.latest_publication = Some(publication);
+        project.revision = project
+            .revision
+            .checked_add(1)
+            .ok_or("project revision overflowed")?;
+        project.updated_at = now();
+        self.replace_project(&project)?;
+        Ok(project)
+    }
+
+    /// Build, locally sign, and install one already verified network import.
+    /// No Builder credential or original Apple identity participates here.
+    pub async fn install_network_project(
+        &self,
+        project_id: &str,
+        mac_review_approved: bool,
+    ) -> Result<LivingProjectRecord, BoxError> {
+        let _execution = self.execution_lock.lock().await;
+        let mut project = self.project(project_id)?.ok_or("unknown living project")?;
+        let origin = project
+            .network_origin
+            .clone()
+            .ok_or("this project is not a verified network import")?;
+        let safety = tohseno_network::build_profile::classify_xcode_project(
+            Path::new(&project.source_path),
+            Path::new(&project.container_path),
+        )?;
+        match safety.classification {
+            tohseno_network::catalog::BuildSafetyClassification::Unsupported => {
+                return Err(format!(
+                    "This app cannot be locally re-signed: {}",
+                    safety.reasons.join("; ")
+                )
+                .into())
+            }
+            tohseno_network::catalog::BuildSafetyClassification::RequiresMacReview
+                if !mac_review_approved =>
+            {
+                if let Some(delivery) = &mut project.network_delivery {
+                    delivery.status = "requires_mac_review".into();
+                    delivery.failure = Some(safety.reasons.join("; "));
+                    delivery.updated_at = now();
+                }
+                project.revision += 1;
+                project.updated_at = now();
+                self.replace_project(&project)?;
+                return Ok(project);
+            }
+            _ => {}
+        }
+        let team = tohseno_engine::gates::sign::development_team_profile()?;
+        let delivery_root = self.project_data_directory(project_id)?.join(format!(
+            "network-release-{}",
+            origin.parent_release_digest.trim_start_matches("0x")
+        ));
+        ensure_private_directory(&delivery_root)?;
+        let derived = delivery_root.join("derived-data");
+        ensure_private_directory(&derived)?;
+        let local_bundle = local_network_bundle_identifier(&origin.parent_shot_id);
+        let mut arguments = xcode_build_arguments(
+            &project,
+            &derived,
+            "Debug",
+            "iphoneos",
+            "generic/platform=iOS",
+            true,
+        );
+        let build = arguments
+            .pop()
+            .ok_or("Xcode build arguments are incomplete")?;
+        arguments.extend([
+            OsString::from("-disableAutomaticPackageResolution"),
+            OsString::from("-onlyUsePackageVersionsFromResolvedFile"),
+            OsString::from("ENABLE_USER_SCRIPT_SANDBOXING=YES"),
+            OsString::from("CODE_SIGN_STYLE=Automatic"),
+            OsString::from(format!("DEVELOPMENT_TEAM={}", team.team_id)),
+            OsString::from(format!("PRODUCT_BUNDLE_IDENTIFIER={local_bundle}")),
+        ]);
+        arguments.push(build);
+        if let Some(delivery) = &mut project.network_delivery {
+            delivery.status = "building".into();
+            delivery.failure = None;
+            delivery.updated_at = now();
+        }
+        project.revision += 1;
+        project.updated_at = now();
+        self.replace_project(&project)?;
+        let log = delivery_root.join("xcodebuild.log");
+        let status = run_logged_async(
+            "xcodebuild",
+            &arguments,
+            Path::new(&project.source_path),
+            &log,
+            XCODE_TIMEOUT,
+        )
+        .await?;
+        let artifact = find_built_app(&derived, &project.wrapper_name);
+        if !status.success() || artifact.is_none() {
+            let diagnostic = read_log_tail(&log, 8_000).unwrap_or_else(|_| status.to_string());
+            let mut failed = self.project(project_id)?.ok_or("unknown living project")?;
+            if let Some(delivery) = &mut failed.network_delivery {
+                delivery.status = "failed".into();
+                delivery.failure = Some(bounded_message(&diagnostic, 1_000));
+                delivery.updated_at = now();
+            }
+            failed.revision += 1;
+            failed.updated_at = now();
+            self.replace_project(&failed)?;
+            return Ok(failed);
+        }
+        let artifact = artifact.expect("checked above");
+        verify_codesign(&artifact)?;
+        let mut ready = self.project(project_id)?.ok_or("unknown living project")?;
+        ready.build = ProjectBuildState {
+            status: "buildable".into(),
+            checked_at: Some(now()),
+            configuration: Some("Debug".into()),
+            sdk: Some("iphoneos".into()),
+            artifact_path: Some(artifact.display().to_string()),
+            failure_category: None,
+            summary: Some("Xcode built and locally signed the verified network release.".into()),
+        };
+        if let Some(delivery) = &mut ready.network_delivery {
+            delivery.status = "ready_for_iphone".into();
+            delivery.local_bundle_identifier = local_bundle.clone();
+            delivery.artifact_path = Some(artifact.display().to_string());
+            delivery.provisioning_expires_at =
+                tohseno_engine::gates::sign::provisioning_expiration(&artifact);
+            delivery.failure = None;
+            delivery.updated_at = now();
+        }
+        ready.revision += 1;
+        ready.updated_at = now();
+        self.replace_project(&ready)?;
+        self.install_ready_network_project(&ready, &artifact, &local_bundle, team.provisioning)
+            .await
+    }
+
+    async fn install_ready_network_project(
+        &self,
+        project: &LivingProjectRecord,
+        artifact: &Path,
+        local_bundle: &str,
+        provisioning: tohseno_engine::gates::sign::ProvisioningKind,
+    ) -> Result<LivingProjectRecord, BoxError> {
+        let observed = tokio::task::spawn_blocking(device::inventory).await??;
+        let device = match observed {
+            DeviceInventoryState::Ready(mut devices) if devices.len() == 1 => devices.remove(0),
+            DeviceInventoryState::Ready(_) => return Ok(project.clone()),
+            DeviceInventoryState::CableMissing
+            | DeviceInventoryState::TrustRequired
+            | DeviceInventoryState::DeveloperModeRequired => return Ok(project.clone()),
+        };
+        if provisioning == tohseno_engine::gates::sign::ProvisioningKind::Free {
+            let installed = tohseno_engine::gates::install::installed_candidate_apps(&device)?;
+            if let Some(blocker) =
+                tohseno_engine::gates::install::free_team_slot_blocker(&installed, local_bundle)
+            {
+                return Err(format!(
+                    "Your Personal Team device limit is full; remove {} ({}) or use a paid development team",
+                    blocker.name.as_deref().unwrap_or("an existing development app"), blocker.bundle_id
+                )
+                .into());
+            }
+        }
+        let device_for_install = device.clone();
+        let artifact = artifact.to_path_buf();
+        let artifact_for_install = artifact.clone();
+        let bundle = local_bundle.to_owned();
+        tokio::task::spawn_blocking(move || {
+            tohseno_engine::gates::install::install_owner_app(
+                &device_for_install,
+                &artifact_for_install,
+                &bundle,
+            )
+        })
+        .await??;
+        let mut installed = self
+            .project(&project.project_id)?
+            .ok_or("unknown living project")?;
+        let installed_at = now();
+        let digest = device_digest(&device.identifier);
+        let (short_version, build_number) = app_versions(artifact.as_path());
+        installed
+            .installations
+            .retain(|value| value.device_identifier_digest != digest);
+        installed.installations.push(DeviceInstallation {
+            device_identifier_digest: digest,
+            device_name: device.name,
+            os_version: device.os_version,
+            short_version,
+            build_number,
+            installed_at: installed_at.clone(),
+            verified: true,
+        });
+        if let Some(delivery) = &mut installed.network_delivery {
+            delivery.status = "installed".into();
+            delivery.updated_at = installed_at.clone();
+        }
+        installed.last_successful_installation = Some(installed_at);
+        installed.revision += 1;
+        installed.updated_at = now();
+        self.replace_project(&installed)?;
+        Ok(installed)
+    }
+
     pub fn evolutions(&self, project_id: &str) -> Result<Vec<ProjectEvolutionRecord>, BoxError> {
         let directory = self.evolution_directory(project_id)?;
         let entries = match fs::read_dir(&directory) {
@@ -548,6 +837,20 @@ impl LivingProjectService {
                 && project.scheme == scheme
                 && project.bundle_identifier == bundle_identifier
         }) {
+            if request.network_origin.is_some() && request.network_origin != existing.network_origin
+            {
+                return Err(
+                    "this source root is already bound to a different network release".into(),
+                );
+            }
+            if existing.candidate_shot_id.is_none() {
+                existing.candidate_shot_id = Some(
+                    tohseno_protocol::digest::ShotId::random()
+                        .to_string()
+                        .trim_start_matches("0x")
+                        .to_owned(),
+                );
+            }
             existing.git = observe_git(&source_root)?;
             existing.current_source_state = source_state(&source_root, existing.git.as_ref())?;
             existing.instructions = discover_instructions(&source_root, existing.git.as_ref())?;
@@ -605,6 +908,28 @@ impl LivingProjectService {
             instructions,
             git,
             current_source_state,
+            candidate_shot_id: Some(
+                tohseno_protocol::digest::ShotId::random()
+                    .to_string()
+                    .trim_start_matches("0x")
+                    .to_owned(),
+            ),
+            latest_publication: None,
+            network_origin: request.network_origin.clone(),
+            network_delivery: request
+                .network_origin
+                .as_ref()
+                .map(|origin| NetworkDeliveryState {
+                    release_digest: origin.parent_release_digest.clone(),
+                    status: "verified_source".into(),
+                    local_bundle_identifier: local_network_bundle_identifier(
+                        &origin.parent_shot_id,
+                    ),
+                    artifact_path: None,
+                    provisioning_expires_at: None,
+                    failure: None,
+                    updated_at: created.clone(),
+                }),
             build: ProjectBuildState::default(),
             associated_companion_device_ids: Vec::new(),
             installations: Vec::new(),
@@ -616,6 +941,14 @@ impl LivingProjectService {
             created_at: created.clone(),
             updated_at: created,
         };
+        let mut record = record;
+        if record
+            .network_origin
+            .as_ref()
+            .is_some_and(|origin| origin.kind == NetworkImportKind::Install)
+        {
+            record.candidate_shot_id = None;
+        }
         validate_project(&record)?;
         let _guard = self
             .publication
@@ -1451,6 +1784,43 @@ impl LivingProjectService {
             self.install_or_wait(&project_id, &evolution_id, &artifact)
                 .await?;
             resumed += 1;
+        }
+        Ok(resumed)
+    }
+
+    pub async fn retry_ready_network_installations_once(&self) -> Result<usize, BoxError> {
+        let provisioning = match tohseno_engine::gates::sign::development_team_profile() {
+            Ok(team) => team.provisioning,
+            Err(_) => return Ok(0),
+        };
+        let mut ready = Vec::new();
+        for project in self.list_projects()? {
+            let Some(delivery) = &project.network_delivery else {
+                continue;
+            };
+            if delivery.status != "ready_for_iphone" {
+                continue;
+            }
+            let Some(artifact) = delivery.artifact_path.as_deref().map(PathBuf::from) else {
+                continue;
+            };
+            if artifact.is_dir() {
+                let bundle = delivery.local_bundle_identifier.clone();
+                ready.push((project, artifact, bundle));
+            }
+        }
+        let mut resumed = 0;
+        for (project, artifact, bundle) in ready {
+            let updated = self
+                .install_ready_network_project(&project, &artifact, &bundle, provisioning)
+                .await?;
+            if updated
+                .network_delivery
+                .as_ref()
+                .is_some_and(|delivery| delivery.status == "installed")
+            {
+                resumed += 1;
+            }
         }
         Ok(resumed)
     }
@@ -2916,6 +3286,52 @@ fn validate_project(value: &LivingProjectRecord) -> Result<(), BoxError> {
     validate_text("scheme", &value.scheme, 256)?;
     validate_bundle_identifier(&value.bundle_identifier)?;
     validate_id("source state", &value.current_source_state)?;
+    if let Some(shot_id) = &value.candidate_shot_id {
+        validate_hex_digest("candidate ShotID", shot_id)?;
+    }
+    if let Some(publication) = &value.latest_publication {
+        validate_hex_digest(
+            "publication release digest",
+            publication.release_digest.trim_start_matches("0x"),
+        )?;
+        if publication.checkpoint_sequence == 0 {
+            return Err("publication checkpoint sequence is invalid".into());
+        }
+        validate_text("publication status", &publication.status, 64)?;
+    }
+    if let Some(origin) = &value.network_origin {
+        validate_prefixed_hex_digest("network parent ShotID", &origin.parent_shot_id)?;
+        validate_prefixed_hex_digest(
+            "network parent release digest",
+            &origin.parent_release_digest,
+        )?;
+        validate_prefixed_hex_digest(
+            "network source artifact digest",
+            &origin.source_artifact_sha256,
+        )?;
+        if !origin.builder_id.starts_with("eip155:4663:0x") || origin.builder_id.len() != 54 {
+            return Err("network BuilderID is invalid".into());
+        }
+        tohseno_companion::parse_timestamp(&origin.verified_at)?;
+        if origin.kind == NetworkImportKind::Install && value.candidate_shot_id.is_some() {
+            return Err("an install-only network import cannot claim a child ShotID".into());
+        }
+        if origin.kind == NetworkImportKind::Fork && value.candidate_shot_id.is_none() {
+            return Err("a network fork must reserve a new child ShotID".into());
+        }
+    }
+    if let Some(delivery) = &value.network_delivery {
+        validate_prefixed_hex_digest("network delivery release", &delivery.release_digest)?;
+        validate_text("network delivery status", &delivery.status, 64)?;
+        validate_bundle_identifier(&delivery.local_bundle_identifier)?;
+        if let Some(expires) = &delivery.provisioning_expires_at {
+            tohseno_companion::parse_timestamp(expires)?;
+        }
+        if let Some(failure) = &delivery.failure {
+            validate_text("network delivery failure", failure, 1_000)?;
+        }
+        tohseno_companion::parse_timestamp(&delivery.updated_at)?;
+    }
     if value.installations.len() > 128
         || value.instructions.len() > 128
         || value.associated_companion_device_ids.len() > 128
@@ -2972,6 +3388,19 @@ fn validate_hex_digest(label: &str, value: &str) -> Result<(), BoxError> {
         return Err(format!("{label} is invalid").into());
     }
     Ok(())
+}
+
+fn validate_prefixed_hex_digest(label: &str, value: &str) -> Result<(), BoxError> {
+    let body = value
+        .strip_prefix("0x")
+        .ok_or_else(|| format!("{label} is invalid"))?;
+    validate_hex_digest(label, body)
+}
+
+fn local_network_bundle_identifier(shot_id: &str) -> String {
+    let body = shot_id.strip_prefix("0x").unwrap_or(shot_id);
+    let short = body.get(..24).unwrap_or(body);
+    format!("org.tohseno.genesis.network.s{short}")
 }
 
 fn validate_id(label: &str, value: &str) -> Result<(), BoxError> {
@@ -3345,6 +3774,10 @@ mod tests {
             instructions: Vec::new(),
             git: None,
             current_source_state: "state_fixture".into(),
+            candidate_shot_id: Some("11".repeat(32)),
+            latest_publication: None,
+            network_origin: None,
+            network_delivery: None,
             build: ProjectBuildState::default(),
             associated_companion_device_ids: vec!["device_fixture".into()],
             installations: vec![DeviceInstallation {
@@ -3369,5 +3802,40 @@ mod tests {
         validate_project(&reopened).unwrap();
         assert_eq!(reopened, record);
         assert!(reopened.installations[0].verified);
+
+        let parent_shot = format!("0x{}", "22".repeat(32));
+        let parent_release = format!("0x{}", "33".repeat(32));
+        let origin = NetworkProjectOrigin {
+            kind: NetworkImportKind::Fork,
+            parent_shot_id: parent_shot.clone(),
+            parent_release_digest: parent_release.clone(),
+            source_artifact_sha256: format!("0x{}", "44".repeat(32)),
+            builder_id: format!("eip155:4663:0x{}", "55".repeat(20)),
+            verified_at: "2026-08-30T00:00:00Z".into(),
+        };
+        let mut fork = record.clone();
+        fork.candidate_shot_id = Some("66".repeat(32));
+        fork.network_origin = Some(origin.clone());
+        validate_project(&fork).unwrap();
+        assert_ne!(
+            fork.candidate_shot_id.as_deref(),
+            Some(parent_shot.trim_start_matches("0x"))
+        );
+
+        let mut install = fork;
+        install.candidate_shot_id = None;
+        install.network_origin = Some(NetworkProjectOrigin {
+            kind: NetworkImportKind::Install,
+            ..origin
+        });
+        validate_project(&install).unwrap();
+        assert_eq!(
+            install
+                .network_origin
+                .as_ref()
+                .unwrap()
+                .parent_release_digest,
+            parent_release
+        );
     }
 }

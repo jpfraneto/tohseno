@@ -26,7 +26,8 @@ use tohseno_companion::capability::{
     CAPABILITY_GRANT_SCHEMA,
 };
 use tohseno_companion::command::{
-    CommandPayload, CommandReceipt, CompanionCommand, ReceiptState, ReferenceDescriptor,
+    CommandPayload, CommandReceipt, CompanionCommand, NetworkReleaseAction, ReceiptState,
+    ReferenceDescriptor,
 };
 use tohseno_companion::crypto::{base64url, decode_array};
 use tohseno_companion::envelope::{open_envelope, seal_envelope, EnvelopeMetadata, OpaqueEnvelope};
@@ -40,6 +41,9 @@ use tohseno_companion::pairing::{
     EncryptedPairingResponse, PairingAcceptance, PairingInvitation, PairingProof,
     PairingResponseBody, PairingSessionState, PairingSessionStore, RelayAllowlist,
     PAIRING_ACCEPTANCE_SCHEMA, PAIRING_INVITATION_LIFETIME_SECONDS, PAIRING_RESPONSE_BODY_SCHEMA,
+};
+use tohseno_companion::publication::{
+    BuilderDeviceAnnouncement, BuilderDeviceSignature, PublicationApprovalRequest,
 };
 use tohseno_companion::reference::{
     ChunkAdmission, PhoneToMacPayload, ReferenceBlob, ReferenceBlobAssembler, ReferenceBlobChunk,
@@ -55,6 +59,8 @@ use tohseno_companion::snapshot::{
     WorkspaceSnapshot, WORKSPACE_SNAPSHOT_SCHEMA,
 };
 use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
+use tohseno_protocol::identity::device_key_id;
+use tohseno_protocol::signature::{verify_digest, P256PublicKey, P256Signature};
 use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 
@@ -975,7 +981,7 @@ impl CompanionCoordinator {
         let payload = PhoneToMacPayload::from_canonical_slice(&plaintext)?;
         let result = match payload {
             PhoneToMacPayload::Command(command) => {
-                let result = ProcessedEnvelope::Command(self.process_command(command).await?);
+                let result = ProcessedEnvelope::Command(self.process_command(*command).await?);
                 self.record_admitted_envelope(envelope, &result)?;
                 result
             }
@@ -1381,6 +1387,118 @@ impl CompanionCoordinator {
                     rejection_code: None,
                 }
             }
+            CommandPayload::NetworkReleaseRequest {
+                action,
+                shot_id,
+                release_digest,
+            } => {
+                let action = match action {
+                    NetworkReleaseAction::Install => crate::network_commands::ReceiveKind::Install,
+                    NetworkReleaseAction::Fork => crate::network_commands::ReceiveKind::Fork,
+                };
+                if crate::network_commands::enqueue_receive_request(
+                    &self.service_root,
+                    &command_id,
+                    action,
+                    &shot_id,
+                    &release_digest,
+                    &record.device_id,
+                )
+                .is_err()
+                {
+                    return Ok(rejection(&command_id, "network_release_invalid"));
+                }
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Accepted,
+                    shot_id: Some(shot_id),
+                    execution_id: None,
+                    result_id: Some(release_digest),
+                    rejection_code: None,
+                }
+            }
+            CommandPayload::BuilderIdentityAnnounce { builder_device } => {
+                if validate_builder_device_announcement(&builder_device, cfg!(test)).is_err() {
+                    return Ok(rejection(&command_id, "invalid_builder_device"));
+                }
+                let directory = self.service_root.join("network-builder-devices-v1");
+                ensure_private_directory(&directory)?;
+                let path = directory.join(format!("{}.json", record.device_id));
+                let bytes = serde_json::to_vec(&builder_device)?;
+                if bytes.len() > 64 * 1024 {
+                    return Ok(rejection(&command_id, "invalid_builder_device"));
+                }
+                write_replace(&path, &bytes, 0o600)?;
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Completed,
+                    shot_id: None,
+                    execution_id: None,
+                    result_id: Some(builder_device.key_id),
+                    rejection_code: None,
+                }
+            }
+            CommandPayload::PublicationApprove {
+                job_id,
+                catalog,
+                registry,
+                approved_at,
+            } => {
+                let job = self
+                    .service_root
+                    .join("network-publications-v1")
+                    .join(&job_id);
+                let request_path = job.join("approval-request.json");
+                let request: PublicationApprovalRequest =
+                    match read_bounded(&request_path, 1024 * 1024)
+                        .and_then(|bytes| serde_json::from_slice(&bytes).map_err(Into::into))
+                    {
+                        Ok(value) => value,
+                        Err(_) => return Ok(rejection(&command_id, "unknown_publication")),
+                    };
+                if request.job_id != job_id
+                    || request.builder_device != catalog.signer
+                    || request.builder_device != registry.signer
+                    || request.catalog_digest != catalog.digest
+                    || request.registry_digest != registry.digest
+                    || request.validate().is_err()
+                    || validate_builder_device_announcement(&request.builder_device, cfg!(test))
+                        .is_err()
+                    || verify_publication_signature(&catalog).is_err()
+                    || verify_publication_signature(&registry).is_err()
+                {
+                    return Ok(rejection(&command_id, "publication_approval_mismatch"));
+                }
+                let approval = serde_json::json!({
+                    "schema": "tohseno.publication-approval/1",
+                    "job_id": job_id,
+                    "catalog": catalog,
+                    "registry": registry,
+                    "approved_at": approved_at,
+                    "author_device_id": record.device_id,
+                });
+                let path = job.join("approval.json");
+                match store_or_compare_immutable(
+                    &path,
+                    &serde_json::to_vec(&approval)?,
+                    256 * 1024,
+                    "publication approval idempotency conflict",
+                ) {
+                    Ok(_) => {}
+                    Err(_) => return Ok(rejection(&command_id, "publication_approval_conflict")),
+                }
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Completed,
+                    shot_id: Some(request.shot_id),
+                    execution_id: None,
+                    result_id: Some(job_id),
+                    rejection_code: None,
+                }
+            }
         };
         result.validate()?;
         Ok(result)
@@ -1562,10 +1680,32 @@ impl CompanionCoordinator {
                 self.publish_workspace_snapshot(&record, &agreement_key)
                     .await?;
                 published += 1;
+                let publication_count = self
+                    .publish_pending_publications(&record, &agreement_key)
+                    .await?;
+                published += publication_count;
+                if publication_count > 0 {
+                    let mut projection = current;
+                    projection.next_cursor = self.next_event_cursor(&record.device_id)?;
+                    self.store_workspace_projection(&record, &projection)?;
+                }
                 continue;
             };
             let payloads = workspace_change_payloads(&previous, &current)?;
             if payloads.is_empty() {
+                let agreement_key = decode_array::<32>(
+                    "device agreement public key",
+                    &record.agreement_public_key,
+                )?;
+                let publication_count = self
+                    .publish_pending_publications(&record, &agreement_key)
+                    .await?;
+                if publication_count > 0 {
+                    let mut projection = current;
+                    projection.next_cursor = self.next_event_cursor(&record.device_id)?;
+                    self.store_workspace_projection(&record, &projection)?;
+                    published += publication_count;
+                }
                 continue;
             }
             let agreement_key =
@@ -1608,6 +1748,104 @@ impl CompanionCoordinator {
             let mut projection = current;
             projection.next_cursor = next_cursor;
             self.store_workspace_projection(&record, &projection)?;
+            let publication_count = self
+                .publish_pending_publications(&record, &agreement_key)
+                .await?;
+            if publication_count > 0 {
+                projection.next_cursor = self.next_event_cursor(&record.device_id)?;
+                self.store_workspace_projection(&record, &projection)?;
+                published += publication_count;
+            }
+        }
+        Ok(published)
+    }
+
+    async fn publish_pending_publications(
+        &self,
+        record: &DeviceRecord,
+        agreement_key: &[u8; 32],
+    ) -> Result<usize, BoxError> {
+        let root = self.service_root.join("network-publications-v1");
+        let entries = match fs::read_dir(&root) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(error.into()),
+        };
+        let identity_path = self
+            .service_root
+            .join("network-builder-devices-v1")
+            .join(format!("{}.json", record.device_id));
+        let identity: BuilderDeviceAnnouncement = match read_bounded(&identity_path, 64 * 1024)
+            .and_then(|bytes| serde_json::from_slice(&bytes).map_err(Into::into))
+        {
+            Ok(value) => value,
+            Err(_) => return Ok(0),
+        };
+        let mut published = 0;
+        for entry in entries.take(128) {
+            let entry = entry?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)?;
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "publication store contains a non-UTF-8 job")?;
+            if metadata.file_type().is_symlink()
+                || !metadata.is_dir()
+                || !name.starts_with("publication_")
+                || !name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+            {
+                return Err("publication store contains an unsafe job".into());
+            }
+            if path.join("approval.json").exists() {
+                continue;
+            }
+            let marker = path.join(format!("approval-request-sent-{}.json", record.device_id));
+            if marker.exists() {
+                continue;
+            }
+            let request_path = path.join("approval-request.json");
+            let request: PublicationApprovalRequest = match read_bounded(&request_path, 1024 * 1024)
+                .and_then(|bytes| serde_json::from_slice(&bytes).map_err(Into::into))
+            {
+                Ok(value) => value,
+                Err(error)
+                    if error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|value| value.kind() == std::io::ErrorKind::NotFound) =>
+                {
+                    continue
+                }
+                Err(error) => return Err(error),
+            };
+            request.validate()?;
+            if request.builder_device != identity {
+                continue;
+            }
+            if tohseno_companion::parse_timestamp(&request.expires_at)? <= OffsetDateTime::now_utc()
+            {
+                continue;
+            }
+            self.publish_workspace_event(
+                record,
+                agreement_key,
+                WorkspaceEventPayload::PublicationApprovalRequested {
+                    request: Box::new(request),
+                },
+            )
+            .await?;
+            write_new_atomic(
+                &marker,
+                &serde_json::to_vec(&serde_json::json!({
+                    "schema": "tohseno.publication-approval-delivery/1",
+                    "device_id": record.device_id,
+                    "delivered_at": now()?,
+                }))?,
+                0o600,
+            )?;
+            published += 1;
         }
         Ok(published)
     }
@@ -2768,7 +3006,40 @@ fn all_capabilities() -> Vec<CapabilityAction> {
         CapabilityAction::MarketingWrite,
         CapabilityAction::ShotCreate,
         CapabilityAction::ShotEvolve,
+        CapabilityAction::PublicationAuthorize,
+        CapabilityAction::NetworkReceive,
     ]
+}
+
+fn validate_builder_device_announcement(
+    value: &BuilderDeviceAnnouncement,
+    allow_test: bool,
+) -> Result<P256PublicKey, BoxError> {
+    value.validate()?;
+    if value.test_only && !allow_test {
+        return Err("test-only Builder DeviceKey cannot authorize production".into());
+    }
+    let key = P256PublicKey {
+        x: Bytes32::from_hex("Builder DeviceKey x", &value.x)?,
+        y: Bytes32::from_hex("Builder DeviceKey y", &value.y)?,
+    };
+    key.validate()?;
+    if device_key_id(&key) != Bytes32::from_hex("Builder DeviceKey ID", &value.key_id)? {
+        return Err("Builder DeviceKey ID differs from public coordinates".into());
+    }
+    Ok(key)
+}
+
+fn verify_publication_signature(value: &BuilderDeviceSignature) -> Result<(), BoxError> {
+    value.validate()?;
+    let key = validate_builder_device_announcement(&value.signer, cfg!(test))?;
+    let digest = Bytes32::from_hex("publication digest", &value.digest)?;
+    let signature = P256Signature {
+        r: Bytes32::from_hex("publication signature r", &value.r)?,
+        s: Bytes32::from_hex("publication signature s", &value.s)?,
+    };
+    verify_digest(&key, digest, &signature)?;
+    Ok(())
 }
 
 fn revision_number(value: &str) -> u64 {
@@ -3931,7 +4202,7 @@ mod tests {
     #[test]
     fn capabilities_are_explicit_and_sorted() {
         let values = all_capabilities();
-        assert_eq!(values.len(), 6);
+        assert_eq!(values.len(), 8);
         assert!(values.windows(2).all(|pair| pair[0] < pair[1]));
     }
 

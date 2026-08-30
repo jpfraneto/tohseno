@@ -10,7 +10,15 @@
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>Tohseno</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.2</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>com.tohseno.network</string>
+      <key>CFBundleURLSchemes</key>
+      <array><string>tohseno</string></array>
+    </dict>
+  </array>
+  <key>CFBundleShortVersionString</key><string>1.1.0</string>
   <key>CFBundleVersion</key><string>10003</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>

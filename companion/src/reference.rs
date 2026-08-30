@@ -236,7 +236,7 @@ impl ReferenceBlobChunk {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PhoneToMacPayload {
-    Command(CompanionCommand),
+    Command(Box<CompanionCommand>),
     ReferenceBlobChunk(ReferenceBlobChunk),
 }
 

@@ -20,10 +20,12 @@ serde_json.workspace = true
 tempfile.workspace = true
 time = { version = "=0.3.36", features = ["formatting", "parsing", "serde"] }
 tokio.workspace = true
+tokio-util = { version = "0.7.17", features = ["io"] }
 tohseno-application = { path = "../application" }
 tohseno-companion = { path = "../companion" }
 tohseno-engine = { path = "../engine" }
 tohseno-node = { path = "../node" }
+tohseno-network = { path = "../network" }
 tohseno-protocol = { path = "../protocol" }
 reqwest.workspace = true
 rpassword = "=7.4.0"

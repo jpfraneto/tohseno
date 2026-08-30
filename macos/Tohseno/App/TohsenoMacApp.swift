@@ -25,6 +25,9 @@ struct TohsenoMacApp: App {
         WindowGroup("Tohseno", id: "factory") {
             TohsenoRootView(model: model)
                 .frame(minWidth: 860, minHeight: 620)
+                .onOpenURL { url in
+                    Task { await model.openNetworkLink(url) }
+                }
         }
         .defaultSize(width: 1120, height: 760)
         .windowResizability(.contentMinSize)

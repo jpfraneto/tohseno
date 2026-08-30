@@ -225,6 +225,26 @@ pub fn build_signed(request: SignRequest<'_>) -> Result<PathBuf, SignError> {
 }
 
 pub fn days_until_expiry(app: &Path) -> Option<i64> {
+    let raw_date = provisioning_expiration(app)?;
+    let parsed = Command::new("/bin/date")
+        .args(["-j", "-f", "%Y-%m-%dT%H:%M:%SZ", &raw_date, "+%s"])
+        .output()
+        .ok()?;
+    if !parsed.status.success() {
+        return None;
+    }
+    let expiry = String::from_utf8(parsed.stdout)
+        .ok()?
+        .trim()
+        .parse::<i64>()
+        .ok()?;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64;
+    Some((expiry - now).div_euclid(86_400))
+}
+
+/// Reads the exact UTC expiration carried by the profile Xcode embedded in a
+/// built app. This is local signing state, never a guessed Personal Team TTL.
+pub fn provisioning_expiration(app: &Path) -> Option<String> {
     let profile = app.join("embedded.mobileprovision");
     let output = Command::new("security")
         .args(["cms", "-D", "-i"])
@@ -243,20 +263,10 @@ pub fn days_until_expiry(app: &Path) -> Option<i64> {
         .split_once("</date>")?
         .0
         .trim();
-    let parsed = Command::new("/bin/date")
-        .args(["-j", "-f", "%Y-%m-%dT%H:%M:%SZ", raw_date, "+%s"])
-        .output()
-        .ok()?;
-    if !parsed.status.success() {
+    if raw_date.len() != 20 || !raw_date.ends_with('Z') {
         return None;
     }
-    let expiry = String::from_utf8(parsed.stdout)
-        .ok()?
-        .trim()
-        .parse::<i64>()
-        .ok()?;
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs() as i64;
-    Some((expiry - now).div_euclid(86_400))
+    Some(raw_date.to_owned())
 }
 
 pub(crate) fn find_project(source: &Path) -> std::io::Result<Option<PathBuf>> {

@@ -258,7 +258,7 @@
  },
  "release_authority": {
   "proposed_runbook": "release/CONTRACT_0_8_RELEASE_AUTHORITY_RUNBOOK.md",
-  "proposed_runbook_sha256": "a0713d5296a15d2b8f586cee2a5d2ba8fe52a704127b6e9d783b60c4ff90ccc8",
+  "proposed_runbook_sha256": "f8318d9f1bd324fc392dc9996e71cde72fb4eac41ae6c14fdb7b81733e375d94",
   "proposed_threshold": 2,
   "proposed_authority_count": 3,
   "owner_accepted_design": true,
@@ -285,7 +285,7 @@
   "owner_decision": "accepted_inactive_deployment_only_and_consumed",
   "accepted_policy_or_adr_exists": true,
   "prepared_operator_runbook": "release/CONTRACT_0_8_0_INACTIVE_DEPLOYMENT_CEREMONY.md",
-  "prepared_operator_runbook_sha256": "412ccab1042b2b553483beecc0fdcf4a729978c9f76a3e5417a316851164d812",
+  "prepared_operator_runbook_sha256": "f1e9fd2273b36cc637de5a2de44b3a2c58200056e72ccd1a12880cafa4e50360",
   "create2_risk_policy_proposal": "docs/adr/0008-create2-provenance-and-preactivation-state.md",
   "create2_risk_policy_proposal_sha256": "9f010685344723a2db8523a50bc01373fc6cafc6a71e059cb7796a72c7d24525",
   "create2_risk_policy_status": "accepted",
@@ -353,7 +353,7 @@
  },
  "downstream_public_lifecycle_readiness": {
   "gap_audit": "release/POST_ACTIVATION_PRODUCT_GAP_AUDIT.md",
-  "gap_audit_sha256": "304b818c42131dd7f0ceb1991901a3c2194782781a89d1ff20ab90b043166e44",
+  "gap_audit_sha256": "388f05814b86582ef90b7e6337208cc0726f46ad2947cb57f7b5a8faf16c6c9c",
   "private_creation_evolution_lifecycle_available": true,
   "activated_generation_resolver_implemented": true,
   "trusted_release_manifest_implemented": false,

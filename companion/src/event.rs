@@ -4,6 +4,7 @@ use crate::canonical;
 use crate::command::{CommandReceipt, ReceiptState};
 use crate::crypto::sha256;
 use crate::icon::IconBlob;
+use crate::publication::PublicationApprovalRequest;
 use crate::snapshot::{ExecutionStatus, ExecutionSummary, ShotSummary, WorkspaceSnapshot};
 use crate::{parse_timestamp, require, validate_identifier, Result};
 use serde::{Deserialize, Serialize};
@@ -108,6 +109,10 @@ pub enum WorkspaceEventPayload {
         device_id: String,
         revocation_epoch: u64,
     },
+    #[serde(rename = "publication.approval.requested")]
+    PublicationApprovalRequested {
+        request: Box<PublicationApprovalRequest>,
+    },
 }
 
 impl WorkspaceEventPayload {
@@ -178,6 +183,7 @@ impl WorkspaceEventPayload {
                 validate_identifier("revoked device ID", device_id)?;
                 require(*revocation_epoch > 0, "revocation epoch must be positive")
             }
+            Self::PublicationApprovalRequested { request } => request.validate(),
         }
     }
 }

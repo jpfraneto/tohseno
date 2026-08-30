@@ -1,8 +1,9 @@
 # TOHSENO contracts
 
 Status: generation 0.8.0 is deployed and client-trusted under the signed
-activation recorded in `../release/contract-activations/`; registry product
-workflows are not implemented.
+activation recorded in `../release/contract-activations/`. ADR 0034 connects
+the unchanged ABI to Companion-authorized catalog publication, a constrained
+relayer, and independent receipt/head verification.
 
 > [!WARNING]
 > The frozen v0.7 contract generation will never be deployed by the TOHSENO
@@ -201,9 +202,11 @@ release builder fail closed. Their immutable historical implementations remain
 auditable at tag `v0.7.1`. The successor deployment passed the
 complete EIP-7951 positive, negative, infinity-edge, and 6,900-gas hard gate.
 The immutable 0.8.0 build definition, deployment evidence, release-authority
-trust root, and signed activation are committed. Secure public Builder creation,
-registry transaction and receipt handling, source hosting, discovery, and
-download remain unimplemented product work.
+trust root, and signed activation are committed. Secure public Builder bootstrap,
+registry transaction/receipt handling, source hosting, discovery, and exact
+download now live above the contracts in `network/`, `cli/src/network_commands.rs`,
+and `website/apps/site/src/registry.ts`. Those services do not expand the
+relayer into a generic wallet and do not store app code on-chain.
 
 See
 [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](../docs/MIGRATION_0_8_CONTRACT_GENERATION.md)

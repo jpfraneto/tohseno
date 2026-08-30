@@ -35,6 +35,16 @@ public final class CompanionModel {
     public private(set) var busy = false
     public private(set) var syncing = false
     public private(set) var entitlement: ProductEntitlementProjection?
+    public private(set) var publicApps: [PublicAppRelease] = []
+    public private(set) var builderDevice: BuilderDevicePublicIdentity?
+    public private(set) var networkNotice: String?
+    public private(set) var pendingPublication: PublicationApprovalRequest?
+    public var linkedPublicRelease: PublicAppRelease?
+    public var profileDisplayName = ""
+    public var profileHandle = ""
+    public var requestedAlias = ""
+    public private(set) var builderID: String?
+    public private(set) var profileNotice: String?
 
     /// The one text box. Nothing else is composed on the phone.
     public var intent = ""
@@ -47,10 +57,21 @@ public final class CompanionModel {
     private var pendingCableInvitation: String?
     private let backend: any CompanionBackend
     private let deviceName: String
+    private let network: PublicNetworkClient
+    private let builderIdentity: BuilderDeviceIdentity
+    private var profileNonce: UInt64 = 0
+    private var aliasNonce: UInt64 = 0
 
-    public init(backend: any CompanionBackend, deviceName: String) {
+    public init(
+        backend: any CompanionBackend,
+        deviceName: String,
+        network: PublicNetworkClient = .production,
+        builderIdentity: BuilderDeviceIdentity = BuilderDeviceIdentity()
+    ) {
         self.backend = backend
         self.deviceName = deviceName
+        self.network = network
+        self.builderIdentity = builderIdentity
     }
 
     public func start() {
@@ -69,6 +90,105 @@ public final class CompanionModel {
             }
         }
         Task { await refresh() }
+        Task { await refreshPublicNetwork() }
+        Task {
+            do {
+                let identity = try await builderIdentity.ensureCreated()
+                builderDevice = identity
+                await refreshBuilderProfile()
+                let announcement = BuilderDeviceAnnouncement(publicIdentity: identity)
+                _ = try await backend.announceBuilderDevice(
+                    announcement,
+                    commandID: "builder_announce_\(identity.keyID.suffix(24))"
+                )
+            }
+            catch { builderDevice = nil }
+        }
+    }
+
+    public func refreshPublicNetwork() async {
+        do {
+            publicApps = try await network.releases()
+            networkNotice = nil
+        } catch {
+            networkNotice = "The public Registry is temporarily unavailable. Your private Mac connection is unaffected."
+        }
+    }
+
+    public func refreshBuilderProfile() async {
+        do {
+            let id = try await builderIdentity.builderID()
+            builderID = id
+            if let profile = try await network.builderProfile(builderID: id) {
+                profileDisplayName = profile.displayName
+                profileHandle = profile.handle ?? ""
+                profileNonce = profile.nonce
+            }
+        } catch {
+            // A BuilderAccount and public profile need not exist before the
+            // first explicitly approved publication.
+        }
+    }
+
+    public func savePublicProfile() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let id = try await builderIdentity.builderID()
+            let profile = try BuilderProfile(
+                builderID: id,
+                displayName: profileDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                handle: profileHandle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nilIfEmpty,
+                updatedAt: Self.networkTimestamp(),
+                nonce: profileNonce + 1
+            )
+            let envelope = try await builderIdentity.sign(profile: profile)
+            try await network.updateProfile(envelope)
+            builderID = id
+            profileNonce = profile.nonce
+            profileNotice = "Public profile updated with this iPhone’s Builder DeviceKey."
+        } catch {
+            profileNotice = "Profile update failed. Publish once first, then check the name and handle."
+        }
+    }
+
+    public func requestGlobalAlias() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let id = try await builderIdentity.builderID()
+            guard let app = publicApps.first(where: { $0.release.builderID == id }) else {
+                profileNotice = "Publish an installable app before requesting a global alias."
+                return
+            }
+            let now = UInt64(Date().timeIntervalSince1970.rounded(.down))
+            var random = [UInt8](repeating: 0, count: 32)
+            var generator = SystemRandomNumberGenerator()
+            for index in random.indices { random[index] = UInt8.random(in: .min ... .max, using: &generator) }
+            let claim = try AliasClaim(
+                builderID: id,
+                shotID: app.release.shotID,
+                alias: requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                requestID: "0x\(random.map { String(format: "%02x", $0) }.joined())",
+                nonce: aliasNonce + 1,
+                deadline: now + 900,
+                requestedAt: Self.networkTimestamp()
+            )
+            try await network.requestAlias(builderIdentity.sign(claim: claim))
+            aliasNonce = claim.nonce
+            requestedAlias = ""
+            profileNotice = "Alias request signed and queued for explicit policy review."
+        } catch {
+            profileNotice = "Alias request failed. Check the alias and try again."
+        }
+    }
+
+    private static func networkTimestamp() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: Date())
     }
 
     /// Accepts only the existing signed, expiring, single-use pairing
@@ -88,6 +208,63 @@ public final class CompanionModel {
         if recoveryWords == nil {
             await pair(scanned: url.absoluteString)
             pendingCableInvitation = nil
+        }
+    }
+
+    public func handleIncomingURL(_ url: URL) async {
+        if url.host?.lowercased() == "pair" {
+            await bootstrapFromCable(url)
+            return
+        }
+        guard url.scheme?.lowercased() == "tohseno",
+              let host = url.host?.lowercased(),
+              host == "install" || host == "fork",
+              let shot = url.path.split(separator: "/").first.map(String.init),
+              shot.count == 64,
+              let release = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "release" })?.value
+        else {
+            networkNotice = "This Tohseno app link is incomplete or invalid."
+            return
+        }
+        do {
+            linkedPublicRelease = try await network.release(
+                shotID: "0x\(shot)",
+                releaseDigest: release
+            )
+        } catch {
+            networkNotice = "That exact public release is not currently discoverable."
+            return
+        }
+    }
+
+    public func requestNetworkRelease(
+        _ app: PublicAppRelease,
+        action: NetworkReleaseAction
+    ) async {
+        guard !busy else { return }
+        if action == .fork && !app.release.permissions.forkAllowed {
+            networkNotice = "The Builder did not authorize forks of this release."
+            return
+        }
+        busy = true
+        defer { busy = false }
+        do {
+            _ = try await backend.requestNetworkRelease(
+                action: action,
+                shotID: app.release.shotID,
+                releaseDigest: app.releaseDigest,
+                commandID: "network_\(action.rawValue)_\(UUID().uuidString.lowercased())"
+            )
+            linkedPublicRelease = nil
+            networkNotice = connection == .connected
+                ? (action == .install
+                    ? "Queued. Your Mac is verifying and preparing this exact release."
+                    : "Queued. Your Mac is verifying and materializing a new fork.")
+                : "Queued for your Mac. It will resume when the private connection returns."
+            unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
+        } catch {
+            networkNotice = "The request is still on this iPhone and will retry when your Mac is reachable."
         }
     }
 
@@ -183,13 +360,7 @@ public final class CompanionModel {
             adopt(snapshot.shots)
         case let .productEntitlement(projection):
             entitlement = projection
-            switch projection.phase {
-            case "trial_qualified", "pro_lapsed": screen = .entitlementDecision
-            case "trial_expired": screen = .trialEnded
-            case "trial_active", "pro_monthly", "pro_yearly":
-                if screen == .entitlementDecision || screen == .trialEnded { screen = .apps }
-            default: break
-            }
+            if screen == .entitlementDecision || screen == .trialEnded { screen = .apps }
         case let .iconBlob(blob):
             icons[blob.blobID] = blob.bytes
         case let .commandRejected(receipt):
@@ -197,9 +368,57 @@ public final class CompanionModel {
             if let shotID = receipt.shotID { justSent.remove(shotID) }
         case .commandAcknowledged:
             Task { self.unacknowledged = (try? await self.backend.unacknowledgedCommandCount()) ?? 0 }
+        case let .publicationApprovalRequested(request):
+            do {
+                try request.validate()
+                guard builderDevice.map({ BuilderDeviceAnnouncement(publicIdentity: $0) }) == request.builderDevice else {
+                    notice = "This publication targets a different Builder identity."
+                    return
+                }
+                pendingPublication = request
+            } catch {
+                notice = "Your Mac sent a publication request that could not be verified."
+            }
         default:
             Task { await self.load() }
         }
+    }
+
+    public func dismissPublication() {
+        pendingPublication = nil
+    }
+
+    public func approvePublication() async {
+        guard let request = pendingPublication else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try request.validate()
+            let catalog = BuilderDeviceSignature(
+                try await builderIdentity.sign(digestHex: request.catalogDigest)
+            )
+            let registry = BuilderDeviceSignature(
+                try await builderIdentity.sign(digestHex: request.registryDigest)
+            )
+            let approvedAt = Self.timestamp(Date())
+            _ = try await backend.approvePublication(
+                jobID: request.jobID,
+                catalog: catalog,
+                registry: registry,
+                approvedAt: approvedAt,
+                commandID: "publication_approve_\(request.jobID)"
+            )
+            pendingPublication = nil
+            notice = "Approved. Your Mac is publishing \(request.appName)."
+        } catch {
+            notice = "This publication could not be approved safely."
+        }
+    }
+
+    private static func timestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
     }
 
     /// The Mac's protocol reasons, said the way a person would say them.
@@ -247,7 +466,6 @@ public final class CompanionModel {
         let usableName = name.range(of: "^[a-z0-9][a-z0-9-]{0,62}$", options: .regularExpression) != nil
         return usableName
             && !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && entitlement?.factoryMutationsAllowed != false
             && !busy
     }
 
@@ -286,7 +504,6 @@ public final class CompanionModel {
 
     public var canEvolve: Bool {
         guard case let .app(shotID) = screen, let shot = app(shotID) else { return false }
-        guard entitlement?.factoryMutationsAllowed != false else { return false }
         guard !presentation(for: shot).state.inFlight else { return false }
         return !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (shot.kind == .adoptedProject
@@ -427,4 +644,8 @@ public final class CompanionModel {
             "The private connection stopped before it completed. Reconnect this iPhone to your Mac."
         }
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

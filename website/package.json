@@ -28,5 +28,10 @@
   },
   "engines": {
     "bun": ">=1.2.18"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.9.7",
+    "@noble/hashes": "^1.8.0",
+    "viem": "^2.37.6"
   }
 }

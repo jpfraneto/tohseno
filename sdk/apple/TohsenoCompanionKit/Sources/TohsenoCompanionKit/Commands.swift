@@ -1,5 +1,10 @@
 import Foundation
 
+public enum NetworkReleaseAction: String, Codable, Sendable {
+    case install
+    case fork
+}
+
 public struct CompanionReferenceDescriptor: Codable, Equatable, Sendable {
     public let blobID: String
     public let originName: String
@@ -88,6 +93,18 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         intention: String,
         references: [CompanionReferenceDescriptor]
     )
+    case builderIdentityAnnounce(builderDevice: BuilderDeviceAnnouncement)
+    case publicationApprove(
+        jobID: String,
+        catalog: BuilderDeviceSignature,
+        registry: BuilderDeviceSignature,
+        approvedAt: String
+    )
+    case networkReleaseRequest(
+        action: NetworkReleaseAction,
+        shotID: String,
+        releaseDigest: String
+    )
 
     public var requiredCapability: CompanionCapability {
         switch self {
@@ -97,6 +114,8 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case .shotEvolveRequest: .shotEvolve
         case .projectEvolveRequest: .shotEvolve
         case .shotCreateRequest: .shotCreate
+        case .builderIdentityAnnounce, .publicationApprove: .publicationAuthorize
+        case .networkReleaseRequest: .networkReceive
         }
     }
 
@@ -118,6 +137,12 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case projectID = "project_id"
         case baseSourceState = "base_source_state"
         case followUpTo = "follow_up_to"
+        case builderDevice = "builder_device"
+        case jobID = "job_id"
+        case catalog, registry
+        case approvedAt = "approved_at"
+        case action
+        case releaseDigest = "release_digest"
     }
 
     private enum Kind: String, Codable {
@@ -127,6 +152,9 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case projectEvolve = "project.evolve.request"
         case create = "shot.create.request"
         case workspaceSnapshot = "workspace.snapshot.request"
+        case builderIdentity = "builder.identity.announce"
+        case publicationApprove = "publication.approve"
+        case networkRelease = "network.release.request"
     }
 
     public init(from decoder: Decoder) throws {
@@ -192,6 +220,30 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 intention: container.decode(String.self, forKey: .intention),
                 references: container.decode([CompanionReferenceDescriptor].self, forKey: .references)
             )
+        case .builderIdentity:
+            try requireExactKeys(decoder, ["command_kind", "builder_device"])
+            self = try .builderIdentityAnnounce(
+                builderDevice: container.decode(BuilderDeviceAnnouncement.self, forKey: .builderDevice)
+            )
+        case .publicationApprove:
+            try requireExactKeys(decoder, [
+                "command_kind", "job_id", "catalog", "registry", "approved_at",
+            ])
+            self = try .publicationApprove(
+                jobID: container.decode(String.self, forKey: .jobID),
+                catalog: container.decode(BuilderDeviceSignature.self, forKey: .catalog),
+                registry: container.decode(BuilderDeviceSignature.self, forKey: .registry),
+                approvedAt: container.decode(String.self, forKey: .approvedAt)
+            )
+        case .networkRelease:
+            try requireExactKeys(decoder, [
+                "command_kind", "action", "shot_id", "release_digest",
+            ])
+            self = try .networkReleaseRequest(
+                action: container.decode(NetworkReleaseAction.self, forKey: .action),
+                shotID: container.decode(String.self, forKey: .shotID),
+                releaseDigest: container.decode(String.self, forKey: .releaseDigest)
+            )
         }
     }
 
@@ -235,6 +287,20 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             try container.encodeIfPresent(suggestedName, forKey: .suggestedName)
             try container.encode(intention, forKey: .intention)
             try container.encode(references, forKey: .references)
+        case let .builderIdentityAnnounce(builderDevice):
+            try container.encode(Kind.builderIdentity, forKey: .commandKind)
+            try container.encode(builderDevice, forKey: .builderDevice)
+        case let .publicationApprove(jobID, catalog, registry, approvedAt):
+            try container.encode(Kind.publicationApprove, forKey: .commandKind)
+            try container.encode(jobID, forKey: .jobID)
+            try container.encode(catalog, forKey: .catalog)
+            try container.encode(registry, forKey: .registry)
+            try container.encode(approvedAt, forKey: .approvedAt)
+        case let .networkReleaseRequest(action, shotID, releaseDigest):
+            try container.encode(Kind.networkRelease, forKey: .commandKind)
+            try container.encode(action, forKey: .action)
+            try container.encode(shotID, forKey: .shotID)
+            try container.encode(releaseDigest, forKey: .releaseDigest)
         }
     }
 
@@ -276,6 +342,20 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             }
             try requireBoundedText(intention, field: "intention", maximum: 1024 * 1024)
             try Self.validateReferences(references)
+        case let .builderIdentityAnnounce(builderDevice):
+            try builderDevice.validate(allowSoftwareTest: true)
+        case let .publicationApprove(jobID, catalog, registry, approvedAt):
+            try requireIdentifier(jobID, field: "job_id")
+            guard catalog.signer == registry.signer,
+                  catalog.algorithm == "p256", registry.algorithm == "p256",
+                  catalog.lowS, registry.lowS
+            else { throw TohsenoCompanionError.invalidEncoding("invalid publication signatures") }
+            _ = try CompanionTimestamp.parse(approvedAt)
+        case let .networkReleaseRequest(_, shotID, releaseDigest):
+            guard let shot = BuilderDeviceAnnouncement.hex32(shotID),
+                  let release = BuilderDeviceAnnouncement.hex32(releaseDigest),
+                  shot.contains(where: { $0 != 0 }), release.contains(where: { $0 != 0 })
+            else { throw TohsenoCompanionError.invalidEncoding("invalid network release identity") }
         }
     }
 
@@ -329,6 +409,26 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             ]
             if let suggestedName { value["suggested_name"] = .string(suggestedName) }
             return .object(value)
+        case let .builderIdentityAnnounce(builderDevice):
+            return .object([
+                "builder_device": builderDevice.canonicalValue(),
+                "command_kind": .string("builder.identity.announce"),
+            ])
+        case let .publicationApprove(jobID, catalog, registry, approvedAt):
+            return .object([
+                "approved_at": .string(approvedAt),
+                "catalog": catalog.canonicalValue(),
+                "command_kind": .string("publication.approve"),
+                "job_id": .string(jobID),
+                "registry": registry.canonicalValue(),
+            ])
+        case let .networkReleaseRequest(action, shotID, releaseDigest):
+            return .object([
+                "action": .string(action.rawValue),
+                "command_kind": .string("network.release.request"),
+                "release_digest": .string(releaseDigest),
+                "shot_id": .string(shotID),
+            ])
         }
     }
 }

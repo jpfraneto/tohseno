@@ -220,6 +220,33 @@ img {
   letter-spacing: -0.02em;
 }
 
+.shipping-command {
+  display: grid;
+  gap: 8px;
+  font-family: "Plex Mono", ui-monospace, monospace;
+  font-size: clamp(15px, 1.7vw, 22px);
+}
+
+.shipping-command span,
+.shipping-command code,
+.shipping-command a {
+  display: block;
+  width: fit-content;
+  padding: 7px 11px;
+  border-left: 3px solid var(--line);
+}
+
+.shipping-command code {
+  border-color: var(--coral);
+  background: rgb(255 250 242 / 72%);
+}
+
+.shipping-command a {
+  color: var(--coral);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .installer-door {
   min-width: 0;
 }

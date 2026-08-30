@@ -1,82 +1,60 @@
-# TOHSENO website and encrypted intention relay
+# TOHSENO website, Registry, and encrypted relays
 
-The Bun service in `apps/site` owns the public static pages and, only when
-explicitly activated, the temporary ciphertext relay. The browser creates the
-noncanonical `tohseno.intent-package/1`, encrypts it with AES-256-GCM, and
-uploads bounded ciphertext chunks. The server never parses the package.
+The Bun site owns the public shipping page, public Registry/catalog and
+content-addressed source transport, the constrained generation-0.8 transaction
+relayer, and the retained encrypted browser-intention relay. The private
+Companion relay remains a separate service.
 
-## The landing page is a terminal
-
-`/` is one prompt and nothing above it. Its placeholder is the command a
-person will actually run on their Mac, and the page speaks the same words the
-Mac and the phone speak: App, Create, Evolve, and the six human states of
-ADR 0016.
+The landing page leads with “Ship iPhone apps. Person to person.” and the real
+builder path:
 
 ```text
-tohseno create <name>   write the intention, attach up to eight images
-tohseno demo            replay a build; nothing is installed
-tohseno install         the one-line installer
-help · clear · source · community · whitepaper · token
+cd YourApp
+tohseno init
+tohseno deploy
 ```
 
-Anything else that reads like prose is the intention itself. The page asks a
-person to describe an app, so answering that at the prompt opens the composer
-with their words already in it. Only a lone unrecognized word is treated as a
-mistyped command. Typing the `tohseno` prefix is always a command attempt and
-is never reinterpreted.
+It describes the exact boundary: another person's Mac downloads verified
+source, builds with Xcode, signs locally, and installs on their iPhone. It does
+not claim Tohseno bypasses Apple signing, provisioning, Trust, Developer Mode,
+or operating-system security.
 
-`docs` and `privacy` are deliberately absent from the status bar and from the
-help list, and resolve through `FALLBACK_LINKS`; both pages stay published and
-the HTTP suite asserts they still serve.
+## Public Registry
 
-Pressing Return submits a command. A sentence that describes an app opens the
-composer directly, so a first-time visitor does not need to learn a command.
+`apps/site/src/registry.ts` implements a versioned, closed HTTP boundary for:
 
-## What can be dropped, from anywhere
+- public Shot, Builder, release, signed-manifest, receipt, and immutable blob
+  reads;
+- private expiring source/icon staging with exact size and digest checks;
+- Companion-signed catalog publication and current-chain verification;
+- constrained factory/RegisterShot/AppendCheckpoint transaction submission;
+- signed monotonic Builder profile updates; and
+- signed global-alias requests that remain pending until explicit policy
+  approval.
 
-Dropping or pasting anywhere on the page is the whole gesture, in any mode. A
-`.md` file *is* the intention: its text lands in the composer, editable, and
-its filename names the app. Images stay reference material carried alongside
-the words. Neither one requires running a command first — if nothing is open,
-the drop opens the composer itself.
+The catalog database is only an index. A release becomes visible only when the
+Builder DeviceKey signature, authorized live BuilderAccount key, transaction
+receipt and canonical block, Registry state extending that checkpoint, public
+checkpoint, and staged source digest agree. Public reads recheck canonicality
+on a short bounded cache so reorged receipts disappear; security-sensitive Mac
+clients repeat the live chain and receipt checks instead of trusting the index.
 
-On a phone the software keyboard opens from a tap anywhere on the page, since
-iOS raises it only for a focus inside a real gesture. `app.js` measures how
-much of the window the keyboard covers through `visualViewport` and hands that
-much back through the `--keyboard` custom property, so the prompt is never
-underneath the keys it is receiving.
+The profile schema reserves optional external attestations, but production
+rejects non-empty attestations until an official provider verifier is
+configured. It never turns a self-asserted X URL into a “verified” identity.
 
-A person writes the whole intention before anything is asked of them. Only at
-send does the page offer three doors:
+Registry state requires an explicit absolute durable `REGISTRY_ROOT` and HTTPS
+`ROBINHOOD_RPC_URL`. `REGISTRY_RELAYER_ENABLED` additionally requires one
+dedicated lowercase private key. Per-source/global rate limits, staging record
+and byte capacity, thirty-minute expiry cleanup, bounded request bodies, atomic
+writes, and content-addressed immutable promotion are fail-closed.
 
-- **send it to my mac** — the ADR 0011 handoff. The browser builds and encrypts
-  the package, uploads ciphertext chunks, and prints the single-use
-  `--claim` command. If the relay is not activated it downloads the private
-  `.tohseno-intent` file instead and says plainly that the file is not
-  encrypted.
-- **link the tohseno app** — deliberately not built. The iPhone Companion is
-  not published, so the door explains what linking will be and hands back. When
-  it exists it will link *the browser to the phone*, the way WhatsApp Web links
-  a browser to a phone: the phone holds the identity and does the signing, the
-  browser holds a capability the phone can revoke, and there is still no
-  account. Do not turn this into one.
-- **see a demo** — replays `application/src/presentation.rs` with that file's
-  exact headlines. `apps/site/tests/terminal.test.ts` asserts every replayed
-  state against `fixtures/presentation-v1.json`, so the website joins the Mac
-  and the phone in the one presentation contract and cannot invent a state.
+## Browser intention compatibility
 
-`public/modules/terminal.js` holds every decision that is not the DOM — command
-resolution, the app-name rule mirrored from `engine/src/ledger.rs`, the doors,
-the demo table, and reference filenames — so the whole surface is covered by
-`bun test` without a browser. `public/app.js` is only wiring. It builds every
-line as a node with `textContent`; nothing typed or dropped can become markup.
-The stylesheet revision in the markup is derived from the stylesheet itself in
-`server.ts`, so it is never hand-maintained.
-
-Nothing sits above the prompt. Every sentence that used to introduce the page
-stood between a person and the one thing to do, so the whole offer — including
-the paid day — now lives in the `<noscript>` block, which is exactly where it
-was ever read from: by a crawler, or by a reader without JavaScript.
+The retained browser handoff creates a noncanonical
+`tohseno.intent-package/1`, encrypts it with AES-256-GCM, and uploads bounded
+ciphertext chunks. The server never parses the package. It is a support path,
+not the website's normal consumer door or a public Shot.
 
 ## Local development
 

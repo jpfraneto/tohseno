@@ -13,6 +13,8 @@ actor StubBackend: CompanionBackend {
     private(set) var submissions: [EvolutionRequest] = []
     private(set) var projectSubmissions: [ProjectEvolutionRequest] = []
     private(set) var creations: [CreateShotRequest] = []
+    private(set) var builderAnnouncements: [BuilderDeviceAnnouncement] = []
+    private(set) var networkRequests: [(NetworkReleaseAction, String, String)] = []
     private(set) var reconciles = 0
     private(set) var synchronizations = 0
     private(set) var pairedInvitations: [String] = []
@@ -94,6 +96,35 @@ actor StubBackend: CompanionBackend {
         creations.append(request)
         if !reachable { unacknowledged += 1 }
         return CommandReceipt(commandID: request.commandID, state: .received)
+    }
+
+    func announceBuilderDevice(
+        _ builderDevice: BuilderDeviceAnnouncement,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        builderAnnouncements.append(builderDevice)
+        return CommandReceipt(commandID: commandID, state: .completed)
+    }
+
+    func approvePublication(
+        jobID: String,
+        catalog: BuilderDeviceSignature,
+        registry: BuilderDeviceSignature,
+        approvedAt: String,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        CommandReceipt(commandID: commandID, state: .completed, resultID: jobID)
+    }
+
+    func requestNetworkRelease(
+        action: NetworkReleaseAction,
+        shotID: String,
+        releaseDigest: String,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        networkRequests.append((action, shotID, releaseDigest))
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: commandID, state: .received, resultID: releaseDigest)
     }
 
     func unacknowledgedCommandCount() async throws -> Int { unacknowledged }
@@ -385,8 +416,8 @@ struct CompanionFlowTests {
     }
 
     @MainActor
-    @Test("Entitlement replaces the product and unlocks only from a signed Mac event")
-    func entitlementScreens() async throws {
+    @Test("Legacy entitlement projections never replace the person-to-person product")
+    func legacyEntitlementDoesNotGate() async throws {
         let subject = await model(StubBackend(shots: [shot(version: 4)]))
         func event(_ projection: ProductEntitlementProjection, cursor: UInt64) -> WorkspaceEvent {
             WorkspaceEvent(
@@ -401,12 +432,12 @@ struct CompanionFlowTests {
             phase: "trial_qualified", successfulDays: 5,
             factoryMutationsAllowed: false, purchaseAllowed: true
         ), cursor: 1))
-        #expect(subject.screen == .entitlementDecision)
+        #expect(subject.screen == .apps)
         subject.apply(event(ProductEntitlementProjection(
             phase: "trial_expired", successfulDays: 4,
             factoryMutationsAllowed: false, purchaseAllowed: false
         ), cursor: 2))
-        #expect(subject.screen == .trialEnded)
+        #expect(subject.screen == .apps)
         subject.apply(event(ProductEntitlementProjection(
             phase: "pro_yearly", successfulDays: 5,
             factoryMutationsAllowed: true, purchaseAllowed: false

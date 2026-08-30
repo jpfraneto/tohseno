@@ -1,7 +1,7 @@
-# TOHSENO CLI 1.0.2
+# TOHSENO CLI 1.1.0
 
 `tohseno` with no arguments is the normal entry point: it ensures the local
-service is available and opens Studio at genesis, trial, Pro, or normal use.
+service is available and opens the native Tohseno app.
 `tohseno doctor` is read-only and reports the machine, toolchain, signing,
 privacy-minimal iPhone readiness, Companion pairing, and entitlement phase.
 
@@ -9,60 +9,59 @@ The CLI is a client and local administration surface for the same
 `ShotApplicationService` used by Studio and the Companion. It does not contain
 an independent creation or evolution pipeline.
 
-## The two commands
+## Ship an existing Xcode app
 
 ```bash
-tohseno create my-app
-tohseno evolve my-app
+cd ExistingApp
+tohseno init
+tohseno deploy
 ```
 
-With nothing else, each ensures the Local Workspace Service is healthy and
-opens the one screen where an intent is written: `/create?name=my-app` for a
-new app, and that app's composer for an evolution. Nothing is built until the
-person presses **Create App** or **Evolve App** once.
+`init [path]` detects one native iOS `.xcodeproj` or `.xcworkspace`, performs a
+real Simulator build, and adopts the current source as a new Tohseno root. It
+does not write into the selected repository, rewrite Git, or invent earlier
+lineage. Repeating it preserves the same reserved random ShotID.
 
-If an exact regular `./MASTER_PROMPT.md` is present, `tohseno create` imports
-its bytes into the durable pending-intention store and opens the composer
-prefilled and read-only. The file's own modification time is used as the
-package timestamp, so repeating the command reuses the same record instead of
-accumulating duplicates. Its presence never starts a build by itself.
+`deploy` creates a deterministic sanitized source archive, rejects secrets and
+unsafe archive entries, classifies Xcode build behavior, and presents the exact
+release and generation-0.8 Registry action on the paired Companion. It prints a
+public URL only after Companion approval, source promotion, transaction receipt,
+current chain state, and catalog discovery agree. The durable job resumes after
+process, service, or network interruption.
 
-## Scriptable forms
+## Install, fork, and refresh an exact release
 
 ```bash
-tohseno create <name> --prompt "..."
-tohseno create <name> --prompt-file MASTER_PROMPT.md
-cat MASTER_PROMPT.md | tohseno create <name>
-tohseno create <name> --prompt-file MASTER_PROMPT.md --image reference.png
-tohseno create <name> --prompt-file MASTER_PROMPT.md --wait
-tohseno --json create <name> --prompt-file MASTER_PROMPT.md
+tohseno install https://tohseno.com/s/<shot-id> --release 0x<release-digest>
+tohseno fork tohseno://fork/<shot-id>?release=0x<release-digest>
 ```
 
-Creation resolves its exact intention in this order:
+Both commands accept only an official canonical link, an exact Tohseno deep
+link, or a ShotID. The Mac independently verifies the signed active generation,
+factory/Registry bytecode, Builder DeviceKey authority, exact receipt and block,
+current Shot head, manifest, and content-addressed source before extraction.
+Source is materialized visibly under `~/Developer/Tohseno` by default.
 
-1. `--prompt`;
-2. `--prompt-file`;
-3. bounded UTF-8 piped standard input;
-4. otherwise, the composer described above.
+Green projects build automatically. A non-Green compatible project stops with
+named reasons before `xcodebuild`; after reviewing the visible source, repeat
+with `--approve-mac-review`. Unsupported projects never build. The recipient's
+local Xcode team signs the app, and `Installed` requires the exact bundle in one
+physical iPhone inventory. Repeating `install` for the same immutable release
+is Refresh: it rebuilds and re-signs without AI, a catalog release, or a
+Registry append.
 
-A non-interactive command with no intention fails without creating a partial
-Shot. Repeat `--image` for up to eight exact reference images; normal size,
-regular-file, symlink, path, and image-byte checks apply.
+An install-only copy has no child Shot identity. A fork reserves a new random
+ShotID and retains the exact parent ShotID and release digest; if later shipped,
+that parent becomes part of the signed child catalog release.
 
-The durable receipt identifies the command and execution, plus the Shot as
-soon as it is safely reserved. The detached service owns work after the CLI
-returns. `--wait` waits for deterministic acceptance or failure; it does not
-treat generated files or harness exit as completion.
+## Create and evolve
 
-Evolution has the same exact-intention intake and may still select exact
-Feedback actions:
+Generated creation remains the same Mac factory, and Companion requests remain
+durable signed, encrypted commands routed to that Mac:
 
 ```bash
+tohseno create my-app --prompt "An app that..." --wait
 tohseno evolve <name> --prompt "..."
-tohseno evolve <name> --prompt-file EVOLUTION_INTENT.md
-cat EVOLUTION_INTENT.md | tohseno evolve <name>
-tohseno evolve <name> --feedback-action <commitment>
-tohseno evolve <name> --wait
 ```
 
 The request binds the Shot's exact current Expression and accepted base
@@ -79,12 +78,11 @@ budget. A repair never resets the clock. Missing device, signing, provisioning,
 network, and protocol conditions do not invoke intelligence. The resulting
 private State Transition Receipt is available under execution Details.
 
-## Explicit recording capability
+## Historical recording compatibility
 
 ```bash
-tohseno init <name>
-tohseno record [name] --note "..."
-tohseno record [name] --note-file note.md
+tohseno recording init <name>
+tohseno recording record [name] --note "..."
 ```
 
 These commands preserve ADR 0014's recording-layer bytes and safety rules.

@@ -10,7 +10,15 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0024 governs the
+2. **`docs/adr/`** — accepted architectural decisions. ADR 0034 governs the
+   person-to-person native software network. The Mac is the factory, Companion
+   is the human authority holding the non-exportable Builder DeviceKey, and the
+   active generation-0.8 Registry plus signed off-chain catalog is the public
+   witness. Public source requires explicit Companion approval; recipients
+   independently verify and build with their own Xcode signing identity. It
+   changes no frozen protocol encoding or deployed ABI, and permits no fake
+   receipt, physical evidence, generic relayer, or release-gate bypass.
+   ADR 0024 governs the
    app-local `.tohseno/` Git boundary: the directory is integral and never
    blanket-ignored, while exact private and transient paths remain ignored.
    ADR 0025 governs the native macOS product transition: `Tohseno.app` is the
@@ -25,9 +33,9 @@ protocol material, not free-form docs.
    truthful local Registry/Builder track-record destination, and the
    fail-closed one-line native installer. Plain Return sends from a focused
    intention composer while Shift-Return inserts a line. The Registry may show
-   verified local Shot heads and local/test-only identity status, but it must
-   not imply public Builder authority or publication when registry RPC is not
-   implemented. `/install` and `/download` remain unavailable until the exact
+   verified local Shot heads and local/test-only identity status; ADR 0034 now
+   separately authorizes the implemented public Registry path only when its
+   signed manifest and fresh chain evidence agree. `/install` and `/download` remain unavailable until the exact
    immutable notarized DMG URL and SHA-256 are activated.
    ADR 0027 governs the native selected-app workspace: Build/App/Source tabs,
    bounded owner-local semantic activity and changed-file projection, an
@@ -77,9 +85,9 @@ protocol material, not free-form docs.
    companion boundary beneath it while preserving ADR 0014's recording format.
    ADR 0006 governs the successor (0.8) contract generation and public-witness
    design. Generation 0.8.0 is deployed and is the current client-trusted
-   active generation under `release/contract-activations/`; activation does
-   not imply that secure Builder creation, registry RPC, receipts, source
-   hosting, catalog discovery, or download are implemented.
+   active generation under `release/contract-activations/`. ADR 0034 connects
+   it to secure Builder bootstrap, constrained registry RPC, receipts, source
+   hosting, catalog discovery, and download without changing that generation.
 
    ADR 0016 is a deletion decision as much as an addition: the Studio dashboard,
    its execution-pipeline renderer, its Feedback/Marketing forms, and its
@@ -117,6 +125,7 @@ node --test studio/tests/static_assets.test.mjs
 ./scripts/test-ontology-lifecycle.sh
 ./scripts/test-local-companion-e2e.sh
 ./scripts/test-macos-service-lifecycle.sh
+./scripts/test-network-e2e.sh
 ```
 
 The three lifecycle scripts use isolated service, Shot, relay, and

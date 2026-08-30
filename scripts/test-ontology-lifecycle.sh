@@ -119,9 +119,9 @@ for executable in "$binary" "$identity_helper" "$fixture_harness"; do
   test -f "$executable" && test ! -L "$executable" && test -x "$executable" ||
     fail "a factory lifecycle executable was not built safely"
 done
-test "$("$binary" --version)" = "tohseno 1.0.2" || fail "TOHSENO 1.0.2 was not built"
-test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.0.2" ||
-  fail "the 1.0.2 Apple identity helper was not built"
+test "$("$binary" --version)" = "tohseno 1.1.0" || fail "TOHSENO 1.1.0 was not built"
+test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.1.0" ||
+  fail "the 1.1.0 Apple identity helper was not built"
 
 family="$temporary_root/data"
 machine="$family"
@@ -140,7 +140,7 @@ run_tohseno() {
     "$binary" "$@"
 }
 
-run_tohseno init anky >"$temporary_root/init.log"
+run_tohseno recording init anky >"$temporary_root/init.log"
 app="$family/anky"
 test -d "$app/.tohseno/evolutions" || fail "init did not embed .tohseno history"
 test -f "$app/.tohseno/recording-layer-v1" || fail "recording marker is missing"
@@ -155,7 +155,7 @@ printf '%s\n' 'keep this log' >"$app/build/compiler.log"
 printf '%s\n' 'git metadata' >"$app/.git/config"
 printf 'first note\nsecond line\n' >"$temporary_root/note.txt"
 
-run_tohseno record anky --note-file "$temporary_root/note.txt" \
+run_tohseno recording record anky --note-file "$temporary_root/note.txt" \
   >"$temporary_root/evolve-1.log"
 first="$app/.tohseno/evolutions/0001"
 test -f "$first/.complete" || fail "Version 1 was not finalized"
@@ -171,14 +171,14 @@ test ! -e "$first/src/.git" || fail "Version captured Git metadata"
 test ! -e "$first/images" || fail "Version contains legacy image staging"
 test ! -e "$first/artifact" || fail "Version contains legacy build artifacts"
 
-run_tohseno record anky >"$temporary_root/unchanged.log"
+run_tohseno recording record anky >"$temporary_root/unchanged.log"
 test ! -e "$app/.tohseno/evolutions/0002" || fail "unchanged files created a Version"
 grep -Fq 'Nothing to record' "$temporary_root/unchanged.log" ||
   fail "unchanged recording was not reported clearly"
 
 printf '%s\n' '# Anky two' >"$app/README.md"
 printf 'exact piped note\n' |
-  TOHSENO_HOME="$family" TOHSENO_DATA_ROOT="$machine" "$binary" record anky \
+  TOHSENO_HOME="$family" TOHSENO_DATA_ROOT="$machine" "$binary" recording record anky \
     >"$temporary_root/evolve-2.log"
 second="$app/.tohseno/evolutions/0002"
 test -f "$second/.complete" || fail "Version 2 was not finalized"
@@ -570,21 +570,21 @@ printf '%s\n' 'tampered' >"$first/src/README.md"
 if run_tohseno advanced verify anky >"$temporary_root/tamper.log" 2>&1; then
   fail "verification accepted a tampered Version"
 fi
-if run_tohseno record anky >"$temporary_root/tamper-record.log" 2>&1; then
+if run_tohseno recording record anky >"$temporary_root/tamper-record.log" 2>&1; then
   fail "record appended after tampered history"
 fi
 test ! -e "$app/.tohseno/evolutions/0003" ||
   fail "tampered history consumed another Version number"
 
 help="$($binary --help)"
-for command_name in create evolve init record studio service companion list doctor update uninstall advanced; do
+for command_name in create evolve init deploy status install fork recording studio service companion list doctor update uninstall advanced; do
   printf '%s\n' "$help" | grep -Eq "^  $command_name([[:space:]]|$)" ||
     fail "ordinary help is missing $command_name"
 done
-for hidden_or_retired in intent install refresh retire adopt token; do
+for hidden_or_retired in intent refresh retire adopt token; do
   if printf '%s\n' "$help" | grep -Eq "^  $hidden_or_retired([[:space:]]|$)"; then
     fail "ordinary help exposes hidden or retired command $hidden_or_retired"
   fi
 done
 
-printf '%s\n' "1.0 factory create/evolve and recording compatibility lifecycle passed"
+printf '%s\n' "1.1 factory, network commands, and recording compatibility lifecycle passed"

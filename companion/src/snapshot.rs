@@ -228,7 +228,7 @@ impl ShotSummary {
             "a Shot cannot be both archived and retired",
         )?;
         require(
-            self.supported_companion_actions.len() <= 6,
+            self.supported_companion_actions.len() <= 8,
             "too many supported companion actions",
         )?;
         let mut actions = self.supported_companion_actions.clone();
@@ -293,7 +293,7 @@ impl DeviceCapabilityState {
         validate_identifier("device ID", &self.device_id)?;
         validate_identifier("capability ID", &self.capability_id)?;
         require(
-            self.allowed_actions.len() <= 6,
+            self.allowed_actions.len() <= 8,
             "too many device capability actions",
         )?;
         let mut actions = self.allowed_actions.clone();

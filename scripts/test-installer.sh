@@ -51,7 +51,7 @@ write_cli() {
 #!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  printf '%s\n' "tohseno 1.0.2"
+  printf '%s\n' "tohseno 1.1.0"
   exit 0
 fi
 if [ "${1:-}" = "--json" ]; then shift; fi
@@ -75,13 +75,13 @@ case "${1:-}:${2:-}" in
     printf '%s\n' '{"schema":"tohseno.local-workspace-runtime/1"}' \
       >"$HOME/.tohseno/service/runtime.json"
     printf '%s\n' install >>"${TOHSENO_TEST_SERVICE_LOG:?}"
-    printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"1.0.2","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+    printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"1.1.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
     ;;
   service:status)
     if grep -Fqx unhealthy-status "$(dirname -- "$0")/service-behavior"; then
-      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":false,"service_version":"1.0.2","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":false,"service_version":"1.1.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
     else
-      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"1.0.2","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
+      printf '%s\n' '{"schema":"tohseno.service-status/1","healthy":true,"service_version":"1.1.0","origin":"http://127.0.0.1:19466","workspace_id":"workspace_fixture"}'
     fi
     ;;
   service:uninstall)
@@ -113,7 +113,7 @@ write_helper() {
 #!/bin/sh
 set -eu
 [ "${1:-}" = "--version" ] || exit 2
-printf '%s\n' "tohseno-apple-identity 1.0.2"
+printf '%s\n' "tohseno-apple-identity 1.1.0"
 FAKE_HELPER
   chmod 0755 "$destination"
 }
@@ -125,7 +125,7 @@ printf '%s\n' '// Studio' >"$package/share/studio/app.js"
 printf '%s\n' '/* Studio */' >"$package/share/studio/style.css"
 printf '%s\n' '// CompanionKit' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/Package.swift"
-printf '%s\n' '1.0.2' \
+printf '%s\n' '1.1.0' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/VERSION"
 printf '%s\n' 'license' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/LICENSE"
@@ -141,7 +141,7 @@ write_release_manifest() {
   cat >"$package/RELEASE.json" <<EOF
 {
   "schema": "tohseno.release/1",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "codename": "COMPANION",
   "target": "$target",
   "source_commit": "1111111111111111111111111111111111111111",
@@ -217,7 +217,7 @@ case "$artifact" in
   tohseno-release-x86_64-apple-darwin.tar.gz|SHA256SUMS) ;;
   *) exit 2 ;;
 esac
-[ "$url" = "https://github.com/jpfraneto/tohseno/releases/download/v1.0.2/$artifact" ] || exit 2
+[ "$url" = "https://github.com/jpfraneto/tohseno/releases/download/v1.1.0/$artifact" ] || exit 2
 printf '%s\n' "$url" >>"${TOHSENO_INSTALLER_CURL_LOG:?}"
 cp "${TOHSENO_INSTALLER_FIXTURE_DIR:?}/$artifact" "$destination"
 FAKE_CURL
@@ -429,4 +429,4 @@ test ! -e "$failed_home/.tohseno/bin/tohseno"
 test ! -e "$failed_home/Library/LaunchAgents/com.tohseno.workspace-service.plist"
 grep -Fqx app-data "$failed_home/Desktop/Tohseno/existing/source.txt"
 
-printf '%s\n' "TOHSENO 1.0.2 installer lifecycle regressions passed."
+printf '%s\n' "TOHSENO 1.1.0 installer lifecycle regressions passed."

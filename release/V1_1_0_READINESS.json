@@ -1,0 +1,63 @@
+{
+  "schema": "tohseno.release-readiness/1",
+  "version": "1.1.0",
+  "channel": "release-candidate",
+  "ready": false,
+  "source": {
+    "accepted_product_adrs": [
+      "docs/adr/0034-person-to-person-native-software.md"
+    ],
+    "public_installer_pin": "1.1.0",
+    "historical_protocol_rewritten": false,
+    "recording_layer_implicit_migration": false
+  },
+  "authorization": {
+    "authorized": false,
+    "authorized_by": null,
+    "authorized_at": null,
+    "authorization_form": null
+  },
+  "protection": {
+    "immutable_release_policy_verified": false,
+    "release_tag_protection_verified": false,
+    "release_tag_ruleset_id": null,
+    "verified_at": null
+  },
+  "required_local_evidence": {
+    "clean_source_commit_captured": false,
+    "rust_fmt_green": true,
+    "rust_clippy_green": true,
+    "rust_workspace_tests_green": true,
+    "apple_identity_build_green": true,
+    "apple_identity_tests_green": true,
+    "fascia_apple_tests_green": true,
+    "companion_kit_tests_green": true,
+    "companion_product_tests_green": true,
+    "mac_product_tests_green": true,
+    "contracts_build_green": true,
+    "contracts_tests_green": true,
+    "studio_tests_green": true,
+    "website_typecheck_green": true,
+    "website_tests_green": true,
+    "network_end_to_end_green": true,
+    "factory_lifecycle_green": true,
+    "companion_end_to_end_green": true,
+    "isolated_macos_launchagent_integration_green": true,
+    "clean_mac_acceptance_green": false,
+    "physical_second_person_install_green": false,
+    "production_smoke_shot_green": false,
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
+  },
+  "external_activation_gates": {
+    "developer_id_signed": false,
+    "notarization_accepted": false,
+    "ticket_stapled": false,
+    "mounted_gatekeeper_verified": false,
+    "immutable_public_dmg_verified": false,
+    "production_registry_enabled": false,
+    "production_relayer_enabled": false,
+    "stable_download_activated": false
+  },
+  "blocking_reason": "Release activation remains closed until an interactive release environment supplies the existing Apple Developer ID/notarization credentials and an owner-controlled physical Mac plus two iPhones completes clean-Mac onboarding, Companion pairing, real Builder-approved publication, second-person install, fork, update, refresh, and public-origin verification. No DMG, transaction, Shot, or physical-device success is claimed by this record."
+}
