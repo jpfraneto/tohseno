@@ -34,23 +34,23 @@ const systemCopy = {
   },
   windows: {
     title: "Download for Mac",
-    detail: `${releasePrefix}You’re on Windows · TOHSENO requires macOS 14+`,
+    detail: `${releasePrefix}You’re on Windows · Tohseno requires macOS 14+`,
   },
   android: {
     title: "Download for Mac",
-    detail: `${releasePrefix}You’re on Android · TOHSENO requires macOS 14+`,
+    detail: `${releasePrefix}You’re on Android · Tohseno requires macOS 14+`,
   },
   chromeos: {
     title: "Download for Mac",
-    detail: `${releasePrefix}You’re on ChromeOS · TOHSENO requires macOS 14+`,
+    detail: `${releasePrefix}You’re on ChromeOS · Tohseno requires macOS 14+`,
   },
   linux: {
     title: "Download for Mac",
-    detail: `${releasePrefix}You’re on Linux · TOHSENO requires macOS 14+`,
+    detail: `${releasePrefix}You’re on Linux · Tohseno requires macOS 14+`,
   },
   unknown: {
     title: "Download for Mac",
-    detail: `${releasePrefix}TOHSENO requires macOS 14 or later`,
+    detail: `${releasePrefix}Tohseno requires macOS 14 or later`,
   },
 }[system];
 

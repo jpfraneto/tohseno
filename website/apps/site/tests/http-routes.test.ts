@@ -114,7 +114,7 @@ describe("public pages", () => {
     expect(body).toContain('rel="noopener noreferrer"');
     expect(body).toContain('<a href="#open-source">Open source</a>');
     expect(body).toContain('id="open-source"');
-    expect(body).toContain("TOHSENO is open source.");
+    expect(body).toContain("Tohseno is open source.");
     expect(body).toContain(
       '>View source on GitHub <span aria-hidden="true">↗</span></a>',
     );
@@ -124,7 +124,7 @@ describe("public pages", () => {
     expect(primaryNavigation).toBeDefined();
     expect(primaryNavigation).not.toContain("github.com");
     expect(body).toContain(
-      "<title>TOHSENO — Make the iPhone App That Should Exist</title>",
+      "<title>Tohseno — Make the iPhone App That Should Exist</title>",
     );
     expect(body).toContain(
       'content="Describe a small app. Your Mac builds it and puts it on your iPhone."',
@@ -154,7 +154,7 @@ describe("public pages", () => {
         expect(body).toContain("One readiness instruction at a time");
         expect(body).toContain("Create one deliberately small app");
         expect(body).toContain("Use it, then describe the change");
-        expect(body).toContain("Download TOHSENO for Mac");
+        expect(body).toContain("Download Tohseno for Mac");
         expect(body).toContain("macOS 14 or newer");
         expect(body).toContain("Managed intelligence is optional");
         expect(body).toContain(
@@ -173,14 +173,14 @@ describe("public pages", () => {
         expect(body).toContain("0xb1bd208cd2af98e701f43d06aaa889d3a594df65");
         expect(body).toContain("0x3fe6508ba2660bc575080024f402c192a2e035a0");
         expect(body).toContain("source hosting, catalog discovery, and download are not implemented");
-        expect(body).toContain("No current TOHSENO workflow uploads an app repository");
+        expect(body).toContain("No current Tohseno workflow uploads an app repository");
         expect(body).not.toContain(INSTALL_COMMAND);
         expect(body).not.toContain("inactive, untrusted candidate");
-        expect(body).not.toContain("native <strong>TOHSENO 1.0.1</strong>");
+        expect(body).not.toContain("native <strong>Tohseno 1.0.1</strong>");
       } else {
-        expect(body).toContain("The installed factory sends no TOHSENO telemetry");
+        expect(body).toContain("The installed factory sends no Tohseno telemetry");
         expect(body).toContain("Native and managed intelligence");
-        expect(body).toContain("TOHSENO → Bankr → model-provider");
+        expect(body).toContain("Tohseno → Bankr → model-provider");
         expect(body).toContain("Pending Relay Intention");
         expect(body).toContain("never receives the decryption key");
         expect(body).toContain("at most seven days");
@@ -308,7 +308,7 @@ describe("public pages", () => {
     expect(body).toStartWith("#!/bin/sh\nset -eu\n");
     expect(body).toContain(`dmg_url='${downloadURL}'`);
     expect(body).toContain(`dmg_sha256='${sha256}'`);
-    expect(body).toContain("You will install the TOHSENO installer.");
+    expect(body).toContain("You will install the Tohseno installer.");
     expect(body).toContain("Enter to continue. Esc to exit.");
     expect(body).toContain("Nothing was installed.");
     expect(body).toContain("< /dev/tty");
@@ -323,7 +323,7 @@ describe("public pages", () => {
     expect(body).toContain("/usr/bin/hdiutil attach");
     expect(body).toContain("downloads_dir=\"$HOME/Downloads\"");
     expect(body).toContain("download_name='Tohseno-1.0.2-rc.2.dmg'");
-    expect(body).toContain("Double-click it, then drag TOHSENO into Applications.");
+    expect(body).toContain("Double-click it, then drag Tohseno into Applications.");
     expect(body).toContain("/usr/bin/open -R \"$destination\"");
     expect(body).not.toContain("/usr/bin/ditto");
     expect(body).not.toContain("target_app=");

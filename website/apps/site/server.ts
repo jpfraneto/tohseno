@@ -107,7 +107,7 @@ export function renderNativeMacInstaller(
   const artifactPathComponent = new URL(downloadURL).pathname.split("/").at(-1) ?? "";
   const downloadName = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.dmg$/.test(artifactPathComponent)
     ? artifactPathComponent
-    : "TOHSENO.dmg";
+    : "Tohseno.dmg";
   const script = `#!/bin/sh
 set -eu
 
@@ -125,7 +125,7 @@ say() {
 }
 
 die() {
-  say "TOHSENO was not installed: $*"
+  say "Tohseno was not installed: $*"
   exit 1
 }
 
@@ -148,7 +148,7 @@ trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 
 [ -r /dev/tty ] && [ -w /dev/tty ] || {
-  /usr/bin/printf '%s\\n' 'TOHSENO needs an interactive terminal for installation.' >&2
+  /usr/bin/printf '%s\\n' 'Tohseno needs an interactive terminal for installation.' >&2
   exit 1
 }
 
@@ -170,7 +170,7 @@ esac
 [ "$macos_major" -ge 14 ] || die "macOS 14 or newer is required; this Mac has $macos_version."
 
 say ''
-say 'You will install the TOHSENO installer.'
+say 'You will install the Tohseno installer.'
 say 'Enter to continue. Esc to exit.'
 escape_character=$(/usr/bin/printf '\\033')
 while :; do
@@ -187,7 +187,7 @@ while :; do
 done
 
 temp_dir=$(/usr/bin/mktemp -d /tmp/tohseno-native-install.XXXXXX) || die 'a temporary folder could not be created.'
-dmg_path="$temp_dir/TOHSENO.dmg"
+dmg_path="$temp_dir/Tohseno.dmg"
 mount_point="$temp_dir/mount"
 /bin/mkdir "$mount_point"
 downloads_dir="$HOME/Downloads"
@@ -199,16 +199,16 @@ if [ -e "$destination" ]; then
   existing_sha256=$(/usr/bin/shasum -a 256 "$destination" | /usr/bin/sed 's/[[:space:]].*$//')
   if [ "$existing_sha256" = "$dmg_sha256" ]; then
     say ''
-    say 'TOHSENO is ready.'
+    say 'Tohseno is ready.'
     say "$destination"
-    say 'Double-click it, then drag TOHSENO into Applications.'
+    say 'Double-click it, then drag Tohseno into Applications.'
     /usr/bin/open -R "$destination" || die 'the verified installer could not be revealed in Finder.'
     exit 0
   fi
   die "$destination already exists with different contents. Move it elsewhere, then try again."
 fi
 
-say 'Downloading TOHSENO…'
+say 'Downloading Tohseno…'
 /usr/bin/curl --fail --location --progress-bar --show-error --proto '=https' --proto-redir '=https' --tlsv1.2 --max-filesize 536870912 --output "$dmg_path" "$dmg_url" 2> /dev/tty || die 'the DMG download failed.'
 
 actual_sha256=$(/usr/bin/shasum -a 256 "$dmg_path" | /usr/bin/sed 's/[[:space:]].*$//')
@@ -218,21 +218,21 @@ say 'Checking the app signature and notarization…'
 /usr/bin/hdiutil attach "$dmg_path" -readonly -nobrowse -noautoopen -mountpoint "$mount_point" -quiet || die 'the verified DMG could not be mounted.'
 source_app="$mount_point/Tohseno.app"
 [ -d "$source_app" ] && [ ! -L "$source_app" ] || die 'the DMG does not contain the expected Tohseno.app.'
-/usr/bin/codesign --verify --deep --strict --verbose=2 "$source_app" >/dev/null 2>&1 || die 'the TOHSENO app signature is invalid.'
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$source_app" >/dev/null 2>&1 || die 'the Tohseno app signature is invalid.'
 signature=$(/usr/bin/codesign -d --verbose=4 "$source_app" 2>&1)
 bundle_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^Identifier=//p')
 team_id=$(/usr/bin/printf '%s\\n' "$signature" | /usr/bin/sed -n 's/^TeamIdentifier=//p')
 [ "$bundle_id" = "$expected_bundle_id" ] || die 'the app has an unexpected bundle identifier.'
-[ "$team_id" = "$expected_team_id" ] || die 'the app was not signed by the expected TOHSENO Apple team.'
-/usr/sbin/spctl --assess --type execute --verbose=2 "$source_app" >/dev/null 2>&1 || die 'Gatekeeper did not accept the notarized TOHSENO app.'
+[ "$team_id" = "$expected_team_id" ] || die 'the app was not signed by the expected Tohseno Apple team.'
+/usr/sbin/spctl --assess --type execute --verbose=2 "$source_app" >/dev/null 2>&1 || die 'Gatekeeper did not accept the notarized Tohseno app.'
 
 /usr/bin/hdiutil detach "$mount_point" -quiet || die 'the verified DMG could not be closed cleanly.'
 mount_point=''
 /bin/mv "$dmg_path" "$destination" || die 'the verified installer could not be moved into Downloads.'
 say ''
-say 'TOHSENO is ready.'
+say 'Tohseno is ready.'
 say "$destination"
-say 'Double-click it, then drag TOHSENO into Applications.'
+say 'Double-click it, then drag Tohseno into Applications.'
 /usr/bin/open -R "$destination" || die 'the verified installer could not be revealed in Finder.'
 `;
   return script

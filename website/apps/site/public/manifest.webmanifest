@@ -1,7 +1,7 @@
 {
-  "name": "TOHSENO — Take a Shot",
-  "short_name": "TOHSENO",
-  "description": "Capture a private Shot Seed on your phone and continue in TOHSENO Studio.",
+  "name": "Tohseno — Take a Shot",
+  "short_name": "Tohseno",
+  "description": "Capture a private Shot Seed on your phone and continue in Tohseno Studio.",
   "id": "/?source=mobile-app",
   "start_url": "/?source=mobile-app",
   "scope": "/",

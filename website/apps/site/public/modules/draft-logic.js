@@ -21,8 +21,8 @@ export function transferStateLabel(state) {
   return ({
     preparing: "Preparing package…", encrypting: "Encrypting on this device…",
     uploading: "Uploading encrypted chunks…", ready: "Your intention is ready.",
-    waiting: "Waiting for TOHSENO…", leased: "Claimed by TOHSENO…",
+    waiting: "Waiting for Tohseno…", leased: "Claimed by Tohseno…",
     completed: "Imported on the Mac", expired: "This encrypted handoff expired.",
     cancelled: "This encrypted handoff was cancelled.", failed: "Encrypted handoff failed.",
-  })[state] || "Waiting for TOHSENO…";
+  })[state] || "Waiting for Tohseno…";
 }

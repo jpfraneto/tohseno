@@ -307,7 +307,7 @@ function printInstaller() {
   say("  one command. it installs a verified, immutable release.", "muted");
   pasteBlock(installCommand);
   say(
-    "  needs macOS, Git, and Codex or Claude Code. TOHSENO brings its own Bun.",
+    "  needs macOS, Git, and Codex or Claude Code. Tohseno brings its own Bun.",
     "muted",
   );
   say("  iOS is the only implemented app platform.", "muted");
@@ -337,7 +337,7 @@ function beginComposition(requested) {
     openComposer(DEFAULT_APP_NAME, "");
     gap();
     say("  what should it do?", "accent");
-    say("  leave naming to TOHSENO, or provide a name after create.", "muted");
+    say("  leave naming to Tohseno, or provide a name after create.", "muted");
     say("  be exact. the first version is built from these words alone.", "muted");
     say("  drop a .md file to fill this in. images too — up to eight.", "muted");
     gap();
@@ -403,7 +403,7 @@ async function run(rawLine) {
         `  on your Mac: tohseno evolve ${intent.argument.trim() || "<name>"}`,
         "muted",
       );
-      say("  or from the TOHSENO app, once it ships.", "muted");
+      say("  or from the Tohseno app, once it ships.", "muted");
       return;
     case "demo":
       await runDemo(state.appName ?? "my-app");
@@ -464,7 +464,7 @@ function offerRemainingDoors() {
 
 function explainCompanion() {
   gap();
-  say("  not yet — the TOHSENO app for iPhone is not published.", "warn");
+  say("  not yet — the Tohseno app for iPhone is not published.", "warn");
   gap();
   say("  what it will be, so you can judge it now:", "muted");
   say("  · you scan one code and this browser is linked to the app.", "muted");
@@ -542,14 +542,14 @@ function offlineFallback(packageBytes) {
   gap();
   say("  the encrypted handoff is closed right now.", "warn");
   say(`  downloaded ${filename} instead — private, but not encrypted.`, "muted");
-  say("  install TOHSENO, then open it:", "muted");
+  say("  install Tohseno, then open it:", "muted");
   pasteBlock(`tohseno intent open ~/Downloads/${filename}`);
   setMode("command");
 }
 
 function followTransfer(relayId, statusCapability) {
   gap();
-  const row = say("  waiting for TOHSENO…", "muted");
+  const row = say("  waiting for Tohseno…", "muted");
   setMode("command");
   const deadline = Date.now() + 30 * 60_000;
   const tick = async () => {
@@ -559,7 +559,7 @@ function followTransfer(relayId, statusCapability) {
       // above already said. Here the only useful fact is who we are waiting on.
       row.textContent =
         status.state === "ready"
-          ? "  waiting for TOHSENO on your Mac…"
+          ? "  waiting for Tohseno on your Mac…"
           : `  ${transferStateLabel(status.state)}`;
       if (status.state === "completed") {
         row.className = "line accent";
