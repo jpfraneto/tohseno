@@ -5,5 +5,7 @@
   <text x="320" y="102" fill="#f4efe5" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" font-weight="650">Install Tohseno</text>
   <path d="M246 213 H386" fill="none" stroke="#ff5a00" stroke-width="8" stroke-linecap="round"/>
   <path d="M365 192 L391 213 L365 234" fill="none" stroke="#ff5a00" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="76" y="258" width="138" height="30" rx="10" fill="#f4efe5"/>
+  <rect x="426" y="258" width="138" height="30" rx="10" fill="#f4efe5"/>
   <text x="320" y="307" fill="#b8b4ad" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="16">Drag Tohseno into Applications</text>
 </svg>
