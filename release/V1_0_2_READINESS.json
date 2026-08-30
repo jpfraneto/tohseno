@@ -52,7 +52,7 @@
     "companion_end_to_end_green": true,
     "isolated_macos_launchagent_integration_green": true,
     "npm_pack_first_run_and_nameless_create_green": false,
-    "three_physical_iphone_apps_green": false,
+    "three_physical_iphone_apps_green": true,
     "release_candidate_artifacts_built_from_clean_commit": true,
     "release_candidate_manifests_verified": true
   },
@@ -161,31 +161,51 @@
       "birth_execution_id": "2c6472b1ba6d66babfd622c6fb4afc81",
       "accepted_version_id": "0x89ca56438e0d97c0404d249fcb3ac57291ea2f5a78efe7115c2b227f4f4b32aa",
       "accepted_expression_id": "0x53f78ce3e9f081e7b8a2b97d8530336cb0c791b05adf7e8f9fd1325c3bb90183",
-      "acceptance_summary": "A fresh Codex gpt-5.6-sol birth passed the one bounded repair, deterministic build and Simulator gates, signed physical-device build, install, and launch. The native Mac app was terminated while work was active and reopened from Finder; the service and execution continued. Version 1 reports installed on the physical iPhone, and independent local inspection verifies its intention bytes, embedded metadata, selected records, and contiguous lineage.",
-      "pending_device_delivery": [
+      "acceptance_summary": "Three fresh Codex gpt-5.6-sol births passed their bounded implementation and repair limits, deterministic device and Simulator gates, signed physical-device builds, installs, and launches on the paired iPhone 15. The first app then evolved from accepted Version 1 to accepted Version 2 after the native Mac app and service had been interrupted and resumed. Independent local verification reports conformant intention bytes, embedded metadata, selected records, source materialization, and contiguous lineage for all three apps. A request deliberately bound to the obsolete Version 1 base was durably rejected with HTTP 409 stale_base and created no execution.",
+      "completed_device_delivery": [
         {
           "kind": "same-app evolution",
           "shot_id": "0x28e36b115a4e529a45a0f42a7bbe26a32107831e19ea28fe16195706ecbcaef1",
           "execution_id": "2d544c174d9d2205b863825b63cec5c2",
           "version_ordinal": 2,
-          "state": "waiting_for_device"
+          "version_id": "0xf771f69d2f1c3ce94daa8e2bd65eda47d4355464ff42daf3b6d00bde5b5a40d7",
+          "expression_id": "0x53f78ce3e9f081e7b8a2b97d8530336cb0c791b05adf7e8f9fd1325c3bb90183",
+          "state": "accepted",
+          "accepted_at": "2026-08-30T11:43:29.825002Z"
         },
         {
           "kind": "fresh app 2",
           "shot_id": "0x69bfd2d70ed6df06ea410e28b464fea9811ade79c11f957b6bd765a4c2d7ec70",
           "execution_id": "af462304639d3dcfef7af1f381e9cc25",
           "version_ordinal": 1,
-          "state": "waiting_for_device"
+          "version_id": "0xc0ffa60e6ba04474de99ac085c193d9bcbcbd7b099e3e1016f359d148c0611db",
+          "expression_id": "0xd6d8cea7243ae753f616b18f0990bddee267a8f69cf3bb203730ef94c09109f4",
+          "state": "accepted",
+          "accepted_at": "2026-08-30T11:46:17.452521Z"
         },
         {
           "kind": "fresh app 3",
           "shot_id": "0xb23f15a3bbbcce030676791ce4eea3934a3fbcd3e66c06aff437b23b55830f7f",
           "execution_id": "4aa78a78954b7cb86cfb9f44f40ea3a6",
           "version_ordinal": 1,
-          "state": "waiting_for_device"
+          "version_id": "0x93fe2a615dc21afd159de32b3a6ce100ff3297f8664c733c75ff9d314916bbac",
+          "expression_id": "0x44136e3b2a41ac2d2d497c62d9025936ef4bf46c48e92792fada421496142b37",
+          "state": "accepted",
+          "accepted_at": "2026-08-30T11:49:16.688921Z"
         }
       ],
-      "device_delivery_blocker": "The paired iPhone disconnected after Version 1 installed. All three prepared deliveries are preserved and wait for cable reconnection and unlock; none is recorded as accepted."
+      "stale_base_refusal": {
+        "command_id": "command_release_1_0_2_stale_base_20260830",
+        "requested_version_ordinal": 1,
+        "current_version_ordinal": 2,
+        "http_status": 409,
+        "code": "stale_base",
+        "durably_journaled": true,
+        "execution_count_before": 2,
+        "execution_count_after": 2
+      },
+      "device_delivery_blocker": null,
+      "verified_at": "2026-08-30T11:49:47Z"
     }
   },
   "current_source_evidence": {
@@ -239,5 +259,5 @@
     },
     "real_service_scenarios_verified": false
   },
-  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, accepted by Gatekeeper on the build Mac, and has completed one fresh physical-iPhone birth with source and lineage verification. A same-app evolution and two additional fresh apps completed their implementation, bounded-repair where needed, and deterministic gates, but all three are waiting for physical-device delivery because the iPhone disconnected. The protected v1.0.2 tag remains unpublished. Publication remains blocked on independent clean-Mac/user acceptance; completion of those waiting device deliveries and the three-fresh-app criterion; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, backup/restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; immutable artifact publication; independent downloaded-digest and public-manifest verification; public installer activation; and post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates. Owner publication intent is recorded but does not waive them."
+  "blocking_reason": "The exact ADR 0029 candidate is Developer ID signed, accepted by Apple notarization submission d95ff96d-a536-4777-814d-8c43ae4f7ecd, stapled, packaged, locally verified, installed through Finder, and accepted by Gatekeeper on the build Mac. Three fresh apps and a same-app Version 2 evolution have now passed deterministic gates, signed installation, launch, and acceptance on the physical iPhone 15; all three source trees and histories verify, and an obsolete Version 1 evolution was durably refused without creating an execution. The protected v1.0.2 tag remains unpublished. Publication remains blocked on independent clean-Mac/user acceptance; a least-privilege Bankr LLM Gateway key, model allowlist, funded staging use, authorized Railway backups and a restore drill, and real managed grant/checkout/duplicate/inference/cap/refund/dispute/failure/reconciliation tests; immutable artifact publication; independent downloaded-digest and public-manifest verification; public download activation; and post-activation health verification. The obsolete npm-first product decision is superseded by ADR 0025 and is not treated as authority to bypass these current native gates. Owner publication intent is recorded but does not waive them."
 }

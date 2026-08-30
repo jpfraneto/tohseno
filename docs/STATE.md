@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-29. This is the plain-language
+Written 2026-07-30, amended through 2026-08-30. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -82,17 +82,16 @@ installed the exact app into `/Applications`, and Gatekeeper accepted first
 launch on the build Mac. Independent clean-Mac/user acceptance is still
 unverified.
 
-The exact candidate completed a fresh Codex `gpt-5.6-sol` Version 1 birth for
-`first-shot-codex-proof`. The native Mac app was terminated during admitted
-work and reopened from Finder without interrupting the service or execution.
-The one bounded repair fixed only InstallationIdentity preparation; all
-deterministic gates then passed and the app installed and launched on the
-paired physical iPhone 15. Independent inspection verifies intention bytes,
-embedded metadata, the selected Expression and Version, source
-materialization, and contiguous lineage. A same-app evolution and two more
-fresh physical-app proofs completed implementation, their bounded repair where
-needed, and deterministic gates, but are waiting for device delivery because
-the iPhone disconnected; they are not recorded as accepted.
+The exact candidate completed three fresh Codex `gpt-5.6-sol` births and a
+same-app Version 2 evolution on the paired physical iPhone 15. The native Mac
+app was terminated during admitted work and reopened from Finder without
+losing the service, execution, source, or history. Each app passed its bounded
+implementation and repair limits, deterministic device and Simulator gates,
+signed physical-device build, install, launch, and acceptance. Independent
+inspection verifies intention bytes, embedded metadata, the selected records,
+source materialization, and contiguous lineage for all three apps. A deliberate
+evolution against obsolete Version 1 was durably rejected with HTTP 409
+`stale_base` and created no execution.
 
 Managed-compute staging now exists at the separate Railway `staging`
 environment with a durable `/data/managed-compute` root, a Keychain-held
@@ -111,11 +110,11 @@ Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
 `v1.0.2` is covered by active deletion and non-fast-forward protection but has
 not been created. The Finder-first website handler remains deployed with
-downloads disabled. Independent clean-Mac acceptance, the remaining physical
-device proofs, managed Bankr staging, backup/restore, immutable upload,
+downloads disabled. Independent clean-Mac acceptance, managed Bankr staging,
+backup/restore, immutable upload,
 independent downloaded-digest verification, public activation, and
 post-activation checks remain release gates. Owner publication intent does not
-waive them, so the public one-line installer remains disabled.
+waive them, so the public download remains disabled.
 
 ## The product: App → Intent → App on your iPhone
 
