@@ -20,34 +20,37 @@ function detectSystem() {
 }
 
 const system = detectSystem();
+const releasePrefix = document.body.dataset.downloadChannel === "release-candidate"
+  ? "Release candidate · "
+  : "";
 const systemCopy = {
   macos: {
     title: "Download for this Mac",
-    detail: "macOS 14+ · Apple silicon and Intel",
+    detail: `${releasePrefix}macOS 14+ · Apple silicon and Intel`,
   },
   ios: {
     title: "Download for Mac",
-    detail: "Open this page on a Mac running macOS 14+",
+    detail: `${releasePrefix}Open this page on a Mac running macOS 14+`,
   },
   windows: {
     title: "Download for Mac",
-    detail: "You’re on Windows · TOHSENO requires macOS 14+",
+    detail: `${releasePrefix}You’re on Windows · TOHSENO requires macOS 14+`,
   },
   android: {
     title: "Download for Mac",
-    detail: "You’re on Android · TOHSENO requires macOS 14+",
+    detail: `${releasePrefix}You’re on Android · TOHSENO requires macOS 14+`,
   },
   chromeos: {
     title: "Download for Mac",
-    detail: "You’re on ChromeOS · TOHSENO requires macOS 14+",
+    detail: `${releasePrefix}You’re on ChromeOS · TOHSENO requires macOS 14+`,
   },
   linux: {
     title: "Download for Mac",
-    detail: "You’re on Linux · TOHSENO requires macOS 14+",
+    detail: `${releasePrefix}You’re on Linux · TOHSENO requires macOS 14+`,
   },
   unknown: {
     title: "Download for Mac",
-    detail: "TOHSENO requires macOS 14 or later",
+    detail: `${releasePrefix}TOHSENO requires macOS 14 or later`,
   },
 }[system];
 

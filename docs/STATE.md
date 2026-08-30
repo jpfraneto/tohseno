@@ -110,12 +110,14 @@ Superseded local artifacts remain recorded in
 `release/V1_0_2_READINESS.json` and must not be distributed. Exact tag
 `v1.0.2` is covered by active deletion and non-fast-forward protection but has
 not been created. ADR 0030's system-aware direct-download landing is deployed
-and healthy, while both the native download and compatibility installer remain
-disabled. Independent clean-Mac acceptance, managed Bankr staging,
-backup/restore, immutable upload,
-independent downloaded-digest verification, public activation, and
-post-activation checks remain release gates. Owner publication intent does not
-waive them, so the public download remains disabled.
+and healthy. Under ADR 0031, the exact signed, notarized, stapled candidate is
+published as GitHub prerelease `v1.0.2-rc.1`; a fresh origin round trip matched
+SHA-256 `6a168ba9da2c89c0b852e252370f19a60cfd92f8a71d0230161d093f0b04a4dc`,
+and the production download points to that release candidate for clean-Mac
+acceptance. Independent clean-Mac acceptance, managed Bankr staging,
+backup/restore, stable immutable publication, independent stable download
+verification, stable activation, and post-activation checks remain release
+gates.
 
 ## The product: App → Intent → App on your iPhone
 
@@ -397,8 +399,10 @@ centers one ordinary `/download/macos` link. Browser platform detection labels
 it **Download for this Mac** on macOS and states the real Mac requirement on
 iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
-unavailable until the operator configures the immutable notarized DMG URL and
-exact SHA-256. The website does not collect an intention or create a Shot. The
+fail-closed until the operator configures the immutable notarized DMG URL,
+exact SHA-256, and release channel. It currently serves the explicitly labeled
+`v1.0.2-rc.1` channel for independent acceptance; stable `v1.0.2` remains
+unpublished. The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
 normal landing path.
 
@@ -411,8 +415,9 @@ acceptance. It places the verified DMG in Downloads, prints that exact path,
 and reveals it in Finder so the person performs the familiar drag into
 Applications. It does not copy, replace, or open an application, request
 administrator access, or edit a shell profile. HEAD exposes only
-status/instruction headers. These routes remain `503` in current public
-configuration and are not publication evidence.
+status/instruction headers. They currently use the same release-candidate
+artifact configuration; their continued compatibility does not make the
+candidate stable publication evidence.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -475,10 +480,12 @@ verification matrix at source commit
 Apple-notarized, stapled DMG recorded in `release/V1_0_2_READINESS.json` passed
 local mounted-DMG, Finder-install, build-Mac Gatekeeper, and one fresh
 physical-iPhone birth acceptance. The readiness record contains explicit owner
-publication intent but remains blocked until independent clean-Mac acceptance,
-the queued evolution and remaining fresh-device proofs, managed Bankr staging
-and backup/restore, immutable publication, independent download verification,
-exact public manifest bytes, and website activation are recorded. ADR 0025
+publication intent. The exact candidate is now public as prerelease
+`v1.0.2-rc.1`, and the website download is activated against its origin-checked
+digest solely for independent clean-Mac acceptance. Stable promotion remains
+blocked until that acceptance, managed Bankr staging and backup/restore,
+stable immutable publication, independent stable download verification, exact
+public manifest bytes, and stable website activation are recorded. ADR 0025
 supersedes npm-first consumer onboarding; an npm publication flag is not
 authority to bypass these native gates. Candidate evidence is not a claim that
 1.0.2 is publicly available.

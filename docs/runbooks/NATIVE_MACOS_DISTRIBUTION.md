@@ -58,8 +58,11 @@ Xcode versions in the private release evidence.
 
 ## Clean-Mac acceptance
 
-Before publication, use a Mac/user account with no Node, npm, Bun, Homebrew
-TOHSENO, `~/.tohseno`, or existing LaunchAgent:
+Use a Mac/user account with no Node, npm, Bun, Homebrew TOHSENO,
+`~/.tohseno`, or existing LaunchAgent. Before stable publication, the exact
+candidate may be distributed through ADR 0031's explicitly labeled public
+release-candidate channel so this acceptance exercises the real website
+download path:
 
 1. Mount the DMG, drag TOHSENO to Applications, eject it, and open it through
    Finder. Gatekeeper must accept it without bypass instructions.
@@ -81,15 +84,20 @@ TOHSENO, `~/.tohseno`, or existing LaunchAgent:
 
 Physical iPhone installation, Developer ID signing, notarization, Gatekeeper,
 and a clean-machine walkthrough cannot be replaced by unit tests. If any is
-missing, describe it as unverified and keep download activation off.
+missing, describe it as unverified and do not promote the candidate to stable.
+Only ADR 0031's bounded release-candidate download may remain active for the
+acceptance walkthrough.
 
 ## Publish without guessing
 
-Upload the immutable DMG to an HTTPS download origin, download it again from a
-separate machine/network, and compare its SHA-256. Then configure the website:
+Upload the immutable DMG to an HTTPS download origin, download it again, and
+compare its SHA-256. For ADR 0031 acceptance use a public prerelease tag and set
+`MACOS_DOWNLOAD_CHANNEL=release-candidate`; the website and API must identify
+that channel. Then configure the website:
 
 ```text
 MACOS_DOWNLOAD_ENABLED=true
+MACOS_DOWNLOAD_CHANNEL=release-candidate
 MACOS_DOWNLOAD_URL=https://…/TOHSENO-1.0.2.dmg
 MACOS_DOWNLOAD_SHA256=<exact-lowercase-digest>
 ```
@@ -101,8 +109,15 @@ restores the terminal on exit, displays the download progress, verifies before
 exposure, places the exact DMG in Downloads, and reveals it in Finder without
 copying, replacing, or opening an application. Complete the ordinary Finder
 drag and first-open walkthrough with the exact downloaded bytes. A source
-merge, Git tag, successful local build, or notarization submission alone is
-not permission to set `MACOS_DOWNLOAD_ENABLED=true`.
+merge, stable Git tag, successful local build, or notarization submission alone
+is not permission to set `MACOS_DOWNLOAD_ENABLED=true`. ADR 0031 additionally
+requires explicit owner authorization, exact origin round-trip verification,
+prerelease labeling, and an unpublished stable tag.
+
+After clean-Mac acceptance and every remaining release gate passes, publish the
+protected stable tag for the exact accepted digest, switch
+`MACOS_DOWNLOAD_CHANNEL=stable`, and repeat the API, redirect, download,
+checksum, Finder, Gatekeeper, first-open, and health checks.
 
 Rollback the download by setting `MACOS_DOWNLOAD_ENABLED=false`; do not replace
 bytes at an existing immutable URL. Repair requires a new candidate and the

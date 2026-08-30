@@ -2,6 +2,12 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0031](0031-public-release-candidate-for-clean-mac-acceptance.md) allows
+the exact signed, notarized, digest-pinned DMG to use an explicitly labeled
+public prerelease channel for testing the real website-to-Finder path on a
+clean Mac. Stable promotion and all remaining gates stay closed until that
+acceptance passes.
+
 [ADR 0030](0030-system-aware-direct-native-download.md) makes an ordinary,
 system-aware **Download for this Mac** link the canonical website installation
 door. It removes shell-command copying from the normal landing path while

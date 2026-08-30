@@ -51,6 +51,11 @@ protocol material, not free-form docs.
    exact SHA-256, Developer ID, notarization, Gatekeeper, Finder handoff, and
    publication gates remain mandatory; no release is activated by that
    decision.
+   ADR 0031 permits an explicitly owner-authorized, visibly labeled public
+   release-candidate DMG channel so clean-Mac acceptance can exercise the real
+   website-to-Finder path. The exact candidate must already be signed,
+   notarized, stapled, digest-pinned, and origin-verified; stable promotion
+   remains closed until acceptance and the remaining release gates pass.
    ADR 0022 governs
    optional app naming: a supplied name is authoritative; when omitted, local
    machinery reserves a technical slug and the one existing implementation

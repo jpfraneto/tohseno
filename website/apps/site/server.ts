@@ -422,6 +422,7 @@ export async function createApplication(
       CANONICAL_ORIGIN: config.baseUrl,
       OG_IMAGE_URL: `${config.baseUrl}/og.png?v=${ogImageVersion}`,
       LANDING_STYLE_REVISION: landingStyleRevision,
+      DOWNLOAD_CHANNEL: config.distribution.macosChannel,
     });
   const [landingPage, docsPage, privacyPage] = await Promise.all([
     renderPage("index.html"),
@@ -481,12 +482,14 @@ export async function createApplication(
       }
       if (pathname === "/api/distribution/v1/macos") {
         return headResponse(json({ schema: "tohseno.macos-distribution/1", available: true,
+          channel: config.distribution.macosChannel,
           url: config.distribution.macosUrl, sha256: config.distribution.macosSha256,
           minimum_macos_version: "14.0" }), method);
       }
       return headResponse(withSecurityHeaders(new Response(null, { status: 307, headers: {
         location: config.distribution.macosUrl,
         "x-tohseno-sha256": config.distribution.macosSha256,
+        "x-tohseno-release-channel": config.distribution.macosChannel,
         "cache-control": "no-store",
       } })), method);
     }

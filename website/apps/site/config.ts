@@ -25,6 +25,7 @@ export interface AppConfig {
 
 export interface DistributionConfig {
   macosEnabled: boolean;
+  macosChannel: "release-candidate" | "stable";
   macosUrl?: string;
   macosSha256?: string;
 }
@@ -244,6 +245,12 @@ export function loadConfig(env: Environment = process.env): AppConfig {
   }
 
   const macosEnabled = parseBoolean("MACOS_DOWNLOAD_ENABLED", env.MACOS_DOWNLOAD_ENABLED, false);
+  const macosChannel = oneOf(
+    "MACOS_DOWNLOAD_CHANNEL",
+    env.MACOS_DOWNLOAD_CHANNEL,
+    ["release-candidate", "stable"] as const,
+    "stable",
+  );
   if (macosEnabled) {
     let url: URL;
     try { url = new URL(env.MACOS_DOWNLOAD_URL ?? ""); }
@@ -303,6 +310,7 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     },
     distribution: {
       macosEnabled,
+      macosChannel,
       macosUrl: env.MACOS_DOWNLOAD_URL,
       macosSha256: env.MACOS_DOWNLOAD_SHA256,
     },
@@ -339,5 +347,6 @@ export function safeStartupSummary(
     managedComputeEnabled: config.managed.enabled,
     managedComputeProvider: config.managed.enabled ? config.managed.provider : "disabled",
     macosDownloadEnabled: config.distribution.macosEnabled,
+    macosDownloadChannel: config.distribution.macosChannel,
   };
 }

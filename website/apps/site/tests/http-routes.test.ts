@@ -78,6 +78,7 @@ describe("public pages", () => {
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
     expect(body.match(/data-installer-download/g)).toHaveLength(3);
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(3);
+    expect(body).toContain('data-download-channel="stable"');
     expect(body).toContain("Download for Mac");
     expect(body).toContain("macOS 14+");
     expect(body).not.toContain("paste into Terminal");
@@ -215,6 +216,8 @@ describe("public pages", () => {
     expect(landingScript).toContain("navigator.userAgentData?.platform");
     expect(landingScript).toContain("navigator.maxTouchPoints > 1");
     expect(landingScript).toContain('title: "Download for this Mac"');
+    expect(landingScript).toContain('release-candidate');
+    expect(landingScript).toContain('"Release candidate · "');
     for (const system of ["iPhone", "Windows", "Android", "ChromeOS", "Linux"]) {
       expect(landingScript).toContain(system);
     }
@@ -257,6 +260,7 @@ describe("public pages", () => {
     const configured = await createApplication({ config: loadConfig({
       NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
       MACOS_DOWNLOAD_ENABLED: "true",
+      MACOS_DOWNLOAD_CHANNEL: "release-candidate",
       MACOS_DOWNLOAD_URL: "https://downloads.tohseno.com/Tohseno-1.0.2.dmg",
       MACOS_DOWNLOAD_SHA256: "a".repeat(64),
     }) });
@@ -266,7 +270,9 @@ describe("public pages", () => {
     expect(response.headers.get("x-tohseno-sha256")).toBe("a".repeat(64));
     const metadata = await configured.fetch(request("/api/distribution/v1/macos"));
     expect(await metadata.json()).toEqual({ schema: "tohseno.macos-distribution/1", available: true,
+      channel: "release-candidate",
       url: "https://downloads.tohseno.com/Tohseno-1.0.2.dmg", sha256: "a".repeat(64), minimum_macos_version: "14.0" });
+    expect(response.headers.get("x-tohseno-release-channel")).toBe("release-candidate");
   });
 
   test("native one-line installer is consentful, verified, and fail-closed", async () => {

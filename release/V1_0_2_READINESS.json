@@ -28,7 +28,8 @@
       "docs/adr/0027-native-app-workspace-and-device-stage.md",
       "docs/adr/0028-finder-first-install-and-native-welcome.md",
       "docs/adr/0029-first-shot-before-factory.md",
-      "docs/adr/0030-system-aware-direct-native-download.md"
+      "docs/adr/0030-system-aware-direct-native-download.md",
+      "docs/adr/0031-public-release-candidate-for-clean-mac-acceptance.md"
     ],
     "public_installer_pin": "1.0.2",
     "historical_protocol_rewritten": false,
@@ -71,7 +72,11 @@
     "npm_1_0_2_published": false,
     "npm_clean_prefix_install_verified": false,
     "website_1_0_2_deployed": false,
-    "post_activation_service_health_verified": false
+    "post_activation_service_health_verified": false,
+    "release_candidate_v1_0_2_rc_1_published": true,
+    "release_candidate_origin_checksum_verified": true,
+    "release_candidate_download_activated": true,
+    "release_candidate_health_verified": true
   },
   "rejected_local_candidates": [
     {

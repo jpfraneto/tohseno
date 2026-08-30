@@ -62,15 +62,16 @@ creation balance and always shows the server-priced estimate, privacy tier, and
 hard maximum before source is sent. Local/BYO work has no TOHSENO subscription,
 trial, qualification, or creation-balance gate.
 
-The signed/notarized DMG is deliberately not claimed as published yet. Release
-activation requires the evidence in
+The signed/notarized DMG is available through an explicitly labeled public
+1.0.2 release-candidate channel for clean-Mac acceptance. Stable activation
+still requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
-After activation, the normal website action downloads the signed, notarized
-DMG directly. On a Mac the page labels it **Download for this Mac**; on another
-system it states the real macOS 14-or-newer requirement. The download endpoint
-currently fails closed rather than serving an unactivated artifact. The
-retained shell installer is a compatibility path, not the consumer door. The
-normal install requires no Terminal, npm, Node, Bun, or Homebrew.
+The normal website action downloads the signed, notarized DMG directly. On a
+Mac the page labels it **Download for this Mac**; while acceptance is pending,
+its detail also says **Release candidate**. On another system it states the
+real macOS 14-or-newer requirement. The retained shell installer is a
+compatibility path, not the consumer door. The normal install requires no
+Terminal, npm, Node, Bun, or Homebrew.
 Developers can build the unsigned universal bundle with:
 
 ```bash
