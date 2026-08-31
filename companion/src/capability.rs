@@ -33,6 +33,8 @@ pub enum CapabilityAction {
     PublicationAuthorize,
     #[serde(rename = "network.receive")]
     NetworkReceive,
+    #[serde(rename = "preference.write")]
+    PreferenceWrite,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -117,8 +119,8 @@ impl CapabilityGrantBody {
         validate_identifier("workspace ID", &self.workspace_id)?;
         validate_identifier("device ID", &self.device_id)?;
         require(
-            !self.allowed_actions.is_empty() && self.allowed_actions.len() <= 8,
-            "capability grant must contain one to eight actions",
+            !self.allowed_actions.is_empty() && self.allowed_actions.len() <= 9,
+            "capability grant must contain one to nine actions",
         )?;
         require(
             self.allowed_actions

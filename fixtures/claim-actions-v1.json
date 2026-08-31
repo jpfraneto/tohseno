@@ -1,0 +1,43 @@
+{
+  "claim_software": {
+    "action": {
+      "checkpoint_digest": "0x7777777777777777777777777777777777777777777777777777777777777777",
+      "claimant": "0x4444444444444444444444444444444444444444",
+      "deadline": 2000000100,
+      "gesture_commitment": "0x23ff9441e61d47a40c542827940bf16cf1f96311e8435c0b8920e97e97861e87",
+      "nonce": 9,
+      "release_digest": "0x5555555555555555555555555555555555555555555555555555555555555555",
+      "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "shot_registry": "0x3fe6508ba2660bc575080024f402c192a2e035a0"
+    },
+    "digest": "0x43375f1f8e8b643e697f5365c3c1ccb989f4d6251c839b0699375d1143ee9fb3",
+    "struct_hash": "0xde6160defa313b2b984e01e2ec95b0728cea39dddce92232318d6532ef2fd2f1",
+    "type": "ClaimSoftware(address shotRegistry,bytes32 shotId,address claimant,bytes32 releaseDigest,bytes32 checkpointDigest,bytes32 gestureCommitment,uint64 nonce,uint64 deadline)",
+    "type_hash": "0x71009b002c8d419124eeba3203fcc83c96279ad6763d6ba1438f59a8a3173fb9"
+  },
+  "domain": {
+    "chain_id": 4663,
+    "name": "TOHSENO Claims",
+    "verifying_contract": "0x6666666666666666666666666666666666666666",
+    "version": "1"
+  },
+  "domain_separator": "0xe1ab55a103d9cb852de025d63b463b0e140ecfd82cadbe0ad74ad1d19c16d087",
+  "fixture_sha3_sanity": "0x31eae849438262c0aa8033bab850dde01d228526a8f0ab10035be3ee8131c26b",
+  "open_claim_edition": {
+    "action": {
+      "closes_at": 2000000000,
+      "controller": "0x2222222222222222222222222222222222222222",
+      "deadline": 2000000100,
+      "max_claims": 888,
+      "nonce": 7,
+      "shot_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "shot_registry": "0x3fe6508ba2660bc575080024f402c192a2e035a0"
+    },
+    "digest": "0x7bef08336b81593e85bf52432fab9c5fa4da0648f6ae24a8944b686320b5f258",
+    "struct_hash": "0x11f4a9fb08bd48716e9a110721997cabeca479caa99934b919e229990df87d1d",
+    "type": "OpenClaimEdition(address shotRegistry,bytes32 shotId,uint64 maxClaims,uint64 closesAt,address controller,uint64 nonce,uint64 deadline)",
+    "type_hash": "0xd1daec7e8aa22a0cf52d8bd6abe004e8bdabe1639512e277f0649dbd561264de"
+  },
+  "schema": "tohseno.claim-action-vectors/1",
+  "shot_registry": "0x3fe6508ba2660bc575080024f402c192a2e035a0"
+}

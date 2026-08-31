@@ -45,6 +45,7 @@ public final class TohsenoAppModel {
     public private(set) var pendingAdoptionPath: String?
     public private(set) var pairedCompanionDevices: [PairedCompanionDevice] = []
     public private(set) var companionPairingSession: CompanionPairingSession?
+    public private(set) var followedBuilderIDs: Set<String>
     public private(set) var hasSkippedFirstShot: Bool
     public var route: AppRoute = .library {
         didSet { persistRoute() }
@@ -67,6 +68,7 @@ public final class TohsenoAppModel {
         self.client = client
         self.preferences = preferences
         hasSkippedFirstShot = preferences.bool(forKey: "tohseno.first-shot-skipped")
+        followedBuilderIDs = Set(preferences.stringArray(forKey: "tohseno.followed-builders.v1") ?? [])
         restoreRoute()
     }
 
@@ -310,15 +312,96 @@ public final class TohsenoAppModel {
         isLoadingRegistry = true
         defer { isLoadingRegistry = false }
         do {
-            registrySnapshot = try await client.registrySnapshot(
+            var snapshot = try await client.registrySnapshot(
                 appNames: apps.compactMap { app in
                     app.latestVersionID == nil ? nil : app.displayName
                 }
             )
+            await derivePrivateNetworkUpdates(in: &snapshot)
+            registrySnapshot = snapshot
+            followedBuilderIDs = snapshot.followedBuilderIDs
             registryMessage = nil
         } catch {
             registrySnapshot = nil
             registryMessage = error.localizedDescription
+        }
+    }
+
+    public func toggleFollow(builderID: String) async {
+        guard builderID.range(of: #"^eip155:4663:0x[0-9a-f]{40}$"#, options: .regularExpression) != nil else {
+            return
+        }
+        let followed = !followedBuilderIDs.contains(builderID)
+        if followed { followedBuilderIDs.insert(builderID) }
+        else { followedBuilderIDs.remove(builderID) }
+        do {
+            let projection = try await client.setFollow(builderID: builderID, followed: followed)
+            followedBuilderIDs = Set(projection.builderIDs)
+            preferences.removeObject(forKey: "tohseno.followed-builders.v1")
+            registryMessage = nil
+        } catch {
+            if followed { followedBuilderIDs.remove(builderID) }
+            else { followedBuilderIDs.insert(builderID) }
+            registryMessage = error.localizedDescription
+        }
+    }
+
+    public func markPrivateUpdateRead(_ update: PrivateUpdateItem, read: Bool = true) async {
+        do {
+            let projection = try await client.setPrivateUpdateRead(
+                updateID: update.updateID,
+                read: read
+            )
+            registrySnapshot?.privateUpdates = projection.items
+            registryMessage = nil
+        } catch {
+            registryMessage = error.localizedDescription
+        }
+    }
+
+    private func derivePrivateNetworkUpdates(in snapshot: inout RegistrySnapshot) async {
+        let ownShotIDs = Set(snapshot.records.map(\.shotID))
+        var known = Set(snapshot.privateUpdates.map(\.updateID))
+        for event in snapshot.timeline {
+            let update: PrivateUpdateItem?
+            if event.kind == "claim.edition_closed", event.builderID == snapshot.builder.builderID {
+                let name = snapshot.published.first(where: { $0.release.shotID == event.shotID })?
+                    .release.display.name ?? "Your app"
+                let reason = event.closureReason == "supply_filled"
+                    ? "Every available Claim was taken."
+                    : "The Claim window reached its signed closing time."
+                update = PrivateUpdateItem(
+                    kind: .editionClosed,
+                    subjectID: event.shotID,
+                    evidenceID: event.eventID,
+                    title: "\(name)’s Claim Edition closed",
+                    detail: reason,
+                    occurredAt: event.occurredAt
+                )
+            } else if event.kind == "shot.forked", let parent = event.parent,
+                      ownShotIDs.contains(parent.shotID) {
+                let name = snapshot.published.first(where: { $0.release.shotID == event.shotID })?
+                    .release.display.name ?? "New software"
+                update = PrivateUpdateItem(
+                    kind: .forkShipped,
+                    subjectID: parent.shotID,
+                    evidenceID: event.eventID,
+                    title: "\(name) was born from your app",
+                    detail: "A Builder shipped a verified fork. The parent evidence remains immutable.",
+                    occurredAt: event.occurredAt
+                )
+            } else {
+                update = nil
+            }
+            guard let update, known.insert(update.updateID).inserted else { continue }
+            do {
+                let projection = try await client.upsertPrivateUpdate(update)
+                snapshot.privateUpdates = projection.items
+                known = Set(projection.items.map(\.updateID))
+            } catch {
+                // Public discovery remains useful even when the private local
+                // projection cannot be mutated during this refresh.
+            }
         }
     }
 
@@ -390,6 +473,21 @@ public final class TohsenoAppModel {
     }
 
     public func openNetworkLink(_ url: URL) async {
+        if url.scheme?.lowercased() == "tohseno", url.host?.lowercased() == "follow",
+           let address = url.path.split(separator: "/").first.map(String.init),
+           address.range(of: #"^0x[0-9a-f]{40}$"#, options: .regularExpression) != nil {
+            route = .registry
+            let builderID = "eip155:4663:\(address)"
+            if !followedBuilderIDs.contains(builderID) {
+                await toggleFollow(builderID: builderID)
+            }
+            return
+        }
+        if url.scheme?.lowercased() == "tohseno", url.host?.lowercased() == "claim" {
+            route = .registry
+            registryMessage = "Claim on your paired iPhone. The Mac will prepare the exact release only after canonical confirmation."
+            return
+        }
         guard url.scheme?.lowercased() == "tohseno",
               let host = url.host?.lowercased(),
               host == "install" || host == "fork",

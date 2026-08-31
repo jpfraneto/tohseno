@@ -1,0 +1,68 @@
+{
+  "schema": "tohseno.claim-mark-vectors/1",
+  "encoding": {
+    "domain_utf8": "TOHSENO-CLAIM-MARK-V1\u0000",
+    "kind": { "drawn": 0, "accessibility_hold": 1 },
+    "point_count": 64,
+    "coordinate": "u16be",
+    "quantization": "floor(clamp(value,0,1)*65535+0.5)"
+  },
+  "vectors": [
+    {
+      "id": "ordinary-clockwise", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":80.0,"y":50.0},{"x":71.0,"y":29.0},{"x":50.0,"y":20.0},{"x":29.0,"y":29.0},{"x":20.0,"y":50.0},{"x":29.0,"y":71.0},{"x":50.0,"y":80.0},{"x":71.0,"y":71.0},{"x":80.0,"y":50.0}],
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d563100000040cccc8000c9df792cc6f27258c4056b85c11864b1be2b5ddebb3e570ab8515036b4e749e0ae1446f3a7404406a06d411999993e2c92c53b3f8bf23852851e35657e4b33ee777736db70a339c869d03cb562fc3fa25c29428f5555457c4e81486949244ccd463753a0434a5a74405d61473d70681b3a836eef379675c234a97c9634a9836937968a3d3a8391113d7097e4405d9eb8434aa58b4637ac5f4924b3334e81b7965555ba835c29bd7062fcc05d69d0c34a70a3c6377777c9247e4bcc11851eca9a8bf2c7ad92c5c4c09999c1d3a06dbee6a740bbf9ae14b90cb4e7b61fb851afc9bb3ea8f5be2ba222c1189b4ec405947ac6f28da7c9df86d3cccc8000",
+      "gesture_commitment": "0x23ff9441e61d47a40c542827940bf16cf1f96311e8435c0b8920e97e97861e87"
+    },
+    {
+      "id": "ordinary-counterclockwise", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":80.0,"y":50.0},{"x":71.0,"y":71.0},{"x":50.0,"y":80.0},{"x":29.0,"y":71.0},{"x":20.0,"y":50.0},{"x":29.0,"y":29.0},{"x":50.0,"y":20.0},{"x":71.0,"y":29.0},{"x":80.0,"y":50.0}],
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d563100000040cccc8000c9df86d3c6f28da7c405947ac1189b4ebe2ba222bb3ea8f5b851afc9b4e7b61fae14b90ca740bbf9a06dbee69999c1d392c5c4c08bf2c7ad851eca9a7e4bcc117777c92470a3c63769d0c34a62fcc05d5c29bd705555ba834e81b7964924b3334637ac5f434aa58b405d9eb83d7097e43a83911137968a3d34a9836934a97c96379675c23a836eef3d70681b405d6147434a5a74463753a049244ccc4e8148695555457c5c29428f62fc3fa269d03cb570a339c8777736db7e4b33ee851e35658bf2385292c53b3f99993e2ca06d4119a7404406ae1446f3b4e749e0b8515036bb3e570abe2b5ddec11864b1c4056b85c6f27258c9df792ccccc8000",
+      "gesture_commitment": "0x854739d2c582a382e434315d15cf6515d51a179b88df62e0f83cb6f00b25a32a"
+    },
+    {
+      "id": "irregular-expressive", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":80.0,"y":50.0},{"x":72.0,"y":23.0},{"x":43.0,"y":18.0},{"x":18.0,"y":38.0},{"x":24.0,"y":73.0},{"x":55.0,"y":86.0},{"x":83.0,"y":68.0},{"x":80.0,"y":50.0}],
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d563100000040cccc8000ca5f77cec7f16f9dc584676cc3175f3bc0a9570abe3c4ed9bbce46a8b9613e76b3953a10ab29389ca2be37299a5235b591e73441897b32ce8110315a78a42fe770392e73691b320f626f37655bc33cbb551742124e6b476847bf4cbe411352153a67576b33bb5cc22e4d62912fbe6afc3130736832a17bd43413844035858cac36f6951738689d8339d9a5ef3b4bae5b3cbcb6c7417bbc92495cbfe0513dc32e591ec67c60ffc9ca68e0cd1870c2d06678a3d3b48084d7018865da4f8ff8da1e9728d5809e57d0e1a587cc42acb7c7a3b3e7c305bb17be66c247b9c7c977b528d0a6b08ad3d2aa23d26aa1b5d1039948cf9b90dace34886dcccc8000",
+      "gesture_commitment": "0x21013e6256f9e14e507972bd57ed83352ff91eacfe2cc0393522d3fbd142ce9c"
+    },
+    {
+      "id": "wide-loop", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":5.0,"y":50.0},{"x":10.0,"y":10.0},{"x":90.0,"y":10.0},{"x":95.0,"y":50.0},{"x":90.0,"y":90.0},{"x":10.0,"y":90.0},{"x":5.0,"y":50.0}],
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d5631000000400ccd80000e6b730c100a661811a8592413474c3014e53f3c16843248182225541ad5199a27e3199a34f1199a41fe199a4f0c199a5c1a199a6927199a7635199a8343199a9051199a9d5e199aaa6c199ab77a199ac488199ad195199adea3199ae70e1edae8ac2bceea4b38c2ebe945b6ed8852aaef265f9ef0c56c92f2637986f2638679f0c5936def26a061ed88ad55ebe9ba49ea4bc73de8acd431e70ee125dea3e666d195e666c488e666b77ae666aa6ce6669d5ee6669051e6668343e6667635e6666927e6665c1ae6664f0ce66641fee66634f1e66627e3e6661ad5e6661822daab1684cdb714e5c0c31347b3cf11a8a6db100a99e70e6b8cf30ccd8000",
+      "gesture_commitment": "0x0c54e395d91f44bf1748d9c8204c8db3e4dee4e4ffa80ca03b702a07103741f1"
+    },
+    {
+      "id": "narrow-loop", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":62.0,"y":50.0},{"x":58.0,"y":40.0},{"x":50.0,"y":38.0},{"x":40.0,"y":42.0},{"x":38.0,"y":50.0},{"x":42.0,"y":60.0},{"x":50.0,"y":62.0},{"x":60.0,"y":58.0},{"x":62.0,"y":50.0}],
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d5631000000409eb880009d927d219c6c7a429b4677639a20748598fa71a697d46ec796af6be99589690a943d6657913d65978e3e64d78b3e6417883f6357853f6297823f61d77f4861917c6962b7798a63dd76ac650273cd662870ee674e6e1068746b31699a68526ac066276c8265676f8164a7728163e775816327788062677b8061a77e8061da816f6300844e6426872c654c8a0b66728cea67988fc868bd92a769e395866b0998646d429a0870419ac873419b8876419c4879409d087c409dc87f409e8882279ddb85059cb587e49b908ac39a6a8da199449080981e935f96f8963d95d2991c94ac9a3891fd9af88efe9bb88bfe9c7888fe9d3885ff9df882ff9eb88000",
+      "gesture_commitment": "0x7c870008aff60ccf9a6e09f5b619571536cdfaabc63d71cc9d3bc0c6e0cc7298"
+    },
+    {
+      "id": "failed-line", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":10.0,"y":10.0},{"x":30.0,"y":30.0},{"x":60.0,"y":60.0},{"x":90.0,"y":90.0}],
+      "accepted": false, "error": "open_stroke", "canonical_hex": null, "gesture_commitment": null
+    },
+    {
+      "id": "failed-tap", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":50.0,"y":50.0}],
+      "accepted": false, "error": "too_short", "canonical_hex": null, "gesture_commitment": null
+    },
+    {
+      "id": "failed-non-enclosing", "kind": "drawn", "canvas": { "width": 100.0, "height": 100.0 },
+      "points": [{"x":8.0,"y":8.0},{"x":38.0,"y":8.0},{"x":38.0,"y":38.0},{"x":8.0,"y":38.0},{"x":8.0,"y":8.0}],
+      "accepted": false, "error": "does_not_enclose_artifact", "canonical_hex": null, "gesture_commitment": null
+    },
+    {
+      "id": "accessibility-hold", "kind": "accessibility_hold", "canvas": null, "points": null,
+      "accepted": true, "error": null,
+      "canonical_hex": "0x544f4853454e4f2d434c41494d2d4d41524b2d563100010040dfff8000df867697de276d46dbdf6424d8b45b48d4ac52c8cfcf4abaca2a4331c3ca3c42bcc035ffb51c307bacf02bc3a45327e39b5924e4921722cc88a521a27f1f2165759e22186c3a23b8630a26415a2029ae51922df74976331141e038f03ae53f85349646bf2f034e8c2a3c56d826545f8e23526898213c71df20157b501fd984d5208d8e56222d97ba24b6a0ea2823a9d42c6cb2623186ba7e3765c2143dfac90f4534cf5e4d01d4f1554dd9b85e03dda0670de0a27054e2b879c5e3df834ae41b8ccbe367962fe1c79f5fdf3ea849dbd1b0d7d788b8f3d26ec089cc8fc784c5facdd3bec0d366b6f3d82daea7dc15a5f1df179ce7e12d93a0dfff8000",
+      "gesture_commitment": "0xa5a1280b3a8f8445b24ec2680524374720c25eff24f18cd2267fbf0f79d23bd4"
+    }
+  ]
+}

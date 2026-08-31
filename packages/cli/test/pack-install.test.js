@@ -58,7 +58,7 @@ test("a fresh global install visibly enters first run", { skip: process.platform
     const native = `#!/bin/sh
 set -eu
 if [ "\${1:-}" = "--version" ]; then
-  printf '%s\\n' 'tohseno 1.1.0'
+  printf '%s\\n' 'tohseno 1.2.0'
   exit 0
 fi
 if [ -n "\${TOHSENO_FIRST_RUN_LOG:-}" ]; then
@@ -71,7 +71,7 @@ printf '\\n'
     const target = process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin";
     const releaseRecord = `${JSON.stringify({
       schema: "tohseno.release/1",
-      version: "1.1.0",
+      version: "1.2.0",
       target,
       channel: "stable",
       prerelease: false,
@@ -92,11 +92,11 @@ printf '\\n'
     });
     assert.equal(archived.status, 0, archived.stderr);
     const archiveBytes = await readFile(archive);
-    const artifactUrl = "https://github.com/jpfraneto/tohseno/releases/download/v1.1.0/fixture.tar.gz";
+    const artifactUrl = "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0/fixture.tar.gz";
     const manifest = `${JSON.stringify({
       schema: "tohseno.native-release-manifest/1",
-      native_release_version: "1.1.0",
-      minimum_npm_cli_version: "1.1.0",
+      native_release_version: "1.2.0",
+      minimum_npm_cli_version: "1.2.0",
       layout_version: "tohseno-user-release/2",
       artifacts: [
         { architecture: "arm64", target: "aarch64-apple-darwin" },

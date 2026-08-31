@@ -10,7 +10,15 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0034 governs the
+2. **`docs/adr/`** — accepted architectural decisions. ADR 0035 governs Claim,
+   exactly one Ship followed by Updates, immutable per-Shot Claim Editions, the
+   additive non-transferable `TohsenoClaimsV1` receipt, the Discover timeline,
+   private Following/Updates, and the Companion circle ritual. Claims has a
+   separate threshold-signed activation and remains dark until exact runtime,
+   Registry, relayer, released clients, and owner-attended physical evidence
+   agree. It changes no frozen protocol encoding or generation-0.8 ABI, and
+   authorizes no price, transfer, wallet-connect, fake Claim/installation, or
+   release-gate bypass. ADR 0034 governs the
    person-to-person native software network. The Mac is the factory, Companion
    is the human authority holding the non-exportable Builder DeviceKey, and the
    active generation-0.8 Registry plus signed off-chain catalog is the public
@@ -119,6 +127,7 @@ swift build --package-path apple-identity && swift test --package-path apple-ide
 swift test --package-path fascia/apple
 swift test --package-path sdk/apple/TohsenoCompanionKit
 swift test --package-path companion/apple/TohsenoCompanion
+swift test --package-path macos/Tohseno
 forge build --root contracts && forge test --root contracts -vvv
 node --test studio/tests/static_assets.test.mjs
 (cd website && bun run typecheck && bun test)

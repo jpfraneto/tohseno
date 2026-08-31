@@ -10,6 +10,7 @@ pub mod apple_capabilities;
 pub mod apple_identity;
 pub mod birth_plan;
 pub mod builder_identity;
+pub mod claims_activation;
 pub mod conception;
 pub mod config;
 pub mod contract_generation;

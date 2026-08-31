@@ -978,6 +978,9 @@ fn apply_event(
         }
         WorkspaceEventPayload::ExecutionQueued { .. }
         | WorkspaceEventPayload::ProductEntitlement { .. }
+        | WorkspaceEventPayload::BuilderFollows { .. }
+        | WorkspaceEventPayload::PrivateUpdates { .. }
+        | WorkspaceEventPayload::CapabilityUpdated { .. }
         | WorkspaceEventPayload::ExecutionStarted { .. }
         | WorkspaceEventPayload::ExecutionUpdated { .. }
         | WorkspaceEventPayload::ExecutionWaitingForDevice { .. }

@@ -1,6 +1,39 @@
 import Foundation
 import TohsenoCompanionKit
 
+public protocol SoftwareClaimIdentity: Sendable {
+    func claimPublicIdentity() async throws -> BuilderDevicePublicIdentity
+    func claimBuilderID() async throws -> String
+    func signClaimDigest(_ digestHex: String) async throws -> BuilderDeviceAuthorization
+}
+
+extension BuilderDeviceIdentity: SoftwareClaimIdentity {
+    public func claimPublicIdentity() async throws -> BuilderDevicePublicIdentity {
+        try ensureCreated()
+    }
+
+    public func claimBuilderID() async throws -> String {
+        try builderID()
+    }
+
+    public func signClaimDigest(_ digestHex: String) async throws -> BuilderDeviceAuthorization {
+        try sign(digestHex: digestHex)
+    }
+}
+
+public struct ClaimedSoftwareEncounter: Codable, Equatable, Identifiable, Sendable {
+    public let app: PublicAppRelease
+    public let claim: PublicSoftwareClaim
+    public let canonicalMarkHex: String
+    public var id: String { claim.tokenID }
+}
+
+private struct PendingSoftwareClaim: Codable, Equatable, Sendable {
+    let app: PublicAppRelease
+    let preparation: SoftwareClaimPreparation
+    let canonicalMarkHex: String
+}
+
 /// Everything the TOHSENO Companion knows.
 ///
 /// The phone is a remote control for intent. It holds no factory state of its
@@ -36,6 +69,8 @@ public final class CompanionModel {
     public private(set) var syncing = false
     public private(set) var entitlement: ProductEntitlementProjection?
     public private(set) var publicApps: [PublicAppRelease] = []
+    public private(set) var publicTimeline: [PublicTimelineEvent] = []
+    public private(set) var followedBuilderIDs: Set<String> = []
     public private(set) var builderDevice: BuilderDevicePublicIdentity?
     public private(set) var networkNotice: String?
     public private(set) var pendingPublication: PublicationApprovalRequest?
@@ -45,6 +80,11 @@ public final class CompanionModel {
     public var requestedAlias = ""
     public private(set) var builderID: String?
     public private(set) var profileNotice: String?
+    public private(set) var claimEditions: [String: PublicClaimEdition] = [:]
+    public private(set) var claimStates: [String: String] = [:]
+    public private(set) var claimedSoftware: [ClaimedSoftwareEncounter] = []
+    public private(set) var privateUpdates: [PrivateUpdateItem] = []
+    public var claimsActive: Bool { network.claims.active }
 
     /// The one text box. Nothing else is composed on the phone.
     public var intent = ""
@@ -59,22 +99,34 @@ public final class CompanionModel {
     private let deviceName: String
     private let network: PublicNetworkClient
     private let builderIdentity: BuilderDeviceIdentity
+    private let claimIdentity: any SoftwareClaimIdentity
+    private let storage: UserDefaults
     private var profileNonce: UInt64 = 0
     private var aliasNonce: UInt64 = 0
+    private var pendingSoftwareClaim: PendingSoftwareClaim?
+    private var isPollingClaim = false
+    private static let pendingClaimKey = "tohseno.pending-software-claim.v1"
+    private static let claimedSoftwareKey = "tohseno.claimed-software.v1"
+    private static let followedBuildersKey = "tohseno.followed-builders.v1"
 
     public init(
         backend: any CompanionBackend,
         deviceName: String,
         network: PublicNetworkClient = .production,
-        builderIdentity: BuilderDeviceIdentity = BuilderDeviceIdentity()
+        builderIdentity: BuilderDeviceIdentity = BuilderDeviceIdentity(),
+        claimIdentity: (any SoftwareClaimIdentity)? = nil,
+        storage: UserDefaults = .standard
     ) {
         self.backend = backend
         self.deviceName = deviceName
         self.network = network
         self.builderIdentity = builderIdentity
+        self.claimIdentity = claimIdentity ?? builderIdentity
+        self.storage = storage
     }
 
     public func start() {
+        restoreClaimMemory()
         Task { [backend] in
             for await connection in backend.connectionStates {
                 self.connection = connection
@@ -91,6 +143,7 @@ public final class CompanionModel {
         }
         Task { await refresh() }
         Task { await refreshPublicNetwork() }
+        Task { await resumeSoftwareClaimIfNeeded() }
         Task {
             do {
                 let identity = try await builderIdentity.ensureCreated()
@@ -108,11 +161,186 @@ public final class CompanionModel {
 
     public func refreshPublicNetwork() async {
         do {
-            publicApps = try await network.releases()
+            async let releases = network.releases()
+            async let timeline = network.timeline()
+            publicApps = try await releases
+            publicTimeline = try await timeline
+            await deriveClaimedAppUpdates()
             networkNotice = nil
         } catch {
             networkNotice = "The public Registry is temporarily unavailable. Your private Mac connection is unaffected."
         }
+    }
+
+    public func toggleFollow(builderID: String) {
+        guard builderID.range(of: #"^eip155:4663:0x[0-9a-f]{40}$"#, options: .regularExpression) != nil else {
+            return
+        }
+        let followed = !followedBuilderIDs.contains(builderID)
+        if followed { followedBuilderIDs.insert(builderID) }
+        else { followedBuilderIDs.remove(builderID) }
+        storage.set(followedBuilderIDs.sorted(), forKey: Self.followedBuildersKey)
+        let commandID = "follow_\(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: ""))"
+        Task {
+            do {
+                _ = try await backend.setBuilderFollow(
+                    builderID: builderID,
+                    followed: followed,
+                    commandID: commandID
+                )
+                unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
+            } catch {
+                if followed { followedBuilderIDs.remove(builderID) }
+                else { followedBuilderIDs.insert(builderID) }
+                storage.set(
+                    followedBuilderIDs.sorted(),
+                    forKey: Self.followedBuildersKey
+                )
+                notice = "That private Follow could not be sent to your Mac yet."
+            }
+        }
+    }
+
+    public func refreshClaimState(for app: PublicAppRelease) async {
+        guard network.claims.active else { return }
+        do {
+            async let edition = network.claimEdition(shotID: app.release.shotID)
+            let identity = try await builderIdentity.builderID()
+            guard let claimant = identity.split(separator: ":").last.map(String.init) else { return }
+            async let existing = network.softwareClaim(shotID: app.release.shotID, claimant: claimant)
+            claimEditions[app.release.shotID] = try await edition
+            if let receipt = try await existing {
+                claimStates[app.release.shotID] = "Claimed #\(receipt.claimNumber)"
+            }
+        } catch {
+            // Claims remain deliberately absent when the separately activated
+            // contract, indexer, or this client's activation pin is unavailable.
+        }
+    }
+
+    public func claim(_ app: PublicAppRelease, mark: ClaimMark) async {
+        guard !busy, pendingSoftwareClaim == nil else { return }
+        busy = true
+        claimStates[app.release.shotID] = "Claiming…"
+        defer { busy = false }
+        do {
+            let publicIdentity = try await claimIdentity.claimPublicIdentity()
+            let announcement = BuilderDeviceAnnouncement(publicIdentity: publicIdentity)
+            let claimantID = try await claimIdentity.claimBuilderID()
+            guard let claimant = claimantID.split(separator: ":").last.map(String.init) else {
+                throw TohsenoCompanionError.invalidEncoding("Tohseno address is invalid")
+            }
+            let preparation = try await network.prepareSoftwareClaim(
+                app: app, claimant: claimant, mark: mark, builderDevice: announcement
+            )
+            let action = SoftwareClaimAction(
+                shotRegistry: preparation.shotRegistry,
+                shotID: preparation.shotID,
+                claimant: preparation.claimant,
+                releaseDigest: preparation.releaseDigest,
+                checkpointDigest: preparation.checkpointDigest,
+                gestureCommitment: preparation.gestureCommitment,
+                nonce: preparation.nonce,
+                deadline: preparation.deadline
+            )
+            let digest = try action.digest(
+                chainID: preparation.chainID,
+                claimsContract: preparation.claimsContract,
+                expectedRegistry: preparation.shotRegistry
+            ).prefixedHex
+            let signed = BuilderDeviceSignature(try await claimIdentity.signClaimDigest(digest))
+            let authorization = try SoftwareClaimAuthorization(
+                action: action, digest: digest, signature: signed
+            )
+            _ = try await network.submitSoftwareClaim(authorization, preparation: preparation)
+            let pending = PendingSoftwareClaim(app: app, preparation: preparation,
+                canonicalMarkHex: mark.canonicalBytes.prefixedHex)
+            pendingSoftwareClaim = pending
+            try persist(pending, key: Self.pendingClaimKey)
+            await resumeSoftwareClaimIfNeeded()
+        } catch {
+            claimStates[app.release.shotID] = "Claim unavailable"
+            networkNotice = !network.claims.active
+                ? "Claims will open after the signed Claims contract and released Companion are activated."
+                : "This Claim could not be authorized safely. Refresh the app and try again."
+        }
+    }
+
+    public func resumeSoftwareClaimIfNeeded() async {
+        guard !isPollingClaim,
+              network.claims.active else { return }
+        isPollingClaim = true
+        defer { isPollingClaim = false }
+        while let pending = pendingSoftwareClaim, !Task.isCancelled {
+            do {
+                let status = try await network.softwareClaimStatus(pending.preparation)
+                if status.status == "failed" {
+                    claimStates[pending.app.release.shotID] = "Closed"
+                    networkNotice = status.failure ?? "This edition closed before your Claim confirmed."
+                    clearPendingClaim()
+                    return
+                }
+                guard status.status == "complete", let receipt = status.claim else {
+                    claimStates[pending.app.release.shotID] = "Claiming…"
+                    try? await Task.sleep(for: .seconds(2))
+                    continue
+                }
+                let encounter = ClaimedSoftwareEncounter(app: pending.app, claim: receipt,
+                    canonicalMarkHex: pending.canonicalMarkHex)
+                if !claimedSoftware.contains(where: { $0.claim.tokenID == receipt.tokenID }) {
+                    claimedSoftware.append(encounter)
+                    try persist(claimedSoftware, key: Self.claimedSoftwareKey)
+                }
+                await recordPrivateUpdate(PrivateUpdateItem(
+                    kind: .claimed,
+                    subjectID: receipt.shotID,
+                    evidenceID: receipt.transactionHash ?? receipt.tokenID,
+                    title: "You claimed (pending.app.release.display.name)",
+                    detail: "Claim #\(receipt.claimNumber) is canonical. This exact release is preparing on your Mac.",
+                    occurredAt: Self.canonicalNow()
+                ))
+                claimStates[pending.app.release.shotID] = "Claimed #\(receipt.claimNumber)"
+                networkNotice = connection == .connected
+                    ? "Claimed #\(receipt.claimNumber). Preparing this exact release on your Mac."
+                    : "Claimed #\(receipt.claimNumber). Waiting for your Mac."
+                do {
+                    _ = try await backend.requestNetworkRelease(
+                        action: .install,
+                        shotID: pending.app.release.shotID,
+                        releaseDigest: receipt.releaseDigest,
+                        commandID: "claim_install_\(receipt.tokenID)"
+                    )
+                    clearPendingClaim()
+                } catch {
+                    // The canonical Claim is complete. Keep the durable preparation
+                    // token and retry only the exact post-Claim Mac intention later.
+                }
+                return
+            } catch {
+                claimStates[pending.app.release.shotID] = "Claiming…"
+                return
+            }
+        }
+    }
+
+    private func restoreClaimMemory() {
+        let decoder = JSONDecoder()
+        if let data = storage.data(forKey: Self.pendingClaimKey) {
+            pendingSoftwareClaim = try? decoder.decode(PendingSoftwareClaim.self, from: data)
+        }
+        if let data = storage.data(forKey: Self.claimedSoftwareKey) {
+            claimedSoftware = (try? decoder.decode([ClaimedSoftwareEncounter].self, from: data)) ?? []
+        }
+        followedBuilderIDs = Set(storage.stringArray(forKey: Self.followedBuildersKey) ?? [])
+    }
+
+    private func persist<Value: Encodable>(_ value: Value, key: String) throws {
+        storage.set(try JSONEncoder().encode(value), forKey: key)
+    }
+
+    private func clearPendingClaim() {
+        pendingSoftwareClaim = nil
+        storage.removeObject(forKey: Self.pendingClaimKey)
     }
 
     public func refreshBuilderProfile() async {
@@ -216,9 +444,16 @@ public final class CompanionModel {
             await bootstrapFromCable(url)
             return
         }
+        if url.scheme?.lowercased() == "tohseno", url.host?.lowercased() == "follow",
+           let address = url.path.split(separator: "/").first.map(String.init),
+           address.range(of: #"^0x[0-9a-f]{40}$"#, options: .regularExpression) != nil {
+            let builderID = "eip155:4663:\(address)"
+            if !followedBuilderIDs.contains(builderID) { toggleFollow(builderID: builderID) }
+            return
+        }
         guard url.scheme?.lowercased() == "tohseno",
               let host = url.host?.lowercased(),
-              host == "install" || host == "fork",
+              host == "claim" || host == "install" || host == "fork",
               let shot = url.path.split(separator: "/").first.map(String.init),
               shot.count == 64,
               let release = URLComponents(url: url, resolvingAgainstBaseURL: false)?
@@ -361,6 +596,14 @@ public final class CompanionModel {
         case let .productEntitlement(projection):
             entitlement = projection
             if screen == .entitlementDecision || screen == .trialEnded { screen = .apps }
+        case let .builderFollows(projection):
+            followedBuilderIDs = Set(projection.builderIDs)
+            storage.set(
+                projection.builderIDs,
+                forKey: Self.followedBuildersKey
+            )
+        case let .privateUpdates(projection):
+            privateUpdates = projection.items
         case let .iconBlob(blob):
             icons[blob.blobID] = blob.bytes
         case let .commandRejected(receipt):
@@ -376,19 +619,120 @@ public final class CompanionModel {
                     return
                 }
                 pendingPublication = request
+                Task {
+                    await self.recordPrivateUpdate(PrivateUpdateItem(
+                        kind: .publicationApproval,
+                        subjectID: request.jobID,
+                        evidenceID: event.eventID,
+                        title: "Publication needs your approval",
+                        detail: "Review the signed release and Claim Edition on this iPhone.",
+                        occurredAt: event.emittedAt
+                    ))
+                }
             } catch {
                 notice = "Your Mac sent a publication request that could not be verified."
+            }
+        case let .executionCompleted(execution):
+            Task {
+                await self.recordPrivateUpdate(PrivateUpdateItem(
+                    kind: .evolutionFinished,
+                    subjectID: execution.shotID,
+                    evidenceID: execution.executionID,
+                    title: "Evolution finished",
+                    detail: "Your app is ready on your Mac.",
+                    occurredAt: event.emittedAt
+                ))
+                await self.load()
             }
         default:
             Task { await self.load() }
         }
     }
 
+    public func setPrivateUpdateRead(_ update: PrivateUpdateItem, read: Bool = true) {
+        guard let index = privateUpdates.firstIndex(where: { $0.updateID == update.updateID }),
+              (privateUpdates[index].readAt != nil) != read else { return }
+        let previous = privateUpdates[index]
+        privateUpdates[index] = Self.copy(previous, readAt: read ? Self.canonicalNow() : nil)
+        Task {
+            do {
+                _ = try await backend.setPrivateUpdateRead(
+                    updateID: update.updateID,
+                    read: read,
+                    commandID: "update_read_\(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: ""))"
+                )
+            } catch {
+                if let current = privateUpdates.firstIndex(where: { $0.updateID == update.updateID }) {
+                    privateUpdates[current] = previous
+                }
+                notice = "That Update could not be synchronized with your Mac yet."
+            }
+        }
+    }
+
+    private func deriveClaimedAppUpdates() async {
+        let claimedShotIDs = Set(claimedSoftware.map(\.app.release.shotID))
+        for event in publicTimeline where event.kind == "shot.updated"
+            && claimedShotIDs.contains(event.shotID) {
+            let name = publicApps.first(where: { $0.release.shotID == event.shotID })?
+                .release.display.name ?? "A claimed app"
+            await recordPrivateUpdate(PrivateUpdateItem(
+                kind: .claimedAppUpdated,
+                subjectID: event.shotID,
+                evidenceID: event.eventID,
+                title: "\(name) was updated",
+                detail: "The Builder shipped a new verified release. Your original Claim remains unchanged.",
+                occurredAt: event.occurredAt
+            ))
+        }
+    }
+
+    private func recordPrivateUpdate(_ update: PrivateUpdateItem) async {
+        guard !privateUpdates.contains(where: { $0.updateID == update.updateID }) else { return }
+        privateUpdates.append(update)
+        privateUpdates.sort {
+            $0.occurredAt == $1.occurredAt
+                ? $0.updateID < $1.updateID
+                : $0.occurredAt > $1.occurredAt
+        }
+        privateUpdates = Array(privateUpdates.prefix(1_000))
+        do {
+            _ = try await backend.upsertPrivateUpdate(
+                update,
+                commandID: "private_\(update.updateID)"
+            )
+        } catch {
+            privateUpdates.removeAll { $0.updateID == update.updateID }
+        }
+    }
+
+    private static func copy(_ update: PrivateUpdateItem, readAt: String?) -> PrivateUpdateItem {
+        PrivateUpdateItem(
+            updateID: update.updateID,
+            kind: update.kind,
+            subjectID: update.subjectID,
+            evidenceID: update.evidenceID,
+            title: update.title,
+            detail: update.detail,
+            occurredAt: update.occurredAt,
+            readAt: readAt
+        )
+    }
+
+    private static func canonicalNow() -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .iso8601)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
+        return formatter.string(from: Date())
+    }
+
     public func dismissPublication() {
         pendingPublication = nil
     }
 
-    public func approvePublication() async {
+    public func approvePublication(policy selectedPolicy: ClaimEditionPolicy? = nil) async {
         guard let request = pendingPublication else { return }
         busy = true
         defer { busy = false }
@@ -400,11 +744,42 @@ public final class CompanionModel {
             let registry = BuilderDeviceSignature(
                 try await builderIdentity.sign(digestHex: request.registryDigest)
             )
+            let claimEdition: ApprovedClaimEdition?
+            if let context = request.claimEdition {
+                let policy = if let required = context.requestedPolicy {
+                    try required.policy()
+                } else if let selectedPolicy {
+                    selectedPolicy
+                } else {
+                    try ClaimEditionPolicy()
+                }
+                let action = try context.action(request: request, policy: policy)
+                let digest = try action.digest(
+                    claimsContract: context.claimsContract,
+                    expectedRegistry: request.shotRegistry
+                )
+                let digestHex = "0x" + digest.map { String(format: "%02x", $0) }.joined()
+                let signature = BuilderDeviceSignature(
+                    try await builderIdentity.sign(digestHex: digestHex)
+                )
+                claimEdition = try ApprovedClaimEdition(
+                    policy: policy,
+                    action: action,
+                    digest: digestHex,
+                    signature: signature
+                )
+            } else {
+                guard selectedPolicy == nil else {
+                    throw TohsenoCompanionError.invalidEncoding("an Update cannot change its Claim Edition")
+                }
+                claimEdition = nil
+            }
             let approvedAt = Self.timestamp(Date())
             _ = try await backend.approvePublication(
                 jobID: request.jobID,
                 catalog: catalog,
                 registry: registry,
+                claimEdition: claimEdition,
                 approvedAt: approvedAt,
                 commandID: "publication_approve_\(request.jobID)"
             )
@@ -644,6 +1019,10 @@ public final class CompanionModel {
             "The private connection stopped before it completed. Reconnect this iPhone to your Mac."
         }
     }
+}
+
+private extension Data {
+    var prefixedHex: String { "0x" + map { String(format: "%02x", $0) }.joined() }
 }
 
 private extension String {

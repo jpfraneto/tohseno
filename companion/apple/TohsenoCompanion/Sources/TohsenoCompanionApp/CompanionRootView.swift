@@ -1,5 +1,8 @@
 import SwiftUI
 import TohsenoCompanionKit
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The whole product: Your Apps → choose app → what should change → Evolve.
 public struct CompanionRootView: View {
@@ -49,6 +52,20 @@ public struct CompanionRootView: View {
 private struct PublicationApprovalView: View {
     @Bindable var model: CompanionModel
     let request: PublicationApprovalRequest
+    @State private var editionKind: ClaimEditionPolicy.Kind
+    @State private var maximum: String
+    @State private var closesAt: Date
+    @State private var policyError: String?
+
+    init(model: CompanionModel, request: PublicationApprovalRequest) {
+        self.model = model
+        self.request = request
+        let required = try? request.claimEdition?.requestedPolicy?.policy()
+        _editionKind = State(initialValue: required?.kind ?? .open)
+        _maximum = State(initialValue: required.map { $0.maxClaims == 0 ? "" : String($0.maxClaims) } ?? "")
+        _closesAt = State(initialValue: required.flatMap { $0.closesAt == 0 ? nil : Date(timeIntervalSince1970: TimeInterval($0.closesAt)) }
+            ?? Date().addingTimeInterval(7 * 24 * 60 * 60))
+    }
 
     var body: some View {
         NavigationStack {
@@ -68,9 +85,51 @@ private struct PublicationApprovalView: View {
                     LabeledContent("Checkpoint", value: "#\(request.checkpointSequence)")
                 }
                 .font(.subheadline)
+                if request.publicationKind == "ship", let context = request.claimEdition {
+                    if let required = context.requestedPolicy {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("CLAIM EDITION").font(.caption.weight(.bold)).tracking(1.2)
+                            Text(policyLabel(required)).font(.headline)
+                            Text("This policy came from the exact CLI request and becomes permanent at Ship.")
+                                .font(.caption).foregroundStyle(Tohseno.ash)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("How can people claim \(request.appName)?")
+                                .font(.headline)
+                            Picker("Claim Edition", selection: $editionKind) {
+                                Text("Open").tag(ClaimEditionPolicy.Kind.open)
+                                Text("Limited").tag(ClaimEditionPolicy.Kind.limited)
+                                Text("Until date").tag(ClaimEditionPolicy.Kind.timed)
+                                Text("Limited until date").tag(ClaimEditionPolicy.Kind.limitedTimed)
+                            }
+                            .pickerStyle(.inline)
+                            if editionKind == .limited || editionKind == .limitedTimed {
+                                TextField("Maximum identities", text: $maximum)
+#if os(iOS)
+                                    .keyboardType(.numberPad)
+#endif
+                            }
+                            if editionKind == .timed || editionKind == .limitedTimed {
+                                DatePicker("Claims close", selection: $closesAt, in: Date().addingTimeInterval(60)...)
+                            }
+                            Text("One Claim per Tohseno identity. Updates never reset this edition.")
+                                .font(.caption).foregroundStyle(Tohseno.ash)
+                        }
+                    }
+                }
+                if let policyError {
+                    Text(policyError).font(.caption).foregroundStyle(.red)
+                }
                 Spacer()
                 Button {
-                    Task { await model.approvePublication() }
+                    do {
+                        let policy = try selectedPolicy()
+                        policyError = nil
+                        Task { await model.approvePublication(policy: policy) }
+                    } catch {
+                        policyError = "Choose an exact valid Claim Edition before shipping."
+                    }
                 } label: {
                     Text(model.busy ? "Approving…" : "Ship to Tohseno")
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -82,6 +141,44 @@ private struct PublicationApprovalView: View {
             .padding(28)
             .presentationDetents([.medium, .large])
             .interactiveDismissDisabled(model.busy)
+        }
+    }
+
+    private func selectedPolicy() throws -> ClaimEditionPolicy? {
+        guard request.publicationKind == "ship", let context = request.claimEdition else { return nil }
+        if let required = context.requestedPolicy { return try required.policy() }
+        let maxClaims: UInt64
+        switch editionKind {
+        case .open, .timed: maxClaims = 0
+        case .limited, .limitedTimed:
+            guard let value = UInt64(maximum), value > 0 else {
+                throw TohsenoCompanionError.invalidEncoding("limited Claim Edition needs a maximum")
+            }
+            maxClaims = value
+        }
+        let close: UInt64
+        switch editionKind {
+        case .open, .limited: close = 0
+        case .timed, .limitedTimed:
+            let value = closesAt.timeIntervalSince1970.rounded(.down)
+            guard value > Date().timeIntervalSince1970 else {
+                throw TohsenoCompanionError.invalidEncoding("timed Claim Edition must close in the future")
+            }
+            close = UInt64(value)
+        }
+        let policy = try ClaimEditionPolicy(maxClaims: maxClaims, closesAt: close)
+        guard policy.kind == editionKind else {
+            throw TohsenoCompanionError.invalidEncoding("Claim Edition shape changed")
+        }
+        return policy
+    }
+
+    private func policyLabel(_ policy: ClaimEditionPolicySummary) -> String {
+        switch policy.kind {
+        case .open: "Open Edition · one per Tohseno identity"
+        case .limited: "Limited Edition · first \(policy.maxClaims) identities"
+        case .timed: "Until date · one per Tohseno identity"
+        case .limitedTimed: "Limited Edition · first \(policy.maxClaims) · until date"
         }
     }
 }
@@ -160,34 +257,80 @@ private struct CompanionNavigation: View {
 
 private struct PublicRegistryView: View {
     @Bindable var model: CompanionModel
+    @State private var mode = Mode.discover
+    @State private var search = ""
+
+    private enum Mode: String, CaseIterable, Identifiable {
+        case discover = "Discover"
+        case following = "Following"
+        case updates = "Updates"
+        var id: String { rawValue }
+    }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if model.publicApps.isEmpty {
-                    ContentUnavailableView(
-                        "A network made by people",
-                        systemImage: "point.3.connected.trianglepath.dotted",
-                        description: Text(model.networkNotice ?? "The first verified public app will appear here.")
-                    )
-                } else {
-                    List(model.publicApps) { app in
-                        NavigationLink {
-                            PublicReleaseDetailView(model: model, app: app)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(app.release.display.name).font(.headline)
-                                Text(app.release.display.description)
-                                    .font(.subheadline).foregroundStyle(Tohseno.ash).lineLimit(3)
-                                HStack {
-                                    Label("Signed", systemImage: "signature")
-                                    if app.release.permissions.forkAllowed {
-                                        Label("Forkable", systemImage: "arrow.triangle.branch")
+            VStack(spacing: 0) {
+                Picker("Registry mode", selection: $mode) {
+                    ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented).padding()
+                if mode != .updates {
+                    TextField("Search", text: $search).textFieldStyle(.roundedBorder)
+                        .padding(.horizontal).padding(.bottom, 8)
+                }
+                if mode == .updates {
+                    if model.privateUpdates.isEmpty {
+                        ContentUnavailableView("Nothing needs you", systemImage: "checkmark.circle",
+                            description: Text("Personal Claim, preparation, and app changes appear here."))
+                    } else {
+                        List(model.privateUpdates) { update in
+                            Button {
+                                model.setPrivateUpdateRead(update)
+                            } label: {
+                                HStack(alignment: .top, spacing: 10) {
+                                    Circle()
+                                        .fill(update.readAt == nil ? Tohseno.orange : Color.clear)
+                                        .frame(width: 7, height: 7)
+                                        .padding(.top, 7)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(update.title)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                        Text(update.detail)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Tohseno.ash)
+                                        Text(update.occurredAt)
+                                            .font(.caption)
+                                            .foregroundStyle(Tohseno.orange)
                                     }
                                 }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } else if visibleEvents.isEmpty {
+                    ContentUnavailableView(
+                        mode == .following ? "Follow a Builder" : "A network made by people",
+                        systemImage: "point.3.connected.trianglepath.dotted",
+                        description: Text(model.networkNotice ?? (mode == .following
+                            ? "Following is private. No follower count exists."
+                            : "The first verified public app will appear here."))
+                    )
+                } else {
+                    List(visibleEvents) { event in
+                        if let app = model.publicApps.first(where: { $0.release.shotID == event.shotID }) {
+                            NavigationLink { PublicReleaseDetailView(model: model, app: app) } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(app.release.display.name).font(.headline)
+                Text(event.kind == "shot.updated" ? "updated" :
+                    event.kind == "shot.forked" ? "was born as a fork" :
+                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Tohseno")
+                                    .font(.subheadline).foregroundStyle(Tohseno.ash)
+                                Text(event.occurredAt)
                                 .font(.caption).foregroundStyle(Tohseno.orange)
                             }
                             .padding(.vertical, 6)
+                            }
                         }
                     }
                     .refreshable { await model.refreshPublicNetwork() }
@@ -196,11 +339,23 @@ private struct PublicRegistryView: View {
             .navigationTitle("Registry")
         }
     }
+
+    private var visibleEvents: [PublicTimelineEvent] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return model.publicTimeline.filter { event in
+            guard mode != .following || model.followedBuilderIDs.contains(event.builderID) else { return false }
+            guard !query.isEmpty else { return true }
+            let app = model.publicApps.first { $0.release.shotID == event.shotID }
+            return [event.shotID, event.builderID, app?.release.display.name ?? "",
+                    app?.release.display.description ?? ""].joined(separator: " ").lowercased().contains(query)
+        }
+    }
 }
 
 private struct PublicReleaseDetailView: View {
     @Bindable var model: CompanionModel
     let app: PublicAppRelease
+    @State private var showingClaim = false
 
     var body: some View {
         NavigationStack {
@@ -211,26 +366,47 @@ private struct PublicReleaseDetailView: View {
                 }
                 Section("Signed release") {
                     LabeledContent("Builder", value: "…\(app.release.builderID.suffix(18))")
+                    Button(model.followedBuilderIDs.contains(app.release.builderID) ? "Following" : "Follow Builder") {
+                        model.toggleFollow(builderID: app.release.builderID)
+                    }
                     LabeledContent("Checkpoint", value: "#\(app.release.checkpointSequence)")
                     LabeledContent("Source", value: "Available")
                     LabeledContent("Fork", value: app.release.permissions.forkAllowed ? "Allowed" : "Not allowed")
-                    Text("Your Mac verifies the exact release and fresh chain state before Install or Fork.")
+                    Text("Your Mac verifies the exact release and fresh chain state before Claim, Install, or Fork.")
                         .font(.caption).foregroundStyle(Tohseno.ash)
                 }
                 Section {
-                    Button {
-                        Task { await model.requestNetworkRelease(app, action: .install) }
-                    } label: {
-                        Label(model.busy ? "Queuing…" : "Install", systemImage: "iphone.and.arrow.forward")
-                    }
-                    .disabled(model.busy)
-                    if app.release.permissions.forkAllowed {
+                    if model.claimsActive {
+                        if let edition = model.claimEditions[app.release.shotID] {
+                            Text(editionLabel(edition)).font(.headline)
+                            Text("\(edition.totalClaims) claimed").foregroundStyle(Tohseno.ash)
+                        }
+                        if let state = model.claimStates[app.release.shotID], state.hasPrefix("Claimed") {
+                            Label(state, systemImage: "circle.circle.fill")
+                                .font(.title3.weight(.semibold)).foregroundStyle(Tohseno.orange)
+                        } else {
+                            Button {
+                                showingClaim = true
+                            } label: {
+                                Label(model.busy ? "Claiming…" : "Claim", systemImage: "circle")
+                            }
+                            .disabled(model.busy || model.claimEditions[app.release.shotID]?.closed == true)
+                        }
+                    } else {
                         Button {
-                            Task { await model.requestNetworkRelease(app, action: .fork) }
+                            Task { await model.requestNetworkRelease(app, action: .install) }
                         } label: {
-                            Label("Fork", systemImage: "arrow.triangle.branch")
+                            Label(model.busy ? "Queuing…" : "Install", systemImage: "iphone.and.arrow.forward")
                         }
                         .disabled(model.busy)
+                        if app.release.permissions.forkAllowed {
+                            Button {
+                                Task { await model.requestNetworkRelease(app, action: .fork) }
+                            } label: {
+                                Label("Fork", systemImage: "arrow.triangle.branch")
+                            }
+                            .disabled(model.busy)
+                        }
                     }
                 }
                 if let notice = model.networkNotice {
@@ -238,7 +414,128 @@ private struct PublicReleaseDetailView: View {
                 }
             }
             .navigationTitle("Registry")
+            .task { await model.refreshClaimState(for: app) }
+            .sheet(isPresented: $showingClaim) {
+                ClaimGestureView(model: model, app: app)
+            }
         }
+    }
+
+    private func editionLabel(_ edition: PublicClaimEdition) -> String {
+        guard let policy = edition.policy else { return "Claim Edition unavailable" }
+        if edition.closed { return "Closed" }
+        switch policy.kind {
+        case "open": return "Open Edition · ∞"
+        case "limited": return "\(edition.totalClaims) / \(policy.maxClaims ?? "?") claimed"
+        case "timed": return "Open until its fixed horizon"
+        default: return "\(edition.totalClaims) / \(policy.maxClaims ?? "?") · fixed horizon"
+        }
+    }
+}
+
+private struct ClaimGestureView: View {
+    @Bindable var model: CompanionModel
+    let app: PublicAppRelease
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("tohseno.claim-public-disclosure.v1") private var disclosureSeen = false
+    @State private var rawPoints: [ClaimMarkPoint] = []
+    @State private var settledPoints: [ClaimMarkPoint] = []
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 28) {
+                Spacer()
+                if !disclosureSeen {
+                    VStack(spacing: 18) {
+                        Image(systemName: "globe.americas.fill").font(.largeTitle).foregroundStyle(Tohseno.orange)
+                        Text("Claims are public on Robinhood Chain.").font(.title2.weight(.semibold))
+                        Text("Your Tohseno address will be associated with this app.")
+                            .foregroundStyle(Tohseno.ash).multilineTextAlignment(.center)
+                        Button("I Understand") { disclosureSeen = true }
+                            .buttonStyle(.borderedProminent)
+                    }
+                    .padding(30)
+                } else {
+                    Text(model.claimStates[app.release.shotID] == "Claiming…"
+                         ? "Claiming…" : "Draw a circle around it.")
+                        .font(.title2.weight(.semibold))
+                    GeometryReader { geometry in
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 36).fill(Color.black.opacity(0.35))
+                            artifact
+                            Path { path in
+                                let points = settledPoints.isEmpty ? rawPoints : settledPoints.map {
+                                    ClaimMarkPoint(x: $0.x * geometry.size.width, y: $0.y * geometry.size.height)
+                                }
+                                guard let first = points.first else { return }
+                                path.move(to: CGPoint(x: first.x, y: first.y))
+                                for point in points.dropFirst() {
+                                    path.addLine(to: CGPoint(x: point.x, y: point.y))
+                                }
+                            }
+                            .stroke(Tohseno.orange, style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                        }
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                            .onChanged { value in
+                                guard !model.busy, settledPoints.isEmpty else { return }
+                                rawPoints.append(ClaimMarkPoint(x: value.location.x, y: value.location.y))
+                            }
+                            .onEnded { _ in completeStroke(size: geometry.size) })
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Claim this app")
+                    }
+                    .frame(maxHeight: 420)
+                    if let message { Text(message).foregroundStyle(Tohseno.ash) }
+                    Button("Hold to close the circle") {}
+                        .buttonStyle(.bordered)
+                        .onLongPressGesture(minimumDuration: 1.5) {
+                            submit(ClaimMark.accessibilityHold())
+                        }
+                        .accessibilityLabel("Claim this app")
+                        .disabled(model.busy)
+                }
+                Spacer()
+            }
+            .padding(24)
+            .background(CompanionBackground())
+            .navigationTitle(app.release.display.name)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }
+    }
+
+    @ViewBuilder private var artifact: some View {
+        if let value = app.iconURL, let url = URL(string: value, relativeTo: PublicNetworkClient.production.origin) {
+            AsyncImage(url: url) { image in image.resizable().scaledToFit() } placeholder: { appPlaceholder }
+                .frame(width: 118, height: 118).clipShape(RoundedRectangle(cornerRadius: 27))
+        } else { appPlaceholder }
+    }
+
+    private var appPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 27).fill(Tohseno.carbon)
+            .frame(width: 118, height: 118)
+            .overlay(Image(systemName: "app.fill").font(.system(size: 50)).foregroundStyle(Tohseno.orange))
+    }
+
+    private func completeStroke(size: CGSize) {
+        do {
+            let mark = try ClaimMark(stroke: rawPoints, canvasWidth: size.width, canvasHeight: size.height)
+            submit(mark)
+        } catch {
+            rawPoints = []
+            message = "Draw one continuous loop that comes back around the app."
+        }
+    }
+
+    private func submit(_ mark: ClaimMark) {
+        settledPoints = mark.normalizedPoints
+        rawPoints = []
+        message = nil
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        #endif
+        Task { await model.claim(app, mark: mark) }
     }
 }
 
@@ -261,6 +558,21 @@ private struct BuilderProfileView: View {
                     LabeledContent("Published apps", value: "\(model.publicApps.count)")
                     Text("Your BuilderID becomes public only when you explicitly approve Ship to Tohseno.")
                         .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                if !model.claimedSoftware.isEmpty {
+                    Section("Claimed") {
+                        ForEach(model.claimedSoftware) { encounter in
+                            NavigationLink {
+                                ClaimReceiptView(encounter: encounter)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(encounter.app.release.display.name).font(.headline)
+                                    Text("Claim #\(encounter.claim.claimNumber)")
+                                        .font(.caption).foregroundStyle(Tohseno.orange)
+                                }
+                            }
+                        }
+                    }
                 }
                 Section("Public profile") {
                     TextField("Display name", text: $model.profileDisplayName)
@@ -304,6 +616,63 @@ private struct BuilderProfileView: View {
     }
 }
 
+private struct ClaimReceiptView: View {
+    let encounter: ClaimedSoftwareEncounter
+
+    var body: some View {
+        List {
+            Section {
+                Text(encounter.app.release.display.name).font(.largeTitle.bold())
+                Text("Claim #\(encounter.claim.claimNumber)").foregroundStyle(Tohseno.orange)
+                ClaimMarkReceipt(canonicalHex: encounter.canonicalMarkHex)
+                    .frame(height: 240).listRowBackground(Color.clear)
+            }
+            Section("Release at encounter") {
+                LabeledContent("Checkpoint", value: encounter.claim.checkpointDigest)
+                LabeledContent("Release", value: encounter.claim.releaseDigest)
+                LabeledContent("Builder", value: encounter.app.release.builderID)
+            }
+            Section("Technical details") {
+                LabeledContent("Token", value: encounter.claim.tokenID)
+                LabeledContent("Tohseno address", value: encounter.claim.claimant)
+                if let transaction = encounter.claim.transactionHash {
+                    LabeledContent("Transaction", value: transaction)
+                }
+            }
+        }
+        .navigationTitle("Claim")
+    }
+}
+
+private struct ClaimMarkReceipt: View {
+    let canonicalHex: String
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                RoundedRectangle(cornerRadius: 28).fill(Tohseno.carbon)
+                Image(systemName: "app.fill").font(.system(size: 45)).foregroundStyle(Tohseno.bone)
+                if let mark {
+                    Path { path in
+                        guard let first = mark.normalizedPoints.first else { return }
+                        path.move(to: CGPoint(x: first.x * geometry.size.width, y: first.y * geometry.size.height))
+                        for point in mark.normalizedPoints.dropFirst() {
+                            path.addLine(to: CGPoint(x: point.x * geometry.size.width, y: point.y * geometry.size.height))
+                        }
+                    }
+                    .stroke(Tohseno.orange, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+            }
+        }
+        .accessibilityLabel("Your Claim mark")
+    }
+
+    private var mark: ClaimMark? {
+        guard canonicalHex.hasPrefix("0x"), let data = Data(hex: String(canonicalHex.dropFirst(2))) else { return nil }
+        return try? ClaimMark(canonicalBytes: data)
+    }
+}
+
 private extension View {
     @ViewBuilder
     func companionRootNavigationBar() -> some View {
@@ -330,6 +699,20 @@ private extension View {
 #else
         navigationTitle(title)
 #endif
+    }
+}
+
+private extension Data {
+    init?(hex: String) {
+        guard hex.count.isMultiple(of: 2) else { return nil }
+        self.init()
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index ..< next], radix: 16) else { return nil }
+            append(byte)
+            index = next
+        }
     }
 }
 

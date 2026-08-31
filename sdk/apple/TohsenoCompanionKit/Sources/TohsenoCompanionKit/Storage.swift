@@ -290,7 +290,7 @@ struct CompanionPairingRecord: Codable, Equatable, Sendable {
     let studioDeviceID: String
     let studioSigningPublicKey: String
     let studioAgreementPublicKey: String
-    let grant: CapabilityGrant
+    var grant: CapabilityGrant
     let inbox: CompanionInboxAccess
     let outbox: CompanionOutboxAccess
     var cursor: UInt64

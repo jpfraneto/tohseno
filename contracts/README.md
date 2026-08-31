@@ -5,6 +5,11 @@ activation recorded in `../release/contract-activations/`. ADR 0034 connects
 the unchanged ABI to Companion-authorized catalog publication, a constrained
 relayer, and independent receipt/head verification.
 
+ADR 0035 adds `TohsenoClaimsV1` beside that generation. Its source, ABI,
+bytecode, and tests are present, but no production address or signed Claims
+activation is recorded. Current clients and services therefore keep Claim
+writes and advertising dark.
+
 > [!WARNING]
 > The frozen v0.7 contract generation will never be deployed by the TOHSENO
 > project. Its predicted addresses are historical verification inputs, not
@@ -38,6 +43,27 @@ self-claims do not earn permanent on-chain state. Token Association remains a
 signed, chain-specific lineage relationship outside these contracts; a token
 is never a Shot, controller, or ownership substitute.
 
+## Additive Claims surface
+
+`TohsenoClaimsV1` references the exact active ShotRegistry in its constructor
+without changing that Registry. A current Shot controller may open exactly one
+immutable Open/Limited/Timed/Limited-and-Timed edition through ERC-1271. A
+deployed Tohseno account may Claim one Shot once through its own ERC-1271
+authority, bound to the exact current Registry head and encountered release.
+
+The receipt implements ERC-721 metadata and ERC-5192 locked-state reads, but
+every approval and transfer path reverts. There is no owner, proxy, upgrade,
+pause, mint shortcut, policy editor, supply override, callback mint, or mutable
+metadata base. Claim numbers are per Shot; token IDs are global and begin at
+one. Creation-code artifacts are generated additively outside the frozen
+`generations/0.8.0/` directory.
+
+Deployment does not activate Claims. Clients require the closed
+`tohseno.signed-claims-activation/1` envelope under the existing release
+authority policy, exact live runtime and immutable Registry, canonical
+deployment evidence, and a separately pinned activation digest. The runbook is
+[`release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md`](../release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md).
+
 ## Public identity and privacy boundary
 
 A Builder identity becomes public and linkable only when an authorized actor
@@ -66,6 +92,7 @@ EIP712Domain(string name,string version,uint256 chainId,address verifyingContrac
 | --- | --- | --- |
 | `BuilderAccount` | `TOHSENO BuilderAccount` | `1` |
 | `ShotRegistry` | `TOHSENO ShotRegistry` | `2` |
+| `TohsenoClaimsV1` | `TOHSENO Claims` | `1` |
 
 The live `block.chainid` and contract address are included, so signatures do
 not cross chains or registry generations.
@@ -181,7 +208,7 @@ is normative. Probe output is evidence, not reusable authorization.
 
 Generation 0.8.0 is deployed on Robinhood Chain mainnet and is active under the
 client-pinned release-authority policy and threshold-signed activation. There
-is still no deployment command on `main`.
+is still no successor-generation deployment command on `main`.
 
 - `BuilderAccountFactory`:
   `0xb1bd208cd2af98e701f43d06aaa889d3a594df65`
@@ -207,6 +234,11 @@ registry transaction/receipt handling, source hosting, discovery, and exact
 download now live above the contracts in `network/`, `cli/src/network_commands.rs`,
 and `website/apps/site/src/registry.ts`. Those services do not expand the
 relayer into a generic wallet and do not store app code on-chain.
+
+The narrowly scoped `DeployClaimsV1.s.sol` exists only for ADR 0035's later
+owner-attended additive deployment. It hard-codes chain 4663 and the active
+Registry. It has not been run as production evidence, and no address-only
+configuration can make its result trusted.
 
 See
 [`docs/MIGRATION_0_8_CONTRACT_GENERATION.md`](../docs/MIGRATION_0_8_CONTRACT_GENERATION.md)

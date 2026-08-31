@@ -22,6 +22,7 @@ export interface AppConfig {
   managed: ManagedConfig;
   distribution: DistributionConfig;
   registry: RegistryConfig;
+  claims: ClaimsConfig;
 }
 
 export interface RegistryConfig {
@@ -36,6 +37,18 @@ export interface RegistryConfig {
   sourceRequestsPerMinute: number;
   maxStagingRecords: number;
   maxStagingBytes: number;
+  relayerEnabled: boolean;
+  relayerPrivateKey?: `0x${string}`;
+}
+
+export interface ClaimsConfig {
+  configured: boolean;
+  contractAddress?: `0x${string}`;
+  activationSigningDigest?: `0x${string}`;
+  activationEvidencePath?: string;
+  authorityPolicyPath?: string;
+  deploymentBlock?: bigint;
+  indexerEnabled: boolean;
   relayerEnabled: boolean;
   relayerPrivateKey?: `0x${string}`;
 }
@@ -306,6 +319,42 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     }
   }
 
+  const claimsAddress = env.CLAIMS_CONTRACT_ADDRESS;
+  const claimsActivationDigest = env.CLAIMS_ACTIVATION_SIGNING_DIGEST;
+  const claimsActivationEvidencePath = env.CLAIMS_ACTIVATION_EVIDENCE_PATH;
+  const claimsAuthorityPolicyPath = env.CLAIMS_AUTHORITY_POLICY_PATH;
+  const claimsConfigured = [claimsAddress, claimsActivationDigest, claimsActivationEvidencePath,
+    claimsAuthorityPolicyPath, env.CLAIMS_DEPLOYMENT_BLOCK].some((value) => value !== undefined);
+  const claimsIndexerEnabled = parseBoolean(
+    "CLAIMS_INDEXER_ENABLED", env.CLAIMS_INDEXER_ENABLED, false,
+  );
+  const claimsRelayerEnabled = parseBoolean(
+    "CLAIMS_RELAYER_ENABLED", env.CLAIMS_RELAYER_ENABLED, false,
+  );
+  if (claimsConfigured) {
+    if (!/^0x[0-9a-f]{40}$/.test(claimsAddress ?? "")) {
+      throw new Error("CLAIMS_CONTRACT_ADDRESS must be one exact lowercase address");
+    }
+    if (!/^0x[0-9a-f]{64}$/.test(claimsActivationDigest ?? "")) {
+      throw new Error("CLAIMS_ACTIVATION_SIGNING_DIGEST must be one exact lowercase digest");
+    }
+    if (!/^\d+$/.test(env.CLAIMS_DEPLOYMENT_BLOCK ?? "")) {
+      throw new Error("CLAIMS_DEPLOYMENT_BLOCK must be the canonical deployment block");
+    }
+    if (!claimsActivationEvidencePath?.startsWith("/") || !claimsAuthorityPolicyPath?.startsWith("/")) {
+      throw new Error("Claims activation and authority policy paths must be explicit absolute paths");
+    }
+  }
+  if (claimsIndexerEnabled && (!registryEnabled || !claimsConfigured)) {
+    throw new Error("Claims indexing requires the Registry and complete Claims activation coordinates");
+  }
+  if (claimsRelayerEnabled) {
+    if (!claimsIndexerEnabled) throw new Error("Claims relay requires canonical Claims indexing first");
+    if (!/^0x[0-9a-f]{64}$/.test(env.CLAIMS_RELAYER_PRIVATE_KEY ?? "")) {
+      throw new Error("CLAIMS_RELAYER_PRIVATE_KEY must be one dedicated lowercase private key");
+    }
+  }
+
   return {
     nodeEnv,
     port,
@@ -371,6 +420,17 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       maxStagingBytes: parsePositiveInteger("REGISTRY_MAX_STAGING_BYTES", env.REGISTRY_MAX_STAGING_BYTES, 10 * 1024 * 1024 * 1024),
       relayerEnabled: registryRelayerEnabled,
       relayerPrivateKey: env.REGISTRY_RELAYER_PRIVATE_KEY as `0x${string}` | undefined,
+    },
+    claims: {
+      configured: claimsConfigured,
+      contractAddress: claimsAddress as `0x${string}` | undefined,
+      activationSigningDigest: claimsActivationDigest as `0x${string}` | undefined,
+      activationEvidencePath: claimsActivationEvidencePath,
+      authorityPolicyPath: claimsAuthorityPolicyPath,
+      deploymentBlock: claimsConfigured ? BigInt(env.CLAIMS_DEPLOYMENT_BLOCK!) : undefined,
+      indexerEnabled: claimsIndexerEnabled,
+      relayerEnabled: claimsRelayerEnabled,
+      relayerPrivateKey: env.CLAIMS_RELAYER_PRIVATE_KEY as `0x${string}` | undefined,
     },
   };
 }

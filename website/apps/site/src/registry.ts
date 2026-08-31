@@ -14,6 +14,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { AppConfig } from "../config.ts";
+import type { ClaimCatalogContext, ClaimsPublicationBridge } from "./claims.ts";
 import { HttpError, withSecurityHeaders } from "./security.ts";
 
 const RELEASE_SCHEMA = "tohseno.catalog-release/1";
@@ -60,6 +61,8 @@ export interface RegistryRouter {
   renderShot(shotID: string): Promise<string | undefined>;
   renderBuilder(builder: string): Promise<string | undefined>;
   renderHumanRoute(pathname: string): Promise<string | undefined>;
+  currentClaimContext(shotID: Hex, releaseDigest: Hex): Promise<ClaimCatalogContext>;
+  claimReceiptContext(shotID: Hex, releaseDigest: Hex): Promise<ClaimCatalogContext>;
 }
 
 export interface ChainVerifier {
@@ -76,6 +79,9 @@ interface ChainEvidence {
   head: Hex;
   checkpointSequence: number;
   signerKeyID: Hex;
+  blockTimestamp?: string;
+  transactionIndex?: number;
+  logIndex?: number;
 }
 
 interface CatalogRecord {
@@ -89,7 +95,7 @@ interface CatalogRecord {
   iconURL?: string;
 }
 
-interface StagingRecord {
+export interface StagingRecord {
   schema: typeof STAGING_SCHEMA;
   stagingID: string;
   tokenSHA256: string;
@@ -101,16 +107,18 @@ interface StagingRecord {
   iconUploaded: boolean;
 }
 
-interface PublicationJob {
-  schema: "tohseno.registry-publication-job/1";
+export interface PublicationJob {
+  schema: "tohseno.registry-publication-job/2";
   jobID: string;
   stagingID: string;
   tokenSHA256: string;
   registry: JsonObject;
-  status: "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "complete" | "failed";
+  claimEdition?: JsonObject;
+  status: "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted" | "complete" | "failed";
   accountTransactionHash?: Hex;
   commitTransactionHash?: Hex;
   registryTransactionHash?: Hex;
+  claimsTransactionHash?: Hex;
   committedAt?: number;
   publicRecord?: JsonObject;
   failure?: string;
@@ -126,9 +134,25 @@ interface SignedProfileRecord {
   acceptedAt: string;
 }
 
+interface TimelineEvent {
+  schema: "tohseno.timeline-event/1";
+  event_id: Hex;
+  kind: "shot.shipped" | "shot.updated" | "shot.forked" | "claim.edition_closed";
+  shot_id: Hex;
+  builder_id: string;
+  release_digest: Hex;
+  checkpoint_sequence: number;
+  occurred_at: string;
+  canonical_block: { number: string; hash: Hex; transaction_index: number | null; log_index: number | null };
+  parent: { shot_id: Hex; release_digest: Hex } | null;
+  closure_reason?: "supply_filled" | "time_elapsed";
+}
+
 export async function createRegistryRouter(
   config: AppConfig,
   verifier?: ChainVerifier,
+  claims?: ClaimsPublicationBridge,
+  injectedRelayer?: ConstrainedRelayer,
 ): Promise<RegistryRouter> {
   if (!config.registry.enabled) return unavailableRouter();
   const root = config.registry.root!;
@@ -152,9 +176,9 @@ export async function createRegistryRouter(
   };
   await Promise.all(Object.values(directories).map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
   const chain = verifier ?? new RobinhoodVerifier(config);
-  const relayer = config.registry.relayerEnabled
+  const relayer = injectedRelayer ?? (config.registry.relayerEnabled
     ? createRelayer(config)
-    : undefined;
+    : undefined);
   const publicLaunch = config.registry.relayerEnabled
     && config.distribution.macosEnabled;
   const limiter = new RateLimiter();
@@ -197,6 +221,16 @@ export async function createRegistryRouter(
     const records = await discoverable((await allRecords(directories.releases))
       .filter((record) => releaseOf(record).shot_id === shotID).sort(newestFirst));
     return records[0];
+  };
+
+  const claimContextOf = (record: CatalogRecord): ClaimCatalogContext => {
+    const release = releaseOf(record);
+    const display = object(release.display, "release.display");
+    return { shotID: normalizeHex32(release.shot_id), builderID: normalizeBuilder(release.builder_id),
+      releaseDigest: record.releaseDigest, checkpointDigest: normalizeDigest(release.public_checkpoint_digest),
+      checkpointSequence: positiveSafeInteger(release.checkpoint_sequence, "checkpoint_sequence"),
+      appName: String(display.name), appDescription: String(display.description), sourceURL: record.sourceURL,
+      canonicalBlock: { number: record.chain.blockNumber, hash: record.chain.blockHash } };
   };
 
   async function finalizeStaging(
@@ -244,7 +278,7 @@ export async function createRegistryRouter(
     const jobID = normalizeStagingID(id);
     const path = join(directories.jobs, `${jobID}.json`);
     let job = await readJSON<PublicationJob>(path);
-    if (!job || job.schema !== "tohseno.registry-publication-job/1") throw new HttpError(404, "Publication job not found");
+    if (!job || job.schema !== "tohseno.registry-publication-job/2") throw new HttpError(404, "Publication job not found");
     authorizeToken(request, job.tokenSHA256);
     job = await serialized(async () => {
       const current = await readJSON<PublicationJob>(path);
@@ -255,6 +289,19 @@ export async function createRegistryRouter(
           if (!staging) throw new HttpError(409, "Publication staging reservation is unavailable");
           await relayer.advance(current, staging);
           if (current.status === "submitted" && current.registryTransactionHash) {
+            const release = releaseOf(staging.envelope);
+            if (release.checkpoint_sequence === 1) {
+              if (!claims || !current.claimEdition) {
+                throw new HttpError(503, "First Ship requires the separately activated Claims publication path");
+              }
+              const claim = await claims.advanceOpenEdition(
+                current.claimEdition,
+                staging.envelope,
+                current.claimsTransactionHash,
+              );
+              current.claimsTransactionHash = claim.transactionHash;
+              if (!claim.confirmed) throw new PublicationPending("claims_submitted");
+            }
             current.publicRecord = await finalizeStaging(
               current.stagingID,
               staging,
@@ -299,10 +346,16 @@ export async function createRegistryRouter(
       if (query && (query.length > 100 || /[\u0000-\u001f\u007f]/.test(query))) {
         throw new HttpError(400, "search query is invalid");
       }
-      const records = (await discoverable(await allRecords(directories.releases))).sort(newestFirst)
+      const records = latestPerShot((await discoverable(await allRecords(directories.releases))).sort(newestFirst))
         .filter((record) => !query || searchableRelease(releaseOf(record)).includes(query))
         .slice(0, limit);
       return head(json({ schema: "tohseno.catalog-page/1", releases: records.map(publicRecord), next_cursor: null }), method);
+    }
+    if (url.pathname === "/api/registry/v1/timeline" && (method === "GET" || method === "HEAD")) {
+      const events = await timelineEvents(
+        await discoverable(await allRecords(directories.releases)), claims,
+      );
+      return head(json(timelinePage(events, url)), method);
     }
     if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/shots" && (method === "GET" || method === "HEAD")) {
       const shotID = normalizeHex32(parts[4]);
@@ -318,6 +371,14 @@ export async function createRegistryRouter(
         .sort(newestFirst);
       if (!records.length) throw new HttpError(404, "Published Shot not found");
       return head(json({ schema: "tohseno.catalog-page/1", releases: records.map(publicRecord), next_cursor: null }), method);
+    }
+    if (parts.length === 6 && parts.slice(0, 4).join("/") === "api/registry/v1/shots"
+        && parts[5] === "timeline" && (method === "GET" || method === "HEAD")) {
+      const shotID = normalizeHex32(parts[4]);
+      const events = await timelineEvents((await discoverable(await allRecords(directories.releases)))
+        .filter((record) => releaseOf(record).shot_id === shotID), claims);
+      if (!events.length) throw new HttpError(404, "Published Shot not found");
+      return head(json(timelinePage(events, url)), method);
     }
     if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/releases"
         && (method === "GET" || method === "HEAD")) {
@@ -488,6 +549,9 @@ export async function createRegistryRouter(
       requireJSON(request);
       const stagingID = normalizeStagingID(parts[4]);
       const staging = await authorizedStaging(request, directories.staging, stagingID);
+      if (config.claims.configured && releaseOf(staging.envelope).checkpoint_sequence === 1) {
+        throw new HttpError(409, "First Ship must atomically witness its immutable Claim Edition before catalog promotion");
+      }
       const body = await boundedJSON(request, 16 * 1024);
       exactKeys(body, ["transaction_hash"], "finalize request");
       const transactionHash = normalizeDigest(body.transaction_hash) as Hex;
@@ -501,19 +565,27 @@ export async function createRegistryRouter(
       const staging = await authorizedStaging(request, directories.staging, stagingID);
       if (!staging.sourceUploaded) throw new HttpError(409, "Source artifact has not been staged");
       const body = await boundedJSON(request, 256 * 1024);
-      exactKeys(body, ["registry"], "publication request");
+      const firstShip = releaseOf(staging.envelope).checkpoint_sequence === 1;
+      exactKeys(body, firstShip ? ["registry", "claim_edition"] : ["registry"], "publication request");
       const signedRegistry = object(body.registry, "registry authorization");
       verifyRegistryAuthorization(signedRegistry, staging.envelope, config);
+      const claimEdition = firstShip ? object(body.claim_edition, "Claim Edition approval") : undefined;
+      if (firstShip) {
+        if (!claims) throw new HttpError(503, "First Ship requires the separately activated Claims publication path");
+        await claims.verifyOpenEdition(claimEdition!, staging.envelope);
+      }
       const now = new Date().toISOString();
       const job: PublicationJob = {
-        schema: "tohseno.registry-publication-job/1", jobID: stagingID, stagingID,
+        schema: "tohseno.registry-publication-job/2", jobID: stagingID, stagingID,
         tokenSHA256: staging.tokenSHA256, registry: signedRegistry, status: "prepared",
+        ...(claimEdition ? { claimEdition } : {}),
         createdAt: now, updatedAt: now,
       };
       const path = join(directories.jobs, `${stagingID}.json`);
       const existing = await readJSON<PublicationJob>(path);
       if (existing) {
-        if (canonicalCatalogJSON(existing.registry) !== canonicalCatalogJSON(signedRegistry)) {
+        if (canonicalCatalogJSON(existing.registry) !== canonicalCatalogJSON(signedRegistry)
+            || canonicalCatalogJSON(existing.claimEdition ?? {}) !== canonicalCatalogJSON(claimEdition ?? {})) {
           throw new HttpError(409, "Publication job already has different authorization");
         }
         return json(publicPublicationJob(existing), 202);
@@ -538,15 +610,26 @@ export async function createRegistryRouter(
     renderRegistry: async (rawQuery) => {
       const query = rawQuery?.trim().toLocaleLowerCase("en-US");
       if (query && (query.length > 100 || /[\u0000-\u001f\u007f]/.test(query))) return registryHTML([], "", publicLaunch);
-      const records = (await discoverable(await allRecords(directories.releases)))
-        .filter((record) => !query || searchableRelease(releaseOf(record)).includes(query))
-        .sort(newestFirst).slice(0, 100).map(publicRecord);
-      return registryHTML(records, rawQuery?.trim() ?? "", publicLaunch);
+      const all = (await discoverable(await allRecords(directories.releases))).sort(newestFirst);
+      const filtered = all.filter((record) => !query || searchableRelease(releaseOf(record)).includes(query));
+      const events = (await timelineEvents(filtered, claims)).slice(0, 100);
+      const records = filtered.map(publicRecord);
+      const editions = new Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>();
+      if (claims) {
+        await Promise.all(latestPerShot(filtered).slice(0, 100).map(async (record) => {
+          const shotID = normalizeHex32(releaseOf(record).shot_id);
+          const edition = await claims.editionForDisplay(shotID);
+          if (edition?.opened) editions.set(shotID, edition);
+        }));
+      }
+      return registryHTML(records, rawQuery?.trim() ?? "", publicLaunch, events, editions);
     },
     renderShot: async (shotID) => {
       if (!HEX32.test(shotID)) return undefined;
       const record = await discoverableShot(shotID as Hex);
-      return record ? shotHTML(publicRecord(record)) : undefined;
+      if (!record) return undefined;
+      const edition = await claims?.editionForDisplay(shotID as Hex);
+      return shotHTML(publicRecord(record), edition);
     },
     renderBuilder: async (builder) => {
       const id = decodeURIComponent(builder);
@@ -589,6 +672,21 @@ export async function createRegistryRouter(
       const target = await discoverableShot(normalizeHex32(pointer.shot_id));
       return target ? shotHTML(publicRecord(target)) : undefined;
     },
+    currentClaimContext: async (shotID, releaseDigest) => {
+      const current = await discoverableShot(normalizeHex32(shotID));
+      if (!current || current.releaseDigest !== normalizeDigest(releaseDigest)) {
+        throw new HttpError(409, "Claim preparation requires the current canonical release; refresh this app first");
+      }
+      return claimContextOf(current);
+    },
+    claimReceiptContext: async (shotID, releaseDigest) => {
+      const record = await readJSON<CatalogRecord>(join(directories.releases, `${normalizeDigest(releaseDigest).slice(2)}.json`));
+      if (!record || releaseOf(record).shot_id !== normalizeHex32(shotID)
+          || !(await discoverable([record])).length) {
+        throw new HttpError(404, "The exact claimed release is not canonically available");
+      }
+      return claimContextOf(record);
+    },
   };
 }
 
@@ -609,7 +707,7 @@ class RobinhoodVerifier implements ChainVerifier {
     if (receipt.status !== "success" || receipt.to?.toLowerCase() !== this.config.registry.registryAddress) {
       throw new HttpError(422, "The transaction is not a successful active Registry call");
     }
-    const matched = receipt.logs.some((log) => {
+    const matched = receipt.logs.find((log) => {
       if (log.address.toLowerCase() !== this.config.registry.registryAddress) return false;
       try {
         const decoded = decodeEventLog({ abi: REGISTRY_ABI, data: log.data, topics: log.topics });
@@ -629,8 +727,14 @@ class RobinhoodVerifier implements ChainVerifier {
     const authorized = await this.client.readContract({ address: controller, abi: ACCOUNT_ABI,
       functionName: "isAuthorizedKey", args: [keyID] });
     if (!authorized) throw new HttpError(403, "The catalog signer is not an authorized Builder DeviceKey");
+    const canonicalBlock = await this.client.getBlock({ blockHash: receipt.blockHash });
+    if (canonicalBlock.hash !== receipt.blockHash) {
+      throw new HttpError(409, "The Registry transaction block is no longer canonical");
+    }
+    const blockTimestamp = chainTimestamp(canonicalBlock.timestamp);
     return { transactionHash, blockNumber: receipt.blockNumber.toString(), blockHash: receipt.blockHash,
-      controller, head, checkpointSequence: sequence, signerKeyID: keyID };
+      controller, head, checkpointSequence: sequence, signerKeyID: keyID, blockTimestamp,
+      transactionIndex: matched.transactionIndex, logIndex: matched.logIndex };
   }
 
   async verifyBuilderKey(builderID: string, keyID: Hex): Promise<void> {
@@ -662,6 +766,8 @@ class RobinhoodVerifier implements ChainVerifier {
           || receipt.blockNumber.toString() !== record.chain.blockNumber) return false;
       const canonicalBlock = await this.client.getBlock({ blockNumber: receipt.blockNumber });
       if (canonicalBlock.hash !== record.chain.blockHash) return false;
+      if (record.chain.blockTimestamp !== undefined
+          && record.chain.blockTimestamp !== chainTimestamp(canonicalBlock.timestamp)) return false;
       const matched = receipt.logs.some((log) => {
         if (log.address.toLowerCase() !== this.config.registry.registryAddress) return false;
         try {
@@ -689,13 +795,13 @@ class RobinhoodVerifier implements ChainVerifier {
   }
 }
 
-type PendingStatus = "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted";
+type PendingStatus = "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted";
 
 class PublicationPending extends Error {
   constructor(readonly status: PendingStatus) { super(status); }
 }
 
-interface ConstrainedRelayer {
+export interface ConstrainedRelayer {
   address: Hex;
   advance(job: PublicationJob, staging: StagingRecord): Promise<void>;
 }
@@ -727,7 +833,7 @@ function createRelayer(config: AppConfig): ConstrainedRelayer {
   return {
     address: account.address,
     async advance(job, staging) {
-      verifyRegistryAuthorization(job.registry, staging.envelope, config);
+      verifyRegistryAuthorization(job.registry, staging.envelope, config, job.registryTransactionHash !== undefined);
       const release = releaseOf(staging.envelope);
       const signer = object(job.registry.signer, "Registry signer");
       const action = object(job.registry.action, "Registry action");
@@ -835,7 +941,12 @@ function createRelayer(config: AppConfig): ConstrainedRelayer {
   };
 }
 
-function verifyRegistryAuthorization(value: JsonObject, envelope: JsonObject, config: AppConfig): Hex {
+function verifyRegistryAuthorization(
+  value: JsonObject,
+  envelope: JsonObject,
+  config: AppConfig,
+  allowExpired = false,
+): Hex {
   exactKeys(value, ["schema", "domain", "action", "signer", "authorization"], "Registry authorization");
   if (value.schema !== "tohseno.registry-action/2") throw new HttpError(422, "unsupported Registry authorization schema");
   const domain = object(value.domain, "Registry domain");
@@ -866,7 +977,7 @@ function verifyRegistryAuthorization(value: JsonObject, envelope: JsonObject, co
   normalizeHex32(action.shot_id);
   const deadline = positiveSafeInteger(action.deadline, "Registry deadline");
   const now = Math.floor(Date.now() / 1000);
-  if (deadline <= now || deadline > now + 24 * 60 * 60) {
+  if ((!allowExpired && deadline <= now) || deadline > now + 24 * 60 * 60) {
     throw new HttpError(422, "Registry authorization expired or exceeds the 24-hour bound");
   }
   nonnegativeSafeInteger(action.nonce, "Registry nonce");
@@ -927,7 +1038,8 @@ function lowerHexBytes(value: string, length: number): Uint8Array { if (!new Reg
 function nonnegativeSafeInteger(value: unknown, name: string): number { if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new HttpError(422, `${name} must be a nonnegative safe integer`); return value; }
 function authorizeToken(request: Request, tokenSHA256: string): void { const token = request.headers.get("authorization")?.replace(/^Bearer /, "") ?? ""; const digest = sha256Hex(new TextEncoder().encode(token)).slice(2); if (!token || !timingSafeText(digest, tokenSHA256)) throw new HttpError(401, "Invalid publication authorization"); }
 function publicPublicationJob(job: PublicationJob): JsonObject { return { schema: "tohseno.registry-publication-status/1", job_id: job.jobID, status: job.status,
-  relayer_transactions: { account: job.accountTransactionHash ?? null, commitment: job.commitTransactionHash ?? null, registry: job.registryTransactionHash ?? null },
+  relayer_transactions: { account: job.accountTransactionHash ?? null, commitment: job.commitTransactionHash ?? null,
+    registry: job.registryTransactionHash ?? null, claims: job.claimsTransactionHash ?? null },
   public_release: job.publicRecord ?? null, failure: job.failure ?? null, updated_at: job.updatedAt }; }
 
 function verifyEnvelope(envelope: JsonObject, config: AppConfig): Hex {
@@ -1231,13 +1343,131 @@ function releaseOf(value: JsonObject | CatalogRecord): JsonObject { const envelo
 function newestFirst(a: CatalogRecord, b: CatalogRecord): number { return String(releaseOf(b).published_at).localeCompare(String(releaseOf(a).published_at)); }
 function canonicalRoute(release: JsonObject): string { return `/s/${String(release.shot_id).slice(2)}`; }
 
-function registryHTML(records: JsonObject[], query: string, launched: boolean): string { const lead = launched ? "Every app here is source-published, signed by its builder, witnessed on Robinhood Chain, and rebuilt on the recipient’s Mac." : "Registry support is online in pre-launch verification mode. No public app or write path is claimed."; return page("The Registry", `<header><p class="eyebrow">PERSON-TO-PERSON NATIVE SOFTWARE</p><h1>Apps people made<br>for other people.</h1><p class="lead">${lead}</p><form class="search" action="/registry" method="get"><label for="registry-search">Search apps, builders, or ShotID</label><div><input id="registry-search" name="q" maxlength="100" value="${escapeHTML(query)}"><button type="submit">Search</button></div></form></header>${cards(records, launched)}`); }
-function shotHTML(record: JsonObject): string { const release = object(record.release, "release"); const display = object(release.display, "display"); const permissions = object(release.permissions, "permissions"); const exact = `${String(release.shot_id).slice(2)}?release=${String(record.release_digest)}`; return page(String(display.name), `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">SIGNED NATIVE APP</p><h1>${escapeHTML(String(display.name))}</h1><p class="lead">${escapeHTML(String(display.description))}</p></header><section class="proof"><a href="/@${escapeHTML(String(release.builder_id))}">Builder ${escapeHTML(String(release.builder_id))}</a><span>Checkpoint ${escapeHTML(String(release.checkpoint_sequence))}</span><span>${permissions.fork_allowed ? "Fork allowed" : "Install only"}</span><span>Fresh chain state verified by the Mac</span></section><div class="actions"><a class="primary" href="tohseno://install/${exact}">Install on iPhone</a>${permissions.fork_allowed ? `<a href="tohseno://fork/${exact}">Fork</a>` : ""}<a href="${escapeHTML(String(record.source_url))}">Download source</a></div>`); }
-function builderHTML(builder: string, records: JsonObject[], profile?: JsonObject): string { const title = profile ? String(profile.display_name) : builder; const handle = profile?.handle ? `<p class="eyebrow">@${escapeHTML(String(profile.handle))}</p>` : ""; return page("Builder", `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">BUILDER</p><h1>${escapeHTML(title)}</h1>${handle}<p class="lead">A public track record assembled from a DeviceKey-signed profile, signed releases, and current chain authority.</p><p class="eyebrow">${escapeHTML(builder)}</p></header>${cards(records)}`); }
-function cards(records: JsonObject[], launched = true): string { if (!records.length) return launched ? `<section class="empty"><h2>The network is ready.</h2><p>The first independently verified release will appear here.</p></section>` : `<section class="empty"><h2>Pre-launch verification.</h2><p>Publication and public launch remain disabled until the signed Mac release and acceptance gates pass.</p></section>`; return `<main class="grid">${records.map((record) => { const release = object(record.release, "release"); const display = object(release.display, "display"); return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`; }).join("")}</main>`; }
-function page(title: string, body: string): string { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)} — Tohseno</title><meta name="description" content="Native software, person to person."><link rel="stylesheet" href="/landing.css"><style>body{max-width:1180px;margin:auto;padding:32px}header{padding:10vh 0 6vh}h1{font-size:clamp(3rem,8vw,7rem);line-height:.88;max-width:1000px}.lead{font-size:clamp(1.1rem,2vw,1.45rem);max-width:720px;line-height:1.5}.eyebrow{font:700 .72rem monospace;letter-spacing:.15em;color:#ff7a1a}.search{max-width:680px;margin-top:32px}.search label{display:block;margin-bottom:8px;font:600 .8rem monospace}.search div{display:flex;gap:8px}.search input{min-width:0;flex:1;padding:13px;background:#171615;color:inherit;border:1px solid #393632}.search button{padding:13px 18px;border:1px solid #ff7a1a;background:#ff7a1a;color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.card,.empty,.proof{display:block;padding:28px;border:1px solid #393632;background:#171615;color:inherit;text-decoration:none}.card:hover{border-color:#ff7a1a;transform:translateY(-2px)}.card h2{font-size:2rem}.card span,.actions a,.proof a{color:#ff8a32}.back{display:inline-block;margin-top:20px;color:inherit}.proof{display:flex;gap:24px;flex-wrap:wrap;font:600 .8rem monospace}.actions{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}.actions a{padding:14px 18px;border:1px solid #ff7a1a;text-decoration:none}.actions .primary{background:#ff7a1a;color:#111}</style></head><body><nav><a href="/">TOHSENO</a> · <a href="/registry">REGISTRY</a></nav>${body}</body></html>`; }
+function latestPerShot(records: CatalogRecord[]): CatalogRecord[] {
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    const shotID = String(releaseOf(record).shot_id);
+    if (seen.has(shotID)) return false;
+    seen.add(shotID);
+    return true;
+  });
+}
 
-function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined }; }
+async function timelineEvents(
+  records: CatalogRecord[],
+  claims?: ClaimsPublicationBridge,
+): Promise<TimelineEvent[]> {
+  const unique = new Map<string, TimelineEvent>();
+  for (const record of records) {
+    const release = releaseOf(record);
+    const shotID = normalizeHex32(release.shot_id);
+    const sequence = positiveSafeInteger(release.checkpoint_sequence, "checkpoint_sequence");
+    const parentValue = release.parent;
+    const parent = parentValue === null ? null : (() => {
+      const value = object(parentValue, "release.parent");
+      return {
+        shot_id: normalizeHex32(value.parent_shot_id),
+        release_digest: normalizeDigest(value.parent_release_digest),
+      };
+    })();
+    const kind = sequence === 1 ? "shot.shipped" : "shot.updated";
+    const eventID = sha256Hex(new TextEncoder().encode([
+      "TOHSENO-REGISTRY-TIMELINE-V1", kind, shotID, record.releaseDigest,
+      String(sequence), record.chain.blockHash,
+    ].join("\0")));
+    unique.set(eventID, {
+      schema: "tohseno.timeline-event/1",
+      event_id: eventID,
+      kind,
+      shot_id: shotID,
+      builder_id: normalizeBuilder(release.builder_id),
+      release_digest: record.releaseDigest,
+      checkpoint_sequence: sequence,
+      occurred_at: record.chain.blockTimestamp ?? String(release.published_at),
+      canonical_block: { number: record.chain.blockNumber, hash: record.chain.blockHash,
+        transaction_index: record.chain.transactionIndex ?? null,
+        log_index: record.chain.logIndex ?? null },
+      parent: sequence === 1 ? parent : null,
+    });
+    if (sequence === 1 && parent) {
+      const forkEventID = sha256Hex(new TextEncoder().encode([
+        "TOHSENO-REGISTRY-TIMELINE-V1", "shot.forked", shotID, record.releaseDigest,
+        parent.shot_id, parent.release_digest, record.chain.blockHash,
+      ].join("\0")));
+      unique.set(forkEventID, { schema: "tohseno.timeline-event/1", event_id: forkEventID,
+        kind: "shot.forked", shot_id: shotID, builder_id: normalizeBuilder(release.builder_id),
+        release_digest: record.releaseDigest, checkpoint_sequence: sequence,
+        occurred_at: record.chain.blockTimestamp ?? String(release.published_at), canonical_block: {
+          number: record.chain.blockNumber, hash: record.chain.blockHash,
+          transaction_index: record.chain.transactionIndex ?? null,
+          log_index: record.chain.logIndex ?? null }, parent });
+    }
+  }
+  if (claims) {
+    await Promise.all(latestPerShot([...records].sort(newestFirst)).slice(0, 10_000).map(async (record) => {
+      const release = releaseOf(record);
+      const shotID = normalizeHex32(release.shot_id);
+      const closure = await claims.closureForTimeline(shotID);
+      if (!closure) return;
+      const eventID = sha256Hex(new TextEncoder().encode([
+        "TOHSENO-REGISTRY-TIMELINE-V1", "claim.edition_closed", shotID,
+        closure.reason, closure.canonicalBlock.number, closure.canonicalBlock.hash,
+        String(closure.canonicalBlock.transactionIndex), String(closure.canonicalBlock.logIndex),
+      ].join("\0")));
+      unique.set(eventID, { schema: "tohseno.timeline-event/1", event_id: eventID,
+        kind: "claim.edition_closed", shot_id: shotID,
+        builder_id: normalizeBuilder(release.builder_id), release_digest: record.releaseDigest,
+        checkpoint_sequence: positiveSafeInteger(release.checkpoint_sequence, "checkpoint_sequence"),
+        occurred_at: closure.occurredAt,
+        canonical_block: { number: closure.canonicalBlock.number, hash: closure.canonicalBlock.hash,
+          transaction_index: closure.canonicalBlock.transactionIndex,
+          log_index: closure.canonicalBlock.logIndex }, parent: null,
+        closure_reason: closure.reason });
+    }));
+  }
+  return [...unique.values()].sort(compareTimelineEvents);
+}
+
+function compareTimelineEvents(left: TimelineEvent, right: TimelineEvent): number {
+  const block = BigInt(right.canonical_block.number) - BigInt(left.canonical_block.number);
+  if (block !== 0n) return block > 0n ? 1 : -1;
+  const rightTransaction = right.canonical_block.transaction_index ?? -1;
+  const leftTransaction = left.canonical_block.transaction_index ?? -1;
+  if (rightTransaction !== leftTransaction) return rightTransaction - leftTransaction;
+  const rightLog = right.canonical_block.log_index ?? -1;
+  const leftLog = left.canonical_block.log_index ?? -1;
+  return rightLog - leftLog
+    || right.checkpoint_sequence - left.checkpoint_sequence
+    || right.event_id.localeCompare(left.event_id);
+}
+
+function timelinePage(events: TimelineEvent[], url: URL): JsonObject {
+  const limit = boundedLimit(url.searchParams.get("limit"));
+  const rawCursor = url.searchParams.get("cursor");
+  let offset = 0;
+  if (rawCursor !== null) {
+    const cursor = normalizeDigest(rawCursor);
+    const index = events.findIndex((event) => event.event_id === cursor);
+    if (index < 0) throw new HttpError(400, "timeline cursor is invalid or no longer canonical");
+    offset = index + 1;
+  }
+  const page = events.slice(offset, offset + limit);
+  return {
+    schema: "tohseno.registry-timeline-page/1",
+    events: page,
+    next_cursor: offset + page.length < events.length ? page.at(-1)!.event_id : null,
+  };
+}
+
+function registryHTML(records: JsonObject[], query: string, launched: boolean, events: TimelineEvent[] = [], editions = new Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>()): string { const lead = launched ? "Software enters this network once, changes through Updates, and moves person to person." : "Registry support is online in pre-launch verification mode. No public app or write path is claimed."; return page("The Registry", `<header><p class="eyebrow">PERSON-TO-PERSON NATIVE SOFTWARE</p><h1>Software is alive here.</h1><p class="lead">${lead}</p><div class="registry-modes"><strong>Discover</strong><span>Following lives privately in Tohseno</span><span>Updates live privately in Tohseno</span></div><form class="search" action="/registry" method="get"><label for="registry-search">Search apps, builders, or ShotID</label><div><input id="registry-search" name="q" maxlength="100" value="${escapeHTML(query)}"><button type="submit">Search</button></div></form></header>${timelineCards(records, events, editions, launched)}`); }
+function shotHTML(record: JsonObject, edition?: { opened: boolean; maxClaims: bigint; totalClaims: bigint; closesAt: bigint; closed: boolean }): string { const release = object(record.release, "release"); const display = object(release.display, "display"); const permissions = object(release.permissions, "permissions"); const exact = `${String(release.shot_id).slice(2)}?release=${String(record.release_digest)}`; const editionLabel = !edition?.opened ? "Claim Edition unavailable" : edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed`; const action = edition?.opened ? edition.closed ? `<span class="primary disabled">Closed</span>` : `<a class="primary" href="tohseno://claim/${exact}">Open in Tohseno Companion</a>` : `<a class="primary" href="/download">Get Tohseno</a>`; return page(String(display.name), `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">SIGNED NATIVE APP</p><h1>${escapeHTML(String(display.name))}</h1><p class="lead">${escapeHTML(String(display.description))}</p><p class="edition">${escapeHTML(editionLabel)}</p></header><section class="proof"><a href="/@${escapeHTML(String(release.builder_id))}">Builder ${escapeHTML(String(release.builder_id))}</a><span>${release.checkpoint_sequence === 1 ? "Shipped" : `Update ${escapeHTML(String(release.checkpoint_sequence))}`}</span><span>${permissions.fork_allowed ? "Fork allowed after Claim" : "Install only after Claim"}</span></section><div class="actions">${action}<a href="${escapeHTML(String(record.source_url))}">Download public source</a></div><section class="timeline"><h2>Timeline</h2><p>One birth. Permanent Updates. Canonical Claim history.</p><a href="/api/registry/v1/shots/${release.shot_id}/timeline">View exact timeline evidence</a></section>`); }
+function builderHTML(builder: string, records: JsonObject[], profile?: JsonObject): string { const title = profile ? String(profile.display_name) : builder; const handle = profile?.handle ? `<p class="eyebrow">@${escapeHTML(String(profile.handle))}</p>` : ""; const address = builder.split(":").at(-1)!; return page("Builder", `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">BUILDER</p><h1>${escapeHTML(title)}</h1>${handle}<p class="lead">A public track record assembled from a DeviceKey-signed profile, signed releases, and current chain authority.</p><p class="eyebrow">${escapeHTML(builder)}</p><div class="actions"><a class="primary" href="tohseno://follow/${escapeHTML(address)}">Follow privately in Tohseno</a></div><p>Follow state stays on your Mac and paired Companion. There is no public follower count.</p></header>${cards(records)}`); }
+function cards(records: JsonObject[], launched = true): string { if (!records.length) return launched ? `<section class="empty"><h2>The network is ready.</h2><p>The first independently verified release will appear here.</p></section>` : `<section class="empty"><h2>Pre-launch verification.</h2><p>Publication and public launch remain disabled until the signed Mac release and acceptance gates pass.</p></section>`; return `<main class="grid">${records.map((record) => { const release = object(record.release, "release"); const display = object(release.display, "display"); return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`; }).join("")}</main>`; }
+function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<main class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event"><p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</main>`; }
+function compactBuilder(value: string): string { return `…${value.slice(-10)}`; }
+function page(title: string, body: string): string { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)} — Tohseno</title><meta name="description" content="Native software, person to person."><link rel="stylesheet" href="/landing.css"><style>body{max-width:1180px;margin:auto;padding:32px}header{padding:10vh 0 6vh}h1{font-size:clamp(3rem,8vw,7rem);line-height:.88;max-width:1000px}.lead{font-size:clamp(1.1rem,2vw,1.45rem);max-width:720px;line-height:1.5}.edition{font:700 1rem monospace;color:#ff7a1a;margin-top:30px}.eyebrow{font:700 .72rem monospace;letter-spacing:.15em;color:#ff7a1a}.registry-modes{display:flex;gap:22px;flex-wrap:wrap;margin:32px 0;font:600 .78rem monospace}.registry-modes strong{color:#ff7a1a}.registry-modes span{color:#888}.search{max-width:680px;margin-top:32px}.search label{display:block;margin-bottom:8px;font:600 .8rem monospace}.search div{display:flex;gap:8px}.search input{min-width:0;flex:1;padding:13px;background:#171615;color:inherit;border:1px solid #393632}.search button{padding:13px 18px;border:1px solid #ff7a1a;background:#ff7a1a;color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.timeline-feed{display:grid;gap:1px;background:#393632;border:1px solid #393632}.network-event{display:grid;grid-template-columns:1fr auto;gap:6px 24px;padding:30px;background:#11110f}.network-event h2,.network-event p{margin:0}.network-event h2{font-size:clamp(1.7rem,4vw,3.2rem)}.network-event h2 a{color:inherit;text-decoration:none}.network-event .event-action{font-size:1.15rem}.network-event .builder-link,.network-event time{font:600 .75rem monospace;color:#ff8a32}.network-event time{grid-column:2;grid-row:1;color:#777}.card,.empty,.proof,.timeline{display:block;padding:28px;border:1px solid #393632;background:#171615;color:inherit;text-decoration:none}.card:hover{border-color:#ff7a1a;transform:translateY(-2px)}.card h2{font-size:2rem}.card span,.actions a,.proof a,.timeline a{color:#ff8a32}.back{display:inline-block;margin-top:20px;color:inherit}.proof{display:flex;gap:24px;flex-wrap:wrap;font:600 .8rem monospace}.actions{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}.actions a,.actions span{padding:14px 18px;border:1px solid #ff7a1a;text-decoration:none}.actions .primary{background:#ff7a1a;color:#111}.actions .disabled{background:#393632;border-color:#393632;color:#aaa}.timeline{margin-top:52px}</style></head><body><nav><a href="/">TOHSENO</a> · <a href="/registry">REGISTRY</a></nav>${body}</body></html>`; }
+
+function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined, currentClaimContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); }, claimReceiptContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); } }; }
 
 class RateLimiter {
   private windows = new Map<string, { started: number; count: number }>();
@@ -1418,6 +1648,10 @@ function randomHex(bytes: number): string { const value = new Uint8Array(bytes);
 function hexBytes(value: unknown): Uint8Array { return Uint8Array.from(normalizeDigest(value).slice(2).match(/../g)!.map((byte) => Number.parseInt(byte, 16))); }
 function bytesToHex(value: Uint8Array): string { return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
 function concat(...values: Uint8Array[]): Uint8Array { const result = new Uint8Array(values.reduce((sum, value) => sum + value.length, 0)); let offset = 0; for (const value of values) { result.set(value, offset); offset += value.length; } return result; }
+function chainTimestamp(value: bigint): string {
+  if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("canonical block timestamp is invalid");
+  return new Date(Number(value) * 1000).toISOString().replace(".000Z", "Z");
+}
 function sha256Hex(value: Uint8Array): Hex { return `0x${new Bun.CryptoHasher("sha256").update(value).digest("hex")}`; }
 function timingSafeText(a: string, b: string): boolean { if (a.length !== b.length) return false; let difference = 0; for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index); return difference === 0; }
 function blobPath(root: string, digest: Hex): string { return join(root, digest.slice(2, 4), digest.slice(4)); }

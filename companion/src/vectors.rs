@@ -286,6 +286,7 @@ pub fn deterministic_vectors() -> Result<SharedVectors> {
                 CapabilityAction::ShotEvolve,
                 CapabilityAction::PublicationAuthorize,
                 CapabilityAction::NetworkReceive,
+                CapabilityAction::PreferenceWrite,
             ],
             issued_at: "2026-08-15T12:01:01Z".into(),
             expires_at: Some("2026-08-16T12:01:01Z".into()),

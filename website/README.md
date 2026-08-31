@@ -2,8 +2,9 @@
 
 The Bun site owns the public shipping page, public Registry/catalog and
 content-addressed source transport, the constrained generation-0.8 transaction
-relayer, and the retained encrypted browser-intention relay. The private
-Companion relay remains a separate service.
+relayer, the separately activated Claims index/relayer, and the retained
+encrypted browser-intention relay. The private Companion relay remains a
+separate service.
 
 The landing page leads with “Ship iPhone apps. Person to person.” and the real
 builder path:
@@ -43,11 +44,48 @@ The profile schema reserves optional external attestations, but production
 rejects non-empty attestations until an official provider verifier is
 configured. It never turns a self-asserted X URL into a “verified” identity.
 
+Registry public discovery is a canonical software-event timeline rather than
+an app grid. The closed event set is Ship, Update, Fork, and Claim Edition
+closure. First registration produces exactly one Ship; later catalog releases
+produce Updates. Canonical block/transaction/log evidence determines ordering,
+including a timed edition's first block at or after its deadline. Individual
+Claims are available through bounded Shot/receipt reads but never flood
+Discover.
+
 Registry state requires an explicit absolute durable `REGISTRY_ROOT` and HTTPS
 `ROBINHOOD_RPC_URL`. `REGISTRY_RELAYER_ENABLED` additionally requires one
 dedicated lowercase private key. Per-source/global rate limits, staging record
 and byte capacity, thirty-minute expiry cleanup, bounded request bodies, atomic
 writes, and content-addressed immutable promotion are fail-closed.
+
+## Claims service
+
+`apps/site/src/claims.ts` verifies the closed threshold-signed Claims
+activation under the already pinned release-authority policy, rechecks live
+runtime and immutable active Registry, rebuilds a canonical reorg-aware index
+from the exact deployment block, and exposes edition, receipt, pagination,
+normalized-mark SVG, and token-metadata reads. The database is an index; chain
+events and receipts remain authority.
+
+The write state machine persists exact deterministic BuilderAccount bootstrap,
+edition-open, and Claim jobs before submitting only their allowlisted calls.
+First Ship finalization is ordered Registry → Claim Edition → immutable
+catalog/source promotion. Updates reject edition input. Duplicate JSON members,
+opaque signed digests, stale heads, noncanonical receipts, per-source abuse,
+global overload, and capacity exhaustion fail closed.
+
+Claims has three configuration stages:
+
+1. With no `CLAIMS_*` coordinates, every Claims surface is inactive.
+2. Complete address, activation digest/evidence, authority policy, deployment
+   block, and `CLAIMS_INDEXER_ENABLED=true` permit verified reads only.
+3. `CLAIMS_RELAYER_ENABLED=true` additionally requires that indexer and one
+   dedicated lowercase relayer key. It is allowed only during the governed
+   physical acceptance in the Claims activation runbook.
+
+Partial coordinates abort startup. An environment address is never activation,
+and a relayer never signs for a Builder or claimant. The source intentionally
+ships with no production Claims activation evidence or enabled write path.
 
 ## Browser intention compatibility
 

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum PresentedState: String, Codable, CaseIterable, Sendable {
@@ -429,6 +430,139 @@ public struct PublicRegistryRelease: Codable, Equatable, Identifiable, Sendable 
     }
 }
 
+public struct PublicTimelineEvent: Codable, Equatable, Identifiable, Sendable {
+    public struct Parent: Codable, Equatable, Sendable {
+        public let shotID: String
+        public let releaseDigest: String
+        enum CodingKeys: String, CodingKey {
+            case shotID = "shot_id"
+            case releaseDigest = "release_digest"
+        }
+    }
+
+    public let schema: String
+    public let eventID: String
+    public let kind: String
+    public let shotID: String
+    public let builderID: String
+    public let releaseDigest: String
+    public let checkpointSequence: UInt64
+    public let occurredAt: String
+    public let parent: Parent?
+    public let closureReason: String?
+    public var id: String { eventID }
+
+    enum CodingKeys: String, CodingKey {
+        case schema, kind
+        case eventID = "event_id"
+        case shotID = "shot_id"
+        case builderID = "builder_id"
+        case releaseDigest = "release_digest"
+        case checkpointSequence = "checkpoint_sequence"
+        case occurredAt = "occurred_at"
+        case parent
+        case closureReason = "closure_reason"
+    }
+}
+
+public struct NetworkFollowProjection: Codable, Equatable, Sendable {
+    public let schema: String
+    public let builderIDs: [String]
+    public let updatedAt: String
+    enum CodingKeys: String, CodingKey {
+        case schema
+        case builderIDs = "builder_ids"
+        case updatedAt = "updated_at"
+    }
+}
+
+public enum PrivateUpdateKind: String, Codable, Sendable {
+    case claimed
+    case claimedAppUpdated = "claimed_app_updated"
+    case preparationReady = "preparation_ready"
+    case forkShipped = "fork_shipped"
+    case editionClosed = "edition_closed"
+    case aliasApproved = "alias_approved"
+    case publicationApproval = "publication_approval"
+    case evolutionFinished = "evolution_finished"
+}
+
+public struct PrivateUpdateItem: Codable, Equatable, Identifiable, Sendable {
+    public let schema: String
+    public let updateID: String
+    public let kind: PrivateUpdateKind
+    public let subjectID: String
+    public let evidenceID: String
+    public let title: String
+    public let detail: String
+    public let occurredAt: String
+    public let readAt: String?
+    public var id: String { updateID }
+
+    enum CodingKeys: String, CodingKey {
+        case schema, kind, title, detail
+        case updateID = "update_id"
+        case subjectID = "subject_id"
+        case evidenceID = "evidence_id"
+        case occurredAt = "occurred_at"
+        case readAt = "read_at"
+    }
+
+    public init(
+        schema: String = "tohseno.private-update/1",
+        kind: PrivateUpdateKind,
+        subjectID: String,
+        evidenceID: String,
+        title: String,
+        detail: String,
+        occurredAt: String,
+        readAt: String? = nil
+    ) {
+        self.schema = schema
+        self.updateID = Self.stableID(kind: kind, subjectID: subjectID, evidenceID: evidenceID)
+        self.kind = kind
+        self.subjectID = subjectID
+        self.evidenceID = evidenceID
+        self.title = title
+        self.detail = detail
+        self.occurredAt = occurredAt
+        self.readAt = readAt
+    }
+
+    public static func stableID(
+        kind: PrivateUpdateKind,
+        subjectID: String,
+        evidenceID: String
+    ) -> String {
+        var material = Data("TOHSENO-PRIVATE-UPDATE-V1\0".utf8)
+        material.append(contentsOf: kind.rawValue.utf8)
+        material.append(0)
+        material.append(contentsOf: subjectID.utf8)
+        material.append(0)
+        material.append(contentsOf: evidenceID.utf8)
+        let digest = Data(SHA256.hash(data: material)).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "update_\(digest)"
+    }
+}
+
+public struct PrivateUpdateProjection: Codable, Equatable, Sendable {
+    public let schema: String
+    public let items: [PrivateUpdateItem]
+    public let updatedAt: String
+    enum CodingKeys: String, CodingKey {
+        case schema, items
+        case updatedAt = "updated_at"
+    }
+}
+
+struct PublicTimelinePage: Codable, Sendable {
+    let schema: String
+    let events: [PublicTimelineEvent]
+}
+
 public struct NetworkReviewRequest: Equatable, Sendable {
     public let shotID: String
     public let releaseDigest: String
@@ -446,12 +580,18 @@ public struct RegistrySnapshot: Equatable, Sendable {
     public let network: RegistryNetworkStatus
     public let records: [LocalRegistryRecord]
     public let published: [PublicRegistryRelease]
+    public let timeline: [PublicTimelineEvent]
+    public let followedBuilderIDs: Set<String>
+    public var privateUpdates: [PrivateUpdateItem]
 
     public init(
         builder: BuilderIdentityView,
         network: RegistryNetworkStatus,
         records: [LocalRegistryRecord],
-        published: [PublicRegistryRelease] = []
+        published: [PublicRegistryRelease] = [],
+        timeline: [PublicTimelineEvent] = [],
+        followedBuilderIDs: Set<String> = [],
+        privateUpdates: [PrivateUpdateItem] = []
     ) {
         self.builder = builder
         self.network = network
@@ -459,6 +599,9 @@ public struct RegistrySnapshot: Equatable, Sendable {
             ($0.appName, $0.shotID) < ($1.appName, $1.shotID)
         }
         self.published = published
+        self.timeline = timeline
+        self.followedBuilderIDs = followedBuilderIDs
+        self.privateUpdates = privateUpdates
     }
 
     public var acceptedVersionCount: UInt64 {

@@ -3,8 +3,9 @@
 use crate::canonical;
 use crate::capability::CapabilityAction;
 use crate::crypto::{base64url, decode_array, sha256};
+use crate::event::PrivateUpdateItem;
 use crate::identity::CompanionIdentity;
-use crate::publication::{BuilderDeviceAnnouncement, BuilderDeviceSignature};
+use crate::publication::{ApprovedClaimEdition, BuilderDeviceAnnouncement, BuilderDeviceSignature};
 use crate::reference::MAX_REFERENCE_BLOB_BYTES;
 use crate::{
     parse_timestamp, require, validate_identifier, validate_text, Result, MAX_CLOCK_SKEW_SECONDS,
@@ -122,6 +123,8 @@ pub enum CommandPayload {
         job_id: String,
         catalog: BuilderDeviceSignature,
         registry: Box<BuilderDeviceSignature>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        claim_edition: Option<Box<ApprovedClaimEdition>>,
         approved_at: String,
     },
     /// Request one exact immutable public release. The paired Mac resolves all
@@ -132,6 +135,14 @@ pub enum CommandPayload {
         shot_id: String,
         release_digest: String,
     },
+    /// Mutate only the owner's private Builder-follow projection. This never
+    /// creates a public edge or follower count.
+    #[serde(rename = "builder.follow.set")]
+    BuilderFollowSet { builder_id: String, followed: bool },
+    #[serde(rename = "private.update.upsert")]
+    PrivateUpdateUpsert { update: Box<PrivateUpdateItem> },
+    #[serde(rename = "private.update.read.set")]
+    PrivateUpdateReadSet { update_id: String, read: bool },
 }
 
 impl CommandPayload {
@@ -147,6 +158,10 @@ impl CommandPayload {
                 CapabilityAction::PublicationAuthorize
             }
             Self::NetworkReleaseRequest { .. } => CapabilityAction::NetworkReceive,
+            Self::BuilderFollowSet { .. } => CapabilityAction::PreferenceWrite,
+            Self::PrivateUpdateUpsert { .. } | Self::PrivateUpdateReadSet { .. } => {
+                CapabilityAction::PreferenceWrite
+            }
         }
     }
 
@@ -235,6 +250,7 @@ impl CommandPayload {
                 job_id,
                 catalog,
                 registry,
+                claim_edition,
                 approved_at,
             } => {
                 validate_identifier("publication job ID", job_id)?;
@@ -244,6 +260,13 @@ impl CommandPayload {
                     catalog.signer == registry.signer,
                     "publication signatures must use one Builder DeviceKey",
                 )?;
+                if let Some(claim) = claim_edition {
+                    claim.validate()?;
+                    require(
+                        claim.signature.signer == catalog.signer,
+                        "Claim Edition and publication signatures must use one Builder DeviceKey",
+                    )?;
+                }
                 parse_timestamp(approved_at).map(|_| ())
             }
             Self::NetworkReleaseRequest {
@@ -254,8 +277,25 @@ impl CommandPayload {
                 validate_protocol_hex32("network ShotID", shot_id)?;
                 validate_protocol_hex32("network release digest", release_digest)
             }
+            Self::BuilderFollowSet { builder_id, .. } => require(
+                valid_builder_id(builder_id),
+                "Builder follow requires one exact BuilderID",
+            ),
+            Self::PrivateUpdateUpsert { update } => update.validate(),
+            Self::PrivateUpdateReadSet { update_id, .. } => {
+                validate_identifier("private Update ID", update_id)
+            }
         }
     }
+}
+
+fn valid_builder_id(value: &str) -> bool {
+    value.len() == 54
+        && value.starts_with("eip155:4663:0x")
+        && value[14..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        && value[14..].bytes().any(|byte| byte != b'0')
 }
 
 fn validate_protocol_hex32(label: &str, value: &str) -> Result<()> {

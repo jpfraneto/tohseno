@@ -4,6 +4,8 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
+    "exact_source_commit": "ee16e1e2cef95a2598632bc9444d5011998aebae",
+    "captured_at": "2026-08-31T04:12:43Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md"
     ],
@@ -24,7 +26,7 @@
     "verified_at": "2026-08-30T21:34:39Z"
   },
   "required_local_evidence": {
-    "clean_source_commit_captured": false,
+    "clean_source_commit_captured": true,
     "rust_fmt_green": true,
     "rust_clippy_green": true,
     "rust_workspace_tests_green": true,

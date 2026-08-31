@@ -1,4 +1,4 @@
-name: TOHSENO 1.1.0 CI
+name: TOHSENO 1.2.0 CI
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tohseno-1.1.0-ci-${{ github.workflow }}-${{ github.ref }}
+  group: tohseno-1.2.0-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -49,7 +49,9 @@ jobs:
       - name: Contract-production readiness evidence integrity
         run: scripts/tests/test-contract-production-readiness.sh
       - name: Activation ceremony tooling drill
-        run: scripts/tests/test-activation-ceremony-tools.sh
+        run: |
+          scripts/tests/test-activation-ceremony-tools.sh
+          scripts/tests/test-claims-activation-ceremony-tools.sh
       - name: Verify the committed cross-language protocol vector
         run: |
           cargo run \
@@ -113,6 +115,26 @@ jobs:
           cmp \
             "$RUNNER_TEMP/contract-generation-v1.json" \
             protocol/test-vectors/contract-generation-v1.json
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-network \
+            --example generate_claim_action_vectors \
+            >"$RUNNER_TEMP/claim-actions-v1.json"
+          jq -e \
+            --slurpfile expected fixtures/claim-actions-v1.json \
+            '. == $expected[0]' \
+            "$RUNNER_TEMP/claim-actions-v1.json"
+          cargo run \
+            --quiet \
+            --locked \
+            -p tohseno-network \
+            --example generate_claim_mark_vectors \
+            >"$RUNNER_TEMP/claim-mark-v1.json"
+          jq -e \
+            --slurpfile expected fixtures/claim-mark-v1.json \
+            '. == $expected[0]' \
+            "$RUNNER_TEMP/claim-mark-v1.json"
       - name: Check schema inventory and Draft 2020-12 declarations
         run: |
           test "$(find protocol/schemas -type f -name '*.json' | wc -l | tr -d ' ')" = 40
@@ -125,7 +147,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-             and .product_version == "1.1.0"
+             and .product_version == "1.2.0"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"
@@ -134,7 +156,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 1.1.0'
+            grep -Fqx 'tohseno 1.2.0'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
@@ -164,6 +186,10 @@ jobs:
         run: |
           swift build --package-path companion/apple/TohsenoCompanion -Xswiftc -warnings-as-errors
           swift test --package-path companion/apple/TohsenoCompanion
+      - name: Build and test the native Mac product surface
+        run: |
+          swift build --package-path macos/Tohseno -Xswiftc -warnings-as-errors
+          swift test --package-path macos/Tohseno
       - name: Build the TOHSENO Companion for Simulator
         run: |
           xcodebuild \
@@ -412,6 +438,21 @@ jobs:
              and .source.recording_layer_implicit_migration == false
              and .blocking_reason != null' \
             release/V1_1_0_READINESS.json
+          jq -e \
+            '.schema == "tohseno.release-readiness/1"
+             and .version == "1.2.0"
+             and .channel == "release-candidate"
+             and .ready == false
+             and .authorization.authorized == false
+             and .source.previous_release_candidate == "1.1.0"
+             and .source.target_public_installer_pin == "1.2.0"
+             and .source.current_public_installer_pin == "1.1.0"
+             and .source.historical_protocol_rewritten == false
+             and .source.recording_layer_implicit_migration == false
+             and .claims.activation.active == false
+             and .claims.production_writes_enabled == false
+             and .blocking_reason != null' \
+            release/V1_2_0_READINESS.json
           if grep -R -E \
             '<script[^>]+src=|<link[^>]+href="https?://' \
             site/protocol/index.html; then
@@ -453,6 +494,7 @@ jobs:
           scripts/test-ontology-lifecycle.sh
           scripts/test-local-companion-e2e.sh
           scripts/test-macos-service-lifecycle.sh
+          scripts/test-network-e2e.sh
       - name: Audit release workflow trust boundaries
         run: |
           ruby <<'RUBY'
@@ -501,7 +543,7 @@ jobs:
 
           script = release_step.fetch("run")
           required_fragments = [
-            '"$RELEASE_TAG" != "v1.1.0"',
+            '"$RELEASE_TAG" != "v1.2.0"',
             'case "$GITHUB_EVENT_NAME" in',
             'max_attempts=15',
             'release for tag %s did not become visible',
@@ -517,7 +559,7 @@ jobs:
             "git rev-parse 'HEAD^{commit}'",
             "verify_live_tag",
             "--draft",
-            "TOHSENO v1.1.0 source commit:",
+            "TOHSENO v1.2.0 source commit:",
             "load_matching_release",
             "release_is_draft",
             "gh release upload",

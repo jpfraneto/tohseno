@@ -16,6 +16,7 @@ The generated-app factory and durable iPhone-to-Mac evolution path remain part
 of the same product.
 
 This direction is governed by
+[`ADR 0035`](docs/adr/0035-claiming-software.md) and
 [`ADR 0034`](docs/adr/0034-person-to-person-native-software.md), building on
 [`ADR 0033`](docs/adr/0033-living-project-connection.md),
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
@@ -33,6 +34,19 @@ and evolution has passed; that proof predates the ADR 0032 replacement, so
 The implementation and release state are described in
 [`docs/STATE.md`](docs/STATE.md) and
 [`docs/LIVING_CONNECTION.md`](docs/LIVING_CONNECTION.md).
+
+The current 1.2 source adds Claim: a Companion-authorized, public,
+non-transferable receipt for encountering one exact Shot release. Every Shot
+ships once, later releases are Updates, and first Ship opens one immutable
+Claim Edition. Registry is a canonical Discover timeline with private local
+Following and a durable high-signal Updates inbox. Claim then durably asks the
+recipient Mac to prepare that exact release; installation remains separate,
+private, recipient-signed physical evidence.
+
+Claims is intentionally inactive in current builds. No Claims address or
+environment toggle is trusted without the separate threshold-signed activation
+and live Registry/runtime checks. The preserved 1.1 candidate and currently
+published installer are not silently relabeled as 1.2.
 
 ## What we care about
 
@@ -66,15 +80,17 @@ tohseno deploy
 ```
 
 `init` adopts without restructuring or changing Git. `deploy` snapshots safe
-source and waits for exact Companion approval before publishing. A recipient
-opens the resulting link and chooses Install or Fork; their Mac independently
-verifies the release before any build.
+source and waits for exact Companion approval before the first Ship or a later
+Update. First Ship also fixes the Shot's one Claim Edition. Once Claims is
+separately activated, a recipient Claims the exact encounter on Companion;
+canonical confirmation durably queues preparation on their Mac, which still
+independently verifies the release before any build.
 
 The app restores admitted work across window closure, service restart, and
 ordinary phone/Mac relaunch. Plain Return sends from Mac intention composers;
 Shift–Return adds a line. **Create App** remains a secondary path when there is
 no existing project.
-Registry shows real signed catalog releases. Install and Fork deep links carry
+Registry shows real signed software events. Claim, Install, and Fork deep links carry
 only immutable ShotID and release digest; the Mac resolves and verifies every
 security-sensitive fact independently. Profile changes and global-alias
 requests are signed on Companion. Aliases remain permissioned convenience

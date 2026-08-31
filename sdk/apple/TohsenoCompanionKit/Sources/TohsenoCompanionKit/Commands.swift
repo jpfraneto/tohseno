@@ -98,6 +98,7 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         jobID: String,
         catalog: BuilderDeviceSignature,
         registry: BuilderDeviceSignature,
+        claimEdition: ApprovedClaimEdition?,
         approvedAt: String
     )
     case networkReleaseRequest(
@@ -105,6 +106,9 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         shotID: String,
         releaseDigest: String
     )
+    case builderFollowSet(builderID: String, followed: Bool)
+    case privateUpdateUpsert(update: PrivateUpdateItem)
+    case privateUpdateReadSet(updateID: String, read: Bool)
 
     public var requiredCapability: CompanionCapability {
         switch self {
@@ -116,6 +120,7 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case .shotCreateRequest: .shotCreate
         case .builderIdentityAnnounce, .publicationApprove: .publicationAuthorize
         case .networkReleaseRequest: .networkReceive
+        case .builderFollowSet, .privateUpdateUpsert, .privateUpdateReadSet: .preferenceWrite
         }
     }
 
@@ -140,9 +145,15 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case builderDevice = "builder_device"
         case jobID = "job_id"
         case catalog, registry
+        case claimEdition = "claim_edition"
         case approvedAt = "approved_at"
         case action
         case releaseDigest = "release_digest"
+        case builderID = "builder_id"
+        case followed
+        case update
+        case updateID = "update_id"
+        case read
     }
 
     private enum Kind: String, Codable {
@@ -155,6 +166,9 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case builderIdentity = "builder.identity.announce"
         case publicationApprove = "publication.approve"
         case networkRelease = "network.release.request"
+        case builderFollow = "builder.follow.set"
+        case privateUpdateUpsert = "private.update.upsert"
+        case privateUpdateReadSet = "private.update.read.set"
     }
 
     public init(from decoder: Decoder) throws {
@@ -226,13 +240,16 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 builderDevice: container.decode(BuilderDeviceAnnouncement.self, forKey: .builderDevice)
             )
         case .publicationApprove:
-            try requireExactKeys(decoder, [
+            var expected: Set<String> = [
                 "command_kind", "job_id", "catalog", "registry", "approved_at",
-            ])
+            ]
+            if container.contains(.claimEdition) { expected.insert("claim_edition") }
+            try requireExactKeys(decoder, expected)
             self = try .publicationApprove(
                 jobID: container.decode(String.self, forKey: .jobID),
                 catalog: container.decode(BuilderDeviceSignature.self, forKey: .catalog),
                 registry: container.decode(BuilderDeviceSignature.self, forKey: .registry),
+                claimEdition: container.decodeIfPresent(ApprovedClaimEdition.self, forKey: .claimEdition),
                 approvedAt: container.decode(String.self, forKey: .approvedAt)
             )
         case .networkRelease:
@@ -243,6 +260,23 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 action: container.decode(NetworkReleaseAction.self, forKey: .action),
                 shotID: container.decode(String.self, forKey: .shotID),
                 releaseDigest: container.decode(String.self, forKey: .releaseDigest)
+            )
+        case .builderFollow:
+            try requireExactKeys(decoder, ["command_kind", "builder_id", "followed"])
+            self = try .builderFollowSet(
+                builderID: container.decode(String.self, forKey: .builderID),
+                followed: container.decode(Bool.self, forKey: .followed)
+            )
+        case .privateUpdateUpsert:
+            try requireExactKeys(decoder, ["command_kind", "update"])
+            self = try .privateUpdateUpsert(
+                update: container.decode(PrivateUpdateItem.self, forKey: .update)
+            )
+        case .privateUpdateReadSet:
+            try requireExactKeys(decoder, ["command_kind", "update_id", "read"])
+            self = try .privateUpdateReadSet(
+                updateID: container.decode(String.self, forKey: .updateID),
+                read: container.decode(Bool.self, forKey: .read)
             )
         }
     }
@@ -290,17 +324,29 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
         case let .builderIdentityAnnounce(builderDevice):
             try container.encode(Kind.builderIdentity, forKey: .commandKind)
             try container.encode(builderDevice, forKey: .builderDevice)
-        case let .publicationApprove(jobID, catalog, registry, approvedAt):
+        case let .publicationApprove(jobID, catalog, registry, claimEdition, approvedAt):
             try container.encode(Kind.publicationApprove, forKey: .commandKind)
             try container.encode(jobID, forKey: .jobID)
             try container.encode(catalog, forKey: .catalog)
             try container.encode(registry, forKey: .registry)
+            try container.encodeIfPresent(claimEdition, forKey: .claimEdition)
             try container.encode(approvedAt, forKey: .approvedAt)
         case let .networkReleaseRequest(action, shotID, releaseDigest):
             try container.encode(Kind.networkRelease, forKey: .commandKind)
             try container.encode(action, forKey: .action)
             try container.encode(shotID, forKey: .shotID)
             try container.encode(releaseDigest, forKey: .releaseDigest)
+        case let .builderFollowSet(builderID, followed):
+            try container.encode(Kind.builderFollow, forKey: .commandKind)
+            try container.encode(builderID, forKey: .builderID)
+            try container.encode(followed, forKey: .followed)
+        case let .privateUpdateUpsert(update):
+            try container.encode(Kind.privateUpdateUpsert, forKey: .commandKind)
+            try container.encode(update, forKey: .update)
+        case let .privateUpdateReadSet(updateID, read):
+            try container.encode(Kind.privateUpdateReadSet, forKey: .commandKind)
+            try container.encode(updateID, forKey: .updateID)
+            try container.encode(read, forKey: .read)
         }
     }
 
@@ -344,18 +390,34 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
             try Self.validateReferences(references)
         case let .builderIdentityAnnounce(builderDevice):
             try builderDevice.validate(allowSoftwareTest: true)
-        case let .publicationApprove(jobID, catalog, registry, approvedAt):
+        case let .publicationApprove(jobID, catalog, registry, claimEdition, approvedAt):
             try requireIdentifier(jobID, field: "job_id")
             guard catalog.signer == registry.signer,
                   catalog.algorithm == "p256", registry.algorithm == "p256",
                   catalog.lowS, registry.lowS
             else { throw TohsenoCompanionError.invalidEncoding("invalid publication signatures") }
+            if let claimEdition {
+                guard claimEdition.signature.signer == catalog.signer,
+                      claimEdition.signature.algorithm == "p256", claimEdition.signature.lowS
+                else { throw TohsenoCompanionError.invalidEncoding("invalid Claim Edition signature") }
+            }
             _ = try CompanionTimestamp.parse(approvedAt)
         case let .networkReleaseRequest(_, shotID, releaseDigest):
             guard let shot = BuilderDeviceAnnouncement.hex32(shotID),
                   let release = BuilderDeviceAnnouncement.hex32(releaseDigest),
                   shot.contains(where: { $0 != 0 }), release.contains(where: { $0 != 0 })
             else { throw TohsenoCompanionError.invalidEncoding("invalid network release identity") }
+        case let .builderFollowSet(builderID, _):
+            guard builderID.range(
+                of: #"^eip155:4663:0x[0-9a-f]{40}$"#,
+                options: .regularExpression
+            ) != nil,
+            builderID != "eip155:4663:0x0000000000000000000000000000000000000000"
+            else { throw TohsenoCompanionError.invalidEncoding("invalid Builder follow identity") }
+        case let .privateUpdateUpsert(update):
+            try update.validate()
+        case let .privateUpdateReadSet(updateID, _):
+            try requireIdentifier(updateID, field: "private_update.update_id")
         }
     }
 
@@ -414,20 +476,39 @@ public enum CompanionCommandPayload: Codable, Equatable, Sendable {
                 "builder_device": builderDevice.canonicalValue(),
                 "command_kind": .string("builder.identity.announce"),
             ])
-        case let .publicationApprove(jobID, catalog, registry, approvedAt):
-            return .object([
+        case let .publicationApprove(jobID, catalog, registry, claimEdition, approvedAt):
+            var value: [String: CanonicalValue] = [
                 "approved_at": .string(approvedAt),
                 "catalog": catalog.canonicalValue(),
                 "command_kind": .string("publication.approve"),
                 "job_id": .string(jobID),
                 "registry": registry.canonicalValue(),
-            ])
+            ]
+            if let claimEdition { value["claim_edition"] = claimEdition.canonicalValue() }
+            return .object(value)
         case let .networkReleaseRequest(action, shotID, releaseDigest):
             return .object([
                 "action": .string(action.rawValue),
                 "command_kind": .string("network.release.request"),
                 "release_digest": .string(releaseDigest),
                 "shot_id": .string(shotID),
+            ])
+        case let .builderFollowSet(builderID, followed):
+            return .object([
+                "builder_id": .string(builderID),
+                "command_kind": .string("builder.follow.set"),
+                "followed": .bool(followed),
+            ])
+        case let .privateUpdateUpsert(update):
+            return .object([
+                "command_kind": .string("private.update.upsert"),
+                "update": update.canonicalValue(),
+            ])
+        case let .privateUpdateReadSet(updateID, read):
+            return .object([
+                "command_kind": .string("private.update.read.set"),
+                "read": .bool(read),
+                "update_id": .string(updateID),
             ])
         }
     }

@@ -15,6 +15,9 @@ actor StubBackend: CompanionBackend {
     private(set) var creations: [CreateShotRequest] = []
     private(set) var builderAnnouncements: [BuilderDeviceAnnouncement] = []
     private(set) var networkRequests: [(NetworkReleaseAction, String, String)] = []
+    private(set) var followRequests: [(String, Bool)] = []
+    private(set) var privateUpdateRequests: [PrivateUpdateItem] = []
+    private(set) var privateUpdateReadRequests: [(String, Bool)] = []
     private(set) var reconciles = 0
     private(set) var synchronizations = 0
     private(set) var pairedInvitations: [String] = []
@@ -110,6 +113,7 @@ actor StubBackend: CompanionBackend {
         jobID: String,
         catalog: BuilderDeviceSignature,
         registry: BuilderDeviceSignature,
+        claimEdition: ApprovedClaimEdition?,
         approvedAt: String,
         commandID: String
     ) async throws -> CommandReceipt {
@@ -125,6 +129,35 @@ actor StubBackend: CompanionBackend {
         networkRequests.append((action, shotID, releaseDigest))
         if !reachable { unacknowledged += 1 }
         return CommandReceipt(commandID: commandID, state: .received, resultID: releaseDigest)
+    }
+
+    func setBuilderFollow(
+        builderID: String,
+        followed: Bool,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        followRequests.append((builderID, followed))
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: commandID, state: .received)
+    }
+
+    func upsertPrivateUpdate(
+        _ update: PrivateUpdateItem,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        privateUpdateRequests.append(update)
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: commandID, state: .received, resultID: update.updateID)
+    }
+
+    func setPrivateUpdateRead(
+        updateID: String,
+        read: Bool,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        privateUpdateReadRequests.append((updateID, read))
+        if !reachable { unacknowledged += 1 }
+        return CommandReceipt(commandID: commandID, state: .received, resultID: updateID)
     }
 
     func unacknowledgedCommandCount() async throws -> Int { unacknowledged }
@@ -147,6 +180,205 @@ actor StubBackend: CompanionBackend {
     func startSynchronization() async throws { synchronizations += 1 }
 }
 
+actor StubSoftwareClaimIdentity: SoftwareClaimIdentity {
+    let claimant = "0x4444444444444444444444444444444444444444"
+
+    func claimPublicIdentity() async throws -> BuilderDevicePublicIdentity {
+        try JSONDecoder().decode(BuilderDevicePublicIdentity.self, from: JSONSerialization.data(
+            withJSONObject: [
+                "schema": "tohseno.builder-device-public-identity/1",
+                "key_id": "0x" + String(repeating: "11", count: 32),
+                "x": "0x" + String(repeating: "22", count: 32),
+                "y": "0x" + String(repeating: "33", count: 32),
+                "security_level": "secure_enclave",
+                "test_only": false,
+            ]
+        ))
+    }
+
+    func claimBuilderID() async throws -> String {
+        "eip155:4663:\(claimant)"
+    }
+
+    func signClaimDigest(_ digestHex: String) async throws -> BuilderDeviceAuthorization {
+        let identity = try await claimPublicIdentity()
+        let encodedIdentity = try JSONSerialization.jsonObject(with: JSONEncoder().encode(identity))
+        return try JSONDecoder().decode(BuilderDeviceAuthorization.self, from: JSONSerialization.data(
+            withJSONObject: [
+                "schema": "tohseno.builder-device-authorization/1",
+                "signer": encodedIdentity,
+                "algorithm": "p256",
+                "digest": digestHex,
+                "r": "0x" + String(repeating: "01", count: 32),
+                "s": "0x" + String(repeating: "02", count: 32),
+                "low_s": true,
+            ]
+        ))
+    }
+}
+
+actor StubClaimsHTTP {
+    static let contract = "0x6666666666666666666666666666666666666666"
+    static let activation = "0x" + String(repeating: "aa", count: 32)
+    static let registry = ClaimsClientActivation.shotRegistry
+    static let shotID = "0x" + String(repeating: "11", count: 32)
+    static let releaseDigest = "0x" + String(repeating: "55", count: 32)
+    static let checkpoint = "0x" + String(repeating: "77", count: 32)
+    static let transaction = "0x" + String(repeating: "99", count: 32)
+    static let builderID = "eip155:4663:0x2222222222222222222222222222222222222222"
+    static let jobID = String(repeating: "ab", count: 16)
+    static let jobToken = String(repeating: "cd", count: 32)
+
+    private let receiptReleaseDigest: String
+    private var claimant: String?
+    private var gesture: String?
+    private(set) var prepareCount = 0
+    private(set) var submitCount = 0
+    private(set) var statusCount = 0
+
+    init(tamperedReceipt: Bool = false) {
+        receiptReleaseDigest = tamperedReceipt
+            ? "0x" + String(repeating: "ee", count: 32)
+            : Self.releaseDigest
+    }
+
+    func response(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard let url = request.url else { throw URLError(.badURL) }
+        if url.path.hasSuffix("/claims/prepare"), request.httpMethod == "POST" {
+            prepareCount += 1
+            let body = try #require(request.httpBody)
+            let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            claimant = try #require(object["claimant"] as? String)
+            let canonical = try #require(object["claim_mark"] as? String)
+            let bytes = try #require(Data(prefixedHex: canonical))
+            gesture = try ClaimMark(canonicalBytes: bytes).gestureCommitment.prefixedHex
+            return try json([
+                "schema": "tohseno.software-claim-preparation/1",
+                "job_id": Self.jobID,
+                "job_token": Self.jobToken,
+                "chain_id": 4663,
+                "claims_contract": Self.contract,
+                "claims_activation_signing_digest": Self.activation,
+                "shot_registry": Self.registry,
+                "shot_id": Self.shotID,
+                "builder_id": Self.builderID,
+                "release_digest": Self.releaseDigest,
+                "checkpoint_digest": Self.checkpoint,
+                "checkpoint_sequence": 1,
+                "claimant": claimant!,
+                "edition": ["max_claims": 0, "closes_at": 0, "total_claims": 0],
+                "gesture_commitment": gesture!,
+                "nonce": 0,
+                "deadline": Int(Date().timeIntervalSince1970) + 600,
+            ], status: 201, url: url)
+        }
+        guard request.value(forHTTPHeaderField: "Authorization") == "Bearer \(Self.jobToken)",
+              let claimant, let gesture
+        else { throw URLError(.userAuthenticationRequired) }
+        if url.path.hasSuffix("/submit"), request.httpMethod == "POST" {
+            submitCount += 1
+            let body = try #require(request.httpBody)
+            let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let action = try #require(object["action"] as? [String: Any])
+            guard action["shot_id"] as? String == Self.shotID,
+                  action["release_digest"] as? String == Self.releaseDigest,
+                  action["checkpoint_digest"] as? String == Self.checkpoint,
+                  action["claimant"] as? String == claimant,
+                  action["gesture_commitment"] as? String == gesture
+            else { throw URLError(.cannotParseResponse) }
+            return try json(status("authorized", claimant: claimant, gesture: gesture), status: 202, url: url)
+        }
+        if url.path.hasSuffix("/\(Self.jobID)"), request.httpMethod == "GET" {
+            statusCount += 1
+            var complete = status("complete", claimant: claimant, gesture: gesture)
+            complete["claim"] = [
+                "token_id": "1",
+                "shot_id": Self.shotID,
+                "claim_number": "1",
+                "claimant": claimant,
+                "release_digest": receiptReleaseDigest,
+                "checkpoint_digest": Self.checkpoint,
+                "gesture_commitment": gesture,
+                "transaction_hash": Self.transaction,
+            ]
+            return try json(complete, status: 200, url: url)
+        }
+        throw URLError(.unsupportedURL)
+    }
+
+    private func status(
+        _ value: String,
+        claimant: String,
+        gesture: String
+    ) -> [String: Any] {
+        [
+            "schema": "tohseno.software-claim-status/1",
+            "job_id": Self.jobID,
+            "status": value,
+            "shot_id": Self.shotID,
+            "release_digest": Self.releaseDigest,
+            "gesture_commitment": gesture,
+            "claim": NSNull(),
+            "failure": NSNull(),
+        ]
+    }
+
+    private func json(
+        _ object: [String: Any],
+        status: Int,
+        url: URL
+    ) throws -> (Data, URLResponse) {
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let response = try #require(HTTPURLResponse(
+            url: url,
+            statusCode: status,
+            httpVersion: "HTTP/1.1",
+            headerFields: ["Content-Type": "application/json"]
+        ))
+        return (data, response)
+    }
+}
+
+private func claimablePublicApp() throws -> PublicAppRelease {
+    let data = try JSONSerialization.data(withJSONObject: [
+        "release_digest": StubClaimsHTTP.releaseDigest,
+        "route": "/s/\(StubClaimsHTTP.shotID)",
+        "source_url": "https://tohseno.com/api/registry/v1/blobs/" + String(repeating: "88", count: 32),
+        "icon_url": NSNull(),
+        "release": [
+            "shot_id": StubClaimsHTTP.shotID,
+            "builder_id": StubClaimsHTTP.builderID,
+            "checkpoint_sequence": 1,
+            "public_checkpoint_digest": StubClaimsHTTP.checkpoint,
+            "display": [
+                "name": "Orbit",
+                "description": "One exact app",
+                "builder_handle": NSNull(),
+                "app_slug": NSNull(),
+            ],
+            "permissions": ["install_allowed": true, "fork_allowed": true],
+        ],
+    ], options: [.sortedKeys])
+    return try JSONDecoder().decode(PublicAppRelease.self, from: data)
+}
+
+private extension Data {
+    init?(prefixedHex: String) {
+        guard prefixedHex.hasPrefix("0x"), prefixedHex.count % 2 == 0 else { return nil }
+        var bytes = Data()
+        var index = prefixedHex.index(prefixedHex.startIndex, offsetBy: 2)
+        while index < prefixedHex.endIndex {
+            let next = prefixedHex.index(index, offsetBy: 2)
+            guard let byte = UInt8(prefixedHex[index ..< next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        self = bytes
+    }
+
+    var prefixedHex: String { "0x" + map { String(format: "%02x", $0) }.joined() }
+}
+
 @MainActor
 func model(_ backend: StubBackend) async -> CompanionModel {
     let model = CompanionModel(backend: backend, deviceName: "Test iPhone")
@@ -156,6 +388,144 @@ func model(_ backend: StubBackend) async -> CompanionModel {
 
 @Suite("Choose an app → request its next evolution")
 struct CompanionFlowTests {
+    @MainActor
+    @Test("A canonical Claim while the Mac is offline durably queues that exact release")
+    func claimWhileMacOffline() async throws {
+        let backend = StubBackend()
+        await backend.set(reachable: false)
+        let http = StubClaimsHTTP()
+        let network = PublicNetworkClient(
+            origin: URL(string: "https://tohseno.example")!,
+            claims: ClaimsClientCoordinates(
+                shotRegistry: StubClaimsHTTP.registry,
+                claimsContract: StubClaimsHTTP.contract,
+                activationSigningDigest: StubClaimsHTTP.activation
+            ),
+            transport: { try await http.response(for: $0) }
+        )
+        let suite = "tohseno.claim-flow.\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suite))
+        storage.removePersistentDomain(forName: suite)
+        defer { storage.removePersistentDomain(forName: suite) }
+        let subject = CompanionModel(
+            backend: backend,
+            deviceName: "Test iPhone",
+            network: network,
+            claimIdentity: StubSoftwareClaimIdentity(),
+            storage: storage
+        )
+        let app = try claimablePublicApp()
+
+        await subject.claim(app, mark: ClaimMark.accessibilityHold())
+
+        #expect(subject.claimStates[StubClaimsHTTP.shotID] == "Claimed #1")
+        #expect(subject.claimedSoftware.map(\.claim.tokenID) == ["1"])
+        #expect(subject.networkNotice == "Claimed #1. Waiting for your Mac.")
+        let requests = await backend.networkRequests
+        #expect(requests.count == 1)
+        #expect(requests[0].0 == .install)
+        #expect(requests[0].1 == StubClaimsHTTP.shotID)
+        #expect(requests[0].2 == StubClaimsHTTP.releaseDigest)
+        #expect(await backend.unacknowledged == 2, "the private Claim update and exact install intention are both durable")
+        #expect(await backend.privateUpdateRequests.map(\.kind) == [.claimed])
+        #expect(await http.prepareCount == 1)
+        #expect(await http.submitCount == 1)
+        #expect(await http.statusCount == 1)
+        let persisted = try #require(storage.data(forKey: "tohseno.claimed-software.v1"))
+        #expect(try JSONDecoder().decode([ClaimedSoftwareEncounter].self, from: persisted).count == 1)
+    }
+
+    @MainActor
+    @Test("A server cannot substitute the release in a completed Claim receipt")
+    func substitutedClaimReceipt() async throws {
+        let backend = StubBackend()
+        let http = StubClaimsHTTP(tamperedReceipt: true)
+        let network = PublicNetworkClient(
+            origin: URL(string: "https://tohseno.example")!,
+            claims: ClaimsClientCoordinates(
+                shotRegistry: StubClaimsHTTP.registry,
+                claimsContract: StubClaimsHTTP.contract,
+                activationSigningDigest: StubClaimsHTTP.activation
+            ),
+            transport: { try await http.response(for: $0) }
+        )
+        let suite = "tohseno.claim-substitution.\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suite))
+        storage.removePersistentDomain(forName: suite)
+        defer { storage.removePersistentDomain(forName: suite) }
+        let subject = CompanionModel(
+            backend: backend,
+            deviceName: "Test iPhone",
+            network: network,
+            claimIdentity: StubSoftwareClaimIdentity(),
+            storage: storage
+        )
+
+        await subject.claim(try claimablePublicApp(), mark: ClaimMark.accessibilityHold())
+
+        #expect(subject.claimedSoftware.isEmpty)
+        #expect(subject.claimStates[StubClaimsHTTP.shotID] == "Claiming…")
+        #expect(await backend.networkRequests.isEmpty)
+        #expect(storage.data(forKey: "tohseno.pending-software-claim.v1") != nil)
+    }
+
+    @MainActor
+    @Test("Follow is one private exact-Builder preference and queues while offline")
+    func privateFollow() async throws {
+        let backend = StubBackend()
+        await backend.set(reachable: false)
+        let suite = "tohseno.follow.\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suite))
+        storage.removePersistentDomain(forName: suite)
+        defer { storage.removePersistentDomain(forName: suite) }
+        let subject = CompanionModel(backend: backend, deviceName: "Test iPhone", storage: storage)
+        let builder = "eip155:4663:0x2222222222222222222222222222222222222222"
+
+        subject.toggleFollow(builderID: "@mutable-handle")
+        subject.toggleFollow(builderID: builder)
+        for _ in 0 ..< 20 where await backend.followRequests.isEmpty { await Task.yield() }
+
+        #expect(subject.followedBuilderIDs == [builder])
+        #expect(await backend.followRequests.count == 1)
+        #expect(await backend.followRequests[0].0 == builder)
+        #expect(await backend.followRequests[0].1 == true)
+        #expect(storage.stringArray(forKey: "tohseno.followed-builders.v1") == [builder])
+    }
+
+    @MainActor
+    @Test("The private Updates projection preserves evidence identity and reconciles read state")
+    func privateUpdatesReadState() async throws {
+        let backend = StubBackend()
+        let subject = CompanionModel(backend: backend, deviceName: "Test iPhone")
+        let update = PrivateUpdateItem(
+            kind: .editionClosed,
+            subjectID: StubClaimsHTTP.shotID,
+            evidenceID: StubClaimsHTTP.transaction,
+            title: "Your Claim Edition closed",
+            detail: "The finite edition reached its canonical boundary.",
+            occurredAt: "2026-08-31T12:00:00Z"
+        )
+        subject.apply(WorkspaceEvent(
+            eventID: "event_private_updates",
+            workspaceID: "workspace_fixture",
+            cursor: 8,
+            emittedAt: "2026-08-31T12:00:01Z",
+            payload: .privateUpdates(PrivateUpdateProjection(
+                items: [update], updatedAt: "2026-08-31T12:00:01Z"
+            ))
+        ))
+
+        #expect(subject.privateUpdates == [update])
+        subject.setPrivateUpdateRead(update)
+        for _ in 0 ..< 20 where await backend.privateUpdateReadRequests.isEmpty { await Task.yield() }
+
+        #expect(subject.privateUpdates[0].updateID == update.updateID)
+        #expect(subject.privateUpdates[0].readAt != nil)
+        #expect(await backend.privateUpdateReadRequests.count == 1)
+        #expect(await backend.privateUpdateReadRequests[0].0 == update.updateID)
+        #expect(await backend.privateUpdateReadRequests[0].1 == true)
+    }
+
     @MainActor
     @Test("The main CTA sends one new-app intent through the durable backend")
     func createApp() async {

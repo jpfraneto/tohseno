@@ -73,6 +73,13 @@ file_byte_length() {
       "$temporary_directory/abi/$contract.json" \
       "$temporary_directory/generations/$generation/abi/$contract.json"
   done
+  # ADR 0035 is an additive component, not a generation-0.8 contract. Keep its
+  # ABI and constructor bytecode outside the frozen generation directory.
+  forge inspect TohsenoClaimsV1 abi --json | jq -S . \
+    >"$temporary_directory/abi/TohsenoClaimsV1.json"
+  claims_creation="$(forge inspect TohsenoClaimsV1 bytecode)"
+  printf '%s\n' "$claims_creation" \
+    >"$temporary_directory/bytecode/TohsenoClaimsV1.creation.hex"
   if jq -e '
     [.. | objects | .name? // empty]
     | any(
@@ -354,7 +361,9 @@ artifacts="
 abi/BuilderAccount.json
 abi/BuilderAccountFactory.json
 abi/ShotRegistry.json
+abi/TohsenoClaimsV1.json
 bytecode/BuilderAccount.next.creation.hex
+bytecode/TohsenoClaimsV1.creation.hex
 deployments/robinhood-mainnet-next.json
 generations/0.8.0/abi/BuilderAccount.json
 generations/0.8.0/abi/BuilderAccountFactory.json

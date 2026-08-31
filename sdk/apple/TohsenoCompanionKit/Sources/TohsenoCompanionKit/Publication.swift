@@ -72,8 +72,153 @@ public struct BuilderDeviceAnnouncement: Codable, Equatable, Sendable {
     }
 }
 
+public struct ClaimEditionPolicySummary: Codable, Equatable, Sendable {
+    public let kind: ClaimEditionPolicy.Kind
+    public let maxClaims: UInt64
+    public let closesAt: UInt64
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case maxClaims = "max_claims"
+        case closesAt = "closes_at"
+    }
+
+    public init(policy: ClaimEditionPolicy) {
+        kind = policy.kind
+        maxClaims = policy.maxClaims
+        closesAt = policy.closesAt
+    }
+
+    public func policy() throws -> ClaimEditionPolicy {
+        let value = try ClaimEditionPolicy(maxClaims: maxClaims, closesAt: closesAt)
+        guard value.kind == kind else {
+            throw TohsenoCompanionError.invalidEncoding("Claim Edition policy shape is invalid")
+        }
+        return value
+    }
+}
+
+public struct ClaimEditionApprovalContext: Codable, Equatable, Sendable {
+    public let claimsContract: String
+    public let claimsActivationSigningDigest: String
+    public let controller: String
+    public let editionNonce: UInt64
+    public let actionDeadline: UInt64
+    public let requestedPolicy: ClaimEditionPolicySummary?
+
+    enum CodingKeys: String, CodingKey {
+        case claimsContract = "claims_contract"
+        case claimsActivationSigningDigest = "claims_activation_signing_digest"
+        case controller
+        case editionNonce = "edition_nonce"
+        case actionDeadline = "action_deadline"
+        case requestedPolicy = "requested_policy"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let value = try decoder.container(keyedBy: CodingKeys.self)
+        var keys: Set<String> = ["claims_contract", "claims_activation_signing_digest",
+                                 "controller", "edition_nonce", "action_deadline"]
+        if value.contains(.requestedPolicy) { keys.insert("requested_policy") }
+        try requireExactKeys(decoder, keys)
+        claimsContract = try value.decode(String.self, forKey: .claimsContract)
+        claimsActivationSigningDigest = try value.decode(String.self, forKey: .claimsActivationSigningDigest)
+        controller = try value.decode(String.self, forKey: .controller)
+        editionNonce = try value.decode(UInt64.self, forKey: .editionNonce)
+        actionDeadline = try value.decode(UInt64.self, forKey: .actionDeadline)
+        requestedPolicy = try value.decodeIfPresent(ClaimEditionPolicySummary.self, forKey: .requestedPolicy)
+    }
+
+    public func validate(request: PublicationApprovalRequest) throws {
+        guard ClaimsActionEncoding.addressWord(claimsContract) != nil,
+              BuilderDeviceAnnouncement.hex32(claimsActivationSigningDigest) != nil,
+              controller == String(request.builderID.suffix(42)),
+              editionNonce <= ClaimsActionEncoding.maximumSafeInteger,
+              actionDeadline == request.actionDeadline
+        else { throw TohsenoCompanionError.invalidEncoding("invalid Claim Edition approval context") }
+        _ = try requestedPolicy?.policy()
+    }
+
+    public func action(
+        request: PublicationApprovalRequest,
+        policy: ClaimEditionPolicy
+    ) throws -> OpenClaimEditionAction {
+        try validate(request: request)
+        if let required = try requestedPolicy?.policy(), required != policy {
+            throw TohsenoCompanionError.invalidEncoding("selected Claim Edition differs from CLI policy")
+        }
+        return OpenClaimEditionAction(
+            shotRegistry: request.shotRegistry,
+            shotID: request.shotID,
+            maxClaims: policy.maxClaims,
+            closesAt: policy.closesAt,
+            controller: controller,
+            nonce: editionNonce,
+            deadline: actionDeadline
+        )
+    }
+}
+
+public struct ApprovedClaimEdition: Codable, Equatable, Sendable {
+    public let policy: ClaimEditionPolicySummary
+    public let action: OpenClaimEditionAction
+    public let digest: String
+    public let signature: BuilderDeviceSignature
+
+    public init(
+        policy: ClaimEditionPolicy,
+        action: OpenClaimEditionAction,
+        digest: String,
+        signature: BuilderDeviceSignature
+    ) throws {
+        let summary = ClaimEditionPolicySummary(policy: policy)
+        guard action.maxClaims == policy.maxClaims, action.closesAt == policy.closesAt,
+              BuilderDeviceAnnouncement.hex32(digest) != nil,
+              signature.digest == digest
+        else { throw TohsenoCompanionError.invalidEncoding("invalid approved Claim Edition") }
+        self.policy = summary
+        self.action = action
+        self.digest = digest
+        self.signature = signature
+    }
+
+    func canonicalValue() -> CanonicalValue {
+        .object([
+            "action": action.canonicalValue(),
+            "digest": .string(digest),
+            "policy": policy.canonicalValue(),
+            "signature": signature.canonicalValue(),
+        ])
+    }
+}
+
+private extension ClaimEditionPolicySummary {
+    func canonicalValue() -> CanonicalValue {
+        .object([
+            "closes_at": .unsigned(closesAt),
+            "kind": .string(kind.rawValue),
+            "max_claims": .unsigned(maxClaims),
+        ])
+    }
+}
+
+private extension OpenClaimEditionAction {
+    func canonicalValue() -> CanonicalValue {
+        .object([
+            "closes_at": .unsigned(closesAt),
+            "controller": .string(controller),
+            "deadline": .unsigned(deadline),
+            "max_claims": .unsigned(maxClaims),
+            "nonce": .unsigned(nonce),
+            "shot_id": .string(shotID),
+            "shot_registry": .string(shotRegistry),
+        ])
+    }
+}
+
 public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifiable {
     public static let schemaV1 = "tohseno.publication-approval-request/1"
+    public static let schemaV2 = "tohseno.publication-approval-request/2"
     public static let activeChainID: UInt64 = 4663
     public static let activeFactory = "0xb1bd208cd2af98e701f43d06aaa889d3a594df65"
     public static let activeRegistry = "0x3fe6508ba2660bc575080024f402c192a2e035a0"
@@ -103,6 +248,8 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
     public let registryDigest: String
     public let issuedAt: String
     public let expiresAt: String
+    public let publicationKind: String?
+    public let claimEdition: ClaimEditionApprovalContext?
 
     public var id: String { jobID }
 
@@ -130,19 +277,26 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
         case registryDigest = "registry_digest"
         case issuedAt = "issued_at"
         case expiresAt = "expires_at"
+        case publicationKind = "publication_kind"
+        case claimEdition = "claim_edition"
     }
 
     public init(from decoder: Decoder) throws {
-        try requireExactKeys(decoder, [
+        let value = try decoder.container(keyedBy: CodingKeys.self)
+        let observedSchema = try value.decode(String.self, forKey: .schema)
+        var keys: Set<String> = [
             "schema", "job_id", "app_name", "source_file_count", "source_byte_length",
             "install_allowed", "fork_allowed", "requested_route", "chain_id",
             "builder_account_factory", "shot_registry", "builder_id", "builder_device",
             "shot_id", "checkpoint_sequence", "action_nonce", "action_deadline",
             "catalog_release_json", "catalog_digest", "registry_action_json",
             "registry_digest", "issued_at", "expires_at",
-        ])
-        let value = try decoder.container(keyedBy: CodingKeys.self)
-        schema = try value.decode(String.self, forKey: .schema)
+        ]
+        if observedSchema == Self.schemaV2 {
+            keys.formUnion(["publication_kind", "claim_edition"])
+        }
+        try requireExactKeys(decoder, keys)
+        schema = observedSchema
         jobID = try value.decode(String.self, forKey: .jobID)
         appName = try value.decode(String.self, forKey: .appName)
         sourceFileCount = try value.decode(UInt64.self, forKey: .sourceFileCount)
@@ -165,12 +319,14 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
         registryDigest = try value.decode(String.self, forKey: .registryDigest)
         issuedAt = try value.decode(String.self, forKey: .issuedAt)
         expiresAt = try value.decode(String.self, forKey: .expiresAt)
+        publicationKind = try value.decodeIfPresent(String.self, forKey: .publicationKind)
+        claimEdition = try value.decodeIfPresent(ClaimEditionApprovalContext.self, forKey: .claimEdition)
         try validate()
     }
 
     public func validate(allowSoftwareTest: Bool = false, now: Date = Date()) throws {
         try builderDevice.validate(allowSoftwareTest: allowSoftwareTest)
-        guard schema == Self.schemaV1, chainID == Self.activeChainID,
+        guard [Self.schemaV1, Self.schemaV2].contains(schema), chainID == Self.activeChainID,
               builderAccountFactory == Self.activeFactory, shotRegistry == Self.activeRegistry,
               Self.isActiveBuilderID(builderID),
               BuilderDeviceAnnouncement.hex32(shotID) != nil,
@@ -202,6 +358,18 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
         guard expires > issued, expires.timeIntervalSince(issued) <= 24 * 60 * 60,
               actionDeadline == UInt64(expires.timeIntervalSince1970.rounded()), now <= expires
         else { throw TohsenoCompanionError.invalidEncoding("publication approval expired") }
+        if schema == Self.schemaV1 {
+            guard publicationKind == nil, claimEdition == nil else {
+                throw TohsenoCompanionError.invalidEncoding("legacy publication request carries Claims fields")
+            }
+        } else {
+            switch (publicationKind, claimEdition, checkpointSequence) {
+            case ("ship", let context?, 1): try context.validate(request: self)
+            case ("update", nil, 2...): break
+            default:
+                throw TohsenoCompanionError.invalidEncoding("publication kind and Claim Edition disagree")
+            }
+        }
     }
 
     static func isActiveBuilderID(_ value: String) -> Bool {

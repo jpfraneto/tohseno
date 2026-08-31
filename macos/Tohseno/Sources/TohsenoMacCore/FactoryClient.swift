@@ -26,6 +26,9 @@ public protocol FactoryServing: Sendable {
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate
     func managedCheckout(packID: String) async throws -> ManagedCheckout
     func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot
+    func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection
+    func upsertPrivateUpdate(_ update: PrivateUpdateItem) async throws -> PrivateUpdateProjection
+    func setPrivateUpdateRead(updateID: String, read: Bool) async throws -> PrivateUpdateProjection
     func deploy(projectID: String) async throws -> PublicationPreparationView
     func receiveNetworkRelease(shotID: String, releaseDigest: String, action: NetworkReceiveAction, approveMacReview: Bool) async throws -> NetworkReceiveView
     func performReadinessAction(_ action: String) async throws -> ReadinessView
@@ -140,7 +143,34 @@ public actor LoopbackFactoryClient: FactoryServing {
             "--json", "advanced", "identity", "show",
         ])
         var published: [PublicRegistryRelease] = []
+        var timeline: [PublicTimelineEvent] = []
         var publicRegistryAvailable = false
+        let followProjection: NetworkFollowProjection
+        let updateProjection: PrivateUpdateProjection
+        if helperOverride == nil {
+            followProjection = try await request("/api/v1/network/follows")
+            updateProjection = try await request("/api/v1/network/updates")
+        } else {
+            // An injected helper is an isolated test seam. It must never read
+            // the developer's live private service preferences.
+            followProjection = NetworkFollowProjection(
+                schema: "tohseno.private-builder-follows/1",
+                builderIDs: [],
+                updatedAt: "1970-01-01T00:00:00Z"
+            )
+            updateProjection = PrivateUpdateProjection(
+                schema: "tohseno.private-updates/1",
+                items: [],
+                updatedAt: "1970-01-01T00:00:00Z"
+            )
+        }
+        guard followProjection.schema == "tohseno.private-builder-follows/1",
+              followProjection.builderIDs.count <= 10_000,
+              followProjection.builderIDs == followProjection.builderIDs.sorted(),
+              Set(followProjection.builderIDs).count == followProjection.builderIDs.count else {
+            throw FactoryClientError.invalidResponse("The private Builder follow projection is invalid.")
+        }
+        try validatePrivateUpdates(updateProjection)
         if let url = URL(string: "https://tohseno.com/api/registry/v1/shots") {
             var request = URLRequest(url: url)
             request.timeoutInterval = 15
@@ -156,15 +186,30 @@ public actor LoopbackFactoryClient: FactoryServing {
                 publicRegistryAvailable = true
             }
         }
+        if publicRegistryAvailable,
+           let url = URL(string: "https://tohseno.com/api/registry/v1/timeline?limit=100") {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            request.cachePolicy = .reloadRevalidatingCacheData
+            if let (data, response) = try? await urlSession.data(for: request),
+               let http = response as? HTTPURLResponse,
+               http.statusCode == 200,
+               data.count <= 2 * 1024 * 1024,
+               let page = try? JSONDecoder().decode(PublicTimelinePage.self, from: data),
+               page.schema == "tohseno.registry-timeline-page/1",
+               page.events.count <= 100 {
+                timeline = page.events
+            }
+        }
         let network = RegistryNetworkStatus(
             schema: "tohseno.registry-network-status/1",
-            productVersion: "1.1.0",
+            productVersion: "1.2.0",
             activeGeneration: "0.8.0",
             ready: publicRegistryAvailable,
             rpcChecked: false,
             publicAuthorityAvailable: publicRegistryAvailable,
             reason: publicRegistryAvailable
-                ? "Catalog reachable. The Mac verifies the exact signed release and fresh chain state before Install or Fork."
+                ? "Catalog reachable. The Mac verifies the exact signed release and fresh chain state before Claim, Install, or Fork."
                 : "The public Registry could not be reached. Local apps remain private and available."
         )
         var records: [LocalRegistryRecord] = []
@@ -180,8 +225,84 @@ public actor LoopbackFactoryClient: FactoryServing {
             builder: builder,
             network: network,
             records: records,
-            published: published
+            published: published,
+            timeline: timeline,
+            followedBuilderIDs: Set(followProjection.builderIDs),
+            privateUpdates: updateProjection.items
         )
+    }
+
+    public func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection {
+        guard builderID.range(of: #"^eip155:4663:0x[0-9a-f]{40}$"#, options: .regularExpression) != nil,
+              builderID != "eip155:4663:0x0000000000000000000000000000000000000000" else {
+            throw FactoryClientError.invalidConfiguration("Follow requires one exact BuilderID.")
+        }
+        let projection: NetworkFollowProjection = try await request(
+            "/api/v1/network/follows",
+            method: "PUT",
+            body: NetworkFollowBody(builderID: builderID, followed: followed)
+        )
+        guard projection.schema == "tohseno.private-builder-follows/1",
+              projection.builderIDs.count <= 10_000,
+              projection.builderIDs == projection.builderIDs.sorted(),
+              Set(projection.builderIDs).count == projection.builderIDs.count else {
+            throw FactoryClientError.invalidResponse("The private Builder follow projection is invalid.")
+        }
+        return projection
+    }
+
+    public func upsertPrivateUpdate(
+        _ update: PrivateUpdateItem
+    ) async throws -> PrivateUpdateProjection {
+        guard update.schema == "tohseno.private-update/1",
+              update.updateID == PrivateUpdateItem.stableID(
+                kind: update.kind,
+                subjectID: update.subjectID,
+                evidenceID: update.evidenceID
+              ) else {
+            throw FactoryClientError.invalidConfiguration("The private Update has invalid evidence.")
+        }
+        let projection: PrivateUpdateProjection = try await request(
+            "/api/v1/network/updates",
+            method: "POST",
+            body: update
+        )
+        try validatePrivateUpdates(projection)
+        return projection
+    }
+
+    public func setPrivateUpdateRead(
+        updateID: String,
+        read: Bool
+    ) async throws -> PrivateUpdateProjection {
+        try validateToken(updateID, label: "private Update ID")
+        let projection: PrivateUpdateProjection = try await request(
+            "/api/v1/network/updates",
+            method: "PUT",
+            body: PrivateUpdateReadBody(updateID: updateID, read: read)
+        )
+        try validatePrivateUpdates(projection)
+        return projection
+    }
+
+    private func validatePrivateUpdates(_ projection: PrivateUpdateProjection) throws {
+        guard projection.schema == "tohseno.private-updates/1",
+              projection.items.count <= 1_000,
+              Set(projection.items.map(\.updateID)).count == projection.items.count,
+              projection.items.allSatisfy({ item in
+                  item.schema == "tohseno.private-update/1"
+                      && item.updateID == PrivateUpdateItem.stableID(
+                        kind: item.kind,
+                        subjectID: item.subjectID,
+                        evidenceID: item.evidenceID
+                      )
+              }),
+              zip(projection.items, projection.items.dropFirst()).allSatisfy({ left, right in
+                  left.occurredAt > right.occurredAt
+                      || (left.occurredAt == right.occurredAt && left.updateID < right.updateID)
+              }) else {
+            throw FactoryClientError.invalidResponse("The private Updates projection is invalid.")
+        }
     }
 
     public func deploy(projectID: String) async throws -> PublicationPreparationView {
@@ -811,6 +932,22 @@ public actor LoopbackFactoryClient: FactoryServing {
 }
 
 private struct EmptyBody: Encodable, Sendable {}
+private struct NetworkFollowBody: Encodable, Sendable {
+    let builderID: String
+    let followed: Bool
+    enum CodingKeys: String, CodingKey {
+        case builderID = "builder_id"
+        case followed
+    }
+}
+private struct PrivateUpdateReadBody: Encodable, Sendable {
+    let updateID: String
+    let read: Bool
+    enum CodingKeys: String, CodingKey {
+        case updateID = "update_id"
+        case read
+    }
+}
 private struct AdoptProjectBody: Encodable, Sendable {
     let path: String
     let scheme: String?

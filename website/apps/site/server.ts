@@ -7,6 +7,8 @@ import { createRelayRouter } from "./src/relay-routes.ts";
 import { createBillingRouter } from "./src/billing.ts";
 import { createManagedRouter } from "./src/managed.ts";
 import { createRegistryRouter } from "./src/registry.ts";
+import { createClaimsRouter } from "./src/claims.ts";
+import type { RegistryRouter } from "./src/registry.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
 
@@ -400,7 +402,19 @@ export async function createApplication(
   const relay = await createRelayRouter(config);
   const billing = await createBillingRouter(config);
   const managed = await createManagedRouter(config);
-  const registry = await createRegistryRouter(config);
+  let registryReference: RegistryRouter | undefined;
+  const claims = await createClaimsRouter(config, undefined, undefined, {
+    currentClaimContext: async (shotID, releaseDigest) => {
+      if (!registryReference) throw new HttpError(503, "Registry startup is incomplete");
+      return registryReference.currentClaimContext(shotID, releaseDigest);
+    },
+    claimReceiptContext: async (shotID, releaseDigest) => {
+      if (!registryReference) throw new HttpError(503, "Registry startup is incomplete");
+      return registryReference.claimReceiptContext(shotID, releaseDigest);
+    },
+  });
+  const registry = await createRegistryRouter(config, undefined, claims);
+  registryReference = registry;
   const log = options.log ??
     ((record: Record<string, unknown>) => console.info(JSON.stringify(record)));
   const logError = options.logError ??
@@ -451,12 +465,15 @@ export async function createApplication(
     if (relay.handles(pathname)) return relay.fetch(request);
     if (billing.handles(pathname)) return billing.fetch(request);
     if (managed.handles(pathname)) return managed.fetch(request);
+    if (claims.handles(pathname)) return claims.fetch(request);
     if (registry.handles(pathname)) return registry.fetch(request);
 
-    if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")) {
+    if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
+        || pathname.startsWith("/claims/")) {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
       let content: string | undefined;
       if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);
+      else if (/^\/claims\/[1-9]\d*$/.test(pathname)) content = await claims.renderReceipt(pathname.slice(8));
       else if (/^\/s\/[0-9a-f]{64}$/.test(pathname)) content = await registry.renderShot(`0x${pathname.slice(3)}`);
       else if (/^\/@[^/]+$/.test(pathname)) content = await registry.renderBuilder(decodeURIComponent(pathname.slice(2)));
       else content = await registry.renderHumanRoute(pathname);

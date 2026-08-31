@@ -19,6 +19,7 @@ public protocol CompanionBackend: Sendable {
         jobID: String,
         catalog: BuilderDeviceSignature,
         registry: BuilderDeviceSignature,
+        claimEdition: ApprovedClaimEdition?,
         approvedAt: String,
         commandID: String
     ) async throws -> CommandReceipt
@@ -28,6 +29,9 @@ public protocol CompanionBackend: Sendable {
         releaseDigest: String,
         commandID: String
     ) async throws -> CommandReceipt
+    func setBuilderFollow(builderID: String, followed: Bool, commandID: String) async throws -> CommandReceipt
+    func upsertPrivateUpdate(_ update: PrivateUpdateItem, commandID: String) async throws -> CommandReceipt
+    func setPrivateUpdateRead(updateID: String, read: Bool, commandID: String) async throws -> CommandReceipt
     /// Signed commands this phone has written that the Mac has not acknowledged.
     func unacknowledgedCommandCount() async throws -> Int
     func createIdentity() async throws -> RecoveryPhrase

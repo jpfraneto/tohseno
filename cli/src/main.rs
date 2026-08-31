@@ -22,7 +22,7 @@ mod simulator;
 mod workspace_identity;
 mod workspace_service;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use renderer::Renderer;
 use serde_json::{json, Value};
 use std::fs;
@@ -50,6 +50,23 @@ struct Cli {
     json: bool,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum ClaimEditionArgument {
+    Open,
+    Limited,
+    Timed,
+}
+
+impl ClaimEditionArgument {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Limited => "limited",
+            Self::Timed => "timed",
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -105,6 +122,15 @@ enum Command {
         dry_run: bool,
         #[arg(long, hide = true)]
         project_id: Option<String>,
+        /// Pin the immutable first-Ship Claim Edition policy.
+        #[arg(long, value_enum)]
+        claim_edition: Option<ClaimEditionArgument>,
+        /// Maximum identities for a limited first-Ship Claim Edition.
+        #[arg(long, value_name = "COUNT")]
+        max_claims: Option<u64>,
+        /// RFC 3339 closing time for a timed first-Ship Claim Edition.
+        #[arg(long, value_name = "TIMESTAMP")]
+        closes_at: Option<String>,
     },
     /// Show this project's local, Companion, and public network readiness.
     Status,
@@ -711,7 +737,21 @@ async fn dispatch(
         Command::Deploy {
             dry_run,
             project_id,
-        } => network_commands::deploy(dry_run, project_id.as_deref(), json, bus).await?,
+            claim_edition,
+            max_claims,
+            closes_at,
+        } => {
+            network_commands::deploy(
+                dry_run,
+                project_id.as_deref(),
+                claim_edition.map(ClaimEditionArgument::as_str),
+                max_claims,
+                closes_at.as_deref(),
+                json,
+                bus,
+            )
+            .await?
+        }
         Command::Status => network_commands::status(json, bus).await?,
         Command::Install {
             shot,
@@ -2879,6 +2919,18 @@ mod tests {
         assert!(evolve_help.contains("--feedback-action"));
         assert!(Cli::try_parse_from(["tohseno", "init", "/tmp/App.xcodeproj"]).is_ok());
         assert!(Cli::try_parse_from(["tohseno", "deploy", "--dry-run"]).is_ok());
+        assert!(Cli::try_parse_from([
+            "tohseno",
+            "deploy",
+            "--claim-edition",
+            "limited",
+            "--max-claims",
+            "888",
+            "--closes-at",
+            "2099-09-08T18:00:00Z",
+        ])
+        .is_ok());
+        assert!(Cli::try_parse_from(["tohseno", "deploy", "--claim-edition", "auction",]).is_err());
         assert!(Cli::try_parse_from([
             "tohseno",
             "recording",

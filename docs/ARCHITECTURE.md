@@ -5,8 +5,10 @@ descriptive, not protocol authority: [`protocol/`](../protocol/) and the
 accepted [ADRs](adr/README.md) win if this document disagrees with them.
 
 ADR 0034 connects ADR 0033's private adopted-project boundary to a signed
-public source catalog without changing frozen protocol encodings or the
-deployed generation-0.8 ABI. The primary implemented paths are:
+public source catalog. ADR 0035 adds a separately activated, additive Claims
+receipt and one-Ship software timeline without changing frozen protocol
+encodings or the deployed generation-0.8 ABI. The primary implemented paths
+are:
 
 ```text
 Native SwiftUI Tohseno.app -> Adopt existing Xcode project
@@ -24,14 +26,19 @@ Builder Companion DeviceKey -> signed catalog + Registry authorization
         |                                      |
         v                                      v
 Mac deterministic source snapshot -> public Registry/catalog/blob service
-                                                |
-                         immutable Shot/release link
-                                                |
-                                                v
-Recipient Companion request -> recipient Mac verifies chain/receipt/source
-                                                |
-                                                v
-                                Xcode build + recipient signing + iPhone
+        |                                      |
+        +-> first Ship + immutable edition     +-> canonical Discover timeline
+                                                       |
+                             exact Shot/release Claim link
+                                                       |
+                                                       v
+Recipient Companion circle -> Claims receipt -> durable private Mac intention
+                                                       |
+                                                       v
+                           Mac verifies chain/receipt/source independently
+                                                       |
+                                                       v
+                                   Xcode build + recipient signing + iPhone
 ```
 
 The existing `ShotApplicationService → Engine` remains the one generated-app
@@ -134,6 +141,40 @@ recipient's locally selected development team and a recipient-local bundle
 namespace. Installed means `devicectl` succeeded and exact bundle inventory on
 one physical iPhone agrees. Repeating the same exact install refreshes local
 signing without AI or a Registry mutation.
+
+### Claim, timelines, and private attention
+
+[`contracts/src/TohsenoClaimsV1.sol`](../contracts/src/TohsenoClaimsV1.sol) is
+an additive, non-upgradeable ERC-721/ERC-5192 receipt with all transfer and
+approval paths closed. One immutable edition opens at first Ship. A Claim
+binds one Tohseno BuilderAccount, Shot, exact release, current public
+checkpoint, claimant nonce, deadline, and SHA-256 Claim-mark commitment. The
+contract reads the unchanged active ShotRegistry and accepts only the exact
+ERC-1271 P-256 authorities; its signed activation is independent from the
+generation-0.8 activation.
+
+[`website/apps/site/src/claims.ts`](../website/apps/site/src/claims.ts) owns
+the closed activation verifier, canonical reorg-aware Claims index, constrained
+durable bootstrap/edition/Claim jobs, exact receipt and metadata routes, and
+normalized mark rendering. First Ship publication is atomic in authority
+order: Registry receipt, Claims edition receipt, then source/catalog promotion.
+An Update cannot alter the edition. Claims service configuration is absent by
+default and partial activation, indexer, or relayer configuration aborts.
+
+The Registry projects canonical chain order as `shot.shipped`, `shot.updated`,
+`shot.forked`, and `claim.edition_closed`; exactly one Ship exists per Shot.
+Individual Claims do not flood Discover. Exact BuilderID follows live only in
+private Mac/Companion preference state. The durable private Updates store
+accepts only relationship-backed evidence and reconciles stable IDs/read state
+over the encrypted Companion channel; generic Discover traffic never enters
+it.
+
+Companion normalizes the circle to exactly 64 fixed-width points and discards
+raw touch behavior after canonical geometry exists. It signs the independently
+recomputed EIP-712 action, waits for canonical mint evidence, persists the
+receipt/cabinet, and only then queues the existing install request for that
+exact release. The outbox may wait for an offline Mac. Claim is public;
+preparation, Apple signing, device identity, and installation remain private.
 
 ### First open, readiness, and distribution
 
@@ -317,6 +358,8 @@ roots.
 | Local network imports and delivery evidence | `~/.tohseno/service/living-projects-v1/` and visible `~/Developer/Tohseno/` source | Local Workspace Service | service/Mac restart; owner source remains visible |
 | Publication approval jobs | `~/.tohseno/service/network-publications-v1/` | Mac + Companion signatures | service/Mac/phone reconnect |
 | Public catalog, staging, blobs, profiles, alias requests | configured durable `REGISTRY_ROOT` | Registry service; signed/chain facts remain independently verifiable | process restart and operator backup/restore |
+| Private follows and high-signal Updates | `~/.tohseno/service/network-preferences-v1/` | Local Workspace Service + encrypted Companion reconciliation | service/Mac/phone reconnect |
+| Canonical Claims index and durable relayer jobs | configured durable Registry root | Claims service; chain receipts remain independently verifiable | process restart and canonical rebuild |
 
 On service startup, command recovery runs before the loopback listener opens.
 A prepared execution is started; a live detached runner is reattached; a
@@ -334,8 +377,9 @@ The current product core is:
 - `sdk/apple/TohsenoCompanionKit/` and `companion/` — Swift/Rust private wire,
   cryptography, state, and conformance vectors.
 - `website/apps/companion-relay/` — content-blind internet mailbox.
-- `network/` and `website/apps/site/src/registry.ts` — public release model,
-  sanitized source transport, catalog, verifier, and constrained relayer.
+- `network/`, `website/apps/site/src/registry.ts`, and
+  `website/apps/site/src/claims.ts` — public release/Claim models, sanitized
+  source transport, canonical indexes, verifiers, and constrained relayers.
 - `cli/`, `application/`, and `engine/` — Local Workspace Service, durable
   application boundary, and Mac factory.
 - `studio/` — thin local UI served by the service.

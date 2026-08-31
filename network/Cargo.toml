@@ -17,4 +17,5 @@ unicode-normalization = "0.1"
 tohseno-protocol = { path = "../protocol" }
 
 [dev-dependencies]
+p256 = { version = "=0.13.2", features = ["ecdsa"] }
 tempfile.workspace = true

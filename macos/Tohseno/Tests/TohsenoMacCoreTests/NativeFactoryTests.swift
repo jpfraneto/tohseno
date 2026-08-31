@@ -385,8 +385,9 @@ final class NativeFactoryTests: XCTestCase {
             .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
         let source = try String(contentsOf: root, encoding: .utf8)
         XCTAssertTrue(source.contains("Return sends · Shift–Return adds a line"))
-        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".shotSubmitOnReturn(").count - 1, 3)
-        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".keyboardShortcut(.return, modifiers: [])").count - 1, 3)
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".shotSubmitOnReturn(").count - 1, 2)
+        XCTAssertGreaterThanOrEqual(source.components(separatedBy: ".keyboardShortcut(.return, modifiers: [])").count - 1, 2)
+        XCTAssertFalse(source.contains("registry.quick.intention"))
         XCTAssertTrue(source.contains("press.modifiers.contains(.shift)"))
     }
 
@@ -523,8 +524,8 @@ final class NativeFactoryTests: XCTestCase {
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
             "app.workspace-tabs", "app.change", "app.files", "app.build-log",
             "app.preview", "app.iphone-handoff", "app.open-source",
-            "registry.sidebar", "registry.quick.intention", "registry.quick.submit",
-            "registry.builder", "registry.public-status",
+            "registry.sidebar", "registry.modes", "registry.search",
+            "registry.timeline", "registry.updates",
             "creation.starters", "readiness.progress", "readiness.harness",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
@@ -596,6 +597,27 @@ private actor FakeFactory: FactoryServing {
             reason: "registry RPC is not implemented"
         )
         return RegistrySnapshot(builder: builder, network: network, records: [])
+    }
+    func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection {
+        NetworkFollowProjection(
+            schema: "tohseno.private-builder-follows/1",
+            builderIDs: followed ? [builderID] : [],
+            updatedAt: "2026-08-31T12:00:00Z"
+        )
+    }
+    func upsertPrivateUpdate(_ update: PrivateUpdateItem) async throws -> PrivateUpdateProjection {
+        PrivateUpdateProjection(
+            schema: "tohseno.private-updates/1",
+            items: [update],
+            updatedAt: update.occurredAt
+        )
+    }
+    func setPrivateUpdateRead(updateID: String, read: Bool) async throws -> PrivateUpdateProjection {
+        PrivateUpdateProjection(
+            schema: "tohseno.private-updates/1",
+            items: [],
+            updatedAt: "2026-08-31T12:00:00Z"
+        )
     }
     func deploy(projectID: String) async throws -> PublicationPreparationView {
         PublicationPreparationView(

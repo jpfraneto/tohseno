@@ -478,6 +478,7 @@ public actor TohsenoCompanionClient {
         jobID: String,
         catalog: BuilderDeviceSignature,
         registry: BuilderDeviceSignature,
+        claimEdition: ApprovedClaimEdition? = nil,
         approvedAt: String,
         commandID: String
     ) async throws -> CommandReceipt {
@@ -487,6 +488,7 @@ public actor TohsenoCompanionClient {
                 jobID: jobID,
                 catalog: catalog,
                 registry: registry,
+                claimEdition: claimEdition,
                 approvedAt: approvedAt
             )
         )
@@ -507,6 +509,42 @@ public actor TohsenoCompanionClient {
                 shotID: shotID,
                 releaseDigest: releaseDigest
             )
+        )
+    }
+
+    /// Change one private Builder follow on the paired Mac. The signed command
+    /// contains no public social edge and is safe to remain queued offline.
+    public func setBuilderFollow(
+        builderID: String,
+        followed: Bool,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try await queue(
+            commandID: commandID,
+            payload: .builderFollowSet(builderID: builderID, followed: followed)
+        )
+    }
+
+    /// Insert one evidence-keyed private Update through the paired Mac. The
+    /// command is durable offline and idempotent across every paired device.
+    public func upsertPrivateUpdate(
+        _ update: PrivateUpdateItem,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try await queue(
+            commandID: commandID,
+            payload: .privateUpdateUpsert(update: update)
+        )
+    }
+
+    public func setPrivateUpdateRead(
+        updateID: String,
+        read: Bool,
+        commandID: String
+    ) async throws -> CommandReceipt {
+        try await queue(
+            commandID: commandID,
+            payload: .privateUpdateReadSet(updateID: updateID, read: read)
         )
     }
 
@@ -1119,6 +1157,24 @@ public actor TohsenoCompanionClient {
                 connectionContinuation.yield(.revoked)
                 return retiredPayloadIDs
             }
+        case let .capabilityUpdated(capability):
+            let trustedKey = try Base64URL.decode(
+                pairing.studioSigningPublicKey,
+                expectedBytes: 32
+            )
+            try capability.verify(
+                trustedStudioSigningKey: trustedKey,
+                expectedWorkspaceID: pairing.grant.workspaceID,
+                expectedDeviceID: ownDeviceID,
+                minimumRevocationEpoch: pairing.grant.revocationEpoch
+            )
+            guard capability.capabilityID == pairing.grant.capabilityID,
+                  capability.revocationEpoch == pairing.grant.revocationEpoch else {
+                throw TohsenoCompanionError.invalidCapability("updated grant changed authority identity")
+            }
+            var updated = pairing
+            updated.grant = capability
+            state?.pairing = updated
         default:
             break
         }
@@ -1162,7 +1218,8 @@ public actor TohsenoCompanionClient {
             workspace = workspace.updatingExecution(execution)
         case let .executionCompleted(execution), let .executionFailed(execution):
             workspace = workspace.updatingExecution(execution, terminal: true)
-        case .productEntitlement, .commandAcknowledged, .commandRejected, .deviceRevoked,
+        case .productEntitlement, .builderFollows, .capabilityUpdated, .privateUpdates,
+             .commandAcknowledged, .commandRejected, .deviceRevoked,
              .publicationApprovalRequested:
             break
         case .workspaceSnapshot:

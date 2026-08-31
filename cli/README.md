@@ -1,4 +1,4 @@
-# TOHSENO CLI 1.1.0
+# TOHSENO CLI 1.2.0
 
 `tohseno` with no arguments is the normal entry point: it ensures the local
 service is available and opens the native Tohseno app.
@@ -24,12 +24,21 @@ lineage. Repeating it preserves the same reserved random ShotID.
 
 `deploy` creates a deterministic sanitized source archive, rejects secrets and
 unsafe archive entries, classifies Xcode build behavior, and presents the exact
-release and generation-0.8 Registry action on the paired Companion. It prints a
-public URL only after Companion approval, source promotion, transaction receipt,
-current chain state, and catalog discovery agree. The durable job resumes after
-process, service, or network interruption.
+release and generation-0.8 Registry action on the paired Companion. The first
+public release is Ship; it also requires one immutable Claim Edition selected
+on Companion. Later deploys are Updates and cannot carry edition flags. It
+prints a public URL only after Companion approval, Registry receipt/current
+head, edition-open receipt for first Ship, source promotion, and catalog
+discovery agree. The durable job resumes after process, service, or network
+interruption.
 
-## Install, fork, and refresh an exact release
+For automation and dry-run review, first Ship accepts exactly one of the four
+closed policy shapes through `--claim-edition`, `--max-claims`, and
+`--closes-at`. Invalid combinations and every attempt to apply those flags to
+an already shipped Shot fail permanently. The human Companion approval remains
+authority; command-line flags do not sign or open an edition.
+
+## Claim, install, fork, and refresh an exact release
 
 ```bash
 tohseno install https://tohseno.com/s/<shot-id> --release 0x<release-digest>
@@ -49,6 +58,13 @@ local Xcode team signs the app, and `Installed` requires the exact bundle in one
 physical iPhone inventory. Repeating `install` for the same immutable release
 is Refresh: it rebuilds and re-signs without AI, a catalog release, or a
 Registry append.
+
+Claim itself is a Companion action and remains unavailable until the released
+client carries separate threshold-signed Claims activation evidence. Canonical
+confirmation queues the existing install command for the exact encountered
+release even if the Mac is offline. The CLI/service then follows the same
+independent verification, visible source, Xcode signing, and physical-device
+truth as a direct Install. Claim never implies that those steps succeeded.
 
 An install-only copy has no child Shot identity. A fork reserves a new random
 ShotID and retains the exact parent ShotID and release digest; if later shipped,

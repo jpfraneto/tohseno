@@ -293,7 +293,7 @@ impl DeviceCapabilityState {
         validate_identifier("device ID", &self.device_id)?;
         validate_identifier("capability ID", &self.capability_id)?;
         require(
-            self.allowed_actions.len() <= 8,
+            self.allowed_actions.len() <= 9,
             "too many device capability actions",
         )?;
         let mut actions = self.allowed_actions.clone();

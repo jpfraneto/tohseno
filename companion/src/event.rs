@@ -1,16 +1,162 @@
 //! Privacy-safe Mac-to-phone workspace events.
 
 use crate::canonical;
+use crate::capability::CapabilityGrant;
 use crate::command::{CommandReceipt, ReceiptState};
-use crate::crypto::sha256;
+use crate::crypto::{base64url, decode_array, sha256};
 use crate::icon::IconBlob;
 use crate::publication::PublicationApprovalRequest;
 use crate::snapshot::{ExecutionStatus, ExecutionSummary, ShotSummary, WorkspaceSnapshot};
-use crate::{parse_timestamp, require, validate_identifier, Result};
+use crate::{parse_timestamp, require, validate_identifier, validate_text, Result};
 use serde::{Deserialize, Serialize};
 
 pub const COMPANION_EVENT_SCHEMA: &str = "tohseno.companion-event/1";
 pub const PRODUCT_ENTITLEMENT_SCHEMA: &str = "tohseno.private-product-entitlement/1";
+pub const BUILDER_FOLLOWS_SCHEMA: &str = "tohseno.private-builder-follows/1";
+pub const PRIVATE_UPDATE_ITEM_SCHEMA: &str = "tohseno.private-update/1";
+pub const PRIVATE_UPDATES_SCHEMA: &str = "tohseno.private-updates/1";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrivateUpdateKind {
+    Claimed,
+    ClaimedAppUpdated,
+    PreparationReady,
+    ForkShipped,
+    EditionClosed,
+    AliasApproved,
+    PublicationApproval,
+    EvolutionFinished,
+}
+
+impl PrivateUpdateKind {
+    fn wire_name(self) -> &'static str {
+        match self {
+            Self::Claimed => "claimed",
+            Self::ClaimedAppUpdated => "claimed_app_updated",
+            Self::PreparationReady => "preparation_ready",
+            Self::ForkShipped => "fork_shipped",
+            Self::EditionClosed => "edition_closed",
+            Self::AliasApproved => "alias_approved",
+            Self::PublicationApproval => "publication_approval",
+            Self::EvolutionFinished => "evolution_finished",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrivateUpdateItem {
+    pub schema: String,
+    pub update_id: String,
+    pub kind: PrivateUpdateKind,
+    pub subject_id: String,
+    pub evidence_id: String,
+    pub title: String,
+    pub detail: String,
+    pub occurred_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_at: Option<String>,
+}
+
+impl PrivateUpdateItem {
+    pub fn stable_id(kind: PrivateUpdateKind, subject_id: &str, evidence_id: &str) -> String {
+        let mut material = b"TOHSENO-PRIVATE-UPDATE-V1\0".to_vec();
+        material.extend_from_slice(kind.wire_name().as_bytes());
+        material.push(0);
+        material.extend_from_slice(subject_id.as_bytes());
+        material.push(0);
+        material.extend_from_slice(evidence_id.as_bytes());
+        format!("update_{}", base64url(&sha256(&material)))
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        require(
+            self.schema == PRIVATE_UPDATE_ITEM_SCHEMA,
+            "unsupported private Update schema",
+        )?;
+        validate_identifier("private Update ID", &self.update_id)?;
+        validate_text("private Update subject", &self.subject_id, 256)?;
+        validate_text("private Update evidence", &self.evidence_id, 256)?;
+        validate_text("private Update title", &self.title, 160)?;
+        validate_text("private Update detail", &self.detail, 512)?;
+        parse_timestamp(&self.occurred_at)?;
+        if let Some(read_at) = &self.read_at {
+            parse_timestamp(read_at)?;
+        }
+        require(
+            self.update_id == Self::stable_id(self.kind, &self.subject_id, &self.evidence_id),
+            "private Update ID does not match its stable evidence",
+        )
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PrivateUpdateProjection {
+    pub schema: String,
+    pub items: Vec<PrivateUpdateItem>,
+    pub updated_at: String,
+}
+
+impl PrivateUpdateProjection {
+    pub fn validate(&self) -> Result<()> {
+        require(
+            self.schema == PRIVATE_UPDATES_SCHEMA,
+            "unsupported private Updates schema",
+        )?;
+        require(
+            self.items.len() <= 1_000,
+            "private Updates exceed their bound",
+        )?;
+        for item in &self.items {
+            item.validate()?;
+        }
+        require(
+            self.items.windows(2).all(|pair| {
+                pair[0].occurred_at > pair[1].occurred_at
+                    || (pair[0].occurred_at == pair[1].occurred_at
+                        && pair[0].update_id < pair[1].update_id)
+            }),
+            "private Updates must be unique and ordered",
+        )?;
+        parse_timestamp(&self.updated_at).map(|_| ())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuilderFollowProjection {
+    pub schema: String,
+    pub builder_ids: Vec<String>,
+    pub updated_at: String,
+}
+
+impl BuilderFollowProjection {
+    pub fn validate(&self) -> Result<()> {
+        require(
+            self.schema == BUILDER_FOLLOWS_SCHEMA,
+            "unsupported private Builder follow schema",
+        )?;
+        require(
+            self.builder_ids.len() <= 10_000
+                && self.builder_ids.windows(2).all(|pair| pair[0] < pair[1]),
+            "private Builder follows must be bounded, unique, and sorted",
+        )?;
+        for builder_id in &self.builder_ids {
+            require(
+                builder_id.len() == 54
+                    && builder_id.starts_with("eip155:4663:0x")
+                    && builder_id[14..]
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+                    && builder_id[14..].bytes().any(|byte| byte != b'0'),
+                "private Builder follow contains an invalid BuilderID",
+            )?;
+        }
+        parse_timestamp(&self.updated_at).map(|_| ())
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -72,6 +218,12 @@ pub enum WorkspaceEventPayload {
     ProductEntitlement {
         entitlement: ProductEntitlementProjection,
     },
+    #[serde(rename = "builder.follows")]
+    BuilderFollows { follows: BuilderFollowProjection },
+    #[serde(rename = "capability.updated")]
+    CapabilityUpdated { capability: CapabilityGrant },
+    #[serde(rename = "private.updates")]
+    PrivateUpdates { updates: PrivateUpdateProjection },
     #[serde(rename = "shot.upsert")]
     ShotUpsert { shot: Box<ShotSummary> },
     #[serde(rename = "shot.archive")]
@@ -120,6 +272,15 @@ impl WorkspaceEventPayload {
         match self {
             Self::WorkspaceSnapshot { snapshot } => snapshot.validate(),
             Self::ProductEntitlement { entitlement } => entitlement.validate(),
+            Self::BuilderFollows { follows } => follows.validate(),
+            Self::CapabilityUpdated { capability } => {
+                let key = decode_array::<32>(
+                    "updated capability Studio signing key",
+                    &capability.body.studio_signing_public_key,
+                )?;
+                capability.verify(&key, time::OffsetDateTime::now_utc())
+            }
+            Self::PrivateUpdates { updates } => updates.validate(),
             Self::ShotUpsert { shot } => shot.validate(),
             Self::ShotArchive { shot_id } | Self::ShotRemove { shot_id } => {
                 validate_identifier("event Shot ID", shot_id)
@@ -270,5 +431,33 @@ mod tests {
         failed.validate().unwrap();
         failed.failure_code = Some("raw harness output contains spaces".into());
         assert!(failed.validate().is_err());
+    }
+
+    #[test]
+    fn private_update_identity_is_language_stable_and_projection_is_strictly_ordered() {
+        let id =
+            PrivateUpdateItem::stable_id(PrivateUpdateKind::ClaimedAppUpdated, "0x1111", "0x2222");
+        assert_eq!(id, "update_eQPmHhbsHqXFJ-LydeluMnMIloHQDl7wOfOKVeGH3Nw");
+        let item = PrivateUpdateItem {
+            schema: PRIVATE_UPDATE_ITEM_SCHEMA.into(),
+            update_id: id,
+            kind: PrivateUpdateKind::ClaimedAppUpdated,
+            subject_id: "0x1111".into(),
+            evidence_id: "0x2222".into(),
+            title: "Claimed app updated".into(),
+            detail: "One canonical public release moved.".into(),
+            occurred_at: "2026-08-31T12:00:00Z".into(),
+            read_at: None,
+        };
+        item.validate().unwrap();
+        let projection = PrivateUpdateProjection {
+            schema: PRIVATE_UPDATES_SCHEMA.into(),
+            items: vec![item.clone(), item],
+            updated_at: "2026-08-31T12:00:00Z".into(),
+        };
+        assert!(
+            projection.validate().is_err(),
+            "duplicate evidence must fail closed"
+        );
     }
 }

@@ -1,0 +1,101 @@
+{
+  "schema": "tohseno.release-readiness/1",
+  "version": "1.2.0",
+  "channel": "release-candidate",
+  "ready": false,
+  "source": {
+    "exact_source_commit": null,
+    "captured_at": null,
+    "accepted_product_adrs": [
+      "docs/adr/0034-person-to-person-native-software.md",
+      "docs/adr/0035-claiming-software.md"
+    ],
+    "previous_release_candidate": "1.1.0",
+    "current_public_installer_pin": "1.1.0",
+    "target_public_installer_pin": "1.2.0",
+    "historical_protocol_rewritten": false,
+    "recording_layer_implicit_migration": false
+  },
+  "authorization": {
+    "authorized": false,
+    "authorized_by": null,
+    "authorized_at": null,
+    "authorization_form": null
+  },
+  "protection": {
+    "immutable_release_policy_verified": true,
+    "release_tag_protection_verified": true,
+    "release_tag_ruleset_id": 21880500,
+    "verified_at": "2026-08-30T21:34:39Z"
+  },
+  "claims": {
+    "contract": "TohsenoClaimsV1",
+    "expected_chain_id": 4663,
+    "expected_registry": "0x3fe6508ba2660bc575080024f402c192a2e035a0",
+    "deployment": {
+      "address": null,
+      "transaction_hash": null,
+      "block_number": null,
+      "runtime_code_hash": null
+    },
+    "activation": {
+      "active": false,
+      "signed_record": null,
+      "signing_digest": null
+    },
+    "production_writes_enabled": false
+  },
+  "required_local_evidence": {
+    "clean_source_commit_captured": false,
+    "rust_fmt_green": true,
+    "rust_clippy_green": true,
+    "rust_workspace_tests_green": true,
+    "claim_action_vectors_green": true,
+    "claim_mark_vectors_green": true,
+    "apple_identity_build_green": true,
+    "apple_identity_tests_green": true,
+    "fascia_apple_tests_green": true,
+    "companion_kit_tests_green": true,
+    "companion_product_tests_green": true,
+    "mac_product_tests_green": true,
+    "contracts_build_green": true,
+    "contracts_tests_green": true,
+    "claims_contract_tests_green": true,
+    "studio_tests_green": true,
+    "website_typecheck_green": true,
+    "website_tests_green": true,
+    "network_end_to_end_green": true,
+    "factory_lifecycle_green": true,
+    "companion_end_to_end_green": true,
+    "isolated_macos_launchagent_integration_green": true,
+    "release_candidate_artifacts_built_from_clean_commit": false,
+    "release_candidate_manifests_verified": false
+  },
+  "required_production_evidence": {
+    "claims_contract_deployed_from_captured_source": false,
+    "claims_signed_activation_verified": false,
+    "claims_runtime_and_registry_reverified": false,
+    "production_ship_with_immutable_edition_green": false,
+    "second_identity_physical_claim_green": false,
+    "canonical_claim_receipt_green": false,
+    "offline_mac_exact_release_preparation_green": false,
+    "recipient_signed_physical_install_green": false,
+    "later_update_preserves_claim_and_edition_green": false,
+    "private_follow_reconciliation_green": false,
+    "website_claim_receipt_and_metadata_green": false,
+    "one_ship_timeline_green": false,
+    "clean_mac_acceptance_green": false
+  },
+  "external_activation_gates": {
+    "developer_id_signed": false,
+    "notarization_accepted": false,
+    "ticket_stapled": false,
+    "mounted_gatekeeper_verified": false,
+    "immutable_public_dmg_verified": false,
+    "production_registry_enabled": false,
+    "production_relayer_enabled": false,
+    "claims_relayer_enabled": false,
+    "stable_download_activated": false
+  },
+  "blocking_reason": "The complete local 1.2.0 verification matrix is green, but the source is not yet captured as one reviewed commit. Claims remains dark: no TohsenoClaimsV1 deployment, signed Claims activation, production write enablement, signed/notarized 1.2.0 artifact, or owner-attended two-identity physical acceptance has been recorded. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until all 1.2.0 release and Claims evidence exists."
+}

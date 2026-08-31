@@ -1,16 +1,18 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-30. This is the plain-language
+Written 2026-07-30, amended through 2026-08-31. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
-## Current product direction: person-to-person native software
+## Current product direction: claimable person-to-person software
 
-ADR 0034 is the latest product decision. It retains ADR 0033's living private
-connection and makes one explicit Companion-approved release capable of
-traveling to another person as signed, buildable source. The Mac is the factory,
-Companion is the human authority, the Registry is the public witness and
-discovery layer, and immutable links carry ShotID plus exact release digest.
+ADR 0035 is the latest product decision. It retains ADR 0034's signed,
+buildable person-to-person source and adds one public act: Claim. The Mac is
+the factory, Companion is the human authority, generation 0.8 plus the signed
+catalog remains the public Shot witness, and a separately activated additive
+Claims contract records non-transferable exact encounters. A Shot ships once,
+later releases are Updates, and its first Ship fixes one immutable Claim
+Edition. Install remains private physical evidence, never an on-chain fact.
 
 The implemented vertical slice is:
 
@@ -27,10 +29,13 @@ Adopt .xcodeproj/.xcworkspace on Mac
 
 Explicit Ship
   -> deterministic sanitized source snapshot
-  -> exact catalog + Registry action approved by Companion DeviceKey
+  -> exact catalog + Registry action + immutable Claim Edition approved by Companion DeviceKey
   -> active generation-0.8 BuilderAccount/RegisterShot or AppendCheckpoint
-  -> receipt/head/source verified public catalog release and canonical link
-  -> recipient Companion Install/Fork request
+  -> first release emits one Ship; later public releases emit Update
+  -> canonical Discover/Shot timeline backed by receipt/head/source evidence
+  -> recipient Companion Claim circle + Tohseno smart-account signature
+  -> separately activated Claims contract mints one non-transferable receipt
+  -> canonical Claim durably queues the exact release while the Mac may be offline
   -> recipient Mac independently verifies chain, receipt, manifest, and source
   -> narrow Xcode build + recipient-local Apple signing + physical install proof
 ```
@@ -60,7 +65,7 @@ Mode, and multiple-device ambiguity retain the verified artifact as **Ready to
 install** with the smallest action. The background retry performs no device
 polling unless a saved build is actually waiting.
 
-The 1.1.0 source implementation includes the public catalog/blob service,
+The frozen 1.1.0 source candidate includes the public catalog/blob service,
 constrained active-generation relayer, DeviceKey publication approval,
 deterministic source security, live receipt/head verification, Install/Fork,
 recipient signing/refresh, native Registry and Profile surfaces, signed profile
@@ -68,6 +73,18 @@ updates, permissioned alias requests, and the isolated network E2E harness. It
 changes no public protocol encoding or deployed ABI. Source completion does not
 claim the 1.1.0 DMG is signed/notarized/published or that second-person physical
 acceptance has occurred; those remain release evidence, not software inference.
+
+The current 1.2.0 source line adds `TohsenoClaimsV1`, exact Rust/Swift/Solidity/
+TypeScript action and Claim-mark agreement, separately signed Claims
+activation, atomic first-Ship edition opening, one-Ship public timelines,
+canonical Claims indexing, the Companion circle and claimed-software cabinet,
+durable offline exact-release preparation, private follows, and a reconciled
+high-signal Updates inbox. It also adds a constrained owner deployment and
+threshold ceremony without modifying generation 0.8. Claims remains dark:
+there is no deployed/activated contract, production Claims relayer, released
+1.2 client, canonical physical Claim, or 1.2 DMG evidence. Exact blockers live
+in `release/V1_2_0_READINESS.json`; 1.1 evidence remains bound to its recorded
+source commit.
 
 ## Native macOS transition
 
@@ -120,14 +137,14 @@ the existing exactly-once application-service path and Shift–Return inserts a
 line. The creation settings are open by default so discovered Codex and other
 authenticated harnesses are visible; discovery checks bounded standalone,
 Homebrew/global, Volta, npm-global, Bun, and installed NVM locations without
-executing a user shell. The Registry destination projects the trusted helper's
-verified local Shot heads under **Apps on this Mac**, plus accepted-version
-counts, local identity, and active network generation. A separate **Published
-apps** area reads the production signed catalog. Catalog reachability is not
+executing a user shell. The Registry destination presents deterministic public
+**Discover**, private **Following**, and a durable private **Updates** inbox;
+the old quick New Shot composer and local app grid do not return. Catalog reachability is not
 shown as chain verification: the exact manifest, receipt, active generation,
 current Builder DeviceKey authority, current Shot state, and source bytes are
-verified by the Mac only after the person chooses Install or Fork. Its quick
-New Shot field uses the same automatic create route; it is not a second factory.
+verified by the Mac only after the person chooses Claim, Install, or Fork.
+Workshop and creation actions remain in Your Apps; Registry is not a second
+factory.
 
 Retirement preserves source and accepted history. The native Diagnostics
 archive exposes those apps and can restore one to the library without silently
@@ -537,7 +554,10 @@ handoff from ADR 0011 also remains transport rather than a Shot.
 The remediated 0.8 contract generation was deployed to Robinhood Chain mainnet
 as a candidate on 2026-08-01 and activated by the recorded owner ceremony on
 2026-08-02. That evidence remains under `release/` and `contracts/`. No
-contract generation or deployment command is active on current source.
+successor contract-generation or generation deployment command is active on
+current source. ADR 0035's narrow additive Claims deployment script is
+separate, owner-attended, and has not produced a trusted deployment or
+activation.
 
 This is an honest client-state claim, not an audit-quality claim. The release
 records also say the owner waived the required pre-activation canary, all three
@@ -562,16 +582,20 @@ serve native 1.0.0. npm's independently versioned front door is 1.0.1 and
 delegates to that native release. Publication evidence for the npm patch is in
 `release/NPM_1_0_1_PUBLICATION.json`.
 
-Native **1.1.0** is the next product release target in source. It must not reuse
-the immutable 1.0.2 candidate evidence. The `v1.0.2-rc.1` rejection and
-`v1.0.2-rc.2` signed/notarized candidate remain historical evidence under
-`release/V1_0_2_READINESS.json`; neither proves 1.1.0. Stable 1.1.0 activation
-still requires a clean committed universal build, Developer ID signing,
-notarization, stapling, mounted-DMG/Gatekeeper/manifest/hash verification,
-clean-Mac acceptance, Companion install/pair, a real production Shot through
-the normal approval flow, and second-person physical Install/Fork/Refresh
-evidence. The website and Registry write path must remain dark until that order
-can produce no broken advertising window.
+Native **1.1.0** remains an unreleased source candidate frozen to exact commit
+`ee16e1e2cef95a2598632bc9444d5011998aebae`; its readiness record remains false
+and its evidence must not be rewritten to describe later source.
+
+Native **1.2.0** is the current product release target in source. It must not
+reuse 1.0.2 artifact evidence or infer release truth from the 1.1 candidate.
+Beyond the ordinary clean committed universal build, Developer ID signing,
+notarization, stapling, mounted-DMG/Gatekeeper/manifest/hash verification, and
+clean-Mac acceptance, 1.2 requires the separate Claims deployment/activation
+and the owner-attended production proof in ADR 0035: real first Ship and
+edition, second identity Claim, offline-Mac preparation, recipient-signed
+physical install, later Update preservation, Follow reconciliation, live
+receipt paths, and exactly one Ship. Registry/Claims writes and Claim
+advertising remain dark until that order creates no broken window.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay

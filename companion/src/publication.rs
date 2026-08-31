@@ -9,7 +9,9 @@ use crate::{parse_timestamp, require, validate_identifier, validate_text, Result
 use serde::{Deserialize, Serialize};
 
 pub const BUILDER_DEVICE_ANNOUNCEMENT_SCHEMA: &str = "tohseno.builder-device-announcement/1";
-pub const PUBLICATION_APPROVAL_REQUEST_SCHEMA: &str = "tohseno.publication-approval-request/1";
+pub const PUBLICATION_APPROVAL_REQUEST_SCHEMA: &str = "tohseno.publication-approval-request/2";
+pub const LEGACY_PUBLICATION_APPROVAL_REQUEST_SCHEMA: &str =
+    "tohseno.publication-approval-request/1";
 pub const PUBLICATION_SIGNATURE_SCHEMA: &str = "tohseno.builder-device-signature/1";
 pub const ACTIVE_CHAIN_ID: u64 = 4663;
 pub const ACTIVE_FACTORY: &str = "0xb1bd208cd2af98e701f43d06aaa889d3a594df65";
@@ -75,12 +77,126 @@ pub struct PublicationApprovalRequest {
     pub registry_digest: String,
     pub issued_at: String,
     pub expires_at: String,
+    #[serde(default)]
+    pub publication_kind: Option<String>,
+    #[serde(default)]
+    pub claim_edition: Option<ClaimEditionApprovalContext>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimEditionPolicySummary {
+    pub kind: String,
+    pub max_claims: u64,
+    pub closes_at: u64,
+}
+
+impl ClaimEditionPolicySummary {
+    pub fn validate(&self) -> Result<()> {
+        require(
+            self.max_claims <= 9_007_199_254_740_991 && self.closes_at <= 9_007_199_254_740_991,
+            "Claim Edition bounds exceed the exact integer limit",
+        )?;
+        require(
+            matches!(
+                (self.kind.as_str(), self.max_claims, self.closes_at),
+                ("open", 0, 0)
+                    | ("limited", 1.., 0)
+                    | ("timed", 0, 1..)
+                    | ("limited_timed", 1.., 1..)
+            ),
+            "Claim Edition policy shape is invalid",
+        )
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimEditionApprovalContext {
+    pub claims_contract: String,
+    pub claims_activation_signing_digest: String,
+    pub controller: String,
+    pub edition_nonce: u64,
+    pub action_deadline: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_policy: Option<ClaimEditionPolicySummary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenClaimEditionApprovalAction {
+    pub shot_registry: String,
+    pub shot_id: String,
+    pub max_claims: u64,
+    pub closes_at: u64,
+    pub controller: String,
+    pub nonce: u64,
+    pub deadline: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovedClaimEdition {
+    pub policy: ClaimEditionPolicySummary,
+    pub action: OpenClaimEditionApprovalAction,
+    pub digest: String,
+    pub signature: BuilderDeviceSignature,
+}
+
+impl ApprovedClaimEdition {
+    pub fn validate(&self) -> Result<()> {
+        self.policy.validate()?;
+        hex32("Claim Edition digest", &self.digest)?;
+        self.signature.validate()?;
+        require(
+            self.signature.digest == self.digest
+                && self.action.shot_registry == ACTIVE_REGISTRY
+                && self.action.shot_id.len() == 66
+                && self.action.controller.len() == 42
+                && self.action.max_claims == self.policy.max_claims
+                && self.action.closes_at == self.policy.closes_at
+                && self.action.nonce <= 9_007_199_254_740_991
+                && self.action.deadline > 0
+                && self.action.deadline <= 9_007_199_254_740_991,
+            "approved Claim Edition is invalid",
+        )?;
+        hex32("Claim Edition ShotID", &self.action.shot_id)
+    }
+}
+
+impl ClaimEditionApprovalContext {
+    fn validate(&self, request: &PublicationApprovalRequest) -> Result<()> {
+        require(
+            self.claims_contract.len() == 42
+                && self.claims_contract.starts_with("0x")
+                && is_hex(&self.claims_contract),
+            "Claims contract address is invalid",
+        )?;
+        hex32(
+            "Claims activation signing digest",
+            &self.claims_activation_signing_digest,
+        )?;
+        require(
+            self.controller == request.builder_id.rsplit(':').next().unwrap_or_default(),
+            "Claim Edition controller differs from the exact BuilderAccount",
+        )?;
+        require(
+            self.edition_nonce <= 9_007_199_254_740_991
+                && self.action_deadline == request.action_deadline,
+            "Claim Edition nonce or deadline is invalid",
+        )?;
+        if let Some(policy) = &self.requested_policy {
+            policy.validate()?;
+        }
+        Ok(())
+    }
 }
 
 impl PublicationApprovalRequest {
     pub fn validate(&self) -> Result<()> {
+        let legacy = self.schema == LEGACY_PUBLICATION_APPROVAL_REQUEST_SCHEMA;
         require(
-            self.schema == PUBLICATION_APPROVAL_REQUEST_SCHEMA,
+            legacy || self.schema == PUBLICATION_APPROVAL_REQUEST_SCHEMA,
             "unsupported publication approval request schema",
         )?;
         validate_identifier("publication job ID", &self.job_id)?;
@@ -137,7 +253,23 @@ impl PublicationApprovalRequest {
         require(
             self.action_deadline == expires.unix_timestamp() as u64,
             "Registry action deadline differs from approval expiry",
-        )
+        )?;
+        if legacy {
+            require(
+                self.publication_kind.is_none() && self.claim_edition.is_none(),
+                "legacy publication approval cannot carry Claims fields",
+            )?;
+            return Ok(());
+        }
+        match (self.publication_kind.as_deref(), &self.claim_edition) {
+            (Some("ship"), Some(context)) if self.checkpoint_sequence == 1 => {
+                context.validate(self)
+            }
+            (Some("update"), None) if self.checkpoint_sequence >= 2 => Ok(()),
+            _ => Err(crate::CompanionError::Invalid(
+                "publication kind and immutable Claim Edition context disagree".into(),
+            )),
+        }
     }
 }
 

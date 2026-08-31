@@ -11,6 +11,8 @@ interface Vm {
     function assume(bool condition) external;
     function chainId(uint256 newChainId) external;
     function etch(address target, bytes calldata newRuntimeBytecode) external;
+    function expectEmit(bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData, address emitter)
+        external;
     function expectPartialRevert(bytes4 revertData) external;
     function expectRevert(bytes4 revertData) external;
     function expectRevert(bytes calldata revertData) external;

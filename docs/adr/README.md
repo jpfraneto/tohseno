@@ -2,6 +2,13 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0035](0035-claiming-software.md) adds Claim as a public, intentional,
+non-transferable software encounter; makes a Shot ship exactly once and update
+thereafter; opens one immutable Claim Edition at first Ship; and turns Registry
+into Discover, private Following, and a high-signal private Updates inbox. The
+additive Claims contract has separate threshold-signed activation and changes
+no frozen protocol encoding or deployed generation-0.8 ABI.
+
 [ADR 0034](0034-person-to-person-native-software.md) makes Tohseno the
 person-to-person native software network: the Mac remains the factory, the
 Companion owns Builder publication authority, generation 0.8 remains the

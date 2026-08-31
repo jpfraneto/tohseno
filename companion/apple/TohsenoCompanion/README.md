@@ -1,4 +1,4 @@
-# TOHSENO Companion 1.1.0
+# TOHSENO Companion 1.2.0
 
 The iPhone app. It is the human authority and remote control, not a mobile
 factory: the Mac remains the factory, and this app implements no second
@@ -7,10 +7,11 @@ coding harness. Everything it does goes through the released
 `sdk/apple/TohsenoCompanionKit`.
 
 ```text
-Apps · Registry · Profile
+Apps · Registry · Updates · Profile
   Apps     → Create / choose app / Evolve
-  Registry → exact public release → Install or Fork
-  Profile  → DeviceKey-signed profile / permissioned alias request
+  Registry → Discover / private Following / exact release → Claim or Fork
+  Updates  → durable relationship-backed private inbox
+  Profile  → claimed-software cabinet / signed public profile
 ```
 
 ## Layout
@@ -76,19 +77,37 @@ sends one request. It stays disabled while that app already has work in flight.
 Legacy entitlement projections remain decodable but do not replace the current
 person-to-person product or gate local/BYO execution.
 
-**Registry.** The phone browses real catalog releases and opens one exact
-ShotID/release digest. Install and Fork queue a signed, encrypted,
-replay-protected command containing only those identifiers and the bounded
-action. The Mac independently resolves and verifies the official release; the
-phone never supplies an executable URL or source tree.
+**Registry.** Discover is a deterministic public Ship/Update/Fork/edition-close
+timeline, never a generic post feed or app grid. Following stores exact
+BuilderIDs privately and reconciles them over the paired encrypted channel.
+Opening an app binds one exact ShotID/release digest. Once the separate Claims
+activation is present, Claim centers the artifact for a forgiving circle or
+accessibility hold, normalizes it to fixed-width canonical geometry, signs the
+independently recomputed exact action, and waits for a canonical token number.
+Only then does the durable outbox queue that exact release for the Mac. The Mac
+independently resolves and verifies it; the phone never supplies executable
+source or reports physical installation from a Claim.
+
+**Updates.** This is a high-signal private inbox: a claimed app changed,
+preparation became ready, a fork of the person's Shot shipped, their finite
+edition closed, publication needs approval, or evolution completed. Stable
+evidence IDs preserve read state across restarts and paired-device replay.
+Generic Discover activity and other people's individual Claims never enter it.
 
 **Profile.** A separate P-256 Builder DeviceKey is created with the strongest
 this-device-only Secure Enclave/Keychain mechanism. Its private scalar never
 leaves the iPhone and is not a pairing, recovery, installation, or Apple
-signing key. Publication approval displays the complete bounded release/action
-summary, recomputes digests, and signs only after the person's explicit tap.
+signing key. First-Ship publication approval displays the complete bounded
+release/action and lets the person choose the one immutable Claim Edition;
+later Updates cannot change it. Companion recomputes every digest and signs
+only after the person's explicit tap.
 Public profile updates and alias claims use the same exact-digest, low-s P-256
 boundary; aliases remain pending until explicit server policy review.
+
+The Profile cabinet retains canonical claimed encounters: exact release,
+Builder, Claim number, normalized mark, and expandable chain facts. This local
+product projection does not imply unique humanity and does not publish the
+physical phone, Mac, pairing, Apple identity, or install state.
 
 ## What one tap means
 
@@ -148,8 +167,8 @@ human sentence, and pairing lands directly in Your Apps. Crypto, envelopes,
 durability, and reconciliation stay covered by the SDK's own tests rather than
 being re-tested here. The SDK tests additionally cover Builder DeviceKey,
 publication canonicalization, active-generation digest interoperability, and
-durable Install/Fork commands; the website Registry tests consume compatible
-P-256 canonical payloads.
+durable Claim/Install/Fork commands; the website Registry/Claims tests consume
+compatible P-256 canonical payloads and shared Claim vectors.
 
 ## Not in this app
 

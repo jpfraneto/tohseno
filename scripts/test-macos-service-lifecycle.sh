@@ -132,8 +132,8 @@ for executable in "$candidate" "$fake_launchctl" "$stable_launcher_fixture"; do
   [ -f "$executable" ] && [ ! -L "$executable" ] && [ -x "$executable" ] ||
     fail "a required service lifecycle executable is unsafe"
 done
-[ "$("$candidate" --version)" = "tohseno 1.1.0" ] ||
-  fail "the service lifecycle requires a TOHSENO 1.1.0 debug binary"
+[ "$("$candidate" --version)" = "tohseno 1.2.0" ] ||
+  fail "the service lifecycle requires a TOHSENO 1.2.0 debug binary"
 grep -a -Fq 'TOHSENO_TEST_LAUNCHCTL' "$candidate" ||
   fail "the candidate does not contain the debug-only launchctl boundary"
 
@@ -200,7 +200,7 @@ assert value.get("schema") == "tohseno.service-status/1"
 assert value.get("operation") == "install"
 assert value.get("installed") is True
 assert value.get("healthy") is True
-assert value.get("service_version") == "1.1.0"
+assert value.get("service_version") == "1.2.0"
 assert value.get("state_preserved") is True
 ' "$temporary_root/install.json" || fail "service install did not return verified health"
 [ -f "$launch_agent" ] && [ ! -L "$launch_agent" ] ||
@@ -243,7 +243,7 @@ health = json.load(open(sys.argv[2], encoding="utf-8"))
 pid = int(open(sys.argv[3], encoding="ascii").read().strip())
 assert health.get("schema") == "tohseno.local-workspace-health/1"
 assert health.get("status") == "healthy"
-assert health.get("service_version") == "1.1.0"
+assert health.get("service_version") == "1.2.0"
 for field in ("workspace_id", "studio_device_id", "origin", "instance_id", "service_version"):
     assert health.get(field) == runtime.get(field)
 assert runtime.get("process_id") == pid
@@ -262,7 +262,7 @@ assert value.get("schema") == "tohseno.service-status/1"
 assert value.get("installed") is True
 assert value.get("launchd_loaded") is True
 assert value.get("healthy") is True
-assert value.get("service_version") == "1.1.0"
+assert value.get("service_version") == "1.2.0"
 ' "$temporary_root/status.json" || fail "service status did not verify launchd and health"
 
 printf '%s\n' preserve >"$install_root/service/private-state-preserved"

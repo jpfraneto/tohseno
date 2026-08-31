@@ -340,11 +340,14 @@ private struct LibraryEmptyView: View {
 
 private struct RegistryView: View {
     @Bindable var model: TohsenoAppModel
-    @FocusState private var quickShotFocused: Bool
+    @State private var mode = RegistryMode.discover
+    @State private var query = ""
 
-    private var canSubmitQuickShot: Bool {
-        !model.isSubmitting &&
-            !model.quickShotIntention.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private enum RegistryMode: String, CaseIterable, Identifiable {
+        case discover = "Discover"
+        case following = "Following"
+        case updates = "Updates"
+        var id: String { rawValue }
     }
 
     var body: some View {
@@ -352,11 +355,21 @@ private struct RegistryView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Registry").font(.largeTitle.bold())
-                    Text("Native apps published by people, verified against their signed source and current chain head.")
+                    Text("The world outside your workshop. Software enters once, then changes through Updates.")
                         .foregroundStyle(TohsenoTheme.silver)
                 }
 
-                quickShotComposer
+                HStack(spacing: 18) {
+                    Picker("Registry mode", selection: $mode) {
+                        ForEach(RegistryMode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("registry.modes")
+                    TextField("Search apps, Builders, or ShotID", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 330)
+                        .accessibilityIdentifier("registry.search")
+                }
 
                 if model.isLoadingRegistry, model.registrySnapshot == nil {
                     HStack(spacing: 10) {
@@ -365,8 +378,7 @@ private struct RegistryView: View {
                             .foregroundStyle(TohsenoTheme.silver)
                     }
                 } else if let snapshot = model.registrySnapshot {
-                    publishedApps(snapshot)
-                    appsOnThisMac(snapshot.records)
+                    registryWorld(snapshot)
                 } else {
                     ContentUnavailableView {
                         Label("Registry unavailable", systemImage: "exclamationmark.triangle")
@@ -383,101 +395,81 @@ private struct RegistryView: View {
         .background(TohsenoTheme.void)
         .task {
             await model.refreshRegistry()
-            quickShotFocused = true
         }
     }
 
-    private var quickShotComposer: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("New Shot").font(.title2.weight(.semibold))
-                Spacer()
-                ShotKeyboardHint()
-            }
-            TextField(
-                "Describe a new app…",
-                text: $model.quickShotIntention,
-                axis: .vertical
-            )
-            .lineLimit(1...5)
-            .textFieldStyle(.plain)
-            .font(.body)
-            .padding(13)
-            .background(TohsenoTheme.carbon)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(TohsenoTheme.iron))
-            .focused($quickShotFocused)
-            .shotSubmitOnReturn(enabled: canSubmitQuickShot) {
-                Task { await model.submitQuickShot() }
-            }
-            .accessibilityLabel("Describe a new app")
-            .accessibilityIdentifier("registry.quick.intention")
-            HStack {
-                Text("Uses your automatic intelligence route. Create App adds names, references, and advanced choices.")
-                    .font(.caption)
-                    .foregroundStyle(TohsenoTheme.silver)
-                Spacer()
-                Button {
-                    Task { await model.submitQuickShot() }
-                } label: {
-                    HStack(spacing: 7) {
-                        if model.isSubmitting {
-                            TohsenoSpinner(
-                                size: 14,
-                                stroke: TohsenoTheme.void,
-                                gap: TohsenoTheme.amber
-                            )
-                        }
-                        Text(model.isSubmitting ? "Sending…" : "Send Shot")
+    @ViewBuilder private func registryWorld(_ snapshot: RegistrySnapshot) -> some View {
+        if mode == .updates {
+            updates(snapshot)
+        } else {
+            let events = visibleEvents(snapshot)
+            if events.isEmpty {
+                ContentUnavailableView(
+                    mode == .following ? "Follow a Builder" : "The network is quiet",
+                    systemImage: mode == .following ? "person.crop.circle.badge.plus" : "network",
+                    description: Text(mode == .following
+                        ? "Following stays private on this Mac and paired Companion. No follower count exists."
+                        : snapshot.network.reason)
+                )
+            } else {
+                LazyVStack(alignment: .leading, spacing: 1) {
+                    ForEach(events) { event in
+                        eventCard(event, snapshot: snapshot)
                     }
                 }
-                .buttonStyle(PrimaryActionStyle())
-                .disabled(!canSubmitQuickShot)
-                .keyboardShortcut(.return, modifiers: [])
-                .accessibilityIdentifier("registry.quick.submit")
+                .background(TohsenoTheme.iron)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .accessibilityIdentifier("registry.timeline")
             }
         }
-        .padding(18)
-        .background(TohsenoTheme.graphite)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private func builders(_ snapshot: RegistrySnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Builders").font(.title2.weight(.semibold))
-            VStack(alignment: .leading, spacing: 15) {
-                HStack(alignment: .top, spacing: 13) {
-                    TohsenoMark().frame(width: 38, height: 38)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("This Mac").font(.headline)
-                        Text(compact(snapshot.builder.builderID))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(TohsenoTheme.silver)
-                    }
-                    Spacer()
-                    Label("Local only", systemImage: "lock.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(TohsenoTheme.amber)
-                }
-                Divider().overlay(TohsenoTheme.iron)
-                HStack(spacing: 28) {
-                    RegistryMetric(value: "\(snapshot.records.count)", label: "verified Shots")
-                    RegistryMetric(value: "\(snapshot.acceptedVersionCount)", label: "accepted versions")
-                    RegistryMetric(value: snapshot.network.activeGeneration, label: "active generation")
-                }
-                Text("This is the existing legacy local DeviceKey track record, not a public Builder authority.")
-                    .font(.caption)
+    private func visibleEvents(_ snapshot: RegistrySnapshot) -> [PublicTimelineEvent] {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return snapshot.timeline.filter { event in
+            guard mode != .following || model.followedBuilderIDs.contains(event.builderID) else { return false }
+            guard !normalized.isEmpty else { return true }
+            let app = snapshot.published.first { $0.release.shotID == event.shotID }
+            return [event.shotID, event.builderID, app?.release.display.name ?? "",
+                    app?.release.display.description ?? "", app?.release.display.builderHandle ?? ""]
+                .joined(separator: " ").lowercased().contains(normalized)
+        }
+    }
+
+    private func eventCard(_ event: PublicTimelineEvent, snapshot: RegistrySnapshot) -> some View {
+        let app = snapshot.published.first { $0.release.shotID == event.shotID }
+        return HStack(alignment: .top, spacing: 18) {
+            Image(systemName: event.kind == "shot.updated" ? "arrow.triangle.2.circlepath" :
+                event.kind == "shot.forked" ? "arrow.triangle.branch" :
+                event.kind == "claim.edition_closed" ? "circle.badge.checkmark" : "app.badge")
+                .font(.title).foregroundStyle(TohsenoTheme.amber).frame(width: 44)
+            VStack(alignment: .leading, spacing: 7) {
+                Text(app?.release.display.name ?? compact(event.shotID)).font(.title2.weight(.semibold))
+                Text(event.kind == "shot.updated" ? "updated" :
+                    event.kind == "shot.forked" ? "was born as a fork" :
+                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Tohseno")
                     .foregroundStyle(TohsenoTheme.silver)
+                Text(app?.release.display.description ?? "Signed native software")
+                    .font(.subheadline).foregroundStyle(TohsenoTheme.silver).lineLimit(2)
+                Text(event.occurredAt).font(.caption.monospaced()).foregroundStyle(TohsenoTheme.silver)
             }
-            .padding(18)
-            .background(TohsenoTheme.graphite)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .accessibilityIdentifier("registry.builder")
+            Spacer()
+            VStack(alignment: .trailing, spacing: 10) {
+                Button(model.followedBuilderIDs.contains(event.builderID) ? "Following" : "Follow") {
+                    Task { await model.toggleFollow(builderID: event.builderID) }
+                }
+                .buttonStyle(.plain).foregroundStyle(TohsenoTheme.amber)
+                if let app {
+                    Link("View", destination: URL(string: "https://tohseno.com\(app.route)")!)
+                }
+            }
         }
+        .padding(20).background(TohsenoTheme.graphite)
     }
 
-    private func publishedApps(_ snapshot: RegistrySnapshot) -> some View {
+    private func updates(_ snapshot: RegistrySnapshot) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Published apps").font(.title2.weight(.semibold))
+            Text("Updates").font(.title2.weight(.semibold))
             if let message = model.networkActionMessage {
                 Label(message, systemImage: "arrow.triangle.2.circlepath")
                     .font(.subheadline)
@@ -498,100 +490,41 @@ private struct RegistryView: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(TohsenoTheme.amber))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            Group {
-                if snapshot.published.isEmpty {
-                HStack(alignment: .top, spacing: 13) {
-                    Image(systemName: snapshot.network.ready ? "network" : "network.slash")
-                        .font(.title2).foregroundStyle(TohsenoTheme.amber)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(snapshot.network.ready ? "The catalog is reachable" : "Public Registry not connected")
-                            .font(.headline)
-                        Text(snapshot.network.reason).foregroundStyle(TohsenoTheme.silver)
-                    }
-                }
-                .padding(18).background(TohsenoTheme.carbon)
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                } else {
-                    ForEach(snapshot.published) { app in
-                    HStack(alignment: .top, spacing: 14) {
-                        Image(systemName: "app.dashed").font(.title).foregroundStyle(TohsenoTheme.amber)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(app.release.display.name).font(.headline)
-                            Text(app.release.display.description).foregroundStyle(TohsenoTheme.silver).lineLimit(3)
-                            Label("Signed checkpoint \(app.release.checkpointSequence)", systemImage: "signature")
-                                .font(.caption).foregroundStyle(TohsenoTheme.amber)
-                            Text("Fresh chain state is verified on Install or Fork.")
-                                .font(.caption2).foregroundStyle(TohsenoTheme.silver)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 8) {
-                            Button("Install") {
-                                Task { await model.receive(app, action: .install) }
-                            }
-                            .buttonStyle(PrimaryActionStyle())
-                            .disabled(model.isSubmitting)
-                            if app.release.permissions.forkAllowed {
-                                Button("Fork") {
-                                    Task { await model.receive(app, action: .fork) }
+            if !snapshot.privateUpdates.isEmpty {
+                LazyVStack(spacing: 1) {
+                    ForEach(snapshot.privateUpdates) { update in
+                        Button {
+                            Task { await model.markPrivateUpdateRead(update) }
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Circle()
+                                    .fill(update.readAt == nil ? TohsenoTheme.amber : Color.clear)
+                                    .frame(width: 8, height: 8)
+                                    .padding(.top, 7)
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(update.title).font(.headline).foregroundStyle(.primary)
+                                    Text(update.detail).font(.subheadline)
+                                        .foregroundStyle(TohsenoTheme.silver)
+                                    Text(update.occurredAt).font(.caption.monospaced())
+                                        .foregroundStyle(TohsenoTheme.silver)
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(model.isSubmitting)
+                                Spacer()
                             }
-                            Link("Details", destination: URL(string: "https://tohseno.com\(app.route)")!)
-                                .font(.caption)
+                            .padding(16)
+                            .background(TohsenoTheme.graphite)
                         }
-                    }
-                    .padding(18).background(TohsenoTheme.graphite)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .buttonStyle(.plain)
                     }
                 }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .accessibilityIdentifier("registry.public-status")
-        }
-    }
-
-    private func appsOnThisMac(_ records: [LocalRegistryRecord]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Apps on this Mac").font(.title2.weight(.semibold))
-            if records.isEmpty {
-                Text("Your first accepted app will appear here.")
-                    .foregroundStyle(TohsenoTheme.silver)
-            } else {
-                ForEach(records) { record in
-                    HStack(spacing: 13) {
-                        if let app = model.apps.first(where: { $0.id == record.shotID }) {
-                            AppArtwork(data: model.icons[app.id], size: 42, cornerRadius: 9)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(record.appName).font(.headline)
-                            HStack(spacing: 8) {
-                                Label(
-                                    record.localVerified ? "Verified locally" : "Unverified",
-                                    systemImage: record.localVerified ? "checkmark.seal.fill" : "xmark.seal"
-                                )
-                                Text("Version \(record.localSequence)")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(TohsenoTheme.silver)
-                        }
-                        Spacer()
-                        Text("Private")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(TohsenoTheme.amber)
-                        Button("Open") {
-                            if let app = model.apps.first(where: { $0.id == record.shotID }) {
-                                model.route = .app(app.id)
-                            }
-                        }
-                    }
-                    .padding(14)
-                    .background(TohsenoTheme.graphite)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .accessibilityIdentifier("registry.record.\(record.shotID)")
-                }
+            if model.networkActionMessage == nil, model.networkReview == nil,
+               snapshot.privateUpdates.isEmpty {
+                ContentUnavailableView("Nothing needs you", systemImage: "checkmark.circle",
+                    description: Text("Only high-signal personal software changes appear here."))
             }
         }
+        .accessibilityIdentifier("registry.updates")
     }
 
     private func compact(_ value: String) -> String {

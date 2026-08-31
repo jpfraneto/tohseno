@@ -30,6 +30,9 @@ use tohseno_application::{
     ApplicationError, CommandJournal, CommandOrigin, CreateShotCommand, EntitlementStore,
     EvolveShotCommand, JournalError, ReferenceInput, ShotApplicationService, SubscriptionPlan,
 };
+use tohseno_companion::event::{
+    PrivateUpdateItem, PrivateUpdateProjection, PRIVATE_UPDATES_SCHEMA,
+};
 use tohseno_engine::shot_execution::{
     elapsed_seconds_between, load_completion, load_execution, read_events,
 };
@@ -657,6 +660,16 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         )
         .route("/api/v1/native-session", post(activate_native_session))
         .route("/api/v1/workspace", get(workspace))
+        .route(
+            "/api/v1/network/follows",
+            get(network_follows).put(update_network_follow),
+        )
+        .route(
+            "/api/v1/network/updates",
+            get(network_updates)
+                .post(insert_network_update)
+                .put(read_network_update),
+        )
         .route("/api/v1/projects", get(projects))
         .route("/api/v1/projects/adopt", post(adopt_project))
         .route("/api/v1/projects/{project_id}", get(project))
@@ -980,6 +993,90 @@ async fn workspace(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Valu
         .merge_workspace(&mut snapshot)
         .map_err(ApiError::internal)?;
     Ok(Json(json!(snapshot)))
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NetworkFollowUpdate {
+    builder_id: String,
+    followed: bool,
+}
+
+async fn network_follows(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<Value>, ApiError> {
+    load_network_follows(&state.service_root)
+        .map(|value| Json(json!(value)))
+        .map_err(ApiError::internal)
+}
+
+async fn update_network_follow(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<NetworkFollowUpdate>,
+) -> Result<Json<Value>, ApiError> {
+    let projection = set_network_follow(&state.service_root, &request.builder_id, request.followed)
+        .map_err(|error| ApiError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "network_follow_invalid",
+            message: error.to_string(),
+        })?;
+    // Follow state is owner-private and local-first. A temporarily unavailable
+    // encrypted relay cannot make the Mac mutation untrue; reconciliation or
+    // the next complete snapshot will converge the paired phone.
+    let _ = state
+        .companion
+        .publish_network_follows_to_all_devices(&projection)
+        .await;
+    Ok(Json(json!(projection)))
+}
+
+async fn network_updates(
+    State(state): State<Arc<WorkspaceState>>,
+) -> Result<Json<Value>, ApiError> {
+    load_private_updates(&state.service_root)
+        .map(|value| Json(json!(value)))
+        .map_err(ApiError::internal)
+}
+
+async fn insert_network_update(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(update): Json<PrivateUpdateItem>,
+) -> Result<Json<Value>, ApiError> {
+    let projection =
+        upsert_private_update(&state.service_root, update).map_err(|error| ApiError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "private_update_invalid",
+            message: error.to_string(),
+        })?;
+    let _ = state
+        .companion
+        .publish_private_updates_to_all_devices(&projection)
+        .await;
+    Ok(Json(json!(projection)))
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PrivateUpdateRead {
+    update_id: String,
+    read: bool,
+}
+
+async fn read_network_update(
+    State(state): State<Arc<WorkspaceState>>,
+    Json(request): Json<PrivateUpdateRead>,
+) -> Result<Json<Value>, ApiError> {
+    let projection = set_private_update_read(&state.service_root, &request.update_id, request.read)
+        .map_err(|error| ApiError {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            code: "private_update_invalid",
+            message: error.to_string(),
+        })?;
+    let _ = state
+        .companion
+        .publish_private_updates_to_all_devices(&projection)
+        .await;
+    Ok(Json(json!(projection)))
 }
 
 async fn projects(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>, ApiError> {
@@ -3329,6 +3426,187 @@ fn ensure_private_directory(path: &Path) -> Result<(), BoxError> {
     Ok(())
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkFollowProjection {
+    pub schema: String,
+    pub builder_ids: Vec<String>,
+    pub updated_at: String,
+}
+
+fn network_follow_path(service_root: &Path) -> PathBuf {
+    service_root
+        .join("network-preferences-v1")
+        .join("follows.json")
+}
+
+pub fn load_network_follows(service_root: &Path) -> Result<NetworkFollowProjection, BoxError> {
+    let path = network_follow_path(service_root);
+    let bytes = match read_bounded(&path, 256 * 1024) {
+        Ok(value) => value,
+        Err(error)
+            if error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|value| value.kind() == std::io::ErrorKind::NotFound) =>
+        {
+            return Ok(NetworkFollowProjection {
+                schema: "tohseno.private-builder-follows/1".into(),
+                builder_ids: Vec::new(),
+                updated_at: "1970-01-01T00:00:00Z".into(),
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    let projection: NetworkFollowProjection = serde_json::from_slice(&bytes)?;
+    if projection.schema != "tohseno.private-builder-follows/1"
+        || projection.builder_ids.len() > 10_000
+        || projection
+            .builder_ids
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || projection
+            .builder_ids
+            .iter()
+            .any(|value| !valid_builder_id(value))
+    {
+        return Err("private Builder follow projection is invalid".into());
+    }
+    Ok(projection)
+}
+
+pub fn set_network_follow(
+    service_root: &Path,
+    builder_id: &str,
+    followed: bool,
+) -> Result<NetworkFollowProjection, BoxError> {
+    if !valid_builder_id(builder_id) {
+        return Err("Builder follow requires one exact BuilderID".into());
+    }
+    let path = network_follow_path(service_root);
+    ensure_private_directory(path.parent().ok_or("follow projection has no parent")?)?;
+    let mut projection = load_network_follows(service_root)?;
+    let mut changed = false;
+    match projection
+        .builder_ids
+        .binary_search_by(|value| value.as_str().cmp(builder_id))
+    {
+        Ok(index) if !followed => {
+            projection.builder_ids.remove(index);
+            changed = true;
+        }
+        Err(index) if followed => {
+            if projection.builder_ids.len() >= 10_000 {
+                return Err("private Builder follow projection reached its bound".into());
+            }
+            projection.builder_ids.insert(index, builder_id.into());
+            changed = true;
+        }
+        _ => {}
+    }
+    if !changed {
+        return Ok(projection);
+    }
+    projection.updated_at = OffsetDateTime::now_utc()
+        .replace_nanosecond(0)?
+        .format(&Rfc3339)?;
+    write_replace(&path, &serde_json::to_vec(&projection)?, 0o600)?;
+    Ok(projection)
+}
+
+fn private_updates_path(service_root: &Path) -> PathBuf {
+    service_root
+        .join("network-preferences-v1")
+        .join("updates.json")
+}
+
+pub fn load_private_updates(service_root: &Path) -> Result<PrivateUpdateProjection, BoxError> {
+    let path = private_updates_path(service_root);
+    let bytes = match read_bounded(&path, 2 * 1024 * 1024) {
+        Ok(value) => value,
+        Err(error)
+            if error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|value| value.kind() == std::io::ErrorKind::NotFound) =>
+        {
+            return Ok(PrivateUpdateProjection {
+                schema: PRIVATE_UPDATES_SCHEMA.into(),
+                items: Vec::new(),
+                updated_at: "1970-01-01T00:00:00Z".into(),
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    let projection: PrivateUpdateProjection = serde_json::from_slice(&bytes)?;
+    projection.validate()?;
+    Ok(projection)
+}
+
+pub fn upsert_private_update(
+    service_root: &Path,
+    update: PrivateUpdateItem,
+) -> Result<PrivateUpdateProjection, BoxError> {
+    update.validate()?;
+    let path = private_updates_path(service_root);
+    ensure_private_directory(path.parent().ok_or("private Updates have no parent")?)?;
+    let mut projection = load_private_updates(service_root)?;
+    if let Some(existing) = projection
+        .items
+        .iter()
+        .find(|item| item.update_id == update.update_id)
+    {
+        let mut expected = update.clone();
+        expected.read_at = existing.read_at.clone();
+        if &expected != existing {
+            return Err("private Update stable ID already names different content".into());
+        }
+        return Ok(projection);
+    }
+    projection.items.push(update);
+    projection.items.sort_by(|left, right| {
+        right
+            .occurred_at
+            .cmp(&left.occurred_at)
+            .then_with(|| left.update_id.cmp(&right.update_id))
+    });
+    projection.items.truncate(1_000);
+    projection.updated_at = now();
+    projection.validate()?;
+    write_replace(&path, &serde_json::to_vec(&projection)?, 0o600)?;
+    Ok(projection)
+}
+
+pub fn set_private_update_read(
+    service_root: &Path,
+    update_id: &str,
+    read: bool,
+) -> Result<PrivateUpdateProjection, BoxError> {
+    let path = private_updates_path(service_root);
+    let mut projection = load_private_updates(service_root)?;
+    let item = projection
+        .items
+        .iter_mut()
+        .find(|item| item.update_id == update_id)
+        .ok_or("private Update does not exist")?;
+    if item.read_at.is_some() == read {
+        return Ok(projection);
+    }
+    item.read_at = read.then(now);
+    projection.updated_at = now();
+    projection.validate()?;
+    ensure_private_directory(path.parent().ok_or("private Updates have no parent")?)?;
+    write_replace(&path, &serde_json::to_vec(&projection)?, 0o600)?;
+    Ok(projection)
+}
+
+fn valid_builder_id(value: &str) -> bool {
+    value.len() == 54
+        && value.starts_with("eip155:4663:0x")
+        && value[14..]
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        && value[14..].bytes().any(|byte| byte != b'0')
+}
+
 fn read_bounded(path: &Path, maximum: u64) -> Result<Vec<u8>, BoxError> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > maximum {
@@ -3398,6 +3676,89 @@ fn boxed(error: Box<dyn std::error::Error>) -> BoxError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_builder_follows_are_bounded_sorted_idempotent_and_not_public() {
+        let root = tempfile::tempdir().unwrap();
+        let a = "eip155:4663:0x1111111111111111111111111111111111111111";
+        let b = "eip155:4663:0x2222222222222222222222222222222222222222";
+        assert!(load_network_follows(root.path())
+            .unwrap()
+            .builder_ids
+            .is_empty());
+        set_network_follow(root.path(), b, true).unwrap();
+        let projection = set_network_follow(root.path(), a, true).unwrap();
+        assert_eq!(projection.builder_ids, vec![a, b]);
+        let same = set_network_follow(root.path(), a, true).unwrap();
+        assert_eq!(same.builder_ids, vec![a, b]);
+        let removed = set_network_follow(root.path(), a, false).unwrap();
+        assert_eq!(removed.builder_ids, vec![b]);
+        assert!(set_network_follow(
+            root.path(),
+            "eip155:4663:0x0000000000000000000000000000000000000000",
+            true,
+        )
+        .is_err());
+        assert!(root
+            .path()
+            .join("network-preferences-v1/follows.json")
+            .is_file());
+        assert!(!root.path().join("public").exists());
+    }
+
+    #[test]
+    fn private_updates_are_durable_evidence_keyed_and_preserve_read_state() {
+        use tohseno_companion::event::{PrivateUpdateKind, PRIVATE_UPDATE_ITEM_SCHEMA};
+
+        let root = tempfile::tempdir().unwrap();
+        let update = |evidence: &str, occurred_at: &str, title: &str| PrivateUpdateItem {
+            schema: PRIVATE_UPDATE_ITEM_SCHEMA.into(),
+            update_id: PrivateUpdateItem::stable_id(
+                PrivateUpdateKind::ClaimedAppUpdated,
+                "0x1111",
+                evidence,
+            ),
+            kind: PrivateUpdateKind::ClaimedAppUpdated,
+            subject_id: "0x1111".into(),
+            evidence_id: evidence.into(),
+            title: title.into(),
+            detail: "The Builder shipped a new verified release.".into(),
+            occurred_at: occurred_at.into(),
+            read_at: None,
+        };
+        let older = update("0xaaaa", "2026-08-31T11:00:00Z", "Older");
+        let newer = update("0xbbbb", "2026-08-31T12:00:00Z", "Newer");
+        upsert_private_update(root.path(), older.clone()).unwrap();
+        let projection = upsert_private_update(root.path(), newer).unwrap();
+        assert_eq!(projection.items[0].title, "Newer");
+        assert_eq!(projection.items[1].title, "Older");
+
+        let read = set_private_update_read(root.path(), &older.update_id, true).unwrap();
+        assert!(read.items[1].read_at.is_some());
+        let same = upsert_private_update(root.path(), older.clone()).unwrap();
+        assert_eq!(same.items[1].read_at, read.items[1].read_at);
+
+        let mut rebound = older;
+        rebound.title = "Different content".into();
+        assert!(upsert_private_update(root.path(), rebound).is_err());
+        assert!(set_private_update_read(root.path(), "update_missing", true).is_err());
+        assert!(root
+            .path()
+            .join("network-preferences-v1/updates.json")
+            .is_file());
+        assert!(!root.path().join("public").exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(root.path().join("network-preferences-v1/updates.json"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+    }
 
     #[test]
     fn local_api_rejects_oversized_or_excessive_headers() {

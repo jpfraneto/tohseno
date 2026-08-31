@@ -5,10 +5,12 @@ is not release evidence. The public download stays disabled until the exact
 candidate has been signed with Developer ID, notarized, stapled, independently
 verified, uploaded, and activated by digest.
 
-For 1.1.0, perform this artifact ceremony inside the ordering and production
-acceptance defined by
-[`PERSON_TO_PERSON_NETWORK.md`](PERSON_TO_PERSON_NETWORK.md). Historical 1.0.2
-candidate evidence cannot authorize or describe a 1.1.0 artifact.
+The unreleased 1.1.0 candidate remains tied to its exact readiness record. For
+1.2.0, perform this artifact ceremony inside both the ordering in
+[`PERSON_TO_PERSON_NETWORK.md`](PERSON_TO_PERSON_NETWORK.md) and the separate
+Claims ceremony in
+[`release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md`](../../release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md).
+Historical 1.0.2 or 1.1 evidence cannot authorize or describe a 1.2 artifact.
 
 ## Build an unsigned candidate
 

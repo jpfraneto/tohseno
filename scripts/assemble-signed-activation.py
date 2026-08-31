@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble custodian approvals into one signed contract-activation envelope.
+"""Assemble custodian approvals into one governed activation envelope.
 
 The coordinator runs this after collecting detached approvals. It recomputes
 the activation signing digest, checks every approval against the supplied
@@ -25,11 +25,18 @@ import tempfile
 from typing import Any
 
 RELEASE_KEY_DOMAIN = b"TOHSENO-RELEASE-AUTHORITY-KEY-V1\0"
-ACTIVATION_DOMAIN = b"TOHSENO-CONTRACT-ACTIVATION-V1\0"
-ACTIVATION_SCHEMA = "tohseno.contract-activation/1"
+ACTIVATION_PROFILES = {
+    "tohseno.contract-activation/1": (
+        b"TOHSENO-CONTRACT-ACTIVATION-V1\0",
+        "tohseno.signed-contract-activation/1",
+    ),
+    "tohseno.claims-activation/1": (
+        b"TOHSENO-CLAIMS-ACTIVATION-V1\0",
+        "tohseno.signed-claims-activation/1",
+    ),
+}
 APPROVAL_SCHEMA = "tohseno.release-authority-approval/1"
 POLICY_SCHEMA = "tohseno.release-authority-policy/1"
-SIGNED_SCHEMA = "tohseno.signed-contract-activation/1"
 MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
 P256_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
 SPKI_P256_PREFIX = bytes.fromhex(
@@ -188,10 +195,12 @@ def main() -> int:
     arguments = parser.parse_args()
 
     activation = load_json(arguments.activation)
+    activation_schema = activation.get("schema")
     require(
-        activation.get("schema") == ACTIVATION_SCHEMA,
-        f"activation schema must be {ACTIVATION_SCHEMA}",
+        activation_schema in ACTIVATION_PROFILES,
+        "activation schema is not governed by this assembler",
     )
+    activation_domain, signed_schema = ACTIVATION_PROFILES[activation_schema]
     policy = load_json(arguments.policy)
     require(policy.get("schema") == POLICY_SCHEMA, f"policy schema must be {POLICY_SCHEMA}")
     policy_digest = "0x" + hashlib.sha256(canonical_json(policy)).hexdigest()
@@ -199,7 +208,7 @@ def main() -> int:
         activation["authority_policy_sha256"] == policy_digest,
         "the activation does not bind the supplied policy",
     )
-    digest = hashlib.sha256(ACTIVATION_DOMAIN + canonical_json(activation)).digest()
+    digest = hashlib.sha256(activation_domain + canonical_json(activation)).digest()
 
     authorities = {
         authority["key_id"]: (
@@ -258,7 +267,7 @@ def main() -> int:
     )
 
     envelope = {
-        "schema": SIGNED_SCHEMA,
+        "schema": signed_schema,
         "activation": activation,
         "approvals": approvals,
     }

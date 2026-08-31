@@ -10,11 +10,13 @@ public enum CompanionCapability: String, Codable, CaseIterable, Comparable, Send
     case shotEvolve = "shot.evolve"
     case publicationAuthorize = "publication.authorize"
     case networkReceive = "network.receive"
+    case preferenceWrite = "preference.write"
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
         let order: [Self] = [
             .workspaceRead, .executionRead, .feedbackWrite,
             .marketingWrite, .shotCreate, .shotEvolve, .publicationAuthorize, .networkReceive,
+            .preferenceWrite,
         ]
         return order.firstIndex(of: lhs)! < order.firstIndex(of: rhs)!
     }

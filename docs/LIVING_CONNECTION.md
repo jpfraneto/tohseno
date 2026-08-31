@@ -1,15 +1,23 @@
 # The living connection
 
-This is the implementation and acceptance guide for ADRs 0033 and 0034. It is
+This is the implementation and acceptance guide for ADRs 0033 through 0035. It is
 descriptive; `protocol/` remains authoritative over public encodings.
 
 ## Product boundary
 
 Tohseno connects a person's native iPhone app to its exact Mac source and can,
-only through a separate explicit Ship action, make one immutable release travel
-to another person. Private evolution history stays private. Public release
+only through a separate explicit first Ship or later Update action, make one
+immutable release travel to another person. Private evolution history stays private. Public release
 contains sanitized source, a closed build recipe and permission declaration,
 Companion-held Builder authorization, and generation-0.8 Registry evidence.
+
+ADR 0035 adds a separately activated public Claim for one exact encounter. The
+first Ship opens one immutable Claim Edition; later Updates cannot replace it.
+A canonical Claim automatically queues the existing exact-release preparation
+through the private Companion-to-Mac channel, even while the Mac is offline.
+Claim is public. Source inspection stays public, while preparation, recipient
+Apple signing, device identity, and physical installation remain separate and
+private.
 
 Adoption and evolution never rewrite Git, commit, push, publish, or expose raw
 prompts/logs implicitly. Publication is separate and deliberate. Recipient
@@ -146,11 +154,29 @@ secret findings fail closed.
 
 Companion receives the complete structured catalog release and Registry action,
 recomputes both digests, verifies the active factory-derived BuilderID, shows a
-bounded human summary, and signs only after explicit approval. The durable Mac
-job stages exact source, asks the constrained relayer to deploy the predicted
-BuilderAccount if necessary and submit only the permitted Registry action, and
-does not return the link until the public catalog verifies the receipt and
-current head.
+bounded human summary, and signs only after explicit approval. On first Ship,
+the same approval fixes one of the four closed Claim Edition policies and
+signs its exact additive-contract action; an Update carries no edition action.
+The durable Mac job stages exact source, asks the constrained relayer to deploy
+the predicted BuilderAccount if necessary and submit only the permitted
+Registry action, then requires canonical edition-open evidence before source
+promotion. It does not return the link until public catalog, receipt, current
+head, and—on first Ship—edition all agree.
+
+The public Registry is a canonical event timeline: exactly one `shot.shipped`,
+later `shot.updated`, optional `shot.forked`, and derived
+`claim.edition_closed`. Discover does not emit individual Claims. Following is
+a private exact-BuilderID preference reconciled between the paired Mac and
+Companion. Updates is a durable private inbox for relationship-backed evidence,
+not generic feed traffic.
+
+When Claims is active, Companion displays the exact artifact and accepts one
+forgiving circle or the accessibility hold. It resamples to 64 normalized
+points, persists only fixed-width canonical geometry, signs the recomputed
+Claim action, and waits for the canonical token number. Only then does it
+durably submit Install for the exact claimed release. Restart and offline
+delivery retry the same identities; neither a button press nor a pending
+transaction becomes Claimed.
 
 Install and Fork requests cross the same private signed/encrypted Companion
 boundary. The Mac receives only ShotID, exact release digest, and action; it
@@ -222,13 +248,19 @@ The isolated public-network harness is:
 ```
 
 It exercises real generation-0.8 contract fixtures, P-256-controlled register
-and append, deterministic source round-trip and unsafe-source refusal, narrow
-build classification, a real unsigned Xcode build, signed catalog staging and
-promotion, discovery, signed profile/alias requests, and separate recipient
-fork identity. It uses test keys and a chain verifier only at explicit external
-boundaries; production code has no fake-success branch.
+and append, the complete additive Claims contract suite, cross-language Claim
+action/mark fixtures, deterministic source round-trip and unsafe-source
+refusal, narrow build classification, a real unsigned Xcode build, atomic
+catalog/edition staging and promotion, one-Ship timelines, canonical Claims
+index restart/reorg behavior, signed profile/alias requests, and separate
+recipient fork identity. It uses test keys and a chain verifier only at
+explicit external boundaries; production code has no fake-success branch.
 
 ## Current limitations and next remote milestone
+
+- Claims is dark until the additive deployment, threshold-signed activation,
+  released 1.2 clients, constrained relayer, and owner-attended two-identity
+  physical acceptance all exist. Local/simulator evidence is not substituted.
 
 - Adopted-project icon extraction falls back safely to the Tohseno mark.
 - The repository has no neutral consumer sample app; the Companion is a real

@@ -26,6 +26,10 @@ Protected assets:
 - the Companion-held non-exportable Builder DeviceKey and signed public
   release/profile/alias authorization;
 - exact public source bytes and recipient-local build/sign/install evidence.
+- Claim Edition immutability, one-account/Shot uniqueness, exact encounter
+  release/checkpoint binding, normalized Claim-mark privacy, and canonical
+  non-transferable receipt evidence;
+- private Follow preferences and high-signal Updates read state.
 
 Principal boundaries:
 
@@ -49,8 +53,11 @@ Principal boundaries:
 - on-chain Registry witness ↔ signed off-chain catalog and immutable blob;
 - public link ↔ recipient Companion request ↔ independent Mac verification ↔
   recipient Xcode and physical iPhone.
+- Companion Claim gesture/DeviceKey ↔ constrained Claims relayer ↔ additive
+  Claims contract ↔ canonical Claims index;
+- public Discover events ↔ private local Following/Updates projections.
 
-## Claims
+## Assurance claims
 
 TOHSENO can prove that exact bytes satisfy a supported schema, have a specific
 digest, were signed by a presented key, form a deterministic causal sequence,
@@ -83,6 +90,49 @@ exists, or that an authorized owner made a wise decision.
    Registry action.
 10. Aliases cannot change Shot identity. Fork gets a new random ShotID and
     never reuses parent authority.
+
+## Software Claim invariants
+
+1. Generation-0.8 Factory, BuilderAccount, Registry ABI, bytecode, and signed
+   activation remain unchanged. A Claims deployment is not a Registry
+   generation and is untrusted without its separate threshold-signed evidence.
+2. Clients require exact chain, Claims address, constructor-bound active
+   Registry, runtime hash, deployment receipt/block, source commit/tree, policy
+   digest, activation digest, and canonical live rechecks. An environment
+   address or operator database cannot activate Claims.
+3. Every Shot opens at most one immutable edition, only after the Shot exists
+   and only through its current Registry controller's exact ERC-1271
+   authorization. Updates cannot reopen, extend, reset, or edit it.
+4. One deployed Tohseno account may Claim one Shot once. The signature binds
+   chain, Claims contract, Registry, Shot, claimant, exact release, current
+   checkpoint, normalized gesture commitment, nonce, and deadline.
+5. Changed Registry head, stale nonce, expired action, invalid account,
+   exhausted supply, elapsed deadline, duplicate Claim, and noncanonical
+   receipt all fail closed. Chain ordering, not a server reservation, allocates
+   the number at a finite boundary.
+6. Transfers, approvals, arbitrary recipient callbacks, owner mint, policy
+   administration, upgrades, and marketplace behavior are absent. A defect
+   requires a truthful successor or abandonment.
+7. The relayer persists one allowlisted job before submission, retries it
+   idempotently, rate-limits source and global preparation, and never receives
+   a DeviceKey. A pending or failed transaction never increments canonical
+   state.
+8. Raw touch samples, timestamps, pressure, velocity, motion, and behavioral
+   inference are neither signed nor persisted. Only 64 normalized fixed-width
+   points or the explicit accessibility representation remain, and the human
+   action is not treated as entropy or identity proof.
+9. A Claim publicly links a Tohseno address to a Shot and exact encounter;
+   Companion discloses that once. It never publishes IP, Mac, physical iPhone,
+   Apple identity, pairing, source path, intention, or install evidence.
+10. Canonical Claim confirmation may enqueue the existing private exact-release
+    preparation. It cannot claim build, signing, cable, or physical install
+    success; the recipient Mac independently verifies every release fact.
+11. Public timelines derive from canonical block/transaction/log order and are
+    reorg-aware, idempotent, and bounded to one Ship plus Updates/forks/edition
+    closure. Individual Claims never become Discover spam.
+12. Follows and Updates remain private encrypted preferences/evidence keyed by
+    exact stable IDs. Generic feed events and individual third-party Claims
+    never enter the private inbox, and handles do not become preference keys.
 
 ### Public catalog and executable-source boundary
 

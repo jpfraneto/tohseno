@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tohseno_companion::publication::{
-    BuilderDeviceAnnouncement, BuilderDeviceSignature, PublicationApprovalRequest,
+    ApprovedClaimEdition, BuilderDeviceAnnouncement, BuilderDeviceSignature,
+    ClaimEditionApprovalContext, ClaimEditionPolicySummary, PublicationApprovalRequest,
     PUBLICATION_APPROVAL_REQUEST_SCHEMA,
 };
 use tohseno_engine::Event;
@@ -35,7 +36,7 @@ use tohseno_protocol::digest::{Address20, Bytes32, ShotId};
 use tohseno_protocol::identity::{initial_builder_account_salt, predict_builder_account};
 use tohseno_protocol::public_checkpoint::{PublicCheckpoint, PublicCheckpointWitness};
 use tohseno_protocol::record::CanonicalTimestamp;
-use tohseno_protocol::signature::P256PublicKey;
+use tohseno_protocol::signature::{verify_digest, P256PublicKey, P256Signature};
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
@@ -49,6 +50,65 @@ const ACTIVATION_DIGEST: &str =
     "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28";
 const BUILDER_ACCOUNT_CREATION_HEX: &str =
     include_str!("../../contracts/generations/0.8.0/bytecode/BuilderAccount.creation.hex");
+const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
+
+fn parse_claim_edition(
+    kind: Option<&str>,
+    maximum: Option<u64>,
+    closes_at: Option<&str>,
+) -> Result<Option<RequestedClaimEdition>, BoxError> {
+    if kind.is_none() && maximum.is_none() && closes_at.is_none() {
+        return Ok(None);
+    }
+    let kind = kind.ok_or("Use --claim-edition whenever Claim Edition bounds are supplied")?;
+    let maximum = match maximum {
+        Some(0) => return Err("--max-claims must be at least one".into()),
+        Some(value) if value > MAX_SAFE_JSON_INTEGER => {
+            return Err("--max-claims exceeds the exact supported integer bound".into())
+        }
+        value => value,
+    };
+    let closes = closes_at
+        .map(|value| {
+            let parsed = OffsetDateTime::parse(value, &Rfc3339)
+                .map_err(|_| "--closes-at must be one exact RFC 3339 timestamp")?;
+            if parsed.nanosecond() != 0
+                || parsed.unix_timestamp() <= OffsetDateTime::now_utc().unix_timestamp()
+                || parsed.unix_timestamp() as u64 > MAX_SAFE_JSON_INTEGER
+            {
+                return Err("--closes-at must be a whole-second future timestamp within the supported bound");
+            }
+            Ok(parsed.unix_timestamp() as u64)
+        })
+        .transpose()?;
+    let (kind, max_claims, closes_at) = match (kind, maximum, closes) {
+        ("open", None, None) => ("open", 0, 0),
+        ("limited", Some(maximum), None) => ("limited", maximum, 0),
+        ("limited", Some(maximum), Some(closes)) => ("limited_timed", maximum, closes),
+        ("timed", None, Some(closes)) => ("timed", 0, closes),
+        ("open", _, _) => return Err("Open Edition cannot use --max-claims or --closes-at".into()),
+        ("limited", None, _) => return Err("Limited Edition requires --max-claims".into()),
+        ("timed", Some(_), _) => {
+            return Err(
+                "Timed Edition cannot use --max-claims; use limited with both bounds".into(),
+            )
+        }
+        ("timed", None, None) => return Err("Timed Edition requires --closes-at".into()),
+        _ => return Err("unsupported Claim Edition policy".into()),
+    };
+    Ok(Some(RequestedClaimEdition {
+        kind: kind.into(),
+        max_claims,
+        closes_at,
+    }))
+}
+
+fn unix_time(value: u64) -> String {
+    OffsetDateTime::from_unix_timestamp(value as i64)
+        .ok()
+        .and_then(|time| time.format(&Rfc3339).ok())
+        .unwrap_or_else(|| value.to_string())
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -80,8 +140,35 @@ struct PublicationPreparation {
     shot_registry: String,
     status: String,
     created_at: String,
+    publication_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    claim_edition: Option<RequestedClaimEdition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     approval_request: Option<PublicationApprovalRequest>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RequestedClaimEdition {
+    kind: String,
+    max_claims: u64,
+    closes_at: u64,
+}
+
+impl RequestedClaimEdition {
+    fn human_label(&self) -> String {
+        match (self.max_claims, self.closes_at) {
+            (0, 0) => "Open Edition · one per Tohseno identity".into(),
+            (maximum, 0) => format!("Limited Edition · first {maximum} Tohseno identities"),
+            (0, closes) => format!("Until {} · one per Tohseno identity", unix_time(closes)),
+            (maximum, closes) => {
+                format!(
+                    "Limited Edition · first {maximum} identities · until {}",
+                    unix_time(closes)
+                )
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +178,8 @@ struct StoredPublicationApproval {
     job_id: String,
     catalog: BuilderDeviceSignature,
     registry: BuilderDeviceSignature,
+    #[serde(default)]
+    claim_edition: Option<ApprovedClaimEdition>,
     approved_at: String,
     author_device_id: String,
 }
@@ -445,6 +534,9 @@ pub async fn receive(
 pub async fn deploy(
     dry_run: bool,
     project_id: Option<&str>,
+    claim_edition: Option<&str>,
+    max_claims: Option<u64>,
+    closes_at: Option<&str>,
     json_output: bool,
     bus: &tohseno_engine::EventBus,
 ) -> Result<(), BoxError> {
@@ -458,6 +550,17 @@ pub async fn deploy(
             .find(|project| project.project_id == id)
             .ok_or("The selected project is not connected to this Mac")?,
         None => select_current_project(&projects.projects)?,
+    };
+    let is_ship = project.latest_publication.is_none();
+    let claim_flags_supplied =
+        claim_edition.is_some() || max_claims.is_some() || closes_at.is_some();
+    if !is_ship && claim_flags_supplied {
+        return Err("This app already shipped. Its Claim Edition is permanent.".into());
+    }
+    let requested_claim_edition = if is_ship {
+        parse_claim_edition(claim_edition, max_claims, closes_at)?
+    } else {
+        None
     };
     let shot_text = project
         .candidate_shot_id
@@ -530,18 +633,22 @@ pub async fn deploy(
     let approval_request = if dry_run {
         None
     } else {
-        Some(build_approval_request(
-            &job_id,
-            project,
-            shot_id,
-            next_sequence,
-            previous,
-            checkpoint_digest,
-            &snapshot,
-            &safety,
-            &timestamp,
-            &directory,
-        )?)
+        Some(
+            build_approval_request(
+                &job_id,
+                project,
+                shot_id,
+                next_sequence,
+                previous,
+                checkpoint_digest,
+                &snapshot,
+                &safety,
+                &timestamp,
+                &directory,
+                requested_claim_edition.as_ref(),
+            )
+            .await?,
+        )
     };
     let preparation = PublicationPreparation {
         schema: "tohseno.publication-preparation/1".into(),
@@ -568,6 +675,8 @@ pub async fn deploy(
             "waiting_for_companion".into()
         },
         created_at: timestamp,
+        publication_kind: if is_ship { "ship" } else { "update" }.into(),
+        claim_edition: requested_claim_edition.clone(),
         approval_request,
     };
     if !dry_run {
@@ -599,6 +708,15 @@ pub async fn deploy(
             preparation.source_artifact_sha256,
             preparation.public_checkpoint_digest,
         )));
+        if is_ship {
+            bus.emit(Event::status(format!(
+                "Claim edition:\n{}",
+                requested_claim_edition
+                    .as_ref()
+                    .map(RequestedClaimEdition::human_label)
+                    .unwrap_or_else(|| "Choose the immutable policy on your iPhone".into())
+            )));
+        }
         if dry_run {
             bus.emit(Event::result(
                 "Dry run complete. Nothing was uploaded, signed, or published.",
@@ -614,7 +732,7 @@ pub async fn deploy(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_approval_request(
+async fn build_approval_request(
     job_id: &str,
     project: &LivingProjectRecord,
     shot_id: ShotId,
@@ -625,6 +743,7 @@ fn build_approval_request(
     safety: &BuildSafety,
     issued_at: &str,
     directory: &Path,
+    requested_claim_edition: Option<&RequestedClaimEdition>,
 ) -> Result<PublicationApprovalRequest, BoxError> {
     let builder_device = load_builder_device(directory)?;
     if builder_device.test_only {
@@ -753,6 +872,19 @@ fn build_approval_request(
     };
     let catalog_json = String::from_utf8(canonical::to_vec(&release)?)?;
     let action_json = String::from_utf8(canonical::to_vec(&action)?)?;
+    let claim_edition = if checkpoint_sequence == 1 {
+        Some(
+            prepare_claim_edition_approval(
+                shot_id,
+                builder_id.account(),
+                expires.unix_timestamp() as u64,
+                requested_claim_edition,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let request = PublicationApprovalRequest {
         schema: PUBLICATION_APPROVAL_REQUEST_SCHEMA.into(),
         job_id: job_id.into(),
@@ -777,9 +909,131 @@ fn build_approval_request(
         registry_digest: action.digest(&domain)?.to_string(),
         issued_at: issued_at.into(),
         expires_at,
+        publication_kind: Some(
+            if checkpoint_sequence == 1 {
+                "ship"
+            } else {
+                "update"
+            }
+            .into(),
+        ),
+        claim_edition,
     };
     request.validate()?;
     Ok(request)
+}
+
+async fn prepare_claim_edition_approval(
+    shot_id: ShotId,
+    controller: Address20,
+    deadline: u64,
+    requested: Option<&RequestedClaimEdition>,
+) -> Result<ClaimEditionApprovalContext, BoxError> {
+    let activation = tohseno_engine::claims_activation::resolve_claims_contract()?;
+    if activation.state != tohseno_engine::claims_activation::ClaimsContractState::Active {
+        return Err(format!(
+            "First Ship is waiting for the signed Claims activation: {}",
+            activation.inactive_reason()
+        )
+        .into());
+    }
+    let claims = activation
+        .claims_contract
+        .ok_or("active Claims resolution omitted its contract")?;
+    let active_registry = activation
+        .shot_registry
+        .ok_or("active Claims resolution omitted its Registry")?;
+    let expected_runtime = activation
+        .runtime_code_keccak256
+        .ok_or("active Claims resolution omitted its runtime hash")?;
+    let activation_digest = activation
+        .activation_signing_digest
+        .ok_or("active Claims resolution omitted its signing digest")?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let rpc = robinhood_rpc_origin();
+    if rpc_string(&client, &rpc, "eth_chainId", json!([])).await? != "0x1237" {
+        return Err("Claims approval RPC is not Robinhood Chain 4663".into());
+    }
+    let code = rpc_string(
+        &client,
+        &rpc,
+        "eth_getCode",
+        json!([claims.to_string(), "latest"]),
+    )
+    .await?;
+    let code = decode_rpc_hex(&code)?;
+    if code.is_empty() || keccak256(&code) != expected_runtime {
+        return Err("live Claims runtime differs from the signed activation".into());
+    }
+    let registry = rpc_string(
+        &client,
+        &rpc,
+        "eth_call",
+        json!([{
+            "to": claims.to_string(),
+            "data": abi_call("shotRegistry()", &[]),
+        }, "latest"]),
+    )
+    .await?;
+    let registry = decode_rpc_hex(&registry)?;
+    if registry.len() != 32
+        || registry[..12].iter().any(|byte| *byte != 0)
+        || registry[12..] != active_registry.as_bytes()[..]
+    {
+        return Err("live Claims immutable Registry differs from activation".into());
+    }
+    let mut controller_word = [0_u8; 32];
+    controller_word[12..].copy_from_slice(controller.as_bytes());
+    let nonce = rpc_string(
+        &client,
+        &rpc,
+        "eth_call",
+        json!([{
+            "to": claims.to_string(),
+            "data": abi_call("editionNonces(address)", &[&controller_word]),
+        }, "latest"]),
+    )
+    .await?;
+    let nonce = decode_abi_u64(&nonce, "Claim Edition nonce")?;
+    let edition = rpc_string(
+        &client,
+        &rpc,
+        "eth_call",
+        json!([{
+            "to": claims.to_string(),
+            "data": abi_call("claimEdition(bytes32)", &[shot_id.bytes().as_bytes()]),
+        }, "latest"]),
+    )
+    .await?;
+    let edition = decode_rpc_hex(&edition)?;
+    if edition.len() != 160 || edition[..32].iter().any(|byte| *byte != 0) {
+        return Err(
+            "This Shot already has a Claim Edition; first-Ship policy cannot change".into(),
+        );
+    }
+    Ok(ClaimEditionApprovalContext {
+        claims_contract: claims.to_string(),
+        claims_activation_signing_digest: activation_digest.to_string(),
+        controller: controller.to_string(),
+        edition_nonce: nonce,
+        action_deadline: deadline,
+        requested_policy: requested.map(|policy| ClaimEditionPolicySummary {
+            kind: policy.kind.clone(),
+            max_claims: policy.max_claims,
+            closes_at: policy.closes_at,
+        }),
+    })
+}
+
+fn decode_abi_u64(value: &str, label: &str) -> Result<u64, BoxError> {
+    let bytes = decode_rpc_hex(value)?;
+    if bytes.len() != 32 || bytes[..24].iter().any(|byte| *byte != 0) {
+        return Err(format!("RPC returned an invalid {label}").into());
+    }
+    Ok(u64::from_be_bytes(bytes[24..].try_into()?))
 }
 
 fn load_builder_device(job_directory: &Path) -> Result<BuilderDeviceAnnouncement, BoxError> {
@@ -1044,6 +1298,7 @@ async fn advance_publication(
         || approval.catalog.digest != request.catalog_digest
         || approval.registry.digest != request.registry_digest
         || approval.author_device_id.is_empty()
+        || validate_stored_claim_edition(&request, approval.claim_edition.as_ref()).is_err()
     {
         return Err("stored publication approval does not bind the exact durable request".into());
     }
@@ -1150,13 +1405,18 @@ async fn advance_publication(
         return Ok(true);
     }
     if !state.publication_submitted {
+        let publication_body = if let Some(claim_edition) = approval.claim_edition.as_ref() {
+            json!({ "registry": registry, "claim_edition": claim_edition })
+        } else {
+            json!({ "registry": registry })
+        };
         let response = client
             .post(format!(
                 "{origin}/api/registry/v1/staging/{}/publish",
                 state.staging_id
             ))
             .bearer_auth(token)
-            .json(&json!({ "registry": registry }))
+            .json(&publication_body)
             .send()
             .await?;
         let remote: RegistryPublicationStatus = response_json(response, 256 * 1024).await?;
@@ -1261,6 +1521,70 @@ async fn advance_publication(
         }))?,
     )?;
     Ok(true)
+}
+
+fn validate_stored_claim_edition(
+    request: &PublicationApprovalRequest,
+    approved: Option<&ApprovedClaimEdition>,
+) -> Result<(), BoxError> {
+    let Some(context) = request.claim_edition.as_ref() else {
+        return if approved.is_none() {
+            Ok(())
+        } else {
+            Err("Update approval unexpectedly contains a Claim Edition".into())
+        };
+    };
+    let approved = approved.ok_or("Ship approval omitted its Claim Edition")?;
+    approved.validate()?;
+    if approved.signature.signer != request.builder_device
+        || approved.action.shot_registry != request.shot_registry
+        || approved.action.shot_id != request.shot_id
+        || approved.action.controller != context.controller
+        || approved.action.nonce != context.edition_nonce
+        || approved.action.deadline != context.action_deadline
+        || context.requested_policy.as_ref().is_some_and(|required| {
+            required.kind != approved.policy.kind
+                || required.max_claims != approved.policy.max_claims
+                || required.closes_at != approved.policy.closes_at
+        })
+    {
+        return Err("stored Claim Edition approval differs from the exact Ship request".into());
+    }
+    let claims: Address20 = serde_json::from_str(&format!("\"{}\"", context.claims_contract))?;
+    let registry: Address20 =
+        serde_json::from_str(&format!("\"{}\"", approved.action.shot_registry))?;
+    let shot_id: ShotId = serde_json::from_str(&format!("\"{}\"", approved.action.shot_id))?;
+    let controller: Address20 =
+        serde_json::from_str(&format!("\"{}\"", approved.action.controller))?;
+    let action = tohseno_network::claims::OpenClaimEditionAction {
+        shot_registry: registry,
+        shot_id,
+        max_claims: approved.action.max_claims,
+        closes_at: approved.action.closes_at,
+        controller,
+        nonce: approved.action.nonce,
+        deadline: approved.action.deadline,
+    };
+    let domain = Eip712Domain {
+        name: tohseno_network::claims::CLAIMS_DOMAIN.into(),
+        version: tohseno_network::claims::CLAIMS_EIP712_VERSION.into(),
+        chain_id: 4663,
+        verifying_contract: claims,
+    };
+    let digest = action.digest(&domain, registry)?;
+    if digest.to_string() != approved.digest || approved.signature.digest != approved.digest {
+        return Err("stored Claim Edition digest differs from its action".into());
+    }
+    let key = P256PublicKey {
+        x: Bytes32::from_hex("Claim Edition signer x", &approved.signature.signer.x)?,
+        y: Bytes32::from_hex("Claim Edition signer y", &approved.signature.signer.y)?,
+    };
+    let signature = P256Signature {
+        r: Bytes32::from_hex("Claim Edition signature r", &approved.signature.r)?,
+        s: Bytes32::from_hex("Claim Edition signature s", &approved.signature.s)?,
+    };
+    verify_digest(&key, digest, &signature)?;
+    Ok(())
 }
 
 fn verify_artifact(path: &Path, expected: Bytes32, expected_length: u64) -> Result<(), BoxError> {
@@ -1940,4 +2264,60 @@ fn write_new_private(path: &Path, bytes: &[u8]) -> Result<(), BoxError> {
 
 fn to_box(error: Box<dyn std::error::Error + Send + Sync>) -> BoxError {
     error
+}
+
+#[cfg(test)]
+mod claim_edition_tests {
+    use super::*;
+
+    #[test]
+    fn exact_first_ship_policy_shapes_are_bounded() {
+        assert_eq!(
+            parse_claim_edition(Some("open"), None, None)
+                .unwrap()
+                .unwrap(),
+            RequestedClaimEdition {
+                kind: "open".into(),
+                max_claims: 0,
+                closes_at: 0,
+            }
+        );
+        assert_eq!(
+            parse_claim_edition(Some("limited"), Some(888), None)
+                .unwrap()
+                .unwrap()
+                .kind,
+            "limited"
+        );
+        assert_eq!(
+            parse_claim_edition(Some("timed"), None, Some("2099-09-08T18:00:00Z"))
+                .unwrap()
+                .unwrap()
+                .kind,
+            "timed"
+        );
+        assert_eq!(
+            parse_claim_edition(Some("limited"), Some(888), Some("2099-09-08T18:00:00Z"))
+                .unwrap()
+                .unwrap()
+                .kind,
+            "limited_timed"
+        );
+        assert!(parse_claim_edition(None, None, None).unwrap().is_none());
+    }
+
+    #[test]
+    fn conflicting_or_ambiguous_policy_flags_fail() {
+        for value in [
+            parse_claim_edition(None, Some(2), None),
+            parse_claim_edition(Some("open"), Some(2), None),
+            parse_claim_edition(Some("open"), None, Some("2099-09-08T18:00:00Z")),
+            parse_claim_edition(Some("limited"), None, None),
+            parse_claim_edition(Some("timed"), Some(2), Some("2099-09-08T18:00:00Z")),
+            parse_claim_edition(Some("timed"), None, None),
+            parse_claim_edition(Some("limited"), Some(0), None),
+        ] {
+            assert!(value.is_err());
+        }
+    }
 }

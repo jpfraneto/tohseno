@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public struct ProductEntitlementProjection: Codable, Equatable, Sendable {
@@ -61,9 +62,227 @@ public struct ProductEntitlementProjection: Codable, Equatable, Sendable {
     }
 }
 
+public struct BuilderFollowProjection: Codable, Equatable, Sendable {
+    public static let schemaV1 = "tohseno.private-builder-follows/1"
+    public let schema: String
+    public let builderIDs: [String]
+    public let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case schema
+        case builderIDs = "builder_ids"
+        case updatedAt = "updated_at"
+    }
+
+    public init(
+        schema: String = Self.schemaV1,
+        builderIDs: [String],
+        updatedAt: String
+    ) {
+        self.schema = schema
+        self.builderIDs = builderIDs
+        self.updatedAt = updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        try requireExactKeys(decoder, ["schema", "builder_ids", "updated_at"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(String.self, forKey: .schema)
+        builderIDs = try container.decode([String].self, forKey: .builderIDs)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        try validate()
+    }
+
+    public func validate() throws {
+        guard schema == Self.schemaV1, builderIDs.count <= 10_000,
+              builderIDs == Array(Set(builderIDs)).sorted(),
+              builderIDs.allSatisfy({
+                  $0.range(of: #"^eip155:4663:0x[0-9a-f]{40}$"#, options: .regularExpression) != nil
+                      && $0 != "eip155:4663:0x0000000000000000000000000000000000000000"
+              }) else {
+            throw TohsenoCompanionError.invalidEncoding("invalid private Builder follow projection")
+        }
+        _ = try CompanionTimestamp.parse(updatedAt)
+    }
+}
+
+public enum PrivateUpdateKind: String, Codable, CaseIterable, Sendable {
+    case claimed
+    case claimedAppUpdated = "claimed_app_updated"
+    case preparationReady = "preparation_ready"
+    case forkShipped = "fork_shipped"
+    case editionClosed = "edition_closed"
+    case aliasApproved = "alias_approved"
+    case publicationApproval = "publication_approval"
+    case evolutionFinished = "evolution_finished"
+}
+
+public struct PrivateUpdateItem: Codable, Equatable, Identifiable, Sendable {
+    public static let schemaV1 = "tohseno.private-update/1"
+    public let schema: String
+    public let updateID: String
+    public let kind: PrivateUpdateKind
+    public let subjectID: String
+    public let evidenceID: String
+    public let title: String
+    public let detail: String
+    public let occurredAt: String
+    public let readAt: String?
+    public var id: String { updateID }
+
+    enum CodingKeys: String, CodingKey {
+        case schema, kind, title, detail
+        case updateID = "update_id"
+        case subjectID = "subject_id"
+        case evidenceID = "evidence_id"
+        case occurredAt = "occurred_at"
+        case readAt = "read_at"
+    }
+
+    public init(
+        schema: String = Self.schemaV1,
+        updateID: String? = nil,
+        kind: PrivateUpdateKind,
+        subjectID: String,
+        evidenceID: String,
+        title: String,
+        detail: String,
+        occurredAt: String,
+        readAt: String? = nil
+    ) {
+        self.schema = schema
+        self.updateID = updateID ?? Self.stableID(
+            kind: kind,
+            subjectID: subjectID,
+            evidenceID: evidenceID
+        )
+        self.kind = kind
+        self.subjectID = subjectID
+        self.evidenceID = evidenceID
+        self.title = title
+        self.detail = detail
+        self.occurredAt = occurredAt
+        self.readAt = readAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        var expected: Set<String> = [
+            "schema", "update_id", "kind", "subject_id", "evidence_id",
+            "title", "detail", "occurred_at",
+        ]
+        if container.contains(.readAt) { expected.insert("read_at") }
+        try requireExactKeys(decoder, expected)
+        schema = try container.decode(String.self, forKey: .schema)
+        updateID = try container.decode(String.self, forKey: .updateID)
+        kind = try container.decode(PrivateUpdateKind.self, forKey: .kind)
+        subjectID = try container.decode(String.self, forKey: .subjectID)
+        evidenceID = try container.decode(String.self, forKey: .evidenceID)
+        title = try container.decode(String.self, forKey: .title)
+        detail = try container.decode(String.self, forKey: .detail)
+        occurredAt = try container.decode(String.self, forKey: .occurredAt)
+        readAt = try container.decodeIfPresent(String.self, forKey: .readAt)
+        try validate()
+    }
+
+    public static func stableID(
+        kind: PrivateUpdateKind,
+        subjectID: String,
+        evidenceID: String
+    ) -> String {
+        var material = Data("TOHSENO-PRIVATE-UPDATE-V1\0".utf8)
+        material.append(contentsOf: kind.rawValue.utf8)
+        material.append(0)
+        material.append(contentsOf: subjectID.utf8)
+        material.append(0)
+        material.append(contentsOf: evidenceID.utf8)
+        return "update_" + Base64URL.encode(Data(SHA256.hash(data: material)))
+    }
+
+    public func validate() throws {
+        guard schema == Self.schemaV1 else {
+            throw TohsenoCompanionError.invalidEncoding("unsupported private Update schema")
+        }
+        try requireIdentifier(updateID, field: "private_update.update_id")
+        try requireBoundedText(subjectID, field: "private_update.subject_id", maximum: 256)
+        try requireBoundedText(evidenceID, field: "private_update.evidence_id", maximum: 256)
+        try requireBoundedText(title, field: "private_update.title", maximum: 160)
+        try requireBoundedText(detail, field: "private_update.detail", maximum: 512)
+        _ = try CompanionTimestamp.parse(occurredAt)
+        if let readAt { _ = try CompanionTimestamp.parse(readAt) }
+        guard updateID == Self.stableID(kind: kind, subjectID: subjectID, evidenceID: evidenceID) else {
+            throw TohsenoCompanionError.invalidEncoding("private Update ID differs from evidence")
+        }
+    }
+
+    func canonicalValue() -> CanonicalValue {
+        var value: [String: CanonicalValue] = [
+            "detail": .string(detail),
+            "evidence_id": .string(evidenceID),
+            "kind": .string(kind.rawValue),
+            "occurred_at": .string(occurredAt),
+            "schema": .string(schema),
+            "subject_id": .string(subjectID),
+            "title": .string(title),
+            "update_id": .string(updateID),
+        ]
+        if let readAt { value["read_at"] = .string(readAt) }
+        return .object(value)
+    }
+}
+
+public struct PrivateUpdateProjection: Codable, Equatable, Sendable {
+    public static let schemaV1 = "tohseno.private-updates/1"
+    public let schema: String
+    public let items: [PrivateUpdateItem]
+    public let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case schema, items
+        case updatedAt = "updated_at"
+    }
+
+    public init(
+        schema: String = Self.schemaV1,
+        items: [PrivateUpdateItem],
+        updatedAt: String
+    ) {
+        self.schema = schema
+        self.items = items
+        self.updatedAt = updatedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        try requireExactKeys(decoder, ["schema", "items", "updated_at"])
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try container.decode(String.self, forKey: .schema)
+        items = try container.decode([PrivateUpdateItem].self, forKey: .items)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        try validate()
+    }
+
+    public func validate() throws {
+        guard schema == Self.schemaV1, items.count <= 1_000 else {
+            throw TohsenoCompanionError.invalidEncoding("invalid private Updates projection")
+        }
+        for item in items { try item.validate() }
+        for (left, right) in zip(items, items.dropFirst()) {
+            guard left.occurredAt > right.occurredAt
+                    || (left.occurredAt == right.occurredAt && left.updateID < right.updateID)
+            else {
+                throw TohsenoCompanionError.invalidEncoding("private Updates are not ordered")
+            }
+        }
+        _ = try CompanionTimestamp.parse(updatedAt)
+    }
+}
+
 public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
     case workspaceSnapshot(WorkspaceSnapshot)
     case productEntitlement(ProductEntitlementProjection)
+    case builderFollows(BuilderFollowProjection)
+    case capabilityUpdated(CapabilityGrant)
+    case privateUpdates(PrivateUpdateProjection)
     case shotUpsert(ShotSummary)
     case shotArchive(shotID: String)
     case shotRemove(shotID: String)
@@ -88,7 +307,7 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
 
     private enum Keys: String, CodingKey {
         case eventKind = "event_kind"
-        case snapshot, entitlement, shot, blob
+        case snapshot, entitlement, follows, capability, updates, shot, blob
         case shotID = "shot_id"
         case expressionID = "expression_id"
         case versionID = "version_id"
@@ -103,6 +322,9 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
     private enum Kind: String, Codable {
         case workspaceSnapshot = "workspace.snapshot"
         case productEntitlement = "product.entitlement"
+        case builderFollows = "builder.follows"
+        case capabilityUpdated = "capability.updated"
+        case privateUpdates = "private.updates"
         case shotUpsert = "shot.upsert"
         case shotArchive = "shot.archive"
         case shotRemove = "shot.remove"
@@ -129,6 +351,15 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case .productEntitlement:
             try requireExactKeys(decoder, ["event_kind", "entitlement"])
             self = try .productEntitlement(container.decode(ProductEntitlementProjection.self, forKey: .entitlement))
+        case .builderFollows:
+            try requireExactKeys(decoder, ["event_kind", "follows"])
+            self = try .builderFollows(container.decode(BuilderFollowProjection.self, forKey: .follows))
+        case .capabilityUpdated:
+            try requireExactKeys(decoder, ["event_kind", "capability"])
+            self = try .capabilityUpdated(container.decode(CapabilityGrant.self, forKey: .capability))
+        case .privateUpdates:
+            try requireExactKeys(decoder, ["event_kind", "updates"])
+            self = try .privateUpdates(container.decode(PrivateUpdateProjection.self, forKey: .updates))
         case .shotUpsert:
             try requireExactKeys(decoder, ["event_kind", "shot"])
             self = try .shotUpsert(container.decode(ShotSummary.self, forKey: .shot))
@@ -199,6 +430,15 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         case let .productEntitlement(entitlement):
             try container.encode(Kind.productEntitlement, forKey: .eventKind)
             try container.encode(entitlement, forKey: .entitlement)
+        case let .builderFollows(follows):
+            try container.encode(Kind.builderFollows, forKey: .eventKind)
+            try container.encode(follows, forKey: .follows)
+        case let .capabilityUpdated(capability):
+            try container.encode(Kind.capabilityUpdated, forKey: .eventKind)
+            try container.encode(capability, forKey: .capability)
+        case let .privateUpdates(updates):
+            try container.encode(Kind.privateUpdates, forKey: .eventKind)
+            try container.encode(updates, forKey: .updates)
         case let .shotUpsert(shot):
             try container.encode(Kind.shotUpsert, forKey: .eventKind)
             try container.encode(shot, forKey: .shot)
@@ -256,6 +496,11 @@ public enum WorkspaceEventPayload: Codable, Equatable, Sendable {
         switch self {
         case let .workspaceSnapshot(snapshot): try snapshot.validate()
         case let .productEntitlement(entitlement): try entitlement.validate()
+        case let .builderFollows(follows): try follows.validate()
+        case let .capabilityUpdated(capability):
+            let key = try Base64URL.decode(capability.studioSigningPublicKey, expectedBytes: 32)
+            try capability.verify(trustedStudioSigningKey: key)
+        case let .privateUpdates(updates): try updates.validate()
         case let .shotUpsert(shot): try shot.validate()
         case let .shotArchive(id), let .shotRemove(id): try requireIdentifier(id, field: "shot_id")
         case let .iconBlob(blob): try blob.validate()

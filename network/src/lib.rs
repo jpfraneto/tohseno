@@ -8,6 +8,9 @@
 
 pub mod build_profile;
 pub mod catalog;
+pub mod claim_mark;
+pub mod claims;
+pub mod claims_activation;
 pub mod evidence;
 pub mod publication;
 pub mod snapshot;

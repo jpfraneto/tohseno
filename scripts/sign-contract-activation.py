@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sign one contract-activation digest with one offline release-authority key.
+"""Sign one governed contract-activation digest with one offline authority key.
 
 A custodian runs this on the key's own offline device after independently
 inspecting the exact activation record. It recomputes the domain-separated
@@ -24,8 +24,10 @@ import tempfile
 from typing import Any
 
 RELEASE_KEY_DOMAIN = b"TOHSENO-RELEASE-AUTHORITY-KEY-V1\0"
-ACTIVATION_DOMAIN = b"TOHSENO-CONTRACT-ACTIVATION-V1\0"
-ACTIVATION_SCHEMA = "tohseno.contract-activation/1"
+ACTIVATION_PROFILES = {
+    "tohseno.contract-activation/1": b"TOHSENO-CONTRACT-ACTIVATION-V1\0",
+    "tohseno.claims-activation/1": b"TOHSENO-CLAIMS-ACTIVATION-V1\0",
+}
 APPROVAL_SCHEMA = "tohseno.release-authority-approval/1"
 MAX_SAFE_JSON_INTEGER = 9_007_199_254_740_991
 P256_ORDER = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
@@ -185,16 +187,14 @@ def main() -> int:
     arguments = parser.parse_args()
 
     activation = load_json(arguments.activation)
-    require(
-        activation.get("schema") == ACTIVATION_SCHEMA,
-        f"activation schema must be {ACTIVATION_SCHEMA}",
-    )
+    schema = activation.get("schema")
+    require(schema in ACTIVATION_PROFILES, "activation schema is not governed by this signer")
     payload = canonical_json(activation)
     require(
         payload == arguments.activation.read_bytes(),
         "the activation file is not in canonical form; refuse to sign a non-canonical record",
     )
-    digest = hashlib.sha256(ACTIVATION_DOMAIN + payload).digest()
+    digest = hashlib.sha256(ACTIVATION_PROFILES[schema] + payload).digest()
 
     x, y = public_point(arguments.key)
     key_id = hashlib.sha256(RELEASE_KEY_DOMAIN + x + y).digest()

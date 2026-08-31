@@ -1,7 +1,7 @@
 # TOHSENO npm bootstrap
 
-`tohseno@1.1.0` is the dependency-free Node 20+ front door for the native
-TOHSENO 1.1.0 Mac product. It is not the factory: it locates or securely
+`tohseno@1.2.0` is the dependency-free Node 20+ front door for the native
+TOHSENO 1.2.0 Mac product. It is not the factory: it locates or securely
 installs the authorized native release in the existing no-sudo
 `~/.tohseno/` layout and delegates to `~/.tohseno/bin/tohseno`.
 
@@ -10,7 +10,7 @@ door. It installs the native release, starts the Local Workspace Service, and
 opens the first-run cable guide. Local dependency installs and global updates
 that already have a native installation do not open first run.
 
-The npm and native product versions are exact peers. The 1.1.0 package refuses
+The npm and native product versions are exact peers. The 1.2.0 package refuses
 an older public native manifest, so npm cannot claim the release before the
 signed native artifact and its exact manifest are public.
 

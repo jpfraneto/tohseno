@@ -3,6 +3,12 @@
 This is the ADR 0034 activation order. It authorizes no contract-generation
 deployment and no release claim without its real evidence.
 
+The original 1.1 source candidate remains bound to its recorded commit. For
+the current 1.2 line, this Registry/catalog order is necessary but not
+sufficient: follow the separate
+[`CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md`](../../release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md)
+before any Claim write or advertising is enabled.
+
 ## Immutable coordinates
 
 - chain: Robinhood Chain `4663`
@@ -42,7 +48,7 @@ provider OAuth verifier is configured; never approve self-asserted proof URLs.
 
 1. Deploy backward-compatible Registry/catalog/blob code with write paths dark.
 2. Deploy compatible Companion relay changes dark and verify health.
-3. Merge and push the complete 1.1.0 source; run the full matrix and
+3. Merge and push the complete candidate source; run the full matrix and
    `./scripts/test-network-e2e.sh`.
 4. Build from that clean commit; Developer ID sign with hardened runtime,
    notarize, staple, mount, Gatekeeper-check, verify universal architectures,

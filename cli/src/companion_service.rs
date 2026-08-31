@@ -32,7 +32,8 @@ use tohseno_companion::command::{
 use tohseno_companion::crypto::{base64url, decode_array};
 use tohseno_companion::envelope::{open_envelope, seal_envelope, EnvelopeMetadata, OpaqueEnvelope};
 use tohseno_companion::event::{
-    ProductEntitlementProjection, WorkspaceEvent, WorkspaceEventPayload, COMPANION_EVENT_SCHEMA,
+    BuilderFollowProjection, PrivateUpdateProjection, ProductEntitlementProjection, WorkspaceEvent,
+    WorkspaceEventPayload, BUILDER_FOLLOWS_SCHEMA, COMPANION_EVENT_SCHEMA,
     PRODUCT_ENTITLEMENT_SCHEMA,
 };
 use tohseno_companion::icon::IconBlob;
@@ -43,7 +44,8 @@ use tohseno_companion::pairing::{
     PAIRING_ACCEPTANCE_SCHEMA, PAIRING_INVITATION_LIFETIME_SECONDS, PAIRING_RESPONSE_BODY_SCHEMA,
 };
 use tohseno_companion::publication::{
-    BuilderDeviceAnnouncement, BuilderDeviceSignature, PublicationApprovalRequest,
+    ApprovedClaimEdition, BuilderDeviceAnnouncement, BuilderDeviceSignature,
+    PublicationApprovalRequest,
 };
 use tohseno_companion::reference::{
     ChunkAdmission, PhoneToMacPayload, ReferenceBlob, ReferenceBlobAssembler, ReferenceBlobChunk,
@@ -58,7 +60,8 @@ use tohseno_companion::snapshot::{
     DeviceCapabilityState, ExecutionStatus, ExecutionSummary, ShotKind, ShotSummary,
     WorkspaceSnapshot, WORKSPACE_SNAPSHOT_SCHEMA,
 };
-use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
+use tohseno_protocol::actions::Eip712Domain;
+use tohseno_protocol::digest::{Address20, Bytes32, ExpressionId, ShotId, VersionId};
 use tohseno_protocol::identity::device_key_id;
 use tohseno_protocol::signature::{verify_digest, P256PublicKey, P256Signature};
 use tokio::sync::Mutex as AsyncMutex;
@@ -1418,6 +1421,75 @@ impl CompanionCoordinator {
                     rejection_code: None,
                 }
             }
+            CommandPayload::BuilderFollowSet {
+                builder_id,
+                followed,
+            } => {
+                let projection = match crate::workspace_service::set_network_follow(
+                    &self.service_root,
+                    &builder_id,
+                    followed,
+                ) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(rejection(&command_id, "builder_follow_invalid")),
+                };
+                self.publish_network_follows_to_all_devices(&projection)
+                    .await?;
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Completed,
+                    shot_id: None,
+                    execution_id: None,
+                    result_id: Some(format!(
+                        "follows_{}",
+                        projection.updated_at.replace([':', '-'], "")
+                    )),
+                    rejection_code: None,
+                }
+            }
+            CommandPayload::PrivateUpdateUpsert { update } => {
+                let update_id = update.update_id.clone();
+                let projection = match crate::workspace_service::upsert_private_update(
+                    &self.service_root,
+                    *update,
+                ) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(rejection(&command_id, "private_update_invalid")),
+                };
+                self.publish_private_updates_to_all_devices(&projection)
+                    .await?;
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Completed,
+                    shot_id: None,
+                    execution_id: None,
+                    result_id: Some(update_id),
+                    rejection_code: None,
+                }
+            }
+            CommandPayload::PrivateUpdateReadSet { update_id, read } => {
+                let projection = match crate::workspace_service::set_private_update_read(
+                    &self.service_root,
+                    &update_id,
+                    read,
+                ) {
+                    Ok(value) => value,
+                    Err(_) => return Ok(rejection(&command_id, "private_update_invalid")),
+                };
+                self.publish_private_updates_to_all_devices(&projection)
+                    .await?;
+                CommandReceipt {
+                    schema: "tohseno.companion-command-receipt/1".into(),
+                    command_id,
+                    state: ReceiptState::Completed,
+                    shot_id: None,
+                    execution_id: None,
+                    result_id: Some(update_id),
+                    rejection_code: None,
+                }
+            }
             CommandPayload::BuilderIdentityAnnounce { builder_device } => {
                 if validate_builder_device_announcement(&builder_device, cfg!(test)).is_err() {
                     return Ok(rejection(&command_id, "invalid_builder_device"));
@@ -1444,6 +1516,7 @@ impl CompanionCoordinator {
                 job_id,
                 catalog,
                 registry,
+                claim_edition,
                 approved_at,
             } => {
                 let job = self
@@ -1468,6 +1541,7 @@ impl CompanionCoordinator {
                         .is_err()
                     || verify_publication_signature(&catalog).is_err()
                     || verify_publication_signature(&registry).is_err()
+                    || validate_claim_edition_approval(&request, claim_edition.as_deref()).is_err()
                 {
                     return Ok(rejection(&command_id, "publication_approval_mismatch"));
                 }
@@ -1476,6 +1550,7 @@ impl CompanionCoordinator {
                     "job_id": job_id,
                     "catalog": catalog,
                     "registry": registry,
+                    "claim_edition": claim_edition,
                     "approved_at": approved_at,
                     "author_device_id": record.device_id,
                 });
@@ -1584,6 +1659,36 @@ impl CompanionCoordinator {
             )
             .await?;
         let mut projection = published_snapshot;
+        self.publish_capability_update_if_needed(record, agreement_key)
+            .await?;
+        let follows = crate::workspace_service::load_network_follows(&self.service_root)?;
+        let cursor = self
+            .publish_workspace_event(
+                record,
+                agreement_key,
+                WorkspaceEventPayload::BuilderFollows {
+                    follows: BuilderFollowProjection {
+                        schema: BUILDER_FOLLOWS_SCHEMA.into(),
+                        builder_ids: follows.builder_ids,
+                        updated_at: follows.updated_at,
+                    },
+                },
+            )
+            .await?;
+        projection.next_cursor = cursor
+            .checked_add(1)
+            .ok_or("companion event cursor overflowed")?;
+        let updates = crate::workspace_service::load_private_updates(&self.service_root)?;
+        let cursor = self
+            .publish_workspace_event(
+                record,
+                agreement_key,
+                WorkspaceEventPayload::PrivateUpdates { updates },
+            )
+            .await?;
+        projection.next_cursor = cursor
+            .checked_add(1)
+            .ok_or("companion event cursor overflowed")?;
         let cursor = self
             .publish_product_entitlement(record, agreement_key)
             .await?;
@@ -1656,6 +1761,110 @@ impl CompanionCoordinator {
         Ok(published)
     }
 
+    pub async fn publish_network_follows_to_all_devices(
+        &self,
+        projection: &crate::workspace_service::NetworkFollowProjection,
+    ) -> Result<usize, BoxError> {
+        if self.relay.is_none() {
+            return Ok(0);
+        }
+        let mut published = 0;
+        for record in self
+            .load_devices()?
+            .into_iter()
+            .filter(|record| !record.revoked)
+        {
+            let agreement_key =
+                decode_array::<32>("device agreement public key", &record.agreement_public_key)?;
+            self.publish_workspace_event(
+                &record,
+                &agreement_key,
+                WorkspaceEventPayload::BuilderFollows {
+                    follows: BuilderFollowProjection {
+                        schema: BUILDER_FOLLOWS_SCHEMA.into(),
+                        builder_ids: projection.builder_ids.clone(),
+                        updated_at: projection.updated_at.clone(),
+                    },
+                },
+            )
+            .await?;
+            published += 1;
+        }
+        Ok(published)
+    }
+
+    pub async fn publish_private_updates_to_all_devices(
+        &self,
+        projection: &PrivateUpdateProjection,
+    ) -> Result<usize, BoxError> {
+        projection.validate()?;
+        if self.relay.is_none() {
+            return Ok(0);
+        }
+        let mut published = 0;
+        for record in self
+            .load_devices()?
+            .into_iter()
+            .filter(|record| !record.revoked)
+        {
+            let agreement_key =
+                decode_array::<32>("device agreement public key", &record.agreement_public_key)?;
+            self.publish_workspace_event(
+                &record,
+                &agreement_key,
+                WorkspaceEventPayload::PrivateUpdates {
+                    updates: projection.clone(),
+                },
+            )
+            .await?;
+            published += 1;
+        }
+        Ok(published)
+    }
+
+    async fn publish_capability_update_if_needed(
+        &self,
+        record: &DeviceRecord,
+        agreement_key: &[u8; 32],
+    ) -> Result<bool, BoxError> {
+        let digest = tohseno_protocol::digest::sha256(&tohseno_companion::canonical::to_vec(
+            &record.capability,
+        )?)
+        .to_string();
+        let directory = self.service_root.join("outbox").join(&record.device_id);
+        ensure_private_directory(&directory)?;
+        let marker = directory.join(format!(
+            "capability-{}.sent",
+            digest.trim_start_matches("0x")
+        ));
+        match fs::symlink_metadata(&marker) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+                return Err("capability delivery marker is unsafe".into());
+            }
+            Ok(_) => return Ok(false),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        self.publish_workspace_event(
+            record,
+            agreement_key,
+            WorkspaceEventPayload::CapabilityUpdated {
+                capability: record.capability.clone(),
+            },
+        )
+        .await?;
+        write_new_atomic(
+            &marker,
+            &tohseno_protocol::canonical::to_vec(&serde_json::json!({
+                "schema": "tohseno.companion-capability-delivery/1",
+                "capability_digest": digest,
+                "delivered_at": now()?,
+            }))?,
+            0o600,
+        )?;
+        Ok(true)
+    }
+
     /// Project authoritative workspace changes to every active device. This
     /// runs independently of Studio and the submitting CLI, so detached
     /// execution progress remains synchronized after those clients exit.
@@ -1670,6 +1879,14 @@ impl CompanionCoordinator {
             .collect::<Vec<_>>();
         let mut published = 0_usize;
         for record in devices {
+            let agreement_key =
+                decode_array::<32>("device agreement public key", &record.agreement_public_key)?;
+            if self
+                .publish_capability_update_if_needed(&record, &agreement_key)
+                .await?
+            {
+                published += 1;
+            }
             let converted = self.converted_workspace_for(&record).await?;
             let current = converted.snapshot;
             let Some(previous) = self.load_workspace_projection(&record)? else {
@@ -2168,7 +2385,7 @@ impl CompanionCoordinator {
                     MAX_DEVICE_RECORD_BYTES,
                 )?)?;
                 validate_device_record(&value, &self.workspace)?;
-                Ok(Some(value))
+                Ok(Some(self.upgrade_legacy_capability(value)?))
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error.into()),
@@ -2191,7 +2408,7 @@ impl CompanionCoordinator {
                 MAX_DEVICE_RECORD_BYTES,
             )?)?;
             validate_device_record(&value, &self.workspace)?;
-            values.push(value);
+            values.push(self.upgrade_legacy_capability(value)?);
         }
         Ok(values)
     }
@@ -2201,6 +2418,30 @@ impl CompanionCoordinator {
         let path = self.device_path(&value.device_id)?;
         let bytes = tohseno_protocol::canonical::to_vec(value)?;
         write_replace(&path, &bytes, 0o600)
+    }
+
+    fn upgrade_legacy_capability(&self, mut value: DeviceRecord) -> Result<DeviceRecord, BoxError> {
+        if !value.revoked && value.capability.body.allowed_actions == legacy_all_capabilities() {
+            value.capability = CapabilityGrant::sign(
+                CapabilityGrantBody {
+                    schema: CAPABILITY_GRANT_SCHEMA.into(),
+                    capability_id: value.capability.body.capability_id.clone(),
+                    workspace_id: value.capability.body.workspace_id.clone(),
+                    device_id: value.device_id.clone(),
+                    allowed_actions: all_capabilities(),
+                    issued_at: now()?,
+                    expires_at: None,
+                    revocation_epoch: value.revocation_epoch,
+                    studio_signing_public_key: self
+                        .workspace
+                        .identity
+                        .signing_public_key_base64url(),
+                },
+                &*self.workspace.identity,
+            )?;
+            self.store_device(&value)?;
+        }
+        Ok(value)
     }
 }
 
@@ -3008,6 +3249,20 @@ fn all_capabilities() -> Vec<CapabilityAction> {
         CapabilityAction::ShotEvolve,
         CapabilityAction::PublicationAuthorize,
         CapabilityAction::NetworkReceive,
+        CapabilityAction::PreferenceWrite,
+    ]
+}
+
+fn legacy_all_capabilities() -> Vec<CapabilityAction> {
+    vec![
+        CapabilityAction::WorkspaceRead,
+        CapabilityAction::ExecutionRead,
+        CapabilityAction::FeedbackWrite,
+        CapabilityAction::MarketingWrite,
+        CapabilityAction::ShotCreate,
+        CapabilityAction::ShotEvolve,
+        CapabilityAction::PublicationAuthorize,
+        CapabilityAction::NetworkReceive,
     ]
 }
 
@@ -3040,6 +3295,78 @@ fn verify_publication_signature(value: &BuilderDeviceSignature) -> Result<(), Bo
     };
     verify_digest(&key, digest, &signature)?;
     Ok(())
+}
+
+fn validate_claim_edition_approval(
+    request: &PublicationApprovalRequest,
+    approved: Option<&ApprovedClaimEdition>,
+) -> Result<(), BoxError> {
+    let Some(context) = request.claim_edition.as_ref() else {
+        if approved.is_some() {
+            return Err("an Update or legacy publication cannot open a Claim Edition".into());
+        }
+        return Ok(());
+    };
+    let approved = approved.ok_or("first Ship approval omitted its immutable Claim Edition")?;
+    approved.validate()?;
+    if approved.signature.signer != request.builder_device
+        || approved.action.shot_registry != request.shot_registry
+        || approved.action.shot_id != request.shot_id
+        || approved.action.controller != context.controller
+        || approved.action.nonce != context.edition_nonce
+        || approved.action.deadline != context.action_deadline
+    {
+        return Err("approved Claim Edition differs from the durable Ship request".into());
+    }
+    if context.requested_policy.as_ref().is_some_and(|required| {
+        required.kind != approved.policy.kind
+            || required.max_claims != approved.policy.max_claims
+            || required.closes_at != approved.policy.closes_at
+    }) {
+        return Err("approved Claim Edition differs from the exact CLI policy".into());
+    }
+    let activation = tohseno_engine::claims_activation::resolve_claims_contract()?;
+    if activation.state != tohseno_engine::claims_activation::ClaimsContractState::Active
+        || activation
+            .claims_contract
+            .map(|value| value.to_string())
+            .as_deref()
+            != Some(context.claims_contract.as_str())
+        || activation
+            .activation_signing_digest
+            .map(|value| value.to_string())
+            .as_deref()
+            != Some(context.claims_activation_signing_digest.as_str())
+    {
+        return Err(
+            "Claim Edition approval does not use this client's active Claims contract".into(),
+        );
+    }
+    let registry: Address20 =
+        serde_json::from_str(&format!("\"{}\"", approved.action.shot_registry))?;
+    let claims: Address20 = serde_json::from_str(&format!("\"{}\"", context.claims_contract))?;
+    let shot_id: ShotId = serde_json::from_str(&format!("\"{}\"", approved.action.shot_id))?;
+    let controller: Address20 =
+        serde_json::from_str(&format!("\"{}\"", approved.action.controller))?;
+    let action = tohseno_network::claims::OpenClaimEditionAction {
+        shot_registry: registry,
+        shot_id,
+        max_claims: approved.action.max_claims,
+        closes_at: approved.action.closes_at,
+        controller,
+        nonce: approved.action.nonce,
+        deadline: approved.action.deadline,
+    };
+    let domain = Eip712Domain {
+        name: tohseno_network::claims::CLAIMS_DOMAIN.into(),
+        version: tohseno_network::claims::CLAIMS_EIP712_VERSION.into(),
+        chain_id: 4663,
+        verifying_contract: claims,
+    };
+    if action.digest(&domain, registry)?.to_string() != approved.digest {
+        return Err("Claim Edition digest differs from its structured action".into());
+    }
+    verify_publication_signature(&approved.signature)
 }
 
 fn revision_number(value: &str) -> u64 {
@@ -4202,8 +4529,9 @@ mod tests {
     #[test]
     fn capabilities_are_explicit_and_sorted() {
         let values = all_capabilities();
-        assert_eq!(values.len(), 8);
+        assert_eq!(values.len(), 9);
         assert!(values.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(values.contains(&CapabilityAction::PreferenceWrite));
     }
 
     #[test]

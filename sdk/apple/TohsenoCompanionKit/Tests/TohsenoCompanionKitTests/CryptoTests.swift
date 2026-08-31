@@ -310,6 +310,38 @@ final class CryptoTests: XCTestCase {
         XCTAssertThrowsError(try CompanionTimestamp.parse("💥💥💥💥💥"))
         XCTAssertThrowsError(try CompanionTimestamp.parse("2026-08-15T12:01:00+00:00"))
     }
+
+    func testPrivateUpdatesHaveTheRustStableIdentityAndStrictCommandCodec() throws {
+        let item = PrivateUpdateItem(
+            kind: .claimedAppUpdated,
+            subjectID: "0x1111",
+            evidenceID: "0x2222",
+            title: "Claimed app updated",
+            detail: "One canonical public release moved.",
+            occurredAt: "2026-08-31T12:00:00Z"
+        )
+        XCTAssertEqual(
+            item.updateID,
+            "update_eQPmHhbsHqXFJ-LydeluMnMIloHQDl7wOfOKVeGH3Nw"
+        )
+        try item.validate()
+        let projection = PrivateUpdateProjection(
+            items: [item],
+            updatedAt: "2026-08-31T12:00:00Z"
+        )
+        try projection.validate()
+
+        let payload = CompanionCommandPayload.privateUpdateUpsert(update: item)
+        try payload.validate()
+        let encoded = try JSONEncoder().encode(payload)
+        XCTAssertEqual(try JSONDecoder().decode(CompanionCommandPayload.self, from: encoded), payload)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object["invented"] = true
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            CompanionCommandPayload.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        ))
+    }
 }
 
 private actor NoopRelay: CompanionRelayTransport {

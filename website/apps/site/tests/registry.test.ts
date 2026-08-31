@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { p256 } from "@noble/curves/p256";
 import { loadConfig } from "../config.ts";
-import { canonicalCatalogJSON, canonicalRegistryActionDigest, createRegistryRouter } from "../src/registry.ts";
+import {
+  canonicalCatalogJSON,
+  canonicalRegistryActionDigest,
+  createRegistryRouter,
+  type ConstrainedRelayer,
+} from "../src/registry.ts";
+import type { ClaimsPublicationBridge } from "../src/claims.ts";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
@@ -52,10 +58,16 @@ async function fixture() {
   const envelope = { schema: "tohseno.signed-catalog-release/1", release,
     signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
     authorization: { algorithm: "p256", digest, signature: { r: scalar(signature.r), s: scalar(signature.s) }, low_s: true } };
-  const verifier = { verify: async () => ({ transactionHash: `0x${"66".repeat(32)}` as const,
+  const verifier = { verify: async (candidate: Record<string, unknown>) => {
+    const candidateRelease = candidate.release as Record<string, unknown>;
+    return { transactionHash: `0x${"66".repeat(32)}` as const,
     blockNumber: "123", blockHash: `0x${"77".repeat(32)}` as const,
-    controller: `0x${"22".repeat(20)}` as const, head: release.public_checkpoint_digest as `0x${string}`,
-    checkpointSequence: 1, signerKeyID: `0x${"88".repeat(32)}` as const }),
+    controller: `0x${"22".repeat(20)}` as const,
+    head: candidateRelease.public_checkpoint_digest as `0x${string}`,
+    checkpointSequence: candidateRelease.checkpoint_sequence as number,
+    signerKeyID: `0x${"88".repeat(32)}` as const,
+    blockTimestamp: candidateRelease.published_at as string };
+  },
     verifyBuilderKey: async () => {} };
   return { router: await createRegistryRouter(config, verifier), envelope, release, source,
     privateKey, publicKey, config };
@@ -74,6 +86,42 @@ function signedObject(
     signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
     authorization: { algorithm: "p256", digest,
       signature: { r: scalar(signature.r), s: scalar(signature.s) }, low_s: true } };
+}
+
+function signedRelease(
+  release: Record<string, unknown>,
+  privateKey: Uint8Array,
+  publicKey: Uint8Array,
+) {
+  const digest = sha256(new TextEncoder().encode(canonicalCatalogJSON(release)));
+  const signature = p256.sign(digest.slice(2), privateKey, { prehash: false, lowS: true });
+  return { schema: "tohseno.signed-catalog-release/1", release,
+    signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
+    authorization: { algorithm: "p256", digest,
+      signature: { r: scalar(signature.r), s: scalar(signature.s) }, low_s: true } };
+}
+
+async function publish(
+  router: Awaited<ReturnType<typeof createRegistryRouter>>,
+  envelope: Record<string, unknown>,
+  source: Uint8Array,
+) {
+  const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ envelope }),
+  }));
+  expect(staged.status).toBe(201);
+  const reservation = await staged.json() as Record<string, string>;
+  const uploaded = await router.fetch(new Request(`http://localhost${reservation.source_url}`, {
+    method: "PUT", headers: { authorization: `Bearer ${reservation.upload_token}`,
+      "content-length": String(source.byteLength) }, body: source.slice().buffer as ArrayBuffer,
+  }));
+  expect(uploaded.status).toBe(200);
+  const finalized = await router.fetch(new Request(`http://localhost${reservation.finalize_url}`, {
+    method: "POST", headers: { authorization: `Bearer ${reservation.upload_token}`,
+      "content-type": "application/json" },
+    body: JSON.stringify({ transaction_hash: `0x${"66".repeat(32)}` }),
+  }));
+  expect(finalized.status).toBe(201);
 }
 
 describe("public Registry trust bridge", () => {
@@ -108,9 +156,141 @@ describe("public Registry trust bridge", () => {
     expect(page.releases).toHaveLength(1);
     expect(page.releases[0]?.route).toBe(`/s/${String(release.shot_id).slice(2)}`);
     expect((page.releases[0]?.release as Record<string, unknown>).shot_id).toBe(release.shot_id);
-    expect(await router.renderShot(release.shot_id)).toContain("Install on iPhone");
+    expect(await router.renderShot(release.shot_id)).toContain("Claim Edition unavailable");
     expect(await router.renderRegistry("daily ritual")).toContain("Prayer Lock");
     expect(await router.renderRegistry("no such app")).not.toContain("Prayer Lock");
+  });
+
+  test("projects exactly one Ship, permanent Updates, deterministic pagination, and one current card", async () => {
+    const { router, envelope, release, source, privateKey, publicKey } = await fixture();
+    await publish(router, envelope, source);
+    for (let sequence = 2; sequence <= 10; sequence += 1) {
+      const update = structuredClone(release) as Record<string, unknown>;
+      update.release_id = `0x${sequence.toString(16).padStart(64, "0")}`;
+      update.published_at = `2026-08-30T12:${String(sequence).padStart(2, "0")}:00Z`;
+      update.checkpoint_sequence = sequence;
+      update.public_checkpoint_digest = `0x${sequence.toString(16).padStart(64, "0")}`;
+      await publish(router, signedRelease(update, privateKey, publicKey), source);
+    }
+
+    const timelineResponse = await router.fetch(new Request("http://localhost/api/registry/v1/timeline"));
+    expect(timelineResponse.status).toBe(200);
+    const timeline = await timelineResponse.json() as {
+      events: Array<Record<string, unknown>>; next_cursor: string | null;
+    };
+    expect(timeline.events).toHaveLength(10);
+    expect(timeline.events.filter((event) => event.kind === "shot.shipped")).toHaveLength(1);
+    expect(timeline.events.filter((event) => event.kind === "shot.updated")).toHaveLength(9);
+    expect(timeline.events[0]?.checkpoint_sequence).toBe(10);
+    expect(timeline.events.at(-1)?.checkpoint_sequence).toBe(1);
+    expect(timeline.next_cursor).toBeNull();
+
+    const firstPage = await (await router.fetch(new Request(
+      "http://localhost/api/registry/v1/timeline?limit=3",
+    ))).json() as { events: Array<Record<string, unknown>>; next_cursor: string };
+    expect(firstPage.events.map((event) => event.checkpoint_sequence)).toEqual([10, 9, 8]);
+    const secondPage = await (await router.fetch(new Request(
+      `http://localhost/api/registry/v1/timeline?limit=3&cursor=${firstPage.next_cursor}`,
+    ))).json() as { events: Array<Record<string, unknown>> };
+    expect(secondPage.events.map((event) => event.checkpoint_sequence)).toEqual([7, 6, 5]);
+
+    const discover = await (await router.fetch(new Request(
+      "http://localhost/api/registry/v1/shots",
+    ))).json() as { releases: Array<{ release: Record<string, unknown> }> };
+    expect(discover.releases).toHaveLength(1);
+    expect(discover.releases[0]?.release.checkpoint_sequence).toBe(10);
+    const html = await router.renderRegistry();
+    expect(html.match(/Prayer Lock/g)).toHaveLength(10);
+    expect(html.match(/entered Tohseno/g)).toHaveLength(1);
+    expect(html.match(/class="event-action">updated/g)).toHaveLength(9);
+    expect(html).toContain("SHOT.UPDATED");
+    expect(html).not.toContain("Shipped v2");
+  });
+
+  test("keeps a first Ship undiscoverable until its Claim Edition transaction is canonical", async () => {
+    const { envelope, release, source, privateKey, publicKey, config } = await fixture();
+    config.registry.relayerEnabled = true;
+    config.registry.relayerPrivateKey = `0x${"01".repeat(32)}`;
+    const registryTransaction = `0x${"66".repeat(32)}` as const;
+    const claimsTransaction = `0x${"99".repeat(32)}` as const;
+    const relayer: ConstrainedRelayer = {
+      address: `0x${"aa".repeat(20)}`,
+      async advance(job) {
+        job.registryTransactionHash = registryTransaction;
+        job.status = "submitted";
+      },
+    };
+    let claimAdvances = 0;
+    const claims: ClaimsPublicationBridge = {
+      async closureForTimeline() { return { reason: "supply_filled", occurredAt: "2026-08-30T12:05:00Z",
+        canonicalBlock: { number: "124", hash: `0x${"98".repeat(32)}` as const,
+          transactionIndex: 2, logIndex: 5 } }; },
+      async editionForDisplay() { return { opened: true, maxClaims: 888n, totalClaims: 0n,
+        openedAt: 1n, closesAt: 0n, closed: false }; },
+      async verifyOpenEdition() {},
+      async advanceOpenEdition(_value, _candidate, transactionHash) {
+        claimAdvances += 1;
+        return transactionHash
+          ? { transactionHash, confirmed: true }
+          : { transactionHash: claimsTransaction, confirmed: false };
+      },
+    };
+    const verifier = { verify: async (candidate: Record<string, unknown>) => {
+      const candidateRelease = candidate.release as Record<string, unknown>;
+      return { transactionHash: registryTransaction, blockNumber: "123",
+        blockHash: `0x${"77".repeat(32)}` as const,
+        controller: `0x${"22".repeat(20)}` as const,
+        head: candidateRelease.public_checkpoint_digest as `0x${string}`,
+        checkpointSequence: candidateRelease.checkpoint_sequence as number,
+        signerKeyID: `0x${"88".repeat(32)}` as const,
+        blockTimestamp: candidateRelease.published_at as string };
+    }, verifyBuilderKey: async () => {} };
+    const router = await createRegistryRouter(config, verifier, claims, relayer);
+    const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ envelope }),
+    }));
+    const reservation = await staged.json() as Record<string, string>;
+    await router.fetch(new Request(`http://localhost${reservation.source_url}`, {
+      method: "PUT", headers: { authorization: `Bearer ${reservation.upload_token}`,
+        "content-length": String(source.byteLength) }, body: source,
+    }));
+    const deadline = Math.floor(Date.now() / 1000) + 3600;
+    const action = { type: "REGISTER_SHOT", shot_id: release.shot_id,
+      controller: String(release.builder_id).split(":").at(-1), head: release.public_checkpoint_digest,
+      salt: `0x${"12".repeat(32)}`, nonce: 0, deadline };
+    const digest = canonicalRegistryActionDigest(action, config.registry.registryAddress);
+    const actionSignature = p256.sign(digest.slice(2), privateKey, { prehash: false, lowS: true });
+    const registry = { schema: "tohseno.registry-action/2", domain: {
+      name: "TOHSENO ShotRegistry", version: "2", chain_id: 4663,
+      verifying_contract: config.registry.registryAddress }, action,
+    signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
+    authorization: { algorithm: "p256", digest,
+      signature: { r: scalar(actionSignature.r), s: scalar(actionSignature.s) }, low_s: true } };
+    const published = await router.fetch(new Request(`http://localhost/api/registry/v1/staging/${reservation.staging_id}/publish`, {
+      method: "POST", headers: { authorization: `Bearer ${reservation.upload_token}`,
+        "content-type": "application/json" }, body: JSON.stringify({ registry, claim_edition: { exact: true } }),
+    }));
+    expect(published.status).toBe(202);
+    const pending = await router.fetch(new Request(`http://localhost/api/registry/v1/publications/${reservation.staging_id}`, {
+      headers: { authorization: `Bearer ${reservation.upload_token}` },
+    }));
+    expect(pending.status).toBe(202);
+    expect((await pending.json() as Record<string, unknown>).status).toBe("claims_submitted");
+    expect((await router.fetch(new Request("http://localhost/api/registry/v1/shots")).then((value) => value.json()) as { releases: unknown[] }).releases).toHaveLength(0);
+    const complete = await router.fetch(new Request(`http://localhost/api/registry/v1/publications/${reservation.staging_id}`, {
+      headers: { authorization: `Bearer ${reservation.upload_token}` },
+    }));
+    expect(complete.status).toBe(200);
+    expect((await complete.json() as Record<string, unknown>).status).toBe("complete");
+    expect(claimAdvances).toBe(2);
+    expect((await router.fetch(new Request("http://localhost/api/registry/v1/shots")).then((value) => value.json()) as { releases: unknown[] }).releases).toHaveLength(1);
+    const timeline = await router.fetch(new Request("http://localhost/api/registry/v1/timeline")).then((value) => value.json()) as {
+      events: Array<Record<string, unknown>>;
+    };
+    expect(timeline.events.map((event) => event.kind)).toEqual(["claim.edition_closed", "shot.shipped"]);
+    expect(timeline.events[0]?.canonical_block).toEqual({ number: "124",
+      hash: `0x${"98".repeat(32)}`, transaction_index: 2, log_index: 5 });
+    expect(await router.renderShot(release.shot_id)).toContain("tohseno://claim/");
   });
 
   test("rejects a manifest altered after Companion signature", async () => {
@@ -186,7 +366,7 @@ describe("public Registry trust bridge", () => {
     const builder = await (await router.fetch(new Request(
       `http://localhost/api/registry/v1/builders/${release.builder_id}`))).json() as Record<string, unknown>;
     expect((builder.profile as Record<string, unknown>).display_name).toBe("Small Maker");
-    expect(await router.renderHumanRoute("/@small-maker/prayer-lock")).toContain("Install on iPhone");
+    expect(await router.renderHumanRoute("/@small-maker/prayer-lock")).toContain("Download public source");
     const replay = await router.fetch(new Request(
       `http://localhost/api/registry/v1/builders/${release.builder_id}/profile`, {
         method: "PUT", headers: { "content-type": "application/json" },
