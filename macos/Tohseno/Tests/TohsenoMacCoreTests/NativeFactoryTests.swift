@@ -113,7 +113,10 @@ final class NativeFactoryTests: XCTestCase {
         await model.reload()
         await model.performReadinessAction()
         XCTAssertEqual(model.readiness?.step, "building_companion")
-        try? await Task.sleep(for: .milliseconds(1_100))
+        for _ in 0 ..< 60 {
+            if model.readiness?.step == "install_companion" { break }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
         XCTAssertEqual(model.readiness?.step, "install_companion")
         XCTAssertEqual(model.readiness?.detail, "Xcode failed")
     }
