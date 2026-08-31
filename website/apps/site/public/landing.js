@@ -1,4 +1,6 @@
 const downloadLinks = [...document.querySelectorAll("[data-installer-download]")];
+const downloadTitles = [...document.querySelectorAll("[data-download-title]")];
+const downloadDetails = [...document.querySelectorAll("[data-download-detail]")];
 
 function detectSystem() {
   const clientPlatform = navigator.userAgentData?.platform ?? "";
@@ -56,7 +58,8 @@ const systemCopy = {
 
 for (const link of downloadLinks) {
   link.dataset.detectedSystem = system;
-  link.querySelector("[data-download-title]").textContent = systemCopy.title;
-  link.querySelector("[data-download-detail]").textContent = systemCopy.detail;
   link.setAttribute("aria-label", `${systemCopy.title}. ${systemCopy.detail}`);
 }
+
+for (const title of downloadTitles) title.textContent = systemCopy.title;
+for (const detail of downloadDetails) detail.textContent = systemCopy.detail;

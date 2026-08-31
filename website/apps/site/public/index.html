@@ -3,212 +3,103 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f0e7">
-  <meta name="description" content="Describe a small app. Your Mac builds it and puts it on your iPhone.">
+  <meta name="theme-color" content="#f5efe6">
+  <meta name="description" content="A person-to-person network for native iPhone apps. Make software, share the source, and stay the moat.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="Open Source iOS Apps Factory">
-  <meta property="og:description" content="Make the iPhone app that should exist.">
+  <meta property="og:title" content="Tohseno — You are the moat">
+  <meta property="og:description" content="Native iPhone apps, person to person. The source can travel. What makes it matter is you.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Tohseno — Make the iPhone app that should exist.">
+  <meta property="og:image:alt" content="Tohseno — You are the moat. Not the code.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Open Source iOS Apps Factory">
-  <meta name="twitter:description" content="Make the iPhone app that should exist.">
+  <meta name="twitter:title" content="Tohseno — You are the moat">
+  <meta name="twitter:description" content="Native iPhone apps, person to person.">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
+  <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml">
   <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
-  <title>Tohseno — Make the iPhone App That Should Exist</title>
+  <title>Tohseno — Native iPhone Apps, Person to Person</title>
 </head>
-<body data-download-channel="{{DOWNLOAD_CHANNEL}}">
+<body class="simple-home is-prelaunch" data-download-channel="{{DOWNLOAD_CHANNEL}}">
   <a class="skip-link" href="#main">Skip to the main content</a>
 
-  <header class="nav frame">
-    <a href="#top" class="wordmark" aria-label="Tohseno home">
-      <img src="/tohseno-logo.png" alt="">
-      <span>Tohseno</span>
-    </a>
-    <nav aria-label="Primary navigation">
-      <a href="#method">Method</a>
-      <a href="#ownership">Ownership</a>
-      <a href="#open-source">Open source</a>
-      <a href="/whitepaper.pdf" target="_blank" rel="noopener">Whitepaper <span aria-hidden="true">↗</span></a>
-    </nav>
-  </header>
+  <div class="paint-intro" aria-hidden="true">
+    <div class="paint-mark">
+      <img class="paint-mark-ghost" src="/logo.svg" alt="">
+      <span class="paint-mark-color"><img src="/logo.svg" alt=""></span>
+      <span class="paint-brush"></span>
+    </div>
+    <p>TOHSENO</p>
+  </div>
 
-  <main id="main">
-    <section class="hero frame" id="top">
-      <p class="eyebrow"><span aria-hidden="true">●</span> Open-source factory for native iOS apps</p>
-      <h1>Make the<br>iPhone app<br><em>that should exist.</em></h1>
-      <div class="hero-bottom">
-        <p class="lede">One coherent intention becomes a native application you can hold, use, evolve, and completely own.</p>
-        <div class="installer-door">
-          <a class="install" href="/download/macos" data-installer-download aria-label="Download Tohseno for Mac">
-            <span class="download-icon" aria-hidden="true">↓</span>
-            <span class="download-copy">
-              <strong data-download-title>Download for Mac</strong>
-              <small data-download-detail>macOS 14+ · Apple silicon and Intel</small>
-            </span>
-            <span class="download-mark" aria-hidden="true">DMG</span>
-          </a>
-          <p>Download the signed, notarized installer. Open it and drag Tohseno into Applications.</p>
-        </div>
-      </div>
-      <div class="hero-stamp" aria-hidden="true"><img src="/tohseno-logo.png" alt=""></div>
-    </section>
-
-    <section class="ticker orange-band manifesto" aria-label="A small manifesto">
-      <div class="ticker-track">
-        <div class="ticker-group">
-          <span>Reality is now close enough to answer.</span><span aria-hidden="true">✳</span>
-          <span>Personal software is allowed to be personal.</span>
-        </div>
-        <div class="ticker-group" aria-hidden="true">
-          <span>Reality is now close enough to answer.</span><span>✳</span>
-          <span>Personal software is allowed to be personal.</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="permission frame bone">
-      <p class="section-no">[ 001 / PERMISSION ]</p>
-      <div>
-        <h2>Your idea does not need to become a startup before it is allowed to become real.</h2>
-        <p>It does not need a business plan. It does not need a market. It does not need permission. It needs one honest encounter with reality.</p>
-      </div>
-    </section>
-
-    <section class="method frame" id="method">
-      <div class="section-head">
-        <p>[ 002 / CREATE AN APP ]</p>
-        <h2>One intention.<br>One real attempt.</h2>
-      </div>
-      <div class="shot-flow">
-        <article>
-          <span>01 — Intention</span>
-          <p>“I want an app that helps me stop smoking for 21 days.”</p>
-        </article>
-        <div class="flow-arrow" aria-hidden="true">→</div>
-        <article class="inverted">
-          <span>02 — Tohseno</span>
-          <div class="terminal-lines"><b>●</b> Hold the first form<br><b>●</b> Build native SwiftUI<br><b>●</b> Verify on your Mac<br><b>●</b> Install on your iPhone</div>
-        </article>
-        <div class="flow-arrow" aria-hidden="true">→</div>
-        <article>
-          <span>03 — Contact</span>
-          <p>Use it with your own hands. Let the original idea lose its immunity from reality.</p>
-        </article>
-      </div>
-      <blockquote>“An app is an idea made specific enough to meet reality.”</blockquote>
-    </section>
-
-    <section class="contact-sheet frame bone">
-      <div class="section-head">
-        <p>[ 003 / PERSONAL SOFTWARE ]</p>
-        <h2>Make software<br>for your actual life.</h2>
-      </div>
-      <div class="shot-grid">
-        <article><span>01 / BREATHWORK FACILITATOR</span><div class="mini-app"><img src="/app-breathekeeper.png" alt="Breathekeeper app icon"></div><h3>BREATHEKEEPER</h3><p>“Guide a room through timed breath journeys without touching my phone.”</p></article>
-        <article><span>02 / FATHER OF TWINS</span><div class="mini-app"><img src="/app-who-ate.png" alt="Who Ate? app icon"></div><h3>WHO ATE?</h3><p>“Track which twin ate, slept, and pooped—without mixing them up.”</p></article>
-        <article><span>03 / NIGHT-SHIFT NURSE</span><div class="mini-app"><img src="/app-handoff.png" alt="Handoff app icon"></div><h3>HANDOFF</h3><p>“Keep the details I’m too tired to trust my memory with.”</p></article>
-        <article><span>04 / SMALL FARMER</span><div class="mini-app"><img src="/app-water-walk.png" alt="Water Walk app icon"></div><h3>WATER WALK</h3><p>“Tell me what needs water today before I walk the field.”</p></article>
-        <article><span>05 / TATTOO ARTIST</span><div class="mini-app"><img src="/app-ink-memory.png" alt="Ink Memory app icon"></div><h3>INK MEMORY</h3><p>“Photograph every healed tattoo and remember the ink recipe.”</p></article>
-        <article><span>06 / TOURING MUSICIAN</span><div class="mini-app"><img src="/app-room-tone.png" alt="Room Tone app icon"></div><h3>ROOM TONE</h3><p>“Remember what every venue sounded like before tonight’s soundcheck.”</p></article>
-      </div>
-      <p class="permission-line">You are allowed to make software that only you use.</p>
-    </section>
-
-    <section class="ownership frame" id="ownership">
-      <p class="section-no">[ 004 / OWNERSHIP ]</p>
-      <h2>The factory is<br>a midwife.<br><em>Not a landlord.</em></h2>
-      <div class="ownership-grid">
-        <p class="big-rule">Tohseno can disappear.<br>Your app must continue.</p>
-        <ul>
-          <li><span>01</span> Ordinary SwiftUI + Xcode</li>
-          <li><span>02</span> One repository per application</li>
-          <li><span>03</span> No proprietary runtime</li>
-          <li><span>04</span> No Tohseno account required</li>
-          <li><span>05</span> Continue with any model — or none</li>
-          <li><span>06</span> Publish when you choose</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="open-source frame bone" id="open-source">
-      <p class="section-no">[ 005 / OPEN SOURCE ]</p>
-      <div class="open-source-grid">
-        <h2>The factory<br>is open.<br>The app<br>is yours.</h2>
-        <div class="open-source-copy">
-          <p>Tohseno is open source. You can inspect how it works, run the factory locally, and change it. Every app it creates is an ordinary SwiftUI project in its own Git repository. You decide whether to keep that app private or publish it.</p>
-          <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">View source on GitHub <span aria-hidden="true">↗</span></a>
-        </div>
-      </div>
-    </section>
-
-    <section class="steps frame orange-block">
-      <div class="section-head">
-        <p>[ 006 / BEGIN ]</p>
-        <h2>From zero<br>to your phone.</h2>
-      </div>
-      <ol>
-        <li>
-          <b>01</b>
-          <h3>Install</h3>
-          <a class="step-download" href="/download/macos" data-installer-download aria-label="Download Tohseno for Mac">
-            <span class="step-download-copy"><strong data-download-title>Download for Mac</strong><small data-download-detail>macOS 14+ · Universal installer</small></span>
-            <span aria-hidden="true">DMG ↓</span>
-          </a>
-        </li>
-        <li><b>02</b><h3>Connect</h3><p>Plug your iPhone into your Mac. Tohseno guides you through Xcode, signing, and Developer Mode.</p></li>
-        <li><b>03</b><h3>Create an app</h3><p>Describe what should exist. Tohseno keeps working when its window closes and opens the result on your phone.</p></li>
-      </ol>
-    </section>
-
-    <section class="permission frame bone" id="before-install">
-      <p class="section-no">[ 007 / BEFORE YOU INSTALL ]</p>
-      <div>
-        <h2>One Mac app. Clear choices.</h2>
-        <p>You need macOS 14 or later, Xcode, and an iPhone for phone installation. A free Apple Personal Team works for personal-device signing.</p>
-        <p>Bring a supported model subscription, connect an explicit local model endpoint, or approve a capped use of managed intelligence from a prepaid balance. Local creation stays available without a Tohseno subscription. Your app, source repository, and installed result remain yours.</p>
-      </div>
-    </section>
-
-    <section class="chain frame bone">
-      <div class="section-head">
-        <p>[ 008 / PUBLIC REGISTRY ]</p>
-        <h2>Local creation.<br>Publication is next.</h2>
-      </div>
-      <p class="chain-copy">Every app belongs to its builder. The active contract generation is infrastructure, not a downloadable catalog: source hosting, publication, discovery, and forking are not available yet.</p>
-      <div class="chain-path"><span>Mac factory</span><b aria-hidden="true">→</b><span>Owned repository</span><b aria-hidden="true">→</b><span>Reviewed publication</span></div>
-    </section>
-  </main>
-
-  <footer class="frame">
-    <div class="footer-logo"><img src="/tohseno-logo.png" alt="Tohseno brush circle"><h2>What should<br>exist?</h2></div>
-    <div class="installer-door footer-installer">
-      <a class="install giant" href="/download/macos" data-installer-download aria-label="Download Tohseno for Mac">
-        <span class="download-icon" aria-hidden="true">↓</span>
-        <span class="download-copy">
-          <strong data-download-title>Download for Mac</strong>
-          <small data-download-detail>macOS 14+ · Apple silicon and Intel</small>
-        </span>
-        <span class="download-mark" aria-hidden="true">DMG</span>
+  <div class="site-arrival">
+    <header class="simple-nav page-shell">
+      <a href="#top" class="simple-wordmark" aria-label="Tohseno home">
+        <img src="/logo.svg" alt="">
+        <span>TOHSENO</span>
       </a>
-      <p>Open the signed, notarized DMG and drag Tohseno into Applications.</p>
-    </div>
-    <div class="footer-links">
-      <span>Make the app that should exist. Use it. Then make it better.</span>
+      <a class="text-link" href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="main">
+      <section class="welcome-hero page-shell" id="top">
+        <p class="launch-state"><span aria-hidden="true"></span> Pre-launch · the public door is being verified</p>
+        <p class="simple-kicker">Native software, person to person.</p>
+        <h1>Welcome.</h1>
+        <p class="network-deck">This is the person-to-person network for native iPhone apps.</p>
+        <p class="network-explain">We go around the App Store—not around Apple’s security. Make an app, share its exact source, and let another person’s Mac verify, build, and sign it for their iPhone.</p>
+        <div class="hero-actions">
+          <span class="primary-action is-disabled" aria-disabled="true">Mac release in verification</span>
+          <a class="quiet-action" href="#apple-limits">See what an Apple account allows <span aria-hidden="true">↓</span></a>
+        </div>
+      </section>
+
+      <section class="apple-truth page-shell" id="apple-limits">
+        <div class="section-intro">
+          <p class="simple-kicker">The honest Apple part</p>
+          <h2>Start free.<br>Pay Apple when you need reach.</h2>
+        </div>
+        <div class="account-grid">
+          <article>
+            <p class="account-label">Apple Account</p>
+            <p class="account-price">Free</p>
+            <h3>Three apps on each device.</h3>
+            <p>Personal Team provisioning lasts 7 days. Rebuild and reinstall the app to keep using it. It is enough to make something real and put it in your own hands.</p>
+          </article>
+          <article class="paid-account">
+            <p class="account-label">Apple Developer Program</p>
+            <p class="account-price">$99 <span>USD / year in the U.S.</span></p>
+            <h3>More capabilities. Real distribution.</h3>
+            <p>Membership unlocks Apple’s broader developer capabilities and App Store distribution. Regional pricing can vary.</p>
+          </article>
+        </div>
+        <a class="apple-source" href="https://developer.apple.com/help/account/basics/about-your-developer-account" target="_blank" rel="noopener noreferrer">Check the current limits at Apple <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <section class="moat page-shell">
+        <p class="simple-kicker">Build in the open</p>
+        <h2>You are the moat.<br><em>Not the code.</em></h2>
+        <p class="moat-copy">Tohseno is a playground for expression and independent software economies. You do not have to hide the work because someone might copy it. They can copy the source. They cannot copy your taste, trust, speed, relationships, or reason for making it.</p>
+        <p class="closing-line">Let the code travel. Keep becoming impossible to copy.</p>
+      </section>
+    </main>
+
+    <footer class="simple-footer page-shell">
+      <a href="#top" class="simple-wordmark" aria-label="Back to the top">
+        <img src="/logo.svg" alt="">
+        <span>TOHSENO</span>
+      </a>
+      <p>Public installs remain closed until the signed Mac release and acceptance gates pass.</p>
       <div>
-        <a href="#open-source">Open source</a>
-        <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community <span aria-hidden="true">↗</span></a>
-        <a href="/whitepaper.pdf" target="_blank" rel="noopener">Whitepaper <span aria-hidden="true">↗</span></a>
+        <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community</a>
+        <a href="/whitepaper.pdf" target="_blank" rel="noopener">Whitepaper</a>
       </div>
-    </div>
-  </footer>
+    </footer>
+  </div>
 
   <script src="/landing.js" defer></script>
-
 </body>
 </html>

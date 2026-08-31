@@ -72,12 +72,18 @@ const landingStylePath = fileURLToPath(
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("keeps network launch copy dark until every public path is enabled", async () => {
+  test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("Make the<br>iPhone app<br><em>that should exist.</em>");
-    expect(body).not.toContain("Ship iPhone apps.<br><em>Person to person.</em>");
+    expect(body).toContain("<h1>Welcome.</h1>");
+    expect(body).toContain("This is the person-to-person network for native iPhone apps.");
+    expect(body).toContain("Pre-launch · the public door is being verified");
+    expect(body).toContain("Mac release in verification");
+    expect(body).toContain("Public installs remain closed until the signed Mac release");
+    expect(body).not.toContain("Live · native software, person to person");
     expect(body).not.toContain('href="/registry"');
+    expect(body).not.toContain('href="/download/macos"');
+    expect(body).not.toContain("data-installer-download");
     const registry = await (await application.fetch(request("/registry"))).text();
     expect(registry).toContain("Pre-launch verification.");
     expect(registry).toContain("No public app or write path is claimed.");
@@ -99,44 +105,40 @@ describe("public pages", () => {
     // can never ship behind a stale cached copy.
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    expect(body).toContain("Ship iPhone apps.<br><em>Person to person.</em>");
-    expect(body).toContain("YourApp");
-    expect(body).toContain("tohseno init");
-    expect(body).toContain("tohseno deploy");
-    expect(body).toContain("Make software<br>for your actual life.");
-    expect(body).toContain("The factory is<br>a midwife.");
-    expect(body).toContain("The factory<br>is open.<br>The app<br>is yours.");
-    expect(body).toContain("From zero<br>to your phone.");
-    expect(body).toContain("One Mac app. Clear choices.");
-    expect(body).toContain("Discover apps.<br>Inspect the proof.");
-    expect(body).toContain("What should<br>exist?");
+    expect(body).toContain("<h1>Welcome.</h1>");
+    expect(body).toContain("This is the person-to-person network for native iPhone apps.");
+    expect(body).toContain("Live · native software, person to person");
+    expect(body).toContain("We go around the App Store—not around Apple’s security.");
+    expect(body).toContain("Start free.<br>Pay Apple when you need reach.");
+    expect(body).toContain("Three apps on each device.");
+    expect(body).toContain("Personal Team provisioning lasts 7 days.");
+    expect(body).toContain("$99 <span>USD / year in the U.S.</span>");
+    expect(body).toContain("App Store distribution");
+    expect(body).toContain("You are the moat.<br><em>Not the code.</em>");
+    expect(body).toContain("They can copy the source. They cannot copy your taste");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
-    expect(body.match(/data-installer-download/g)).toHaveLength(3);
-    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(3);
+    expect(body.match(/data-installer-download/g)).toHaveLength(1);
+    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
     expect(body).toContain('data-download-channel="stable"');
     expect(body).toContain("Download for Mac");
     expect(body).toContain("macOS 14+");
     expect(body).not.toContain("paste into Terminal");
-    expect(body).toContain('src="/app-breathekeeper.png"');
-    expect(body).toContain('src="/app-room-tone.png"');
+    expect(body).toContain('src="/logo.svg"');
+    expect(body).toContain('<link rel="preload" href="/logo.svg" as="image" type="image/svg+xml">');
+    expect(body).toContain('class="paint-intro" aria-hidden="true"');
     expect(body).toContain('src="/landing.js"');
-    expect(body).toContain('property="og:title" content="Ship iPhone apps. Person to person."');
-    expect(body).toContain('name="twitter:title" content="Ship iPhone apps. Person to person."');
+    expect(body).toContain('property="og:title" content="Tohseno — You are the moat"');
+    expect(body).toContain('name="twitter:title" content="Tohseno — You are the moat"');
     expect(body).not.toContain("One App Per Day");
-    expect(body.match(/class="ticker-track"/g)).toHaveLength(1);
-    expect(body).toContain("Build for one person.");
-    expect(body).toContain("Send native software like a link.");
+    expect(body).not.toContain("ticker-track");
     expect(body).not.toContain("data-copy-contract");
     expect(body).not.toContain("cal.com/jpfraneto/day");
-    expect(body).toContain("prepaid balance");
     expect(body).not.toContain("sojourn");
     expect(body).not.toContain("BOOK A DAY");
 
     expect(body).not.toContain("dexscreener.com");
-    expect(body).toContain("The Registry shows releases whose builder signature");
-    expect(body).toContain("The Mac checks fresh chain state before Install or Fork.");
     expect(body).not.toContain("bun run tohseno");
     expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain('href="#"');
@@ -147,25 +149,13 @@ describe("public pages", () => {
     for (const path of ["/docs", "/privacy"]) {
       expect((await application.fetch(request(path))).status).toBe(200);
     }
-    expect(body).toContain("Community <span");
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
-    expect(body).toContain('<a href="#open-source">Open source</a>');
-    expect(body).toContain('id="open-source"');
-    expect(body).toContain("Tohseno is open source.");
     expect(body).toContain(
-      '>View source on GitHub <span aria-hidden="true">↗</span></a>',
-    );
-    const primaryNavigation = body.match(
-      /<nav aria-label="Primary navigation">[\s\S]*?<\/nav>/,
-    )?.[0];
-    expect(primaryNavigation).toBeDefined();
-    expect(primaryNavigation).not.toContain("github.com");
-    expect(body).toContain(
-      "<title>Tohseno — Native Software, Person to Person</title>",
+      "<title>Tohseno — Native iPhone Apps, Person to Person</title>",
     );
     expect(body).toContain(
-      'content="Turn an Xcode app into a link another person can install on their iPhone."',
+      'content="A person-to-person network for native iPhone apps. Make software, share the source, and stay the moat."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -252,6 +242,8 @@ describe("public pages", () => {
     const landingScript = readFileSync(landingScriptPath, "utf8");
     expect(landingScript).not.toContain("innerHTML");
     expect(landingScript).toContain('querySelectorAll("[data-installer-download]")');
+    expect(landingScript).toContain('querySelectorAll("[data-download-title]")');
+    expect(landingScript).toContain('querySelectorAll("[data-download-detail]")');
     expect(landingScript).toContain("navigator.userAgentData?.platform");
     expect(landingScript).toContain("navigator.maxTouchPoints > 1");
     expect(landingScript).toContain('title: "Download for this Mac"');
@@ -265,25 +257,22 @@ describe("public pages", () => {
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).toContain("@font-face");
-    for (const pastel of ["--peach", "--rose", "--sage", "--lilac", "--sky", "--butter"]) {
-      expect(landingStyle).toContain(pastel);
-    }
+    expect(landingStyle).toContain("--paper: #f5efe6");
+    expect(landingStyle).toContain("--ink: #211e1b");
+    expect(landingStyle).toContain("--orange: #ff5a00");
     expect(landingStyle).toContain("background: var(--paper)");
     expect(landingStyle).not.toContain("#080908");
-    expect(landingStyle).not.toContain("--black:");
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(landingStyle).toContain(".shot-flow");
-    expect(landingStyle).toContain(".shot-grid");
-    expect(landingStyle).toContain(".ownership-grid");
-    expect(landingStyle).toContain(".open-source-grid");
-    expect(landingStyle).toMatch(
-      /\.nav nav a \{[\s\S]*?font: 500 13px "Plex Mono", ui-monospace, monospace;/,
-    );
-    expect(landingStyle).toContain('.ticker-group[aria-hidden="true"]');
-    expect(landingStyle).not.toContain("@keyframes ticker-scroll");
-    expect(landingStyle).not.toContain("@keyframes ticker-shake");
-    expect(landingStyle).not.toContain(".tiers");
-    expect(landingStyle).toContain("@media (max-width: 560px)");
+    expect(landingStyle).toContain(".paint-intro");
+    expect(landingStyle).toContain(".paint-mark-color");
+    expect(landingStyle).toContain("clip-path: inset(100% 0 0 0)");
+    expect(landingStyle).toContain("@keyframes progress-orbit");
+    expect(landingStyle).toContain("@keyframes paint-reveal");
+    expect(landingStyle).toContain("@keyframes mark-settle");
+    expect(landingStyle).toContain("@keyframes site-arrive");
+    expect(landingStyle).toContain("@media (max-width: 760px)");
+    expect(landingStyle).not.toContain(".shot-flow");
+    expect(landingStyle).not.toContain(".ticker-track");
   });
 
   test("serves the health check", async () => {
