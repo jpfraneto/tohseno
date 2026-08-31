@@ -511,7 +511,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.2.0-rc.1` bytes on the labeled release-candidate channel; stable `v1.2.0`
+`v1.2.0-rc.2` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -526,7 +526,7 @@ acceptance. It places the verified DMG in Downloads, prints that exact path,
 and reveals it in Finder so the person performs the familiar drag into
 Applications. It does not copy, replace, or open an application, request
 administrator access, or edit a shell profile. HEAD exposes only
-status/instruction headers. They currently use the same verified 1.2 RC1 pin.
+status/instruction headers. They currently use the same verified 1.2 RC2 pin.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -596,12 +596,16 @@ and its evidence must not be rewritten to describe later source.
 
 Native **1.2.0** is the current product release target in source. It must not
 reuse 1.0.2 artifact evidence or infer release truth from the 1.1 candidate.
-Release candidate `v1.2.0-rc.1` was built from clean commit `122f121`, signed
-with Developer ID Team `84V63LKV45`, accepted by Apple notarization submission
-`f8b99d53-4169-456c-aa76-e73ccef95b19`, stapled, mounted, Gatekeeper-checked,
-and published as a 52,120,005-byte universal DMG with SHA-256
-`7b98f99ddb004de7c8e031f7eb44216f0470f56a8333b63b6913d4c66154b212`.
-Both the GitHub origin and tohseno.com round trips matched. It is active only
+Release candidate `v1.2.0-rc.1` is rejected because its Mac bundle omitted the
+Apple identity source package required to resolve and build Companion; the
+resulting failure was incorrectly collapsed into a generic Apple Account
+message. Replacement candidate `v1.2.0-rc.2` was built from exact clean and
+fully CI-gated commit `8c574003`, signed with Developer ID Team `84V63LKV45`,
+accepted by Apple notarization submission
+`84e9f154-f9ed-42f7-9712-c0ac218e20df`, stapled, mounted, Gatekeeper-checked,
+and published as a 52,249,598-byte universal DMG with SHA-256
+`dd5c739da4bfa0a6f5eb8c766e6345a938ff72b0b247f55d0988a61e650a0697`.
+Both the GitHub origin and tohseno.com round trips matched. RC2 is active only
 on the labeled release-candidate channel for the owner-attended walkthrough.
 Stable 1.2 still requires the production proof in ADR 0035: real first Ship and
 edition, second identity Claim, offline-Mac preparation, recipient-signed
