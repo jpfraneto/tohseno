@@ -1,8 +1,7 @@
 //! Client trust resolution for the separately deployed additive Claims contract.
 //!
-//! Absence is a normal dark-launch state. A future activating commit must land
-//! the complete signed evidence and its exact digest together; partial or
-//! non-verifying evidence is a hard error.
+//! The active client embeds the complete signed evidence and its exact digest
+//! together; partial or non-verifying evidence is a hard error.
 
 use tohseno_network::claims_activation::SignedClaimsActivation;
 use tohseno_protocol::contract_activation::ReleaseAuthorityPolicy;
@@ -16,10 +15,12 @@ use crate::contract_generation::{
 pub const CLAIMS_ACTIVATION_REPOSITORY_PATH: &str =
     "release/claims-activations/signed-claims-activation-1.json";
 
-// Dark until the governed deployment and threshold ceremony create the exact
-// evidence named above. Never replace this with an address-only toggle.
-const SIGNED_CLAIMS_ACTIVATION_JSON: Option<&[u8]> = None;
-const PINNED_CLAIMS_ACTIVATION_DIGEST_HEX: Option<&str> = None;
+// Never replace the threshold-verified envelope with an address-only toggle.
+const SIGNED_CLAIMS_ACTIVATION_JSON: Option<&[u8]> = Some(include_bytes!(
+    "../../release/claims-activations/signed-claims-activation-1.json"
+));
+const PINNED_CLAIMS_ACTIVATION_DIGEST_HEX: Option<&str> =
+    Some("0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d");
 const TRUSTED_RELEASE_AUTHORITY_POLICY_JSON: &[u8] =
     include_bytes!("../../release/contract-activations/release-authority-policy.json");
 
@@ -144,10 +145,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shipped_client_keeps_claims_dark_without_complete_signed_activation() {
-        let resolved = resolve_claims_contract().expect("dark state");
-        assert_eq!(resolved.state, ClaimsContractState::Inactive);
-        assert_eq!(resolved.claims_contract, None);
-        assert_eq!(resolved.activation_signing_digest, None);
+    fn shipped_client_resolves_threshold_verified_claims_activation() {
+        let resolved = resolve_claims_contract().expect("active Claims contract");
+        assert_eq!(resolved.state, ClaimsContractState::Active);
+        assert_eq!(
+            resolved
+                .claims_contract
+                .expect("Claims address")
+                .to_string(),
+            "0x5012703d48d99224ac0035d58bc373de9e8b1934"
+        );
+        assert_eq!(
+            resolved
+                .activation_signing_digest
+                .expect("activation digest")
+                .to_string(),
+            "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
+        );
+        assert_eq!(
+            resolved
+                .shot_registry
+                .expect("ShotRegistry address")
+                .to_string(),
+            "0x3fe6508ba2660bc575080024f402c192a2e035a0"
+        );
+        assert_eq!(
+            resolved
+                .runtime_code_keccak256
+                .expect("runtime code hash")
+                .to_string(),
+            "0x96b3519b810e03a7b6ed61ed3f5d3c806b4fcfe5b4124d91bfea160d1360d807"
+        );
+        assert_eq!(resolved.deployment_block, Some(50_973_950));
     }
 }

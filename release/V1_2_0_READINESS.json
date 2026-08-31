@@ -17,10 +17,10 @@
     "recording_layer_implicit_migration": false
   },
   "authorization": {
-    "authorized": false,
-    "authorized_by": null,
-    "authorized_at": null,
-    "authorization_form": null
+    "authorized": true,
+    "authorized_by": "repository owner",
+    "authorized_at": "2026-08-31T15:58:42Z",
+    "authorization_form": "Go ahead with the Claims activation."
   },
   "protection": {
     "immutable_release_policy_verified": true,
@@ -63,8 +63,9 @@
       "runtime_code_hash": "0x96b3519b810e03a7b6ed61ed3f5d3c806b4fcfe5b4124d91bfea160d1360d807"
     },
     "activation": {
-      "active": false,
-      "signed_record": null,
+      "active": true,
+      "signed_record": "release/claims-activations/signed-claims-activation-1.json",
+      "signed_record_sha256": "0x37d99a657a54d3898d2000331a9acdf60bdd5177a95118b095f4d371b8b711bd",
       "unsigned_record_issued_at": "2026-08-31T15:35:03Z",
       "unsigned_record_sha256": "0x9e1ba9170fc0cac57be8b63cac9b74771043d68cd8f8c3a038e0ea85cb8957ef",
       "signing_digest": "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
@@ -99,7 +100,7 @@
   },
   "required_production_evidence": {
     "claims_contract_deployed_from_captured_source": true,
-    "claims_signed_activation_verified": false,
+    "claims_signed_activation_verified": true,
     "claims_runtime_and_registry_reverified": true,
     "production_ship_with_immutable_edition_green": false,
     "second_identity_physical_claim_green": false,
@@ -123,5 +124,5 @@
     "claims_relayer_enabled": false,
     "stable_download_activated": false
   },
-  "blocking_reason": "The complete local matrix and GitHub CI are green at the exact pushed 1.2.0 source commit. TohsenoClaimsV1 is immutably deployed and independently reverified against its direct-creation transaction, runtime, and active Registry binding, but it remains inactive: the exact unsigned activation observation still needs 2-of-3 offline custodian approval and cross-client pinning. The backward-compatible website remains healthy with Claims and both write relayers dark; no production Ship/Claim, physical exact-release install, later Update, or signed/notarized 1.2.0 artifact exists. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until every remaining release and Claims fact is independently proven."
+  "blocking_reason": "TohsenoClaimsV1 is immutably deployed, its exact activation is approved 2-of-3 under the existing owner-authorized policy, and the threshold-verified address and digest are pinned across the Rust, website, Mac, and Companion clients. Claims production writes remain disabled pending the owner-attended physical acceptance: one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline. A signed, notarized, stapled, Gatekeeper-verified 1.2.0 DMG also does not yet exist, so the public installer remains unchanged."
 }

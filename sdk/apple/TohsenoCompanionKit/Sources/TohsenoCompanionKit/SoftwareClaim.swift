@@ -1,12 +1,11 @@
 import Foundation
 
-/// Claims use a separately signed activation. These values remain nil in an
-/// unreleased client, keeping every write surface dark until an exact deployed
-/// contract and activation digest are deliberately pinned into a release.
+/// Claims use the separately threshold-signed activation carried by the
+/// release. Service-side relay authorization remains an independent gate.
 public enum ClaimsClientActivation {
     public static let shotRegistry = "0x3fe6508ba2660bc575080024f402c192a2e035a0"
-    public static let claimsContract: String? = nil
-    public static let activationSigningDigest: String? = nil
+    public static let claimsContract: String? = "0x5012703d48d99224ac0035d58bc373de9e8b1934"
+    public static let activationSigningDigest: String? = "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
 }
 
 public struct ClaimEditionPolicy: Codable, Equatable, Sendable {

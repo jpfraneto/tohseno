@@ -3,6 +3,17 @@ import XCTest
 @testable import TohsenoCompanionKit
 
 final class ClaimMarkTests: XCTestCase {
+    func testReleasedClaimsCoordinatesMatchSignedActivation() throws {
+        XCTAssertEqual(
+            ClaimsClientActivation.claimsContract,
+            "0x5012703d48d99224ac0035d58bc373de9e8b1934"
+        )
+        XCTAssertEqual(
+            ClaimsClientActivation.activationSigningDigest,
+            "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
+        )
+    }
+
     func testSharedClaimMarkVectorsMatchRustExactly() throws {
         let fixture = try loadClaimMarkFixture()
         XCTAssertEqual(fixture.schema, "tohseno.claim-mark-vectors/1")

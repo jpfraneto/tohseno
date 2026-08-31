@@ -10,6 +10,12 @@ export const PRODUCT = Object.freeze({
   },
 });
 
+export const RELEASED_CLAIMS_ACTIVATION = Object.freeze({
+  contractAddress: "0x5012703d48d99224ac0035d58bc373de9e8b1934",
+  signingDigest: "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d",
+  deploymentBlock: 50_973_950n,
+});
+
 export type NodeEnvironment = "development" | "test" | "production";
 
 export interface AppConfig {
@@ -343,6 +349,12 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     }
     if (!claimsActivationEvidencePath?.startsWith("/") || !claimsAuthorityPolicyPath?.startsWith("/")) {
       throw new Error("Claims activation and authority policy paths must be explicit absolute paths");
+    }
+    if (nodeEnv === "production"
+        && (claimsAddress !== RELEASED_CLAIMS_ACTIVATION.contractAddress
+          || claimsActivationDigest !== RELEASED_CLAIMS_ACTIVATION.signingDigest
+          || BigInt(env.CLAIMS_DEPLOYMENT_BLOCK!) !== RELEASED_CLAIMS_ACTIVATION.deploymentBlock)) {
+      throw new Error("production Claims coordinates differ from the released signed activation");
     }
   }
   if (claimsIndexerEnabled && (!registryEnabled || !claimsConfigured)) {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { p256 } from "@noble/curves/p256";
 import { keccak_256 as keccak } from "@noble/hashes/sha3";
-import { loadConfig } from "../config.ts";
+import { loadConfig, RELEASED_CLAIMS_ACTIVATION } from "../config.ts";
 import {
   createClaimsRouter,
   canonicalClaimsActionDigest,
@@ -114,6 +114,25 @@ class FixtureReader implements ClaimsReader {
 }
 
 describe("separately activated Claims Registry", () => {
+  test("production accepts only the released Claims coordinates", () => {
+    const common = {
+      NODE_ENV: "production", PORT: "3000", BASE_URL: "https://tohseno.com",
+      CLAIMS_ACTIVATION_EVIDENCE_PATH: "/evidence/activation.json",
+      CLAIMS_AUTHORITY_POLICY_PATH: "/evidence/policy.json",
+    };
+    expect(() => loadConfig({ ...common,
+      CLAIMS_CONTRACT_ADDRESS: CLAIMS,
+      CLAIMS_ACTIVATION_SIGNING_DIGEST: RELEASED_CLAIMS_ACTIVATION.signingDigest,
+      CLAIMS_DEPLOYMENT_BLOCK: RELEASED_CLAIMS_ACTIVATION.deploymentBlock.toString(),
+    })).toThrow("production Claims coordinates differ from the released signed activation");
+    const config = loadConfig({ ...common,
+      CLAIMS_CONTRACT_ADDRESS: RELEASED_CLAIMS_ACTIVATION.contractAddress,
+      CLAIMS_ACTIVATION_SIGNING_DIGEST: RELEASED_CLAIMS_ACTIVATION.signingDigest,
+      CLAIMS_DEPLOYMENT_BLOCK: RELEASED_CLAIMS_ACTIVATION.deploymentBlock.toString(),
+    });
+    expect(config.claims.contractAddress).toBe(RELEASED_CLAIMS_ACTIVATION.contractAddress);
+  });
+
   test("rebuilds its durable index on restart and refuses a moving canonical head", async () => {
     const config = await activatedConfig();
     const activation: VerifiedActivation = {
