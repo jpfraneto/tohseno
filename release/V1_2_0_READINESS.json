@@ -4,14 +4,14 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
-    "exact_source_commit": "f737386fab7f16582df3bf768c1c96b3a23816fe",
-    "captured_at": "2026-08-31T14:39:57Z",
+    "exact_source_commit": "122f121732497e7a2f60e7daeb1b57882ebf9964",
+    "captured_at": "2026-08-31T17:55:16Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md",
       "docs/adr/0035-claiming-software.md"
     ],
     "previous_release_candidate": "1.1.0",
-    "current_public_installer_pin": "1.1.0",
+    "current_public_installer_pin": "1.2.0-rc.1",
     "target_public_installer_pin": "1.2.0",
     "historical_protocol_rewritten": false,
     "recording_layer_implicit_migration": false
@@ -19,8 +19,8 @@
   "authorization": {
     "authorized": true,
     "authorized_by": "repository owner",
-    "authorized_at": "2026-08-31T15:58:42Z",
-    "authorization_form": "Go ahead with the Claims activation."
+    "authorized_at": "2026-08-31T17:38:00Z",
+    "authorization_form": "Build and publish the 1.2 release candidate to tohseno.com so that I can download it from there and go through the whole process myself first."
   },
   "protection": {
     "immutable_release_policy_verified": true,
@@ -29,10 +29,11 @@
     "verified_at": "2026-08-30T21:34:39Z"
   },
   "continuous_integration": {
-    "run_id": 33366216645,
-    "source_commit": "f737386fab7f16582df3bf768c1c96b3a23816fe",
+    "run_id": 33414772198,
+    "source_commit": "70c318ef029ea041d1a3f145b890236f6bbae8cc",
     "status": "success",
-    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33366216645"
+    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33414772198",
+    "artifact_source_delta": "The artifact source adds only commit 122f121's Claims production evidence record to the fully CI-gated 70c318e code tree."
   },
   "dark_deployment": {
     "service": "tohseno",
@@ -105,8 +106,8 @@
     "factory_lifecycle_green": true,
     "companion_end_to_end_green": true,
     "isolated_macos_launchagent_integration_green": true,
-    "release_candidate_artifacts_built_from_clean_commit": false,
-    "release_candidate_manifests_verified": false
+    "release_candidate_artifacts_built_from_clean_commit": true,
+    "release_candidate_manifests_verified": true
   },
   "required_production_evidence": {
     "claims_contract_deployed_from_captured_source": true,
@@ -124,15 +125,59 @@
     "clean_mac_acceptance_green": false
   },
   "external_activation_gates": {
-    "developer_id_signed": false,
-    "notarization_accepted": false,
-    "ticket_stapled": false,
-    "mounted_gatekeeper_verified": false,
-    "immutable_public_dmg_verified": false,
+    "developer_id_signed": true,
+    "notarization_accepted": true,
+    "ticket_stapled": true,
+    "mounted_gatekeeper_verified": true,
+    "immutable_public_dmg_verified": true,
+    "release_candidate_prerelease_published": true,
+    "release_candidate_download_activated": true,
     "production_registry_enabled": false,
     "production_relayer_enabled": false,
     "claims_relayer_enabled": false,
     "stable_download_activated": false
   },
-  "blocking_reason": "TohsenoClaimsV1 is immutably deployed, its exact activation is approved 2-of-3 under the existing owner-authorized policy, and the threshold-verified address and digest are pinned across the Rust, website, Mac, and Companion clients. The production read service verifies the activation, live runtime, Registry binding, and empty canonical index while both relayers and every Claims write remain disabled. Claims writes require the owner-attended physical acceptance: one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline. A signed, notarized, stapled, Gatekeeper-verified 1.2.0 DMG also does not yet exist, so the public installer remains unchanged."
+  "release_candidate_evidence": {
+    "tag": "v1.2.0-rc.1",
+    "prerelease": true,
+    "published_at": "2026-08-31T17:51:30Z",
+    "artifact_source_commit": "122f121732497e7a2f60e7daeb1b57882ebf9964",
+    "worktree_clean_at_build": true,
+    "full_matrix_run_id": 33414772198,
+    "full_matrix_source_commit": "70c318ef029ea041d1a3f145b890236f6bbae8cc",
+    "welcome_compute_url": "mailto:support@anky.app",
+    "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
+    "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
+    "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
+    "bundle_identifier": "com.tohseno.mac",
+    "candidate_application_cdhash": "321e04a0742f03ecddc867a619d30c0bbe6d9383",
+    "architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "notary_submission_id": "f8b99d53-4169-456c-aa76-e73ccef95b19",
+    "notary_status": "Accepted",
+    "notary_upload_at": "2026-08-31T17:46:41.035Z",
+    "stapler_validation": "accepted",
+    "dmg_name": "Tohseno-1.2.0-rc.1.dmg",
+    "dmg_size_bytes": 52120005,
+    "dmg_sha256": "7b98f99ddb004de7c8e031f7eb44216f0470f56a8333b63b6913d4c66154b212",
+    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.1",
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.1/Tohseno-1.2.0-rc.1.dmg",
+    "origin_round_trip_sha256_verified": true,
+    "public_download_round_trip_sha256_verified": true,
+    "website_candidate_deployment_id": "f142c7fc-6695-47fe-9db2-77f1dc9ca03e",
+    "website_candidate_deployment_status": "SUCCESS",
+    "website_health_verified": true,
+    "website_release_channel": "release-candidate",
+    "installer_pin_verified": true,
+    "registry_relayer_enabled": false,
+    "claims_relayer_enabled": false,
+    "claims_writes_enabled": false,
+    "clean_mac_acceptance_verified": false,
+    "physical_iphone_acceptance_verified": false,
+    "stable_promotion": false,
+    "verified_at": "2026-08-31T17:55:16Z"
+  },
+  "blocking_reason": "Tohseno 1.2.0 release candidate 1 was built from clean commit 122f121, Developer ID signed, Apple-notarized under submission f8b99d53-4169-456c-aa76-e73ccef95b19, stapled, mounted, Gatekeeper-verified, published as an immutable GitHub prerelease, origin-verified, and activated on tohseno.com's release-candidate channel with digest 7b98f99ddb004de7c8e031f7eb44216f0470f56a8333b63b6913d4c66154b212. Stable promotion remains blocked. Both relayers and every Claims write remain disabled until the owner-attended physical acceptance completes one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline."
 }

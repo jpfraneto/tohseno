@@ -81,10 +81,12 @@ canonical Claims indexing, the Companion circle and claimed-software cabinet,
 durable offline exact-release preparation, private follows, and a reconciled
 high-signal Updates inbox. It also adds a constrained owner deployment and
 threshold ceremony without modifying generation 0.8. Claims remains dark:
-there is no deployed/activated contract, production Claims relayer, released
-1.2 client, canonical physical Claim, or 1.2 DMG evidence. Exact blockers live
-in `release/V1_2_0_READINESS.json`; 1.1 evidence remains bound to its recorded
-source commit.
+the exact contract and threshold-signed activation are live for verified reads,
+but the production Claims relayer and every Claims write remain disabled. The
+signed, notarized, stapled 1.2 release candidate is public only for the
+owner-attended physical walkthrough; there is still no canonical physical
+Claim. Exact blockers live in `release/V1_2_0_READINESS.json`; 1.1 evidence
+remains bound to its recorded source commit.
 
 ## Native macOS transition
 
@@ -509,7 +511,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.0.2-rc.2` bytes on the labeled release-candidate channel; stable `v1.0.2`
+`v1.2.0-rc.1` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -524,8 +526,7 @@ acceptance. It places the verified DMG in Downloads, prints that exact path,
 and reveals it in Finder so the person performs the familiar drag into
 Applications. It does not copy, replace, or open an application, request
 administrator access, or edit a shell profile. HEAD exposes only
-status/instruction headers. They are currently disabled by the same fail-closed
-artifact configuration.
+status/instruction headers. They currently use the same verified 1.2 RC1 pin.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -573,6 +574,13 @@ verification. The contract still stores no app code, private intention,
 artifact digest, or installation identity; those facts remain off-chain under
 the signed catalog and local privacy boundaries.
 
+The additive `TohsenoClaimsV1` contract is now deployed at
+`0x5012703d48d99224ac0035d58bc373de9e8b1934` on chain 4663 and its exact
+threshold-signed activation is pinned and verified by the production read
+service. Its index is canonical and empty before the physical walkthrough.
+The Claims relayer has no address or funding, and both Registry and Claims
+relayers remain disabled.
+
 ## Published release
 
 Native **1.0.0** is the current public product release. The signed `v1.0.0`
@@ -588,10 +596,14 @@ and its evidence must not be rewritten to describe later source.
 
 Native **1.2.0** is the current product release target in source. It must not
 reuse 1.0.2 artifact evidence or infer release truth from the 1.1 candidate.
-Beyond the ordinary clean committed universal build, Developer ID signing,
-notarization, stapling, mounted-DMG/Gatekeeper/manifest/hash verification, and
-clean-Mac acceptance, 1.2 requires the separate Claims deployment/activation
-and the owner-attended production proof in ADR 0035: real first Ship and
+Release candidate `v1.2.0-rc.1` was built from clean commit `122f121`, signed
+with Developer ID Team `84V63LKV45`, accepted by Apple notarization submission
+`f8b99d53-4169-456c-aa76-e73ccef95b19`, stapled, mounted, Gatekeeper-checked,
+and published as a 52,120,005-byte universal DMG with SHA-256
+`7b98f99ddb004de7c8e031f7eb44216f0470f56a8333b63b6913d4c66154b212`.
+Both the GitHub origin and tohseno.com round trips matched. It is active only
+on the labeled release-candidate channel for the owner-attended walkthrough.
+Stable 1.2 still requires the production proof in ADR 0035: real first Ship and
 edition, second identity Claim, offline-Mac preparation, recipient-signed
 physical install, later Update preservation, Follow reconciliation, live
 receipt paths, and exactly one Ship. Registry/Claims writes and Claim
