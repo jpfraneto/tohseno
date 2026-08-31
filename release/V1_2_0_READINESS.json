@@ -37,15 +37,25 @@
   "dark_deployment": {
     "service": "tohseno",
     "environment": "production",
-    "deployment_id": "42ffc410-b11a-4d91-83a6-1a23144d90b0",
-    "implementation_commit": "440fbc9c2fd64c437448b6f17c9acf9ac3b68419",
-    "website_tree_identical_at_exact_source_commit": true,
-    "verified_at": "2026-08-31T06:20:18Z",
+    "deployment_id": "5e76bb69-8686-4517-bc19-e614de0a2c94",
+    "implementation_commit": "dfbeaf93079af3c6618de310c3199e2cf697ee06",
+    "activation_commit": "0833bae635b7ca05408b2b77309983cdbed4505e",
+    "website_tree_identical_at_exact_source_commit": false,
+    "post_source_changes": "threshold activation pins and exact signed-envelope integration only",
+    "verified_at": "2026-08-31T16:19:45Z",
     "health_green": true,
     "registry_reads_active": true,
     "registry_relayer_available": false,
-    "claims_configured": false,
-    "claims_status_http": 503,
+    "claims_configured": true,
+    "claims_activation_verified": true,
+    "claims_contract_code_verified": true,
+    "claims_indexer_enabled": true,
+    "claims_indexed_through_block": 51000954,
+    "claims_indexed_through_hash": "0xa91049453f84de531fa8484c5957a90aaf693e3813dec259f7281866fc3d69c6",
+    "claims_indexed_records": 0,
+    "claims_direct_rpc_records": 0,
+    "claims_relayer_available": false,
+    "claims_status_http": 200,
     "claims_write_probe_http": 503
   },
   "claims": {
@@ -124,5 +134,5 @@
     "claims_relayer_enabled": false,
     "stable_download_activated": false
   },
-  "blocking_reason": "TohsenoClaimsV1 is immutably deployed, its exact activation is approved 2-of-3 under the existing owner-authorized policy, and the threshold-verified address and digest are pinned across the Rust, website, Mac, and Companion clients. Claims production writes remain disabled pending the owner-attended physical acceptance: one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline. A signed, notarized, stapled, Gatekeeper-verified 1.2.0 DMG also does not yet exist, so the public installer remains unchanged."
+  "blocking_reason": "TohsenoClaimsV1 is immutably deployed, its exact activation is approved 2-of-3 under the existing owner-authorized policy, and the threshold-verified address and digest are pinned across the Rust, website, Mac, and Companion clients. The production read service verifies the activation, live runtime, Registry binding, and empty canonical index while both relayers and every Claims write remain disabled. Claims writes require the owner-attended physical acceptance: one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline. A signed, notarized, stapled, Gatekeeper-verified 1.2.0 DMG also does not yet exist, so the public installer remains unchanged."
 }
