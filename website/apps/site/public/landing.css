@@ -197,6 +197,16 @@ img {
   color: var(--orange);
 }
 
+.simple-nav-links {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 3vw, 34px);
+}
+
+.pro-nav-link {
+  color: var(--orange);
+}
+
 .welcome-hero {
   display: flex;
   min-height: calc(100svh - 82px);
@@ -307,6 +317,11 @@ a.primary-action:hover {
   font: 500 10px "Plex Mono", ui-monospace, monospace;
 }
 
+.release-note {
+  color: var(--muted);
+  font: 500 10px "Plex Mono", ui-monospace, monospace;
+}
+
 .apple-truth {
   padding-top: clamp(100px, 13vw, 190px);
   padding-bottom: clamp(100px, 13vw, 190px);
@@ -404,6 +419,98 @@ a.primary-action:hover {
   width: fit-content;
   margin: 28px 0 0 auto;
   color: var(--muted);
+}
+
+.pro-offer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr);
+  gap: clamp(48px, 9vw, 150px);
+  padding-top: clamp(100px, 14vw, 210px);
+  padding-bottom: clamp(100px, 14vw, 210px);
+  border-top: 1px solid var(--line);
+}
+
+.pro-heading h2 {
+  margin: 24px 0 46px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(70px, 10vw, 156px);
+  font-weight: 470;
+  line-height: .82;
+  letter-spacing: -.065em;
+}
+
+.pro-price {
+  margin: 0;
+  color: var(--orange);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(76px, 10vw, 150px);
+  line-height: .72;
+  letter-spacing: -.065em;
+}
+
+.pro-price span {
+  display: inline-block;
+  margin-left: 10px;
+  color: var(--muted);
+  font: 500 11px "Plex Mono", ui-monospace, monospace;
+  letter-spacing: 0;
+}
+
+.pro-details {
+  align-self: end;
+}
+
+.pro-lead {
+  margin: 0 0 42px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(28px, 3vw, 46px);
+  line-height: 1.08;
+  letter-spacing: -.03em;
+}
+
+.pro-details ul {
+  margin: 0 0 38px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.pro-details li {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  color: #5e5650;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.pro-action {
+  display: flex;
+  min-height: 60px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 600 11px "Plex Mono", ui-monospace, monospace;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.pro-action:hover {
+  background: var(--orange);
+  transform: translateY(-2px);
+}
+
+.pro-note {
+  margin: 20px 6px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pro-note strong {
+  color: var(--ink);
 }
 
 .moat {
@@ -545,8 +652,13 @@ a.primary-action:hover {
   }
 
   .section-intro,
-  .account-grid {
+  .account-grid,
+  .pro-offer {
     grid-template-columns: 1fr;
+  }
+
+  .pro-details {
+    align-self: auto;
   }
 
   .account-grid article {

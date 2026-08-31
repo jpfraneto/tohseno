@@ -79,6 +79,11 @@ describe("public pages", () => {
     expect(body).toContain("This is the person-to-person network for native iPhone apps.");
     expect(body).toContain("Pre-launch · the public door is being verified");
     expect(body).toContain("Mac release in verification");
+    expect(body).toContain("Tohseno Pro.</h2>");
+    expect(body).toContain('$99 <span>one time</span>');
+    expect(body).toContain('href="https://t.me/jpfraneto"');
+    expect(body).toContain("you agree on the fit before any payment");
+    expect(body).toContain("Apple Developer Program membership is separate");
     expect(body).toContain("Public installs remain closed until the signed Mac release");
     expect(body).not.toContain("Live · native software, person to person");
     expect(body).not.toContain('href="/registry"');
@@ -114,6 +119,14 @@ describe("public pages", () => {
     expect(body).toContain("Personal Team provisioning lasts 7 days.");
     expect(body).toContain("$99 <span>USD / year in the U.S.</span>");
     expect(body).toContain("App Store distribution");
+    expect(body).toContain("Tohseno Pro.</h2>");
+    expect(body).toContain('$99 <span>one time</span>');
+    expect(body).toContain("Personal setup session");
+    expect(body).toContain("Help taking your first app from intent to iPhone");
+    expect(body).toContain('href="https://t.me/jpfraneto"');
+    expect(body).toContain('aria-label="Talk to @jpfraneto on Telegram about Tohseno Pro"');
+    expect(body).toContain("you agree on the fit before any payment");
+    expect(body).toContain("Apple Developer Program membership is separate");
     expect(body).toContain("You are the moat.<br><em>Not the code.</em>");
     expect(body).toContain("They can copy the source. They cannot copy your taste");
     expect(body).not.toContain("npm i -g tohseno");
