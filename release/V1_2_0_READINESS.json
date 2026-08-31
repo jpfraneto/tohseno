@@ -53,15 +53,21 @@
     "expected_chain_id": 4663,
     "expected_registry": "0x3fe6508ba2660bc575080024f402c192a2e035a0",
     "deployment": {
-      "address": null,
-      "transaction_hash": null,
-      "block_number": null,
-      "runtime_code_hash": null
+      "deployer": "0x1eaf00a3f027275077253713c5bf7d0fac44207f",
+      "address": "0x5012703d48d99224ac0035d58bc373de9e8b1934",
+      "transaction_hash": "0x1ccc1647537b33fbe4acd4bbbec592e3e48159e8f6303129f53e4a9baa1edc54",
+      "block_number": 50973950,
+      "block_hash": "0xbfa2962bd9a3f9f52c85398dc1a803c4459c0bf8b6e316538d05eb08efa981e8",
+      "source_tree_sha256": "0x14f1f5ff5850f68905cbe02074c6c6dff3db9874c372efedf9c7439a7fd9ff13",
+      "creation_code_hash": "0x4dbcf1601f8e0c4b971b4428d6fea78bcacea48259d9f1b87635149397758902",
+      "runtime_code_hash": "0x96b3519b810e03a7b6ed61ed3f5d3c806b4fcfe5b4124d91bfea160d1360d807"
     },
     "activation": {
       "active": false,
       "signed_record": null,
-      "signing_digest": null
+      "unsigned_record_issued_at": "2026-08-31T15:35:03Z",
+      "unsigned_record_sha256": "0x9e1ba9170fc0cac57be8b63cac9b74771043d68cd8f8c3a038e0ea85cb8957ef",
+      "signing_digest": "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
     },
     "production_writes_enabled": false
   },
@@ -92,9 +98,9 @@
     "release_candidate_manifests_verified": false
   },
   "required_production_evidence": {
-    "claims_contract_deployed_from_captured_source": false,
+    "claims_contract_deployed_from_captured_source": true,
     "claims_signed_activation_verified": false,
-    "claims_runtime_and_registry_reverified": false,
+    "claims_runtime_and_registry_reverified": true,
     "production_ship_with_immutable_edition_green": false,
     "second_identity_physical_claim_green": false,
     "canonical_claim_receipt_green": false,
@@ -117,5 +123,5 @@
     "claims_relayer_enabled": false,
     "stable_download_activated": false
   },
-  "blocking_reason": "The complete local matrix and GitHub CI are green at the exact pushed 1.2.0 source commit, and the backward-compatible website is healthy in production with Claims and both write relayers dark. TohsenoClaimsV1 was not deployed because this environment has no owner-attended governed deployment signer; no 2-of-3 offline Claims activation, signed/notarized 1.2.0 artifact, two-identity physical Claim, exact recipient install, or production Update evidence exists. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until every remaining release and Claims fact is independently proven."
+  "blocking_reason": "The complete local matrix and GitHub CI are green at the exact pushed 1.2.0 source commit. TohsenoClaimsV1 is immutably deployed and independently reverified against its direct-creation transaction, runtime, and active Registry binding, but it remains inactive: the exact unsigned activation observation still needs 2-of-3 offline custodian approval and cross-client pinning. The backward-compatible website remains healthy with Claims and both write relayers dark; no production Ship/Claim, physical exact-release install, later Update, or signed/notarized 1.2.0 artifact exists. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until every remaining release and Claims fact is independently proven."
 }
