@@ -4,8 +4,8 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
-    "exact_source_commit": null,
-    "captured_at": null,
+    "exact_source_commit": "f737386fab7f16582df3bf768c1c96b3a23816fe",
+    "captured_at": "2026-08-31T14:39:57Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md",
       "docs/adr/0035-claiming-software.md"
@@ -28,6 +28,26 @@
     "release_tag_ruleset_id": 21880500,
     "verified_at": "2026-08-30T21:34:39Z"
   },
+  "continuous_integration": {
+    "run_id": 33366216645,
+    "source_commit": "f737386fab7f16582df3bf768c1c96b3a23816fe",
+    "status": "success",
+    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33366216645"
+  },
+  "dark_deployment": {
+    "service": "tohseno",
+    "environment": "production",
+    "deployment_id": "42ffc410-b11a-4d91-83a6-1a23144d90b0",
+    "implementation_commit": "440fbc9c2fd64c437448b6f17c9acf9ac3b68419",
+    "website_tree_identical_at_exact_source_commit": true,
+    "verified_at": "2026-08-31T06:20:18Z",
+    "health_green": true,
+    "registry_reads_active": true,
+    "registry_relayer_available": false,
+    "claims_configured": false,
+    "claims_status_http": 503,
+    "claims_write_probe_http": 503
+  },
   "claims": {
     "contract": "TohsenoClaimsV1",
     "expected_chain_id": 4663,
@@ -46,7 +66,7 @@
     "production_writes_enabled": false
   },
   "required_local_evidence": {
-    "clean_source_commit_captured": false,
+    "clean_source_commit_captured": true,
     "rust_fmt_green": true,
     "rust_clippy_green": true,
     "rust_workspace_tests_green": true,
@@ -97,5 +117,5 @@
     "claims_relayer_enabled": false,
     "stable_download_activated": false
   },
-  "blocking_reason": "The complete local 1.2.0 verification matrix is green, but the source is not yet captured as one reviewed commit. Claims remains dark: no TohsenoClaimsV1 deployment, signed Claims activation, production write enablement, signed/notarized 1.2.0 artifact, or owner-attended two-identity physical acceptance has been recorded. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until all 1.2.0 release and Claims evidence exists."
+  "blocking_reason": "The complete local matrix and GitHub CI are green at the exact pushed 1.2.0 source commit, and the backward-compatible website is healthy in production with Claims and both write relayers dark. TohsenoClaimsV1 was not deployed because this environment has no owner-attended governed deployment signer; no 2-of-3 offline Claims activation, signed/notarized 1.2.0 artifact, two-identity physical Claim, exact recipient install, or production Update evidence exists. The public installer truthfully remains pinned to the unreleased 1.1.0 candidate until every remaining release and Claims fact is independently proven."
 }
