@@ -446,13 +446,19 @@ jobs:
              and .version == "1.2.0"
              and .channel == "release-candidate"
              and .ready == false
-             and .authorization.authorized == false
+             and .authorization.authorized == true
+             and .authorization.authorized_by == "repository owner"
+             and .authorization.authorization_form == "Go ahead with the Claims activation."
              and .source.previous_release_candidate == "1.1.0"
              and .source.target_public_installer_pin == "1.2.0"
              and .source.current_public_installer_pin == "1.1.0"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
-             and .claims.activation.active == false
+             and .claims.activation.active == true
+             and .claims.activation.signed_record == "release/claims-activations/signed-claims-activation-1.json"
+             and .claims.activation.signed_record_sha256 == "0x37d99a657a54d3898d2000331a9acdf60bdd5177a95118b095f4d371b8b711bd"
+             and .claims.activation.signing_digest == "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
+             and .claims.deployment.address == "0x5012703d48d99224ac0035d58bc373de9e8b1934"
              and .claims.production_writes_enabled == false
              and .blocking_reason != null' \
             release/V1_2_0_READINESS.json
