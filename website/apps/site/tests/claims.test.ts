@@ -86,7 +86,9 @@ async function activatedConfig(tamper = false) {
   const policyPath = join(root, "policy.json");
   const activationPath = join(root, "activation.json");
   await writeFile(policyPath, `${canonicalCatalogJSON(policy)}\n`);
-  await writeFile(activationPath, `${canonicalCatalogJSON(signed)}\n`);
+  // The threshold assembler writes the exact RFC 8785 envelope without a
+  // conventional line ending. Production must accept those exact bytes.
+  await writeFile(activationPath, canonicalCatalogJSON(signed));
   const config = loadConfig({ NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
     REGISTRY_ENABLED: "true", REGISTRY_ROOT: root, ROBINHOOD_RPC_URL: "https://rpc.example.test",
     CLAIMS_CONTRACT_ADDRESS: CLAIMS, CLAIMS_ACTIVATION_SIGNING_DIGEST: digest,

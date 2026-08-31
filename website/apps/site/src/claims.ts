@@ -1463,7 +1463,10 @@ async function strictCanonicalFile(path: string): Promise<JsonObject> {
   if (text.length > 2 * 1024 * 1024) throw new Error("Claims activation file exceeds its bound");
   const value = JSON.parse(text) as unknown;
   const result = object(value, "Claims activation file");
-  if (`${canonicalCatalogJSON(result)}\n` !== text) throw new Error("Claims activation file is not exact canonical JSON");
+  const canonical = canonicalCatalogJSON(result);
+  if (text !== canonical && text !== `${canonical}\n`) {
+    throw new Error("Claims activation file is not exact canonical JSON");
+  }
   return result;
 }
 
