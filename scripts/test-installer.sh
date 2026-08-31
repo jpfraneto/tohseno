@@ -38,6 +38,7 @@ curl_log="$temporary_root/curl.log"
 service_log="$temporary_root/service.log"
 mkdir -p \
   "$fixture" "$package/bin" "$package/share/studio" \
+  "$package/share/apple-identity/Sources/TohsenoAppleIdentity" \
   "$package/share/sdk/apple/TohsenoCompanionKit" \
   "$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit" \
   "$package/share/companion/test-vectors" "$package/share/protocol/schemas" \
@@ -131,6 +132,10 @@ printf '%s\n' 'license' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/LICENSE"
 printf '%s\n' '// CompanionKit client fixture' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit/Client.swift"
+printf '%s\n' '// swift-tools-version: 6.0' \
+  >"$package/share/apple-identity/Package.swift"
+printf '%s\n' '// Apple identity fixture' \
+  >"$package/share/apple-identity/Sources/TohsenoAppleIdentity/AppleIdentity.swift"
 printf '%s\n' '{"schema":"tohseno.companion-test-vectors/1"}' \
   >"$package/share/companion/test-vectors/companion-v1.json"
 printf '%s\n' '{}' >"$package/share/protocol/schemas/common.schema.json"
@@ -281,6 +286,7 @@ case "$first_current" in releases/*) ;; *) exit 1 ;; esac
 first_release="$(CDPATH= cd -- "$install_root/current" && pwd -P)"
 test -x "$first_release/bin/tohseno"
 test -f "$first_release/share/studio/index.html"
+test -f "$first_release/share/apple-identity/Package.swift"
 test -f "$first_release/share/sdk/apple/TohsenoCompanionKit/Package.swift"
 test -f "$first_release/share/companion/test-vectors/companion-v1.json"
 (

@@ -684,6 +684,7 @@ public struct ReadinessView: Codable, Equatable, Sendable {
     public let deviceName: String?
     public let deviceProductType: String?
     public let companionConnected: Bool
+    public let companionInstallState: String?
 
     public init(
         schema: String,
@@ -697,7 +698,8 @@ public struct ReadinessView: Codable, Equatable, Sendable {
         progress: Double? = nil,
         deviceName: String? = nil,
         deviceProductType: String? = nil,
-        companionConnected: Bool = false
+        companionConnected: Bool = false,
+        companionInstallState: String? = nil
     ) {
         self.schema = schema
         self.ready = ready
@@ -711,6 +713,7 @@ public struct ReadinessView: Codable, Equatable, Sendable {
         self.deviceName = deviceName
         self.deviceProductType = deviceProductType
         self.companionConnected = companionConnected
+        self.companionInstallState = companionInstallState
     }
 
     public var isWorking: Bool {
@@ -723,6 +726,99 @@ public struct ReadinessView: Codable, Equatable, Sendable {
     public var shouldMonitor: Bool {
         isWorking || automaticallyObserved
     }
+
+    public var setupProgress: Double {
+        if let progress { return progress }
+        return switch step {
+        case "welcome": 0.08
+        case "connect_cable": 0.18
+        case "trust_mac": 0.28
+        case "install_xcode": 0.38
+        case "developer_mode": 0.48
+        case "add_apple_account": 0.58
+        case "install_companion": 0.66
+        case "building_companion": 0.70
+        case "installing_companion": 0.80
+        case "launching_companion": 0.90
+        case "pairing_companion": 0.96
+        default: ready ? 1 : 0.08
+        }
+    }
+
+    public var setupStatus: String {
+        switch step {
+        case "welcome": "Ready to start"
+        case "connect_cable": "Waiting for the cable"
+        case "trust_mac": "Waiting for Trust"
+        case "install_xcode": "Waiting for Xcode"
+        case "developer_mode": "Waiting for Developer Mode"
+        case "add_apple_account": "Checking Apple Account"
+        case "install_companion" where companionInstallState == "failed": "Build stopped"
+        case "install_companion": "Ready to build"
+        case "building_companion": "Building and signing"
+        case "installing_companion": "Installing on iPhone"
+        case "launching_companion": "Opening on iPhone"
+        case "pairing_companion": "Connecting privately"
+        default: ready ? "Setup complete" : "Checking setup"
+        }
+    }
+
+    public var setupStepNumber: Int {
+        switch step {
+        case "welcome": 1
+        case "connect_cable": 2
+        case "trust_mac": 3
+        case "install_xcode": 4
+        case "developer_mode": 5
+        case "add_apple_account": 6
+        case "install_companion", "building_companion": 7
+        case "installing_companion", "launching_companion", "pairing_companion": 8
+        default: ready ? 8 : 1
+        }
+    }
+
+    public var setupCheckpoints: [ReadinessCheckpoint] {
+        let labels = [
+            "Start setup",
+            "Connect your iPhone",
+            "Trust this Mac",
+            "Prepare Xcode",
+            "Turn on Developer Mode",
+            "Verify your Apple Account",
+            "Build and sign Companion",
+            "Install and connect Companion",
+        ]
+        return labels.enumerated().map { index, label in
+            let number = index + 1
+            let state: ReadinessCheckpoint.State = if ready || number < setupStepNumber {
+                .complete
+            } else if number > setupStepNumber {
+                .waiting
+            } else if companionInstallState == "failed" {
+                .failed
+            } else if isWorking {
+                .working
+            } else {
+                .current
+            }
+            return ReadinessCheckpoint(number: number, label: label, state: state)
+        }
+    }
+}
+
+public struct ReadinessCheckpoint: Equatable, Identifiable, Sendable {
+    public enum State: Equatable, Sendable {
+        case complete
+        case current
+        case working
+        case failed
+        case waiting
+    }
+
+    public let number: Int
+    public let label: String
+    public let state: State
+    public var id: Int { number }
 }
 
 public struct CustomHarnessDraft: Equatable, Sendable {

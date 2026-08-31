@@ -62,10 +62,12 @@ find "$release/share/fascia/apple" -type d \( -name .build -o -name .swiftpm \) 
 cp -R "$repository_root/studio/." "$release/share/studio/"
 cp -R "$repository_root/engine/fixtures/hello-world/." "$release/share/readiness/apple/"
 mkdir -p "$release/share/sdk/apple" "$release/share/companion/apple" "$release/share/companion/test-vectors"
+cp -R "$repository_root/apple-identity" "$release/share/apple-identity"
 cp -R "$repository_root/sdk/apple/TohsenoCompanionKit" "$release/share/sdk/apple/TohsenoCompanionKit"
 cp -R "$repository_root/companion/apple/TohsenoCompanion" "$release/share/companion/apple/TohsenoCompanion"
 cp -R "$repository_root/companion/test-vectors/." "$release/share/companion/test-vectors/"
-find "$release/share/sdk" "$release/share/companion" -type d \( -name .build -o -name .swiftpm \) -prune -exec rm -rf {} +
+find "$release/share/apple-identity" "$release/share/sdk" "$release/share/companion" \
+  -type d \( -name .build -o -name .swiftpm \) -prune -exec rm -rf {} +
 if [ -f "$repository_root/billing/verification-key-p256.txt" ]; then
   cp "$repository_root/billing/verification-key-p256.txt" "$release/share/billing/verification-key-p256.txt"
 fi

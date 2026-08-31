@@ -1008,16 +1008,25 @@ private extension ReadinessView {
         case "check": "Check Again"
         case "open_app_store": "Open Xcode in the App Store"
         case "open_xcode_accounts": "Open Xcode"
-        case "install_companion": "Install Tohseno Companion"
+        case "install_companion": genesis.companionInstallState == "failed"
+            ? "Try Again"
+            : "Install Tohseno Companion"
         case "retry_companion": "Reconnect Tohseno Companion"
         default: nil
         }
         let progress: Double? = switch projectedStep {
-        case "building_companion": 0.62
-        case "installing_companion": 0.78
-        case "launching_companion": 0.88
-        case "pairing_companion": 0.95
-        default: nil
+        case "welcome": 0.08
+        case "connect_cable": 0.18
+        case "trust_mac": 0.28
+        case "install_xcode": 0.38
+        case "developer_mode": 0.48
+        case "add_apple_account": 0.58
+        case "install_companion": 0.66
+        case "building_companion": 0.70
+        case "installing_companion": 0.80
+        case "launching_companion": 0.90
+        case "pairing_companion": 0.96
+        default: ready ? 1 : 0.08
         }
         self.init(
             schema: "tohseno.native-onboarding-view/1",
@@ -1031,7 +1040,8 @@ private extension ReadinessView {
             progress: progress,
             deviceName: genesis.deviceName,
             deviceProductType: genesis.deviceProductType,
-            companionConnected: ready
+            companionConnected: ready,
+            companionInstallState: genesis.companionInstallState
         )
     }
 }

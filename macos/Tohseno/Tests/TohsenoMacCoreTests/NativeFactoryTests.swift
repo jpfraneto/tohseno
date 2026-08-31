@@ -57,6 +57,39 @@ final class NativeFactoryTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testStoppedCompanionBuildRendersPersistentProgressAtTheShippingWindowSize() throws {
+        let model = TohsenoAppModel(client: FakeFactory())
+        let readiness = ReadinessView(
+            schema: "tohseno.native-onboarding-view/1",
+            ready: false,
+            step: "install_companion",
+            headline: "Tohseno Companion could not be built",
+            detail: "Tohseno’s bundled Companion files are incomplete. This is a Tohseno release problem, not an Apple Account problem. Install a newer Tohseno release, then try again.",
+            primaryAction: "install_companion",
+            primaryLabel: "Try Again",
+            progress: 0.66,
+            deviceName: "Jorge’s iPhone",
+            deviceProductType: "iPhone 15",
+            companionInstallState: "failed"
+        )
+        let size = NSSize(width: 862, height: 720)
+        let host = NSHostingView(
+            rootView: TohsenoReadinessFixtureView(model: model, readiness: readiness)
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        XCTAssertGreaterThan(png.count, 20_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_READINESS_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     func testHumanPresentationHasExactlySixStates() {
         XCTAssertEqual(PresentedState.allCases.map(\.rawValue), [
             "waiting", "building", "ready_for_phone", "installing", "installed", "failed",
@@ -89,6 +122,26 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(view("pairing_companion").isWorking)
         XCTAssertFalse(view("connect_iphone").isWorking)
         XCTAssertFalse(view("install_companion").isWorking)
+    }
+
+    func testReadinessProgressRemainsVisibleWhenCompanionBuildStops() {
+        let failed = ReadinessView(
+            schema: "tohseno.native-onboarding-view/1",
+            ready: false,
+            step: "install_companion",
+            headline: "The build stopped",
+            detail: "The bundled files are incomplete.",
+            primaryAction: "install_companion",
+            primaryLabel: "Try Again",
+            companionInstallState: "failed"
+        )
+
+        XCTAssertEqual(failed.setupProgress, 0.66)
+        XCTAssertEqual(failed.setupStepNumber, 7)
+        XCTAssertEqual(failed.setupStatus, "Build stopped")
+        XCTAssertEqual(failed.setupCheckpoints[5].state, .complete)
+        XCTAssertEqual(failed.setupCheckpoints[6].state, .failed)
+        XCTAssertEqual(failed.setupCheckpoints[7].state, .waiting)
     }
 
     @MainActor

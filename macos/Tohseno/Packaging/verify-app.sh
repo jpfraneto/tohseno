@@ -20,6 +20,8 @@ for binary in "$app/Contents/MacOS/TohsenoMacApp" "$app/Contents/Helpers/tohseno
 done
 python3 "$repository_root/scripts/release-package-integrity.py" verify-manifest \
   --root "$app/Contents/Resources/FactoryRelease" --manifest-name FILES.sha256
+test -f "$app/Contents/Resources/FactoryRelease/share/apple-identity/Package.swift"
+test -f "$app/Contents/Resources/FactoryRelease/share/apple-identity/Sources/TohsenoAppleIdentity/AppleIdentity.swift"
 if rg -a -n --glob '!FILES.sha256' 'sk_live_[A-Za-z0-9]|whsec_[A-Za-z0-9]|bk_[A-Za-z0-9]{8}|TOHSENO_OPERATOR_TOKEN=' "$app/Contents"; then
   printf '%s\n' 'verify-app.sh: a forbidden managed-service secret pattern is present.' >&2
   exit 1

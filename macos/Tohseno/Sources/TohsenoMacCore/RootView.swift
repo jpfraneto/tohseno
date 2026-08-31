@@ -204,6 +204,23 @@ public struct TohsenoWelcomeFixtureView: View {
             .tint(TohsenoTheme.amber)
     }
 }
+
+public struct TohsenoReadinessFixtureView: View {
+    private let model: TohsenoAppModel
+    private let readiness: ReadinessView
+
+    public init(model: TohsenoAppModel, readiness: ReadinessView) {
+        self.model = model
+        self.readiness = readiness
+    }
+
+    public var body: some View {
+        ReadinessScreen(model: model, readiness: readiness)
+            .background(TohsenoTheme.void)
+            .foregroundStyle(TohsenoTheme.bone)
+            .tint(TohsenoTheme.amber)
+    }
+}
 #endif
 
 private struct StarterCapability: Identifiable, Sendable {
@@ -600,62 +617,161 @@ private struct ReadinessScreen: View {
     let readiness: ReadinessView
 
     var body: some View {
-        VStack(spacing: 22) {
-            if readiness.isWorking {
-                TohsenoSpinner(size: 72)
-            } else {
-                TohsenoMark().frame(width: 72, height: 72)
-            }
-            VStack(spacing: 10) {
-                Text(readiness.headline).font(.largeTitle.weight(.semibold))
-                Text(readiness.detail)
-                    .foregroundStyle(TohsenoTheme.silver)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 560)
-            }
-            if readiness.step == "welcome" {
-                HStack(alignment: .top, spacing: 14) {
-                    OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Start with an app already useful on your iPhone.")
-                    OnboardingPoint(icon: "bubble.left.and.text.bubble.right", title: "Request", detail: "Ask for one concrete change in Companion.")
-                    OnboardingPoint(icon: "macbook", title: "Reconnect", detail: "This Mac evolves, builds, and returns the app.")
+        ScrollView {
+            VStack(spacing: 18) {
+                if readiness.isWorking {
+                    TohsenoSpinner(size: 64)
+                } else {
+                    TohsenoMark().frame(width: 64, height: 64)
                 }
-                .frame(maxWidth: 660)
-            }
-            if let device = model.connectedDeviceDescription, readiness.step != "welcome" {
-                Label(device, systemImage: "iphone.gen3")
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(TohsenoTheme.silver)
-            }
-            if readiness.isWorking, let progress = readiness.progress {
-                VStack(spacing: 7) {
-                    ProgressView(value: progress)
-                        .progressViewStyle(.linear)
-                        .tint(TohsenoTheme.amber)
-                    HStack {
-                        Text("Setting up Tohseno Companion")
-                        Spacer()
-                        Text(progress.formatted(.percent.precision(.fractionLength(0))))
+                VStack(spacing: 8) {
+                    Text(readiness.headline).font(.largeTitle.weight(.semibold))
+                    Text(readiness.detail)
+                        .foregroundStyle(TohsenoTheme.silver)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 620)
+                }
+                if readiness.step == "welcome" {
+                    HStack(alignment: .top, spacing: 14) {
+                        OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Start with an app already useful on your iPhone.")
+                        OnboardingPoint(icon: "bubble.left.and.text.bubble.right", title: "Request", detail: "Ask for one concrete change in Companion.")
+                        OnboardingPoint(icon: "macbook", title: "Reconnect", detail: "This Mac evolves, builds, and returns the app.")
                     }
-                    .font(.caption)
+                    .frame(maxWidth: 660)
+                }
+                if let device = model.connectedDeviceDescription, readiness.step != "welcome" {
+                    Label(device, systemImage: "iphone.gen3")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                ReadinessProgressPanel(readiness: readiness)
+                if readiness.companionInstallState == "failed" {
+                    Label(
+                        "Your iPhone and Apple Account checks already passed. The message above describes the later step that stopped.",
+                        systemImage: "checkmark.shield"
+                    )
+                    .font(.callout)
                     .foregroundStyle(TohsenoTheme.silver)
+                    .frame(maxWidth: 620, alignment: .leading)
                 }
-                .frame(maxWidth: 500)
-                .accessibilityIdentifier("readiness.progress")
-            }
-            if readiness.primaryAction != nil {
-                Button(readiness.primaryLabel ?? "Continue") {
-                    Task { await model.performReadinessAction() }
+                if readiness.primaryAction != nil {
+                    HStack(spacing: 12) {
+                        if readiness.companionInstallState == "failed" {
+                            Link(
+                                "Check for a Tohseno update",
+                                destination: URL(string: "https://tohseno.com/download/macos")!
+                            )
+                            .buttonStyle(.bordered)
+                        }
+                        Button(readiness.primaryLabel ?? "Continue") {
+                            Task { await model.performReadinessAction() }
+                        }
+                        .buttonStyle(PrimaryActionStyle())
+                        .disabled(model.isSubmitting)
+                        .accessibilityIdentifier("readiness.primary")
+                    }
                 }
-                .buttonStyle(PrimaryActionStyle())
-                .disabled(model.isSubmitting)
-                .accessibilityIdentifier("readiness.primary")
+                if model.isSubmitting {
+                    HStack(spacing: 8) {
+                        TohsenoSpinner(size: 18)
+                        Text("Starting the next check…")
+                            .font(.caption)
+                            .foregroundStyle(TohsenoTheme.silver)
+                    }
+                }
             }
-            if model.isSubmitting { TohsenoSpinner(size: 18) }
+            .padding(.horizontal, 56)
+            .padding(.vertical, 36)
+            .frame(maxWidth: .infinity)
         }
-        .padding(56)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("readiness.\(readiness.step)")
+    }
+}
+
+private struct ReadinessProgressPanel: View {
+    let readiness: ReadinessView
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Setup progress").font(.headline)
+                    Text("Step \(readiness.setupStepNumber) of 8 · \(readiness.setupStatus)")
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                Spacer()
+                Text(readiness.setupProgress.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.callout.monospacedDigit().weight(.semibold))
+            }
+            ProgressView(value: readiness.setupProgress)
+                .progressViewStyle(.linear)
+                .tint(readiness.companionInstallState == "failed" ? .red : TohsenoTheme.amber)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Setup log")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(TohsenoTheme.silver)
+                ForEach(readiness.setupCheckpoints) { checkpoint in
+                    ReadinessCheckpointRow(checkpoint: checkpoint)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: 620)
+        .background(TohsenoTheme.carbon)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("readiness.progress")
+    }
+}
+
+private struct ReadinessCheckpointRow: View {
+    let checkpoint: ReadinessCheckpoint
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .frame(width: 16)
+            Text(checkpoint.label)
+                .foregroundStyle(checkpoint.state == .waiting ? TohsenoTheme.ash : TohsenoTheme.bone)
+            Spacer()
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(color)
+        }
+        .font(.callout)
+    }
+
+    private var symbol: String {
+        switch checkpoint.state {
+        case .complete: "checkmark.circle.fill"
+        case .current: "circle.inset.filled"
+        case .working: "arrow.triangle.2.circlepath"
+        case .failed: "exclamationmark.circle.fill"
+        case .waiting: "circle"
+        }
+    }
+
+    private var status: String {
+        switch checkpoint.state {
+        case .complete: "Done"
+        case .current: "Now"
+        case .working: "Working"
+        case .failed: "Stopped"
+        case .waiting: "Waiting"
+        }
+    }
+
+    private var color: Color {
+        switch checkpoint.state {
+        case .complete: TohsenoTheme.silver
+        case .current, .working: TohsenoTheme.amber
+        case .failed: .red
+        case .waiting: TohsenoTheme.ash
+        }
     }
 }
 

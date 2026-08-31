@@ -11,7 +11,14 @@ use uuid::Uuid;
 
 const GENESIS_SCHEMA: &str = "tohseno.private-cable-genesis/1";
 const MAXIMUM_RECORD_BYTES: u64 = 64 * 1024;
-pub const COMPANION_BUILD_FAILURE: &str = "Tohseno could not build and sign the iPhone app. Open Xcode and check your Apple Account, then try again.";
+const LEGACY_COMPANION_BUILD_FAILURE: &str = "Tohseno could not build and sign the iPhone app. Open Xcode and check your Apple Account, then try again.";
+pub const COMPANION_BUILD_FAILURE: &str = "Xcode found your Apple Account, but the Companion build still failed. No app was installed. Open Xcode once and look for a signing alert, then try again.";
+pub const COMPANION_PACKAGE_FAILURE: &str = "Tohseno’s bundled Companion files are incomplete. This is a Tohseno release problem, not an Apple Account problem. Install a newer Tohseno release, then try again.";
+pub const COMPANION_PROVISIONING_FAILURE: &str = "Xcode found your Apple Account, but it could not make a signing profile for Tohseno Companion. In Xcode, open Settings → Accounts, select your account, and choose Manage Certificates… to confirm an Apple Development certificate exists.";
+pub const COMPANION_DEVICE_LIMIT_FAILURE: &str = "Your Apple development team cannot register another iPhone. No app was installed. Use another development team or remove an old registered device in Apple’s developer portal, then try again.";
+pub const COMPANION_IDENTIFIER_FAILURE: &str = "Xcode could not register Tohseno Companion’s app identifier with your Apple development team. This is a Tohseno release problem, not an Apple Account sign-in problem.";
+pub const COMPANION_NETWORK_FAILURE: &str = "Xcode could not reach Apple’s signing service. Your Apple Account was detected and no app was installed. Check this Mac’s internet connection, then try again.";
+pub const COMPANION_SOURCE_FAILURE: &str = "The bundled Tohseno Companion source did not compile. This is a Tohseno release problem, not an Apple Account problem. Install a newer Tohseno release, then try again.";
 pub const COMPANION_INSTALL_FAILURE: &str = "The app was built and signed, but your iPhone did not accept the installation. Keep it connected and unlocked, then try again.";
 pub const COMPANION_PAIRING_FAILURE: &str =
     "Tohseno Companion is installed, but its private connection did not start. Try again.";
@@ -310,7 +317,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         return view(
             GenesisStep::ConnectCable,
             "Connect your iPhone to this Mac with a cable.",
-            None,
+            Some("Use a cable that carries data, not only power. Keep the iPhone unlocked. Tohseno checks for it automatically once per second."),
             Some("check"),
             true,
             true,
@@ -323,7 +330,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         return view(
             GenesisStep::InstallXcode,
             "Install Xcode from the App Store, then open it once.",
-            None,
+            Some("Xcode is Apple’s free development app and the download is large. After it installs, open Xcode and let any additional setup finish. Tohseno keeps checking automatically."),
             Some("open_app_store"),
             true,
             true,
@@ -334,7 +341,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
             return view(
                 GenesisStep::ConnectCable,
                 "Connect your iPhone to this Mac with a cable.",
-                None,
+                Some("Use a cable that carries data, not only power. Keep the iPhone unlocked. Tohseno checks for it automatically once per second."),
                 Some("check"),
                 true,
                 true,
@@ -344,7 +351,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
             return view(
                 GenesisStep::TrustMac,
                 "Unlock your iPhone and tap Trust.",
-                None,
+                Some("Look at the iPhone screen for “Trust This Computer?”. Tap Trust, then enter the iPhone passcode. Tohseno keeps checking automatically."),
                 Some("check"),
                 true,
                 true,
@@ -366,7 +373,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         return view(
             GenesisStep::AddAppleAccount,
             "Add your Apple Account in Xcode.",
-            Some("Tohseno will open Xcode. In the Mac menu bar choose Xcode → Settings… → Accounts, click +, and sign in. A free Personal Team works. Return here when Xcode shows your account; Tohseno detects it automatically."),
+            Some("Tohseno will open Xcode. Choose Xcode → Settings… → Accounts in the Mac menu bar. If your account is missing, click + and sign in. If it is already listed, select it, choose Manage Certificates…, and confirm Apple Development appears. A free Personal Team works. Return here; Tohseno checks automatically."),
             Some("open_xcode_accounts"),
             true,
             true,
@@ -379,7 +386,14 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
                 Some(COMPANION_PAIRING_FAILURE | LEGACY_COMPANION_PAIRING_FAILURE)
             );
             let failure = match record.last_error.as_deref() {
+                Some(LEGACY_COMPANION_BUILD_FAILURE) => Some(COMPANION_BUILD_FAILURE),
                 Some(COMPANION_BUILD_FAILURE) => Some(COMPANION_BUILD_FAILURE),
+                Some(COMPANION_PACKAGE_FAILURE) => Some(COMPANION_PACKAGE_FAILURE),
+                Some(COMPANION_PROVISIONING_FAILURE) => Some(COMPANION_PROVISIONING_FAILURE),
+                Some(COMPANION_DEVICE_LIMIT_FAILURE) => Some(COMPANION_DEVICE_LIMIT_FAILURE),
+                Some(COMPANION_IDENTIFIER_FAILURE) => Some(COMPANION_IDENTIFIER_FAILURE),
+                Some(COMPANION_NETWORK_FAILURE) => Some(COMPANION_NETWORK_FAILURE),
+                Some(COMPANION_SOURCE_FAILURE) => Some(COMPANION_SOURCE_FAILURE),
                 Some(COMPANION_INSTALL_FAILURE) => Some(COMPANION_INSTALL_FAILURE),
                 Some(COMPANION_PAIRING_FAILURE) => Some(COMPANION_PAIRING_FAILURE),
                 Some(LEGACY_COMPANION_PAIRING_FAILURE) => Some(COMPANION_PAIRING_FAILURE),
@@ -397,7 +411,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
                 } else {
                     "Install Tohseno Companion on your iPhone."
                 },
-                failure,
+                failure.or(Some("When you continue, Xcode will build and sign the Companion, Tohseno will copy it to this iPhone, and then the Companion will open. This usually takes a few minutes.")),
                 Some(if pairing_retry {
                     "retry_companion"
                 } else {
@@ -530,7 +544,7 @@ pub fn build_and_install_companion_with_progress(
         Err(error) => return Err(error.into()),
     }
     let destination = device.udid.as_deref().unwrap_or(&device.identifier);
-    let status = Command::new("xcodebuild")
+    let output = Command::new("xcodebuild")
         .args(["-project"])
         .arg(project)
         .args([
@@ -548,14 +562,15 @@ pub fn build_and_install_companion_with_progress(
             "CODE_SIGN_STYLE=Automatic",
             "PRODUCT_BUNDLE_IDENTIFIER=com.tohseno.companion",
             "-allowProvisioningUpdates",
+            "-quiet",
             "build",
         ])
         .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
-    if !status.success() {
-        return Err("the Companion build or Apple signing step did not complete".into());
+        .output()?;
+    if !output.status.success() {
+        let mut diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+        diagnostic.push_str(&String::from_utf8_lossy(&output.stdout));
+        return Err(companion_build_failure(&diagnostic).into());
     }
     let app = derived.join("Build/Products/Release-iphoneos/TohsenoCompanion.app");
     let metadata = fs::symlink_metadata(&app)?;
@@ -598,6 +613,55 @@ pub fn build_and_install_companion_with_progress(
         return Err("the Companion could not be installed on the connected iPhone".into());
     }
     Ok(())
+}
+
+pub(crate) fn companion_build_failure(diagnostic: &str) -> &'static str {
+    for message in [
+        COMPANION_PACKAGE_FAILURE,
+        COMPANION_PROVISIONING_FAILURE,
+        COMPANION_DEVICE_LIMIT_FAILURE,
+        COMPANION_IDENTIFIER_FAILURE,
+        COMPANION_NETWORK_FAILURE,
+        COMPANION_SOURCE_FAILURE,
+        COMPANION_BUILD_FAILURE,
+    ] {
+        if diagnostic == message {
+            return message;
+        }
+    }
+    let diagnostic = diagnostic.to_ascii_lowercase();
+    if diagnostic.contains("could not resolve package dependencies")
+        || diagnostic.contains("apple-identity") && diagnostic.contains("doesn’t exist")
+        || diagnostic.contains("apple-identity") && diagnostic.contains("doesn't exist")
+    {
+        COMPANION_PACKAGE_FAILURE
+    } else if diagnostic.contains("maximum number of registered") && diagnostic.contains("device") {
+        COMPANION_DEVICE_LIMIT_FAILURE
+    } else if diagnostic.contains("bundle identifier")
+        && (diagnostic.contains("cannot be registered")
+            || diagnostic.contains("not available for registration"))
+    {
+        COMPANION_IDENTIFIER_FAILURE
+    } else if diagnostic.contains("no profiles for")
+        || diagnostic.contains("requires a provisioning profile")
+        || diagnostic.contains("provisioning profile")
+            && (diagnostic.contains("doesn't include") || diagnostic.contains("does not include"))
+    {
+        COMPANION_PROVISIONING_FAILURE
+    } else if diagnostic.contains("could not connect to apple")
+        || diagnostic.contains("communication with apple failed")
+        || diagnostic.contains("network connection was lost")
+    {
+        COMPANION_NETWORK_FAILURE
+    } else if diagnostic.contains("swiftcompile")
+        || diagnostic
+            .lines()
+            .any(|line| line.contains(".swift:") && line.contains("error:"))
+    {
+        COMPANION_SOURCE_FAILURE
+    } else {
+        COMPANION_BUILD_FAILURE
+    }
 }
 
 pub fn launch_companion_bootstrap(
@@ -815,6 +879,29 @@ mod tests {
         let mut paired = observed();
         paired.paired = true;
         assert_eq!(project(&record, &paired).step, GenesisStep::FirstShot);
+    }
+
+    #[test]
+    fn companion_build_failures_explain_the_actual_next_action() {
+        assert_eq!(
+            companion_build_failure(
+                "xcodebuild: error: Could not resolve package dependencies: the package at \
+                 '/release/share/apple-identity' cannot be accessed because it doesn’t exist"
+            ),
+            COMPANION_PACKAGE_FAILURE
+        );
+        assert_eq!(
+            companion_build_failure("No profiles for 'com.tohseno.companion' were found"),
+            COMPANION_PROVISIONING_FAILURE
+        );
+        assert_eq!(
+            companion_build_failure("Communication with Apple failed"),
+            COMPANION_NETWORK_FAILURE
+        );
+        assert_eq!(
+            companion_build_failure("CompanionRootView.swift:42: error: cannot find value"),
+            COMPANION_SOURCE_FAILURE
+        );
     }
 
     #[test]

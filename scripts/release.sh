@@ -238,6 +238,11 @@ python3 "$integrity_tool" validate-tree \
   --root "$build_root/sdk/apple/TohsenoCompanionKit" \
   --exclude-dir-name .build \
   --exclude-dir-name .swiftpm
+python3 "$integrity_tool" validate-tree \
+  --root "$build_root/apple-identity" \
+  --exclude-dir-name .build \
+  --exclude-dir-name .swiftpm \
+  --exclude-name Package.resolved
 python3 "$integrity_tool" validate-tree --root "$build_root/companion/test-vectors"
 python3 "$integrity_tool" validate-tree --root "$build_root/dist/genesis"
 
@@ -260,6 +265,7 @@ mkdir -p \
   "$package/share/protocol/test-vectors" \
   "$package/share/fascia/apple" \
   "$package/share/studio" \
+  "$package/share/apple-identity" \
   "$package/share/sdk/apple/TohsenoCompanionKit" \
   "$package/share/companion/test-vectors" \
   "$package/share/companion/apple/TohsenoCompanion" \
@@ -291,6 +297,13 @@ if [ -f "$build_root/billing/verification-key-p256.txt" ]; then
   cp "$build_root/billing/verification-key-p256.txt" \
     "$package/share/billing/verification-key-p256.txt"
 fi
+(
+  cd "$build_root/apple-identity"
+  tar --exclude .build --exclude .swiftpm --exclude Package.resolved -cf - .
+) | (
+  cd "$package/share/apple-identity"
+  tar -xf -
+)
 (
   cd "$build_root/sdk/apple/TohsenoCompanionKit"
   tar --exclude .build --exclude .swiftpm -cf - .

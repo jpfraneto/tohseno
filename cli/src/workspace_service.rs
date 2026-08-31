@@ -45,9 +45,9 @@ use tohseno_protocol::digest::{Bytes32, ExpressionId, ShotId, VersionId};
 use uuid::Uuid;
 
 use crate::cable_genesis::{
-    build_and_install_companion_with_progress, device_digest, launch_companion_bootstrap,
-    project as project_genesis, CableGenesisStore, CableGenesisView, CompanionInstallState,
-    GenesisObservation, COMPANION_BUILD_FAILURE, COMPANION_INSTALL_FAILURE,
+    build_and_install_companion_with_progress, companion_build_failure, device_digest,
+    launch_companion_bootstrap, project as project_genesis, CableGenesisStore, CableGenesisView,
+    CompanionInstallState, GenesisObservation, COMPANION_BUILD_FAILURE, COMPANION_INSTALL_FAILURE,
     COMPANION_LAUNCH_FAILURE, COMPANION_PAIRING_FAILURE,
 };
 use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
@@ -2127,14 +2127,19 @@ async fn genesis_action(
                     )
                 })
                 .await;
-                if !matches!(built, Ok(Ok(()))) {
+                let failure = match built {
+                    Ok(Ok(())) => None,
+                    Ok(Err(error)) => Some(error.to_string()),
+                    Err(_) => Some(COMPANION_BUILD_FAILURE.into()),
+                };
+                if let Some(failure) = failure {
                     let failed_during_install = genesis.load().is_ok_and(|record| {
                         record.companion_install == CompanionInstallState::Installing
                     });
                     let message = if failed_during_install {
                         COMPANION_INSTALL_FAILURE
                     } else {
-                        COMPANION_BUILD_FAILURE
+                        companion_build_failure(&failure)
                     };
                     let _ = genesis.set_install_state(
                         CompanionInstallState::Failed,
