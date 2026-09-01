@@ -349,21 +349,52 @@ fn likely_secret_content(path: &Path, length: u64) -> Result<bool> {
     let mut input = File::open(path)?;
     let mut bytes = Vec::with_capacity(length as usize);
     input.read_to_end(&mut bytes)?;
-    const NEEDLES: [&[u8]; 10] = [
+    const EXACT_NEEDLES: [&[u8]; 5] = [
         b"-----BEGIN PRIVATE KEY-----",
         b"-----BEGIN EC PRIVATE KEY-----",
         b"-----BEGIN RSA PRIVATE KEY-----",
-        b"sk_live_",
-        b"rk_live_",
-        b"ghp_",
-        b"github_pat_",
-        b"AKIA",
         b"BANKR_API_KEY=",
         b"STRIPE_SECRET_KEY=",
     ];
-    Ok(NEEDLES
+    Ok(EXACT_NEEDLES
         .iter()
-        .any(|needle| bytes.windows(needle.len()).any(|window| window == *needle)))
+        .any(|needle| contains_bytes(&bytes, needle))
+        || contains_token(&bytes, b"sk_live_", 16, |byte| byte.is_ascii_alphanumeric())
+        || contains_token(&bytes, b"rk_live_", 16, |byte| byte.is_ascii_alphanumeric())
+        || contains_token(&bytes, b"ghp_", 36, |byte| byte.is_ascii_alphanumeric())
+        || contains_token(&bytes, b"github_pat_", 20, |byte| {
+            byte.is_ascii_alphanumeric() || byte == b'_'
+        })
+        || contains_token(&bytes, b"AKIA", 16, |byte| {
+            byte.is_ascii_uppercase() || byte.is_ascii_digit()
+        }))
+}
+
+fn contains_bytes(input: &[u8], needle: &[u8]) -> bool {
+    input.windows(needle.len()).any(|window| window == needle)
+}
+
+fn contains_token(
+    input: &[u8],
+    prefix: &[u8],
+    suffix_length: usize,
+    valid_suffix_byte: fn(u8) -> bool,
+) -> bool {
+    input
+        .windows(prefix.len())
+        .enumerate()
+        .any(|(offset, window)| {
+            if window != prefix {
+                return false;
+            }
+            let suffix_start = offset + prefix.len();
+            let Some(suffix_end) = suffix_start.checked_add(suffix_length) else {
+                return false;
+            };
+            input
+                .get(suffix_start..suffix_end)
+                .is_some_and(|suffix| suffix.iter().copied().all(valid_suffix_byte))
+        })
 }
 
 fn safe_relative_path(path: &Path) -> Result<String> {
@@ -594,6 +625,19 @@ mod tests {
                 Err(NetworkError::UnsafePath(_))
             ));
         }
+    }
+
+    #[test]
+    fn short_token_prefix_in_binary_is_not_a_secret_but_complete_token_is() {
+        let temp = TempDir::new().unwrap();
+        let image = temp.path().join("frame.png");
+        fs::write(&image, b"\x89PNG\r\n\x1a\nghp_\xffcompressed").unwrap();
+        assert!(!likely_secret_content(&image, fs::metadata(&image).unwrap().len()).unwrap());
+
+        let mut complete = b"\x89PNG\r\n\x1a\nghp_".to_vec();
+        complete.extend([b'a'; 36]);
+        fs::write(&image, complete).unwrap();
+        assert!(likely_secret_content(&image, fs::metadata(&image).unwrap().len()).unwrap());
     }
 
     #[test]
