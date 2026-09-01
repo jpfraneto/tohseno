@@ -239,6 +239,23 @@ public struct TohsenoReadinessFixtureView: View {
             .tint(TohsenoTheme.amber)
     }
 }
+
+/// Offscreen Registry projection used to verify the CLI and Companion on-ramp
+/// without touching the owner's shell profile, Registry, or paired devices.
+public struct TohsenoRegistryFixtureView: View {
+    @Bindable private var model: TohsenoAppModel
+
+    public init(model: TohsenoAppModel) {
+        self.model = model
+    }
+
+    public var body: some View {
+        RegistryView(model: model)
+            .background(TohsenoTheme.void)
+            .foregroundStyle(TohsenoTheme.bone)
+            .tint(TohsenoTheme.amber)
+    }
+}
 #endif
 
 private struct StarterCapability: Identifiable, Sendable {
@@ -393,6 +410,8 @@ private struct RegistryView: View {
                     Text("The world outside your workshop. Software enters once, then changes through Updates.")
                         .foregroundStyle(TohsenoTheme.silver)
                 }
+
+                RegistryOnRampCard(model: model)
 
                 HStack(spacing: 18) {
                     Picker("Registry mode", selection: $mode) {
@@ -565,6 +584,143 @@ private struct RegistryView: View {
     private func compact(_ value: String) -> String {
         guard value.count > 30 else { return value }
         return "\(value.prefix(20))…\(value.suffix(8))"
+    }
+}
+
+private struct RegistryOnRampCard: View {
+    @Bindable var model: TohsenoAppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "terminal.fill")
+                    .font(.title2)
+                    .foregroundStyle(TohsenoTheme.amber)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Ship from Terminal")
+                        .font(.title3.weight(.semibold))
+                    Text("Connect an Xcode app, prepare its exact source, and approve the public Ship from Companion.")
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                Spacer()
+                cliAction
+            }
+
+            if model.cliIntegration?.enabled == true {
+                VStack(alignment: .leading, spacing: 10) {
+                    RegistryCommandRow(number: "1", command: "tohseno init", detail: "Run inside the Xcode app you want to connect.")
+                    RegistryCommandRow(number: "2", command: "tohseno deploy", detail: "Prepare the source and send the exact approval to Companion.")
+                }
+                if let message = model.cliMessage {
+                    Label(message, systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.amber)
+                }
+            } else {
+                Text("The command is already installed inside ~/.tohseno. Activation adds one Tohseno-owned PATH block to \(model.cliIntegration?.profilePath ?? "your shell profile") and preserves everything else.")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+                if let message = model.cliMessage {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+            }
+
+            if let network = model.registrySnapshot?.network {
+                Label(
+                    network.publishingAvailable
+                        ? "Registry publishing is available for Companion-approved Ships."
+                        : "Registry browsing is online; new Ships are temporarily closed while the constrained publication relay is disabled.",
+                    systemImage: network.publishingAvailable ? "checkmark.shield.fill" : "lock.shield"
+                )
+                .font(.caption)
+                .foregroundStyle(network.publishingAvailable ? TohsenoTheme.amber : TohsenoTheme.silver)
+            }
+
+            Divider().overlay(TohsenoTheme.iron)
+
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: model.pairedCompanionDevices.isEmpty ? "iphone.gen3.badge.exclamationmark" : "iphone.gen3.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(TohsenoTheme.amber)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(model.pairedCompanionDevices.isEmpty ? "Pair the iPhone that approves shipping" : "Companion approval is connected")
+                        .font(.headline)
+                    Text(model.pairedCompanionDevices.isEmpty
+                        ? "Scan one pairing QR in Companion. After pairing, deploy approvals arrive on your iPhone automatically—you do not scan a new QR for every Ship."
+                        : "Run tohseno deploy and the exact source and Registry action will appear on your paired iPhone for approval.")
+                        .font(.subheadline)
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                Spacer()
+                if model.pairedCompanionDevices.isEmpty {
+                    Button("Show Pairing QR") { Task { await model.beginCompanionPairing() } }
+                        .buttonStyle(PrimaryActionStyle())
+                        .accessibilityIdentifier("registry.pair-companion")
+                }
+            }
+
+            if model.pairedCompanionDevices.isEmpty,
+               let session = model.companionPairingSession {
+                CompanionPairingCard(session: session)
+            }
+
+            Text("After the Ship is verified, share its Registry link. Your friend claims it in Companion; their Mac then verifies the source and signs the iPhone build with their own Apple Account. A QR alone cannot bypass Apple signing.")
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.silver)
+        }
+        .padding(20)
+        .background(TohsenoTheme.graphite)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(TohsenoTheme.iron))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityIdentifier("registry.ship-from-terminal")
+    }
+
+    @ViewBuilder private var cliAction: some View {
+        if model.cliIntegration?.enabled == true {
+            Label("Terminal ready", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(TohsenoTheme.amber)
+        } else {
+            Button(model.isEnablingCLI ? "Activating…" : "Activate CLI") {
+                Task { await model.enableCLIIntegration() }
+            }
+            .buttonStyle(PrimaryActionStyle())
+            .disabled(model.isEnablingCLI || model.cliIntegration?.installed != true)
+            .accessibilityIdentifier("registry.activate-cli")
+        }
+    }
+}
+
+private struct RegistryCommandRow: View {
+    let number: String
+    let command: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(number)
+                .font(.caption.monospaced().weight(.bold))
+                .foregroundStyle(TohsenoTheme.amber)
+                .frame(width: 20)
+            Text(command)
+                .font(.body.monospaced().weight(.semibold))
+                .textSelection(.enabled)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.silver)
+            Spacer()
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+            } label: {
+                Image(systemName: "doc.on.doc")
+            }
+            .buttonStyle(.plain)
+            .help("Copy \(command)")
+        }
+        .padding(.vertical, 3)
     }
 }
 

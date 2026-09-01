@@ -28,6 +28,7 @@ public final class TohsenoAppModel {
     public private(set) var managedStatus: ManagedStatus?
     public private(set) var managedBalance: ManagedBalance?
     public private(set) var managedCatalog: ManagedCatalog?
+    public private(set) var cliIntegration: CLIIntegrationStatus?
     public private(set) var registrySnapshot: RegistrySnapshot?
     public private(set) var creationEstimate: ManagedEstimate?
     public private(set) var evolutionEstimates: [String: ManagedEstimate] = [:]
@@ -35,10 +36,12 @@ public final class TohsenoAppModel {
     public private(set) var previews: [String: Data] = [:]
     public private(set) var managedMessage: String?
     public private(set) var registryMessage: String?
+    public private(set) var cliMessage: String?
     public private(set) var networkActionMessage: String?
     public private(set) var networkReview: NetworkReviewRequest?
     public private(set) var isLoading = true
     public private(set) var isLoadingRegistry = false
+    public private(set) var isEnablingCLI = false
     public private(set) var isSubmitting = false
     public private(set) var errorMessage: String?
     public private(set) var adoptionSchemeCandidates: [String] = []
@@ -123,6 +126,7 @@ public final class TohsenoAppModel {
             self.workspace = try await workspace
             self.defaults = try await defaults
             await refreshCompanionDevices()
+            await refreshCLIIntegration()
             await refreshAssets()
             await refreshManaged()
             repairRoute()
@@ -187,6 +191,28 @@ public final class TohsenoAppModel {
         } catch {
             // Pairing management is useful but must not make the local project
             // library disappear when the relay is temporarily unavailable.
+        }
+    }
+
+    public func refreshCLIIntegration() async {
+        do {
+            cliIntegration = try await client.cliIntegrationStatus()
+            cliMessage = nil
+        } catch {
+            cliIntegration = nil
+            cliMessage = error.localizedDescription
+        }
+    }
+
+    public func enableCLIIntegration() async {
+        guard !isEnablingCLI else { return }
+        isEnablingCLI = true
+        defer { isEnablingCLI = false }
+        do {
+            cliIntegration = try await client.enableCLIIntegration()
+            cliMessage = "Terminal is ready. Open a new Terminal window, then run tohseno init."
+        } catch {
+            cliMessage = error.localizedDescription
         }
     }
 

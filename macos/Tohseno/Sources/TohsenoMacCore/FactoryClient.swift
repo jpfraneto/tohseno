@@ -25,6 +25,8 @@ public protocol FactoryServing: Sendable {
     func managedCatalog() async throws -> ManagedCatalog
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate
     func managedCheckout(packID: String) async throws -> ManagedCheckout
+    func cliIntegrationStatus() async throws -> CLIIntegrationStatus
+    func enableCLIIntegration() async throws -> CLIIntegrationStatus
     func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot
     func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection
     func upsertPrivateUpdate(_ update: PrivateUpdateItem) async throws -> PrivateUpdateProjection
@@ -135,6 +137,31 @@ public actor LoopbackFactoryClient: FactoryServing {
         )
     }
 
+    public func cliIntegrationStatus() async throws -> CLIIntegrationStatus {
+        let status: CLIIntegrationStatus = try await nativeHelperJSON([
+            "native-cli", "status",
+        ])
+        guard status.schema == "tohseno.cli-integration/1", status.installed else {
+            throw FactoryClientError.invalidResponse(
+                "The installed Terminal command could not be verified."
+            )
+        }
+        return status
+    }
+
+    public func enableCLIIntegration() async throws -> CLIIntegrationStatus {
+        let status: CLIIntegrationStatus = try await nativeHelperJSON([
+            "native-cli", "enable",
+        ])
+        guard status.schema == "tohseno.cli-integration/1",
+              status.installed, status.enabled else {
+            throw FactoryClientError.invalidResponse(
+                "Terminal integration did not finish safely."
+            )
+        }
+        return status
+    }
+
     public func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot {
         guard appNames.count <= 1_000 else {
             throw FactoryClientError.invalidConfiguration("The local Registry app list is too large.")
@@ -145,6 +172,7 @@ public actor LoopbackFactoryClient: FactoryServing {
         var published: [PublicRegistryRelease] = []
         var timeline: [PublicTimelineEvent] = []
         var publicRegistryAvailable = false
+        var publishingAvailable = false
         let followProjection: NetworkFollowProjection
         let updateProjection: PrivateUpdateProjection
         if helperOverride == nil {
@@ -171,6 +199,21 @@ public actor LoopbackFactoryClient: FactoryServing {
             throw FactoryClientError.invalidResponse("The private Builder follow projection is invalid.")
         }
         try validatePrivateUpdates(updateProjection)
+        if let url = URL(string: "https://tohseno.com/api/registry/v1/status") {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            request.cachePolicy = .reloadRevalidatingCacheData
+            if let (data, response) = try? await urlSession.data(for: request),
+               let http = response as? HTTPURLResponse,
+               http.statusCode == 200,
+               data.count <= 64 * 1024,
+               let status = try? JSONDecoder().decode(PublicRegistryServiceStatus.self, from: data),
+               status.schema == "tohseno.registry-status/1",
+               status.available,
+               status.generation == "0.8.0" {
+                publishingAvailable = status.relayer.available
+            }
+        }
         if let url = URL(string: "https://tohseno.com/api/registry/v1/shots") {
             var request = URLRequest(url: url)
             request.timeoutInterval = 15
@@ -208,8 +251,11 @@ public actor LoopbackFactoryClient: FactoryServing {
             ready: publicRegistryAvailable,
             rpcChecked: false,
             publicAuthorityAvailable: publicRegistryAvailable,
+            publishingAvailable: publishingAvailable,
             reason: publicRegistryAvailable
-                ? "Catalog reachable. The Mac verifies the exact signed release and fresh chain state before Claim, Install, or Fork."
+                ? publishingAvailable
+                    ? "Catalog and constrained Ship relay reachable. The Mac still verifies exact signed releases and fresh chain state."
+                    : "Registry browsing is online. New Ships remain closed until the constrained publication relay is activated for the owner-attended physical test."
                 : "The public Registry could not be reached. Local apps remain private and available."
         )
         var records: [LocalRegistryRecord] = []
@@ -886,6 +932,51 @@ public actor LoopbackFactoryClient: FactoryServing {
             catch {
                 throw FactoryClientError.invalidResponse(
                     "The local Registry inspection returned an invalid response."
+                )
+            }
+        }.value
+    }
+
+    private func nativeHelperJSON<Response: Decodable & Sendable>(
+        _ arguments: [String]
+    ) async throws -> Response {
+        let helperOverride = self.helperOverride
+        return try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = try Self.helperURL(helperOverride)
+            process.arguments = arguments
+            process.standardInput = FileHandle.nullDevice
+            let output = Pipe()
+            let errors = Pipe()
+            process.standardOutput = output
+            process.standardError = errors
+            do { try process.run() }
+            catch {
+                throw FactoryClientError.invalidConfiguration(
+                    "The bundled Terminal integration helper could not start."
+                )
+            }
+            async let outputData = output.fileHandleForReading.readDataToEndOfFile()
+            async let errorOutputData = errors.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            let (data, errorData) = await (outputData, errorOutputData)
+            guard process.terminationStatus == 0 else {
+                let detail = String(
+                    data: errorData.prefix(2_048), encoding: .utf8
+                )?.trimmingCharacters(in: .whitespacesAndNewlines)
+                throw FactoryClientError.transport(
+                    detail?.nilIfEmpty ?? "Terminal integration did not complete."
+                )
+            }
+            guard !data.isEmpty, data.count <= 64 * 1024 else {
+                throw FactoryClientError.invalidResponse(
+                    "Terminal integration returned invalid data."
+                )
+            }
+            do { return try JSONDecoder.tohseno.decode(Response.self, from: data) }
+            catch {
+                throw FactoryClientError.invalidResponse(
+                    "Terminal integration returned an invalid response."
                 )
             }
         }.value

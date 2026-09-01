@@ -360,6 +360,7 @@ public struct RegistryNetworkStatus: Codable, Equatable, Sendable {
     public let ready: Bool
     public let rpcChecked: Bool
     public let publicAuthorityAvailable: Bool
+    public let publishingAvailable: Bool
     public let reason: String
 }
 
@@ -469,11 +470,6 @@ public struct NetworkFollowProjection: Codable, Equatable, Sendable {
     public let schema: String
     public let builderIDs: [String]
     public let updatedAt: String
-    enum CodingKeys: String, CodingKey {
-        case schema
-        case builderIDs = "builder_ids"
-        case updatedAt = "updated_at"
-    }
 }
 
 public enum PrivateUpdateKind: String, Codable, Sendable {
@@ -498,15 +494,6 @@ public struct PrivateUpdateItem: Codable, Equatable, Identifiable, Sendable {
     public let occurredAt: String
     public let readAt: String?
     public var id: String { updateID }
-
-    enum CodingKeys: String, CodingKey {
-        case schema, kind, title, detail
-        case updateID = "update_id"
-        case subjectID = "subject_id"
-        case evidenceID = "evidence_id"
-        case occurredAt = "occurred_at"
-        case readAt = "read_at"
-    }
 
     public init(
         schema: String = "tohseno.private-update/1",
@@ -552,10 +539,6 @@ public struct PrivateUpdateProjection: Codable, Equatable, Sendable {
     public let schema: String
     public let items: [PrivateUpdateItem]
     public let updatedAt: String
-    enum CodingKeys: String, CodingKey {
-        case schema, items
-        case updatedAt = "updated_at"
-    }
 }
 
 struct PublicTimelinePage: Codable, Sendable {
@@ -573,6 +556,17 @@ public struct NetworkReviewRequest: Equatable, Sendable {
 struct PublicCatalogPage: Codable, Sendable {
     let schema: String
     let releases: [PublicRegistryRelease]
+}
+
+struct PublicRegistryServiceStatus: Codable, Sendable {
+    struct Relayer: Codable, Sendable {
+        let available: Bool
+    }
+
+    let schema: String
+    let available: Bool
+    let generation: String
+    let relayer: Relayer
 }
 
 public struct RegistrySnapshot: Equatable, Sendable {
@@ -669,6 +663,16 @@ public struct NativeSessionCredential: Codable, Equatable, Sendable {
     public let origin: String
     public let scopes: [String]
     public let expiresAt: String
+}
+
+public struct CLIIntegrationStatus: Codable, Equatable, Sendable {
+    public let schema: String
+    public let installed: Bool
+    public let enabled: Bool
+    public let commandPath: String
+    public let profilePath: String
+    public let shell: String
+    public let requiresNewTerminal: Bool
 }
 
 public struct ReadinessView: Codable, Equatable, Sendable {
@@ -946,6 +950,7 @@ private func tohsenoPropertyName(_ source: String) -> String {
         let word = String(component)
         let suffix = switch word {
         case "id": "ID"
+        case "ids": "IDs"
         case "url": "URL"
         case "usd": "USD"
         default: word.prefix(1).uppercased() + word.dropFirst()

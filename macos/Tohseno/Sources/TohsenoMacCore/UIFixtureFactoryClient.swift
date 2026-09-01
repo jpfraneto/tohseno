@@ -110,6 +110,20 @@ public actor UIFixtureFactoryClient: FactoryServing {
     public func managedCatalog() async throws -> ManagedCatalog { throw FactoryClientError.transport("UI fixture") }
     public func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate { throw FactoryClientError.transport("UI fixture") }
     public func managedCheckout(packID: String) async throws -> ManagedCheckout { throw FactoryClientError.transport("UI fixture") }
+    public func cliIntegrationStatus() async throws -> CLIIntegrationStatus {
+        CLIIntegrationStatus(
+            schema: "tohseno.cli-integration/1", installed: true, enabled: false,
+            commandPath: "~/.tohseno/bin/tohseno", profilePath: "~/.zshrc",
+            shell: "zsh", requiresNewTerminal: true
+        )
+    }
+    public func enableCLIIntegration() async throws -> CLIIntegrationStatus {
+        CLIIntegrationStatus(
+            schema: "tohseno.cli-integration/1", installed: true, enabled: true,
+            commandPath: "~/.tohseno/bin/tohseno", profilePath: "~/.zshrc",
+            shell: "zsh", requiresNewTerminal: true
+        )
+    }
     public func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot { throw FactoryClientError.transport("UI fixture") }
     public func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection {
         throw FactoryClientError.transport("UI fixture")

@@ -58,6 +58,32 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
+    func testRegistryExplainsCLIActivationAndCompanionApprovalAtTheShippingWindowSize() async throws {
+        let suite = "tohseno-registry-render-fixture-\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = TohsenoAppModel(client: FakeFactory(), preferences: preferences)
+        await model.reload()
+        await model.refreshRegistry()
+
+        let size = NSSize(width: 1_100, height: 760)
+        let host = NSHostingView(
+            rootView: TohsenoRegistryFixtureView(model: model)
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        XCTAssertGreaterThan(png.count, 20_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_REGISTRY_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
+    @MainActor
     func testStoppedCompanionBuildRendersPersistentProgressAtTheShippingWindowSize() throws {
         let model = TohsenoAppModel(client: FakeFactory())
         let readiness = ReadinessView(
@@ -383,7 +409,7 @@ final class NativeFactoryTests: XCTestCase {
         )
         let network = try JSONDecoder.tohseno.decode(
             RegistryNetworkStatus.self,
-            from: Data(#"{"schema":"tohseno.network-status/2","product_version":"1.0.2","active_generation":"0.8.0","ready":false,"rpc_checked":false,"public_authority_available":true,"reason":"registry RPC is not implemented"}"#.utf8)
+            from: Data(#"{"schema":"tohseno.network-status/2","product_version":"1.0.2","active_generation":"0.8.0","ready":false,"rpc_checked":false,"public_authority_available":true,"publishing_available":false,"reason":"registry RPC is not implemented"}"#.utf8)
         )
         let record = try JSONDecoder.tohseno.decode(
             LocalRegistryRecord.self,
@@ -395,6 +421,22 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertFalse(network.rpcChecked)
         XCTAssertFalse(record.publicChecked)
         XCTAssertTrue(record.localVerified)
+    }
+
+    func testRegistryPrivateFollowingAndUpdatesDecodeFromTheLocalFactory() throws {
+        let follows = try JSONDecoder.tohseno.decode(
+            NetworkFollowProjection.self,
+            from: Data(#"{"builder_ids":["eip155:4663:0x1111111111111111111111111111111111111111"],"schema":"tohseno.private-builder-follows/1","updated_at":"2026-09-01T00:00:00Z"}"#.utf8)
+        )
+        XCTAssertEqual(follows.builderIDs.count, 1)
+        XCTAssertEqual(follows.updatedAt, "2026-09-01T00:00:00Z")
+
+        let updates = try JSONDecoder.tohseno.decode(
+            PrivateUpdateProjection.self,
+            from: Data(#"{"items":[{"detail":"Approve the exact source from Companion.","evidence_id":"publication_fixture","kind":"publication_approval","occurred_at":"2026-09-01T00:00:00Z","read_at":null,"schema":"tohseno.private-update/1","subject_id":"shot_fixture","title":"Ship approval is waiting","update_id":"update_fixture"}],"schema":"tohseno.private-updates/1","updated_at":"2026-09-01T00:00:00Z"}"#.utf8)
+        )
+        XCTAssertEqual(updates.items.first?.kind, .publicationApproval)
+        XCTAssertEqual(updates.items.first?.updateID, "update_fixture")
     }
 
     func testExecutionActivityDecodesLiveFilesAndRemainsCompatibleWithOlderHelper() throws {
@@ -655,6 +697,20 @@ private actor FakeFactory: FactoryServing {
     func managedCatalog() async throws -> ManagedCatalog { throw FactoryClientError.transport("offline") }
     func managedEstimate(model: String, privacy: String, intentionBytes: UInt64, referenceBytes: UInt64, appID: String?) async throws -> ManagedEstimate { throw FactoryClientError.transport("offline") }
     func managedCheckout(packID: String) async throws -> ManagedCheckout { throw FactoryClientError.transport("offline") }
+    func cliIntegrationStatus() async throws -> CLIIntegrationStatus {
+        CLIIntegrationStatus(
+            schema: "tohseno.cli-integration/1", installed: true, enabled: false,
+            commandPath: "~/.tohseno/bin/tohseno", profilePath: "~/.zshrc",
+            shell: "zsh", requiresNewTerminal: true
+        )
+    }
+    func enableCLIIntegration() async throws -> CLIIntegrationStatus {
+        CLIIntegrationStatus(
+            schema: "tohseno.cli-integration/1", installed: true, enabled: true,
+            commandPath: "~/.tohseno/bin/tohseno", profilePath: "~/.zshrc",
+            shell: "zsh", requiresNewTerminal: true
+        )
+    }
     func registrySnapshot(appNames: [String]) async throws -> RegistrySnapshot {
         let builder = BuilderIdentityView(
             builderID: "eip155:4663:0x1111111111111111111111111111111111111111",
@@ -675,6 +731,7 @@ private actor FakeFactory: FactoryServing {
             ready: false,
             rpcChecked: false,
             publicAuthorityAvailable: true,
+            publishingAvailable: false,
             reason: "registry RPC is not implemented"
         )
         return RegistrySnapshot(builder: builder, network: network, records: [])

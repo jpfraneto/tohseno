@@ -14,6 +14,18 @@ public struct TohsenoSettingsView: View {
                 LabeledContent("iPhone readiness", value: model.readiness?.ready == true ? "Ready" : "Needs attention")
                 LabeledContent("Local factory", value: model.workspace == nil ? "Unavailable" : "Running")
                 LabeledContent("App storage", value: "~/Desktop/Tohseno")
+                Section("Terminal") {
+                    LabeledContent("tohseno command", value: model.cliIntegration?.enabled == true ? "Ready in new windows" : "Not activated")
+                    if model.cliIntegration?.enabled != true {
+                        Button(model.isEnablingCLI ? "Activating…" : "Activate CLI") {
+                            Task { await model.enableCLIIntegration() }
+                        }
+                        .disabled(model.isEnablingCLI || model.cliIntegration?.installed != true)
+                    }
+                    Text(model.cliMessage ?? "Activation adds the verified ~/.tohseno/bin command to your shell profile without replacing unrelated settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Button("Check Again") { Task { await model.reload() } }
                 Button("Restart Local Factory Safely") { Task { await model.restartService() } }
                 Section("Companion devices") {
@@ -206,7 +218,7 @@ private struct PairedCompanionDeviceRow: View {
     }
 }
 
-private struct CompanionPairingCard: View {
+struct CompanionPairingCard: View {
     let session: CompanionPairingSession
 
     var body: some View {

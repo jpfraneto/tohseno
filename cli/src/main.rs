@@ -176,6 +176,12 @@ enum Command {
     /// Issue a bounded session to a verified native Tohseno.app parent.
     #[command(hide = true)]
     NativeSession,
+    /// Inspect or enable Terminal integration for a verified native Tohseno.app parent.
+    #[command(hide = true)]
+    NativeCli {
+        #[command(subcommand)]
+        command: NativeCliCommand,
+    },
     /// Run the bounded built-in adapter for one configured loopback model.
     #[command(hide = true)]
     LocalOpenAiHarness {
@@ -405,6 +411,12 @@ enum RecordingCommand {
         #[arg(long, value_name = "PATH", conflicts_with = "note")]
         note_file: Option<PathBuf>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+enum NativeCliCommand {
+    Status,
+    Enable,
 }
 
 #[derive(Debug, Subcommand)]
@@ -873,6 +885,14 @@ async fn dispatch(
                 .await
                 .map_err(|error| error.to_string())?;
             println!("{}", serde_json::to_string(&credential)?);
+        }
+        Command::NativeCli { command } => {
+            native_client::verify_native_parent().map_err(|error| error.to_string())?;
+            let status = match command {
+                NativeCliCommand::Status => installation_commands::cli_integration_status(),
+                NativeCliCommand::Enable => installation_commands::enable_cli_integration(),
+            }?;
+            println!("{}", serde_json::to_string(&status)?);
         }
         Command::LocalOpenAiHarness {
             base_url,

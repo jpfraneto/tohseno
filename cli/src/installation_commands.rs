@@ -17,6 +17,24 @@ const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_RELEASE_RESPONSE: usize = 64 * 1024;
 const MAX_INSTALLER_BYTES: usize = 256 * 1024;
 const PATH_LINE: &str = r#"export PATH="$HOME/.tohseno/bin:$PATH""#;
+const CLI_BLOCK_START: &str = "# BEGIN TOHSENO CLI";
+const CLI_BLOCK_END: &str = "# END TOHSENO CLI";
+const CLI_BLOCK: &str = concat!(
+    "# BEGIN TOHSENO CLI\n",
+    "export PATH=\"$HOME/.tohseno/bin:$PATH\"\n",
+    "# END TOHSENO CLI\n"
+);
+
+#[derive(Debug, Serialize)]
+pub struct CliIntegrationStatus {
+    schema: &'static str,
+    installed: bool,
+    enabled: bool,
+    command_path: String,
+    profile_path: String,
+    shell: String,
+    requires_new_terminal: bool,
+}
 
 #[derive(Debug, Deserialize)]
 struct LatestRelease {
@@ -166,6 +184,140 @@ fn validated_install_root() -> Result<PathBuf, String> {
         return Err("the TOHSENO installation marker is unrecognized".into());
     }
     Ok(root)
+}
+
+pub fn cli_integration_status() -> Result<CliIntegrationStatus, String> {
+    let root = validated_native_cli_root()?;
+    let (profile, profile_label, shell) = shell_profile()?;
+    let source = read_optional_profile(&profile)?;
+    Ok(CliIntegrationStatus {
+        schema: "tohseno.cli-integration/1",
+        installed: true,
+        enabled: cli_integration_enabled(&source),
+        command_path: root.join("bin/tohseno").display().to_string(),
+        profile_path: profile_label,
+        shell,
+        requires_new_terminal: true,
+    })
+}
+
+pub fn enable_cli_integration() -> Result<CliIntegrationStatus, String> {
+    let root = validated_native_cli_root()?;
+    let (profile, profile_label, shell) = shell_profile()?;
+    let source = read_optional_profile(&profile)?;
+    let updated = source_with_cli_integration(&source);
+    if updated != source {
+        persist_profile(&profile, updated.as_bytes())?;
+    }
+    Ok(CliIntegrationStatus {
+        schema: "tohseno.cli-integration/1",
+        installed: true,
+        enabled: true,
+        command_path: root.join("bin/tohseno").display().to_string(),
+        profile_path: profile_label,
+        shell,
+        requires_new_terminal: true,
+    })
+}
+
+fn validated_native_cli_root() -> Result<PathBuf, String> {
+    let root = install_root()?;
+    require_real_directory(&root, "TOHSENO installation root")?;
+    validate_current_link(&root)?;
+    let launcher = root.join("bin/tohseno");
+    let metadata = fs::symlink_metadata(&launcher)
+        .map_err(|_| "the verified TOHSENO command is not installed".to_owned())?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("the verified TOHSENO command path is unsafe".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err("the verified TOHSENO command is not executable".into());
+        }
+    }
+    Ok(root)
+}
+
+fn shell_profile() -> Result<(PathBuf, String, String), String> {
+    let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
+    let home = PathBuf::from(home);
+    if !home.is_absolute() {
+        return Err("HOME must be absolute".into());
+    }
+    require_real_directory(&home, "HOME")?;
+    let shell = std::env::var_os("SHELL")
+        .and_then(|value| PathBuf::from(value).file_name().map(|name| name.to_owned()))
+        .and_then(|name| name.to_str().map(str::to_owned))
+        .unwrap_or_else(|| "sh".into());
+    let filename = match shell.as_str() {
+        "zsh" => ".zshrc",
+        "bash" => ".bashrc",
+        _ => ".profile",
+    };
+    Ok((home.join(filename), format!("~/{filename}"), shell))
+}
+
+fn read_optional_profile(path: &Path) -> Result<String, String> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(String::new()),
+        Err(error) => return Err(error.to_string()),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 4 * 1024 * 1024
+    {
+        return Err("the shell profile is not a bounded regular file".into());
+    }
+    String::from_utf8(read_regular_bounded(path, 4 * 1024 * 1024)?)
+        .map_err(|_| "the shell profile is not UTF-8".into())
+}
+
+fn cli_integration_enabled(source: &str) -> bool {
+    source.lines().any(|line| line == PATH_LINE)
+}
+
+fn source_with_cli_integration(source: &str) -> String {
+    if cli_integration_enabled(source) {
+        return source.to_owned();
+    }
+    let mut updated = source.to_owned();
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    if !updated.is_empty() && !updated.ends_with("\n\n") {
+        updated.push('\n');
+    }
+    updated.push_str(CLI_BLOCK);
+    updated
+}
+
+fn persist_profile(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path.parent().ok_or("shell profile has no parent")?;
+    require_real_directory(parent, "shell profile parent")?;
+    let existing_permissions = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            return Err("the shell profile is not a regular file".into())
+        }
+        Ok(metadata) => Some(metadata.permissions()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut file = tempfile::Builder::new()
+        .prefix(".tohseno-profile.")
+        .tempfile_in(parent)
+        .map_err(|error| error.to_string())?;
+    if let Some(permissions) = existing_permissions {
+        file.as_file()
+            .set_permissions(permissions)
+            .map_err(|error| error.to_string())?;
+    }
+    file.write_all(bytes)
+        .and_then(|()| file.as_file().sync_all())
+        .map_err(|error| error.to_string())?;
+    file.persist(path)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
 }
 
 fn require_real_directory(path: &Path, label: &str) -> Result<(), String> {
@@ -646,9 +798,13 @@ fn remove_path_line(path: &Path) -> Result<(), String> {
     }
     let source = String::from_utf8(read_regular_bounded(path, 4 * 1024 * 1024)?)
         .map_err(|_| "shell profile is not UTF-8")?;
-    let filtered = source
+    let without_block = source.replace(CLI_BLOCK, "");
+    let filtered = without_block
         .split_inclusive('\n')
-        .filter(|line| line.trim_end_matches(['\r', '\n']) != PATH_LINE)
+        .filter(|line| {
+            let line = line.trim_end_matches(['\r', '\n']);
+            line != PATH_LINE && line != CLI_BLOCK_START && line != CLI_BLOCK_END
+        })
         .collect::<String>();
     if filtered == source {
         return Ok(());
@@ -900,6 +1056,16 @@ mod tests {
         );
         let profile = fs::read_to_string(profile).unwrap();
         assert_eq!(profile, "export PATH=\"/custom:$PATH\"\nalias t=tohseno\n");
+    }
+
+    #[test]
+    fn cli_integration_is_explicit_idempotent_and_preserves_the_profile() {
+        let original = "export EDITOR=vim\nalias ll='ls -la'\n";
+        let enabled = source_with_cli_integration(original);
+        assert_eq!(enabled.matches(CLI_BLOCK_START).count(), 1);
+        assert_eq!(enabled.matches(PATH_LINE).count(), 1);
+        assert!(enabled.starts_with(original));
+        assert_eq!(source_with_cli_integration(&enabled), enabled);
     }
 
     #[test]

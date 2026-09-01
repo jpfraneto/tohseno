@@ -54,7 +54,7 @@ pub async fn issue_session(
 }
 
 #[cfg(target_os = "macos")]
-fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub(crate) fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Source checkouts need to launch the SwiftPM executable without an Apple
     // distribution signature. This branch is compiled out of release builds.
     if cfg!(debug_assertions)
@@ -96,7 +96,7 @@ fn native_dynamic_validation_flags() -> security_framework::os::macos::code_sign
 }
 
 #[cfg(not(target_os = "macos"))]
-fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub(crate) fn verify_native_parent() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Err("native client sessions require macOS code-signing validation".into())
 }
 
