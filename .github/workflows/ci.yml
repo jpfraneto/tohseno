@@ -449,9 +449,9 @@ jobs:
              and .authorization.authorized == true
              and .authorization.authorized_by == "repository owner"
              and (.authorization.authorization_form | length) > 0
-             and .source.previous_release_candidate == "1.2.0-rc.3"
+             and .source.previous_release_candidate == "1.2.0-rc.4"
              and .source.target_public_installer_pin == "1.2.0"
-             and .source.current_public_installer_pin == "1.2.0-rc.4"
+             and .source.current_public_installer_pin == "1.2.0-rc.5"
              and .source.historical_protocol_rewritten == false
              and .source.recording_layer_implicit_migration == false
              and .claims.activation.active == true
@@ -460,9 +460,9 @@ jobs:
              and .claims.activation.signing_digest == "0xec418380f588b9a6f72fc251b7a0ae7bee8a19a1d843017e4733ebd2d094966d"
              and .claims.deployment.address == "0x5012703d48d99224ac0035d58bc373de9e8b1934"
              and .claims.production_writes_enabled == false
-             and .release_candidate_evidence.tag == "v1.2.0-rc.4"
+             and .release_candidate_evidence.tag == "v1.2.0-rc.5"
              and .release_candidate_evidence.prerelease == true
-             and .release_candidate_evidence.dmg_sha256 == "f9ccbc05ba2d81060c107f65bb402fb21c34451d983e95018f827d546c19855c"
+             and .release_candidate_evidence.dmg_sha256 == "92ccf48a158db0c1f105d0cdbab9b06b0b94d22bd5b7d1a0e59e70bce3d8fc2a"
              and .release_candidate_evidence.origin_round_trip_sha256_verified == true
              and .release_candidate_evidence.public_download_round_trip_sha256_verified == true
              and .release_candidate_evidence.claims_relayer_enabled == false
