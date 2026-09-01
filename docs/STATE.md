@@ -82,9 +82,9 @@ durable offline exact-release preparation, private follows, and a reconciled
 high-signal Updates inbox. It also adds a constrained owner deployment and
 threshold ceremony without modifying generation 0.8. Claims remains dark:
 the exact contract and threshold-signed activation are live for verified reads,
-but the production Claims relayer and every Claims write remain disabled. A
-dedicated Claims relayer address is configured but has zero balance, and the
-separate Registry relayer address is likewise configured, unfunded, and dark. The
+but the production Claims relayer and every Claims write remain disabled. The
+dedicated Claims and Registry relayer addresses are funded for the bounded
+owner-attended walkthrough but remain dark outside that acceptance window. The
 signed, notarized, stapled 1.2 release candidate is public only for the
 owner-attended physical walkthrough; there is still no canonical physical
 Claim. Exact blockers live in `release/V1_2_0_READINESS.json`; 1.1 evidence
@@ -513,7 +513,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.2.0-rc.5` bytes on the labeled release-candidate channel; stable `v1.2.0`
+`v1.2.0-rc.6` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -580,8 +580,9 @@ The additive `TohsenoClaimsV1` contract is now deployed at
 `0x5012703d48d99224ac0035d58bc373de9e8b1934` on chain 4663 and its exact
 threshold-signed activation is pinned and verified by the production read
 service. Its index is canonical and empty before the physical walkthrough.
-The Claims and Registry relayers each have a dedicated configured address but
-zero funding, and both relayers remain disabled.
+The Claims and Registry relayers each have a dedicated configured and funded
+address. Both relayers remain disabled outside the owner-attended physical
+acceptance window.
 
 ## Published release
 
@@ -632,7 +633,19 @@ submission `0d02d61f-ee5f-4b25-9bf2-e9331848c325`, stapled, mounted,
 Gatekeeper-checked, and published as a 52,314,436-byte universal DMG with
 SHA-256
 `92ccf48a158db0c1f105d0cdbab9b06b0b94d22bd5b7d1a0e59e70bce3d8fc2a`.
-Both the GitHub origin and tohseno.com round trips matched. RC5 is active only
+Both the GitHub origin and tohseno.com round trips matched. Owner-attended
+deploy acceptance then rejected RC5 because the snapshot scanner treated the
+short byte prefix `ghp_` inside compressed PNG data as a complete credential.
+RC6 requires complete high-confidence token shapes while retaining fail-closed
+checks for real tokens and private-key material. A dry run against Anky's real
+956-file, 460,333,699-byte source tree completed without uploading, signing, or
+publishing. Candidate `v1.2.0-rc.6` was built from exact clean and fully
+CI-gated commit `fddab7d`, signed with Developer ID Team `84V63LKV45`, accepted
+by Apple notarization submission `be3cb4d7-16dc-40cb-9a09-2505ad0be7b9`,
+stapled, mounted, Gatekeeper-checked, and published as a 52,314,624-byte
+universal DMG with SHA-256
+`082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de`.
+Both the GitHub origin and tohseno.com round trips matched. RC6 is active only
 on the labeled release-candidate channel for the owner-attended walkthrough.
 Stable 1.2 still requires the production proof in ADR 0035: real first Ship and
 edition, second identity Claim, offline-Mac preparation, recipient-signed
