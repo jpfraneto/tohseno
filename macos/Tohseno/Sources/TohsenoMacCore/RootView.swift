@@ -14,15 +14,20 @@ public struct TohsenoRootView: View {
     public var body: some View {
         Group {
             if model.isLoading, model.workspace == nil {
-                VStack(spacing: 14) {
-                    TohsenoSpinner(size: 44)
-                    Text("Opening your connected projects…")
+                VStack(spacing: 18) {
+                    TohsenoLivingMark(size: 54)
+                    VStack(spacing: 6) {
+                        Text("Opening Tohseno")
+                            .font(.title2.weight(.semibold))
+                        Text("Your workshop is waking up on this Mac.")
+                            .foregroundStyle(TohsenoTheme.silver)
+                    }
                 }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let defaults = model.defaults, !defaults.ready {
-                HarnessReadinessScreen(model: model, defaults: defaults)
             } else if let readiness = model.readiness, !readiness.ready {
                 ReadinessScreen(model: model, readiness: readiness)
+            } else if let defaults = model.defaults, !defaults.ready {
+                HarnessReadinessScreen(model: model, defaults: defaults)
             } else {
                 factory
             }
@@ -198,7 +203,20 @@ public struct TohsenoWelcomeFixtureView: View {
     }
 
     public var body: some View {
-        LibraryEmptyView(adopt: {}, create: {})
+        ReadinessScreen(
+            model: model,
+            readiness: ReadinessView(
+                schema: "tohseno.native-onboarding-view/1",
+                ready: false,
+                step: "welcome",
+                headline: "Bring your iPhone close",
+                detail: "Tohseno will check each local connection before it builds anything.",
+                primaryAction: "begin",
+                primaryLabel: "Begin"
+            ),
+            introductionInitiallyRevealed: true,
+            introductionMotionEnabled: false
+        )
             .background(TohsenoTheme.void)
             .foregroundStyle(TohsenoTheme.bone)
             .tint(TohsenoTheme.amber)
@@ -215,7 +233,7 @@ public struct TohsenoReadinessFixtureView: View {
     }
 
     public var body: some View {
-        ReadinessScreen(model: model, readiness: readiness)
+        ReadinessScreen(model: model, readiness: readiness, setupInitiallyVisible: true)
             .background(TohsenoTheme.void)
             .foregroundStyle(TohsenoTheme.bone)
             .tint(TohsenoTheme.amber)
@@ -615,14 +633,260 @@ private struct ProfileView: View {
 private struct ReadinessScreen: View {
     let model: TohsenoAppModel
     let readiness: ReadinessView
+    let introductionInitiallyRevealed: Bool
+    let introductionMotionEnabled: Bool
+    @State private var showsIntroduction: Bool
+
+    init(
+        model: TohsenoAppModel,
+        readiness: ReadinessView,
+        introductionInitiallyRevealed: Bool = false,
+        introductionMotionEnabled: Bool = true,
+        setupInitiallyVisible: Bool = false
+    ) {
+        self.model = model
+        self.readiness = readiness
+        self.introductionInitiallyRevealed = introductionInitiallyRevealed
+        self.introductionMotionEnabled = introductionMotionEnabled
+        _showsIntroduction = State(
+            initialValue: !setupInitiallyVisible
+                && (readiness.step == "welcome" || readiness.step == "install_companion")
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            if showsIntroduction {
+                TohsenoWelcomeSequence(
+                    readiness: readiness,
+                    enter: enterTohseno,
+                    initiallyRevealed: introductionInitiallyRevealed,
+                    motionEnabled: introductionMotionEnabled
+                )
+                    .transition(.opacity.combined(with: .scale(scale: 0.985)))
+            } else {
+                ReadinessSetupContent(model: model, readiness: readiness)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.42), value: showsIntroduction)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("readiness.\(readiness.step)")
+    }
+
+    private func enterTohseno() {
+        withAnimation { showsIntroduction = false }
+        guard readiness.step == "welcome" else { return }
+        Task { await model.performReadinessAction() }
+    }
+}
+
+private struct TohsenoWelcomeSequence: View {
+    let readiness: ReadinessView
+    let enter: () -> Void
+    let initiallyRevealed: Bool
+    let motionEnabled: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var revealPhase: Int
+
+    init(
+        readiness: ReadinessView,
+        enter: @escaping () -> Void,
+        initiallyRevealed: Bool,
+        motionEnabled: Bool
+    ) {
+        self.readiness = readiness
+        self.enter = enter
+        self.initiallyRevealed = initiallyRevealed
+        self.motionEnabled = motionEnabled
+        _revealPhase = State(initialValue: initiallyRevealed ? 3 : 0)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                TohsenoLivingMark(size: 82, animated: motionEnabled)
+
+                VStack(spacing: 9) {
+                    Text("WELCOME TO TOHSENO")
+                        .font(.caption.weight(.semibold))
+                        .tracking(3.4)
+                        .foregroundStyle(TohsenoTheme.amber)
+                    Text("TAKE A SHOT")
+                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                        .tracking(0.8)
+                    Text("This is where your ideas transform into apps.")
+                        .font(.title3)
+                        .foregroundStyle(TohsenoTheme.silver)
+                }
+                .multilineTextAlignment(.center)
+                .opacity(revealPhase >= 1 ? 1 : 0.45)
+                .offset(y: revealPhase >= 1 ? 0 : 7)
+
+                TohsenoJourney(motionEnabled: motionEnabled)
+                    .frame(maxWidth: 680)
+                    .opacity(revealPhase >= 2 ? 1 : 0.42)
+                    .offset(y: revealPhase >= 2 ? 0 : 7)
+
+                VStack(spacing: 12) {
+                    Text("Describe what you need in ordinary words. This Mac creates the native iPhone app, keeps its source, and remembers every change. Your iPhone is where it becomes useful.")
+                        .font(.body)
+                        .foregroundStyle(TohsenoTheme.silver)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 590)
+
+                    HStack(spacing: 18) {
+                        Label("Your source stays here", systemImage: "internaldrive")
+                        Label("Nothing publishes without you", systemImage: "hand.raised")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver.opacity(0.78))
+                    .multilineTextAlignment(.center)
+
+                    Button(readiness.step == "welcome" ? "Begin" : "Continue setup", action: enter)
+                        .buttonStyle(PrimaryActionStyle())
+                        .accessibilityIdentifier("readiness.welcome.begin")
+
+                    Text("You’ll connect your iPhone next. Keep it nearby, unlocked, and on its cable.")
+                        .font(.caption)
+                        .foregroundStyle(TohsenoTheme.silver.opacity(0.72))
+                        .multilineTextAlignment(.center)
+                }
+                .opacity(revealPhase >= 3 ? 1 : 0.42)
+                .offset(y: revealPhase >= 3 ? 0 : 7)
+            }
+            .padding(.horizontal, 56)
+            .padding(.vertical, 34)
+            .frame(maxWidth: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RadialGradient(
+                colors: [TohsenoTheme.ember.opacity(0.42), TohsenoTheme.void.opacity(0)],
+                center: UnitPoint(x: 0.5, y: 0.16),
+                startRadius: 8,
+                endRadius: 430
+            )
+        )
+        .task { await reveal() }
+    }
+
+    private func reveal() async {
+        guard !initiallyRevealed else { return }
+        if reduceMotion || !motionEnabled {
+            revealPhase = 3
+            return
+        }
+        withAnimation(.easeOut(duration: 0.5)) { revealPhase = 1 }
+        try? await Task.sleep(for: .milliseconds(180))
+        withAnimation(.easeOut(duration: 0.55)) { revealPhase = 2 }
+        try? await Task.sleep(for: .milliseconds(220))
+        withAnimation(.easeOut(duration: 0.55)) { revealPhase = 3 }
+    }
+}
+
+private struct TohsenoJourney: View {
+    let motionEnabled: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            JourneyNode(
+                icon: "text.bubble.fill",
+                title: "Your intention",
+                detail: "Say what you need"
+            )
+            JourneyConnector(animated: motionEnabled)
+            JourneyNode(
+                icon: "macbook",
+                title: "Your Mac",
+                detail: "Builds and remembers"
+            )
+            JourneyConnector(delay: 0.55, animated: motionEnabled)
+            JourneyNode(
+                icon: "iphone.gen3",
+                title: "Your iPhone",
+                detail: "Where you use it"
+            )
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct JourneyNode: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(TohsenoTheme.amber)
+                .frame(width: 48, height: 48)
+                .background(TohsenoTheme.ember.opacity(0.8))
+                .clipShape(Circle())
+                .overlay(Circle().stroke(TohsenoTheme.amber.opacity(0.2)))
+            Text(title).font(.callout.weight(.semibold))
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(TohsenoTheme.silver)
+                .multilineTextAlignment(.center)
+        }
+        .frame(width: 138)
+    }
+}
+
+private struct JourneyConnector: View {
+    let delay: Double
+    let animated: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var travels = false
+
+    init(delay: Double = 0, animated: Bool = true) {
+        self.delay = delay
+        self.animated = animated
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(TohsenoTheme.iron)
+                    .frame(height: 1)
+                Circle()
+                    .fill(TohsenoTheme.amber)
+                    .frame(width: 5, height: 5)
+                    .shadow(color: TohsenoTheme.amber.opacity(0.55), radius: 4)
+                    .offset(x: travels && animated && !reduceMotion ? max(0, geometry.size.width - 5) : 0)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(width: 64, height: 12)
+        .animation(
+            reduceMotion || !animated
+                ? nil
+                : .easeInOut(duration: 2.1).repeatForever(autoreverses: true).delay(delay),
+            value: travels
+        )
+        .onAppear { travels = true }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct ReadinessSetupContent: View {
+    let model: TohsenoAppModel
+    let readiness: ReadinessView
 
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
+                SetupContextBanner(readiness: readiness)
+
                 if readiness.isWorking {
-                    TohsenoSpinner(size: 64)
+                    TohsenoSpinner(size: 56)
                 } else {
-                    TohsenoMark().frame(width: 64, height: 64)
+                    TohsenoMark().frame(width: 56, height: 56)
                 }
                 VStack(spacing: 8) {
                     Text(readiness.headline).font(.largeTitle.weight(.semibold))
@@ -630,14 +894,6 @@ private struct ReadinessScreen: View {
                         .foregroundStyle(TohsenoTheme.silver)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 620)
-                }
-                if readiness.step == "welcome" {
-                    HStack(alignment: .top, spacing: 14) {
-                        OnboardingPoint(icon: "iphone.gen3", title: "Use it", detail: "Start with an app already useful on your iPhone.")
-                        OnboardingPoint(icon: "bubble.left.and.text.bubble.right", title: "Request", detail: "Ask for one concrete change in Companion.")
-                        OnboardingPoint(icon: "macbook", title: "Reconnect", detail: "This Mac evolves, builds, and returns the app.")
-                    }
-                    .frame(maxWidth: 660)
                 }
                 if let device = model.connectedDeviceDescription, readiness.step != "welcome" {
                     Label(device, systemImage: "iphone.gen3")
@@ -685,8 +941,65 @@ private struct ReadinessScreen: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("readiness.\(readiness.step)")
+    }
+}
+
+private struct SetupContextBanner: View {
+    let readiness: ReadinessView
+
+    var body: some View {
+        HStack(spacing: 13) {
+            TohsenoMark().frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("YOUR MAC IS THE WORKSHOP · YOUR IPHONE IS WHERE THE APP LIVES")
+                    .font(.caption2.weight(.semibold))
+                    .tracking(0.9)
+                    .foregroundStyle(TohsenoTheme.amber)
+                Label(purpose, systemImage: symbol)
+                    .font(.callout)
+                    .foregroundStyle(TohsenoTheme.bone)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: 620)
+        .background(TohsenoTheme.ember.opacity(0.34))
+        .overlay(RoundedRectangle(cornerRadius: 13).stroke(TohsenoTheme.amber.opacity(0.18)))
+        .clipShape(RoundedRectangle(cornerRadius: 13))
+    }
+
+    private var symbol: String {
+        switch readiness.step {
+        case "connect_cable", "trust_mac": "cable.connector"
+        case "install_xcode", "developer_mode", "add_apple_account": "hammer"
+        case "install_companion", "building_companion": "iphone.and.arrow.forward"
+        case "installing_companion", "launching_companion": "arrow.down.to.line"
+        case "pairing_companion": "link"
+        default: "sparkles"
+        }
+    }
+
+    private var purpose: String {
+        switch readiness.step {
+        case "connect_cable":
+            "The cable is the private road that carries your apps from this Mac to your iPhone."
+        case "trust_mac":
+            "Trust lets your two devices work together directly, without sending your project elsewhere."
+        case "install_xcode":
+            "Xcode is Apple’s official tool for turning source code into a real native iPhone app."
+        case "developer_mode":
+            "Developer Mode lets your iPhone run personal apps built and signed on this Mac."
+        case "add_apple_account":
+            "Your Apple Account lets Xcode sign the app as yours. Tohseno never sees your password."
+        case "install_companion", "building_companion":
+            "Companion is the private bridge that receives apps from your Mac and keeps them connected."
+        case "installing_companion", "launching_companion":
+            "The private bridge is moving onto your iPhone now."
+        case "pairing_companion":
+            "Your iPhone is proving that it belongs to this local Tohseno workspace."
+        default:
+            "First, Tohseno will connect your Mac workshop to your iPhone."
+        }
     }
 }
 
@@ -781,10 +1094,10 @@ private struct HarnessReadinessScreen: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            TohsenoMark().frame(width: 72, height: 72)
+            TohsenoLivingMark(size: 58)
             VStack(spacing: 10) {
-                Text("Connect a coding harness").font(.largeTitle.weight(.semibold))
-                Text("Tohseno needs one working coding agent before it connects your iPhone. Credentials stay in that agent's own authentication store.")
+                Text("Choose how Tohseno thinks").font(.largeTitle.weight(.semibold))
+                Text("To turn your words into an app, Tohseno works with a coding assistant you already use. Choose one below; its sign-in stays with that tool.")
                     .foregroundStyle(TohsenoTheme.silver)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 560)
@@ -805,11 +1118,11 @@ private struct HarnessReadinessScreen: View {
             }
             .frame(maxWidth: 500)
             HStack {
-                SettingsLink { Text("Open Settings") }
+                SettingsLink { Text("Choose in Settings") }
                     .buttonStyle(PrimaryActionStyle())
-                Button("Check Again") { Task { await model.reload() } }
+                Button("Look Again") { Task { await model.reload() } }
             }
-            Text("Choose Intelligence in Settings. For Codex: install the CLI if missing, then sign in with Codex itself. Tohseno never asks for provider or Apple credentials in onboarding.")
+            Text("For Codex, install and sign in with Codex itself. Tohseno never asks for your coding-provider password, API key, or Apple password here.")
                 .font(.caption)
                 .foregroundStyle(TohsenoTheme.ash)
                 .multilineTextAlignment(.center)
@@ -824,29 +1137,6 @@ private struct HarnessReadinessScreen: View {
         if !harness.installed { return "Not installed" }
         if harness.authentication == .notDetected { return "Sign in required" }
         return harness.selected ? "Selected" : "Available"
-    }
-}
-
-private struct OnboardingPoint: View {
-    let icon: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(TohsenoTheme.amber)
-            Text(title).font(.headline)
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(TohsenoTheme.silver)
-                .multilineTextAlignment(.center)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 122, alignment: .top)
-        .background(TohsenoTheme.carbon)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

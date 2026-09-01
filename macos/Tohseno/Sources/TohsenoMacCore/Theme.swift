@@ -60,6 +60,51 @@ public struct TohsenoSpinner: View {
     }
 }
 
+/// The mark at the product's front door. It breathes instead of spinning so
+/// first contact feels alive without implying that a technical task is stuck.
+public struct TohsenoLivingMark: View {
+    private let size: CGFloat
+    private let animated: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isBreathing = false
+
+    public init(size: CGFloat = 96, animated: Bool = true) {
+        self.size = size
+        self.animated = animated
+    }
+
+    public var body: some View {
+        ZStack {
+            Circle()
+                .fill(TohsenoTheme.amber.opacity(0.08))
+                .frame(width: size * 1.34, height: size * 1.34)
+                .scaleEffect(isBreathing && animated && !reduceMotion ? 1.08 : 0.94)
+                .opacity(isBreathing && animated && !reduceMotion ? 0.3 : 0.72)
+
+            Circle()
+                .stroke(TohsenoTheme.amber.opacity(0.2), lineWidth: 1)
+                .frame(width: size * 1.16, height: size * 1.16)
+                .scaleEffect(isBreathing && animated && !reduceMotion ? 1.16 : 0.9)
+                .opacity(isBreathing && animated && !reduceMotion ? 0.04 : 0.52)
+
+            TohsenoMark()
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(isBreathing && animated && !reduceMotion ? 7 : -3))
+                .scaleEffect(isBreathing && animated && !reduceMotion ? 1.025 : 0.985)
+                .shadow(color: TohsenoTheme.amber.opacity(0.2), radius: 18)
+        }
+        .frame(width: size * 1.4, height: size * 1.4)
+        .animation(
+            reduceMotion || !animated
+                ? nil
+                : .easeInOut(duration: 2.8).repeatForever(autoreverses: true),
+            value: isBreathing
+        )
+        .onAppear { isBreathing = true }
+        .accessibilityHidden(true)
+    }
+}
+
 struct PrimaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

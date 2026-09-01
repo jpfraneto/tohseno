@@ -144,6 +144,30 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(failed.setupCheckpoints[7].state, .waiting)
     }
 
+    func testOnboardingIntroducesTheSystemBeforeSetupDiagnostics() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
+        let source = try String(contentsOf: root, encoding: .utf8)
+
+        for phrase in [
+            "WELCOME TO TOHSENO",
+            "TAKE A SHOT",
+            "This is where your ideas transform into apps.",
+            "Your intention",
+            "Your Mac",
+            "Your iPhone",
+            "Your source stays here",
+            "Nothing publishes without you",
+        ] {
+            XCTAssertTrue(source.contains(phrase), phrase)
+        }
+
+        let welcome = try XCTUnwrap(source.range(of: "TohsenoWelcomeSequence"))
+        let diagnostics = try XCTUnwrap(source.range(of: "ReadinessProgressPanel"))
+        XCTAssertLessThan(welcome.lowerBound, diagnostics.lowerBound)
+    }
+
     @MainActor
     func testActiveReadinessPollsUntilTheBackgroundCheckFinishes() async {
         let verify = ReadinessView(
@@ -455,8 +479,8 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(source.contains("Keep an iPhone app connected"))
         XCTAssertTrue(source.contains("Adopt Existing App"))
         XCTAssertTrue(source.contains("Create a First App"))
-        XCTAssertTrue(source.contains("Connect a coding harness"))
-        XCTAssertTrue(source.contains("Ask for one concrete change in Companion."))
+        XCTAssertTrue(source.contains("Choose how Tohseno thinks"))
+        XCTAssertTrue(source.contains("This is where your ideas transform into apps."))
         XCTAssertFalse(source.contains("Describe the app that should exist…"))
     }
 
@@ -583,6 +607,7 @@ final class NativeFactoryTests: XCTestCase {
             "registry.sidebar", "registry.modes", "registry.search",
             "registry.timeline", "registry.updates",
             "creation.starters", "readiness.progress", "readiness.harness",
+            "readiness.welcome.begin",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }
