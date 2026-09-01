@@ -4,14 +4,14 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
-    "exact_source_commit": "637ca89f4fda45cfa483b8f4abba0ee08fb92824",
-    "captured_at": "2026-09-01T03:37:21Z",
+    "exact_source_commit": "7abf702cebbbb48d13f487ddd9034789fd43a8e2",
+    "captured_at": "2026-09-01T16:47:42Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md",
       "docs/adr/0035-claiming-software.md"
     ],
-    "previous_release_candidate": "1.2.0-rc.2",
-    "current_public_installer_pin": "1.2.0-rc.3",
+    "previous_release_candidate": "1.2.0-rc.3",
+    "current_public_installer_pin": "1.2.0-rc.4",
     "target_public_installer_pin": "1.2.0",
     "historical_protocol_rewritten": false,
     "recording_layer_implicit_migration": false
@@ -29,21 +29,21 @@
     "verified_at": "2026-08-30T21:34:39Z"
   },
   "continuous_integration": {
-    "run_id": 33463549571,
-    "source_commit": "637ca89f4fda45cfa483b8f4abba0ee08fb92824",
+    "run_id": 33528613500,
+    "source_commit": "7abf702cebbbb48d13f487ddd9034789fd43a8e2",
     "status": "success",
-    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33463549571",
+    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33528613500",
     "artifact_source_delta": "None. The release-candidate artifact was built from the exact fully CI-gated source commit."
   },
   "dark_deployment": {
     "service": "tohseno",
     "environment": "production",
-    "deployment_id": "c71531c0-3889-4190-ad95-6a28c80aa4b7",
+    "deployment_id": "b0f1d9ca-be00-400e-8195-9e9036de1faa",
     "implementation_commit": "dfbeaf93079af3c6618de310c3199e2cf697ee06",
     "activation_commit": "0833bae635b7ca05408b2b77309983cdbed4505e",
     "website_tree_identical_at_exact_source_commit": false,
-    "post_source_changes": "threshold activation pins and exact signed-envelope integration only",
-    "verified_at": "2026-09-01T03:37:21Z",
+    "post_source_changes": "threshold activation pins, exact signed-envelope integration, release-candidate homepage, and exact RC4 artifact activation only",
+    "verified_at": "2026-09-01T16:47:42Z",
     "health_green": true,
     "registry_reads_active": true,
     "registry_relayer_available": false,
@@ -153,38 +153,46 @@
       "reason": "Owner-attended first-open acceptance found that the app entered device setup without first welcoming the person, explaining the intention-to-native-iPhone-app relationship, or giving enough plain-language purpose for each prerequisite.",
       "superseded_by": "v1.2.0-rc.3",
       "stable_promotion": false
+    },
+    {
+      "tag": "v1.2.0-rc.3",
+      "artifact_source_commit": "637ca89f4fda45cfa483b8f4abba0ee08fb92824",
+      "dmg_sha256": "a19e42f635f8a282da81131f92f6e07a72b4055dec39beb36782f56ecc075ec5",
+      "reason": "Owner-attended Registry acceptance found that the Mac app rejected valid local Registry responses and exposed neither CLI activation nor the init, deploy, Companion-approval, and recipient-signing path, leaving the person unable to begin the end-to-end Ship walkthrough.",
+      "superseded_by": "v1.2.0-rc.4",
+      "stable_promotion": false
     }
   ],
   "release_candidate_evidence": {
-    "tag": "v1.2.0-rc.3",
+    "tag": "v1.2.0-rc.4",
     "prerelease": true,
-    "published_at": "2026-09-01T03:34:23Z",
-    "artifact_source_commit": "637ca89f4fda45cfa483b8f4abba0ee08fb92824",
+    "published_at": "2026-09-01T16:40:57Z",
+    "artifact_source_commit": "7abf702cebbbb48d13f487ddd9034789fd43a8e2",
     "worktree_clean_at_build": true,
-    "full_matrix_run_id": 33463549571,
-    "full_matrix_source_commit": "637ca89f4fda45cfa483b8f4abba0ee08fb92824",
+    "full_matrix_run_id": 33528613500,
+    "full_matrix_source_commit": "7abf702cebbbb48d13f487ddd9034789fd43a8e2",
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
-    "candidate_application_cdhash": "d4350143adf63e6d66a4977748291eae6b14ec35",
+    "candidate_application_cdhash": "4706c04b1f135e5d0a5f5ca7044b7529e614d9a3",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "639b10c5-4fe3-4764-8334-cf25f81532a4",
+    "notary_submission_id": "58a308f5-68c8-4118-8e1d-18ba28ea9e58",
     "notary_status": "Accepted",
-    "notary_upload_at": "2026-09-01T03:30:38.008Z",
+    "notary_upload_at": "2026-09-01T16:36:31.582Z",
     "stapler_validation": "accepted",
-    "dmg_name": "Tohseno-1.2.0-rc.3.dmg",
-    "dmg_size_bytes": 52309451,
-    "dmg_sha256": "a19e42f635f8a282da81131f92f6e07a72b4055dec39beb36782f56ecc075ec5",
-    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.3",
-    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.3/Tohseno-1.2.0-rc.3.dmg",
+    "dmg_name": "Tohseno-1.2.0-rc.4.dmg",
+    "dmg_size_bytes": 52294358,
+    "dmg_sha256": "f9ccbc05ba2d81060c107f65bb402fb21c34451d983e95018f827d546c19855c",
+    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.4",
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.4/Tohseno-1.2.0-rc.4.dmg",
     "origin_round_trip_sha256_verified": true,
     "public_download_round_trip_sha256_verified": true,
-    "website_candidate_deployment_id": "c71531c0-3889-4190-ad95-6a28c80aa4b7",
+    "website_candidate_deployment_id": "b0f1d9ca-be00-400e-8195-9e9036de1faa",
     "website_candidate_deployment_status": "SUCCESS",
     "website_health_verified": true,
     "website_release_channel": "release-candidate",
@@ -195,7 +203,7 @@
     "clean_mac_acceptance_verified": false,
     "physical_iphone_acceptance_verified": false,
     "stable_promotion": false,
-    "verified_at": "2026-09-01T03:37:21Z"
+    "verified_at": "2026-09-01T16:47:42Z"
   },
-  "blocking_reason": "Tohseno 1.2.0 release candidate 3 was built from exact clean and fully CI-gated commit 637ca89f, Developer ID signed, Apple-notarized under submission 639b10c5-4fe3-4764-8334-cf25f81532a4, stapled, mounted, Gatekeeper-verified, published as an immutable GitHub prerelease, origin-verified, and activated on tohseno.com's release-candidate channel with digest a19e42f635f8a282da81131f92f6e07a72b4055dec39beb36782f56ecc075ec5. RC1 is rejected because its bundle omitted the Apple identity source package required for Companion dependency resolution; RC2 is rejected because owner-attended first-open acceptance found that it did not welcome or explain the system before technical setup. Stable promotion remains blocked. Both relayers and every Claims write remain disabled until the owner-attended physical acceptance completes one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline."
+  "blocking_reason": "Tohseno 1.2.0 release candidate 4 was built from exact clean and fully CI-gated commit 7abf702c, Developer ID signed, Apple-notarized under submission 58a308f5-68c8-4118-8e1d-18ba28ea9e58, stapled, mounted, Gatekeeper-verified, published as an immutable GitHub prerelease, origin-verified, and activated on tohseno.com's release-candidate channel with digest f9ccbc05ba2d81060c107f65bb402fb21c34451d983e95018f827d546c19855c. RC1 is rejected because its bundle omitted the Apple identity source package required for Companion dependency resolution; RC2 is rejected because owner-attended first-open acceptance found that it did not welcome or explain the system before technical setup; RC3 is rejected because the Mac app rejected valid Registry responses and did not expose the CLI activation and Ship path. Stable promotion remains blocked. Both relayers and every Claims write remain disabled until the owner-attended physical acceptance completes one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline."
 }

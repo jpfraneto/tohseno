@@ -511,7 +511,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.2.0-rc.3` bytes on the labeled release-candidate channel; stable `v1.2.0`
+`v1.2.0-rc.4` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -526,7 +526,7 @@ acceptance. It places the verified DMG in Downloads, prints that exact path,
 and reveals it in Finder so the person performs the familiar drag into
 Applications. It does not copy, replace, or open an application, request
 administrator access, or edit a shell profile. HEAD exposes only
-status/instruction headers. They currently use the same verified 1.2 RC3 pin.
+status/instruction headers. They currently use the same verified 1.2 RC4 pin.
 
 The navigation keeps visitors on the page for the product explanation. Its
 Open Source section explains that the factory can be inspected, run locally,
@@ -602,17 +602,23 @@ resulting failure was incorrectly collapsed into a generic Apple Account
 message. Replacement `v1.2.0-rc.2` repaired the bundle and retained staged
 diagnostics, but owner-attended first-open acceptance found that it still
 entered technical device setup without welcoming the person or first
-explaining the system. RC3 replaces it with a living-mark welcome, the
+explaining the system. RC3 replaced it with a living-mark welcome, the
 intention → Mac → iPhone relationship, explicit local-source and publication
 promises, and plain-language purpose for each setup requirement while keeping
-the persistent progress and diagnostics. Candidate `v1.2.0-rc.3` was built
-from exact clean and fully CI-gated commit `637ca89f`, signed with Developer ID
+the persistent progress and diagnostics. Owner-attended Registry acceptance
+then rejected RC3 because the Mac app rejected valid Registry responses and
+did not expose the CLI activation, `tohseno init`, `tohseno deploy`, Companion
+approval, and recipient-signing path. RC4 repairs Registry decoding, adds the
+signed one-click CLI activation surface, presents the exact commands and
+one-time pairing QR, and distinguishes healthy public reads from the disabled
+publication relayer. Candidate `v1.2.0-rc.4` was built from exact clean and
+fully CI-gated commit `7abf702c`, signed with Developer ID
 Team `84V63LKV45`, accepted by Apple notarization submission
-`639b10c5-4fe3-4764-8334-cf25f81532a4`, stapled, mounted,
-Gatekeeper-checked, and published as a 52,309,451-byte universal DMG with
+`58a308f5-68c8-4118-8e1d-18ba28ea9e58`, stapled, mounted,
+Gatekeeper-checked, and published as a 52,294,358-byte universal DMG with
 SHA-256
-`a19e42f635f8a282da81131f92f6e07a72b4055dec39beb36782f56ecc075ec5`.
-Both the GitHub origin and tohseno.com round trips matched. RC3 is active only
+`f9ccbc05ba2d81060c107f65bb402fb21c34451d983e95018f827d546c19855c`.
+Both the GitHub origin and tohseno.com round trips matched. RC4 is active only
 on the labeled release-candidate channel for the owner-attended walkthrough.
 Stable 1.2 still requires the production proof in ADR 0035: real first Ship and
 edition, second identity Claim, offline-Mac preparation, recipient-signed
