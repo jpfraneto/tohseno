@@ -10,6 +10,7 @@ use serde_json::json;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tohseno_companion::publication::{
@@ -51,6 +52,8 @@ const ACTIVATION_DIGEST: &str =
 const BUILDER_ACCOUNT_CREATION_HEX: &str =
     include_str!("../../contracts/generations/0.8.0/bytecode/BuilderAccount.creation.hex");
 const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
+const ADOPTION_REQUEST_TIMEOUT: Duration = Duration::from_secs(35 * 60);
+const ADOPTION_PROGRESS_INTERVAL: Duration = Duration::from_secs(10);
 
 fn parse_claim_edition(
     kind: Option<&str>,
@@ -274,21 +277,34 @@ pub async fn init(
     bus: &tohseno_engine::EventBus,
 ) -> Result<(), BoxError> {
     let selected = absolute_existing_path(&path)?;
-    bus.emit(Event::status("Inspecting the Xcode app…"));
+    bus.emit(Event::status(
+        "Checking this app with Xcode… The first check can take several minutes while Xcode resolves packages and builds for Simulator.",
+    ));
     let service = ServiceClient::ensure_running().await.map_err(to_box)?;
-    let result: AdoptionResult = service
-        .post(
-            "/api/v1/projects/adopt",
-            &AdoptionRequest {
-                path: selected.display().to_string(),
-                scheme,
-                harness: None,
-                model: None,
-                network_origin: None,
-            },
-        )
-        .await
-        .map_err(to_box)?;
+    let request = AdoptionRequest {
+        path: selected.display().to_string(),
+        scheme,
+        harness: None,
+        model: None,
+        network_origin: None,
+    };
+    let adoption =
+        service.post_with_timeout("/api/v1/projects/adopt", &request, ADOPTION_REQUEST_TIMEOUT);
+    tokio::pin!(adoption);
+    let started = Instant::now();
+    let mut progress = tokio::time::interval(ADOPTION_PROGRESS_INTERVAL);
+    progress.tick().await;
+    let result: AdoptionResult = loop {
+        tokio::select! {
+            result = &mut adoption => break result.map_err(to_box)?,
+            _ = progress.tick() => {
+                bus.emit(Event::status(format!(
+                    "Xcode is still building the app for Simulator… {} seconds elapsed. Keep this Terminal open.",
+                    started.elapsed().as_secs()
+                )));
+            }
+        }
+    };
     if result.status == "needs_scheme" {
         let choices = result.scheme_candidates.join(", ");
         return Err(format!("Choose the app scheme with --scheme. Available: {choices}").into());

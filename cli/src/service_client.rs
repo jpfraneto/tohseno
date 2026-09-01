@@ -127,6 +127,27 @@ impl ServiceClient {
         decode(response).await
     }
 
+    /// Use a bounded request-specific deadline for a local operation whose
+    /// server-side work is intentionally longer than an ordinary API call.
+    /// Reqwest's per-request timeout overrides the client's short default
+    /// without weakening every other loopback request.
+    pub async fn post_with_timeout<T: Serialize, R: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &T,
+        timeout: Duration,
+    ) -> Result<R, BoxError> {
+        let response = self
+            .http
+            .post(self.url(path)?)
+            .headers(self.mutation_headers()?)
+            .json(body)
+            .timeout(timeout)
+            .send()
+            .await?;
+        decode(response).await
+    }
+
     /// Repeat an exact command body once when the response is ambiguous. The
     /// create/evolve command ID is content-derived and the service journal is
     /// idempotent, so this recovers a receipt without admitting duplicate
@@ -391,6 +412,53 @@ mod tests {
             .unwrap();
         assert_eq!(receipt["execution_id"], "execution_fixture");
         assert_eq!(requests.load(Ordering::SeqCst), 2);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn request_specific_timeout_keeps_a_bounded_long_operation_attached() {
+        use axum::{routing::post, Json, Router};
+
+        async fn operation() -> Json<serde_json::Value> {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            Json(serde_json::json!({"status": "complete"}))
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, Router::new().route("/operation", post(operation)))
+                .await
+                .unwrap();
+        });
+        let client = ServiceClient {
+            http: Client::builder()
+                .timeout(Duration::from_millis(30))
+                .build()
+                .unwrap(),
+            runtime: RuntimeRecord {
+                schema: "tohseno.local-workspace-runtime/1".into(),
+                service_version: "1.2.0".into(),
+                workspace_id: "workspace_fixture".into(),
+                studio_device_id: "device_fixture".into(),
+                origin: format!("http://{address}"),
+                port: address.port(),
+                process_id: 1,
+                started_at: "2026-09-01T12:00:00Z".into(),
+                instance_id: "service_fixture".into(),
+                csrf_token: "x".repeat(32),
+            },
+        };
+
+        let result: serde_json::Value = client
+            .post_with_timeout(
+                "/operation",
+                &serde_json::json!({}),
+                Duration::from_millis(200),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result["status"], "complete");
         server.abort();
     }
 
