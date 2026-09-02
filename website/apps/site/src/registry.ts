@@ -1167,7 +1167,8 @@ function authorizeToken(request: Request, tokenSHA256: string): void { const tok
 function publicPublicationJob(job: PublicationJob): JsonObject { return { schema: "tohseno.registry-publication-status/1", job_id: job.jobID, status: job.status,
   relayer_transactions: { account: job.accountTransactionHash ?? null, commitment: job.commitTransactionHash ?? null,
     registry: job.registryTransactionHash ?? null, claims: job.claimsTransactionHash ?? null },
-  public_release: job.publicRecord ?? null, failure: job.failure ?? null, updated_at: job.updatedAt }; }
+  public_release: job.publicRecord ? publicRecordProjection(job.publicRecord) : null,
+  failure: job.failure ?? null, updated_at: job.updatedAt }; }
 
 function verifyEnvelope(envelope: JsonObject, config: AppConfig): Hex {
   exactKeys(envelope, ["schema", "release", "signer", "authorization"], "signed release");
@@ -1488,15 +1489,34 @@ async function requireBuilderLocalSlugAvailableInStaging(directory: string, rele
   }
 }
 
+function publicChainEvidence(chain: ChainEvidence | JsonObject): JsonObject { return {
+  transactionHash: chain.transactionHash,
+  blockNumber: chain.blockNumber,
+  blockHash: chain.blockHash,
+  controller: chain.controller,
+  head: chain.head,
+  checkpointSequence: chain.checkpointSequence,
+  signerKeyID: chain.signerKeyID,
+}; }
+function publicRecordProjection(record: JsonObject): JsonObject { return {
+  schema: record.schema,
+  release_digest: record.release_digest,
+  route: record.route,
+  release: record.release,
+  chain: publicChainEvidence(object(record.chain, "public release chain")),
+  manifest_url: record.manifest_url,
+  source_url: record.source_url,
+  icon_url: record.icon_url,
+}; }
 function publicRecord(record: CatalogRecord): JsonObject { return { schema: "tohseno.public-catalog-release/1", release_digest: record.releaseDigest,
-  route: record.route, release: releaseOf(record), chain: record.chain,
+  route: record.route, release: releaseOf(record), chain: publicChainEvidence(record.chain),
   manifest_url: `/api/registry/v1/releases/${record.releaseDigest}`,
   source_url: record.sourceURL, icon_url: record.iconURL ?? null } }
 function releaseEvidence(record: CatalogRecord): JsonObject { return {
   schema: "tohseno.public-release-evidence/1",
   release_digest: record.releaseDigest,
   signed_manifest: record.envelope,
-  chain: record.chain,
+  chain: publicChainEvidence(record.chain),
   source_url: record.sourceURL,
   icon_url: record.iconURL ?? null,
 } }
@@ -1620,7 +1640,50 @@ function timelinePage(events: TimelineEvent[], url: URL): JsonObject {
   };
 }
 
-function registryHTML(records: JsonObject[], query: string, launched: boolean, events: TimelineEvent[] = [], editions = new Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>()): string { const lead = launched ? "Software enters this network once, changes through Updates, and moves person to person." : "Registry support is online in pre-launch verification mode. No public app or write path is claimed."; return page("The Registry", `<header><p class="eyebrow">PERSON-TO-PERSON NATIVE SOFTWARE</p><h1>Software is alive here.</h1><p class="lead">${lead}</p><div class="registry-modes"><strong>Discover</strong><span>Following lives privately in Tohseno</span><span>Updates live privately in Tohseno</span></div><form class="search" action="/registry" method="get"><label for="registry-search">Search apps, builders, or ShotID</label><div><input id="registry-search" name="q" maxlength="100" value="${escapeHTML(query)}"><button type="submit">Search</button></div></form></header>${timelineCards(records, events, editions, launched)}`); }
+function registryHTML(
+  records: JsonObject[],
+  query: string,
+  launched: boolean,
+  events: TimelineEvent[] = [],
+  editions = new Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>(),
+): string {
+  const lead = launched
+    ? "Software enters this network once, changes through Updates, and moves person to person."
+    : "Registry support is online in pre-launch verification mode. No public app or write path is claimed.";
+  const status = launched ? "Public Registry live" : "Registry verification";
+  return page("The Registry", `
+    <section class="registry-hero">
+      <div class="registry-hero-copy">
+        <p class="eyebrow">PERSON-TO-PERSON NATIVE SOFTWARE</p>
+        <h1>Software is alive here.</h1>
+        <p class="lead">${lead}</p>
+        <div class="registry-modes" aria-label="Registry views">
+          <strong>Discover</strong>
+          <span>Following <small>private</small></span>
+          <span>Updates <small>private</small></span>
+        </div>
+        <form class="search" action="/registry" method="get">
+          <label for="registry-search">Search apps, builders, or ShotID</label>
+          <div>
+            <input id="registry-search" name="q" maxlength="100" value="${escapeHTML(query)}" placeholder="Find software or a person">
+            <button type="submit">Search <span aria-hidden="true">→</span></button>
+          </div>
+        </form>
+      </div>
+      <div class="registry-visual">
+        <img src="/landing-assets/network.png" alt="The Tohseno mascot connecting Apple devices through the network">
+        <span class="registry-signal registry-signal--status"><i aria-hidden="true"></i>${status}</span>
+        <span class="registry-signal registry-signal--proof">Exact releases</span>
+        <span class="registry-signal registry-signal--people">People move software</span>
+      </div>
+    </section>
+    <section class="registry-pulse" aria-label="How the Registry works">
+      <p><span class="live-dot" aria-hidden="true"></span>${launched ? "Discover is public" : "Verification is active"}</p>
+      <ul><li>One Ship</li><li>Permanent Updates</li><li>Verifiable source</li><li>Recipient-signed</li></ul>
+    </section>
+    ${timelineCards(records, events, editions, launched)}
+  `);
+}
 function shotHTML(
   record: JsonObject,
   edition?: { opened: boolean; maxClaims: bigint; totalClaims: bigint; closesAt: bigint; closed: boolean },
@@ -1723,8 +1786,33 @@ function shotHTML(
   `);
 }
 function builderHTML(builder: string, records: JsonObject[], profile?: JsonObject): string { const title = profile ? String(profile.display_name) : builder; const handle = profile?.handle ? `<p class="eyebrow">@${escapeHTML(String(profile.handle))}</p>` : ""; const address = builder.split(":").at(-1)!; return page("Builder", `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">BUILDER</p><h1>${escapeHTML(title)}</h1>${handle}<p class="lead">A public track record assembled from a DeviceKey-signed profile, signed releases, and current chain authority.</p><p class="eyebrow">${escapeHTML(builder)}</p><div class="actions"><a class="primary" href="tohseno://follow/${escapeHTML(address)}">Follow privately in Tohseno</a></div><p>Follow state stays on your Mac and paired Companion. There is no public follower count.</p></header>${cards(records)}`); }
-function cards(records: JsonObject[], launched = true): string { if (!records.length) return launched ? `<section class="empty"><h2>The network is ready.</h2><p>The first independently verified release will appear here.</p></section>` : `<section class="empty"><h2>Pre-launch verification.</h2><p>Publication and public launch remain disabled until the signed Mac release and acceptance gates pass.</p></section>`; return `<main class="grid">${records.map((record) => { const release = object(record.release, "release"); const display = object(release.display, "display"); return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`; }).join("")}</main>`; }
-function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<main class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event"><p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</main>`; }
+function cards(records: JsonObject[], launched = true): string {
+  if (!records.length) {
+    const title = launched ? "The network is ready." : "Pre-launch verification.";
+    const copy = launched
+      ? "The first independently verified release will appear here."
+      : "Publication and public launch remain disabled until the signed Mac release and acceptance gates pass.";
+    return `<section class="empty">
+      <div class="empty-copy">
+        <p class="eyebrow">${launched ? "THE NEXT SHIP STARTS HERE" : "NOT YET PUBLIC"}</p>
+        <h2>${title}</h2>
+        <p>${copy}</p>
+      </div>
+      <div class="empty-network" aria-hidden="true">
+        <span class="empty-node empty-node--one"></span>
+        <span class="empty-node empty-node--two"></span>
+        <span class="empty-node empty-node--three"></span>
+        <i></i><i></i>
+      </div>
+    </section>`;
+  }
+  return `<section class="grid">${records.map((record) => {
+    const release = object(record.release, "release");
+    const display = object(release.display, "display");
+    return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`;
+  }).join("")}</section>`;
+}
+function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<section class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event"><p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</section>`; }
 function compactBuilder(value: string): string { return `…${value.slice(-10)}`; }
 function compactDigest(value: string): string { return value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value; }
 function humanBuildClassification(value: string): string {
@@ -1732,7 +1820,39 @@ function humanBuildClassification(value: string): string {
   if (value === "requires_mac_review") return "Requires review on your Mac";
   return "Automatic build unavailable";
 }
-function page(title: string, body: string): string { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)} — Tohseno</title><meta name="description" content="Native software, person to person."><link rel="stylesheet" href="/landing.css"><style>body{max-width:1180px;margin:auto;padding:32px}header{padding:10vh 0 6vh}h1{font-size:clamp(3rem,8vw,7rem);line-height:.88;max-width:1000px}.lead{font-size:clamp(1.1rem,2vw,1.45rem);max-width:720px;line-height:1.5}.edition{font:700 1rem monospace;color:#ff7a1a;margin-top:30px}.exact-release,.quiet{max-width:780px;color:#999;line-height:1.55}.exact-release{font:600 .78rem monospace}.eyebrow{font:700 .72rem monospace;letter-spacing:.15em;color:#ff7a1a}.registry-modes{display:flex;gap:22px;flex-wrap:wrap;margin:32px 0;font:600 .78rem monospace}.registry-modes strong{color:#ff7a1a}.registry-modes span{color:#888}.search{max-width:680px;margin-top:32px}.search label{display:block;margin-bottom:8px;font:600 .8rem monospace}.search div{display:flex;gap:8px}.search input{min-width:0;flex:1;padding:13px;background:#171615;color:inherit;border:1px solid #393632}.search button{padding:13px 18px;border:1px solid #ff7a1a;background:#ff7a1a;color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.timeline-feed{display:grid;gap:1px;background:#393632;border:1px solid #393632}.network-event{display:grid;grid-template-columns:1fr auto;gap:6px 24px;padding:30px;background:#11110f}.network-event h2,.network-event p{margin:0}.network-event h2{font-size:clamp(1.7rem,4vw,3.2rem)}.network-event h2 a{color:inherit;text-decoration:none}.network-event .event-action{font-size:1.15rem}.network-event .builder-link,.network-event time{font:600 .75rem monospace;color:#ff8a32}.network-event time{grid-column:2;grid-row:1;color:#777}.card,.empty,.proof,.timeline,.friend-path,.requirements,.evidence-card{display:block;padding:28px;border:1px solid #393632;background:#171615;color:inherit;text-decoration:none}.card:hover{border-color:#ff7a1a;transform:translateY(-2px)}.card h2{font-size:2rem}.card span,.actions a,.proof a,.timeline a,.evidence-card a{color:#ff8a32}.back{display:inline-block;margin-top:20px;color:inherit}.proof{display:flex;gap:24px;flex-wrap:wrap;font:600 .8rem monospace}.actions{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}.actions a,.actions span{padding:14px 18px;border:1px solid #ff7a1a;text-decoration:none}.actions .primary{background:#ff7a1a;color:#111}.actions .disabled{background:#393632;border-color:#393632;color:#aaa}.friend-path{margin:24px 0 16px;padding:clamp(28px,5vw,58px)}.friend-path h2,.requirements h2{font-size:clamp(2rem,5vw,4rem);margin:.25em 0 .7em}.friend-path ol{list-style:none;counter-reset:steps;padding:0;display:grid;gap:1px;background:#393632}.friend-path li{counter-increment:steps;display:grid;grid-template-columns:auto 1fr;gap:6px 18px;padding:24px;background:#11110f}.friend-path li:before{content:counter(steps);grid-row:1/3;width:34px;height:34px;border:1px solid #ff7a1a;border-radius:50%;display:grid;place-items:center;color:#ff7a1a;font:700 .85rem monospace}.friend-path li span{color:#aaa;line-height:1.5}.evidence-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1px;background:#393632;border:1px solid #393632}.evidence-card{border:0;background:#11110f}.evidence-card h2{font-size:1.65rem}.evidence-card p{line-height:1.55;color:#aaa}.evidence-card dl div{display:flex;justify-content:space-between;gap:16px;border-top:1px solid #292725;padding:10px 0}.evidence-card dt{color:#888}.evidence-card dd{margin:0;text-align:right}.requirements{margin-top:16px}.requirements p{max-width:800px;line-height:1.6}.timeline{margin-top:16px}@media(max-width:640px){body{padding:18px}.friend-path li{grid-template-columns:auto 1fr}.friend-path li span{grid-column:2}.evidence-card dl div{display:block}.evidence-card dd{text-align:left;margin-top:4px}.network-event{grid-template-columns:1fr}.network-event time{grid-column:1;grid-row:auto}}</style></head><body><nav><a href="/">TOHSENO</a> · <a href="/registry">REGISTRY</a></nav>${body}</body></html>`; }
+function page(title: string, body: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f4ee">
+  <meta name="description" content="Discover native Apple software moving person to person on Tohseno.">
+  <link rel="icon" href="/tohseno-logo.png" type="image/png">
+  <link rel="preload" href="/landing-assets/network.png" as="image" type="image/png">
+  <link rel="stylesheet" href="/landing.css">
+  <link rel="stylesheet" href="/registry.css">
+  <title>${escapeHTML(title)} — Tohseno</title>
+</head>
+<body class="registry-page">
+  <a class="skip-link" href="#main">Skip to the main content</a>
+  <header class="site-header page-shell">
+    <a class="wordmark" href="/" aria-label="Tohseno home"><img src="/landing-assets/wordmark.svg" alt="Tohseno"></a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="/">Network</a>
+      <a href="/registry" aria-current="page">Registry</a>
+      <a class="nav-action" href="/buy">$TOHSENO</a>
+    </nav>
+  </header>
+  <main class="registry-main page-shell" id="main">${body}</main>
+  <footer class="site-footer page-shell">
+    <img src="/landing-assets/wordmark.svg" alt="Tohseno">
+    <p>Software moving person to person.</p>
+    <nav aria-label="Footer"><a href="/">Network</a><a href="/privacy">Privacy</a><a href="/buy">$TOHSENO</a></nav>
+  </footer>
+</body>
+</html>`;
+}
 
 function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined, currentClaimContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); }, claimReceiptContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); } }; }
 

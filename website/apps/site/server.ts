@@ -257,6 +257,11 @@ const STATIC_FILES: Record<
     type: "text/css; charset=utf-8",
     revalidate: true,
   },
+  "/registry.css": {
+    file: "registry.css",
+    type: "text/css; charset=utf-8",
+    revalidate: true,
+  },
   "/buy.css": {
     file: "buy.css",
     type: "text/css; charset=utf-8",

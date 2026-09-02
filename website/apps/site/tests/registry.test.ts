@@ -171,6 +171,14 @@ describe("public Registry trust bridge", () => {
       body: JSON.stringify({ transaction_hash: `0x${"66".repeat(32)}` }),
     }));
     expect(finalized.status).toBe(201);
+    const promoted = await finalized.json() as Record<string, unknown>;
+    const evidence = await (await router.fetch(new Request(
+      `http://localhost/api/registry/v1/releases/${promoted.release_digest}`,
+    ))).json() as { chain: Record<string, unknown> };
+    expect(Object.keys(evidence.chain).sort()).toEqual([
+      "blockHash", "blockNumber", "checkpointSequence", "controller", "head", "signerKeyID",
+      "transactionHash",
+    ]);
     const catalog = await router.fetch(new Request("http://localhost/api/registry/v1/shots"));
     const page = await catalog.json() as { releases: Array<Record<string, unknown>> };
     expect(page.releases).toHaveLength(1);

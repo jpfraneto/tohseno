@@ -119,6 +119,11 @@ describe("public pages", () => {
     expect(body).toContain("<footer");
     expect(body).not.toContain("hero-symbol");
     const registry = await (await application.fetch(request("/registry"))).text();
+    expect(registry).toContain('class="registry-page"');
+    expect(registry).toContain('href="/registry.css"');
+    expect(registry).toContain('src="/landing-assets/wordmark.svg"');
+    expect(registry).toContain('src="/landing-assets/network.png"');
+    expect(registry).toContain("Software is alive here.");
     expect(registry).toContain("Pre-launch verification.");
     expect(registry).toContain("No public app or write path is claimed.");
     expect(registry).not.toContain("The network is ready.");
@@ -434,6 +439,7 @@ describe("public pages", () => {
     const expectations: Array<[string, string]> = [
       ["/styles.css", "text/css"],
       ["/landing.css", "text/css"],
+      ["/registry.css", "text/css"],
       ["/landing.js", "text/javascript"],
       ["/buy.css", "text/css"],
       ["/buy.js", "text/javascript"],
