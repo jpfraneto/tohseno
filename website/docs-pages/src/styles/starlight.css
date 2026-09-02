@@ -1,0 +1,73 @@
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --sl-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --sl-font-system-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --sl-color-accent-low: #3d2118;
+  --sl-color-accent: #ff6b3d;
+  --sl-color-accent-high: #ffd9ca;
+  --sl-color-white: #fffdf9;
+  --sl-color-gray-1: #f1ede6;
+  --sl-color-gray-2: #cbc4b9;
+  --sl-color-gray-3: #918a80;
+  --sl-color-gray-4: #625e57;
+  --sl-color-gray-5: #383632;
+  --sl-color-gray-6: #23221f;
+  --sl-color-black: #181715;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #ffe8df;
+  --sl-color-accent: #b93816;
+  --sl-color-accent-high: #6b1e0b;
+  --sl-color-white: #1d1b18;
+  --sl-color-gray-1: #3b3833;
+  --sl-color-gray-2: #5e5952;
+  --sl-color-gray-3: #7b746b;
+  --sl-color-gray-4: #aaa298;
+  --sl-color-gray-5: #d8d2c9;
+  --sl-color-gray-6: #ebe7e0;
+  --sl-color-gray-7: #f7f5f0;
+  --sl-color-black: #fffefa;
+}
+
+body {
+  overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content a {
+  text-underline-offset: 0.18em;
+}
+
+.sl-markdown-content table {
+  display: table;
+  width: 100%;
+}
+
+.sl-markdown-content code {
+  overflow-wrap: normal;
+}
+
+@media (max-width: 50rem) {
+  .sl-markdown-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sl-markdown-content pre {
+    max-width: calc(100vw - 2rem);
+  }
+}

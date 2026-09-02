@@ -1,0 +1,294 @@
+---
+type Guide = {
+  name: string;
+  role: string;
+  image: string;
+  voice: string;
+};
+
+const guides = {
+  tink: {
+    name: "Tink",
+    role: "workshop keeper",
+    image: "/crew/tink.webp",
+    voice: "Keep the job small, make the result real, and leave a thread back to the work.",
+  },
+  mac: {
+    name: "Mac",
+    role: "the local workshop",
+    image: "/crew/mac.webp",
+    voice: "The source, tools, and private history stay here on your Mac.",
+  },
+  ledger: {
+    name: "Ledger",
+    role: "source keeper",
+    image: "/crew/ledger.webp",
+    voice: "I remember the exact starting point so the next change belongs to the same app.",
+  },
+  echo: {
+    name: "Echo & Dot",
+    role: "intention listeners",
+    image: "/crew/echo-dot.webp",
+    voice: "Say what should happen in plain language. One clear change is enough.",
+  },
+  orbit: {
+    name: "Orbit",
+    role: "coding-agent guide",
+    image: "/crew/orbit.webp",
+    voice: "An agent can write the first pass. Tohseno's checks decide what becomes real.",
+  },
+  ione: {
+    name: "Ione",
+    role: "the app in your hand",
+    image: "/crew/ione.webp",
+    voice: "A build is not the finish line. The app has to arrive on the iPhone.",
+  },
+  companion: {
+    name: "Companion",
+    role: "your private remote",
+    image: "/crew/companion.webp",
+    voice: "I carry your signed intention back to the Mac without becoming the factory.",
+  },
+  tick: {
+    name: "Tick",
+    role: "state watcher",
+    image: "/crew/tick.webp",
+    voice: "Waiting, building, ready, installed, or failed: every state should tell the truth.",
+  },
+  hearth: {
+    name: "Hearth",
+    role: "boundary keeper",
+    image: "/crew/hearth.webp",
+    voice: "Private work stays private until a person deliberately opens a public door.",
+  },
+} satisfies Record<string, Guide>;
+
+const path = Astro.url.pathname;
+
+function guideForPath(pathname: string): Guide {
+  if (/managed-compute/.test(pathname)) return guides.orbit;
+  if (/create-an-app|evolve-an-app/.test(pathname)) return guides.echo;
+  if (/companion|command-lifecycle|identities/.test(pathname)) return guides.companion;
+  if (/install-and-onboard|requirements|apple-delivery|mac-app/.test(pathname)) return guides.ione;
+  if (/adopt-an-app|app-workspace|persistence|source-safety|repository-map|files-and-directories|source-of-truth/.test(pathname)) return guides.ledger;
+  if (/states-and-errors|fail-closed|conformance|release-and-activation/.test(pathname)) return guides.tick;
+  if (/registry|ship-claim|person-to-person|public-witness|private-and-public|trust-boundaries|generation-0-8/.test(pathname)) return guides.hearth;
+  if (/architecture\/overview|factory|build-and-test|troubleshooting/.test(pathname)) return guides.mac;
+  if (/mental-model|what-is-tohseno|shots-evolutions|authority-and-scope|commitments-and-signatures|glossary/.test(pathname)) return guides.tink;
+  return guides.tink;
+}
+
+const { entry } = Astro.locals.starlightRoute;
+const guide = guideForPath(path);
+const title = entry.data.title;
+const description = String(entry.data.description ?? "A practical part of the Tohseno story.");
+---
+
+<h1 id="_top">{title}</h1>
+
+<div class="page-intro">
+  <div class="guide-note">
+    <img src={guide.image} width="48" height="48" alt="" loading="eager" />
+    <p>
+      <span><strong>{guide.name}</strong> · {guide.role}</span>
+      {guide.voice} {description}
+    </p>
+  </div>
+
+  <details class="page-ai" data-page-ai>
+    <summary>
+      <img src="/crew/orbit.webp" width="28" height="28" alt="" />
+      Ask with AI
+    </summary>
+    <form data-page-ai-form>
+      <label>
+        What do you want to understand?
+        <input name="question" type="text" autocomplete="off" placeholder="How does this fit into my app?" required />
+      </label>
+      <button type="submit">Copy question + page</button>
+      <p data-page-ai-status aria-live="polite">No model call or tracking. This makes a clean prompt for the AI you already trust.</p>
+    </form>
+  </details>
+</div>
+
+<script>
+  for (const form of document.querySelectorAll<HTMLFormElement>("[data-page-ai-form]")) {
+    if (form.dataset.ready === "true") continue;
+    form.dataset.ready = "true";
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = form.elements.namedItem("question") as HTMLInputElement | null;
+      const status = form.querySelector<HTMLElement>("[data-page-ai-status]");
+      const article = document.querySelector<HTMLElement>(".sl-markdown-content");
+      const question = input?.value.trim();
+      if (!question || !article || !status) return;
+
+      const pageText = article.innerText.replace(/\n{3,}/g, "\n\n").trim().slice(0, 14000);
+      const prompt = [
+        "Answer this question using the Tohseno documentation page below.",
+        "If the page does not support a claim, say what is missing instead of guessing.",
+        "",
+        `Question: ${question}`,
+        `Page: ${document.title}`,
+        `URL: ${window.location.href}`,
+        "",
+        "Documentation:",
+        pageText,
+      ].join("\n");
+
+      try {
+        await navigator.clipboard.writeText(prompt);
+        status.textContent = "Copied. Paste it into the AI you trust.";
+      } catch {
+        status.textContent = "Clipboard access was blocked. Select the page text and copy it manually.";
+      }
+    });
+  }
+</script>
+
+<style>
+  @layer starlight.core {
+    h1 {
+      margin-top: 1rem;
+      font-size: var(--sl-text-h1);
+      line-height: var(--sl-line-height-headings);
+      font-weight: 650;
+      color: var(--sl-color-white);
+    }
+
+    .page-intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 0.75rem;
+      margin-top: 1.1rem;
+    }
+
+    .guide-note {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 0.75rem;
+      color: var(--sl-color-gray-2);
+    }
+
+    .guide-note img,
+    .page-ai summary img {
+      flex: 0 0 auto;
+      border-radius: 0.8rem;
+      object-fit: cover;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sl-color-gray-4), transparent 45%);
+    }
+
+    .guide-note p {
+      margin: 0;
+      max-width: 58rem;
+      font-size: var(--sl-text-sm);
+      line-height: 1.55;
+    }
+
+    .guide-note span {
+      display: block;
+      margin-bottom: 0.12rem;
+      color: var(--sl-color-white);
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .page-ai {
+      position: relative;
+    }
+
+    .page-ai summary {
+      display: flex;
+      min-height: 2.75rem;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.35rem 0.7rem 0.35rem 0.35rem;
+      border: 1px solid var(--sl-color-gray-5);
+      border-radius: 0.75rem;
+      background: var(--sl-color-gray-6);
+      color: var(--sl-color-white);
+      cursor: pointer;
+      font-size: var(--sl-text-xs);
+      font-weight: 650;
+      list-style: none;
+      white-space: nowrap;
+    }
+
+    .page-ai summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .page-ai[open] summary {
+      border-color: var(--sl-color-accent);
+    }
+
+    .page-ai form {
+      position: absolute;
+      z-index: 10;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      width: min(22rem, calc(100vw - 2rem));
+      padding: 0.9rem;
+      border: 1px solid var(--sl-color-gray-5);
+      border-radius: 0.9rem;
+      background: var(--sl-color-black);
+      box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 22%);
+    }
+
+    .page-ai label {
+      display: grid;
+      gap: 0.45rem;
+      color: var(--sl-color-gray-2);
+      font-size: var(--sl-text-xs);
+    }
+
+    .page-ai input {
+      width: 100%;
+      min-height: 2.75rem;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--sl-color-gray-5);
+      border-radius: 0.6rem;
+      background: var(--sl-color-gray-7);
+      color: var(--sl-color-white);
+      font: inherit;
+    }
+
+    .page-ai button {
+      width: 100%;
+      min-height: 2.75rem;
+      margin-top: 0.65rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--sl-color-accent);
+      color: var(--sl-color-black);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .page-ai form p {
+      margin: 0.6rem 0 0;
+      color: var(--sl-color-gray-3);
+      font-size: 0.68rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 42rem) {
+      .page-intro {
+        grid-template-columns: 1fr;
+      }
+
+      .page-ai summary {
+        width: fit-content;
+      }
+
+      .page-ai form {
+        right: auto;
+        left: 0;
+      }
+    }
+  }
+</style>

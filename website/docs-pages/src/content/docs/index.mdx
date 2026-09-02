@@ -1,0 +1,42 @@
+---
+title: Tohseno documentation
+description: Make, install, understand, and evolve native iPhone apps without losing the thread back to their source.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Tohseno turns a plain-language intention into a native iPhone app, checks it with Apple’s tools, and keeps the app connected to the exact source that can change it again.
+
+## Start where you are
+
+<CardGrid>
+  <LinkCard
+    title="I have an idea"
+    description="Install Tohseno, write one small intention, and carry the result to your iPhone."
+    href="/guide/start/install-and-onboard/"
+  />
+  <LinkCard
+    title="I have an app"
+    description="Connect an existing Xcode project without moving or rewriting its repository."
+    href="/guide/start/adopt-an-app/"
+  />
+  <LinkCard
+    title="I want to change an app"
+    description="Describe one real friction and evolve the exact accepted version."
+    href="/guide/start/evolve-an-app/"
+  />
+</CardGrid>
+
+## The thread Tohseno keeps
+
+```text
+your intention → source on the Mac → Xcode checks → app on the iPhone
+       ↑                                                    │
+       └────────────────── the next honest change ──────────┘
+```
+
+The characters you meet in these pages each hold one part of that story: the Mac keeps the workshop local, the coding agent writes, Xcode inspects, Companion carries your intent, and the iPhone is where the result has to become real.
+
+If you only want to use the product, stay in **Start here** and **Make & evolve**. The deeper architecture, protocol, and operations sections are there when you need to inspect the machinery.
+
+[Learn what Tohseno is →](/guide/start/what-is-tohseno/)

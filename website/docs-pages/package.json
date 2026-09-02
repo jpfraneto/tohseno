@@ -1,0 +1,21 @@
+{
+  "name": "tohseno-docs-pages",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run sync-assets && astro dev",
+    "sync-assets": "bun run scripts/sync-assets.ts",
+    "check": "bun run sync-assets && astro check",
+    "build": "bun run sync-assets && astro build",
+    "verify": "bun run scripts/verify-built-site.ts"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.41.10",
+    "astro": "7.2.9",
+    "sharp": "0.35.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+.astro/
+dist/
+public/_headers
+public/_redirects
+public/docs.css
+public/docs.js
+public/favicon.png
+public/fonts/
+public/modules/
+public/llms.txt
+public/llms-full.txt
