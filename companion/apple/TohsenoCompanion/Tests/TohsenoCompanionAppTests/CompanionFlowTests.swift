@@ -389,6 +389,17 @@ func model(_ backend: StubBackend) async -> CompanionModel {
 @Suite("Choose an app → request its next evolution")
 struct CompanionFlowTests {
     @MainActor
+    @Test("Each relaunch announces the same DeviceKey under a fresh command identity")
+    func builderAnnouncementCommandIDsAreFresh() {
+        let first = CompanionModel.builderAnnouncementCommandID()
+        let second = CompanionModel.builderAnnouncementCommandID()
+
+        #expect(first != second)
+        #expect(first.range(of: #"^builder_announce_[0-9a-f]{32}$"#, options: .regularExpression) != nil)
+        #expect(second.range(of: #"^builder_announce_[0-9a-f]{32}$"#, options: .regularExpression) != nil)
+    }
+
+    @MainActor
     @Test("A canonical Claim while the Mac is offline durably queues that exact release")
     func claimWhileMacOffline() async throws {
         let backend = StubBackend()

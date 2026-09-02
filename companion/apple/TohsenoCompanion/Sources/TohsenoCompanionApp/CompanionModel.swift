@@ -170,11 +170,15 @@ public final class CompanionModel {
                 let announcement = BuilderDeviceAnnouncement(publicIdentity: identity)
                 _ = try await backend.announceBuilderDevice(
                     announcement,
-                    commandID: "builder_announce_\(identity.keyID.suffix(24))"
+                    commandID: Self.builderAnnouncementCommandID()
                 )
             }
             catch { builderDevice = nil }
         }
+    }
+
+    static func builderAnnouncementCommandID() -> String {
+        "builder_announce_\(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: ""))"
     }
 
     public func refreshPublicNetwork() async {
