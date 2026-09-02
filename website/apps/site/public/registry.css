@@ -553,7 +553,7 @@
 
 .friend-path ol {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 1px;
   margin: 0;
   padding: 0;
@@ -567,9 +567,10 @@
 
 .friend-path li {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px 15px;
-  padding: 24px;
+  grid-template-columns: auto minmax(210px, .42fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px 24px;
+  padding: 26px 28px;
   background: #11110f;
   counter-increment: steps;
 }
@@ -578,7 +579,6 @@
   display: grid;
   width: 32px;
   height: 32px;
-  grid-row: 1 / 3;
   place-items: center;
   border: 1px solid var(--orange);
   border-radius: 50%;
@@ -778,6 +778,14 @@
 
   .friend-path ol {
     grid-template-columns: 1fr;
+  }
+
+  .friend-path li {
+    grid-template-columns: auto 1fr;
+  }
+
+  .friend-path li span {
+    grid-column: 2;
   }
 }
 
