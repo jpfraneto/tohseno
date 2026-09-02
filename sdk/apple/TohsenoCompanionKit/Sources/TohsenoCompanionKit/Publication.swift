@@ -645,7 +645,7 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
     private static func canonicalJSON(_ value: Any) throws -> Data {
         if value is NSNull { return Data("null".utf8) }
         if let string = value as? String {
-            return try JSONSerialization.data(withJSONObject: [string]).dropFirst().dropLast()
+            return try canonicalJSONString(string)
         }
         if let number = value as? NSNumber {
             if CFGetTypeID(number) == CFBooleanGetTypeID() {
@@ -674,6 +674,13 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
             data.append(Data("}".utf8)); return data
         }
         throw TohsenoCompanionError.invalidEncoding("unsupported publication JSON value")
+    }
+
+    static func canonicalJSONString(_ value: String) throws -> Data {
+        try JSONSerialization.data(
+            withJSONObject: [value],
+            options: [.withoutEscapingSlashes]
+        ).dropFirst().dropLast()
     }
 
     private static func addressWord(_ value: String?) -> Data? {

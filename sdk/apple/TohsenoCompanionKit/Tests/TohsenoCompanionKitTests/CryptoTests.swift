@@ -3,6 +3,16 @@ import XCTest
 @testable import TohsenoCompanionKit
 
 final class CryptoTests: XCTestCase {
+    func testCanonicalPublicationStringsDoNotEscapePathSeparators() throws {
+        let encoded = try PublicationApprovalRequest.canonicalJSONString(
+            "Anky.xcodeproj/project.xcworkspace"
+        )
+        XCTAssertEqual(
+            String(data: encoded, encoding: .utf8),
+            #""Anky.xcodeproj/project.xcworkspace""#
+        )
+    }
+
     func testGlobalAliasUsesTheCatalogAppSlugBound() throws {
         let builderID = "eip155:4663:0x" + String(repeating: "1", count: 40)
         let digest = "0x" + String(repeating: "2", count: 64)
