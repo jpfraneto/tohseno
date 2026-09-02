@@ -45,6 +45,7 @@ export interface RegistryConfig {
   maxStagingBytes: number;
   relayerEnabled: boolean;
   relayerPrivateKey?: `0x${string}`;
+  aliasReviewTokenSha256?: string;
 }
 
 export interface ClaimsConfig {
@@ -324,6 +325,13 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       throw new Error("REGISTRY_RELAYER_PRIVATE_KEY must be one dedicated lowercase private key");
     }
   }
+  if (env.REGISTRY_ALIAS_REVIEW_TOKEN_SHA256 !== undefined
+      && !/^[a-f0-9]{64}$/.test(env.REGISTRY_ALIAS_REVIEW_TOKEN_SHA256)) {
+    throw new Error("REGISTRY_ALIAS_REVIEW_TOKEN_SHA256 must be a lowercase SHA-256 digest");
+  }
+  if (env.REGISTRY_ALIAS_REVIEW_TOKEN_SHA256 !== undefined && !registryEnabled) {
+    throw new Error("REGISTRY_ENABLED must be true before alias review can be enabled");
+  }
 
   const claimsAddress = env.CLAIMS_CONTRACT_ADDRESS;
   const claimsActivationDigest = env.CLAIMS_ACTIVATION_SIGNING_DIGEST;
@@ -432,6 +440,7 @@ export function loadConfig(env: Environment = process.env): AppConfig {
       maxStagingBytes: parsePositiveInteger("REGISTRY_MAX_STAGING_BYTES", env.REGISTRY_MAX_STAGING_BYTES, 10 * 1024 * 1024 * 1024),
       relayerEnabled: registryRelayerEnabled,
       relayerPrivateKey: env.REGISTRY_RELAYER_PRIVATE_KEY as `0x${string}` | undefined,
+      aliasReviewTokenSha256: env.REGISTRY_ALIAS_REVIEW_TOKEN_SHA256,
     },
     claims: {
       configured: claimsConfigured,
@@ -480,5 +489,6 @@ export function safeStartupSummary(
     macosDownloadChannel: config.distribution.macosChannel,
     registryEnabled: config.registry.enabled,
     registryRelayerEnabled: config.registry.relayerEnabled,
+    registryAliasReviewEnabled: config.registry.aliasReviewTokenSha256 !== undefined,
   };
 }

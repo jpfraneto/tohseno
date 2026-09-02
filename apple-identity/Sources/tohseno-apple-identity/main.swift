@@ -88,7 +88,7 @@ do {
     }
 
     let command = try AppleIdentityCommand.parse(arguments)
-    let store = AppleIdentityStore.shared
+    let store = try AppleIdentityStore.configured()
     switch command {
     case let .create(tag, backend):
         let result = try store.create(tag: tag, backend: backend)

@@ -24,7 +24,7 @@ pub struct Device {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DeviceState {
     Ready(Device),
-    CableMissing,
+    DeviceUnreachable,
     TrustRequired,
     DeveloperModeRequired,
 }
@@ -32,7 +32,7 @@ pub enum DeviceState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DeviceInventoryState {
     Ready(Vec<Device>),
-    CableMissing,
+    DeviceUnreachable,
     TrustRequired,
     DeveloperModeRequired,
 }
@@ -64,7 +64,7 @@ pub fn check() -> Result<DeviceState, DeviceError> {
             // resolve exactly one device before mutating it.
             DeviceState::Ready(devices.remove(0))
         }
-        DeviceInventoryState::CableMissing => DeviceState::CableMissing,
+        DeviceInventoryState::DeviceUnreachable => DeviceState::DeviceUnreachable,
         DeviceInventoryState::TrustRequired => DeviceState::TrustRequired,
         DeviceInventoryState::DeveloperModeRequired => DeviceState::DeveloperModeRequired,
     })
@@ -113,7 +113,7 @@ fn usb_registry() -> String {
 fn parse(json: &str) -> Result<DeviceState, DeviceError> {
     Ok(match parse_inventory_with_usb_registry(json, "")? {
         DeviceInventoryState::Ready(mut devices) => DeviceState::Ready(devices.remove(0)),
-        DeviceInventoryState::CableMissing => DeviceState::CableMissing,
+        DeviceInventoryState::DeviceUnreachable => DeviceState::DeviceUnreachable,
         DeviceInventoryState::TrustRequired => DeviceState::TrustRequired,
         DeviceInventoryState::DeveloperModeRequired => DeviceState::DeveloperModeRequired,
     })
@@ -186,7 +186,7 @@ fn parse_inventory_with_usb_registry(
         // observable pre-Trust state.
         Ok(DeviceInventoryState::TrustRequired)
     } else {
-        Ok(DeviceInventoryState::CableMissing)
+        Ok(DeviceInventoryState::DeviceUnreachable)
     }
 }
 
@@ -330,7 +330,7 @@ mod tests {
                 "enabled"
             ))
             .unwrap(),
-            DeviceState::CableMissing
+            DeviceState::DeviceUnreachable
         );
     }
 

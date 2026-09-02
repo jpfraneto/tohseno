@@ -76,12 +76,15 @@ path:
 ```bash
 cd ExistingApp
 tohseno init
-tohseno deploy
+tohseno deploy --app-slug your-app
 ```
 
 `init` adopts without restructuring or changing Git. `deploy` snapshots safe
 source and waits for exact Companion approval before the first Ship or a later
-Update. First Ship also fixes the Shot's one Claim Edition. Once Claims is
+Update. The optional slug is signed into the release and remains stable; after
+the exact app's separate Companion-signed alias request and operator review it
+can become `https://tohseno.com/your-app`. First Ship also fixes the Shot's one
+Claim Edition. Once Claims is
 separately activated, a recipient Claims the exact encounter on Companion;
 canonical confirmation durably queues preparation on their Mac, which still
 independently verifies the release before any build.

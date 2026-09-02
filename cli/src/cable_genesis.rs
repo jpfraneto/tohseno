@@ -337,7 +337,7 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
         );
     }
     match observed.device.as_ref() {
-        Some(DeviceState::CableMissing) | None => {
+        Some(DeviceState::DeviceUnreachable) | None => {
             return view(
                 GenesisStep::ConnectCable,
                 "Connect your iPhone to this Mac with a cable.",

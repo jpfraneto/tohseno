@@ -31,6 +31,14 @@ Software-test keys are separate Keychain items labelled
 `"test_only": true` and `"security_level": "software_test"`. There is no
 automatic downgrade from Secure Enclave to this backend.
 
+Repository verification additionally scopes software-test items to an exact
+temporary file Keychain by setting `TOHSENO_VERIFICATION_MODE=1` and an
+absolute, regular, non-symlink `TOHSENO_VERIFICATION_KEYCHAIN_PATH`. Verification
+mode opens and unlocks only that Keychain, limits add/search/delete operations
+to it, and refuses Secure Enclave creation. The lifecycle fixtures create and
+delete this Keychain without changing the user's Keychain search list. These
+variables are a test boundary, not a production identity configuration.
+
 The helper signs an already-computed 32-byte SHA-256 digest with
 `ecdsaSignatureDigestX962SHA256`, converts Apple DER signatures to fixed-width
 `r` and `s`, and normalizes `s` to the lower half of the P-256 group order.

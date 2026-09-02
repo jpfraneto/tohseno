@@ -4,6 +4,7 @@
 //! owns a versioned, owner-local pointer to source and append-only evolution
 //! history without writing Tohseno metadata into the selected repository.
 
+use crate::cable_genesis::{device_digest as companion_install_target_digest, CableGenesisStore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -206,6 +207,8 @@ pub struct ProjectPublication {
     pub checkpoint_sequence: u64,
     pub status: String,
     pub public_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_slug: Option<String>,
     pub transaction_hash: Option<String>,
     pub updated_at: String,
 }
@@ -436,6 +439,7 @@ pub struct ProjectEvolutionRequest {
 pub struct LivingProjectService {
     root: PathBuf,
     application: ShotApplicationService,
+    companion_install_target: CableGenesisStore,
     publication: Arc<Mutex<()>>,
     execution_lock: Arc<tokio::sync::Mutex<()>>,
 }
@@ -444,6 +448,7 @@ impl LivingProjectService {
     pub fn open(
         service_root: &Path,
         application: ShotApplicationService,
+        companion_install_target: CableGenesisStore,
     ) -> Result<Self, BoxError> {
         let root = service_root.join("living-projects-v1");
         ensure_private_directory(&root)?;
@@ -475,6 +480,7 @@ impl LivingProjectService {
         Ok(Self {
             root,
             application,
+            companion_install_target,
             publication: Arc::new(Mutex::new(())),
             execution_lock: Arc::new(tokio::sync::Mutex::new(())),
         })
@@ -687,9 +693,14 @@ impl LivingProjectService {
     ) -> Result<LivingProjectRecord, BoxError> {
         let observed = tokio::task::spawn_blocking(device::inventory).await??;
         let device = match observed {
-            DeviceInventoryState::Ready(mut devices) if devices.len() == 1 => devices.remove(0),
-            DeviceInventoryState::Ready(_) => return Ok(project.clone()),
-            DeviceInventoryState::CableMissing
+            DeviceInventoryState::Ready(devices) => {
+                match self.select_companion_install_target(devices)? {
+                    InstallTargetSelection::Ready(device) => device,
+                    InstallTargetSelection::TargetUnreachable
+                    | InstallTargetSelection::AssociationRequired => return Ok(project.clone()),
+                }
+            }
+            DeviceInventoryState::DeviceUnreachable
             | DeviceInventoryState::TrustRequired
             | DeviceInventoryState::DeveloperModeRequired => return Ok(project.clone()),
         };
@@ -973,13 +984,14 @@ impl LivingProjectService {
         &self,
         mut project: LivingProjectRecord,
     ) -> Result<LivingProjectRecord, BoxError> {
-        let Ok(DeviceInventoryState::Ready(mut devices)) = device::inventory() else {
+        let Ok(DeviceInventoryState::Ready(devices)) = device::inventory() else {
             return Ok(project);
         };
-        if devices.len() != 1 {
+        let InstallTargetSelection::Ready(device) =
+            self.select_companion_install_target(devices)?
+        else {
             return Ok(project);
-        }
-        let device = devices.remove(0);
+        };
         if !matches!(
             tohseno_engine::gates::install::is_bundle_installed(
                 &device,
@@ -1558,19 +1570,30 @@ impl LivingProjectService {
     ) -> Result<(), BoxError> {
         let observed = tokio::task::spawn_blocking(device::inventory).await??;
         let device = match observed {
-            DeviceInventoryState::Ready(mut devices) if devices.len() == 1 => devices.remove(0),
-            DeviceInventoryState::Ready(_) => {
-                return self.ready_to_install(
-                    project_id,
-                    evolution_id,
-                    "More than one iPhone is reachable. Disconnect the other iPhones, then Tohseno will continue with the saved build.",
-                )
+            DeviceInventoryState::Ready(devices) => {
+                match self.select_companion_install_target(devices)? {
+                    InstallTargetSelection::Ready(device) => device,
+                    InstallTargetSelection::TargetUnreachable => {
+                        return self.ready_to_install(
+                            project_id,
+                            evolution_id,
+                            "The iPhone that received Tohseno Companion is not reachable. Bring that phone within reach and unlock it; another visible iPhone will never be substituted.",
+                        )
+                    }
+                    InstallTargetSelection::AssociationRequired => {
+                        return self.ready_to_install(
+                            project_id,
+                            evolution_id,
+                            "More than one iPhone is reachable and this older setup has no intended-phone association. Disconnect the other iPhones, then Tohseno will continue with the saved build.",
+                        )
+                    }
+                }
             }
-            DeviceInventoryState::CableMissing => {
+            DeviceInventoryState::DeviceUnreachable => {
                 return self.ready_to_install(
                     project_id,
                     evolution_id,
-                    "Connect and unlock the paired iPhone. Tohseno will continue with the saved build.",
+                    "Bring the paired iPhone within reach, unlock it, and keep it on the same network as this Mac. Use USB only if Xcode has not paired it for Wi-Fi delivery.",
                 )
             }
             DeviceInventoryState::TrustRequired => {
@@ -1639,6 +1662,18 @@ impl LivingProjectService {
                 }
             }
         }
+    }
+
+    /// Resolve the physical destination independently of its current USB or
+    /// local-network transport. New setup records bind the CoreDevice that
+    /// received Companion; older records retain the exactly-one-device
+    /// compatibility fallback from ADR 0036.
+    fn select_companion_install_target(
+        &self,
+        devices: Vec<Device>,
+    ) -> Result<InstallTargetSelection, BoxError> {
+        let intended = self.companion_install_target.load()?.intended_device_digest;
+        Ok(select_install_target(devices, intended.as_deref()))
     }
 
     fn complete_installation(
@@ -3146,7 +3181,7 @@ fn project_presentation(
             Presentation {
                 state: PresentedState::ReadyForPhone,
                 headline: "Ready to install".into(),
-                detail: Some("Connect and unlock the paired iPhone to continue.".into()),
+                detail: Some("Make the paired iPhone reachable and unlock it to continue.".into()),
             }
         }
         Some(EvolutionStatus::Installing) => Presentation {
@@ -3226,7 +3261,7 @@ fn recovery_for_category(category: &str) -> &'static str {
         "device_locked" => "Unlock the paired iPhone and keep it awake while Tohseno retries installation.",
         "developer_mode_required" => "Enable Developer Mode in iPhone Settings → Privacy & Security, restart, and reconnect.",
         "trust_required" => "Connect the iPhone, unlock it, and tap Trust This Computer.",
-        "device_unavailable" => "Reconnect the paired iPhone by cable or Xcode-supported wireless connection.",
+        "device_unavailable" => "Make the paired iPhone reachable over Xcode-supported Wi-Fi or USB, then keep it unlocked.",
         _ => "Open the saved local log for the concrete Xcode or devicectl error, then retry.",
     }
 }
@@ -3258,6 +3293,34 @@ fn device_digest(identifier: &str) -> String {
     let digest =
         protocol_sha256(format!("TOHSENO-PRIVATE-OWNER-DEVICE-V1\0{identifier}").as_bytes());
     digest.to_string().trim_start_matches("0x").into()
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum InstallTargetSelection {
+    Ready(Device),
+    /// A durable Companion bootstrap target exists, but it is not among the
+    /// currently reachable CoreDevices. Never fall through to another phone.
+    TargetUnreachable,
+    /// Pre-association compatibility state with more than one visible phone.
+    AssociationRequired,
+}
+
+fn select_install_target(
+    mut devices: Vec<Device>,
+    intended_device_digest: Option<&str>,
+) -> InstallTargetSelection {
+    if let Some(intended) = intended_device_digest {
+        return devices
+            .into_iter()
+            .find(|device| companion_install_target_digest(&device.identifier) == intended)
+            .map(InstallTargetSelection::Ready)
+            .unwrap_or(InstallTargetSelection::TargetUnreachable);
+    }
+    if devices.len() == 1 {
+        InstallTargetSelection::Ready(devices.remove(0))
+    } else {
+        InstallTargetSelection::AssociationRequired
+    }
 }
 
 fn push_event(record: &mut ProjectEvolutionRecord, status: EvolutionStatus, summary: &str) {
@@ -3599,6 +3662,65 @@ fn ensure_private_directory(path: &Path) -> Result<(), BoxError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn physical_device(identifier: &str, transport: &str) -> Device {
+        Device {
+            identifier: identifier.into(),
+            udid: Some(format!("udid-{identifier}")),
+            name: format!("iPhone {identifier}"),
+            product_type: Some("iPhone18,1".into()),
+            marketing_name: Some("iPhone".into()),
+            os_version: Some("26.0".into()),
+            os_build: Some("23A000".into()),
+            physical: true,
+            transport: transport.into(),
+        }
+    }
+
+    #[test]
+    fn companion_bootstrap_target_wins_over_transport_and_inventory_order() {
+        let intended = companion_install_target_digest("phone-b");
+        let selected = select_install_target(
+            vec![
+                physical_device("phone-a", "usb"),
+                physical_device("phone-b", "localNetwork"),
+            ],
+            Some(&intended),
+        );
+        let InstallTargetSelection::Ready(device) = selected else {
+            panic!("the intended Companion phone should be selected");
+        };
+        assert_eq!(device.identifier, "phone-b");
+        assert_eq!(device.transport, "localNetwork");
+    }
+
+    #[test]
+    fn intended_phone_never_falls_through_to_another_reachable_phone() {
+        let intended = companion_install_target_digest("phone-b");
+        assert_eq!(
+            select_install_target(vec![physical_device("phone-a", "usb")], Some(&intended)),
+            InstallTargetSelection::TargetUnreachable
+        );
+    }
+
+    #[test]
+    fn legacy_target_selection_keeps_the_exactly_one_phone_fallback() {
+        let only = physical_device("phone-a", "usb");
+        assert_eq!(
+            select_install_target(vec![only.clone()], None),
+            InstallTargetSelection::Ready(only)
+        );
+        assert_eq!(
+            select_install_target(
+                vec![
+                    physical_device("phone-a", "usb"),
+                    physical_device("phone-b", "localNetwork"),
+                ],
+                None,
+            ),
+            InstallTargetSelection::AssociationRequired
+        );
+    }
 
     #[test]
     fn xcode_failure_categories_remain_actionable() {

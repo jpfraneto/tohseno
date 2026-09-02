@@ -18,7 +18,17 @@ protocol material, not free-form docs.
    Registry, relayer, released clients, and owner-attended physical evidence
    agree. It changes no frozen protocol encoding or generation-0.8 ABI, and
    authorizes no price, transfer, wallet-connect, fake Claim/installation, or
-   release-gate bypass. ADR 0034 governs the
+   release-gate bypass. ADR 0036 makes the intended physical iPhone the private
+   installation destination while USB and local-network reachability remain
+   interchangeable observed transports. Current source consumes the private
+   Companion-setup CoreDevice digest as a single-target bootstrap selector and
+   never substitutes another visible phone; older records retain the
+   exactly-one-reachable-device fallback. The full replacement/multi-target
+   association still requires physical acceptance. ADR 0037 defines future network trust
+   as exact-release Identity Bindings, Verification Reports, Release
+   Attestations, and private social context. Neither decision changes Claim,
+   frozen encodings, deployed ABIs, Apple security, or release gates, and no
+   opaque safe score or inherited review is permitted. ADR 0034 governs the
    person-to-person native software network. The Mac is the factory, Companion
    is the human authority holding the non-exportable Builder DeviceKey, and the
    active generation-0.8 Registry plus signed off-chain catalog is the public
@@ -137,9 +147,9 @@ node --test studio/tests/static_assets.test.mjs
 ./scripts/test-network-e2e.sh
 ```
 
-The three lifecycle scripts use isolated service, Shot, relay, and
-LaunchAgent fixtures. They do not call the developer's real LaunchAgent or
-remove unrelated Keychain records.
+The three lifecycle scripts use isolated service, Shot, relay, LaunchAgent, and
+temporary Keychain fixtures. They do not call the developer's real LaunchAgent,
+change the user's Keychain search list, or remove unrelated Keychain records.
 
 No new contract-generation or deployment ceremony is active on `main`;
 `scripts/deploy-candidate.sh` fails closed by design. Do not add one.

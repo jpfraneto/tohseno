@@ -167,11 +167,11 @@ impl ApiError {
         match error {
             ApplicationError::Engine(tohseno_engine::EngineError::DeviceUnavailable(_)) => {
                 Self::unavailable(
-                    "Connect and unlock your iPhone before deleting an installed app.",
+                    "Make your paired iPhone reachable and unlock it before deleting an installed app.",
                 )
             }
             ApplicationError::Engine(tohseno_engine::EngineError::Install(_)) => Self::unavailable(
-                "Your iPhone could not remove this app. Keep it connected and unlocked, then try again.",
+                "Your iPhone could not remove this app. Keep it reachable and unlocked, then try again.",
             ),
             ApplicationError::Invalid(message)
                 if message.starts_with("this app is still building") =>
@@ -456,6 +456,7 @@ pub async fn run_with(
     let living_projects = Arc::new(LivingProjectService::open(
         &paths.service_state,
         application.clone(),
+        genesis.clone(),
     )?);
     if living_projects.recover_interrupted()? > 0 {
         events.emit(Event::status(
@@ -1936,7 +1937,7 @@ fn observe_genesis(state: &WorkspaceState) -> Result<GenesisObservation, ApiErro
     let xcode_ready = toolchain::check() == toolchain::ToolchainState::Ready;
     let device_state = xcode_ready.then(device::check).and_then(Result::ok);
     let cable_visible = match device_state.as_ref() {
-        Some(device::DeviceState::CableMissing) | None => device::cable_visible(),
+        Some(device::DeviceState::DeviceUnreachable) | None => device::cable_visible(),
         Some(_) => true,
     };
     let signing_ready = matches!(

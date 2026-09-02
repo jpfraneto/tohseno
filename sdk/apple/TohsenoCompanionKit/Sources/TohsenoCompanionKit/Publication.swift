@@ -252,6 +252,12 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
     public let claimEdition: ClaimEditionApprovalContext?
 
     public var id: String { jobID }
+    public var catalogAppSlug: String? {
+        guard let release = try? Self.object(catalogReleaseJSON),
+              let display = release["display"] as? [String: Any]
+        else { return nil }
+        return display["app_slug"] as? String
+    }
 
     enum CodingKeys: String, CodingKey {
         case schema

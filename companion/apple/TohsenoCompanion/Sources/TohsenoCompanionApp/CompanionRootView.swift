@@ -81,10 +81,17 @@ private struct PublicationApprovalView: View {
                     LabeledContent("Source", value: "\(request.sourceFileCount) files · \(ByteCountFormatter.string(fromByteCount: Int64(request.sourceByteLength), countStyle: .file))")
                     LabeledContent("Install", value: request.installAllowed ? "Allowed" : "Not allowed")
                     LabeledContent("Fork", value: request.forkAllowed ? "Allowed" : "Not allowed")
-                    LabeledContent("Link", value: request.requestedRoute)
+                    if let appSlug = request.catalogAppSlug {
+                        LabeledContent("Release slug", value: "/\(appSlug)")
+                    }
+                    LabeledContent("Exact Shot", value: request.requestedRoute)
                     LabeledContent("Checkpoint", value: "#\(request.checkpointSequence)")
                 }
                 .font(.subheadline)
+                if request.catalogAppSlug != nil {
+                    Text("After Ship, request the root link separately in Profile. A signed slug does not reserve or activate the alias.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
                 if request.publicationKind == "ship", let context = request.claimEdition {
                     if let required = context.requestedPolicy {
                         VStack(alignment: .leading, spacing: 6) {
@@ -587,15 +594,34 @@ private struct BuilderProfileView: View {
                         .font(.caption).foregroundStyle(Tohseno.ash)
                 }
                 Section("Global alias request") {
-                    TextField("Alias", text: $model.requestedAlias)
+                    if model.aliasEligibleApps.isEmpty {
+                        Text("Ship an installable app before requesting its global link.")
+                            .foregroundStyle(Tohseno.ash)
+                    } else {
+                        Picker("App", selection: $model.requestedAliasShotID) {
+                            ForEach(model.aliasEligibleApps) { app in
+                                Text(app.release.display.name).tag(app.release.shotID)
+                            }
+                        }
+                    }
+                    TextField(model.selectedAliasAppSlug ?? "Alias", text: $model.requestedAlias)
                     Button {
                         Task { await model.requestGlobalAlias() }
                     } label: {
                         Label("Sign Alias Request", systemImage: "link.badge.plus")
                     }
-                    .disabled(model.busy || model.requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(model.busy || !model.canRequestGlobalAlias)
+                    if let appSlug = model.selectedAliasAppSlug {
+                        Text("Leave Alias empty to request /\(appSlug), the slug signed into this release.")
+                            .font(.caption).foregroundStyle(Tohseno.ash)
+                    }
                     Text("Aliases are convenience routes, not Shot identity. Every request is rate-limited and requires explicit policy review.")
                         .font(.caption).foregroundStyle(Tohseno.ash)
+                    if let requestID = model.lastAliasRequestID {
+                        LabeledContent("Review request", value: requestID)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
                 }
                 if let status = model.profileNotice {
                     Section("Profile status") { Text(status).foregroundStyle(Tohseno.ash) }

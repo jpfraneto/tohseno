@@ -4,6 +4,7 @@ umask 077
 
 script_name="local-companion-e2e.sh"
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+. "$repository_root/scripts/fixtures/verification-keychain.sh"
 temporary_parent="$(CDPATH= cd -- "${TMPDIR:-/tmp}" && pwd -P)"
 temporary_root="$(mktemp -d "$temporary_parent/tohseno-local-companion.XXXXXX")"
 relay_pid=""
@@ -44,7 +45,8 @@ delete_test_secret() {
     workspace-seed:workspace_*|simulator-phrase:device_*)
       /usr/bin/security delete-generic-password \
         -a "$secret_reference" \
-        -s com.tohseno.workspace-service \
+        -s "$verification_keychain_service" \
+        "$verification_keychain_path" \
         >/dev/null 2>&1
       ;;
     "") return 0 ;;
@@ -85,7 +87,9 @@ cleanup() {
   case "$builder_key_tag" in
     org.tohseno.builder.device.*)
       if [ -x "$identity_helper" ]; then
-        "$identity_helper" delete --tag "$builder_key_tag" \
+        TOHSENO_VERIFICATION_MODE=1 \
+          TOHSENO_VERIFICATION_KEYCHAIN_PATH="$verification_keychain_path" \
+          "$identity_helper" delete --tag "$builder_key_tag" \
           >"$temporary_root/builder-delete.json" 2>/dev/null || cleanup_status=1
       else
         cleanup_status=1
@@ -99,7 +103,9 @@ cleanup() {
         case "$recovered_builder_tag" in
           org.tohseno.builder.device.*)
             if [ -x "$identity_helper" ]; then
-              "$identity_helper" delete --tag "$recovered_builder_tag" \
+              TOHSENO_VERIFICATION_MODE=1 \
+                TOHSENO_VERIFICATION_KEYCHAIN_PATH="$verification_keychain_path" \
+                "$identity_helper" delete --tag "$recovered_builder_tag" \
                 >"$temporary_root/builder-delete.json" 2>/dev/null || cleanup_status=1
             else
               cleanup_status=1
@@ -110,6 +116,7 @@ cleanup() {
       ;;
     *) cleanup_status=1 ;;
   esac
+  delete_tohseno_verification_keychain "$temporary_root" || cleanup_status=1
   if [ "${TOHSENO_LOCAL_COMPANION_KEEP_ARTIFACTS:-0}" = "1" ]; then
     printf '%s: preserving isolated artifacts at %s\n' "$script_name" "$temporary_root" >&2
     exit "$cleanup_status"
@@ -135,6 +142,8 @@ for dependency in cargo bun curl python3 swift xcodebuild xcrun; do
 done
 test "$(uname -s)" = "Darwin" || fail "the Local Workspace Service requires macOS"
 test -x /usr/bin/security || fail "macOS Keychain tooling is unavailable"
+create_tohseno_verification_keychain "$temporary_root" "local-companion" ||
+  fail "an isolated verification Keychain could not be created"
 
 if [ -n "${TOHSENO_LOCAL_COMPANION_RELAY_PORT:-}" ]; then
   relay_port="$TOHSENO_LOCAL_COMPANION_RELAY_PORT"
@@ -190,6 +199,10 @@ run_tohseno() {
     TOHSENO_COMPANION_RELAY_ORIGIN="$relay_origin" \
     TOHSENO_APPLE_IDENTITY_HELPER="$identity_helper" \
     TOHSENO_IDENTITY_BACKEND=software-test \
+    TOHSENO_VERIFICATION_MODE=1 \
+    TOHSENO_VERIFICATION_KEYCHAIN_PATH="$verification_keychain_path" \
+    TOHSENO_VERIFICATION_KEYCHAIN_SERVICE="$verification_keychain_service" \
+    TOHSENO_VERIFICATION_SERVICE_LABEL="$verification_service_label" \
     TOHSENO_TEST_FACTORY_HARNESS="$fixture_harness" \
     TOHSENO_TEST_FACTORY_NO_DEVICE=1 \
     "$binary" "$@"
@@ -234,6 +247,10 @@ env \
   TOHSENO_COMPANION_RELAY_ORIGIN="$relay_origin" \
   TOHSENO_APPLE_IDENTITY_HELPER="$identity_helper" \
   TOHSENO_IDENTITY_BACKEND=software-test \
+  TOHSENO_VERIFICATION_MODE=1 \
+  TOHSENO_VERIFICATION_KEYCHAIN_PATH="$verification_keychain_path" \
+  TOHSENO_VERIFICATION_KEYCHAIN_SERVICE="$verification_keychain_service" \
+  TOHSENO_VERIFICATION_SERVICE_LABEL="$verification_service_label" \
   TOHSENO_TEST_FACTORY_HARNESS="$fixture_harness" \
   TOHSENO_TEST_FACTORY_NO_DEVICE=1 \
   TOHSENO_DEVELOPMENT_ENTITLEMENT=1 \

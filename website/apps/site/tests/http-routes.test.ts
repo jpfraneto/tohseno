@@ -585,7 +585,7 @@ describe("removed surfaces stay removed", () => {
     expect(records[0]).toMatchObject({
       event: "request",
       method: "GET",
-      route: "unmatched",
+      route: "public-registry",
       status: 404,
     });
     expect(JSON.stringify(records)).not.toContain(

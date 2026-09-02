@@ -1,4174 +1,1801 @@
-# TOHSENO ADR 0035 — CLAIMING SOFTWARE
-# THE REGISTRY BECOMES A PLACE
-#
-# EXECUTION PROMPT
-#
-# OPERATING MODE:
-# UNDERSTAND → DECIDE → IMPLEMENT → VERIFY → COMMIT → PUSH →
-# DEPLOY DARK → DEPLOY CONTRACT → PROVE → RELEASE ONLY WHEN TRUE.
-#
-# DO NOT RETURN A PRODUCT PLAN.
-# DO NOT STOP AT AN ADR.
-# DO NOT BUILD A MOCK REGISTRY.
-# DO NOT ADD SOCIAL-MEDIA FEATURES.
-# DO NOT REWRITE TOHSENO 1.1 RELEASE EVIDENCE.
-# DO NOT MODIFY THE DEPLOYED GENERATION-0.8 SHOTREGISTRY ABI.
-#
-# THIS EVOLUTION HAS FIVE LAWS:
-#
-#     A SHOT IS SHIPPED ONCE.
-#
-#     A SHOT MAY UPDATE FOREVER.
-#
-#     A TOHSENO IDENTITY MAY CLAIM A SHOT ONCE.
-#
-#     A BUILDER MAY BE FOLLOWED.
-#
-#     THE REGISTRY IS THE LIVING WORLD CREATED BY THESE FACTS.
-#
-# The product state after this work must feel categorically different:
-#
-#     YOUR APPS = THE WORKSHOP
-#     REGISTRY  = THE WORLD
-#     APP PAGE  = THE ALTAR
-#     COMPANION = THE HUMAN HAND + AUTHORITY
-#     PROFILE   = THE MEMORY OF ENCOUNTERS
-#
-# ============================================================
-# 0. PRESERVE THE CURRENT 1.1 TRUTH BEFORE TOUCHING ANYTHING
-# ============================================================
-
-You are entering a repository whose 1.1 person-to-person network implementation
-already exists in source and whose stable release evidence may still be incomplete.
-
-DO NOT accidentally convert unfinished 1.1 acceptance into 1.2 evidence.
-
-Before editing:
-
-    pwd
-    git status --short
-    git branch --show-current
-    git remote -v
-    git log -10 --oneline
-
-Then inspect:
-
-    release/
-    docs/STATE.md
-    docs/adr/0034-person-to-person-native-software.md
-    current version declarations
-    current 1.1 readiness record
-    current protected tag/ruleset evidence
-    current production deployment state
-
-Determine the exact immutable source commit intended for 1.1.0.
-
-If 1.1.0 is not yet released:
-
-1. preserve that exact source commit in the existing readiness evidence;
-2. do not rewrite its acceptance requirements;
-3. do not claim ADR 0035 behavior belongs to 1.1.0;
-4. ensure 1.1 can still be built/released from its recorded exact commit;
-5. target this evolution at 1.2.0, or the next correct minor version if
-   repository state has advanced.
-
-Do not create `v1.1.0` merely to clear the path for this work.
-
-Do not invalidate physical acceptance already gathered for 1.1.
-
-Do not mix 1.1 and ADR 0035 release evidence.
-
-This is a NEW product evolution.
-
-Expected target:
-
-    Tohseno 1.2.0
-
-if repository version state still matches the current documented state.
-
-# ============================================================
-# 1. WORKING TREE SAFETY
-# ============================================================
-
-Record the exact initial dirty-path set.
-
-Rules:
-
-- never `git reset --hard`;
-- never `git clean`;
-- never discard unrelated work;
-- never silently stash;
-- never overwrite an untracked owner file;
-- preserve pre-existing dirty edits in files you must touch;
-- stage only work belonging to this evolution;
-- inspect `git diff` and `git diff --cached` before every commit;
-- never commit secrets, provisioning data, wallet private material, relay keys,
-  notarization credentials, RPC secrets, OAuth secrets, or `.env` values.
-
-The same principle applies to product source:
-
-Tohseno may evolve an app only through an explicit human request.
-Claiming, following, Registry browsing, installation, publication, or updating
-must never implicitly mutate unrelated source or Git state.
-
-# ============================================================
-# 2. READ THE CURRENT SYSTEM AS AUTHORITY
-# ============================================================
-
-Before designing any implementation, read the actual current versions of at least:
-
-- AGENTS.md
-- README.md
-- docs/STATE.md
-- docs/ARCHITECTURE.md
-- docs/LIVING_CONNECTION.md
-- current threat model
-- ADR 0034
-- ADR 0033
-- ADR 0032
-- ADR 0026
-- ADR 0025
-- protocol/SPECIFICATION.md
-- protocol/CONFORMANCE.md
-- active generation-0.8 vectors and schemas
-- contracts/README.md
-- contracts active generation source
-- contract activation records
-- current BuilderAccountFactory implementation
-- current BuilderAccount implementation
-- current ShotRegistry implementation
-- current P256 verifier
-- current Foundry configuration
-- network/
-- cli/src/network_commands.rs
-- CLI init/deploy/install/fork implementations
-- native installation and refresh code
-- application/
-- engine/
-- macos/Tohseno/
-- companion/apple/TohsenoCompanion/
-- sdk/apple/TohsenoCompanionKit/
-- Companion DeviceKey implementation
-- Companion relay schemas and command admission
-- website/apps/site/
-- current Registry service implementation
-- current catalog schema
-- current signed Builder profile schema
-- current alias-claim implementation
-- current blob/staging implementation
-- current Robinhood relayer
-- current chain indexer
-- current website app pages
-- current Registry Mac UI
-- current Registry Companion UI
-- current Profile Mac/Companion UI
-- existing release workflows
-- existing production runbooks
-
-Protocol bytes remain governed by `protocol/`.
-
-Historical ADRs remain historical.
-
-Do not edit ADR 0034 to make history look cleaner.
-
-Supersede current product behavior through ADR 0035.
-
-# ============================================================
-# 3. WRITE ADR 0035 FIRST
-# ============================================================
-
-Create the next correct ADR, expected to be:
-
-    docs/adr/0035-claiming-software.md
-
-Title:
-
-    ADR 0035: Claiming software
-
-Status:
-
-    accepted
-
-Date:
-
-    current date
-
-ADR 0035 MUST establish the following product evolution.
-
-ADR 0034 made native software capable of traveling person-to-person.
-
-ADR 0035 gives a human a durable act of encounter with that software.
-
-The central primitive is:
-
-    CLAIM
-
-A Claim says:
-
-    "This Tohseno identity encountered and claimed this Shot
-     at this exact point in its life."
-
-Claim is NOT:
-
-- payment;
-- purchase;
-- license enforcement;
-- Apple installation proof;
-- a generic wallet transaction;
-- a transferable speculative asset;
-- a replacement for Shot ownership;
-- a replacement for Builder authority;
-- proof of unique humanity.
-
-Claim IS:
-
-- public;
-- intentional;
-- signed by the claiming Tohseno identity;
-- gas-sponsored by Tohseno;
-- recorded on Robinhood Chain;
-- represented by one non-transferable NFT;
-- bound to one Shot;
-- bound to the exact release/checkpoint encountered;
-- bound to one expressive gesture commitment;
-- singular per Tohseno identity per Shot;
-- durable across devices, Macs, reinstalls, updates and signing refreshes.
-
-ADR 0035 MUST also establish:
-
-    A Shot is shipped exactly once.
-
-    Every later network release of that Shot is an Update.
-
-    A Fork is a different Shot.
-    When that child enters the network, the child is shipped once.
-
-    Every public Shot opens exactly one Claim Edition when it is shipped.
-
-    The Claim Edition belongs to the Shot, not to a release.
-
-    Updates do not reopen, replace, reset or alter the Claim Edition.
-
-    Claim supply and time horizon are fixed at shipment.
-
-    The Registry is a timeline of software events, not an App Store grid.
-
-    Following Builders is private preference state, not public social capital.
-
-    No follower counts exist.
-
-# ============================================================
-# 4. PRODUCT AXIOMS
-# ============================================================
-
-Carry these exact axioms through code, language and UI.
-
-## A Shot is born once
-
-The first successful transition from private/local candidate to publicly
-discoverable network Shot is:
-
-    SHIP
-
-There may never be a second `shot.shipped` event for the same ShotID.
-
-## A Shot changes through updates
-
-After shipping:
-
-    Update
-
-is the only publication vocabulary.
-
-Never write:
-
-    shipped v2
-    shipped v3
-    shipped another release
-    re-shipped
-
-Use:
-
-    updated
-    published an update
-    update available
-
-The CLI command may remain:
-
-    tohseno deploy
-
-for developer ergonomics.
-
-Its semantics depend on public state:
-
-    unshipped Shot + deploy = Ship
-    shipped Shot   + deploy = Update
-
-Its output MUST reflect that distinction.
-
-First:
-
-    Shipped.
-
-Later:
-
-    Updated.
-
-## A human claims once
-
-For one Shot:
-
-    one Tohseno account → zero or one Claim NFT
-
-Never multiple units.
-
-Never quantity selection.
-
-Never “buy 10.”
-
-## A claim persists
-
-An update does not invalidate the Claim.
-
-A signing refresh does not alter the Claim.
-
-A phone replacement does not alter the Claim.
-
-A Mac replacement does not alter the Claim.
-
-A reinstall does not create another Claim.
-
-## A claim remembers encounter
-
-A Claim records which exact network release/checkpoint the human encountered
-when claiming.
-
-If the app updates tomorrow, the receipt still says:
-
-    claimed at release X
-
-## Claim is not installation
-
-Claim:
-
-    durable public relationship
-
-Install:
-
-    executable currently materialized and signed on a device
-
-These states must remain distinct.
-
-# ============================================================
-# 5. THE NEW NETWORK LIFECYCLE
-# ============================================================
-
-Implement this conceptual lifecycle.
-
-BUILDER:
-
-    existing Xcode project
-          ↓
-    tohseno init
-          ↓
-    local candidate Shot
-          ↓
-    tohseno deploy
-          ↓
-    source snapshot + catalog release + Registry action
-          ↓
-    choose immutable Claim Edition
-          ↓
-    approve exact Ship on Companion
-          ↓
-    ShotRegistry registration
-          ↓
-    Claim Edition opens
-          ↓
-    signed catalog becomes discoverable
-          ↓
-
-        SHIPPED ONCE
-
-          ↓
-    tohseno.com/<app>
-
-
-HUMAN:
-
-    encounters app
-          ↓
-        CLAIM
-          ↓
-    Companion opens
-          ↓
-    draw one circle around artifact
-          ↓
-    Companion recomputes exact Claim payload
-          ↓
-    Companion DeviceKey authorizes
-          ↓
-    Tohseno relays
-          ↓
-    Robinhood Chain confirms NFT mint
-          ↓
-
-        CLAIMED
-
-          ↓
-    exact claim number + mark receipt
-          ↓
-    installation intention automatically enters durable Companion outbox
-          ↓
-    Mac may be offline
-          ↓
-    Mac eventually receives request
-          ↓
-    verifies exact claimed release
-          ↓
-    downloads source
-          ↓
-    prepares build
-          ↓
-    Ready for your iPhone
-          ↓
-    cable
-          ↓
-    recipient-local Xcode signing
-          ↓
-    devicectl install
-          ↓
-    physical verification
-          ↓
-
-        INSTALLED
-
-
-BUILDER LATER:
-
-    source changes
-          ↓
-    tohseno deploy
-          ↓
-    Companion approves exact update
-          ↓
-    AppendCheckpoint
-          ↓
-    new immutable catalog release
-          ↓
-
-        UPDATED
-
-          ↓
-    existing claimants may see:
-        Update available
-
-
-FORK:
-
-    claimed Shot
-          ↓
-    Fork
-          ↓
-    exact parent release
-          ↓
-    new local source
-          ↓
-    NEW ShotID
-          ↓
-    evolve
-          ↓
-    deploy
-          ↓
-
-        CHILD IS SHIPPED ONCE
-
-          ↓
-    child receives its OWN Claim Edition
-
-# ============================================================
-# 6. CLAIM EDITIONS
-# ============================================================
-
-Every publicly shipped Shot MUST have exactly one Claim Edition.
-
-The Builder chooses the edition when the Shot is first shipped.
-
-Support exactly four policies in this release.
-
-## Open
-
-    maxClaims = unlimited
-    closesAt  = never
-
-Human presentation:
-
-    OPEN EDITION · ∞
-
-## Limited
-
-Example:
-
-    maxClaims = 888
-    closesAt  = never
-
-Human presentation:
-
-    431 / 888 CLAIMED
-
-## Timed
-
-    maxClaims = unlimited
-    closesAt  = exact timestamp
-
-Human presentation:
-
-    OPEN UNTIL SEP 8
-    3h 41m REMAINING
-
-## Limited + Timed
-
-Example:
-
-    maxClaims = 888
-    closesAt  = exact timestamp
-
-The edition closes at whichever occurs first:
-
-    supply exhausted
-    OR
-    closesAt reached
-
-No other policy in v1.
-
-Do not add:
-
-- pricing;
-- auctions;
-- allowlists;
-- rarity;
-- tiers;
-- staking;
-- paid mints;
-- Dutch auctions;
-- bonding curves;
-- per-release editions;
-- multiple editions per Shot.
-
-# ============================================================
-# 7. EDITION POLICY IS IMMUTABLE
-# ============================================================
-
-This is a hard invariant.
-
-If a Builder ships:
-
-    888 Edition
-
-they may not later change it to:
-
-    8,888
-
-If they ship:
-
-    Open Edition
-
-they may not later convert it into a scarce edition.
-
-If they ship:
-
-    closes September 8
-
-they may not extend the deadline after people acted on that fact.
-
-The claim horizon is part of the Shot's birth.
-
-Updates cannot change it.
-
-Alias changes cannot change it.
-
-Builder transfer cannot change it.
-
-Profile changes cannot change it.
-
-The contract must enforce this.
-
-The server must not simulate mutability.
-
-# ============================================================
-# 8. SAY "IDENTITIES", NOT "HUMANS" OR "IPHONES"
-# ============================================================
-
-Scarcity is enforced per Tohseno identity/account.
-
-It is NOT proof-of-personhood.
-
-Therefore product copy may say:
-
-    888 Tohseno identities can claim this.
-
-Do NOT claim:
-
-    888 unique humans
-
-unless the system has independent proof-of-personhood, which it does not.
-
-Do NOT bind scarcity to physical phone hardware.
-
-Phones are replaceable.
-
-The account is the durable owner.
-
-# ============================================================
-# 9. ADD A SEPARATE CLAIMS CONTRACT
-# ============================================================
-
-The existing active generation-0.8 contracts remain immutable.
-
-DO NOT:
-
-- edit ShotRegistry;
-- edit BuilderAccountFactory;
-- edit BuilderAccount;
-- edit generation-0.8 source;
-- deploy a replacement ShotRegistry;
-- call this a registry generation upgrade;
-- resurrect ShotRelations;
-- add handles to ShotRegistry.
-
-Introduce ONE additive product contract:
-
-    TohsenoClaimsV1
-
-on Robinhood Chain.
-
-It references the already trusted active ShotRegistry.
-
-This contract is attached to Shots but is not part of frozen Registry generation
-0.8 protocol semantics.
-
-Create explicit activation evidence for Claims separately from generation-0.8
-Registry activation.
-
-Do not make clients trust a copied address merely because it appears in source.
-
-Use the repository's existing signed activation philosophy.
-
-The new claims activation must bind at minimum:
-
-- chain ID;
-- contract address;
-- exact runtime code hash;
-- expected ShotRegistry address;
-- exact source generation/version;
-- deployment transaction;
-- deployment block;
-- activation sequence/digest according to the new additive activation model.
-
-# ============================================================
-# 10. USE ONE NON-TRANSFERABLE ERC-721 CONTRACT
-# ============================================================
-
-Implement Claim receipts as ERC-721-compatible NFTs.
-
-Use ONE Tohseno Claims contract for all Shots.
-
-DO NOT deploy one NFT contract per app.
-
-DO NOT use ERC-1155 for v1.
-
-Reason:
-
-Every Claim is individually meaningful.
-
-Each Claim has:
-
-- one exact claimant;
-- one sequential claim number inside a Shot;
-- one exact release encountered;
-- one exact Registry checkpoint encountered;
-- one gesture commitment;
-- one timestamp;
-- one unique receipt.
-
-That is a unique NFT receipt.
-
-Conceptually:
-
-    TohsenoClaimsV1
-        token #184 → Prayer Lock
-                     claim #184 of 888
-                     claimant 0x...
-                     release X
-                     checkpoint Y
-                     gesture commitment Z
-
-# ============================================================
-# 11. CLAIM TOKENS ARE NON-TRANSFERABLE
-# ============================================================
-
-A Claim means:
-
-    this identity claimed this software
-
-Therefore it may not become inventory.
-
-Token transfer MUST revert.
-
-Approval-for-transfer MUST NOT create a useful transfer path.
-
-The holder may not sell it to make the semantic statement false.
-
-Do not add a marketplace.
-
-Do not add prices.
-
-Do not add royalties.
-
-Do not add burn-and-remint migration as a shortcut.
-
-Recovery must preserve the SAME Tohseno account and therefore the same NFT
-ownership rather than moving Claim NFTs to a new identity.
-
-If ERC-721 interface conformance requires standard transfer functions, implement
-them as explicit reverts under a documented non-transferability rule.
-
-# ============================================================
-# 12. CLAIM CONTRACT STATE
-# ============================================================
-
-Implement the smallest exact state model.
-
-Conceptually:
-
-    struct ClaimEdition {
-        bool opened;
-        uint64 maxClaims;      // 0 means unlimited
-        uint64 totalClaims;
-        uint64 openedAt;
-        uint64 closesAt;       // 0 means never
-    }
-
-    struct ClaimRecord {
-        bytes32 shotId;
-        uint64 claimNumber;
-        address claimant;
-        bytes32 releaseDigest;
-        bytes32 checkpointDigest;
-        bytes32 gestureCommitment;
-    }
-
-Required mappings conceptually:
-
-    ShotID → ClaimEdition
-
-    ShotID + Tohseno account → tokenId
-
-    tokenId → ClaimRecord
-
-Token IDs may be monotonically allocated globally beginning at 1.
-
-Do not derive identity from claim number.
-
-Do not overload ShotID into a token ID if doing so destroys unique per-claim
-receipts.
-
-# ============================================================
-# 13. CLAIM EDITION OPENING
-# ============================================================
-
-An edition may be opened only after the Shot exists in the active ShotRegistry.
-
-Only the current Shot controller may authorize opening.
-
-The transaction itself may be relayed by anyone.
-
-The authorization MUST be an exact EIP-712 typed action signed through the
-current BuilderAccount authority.
-
-Define a closed action such as:
-
-    OpenClaimEdition
-
-binding at minimum:
-
-- chainId;
-- TohsenoClaimsV1 address;
-- active ShotRegistry address;
-- ShotID;
-- maxClaims;
-- closesAt;
-- exact controller;
-- nonce;
-- deadline.
-
-The contract MUST:
-
-1. confirm the Shot is registered;
-2. read the exact current controller from ShotRegistry;
-3. verify authorization against that controller using the current account's
-   ERC-1271 behavior;
-4. reject if edition already exists;
-5. reject invalid limits/deadlines;
-6. persist immutable policy;
-7. emit one exact event.
-
-Conceptual event:
-
-    ClaimEditionOpened(
-        shotId,
-        controller,
-        maxClaims,
-        opensAt,
-        closesAt
-    )
-
-No admin may later rewrite it.
-
-# ============================================================
-# 14. CLAIM ACTION
-# ============================================================
-
-Define an exact EIP-712 action:
-
-    ClaimSoftware
-
-It MUST bind at minimum:
-
-- chainId;
-- TohsenoClaimsV1 address;
-- ShotRegistry address;
-- ShotID;
-- claimant Tohseno account;
-- exact catalog release digest;
-- exact public checkpoint digest;
-- gesture commitment;
-- claimant nonce;
-- deadline.
-
-The claimant's Companion DeviceKey is the human authorization source.
-
-The final on-chain verification should use the claimant smart account's exact
-supported authority path.
-
-Do not accept an opaque arbitrary EOA signature as a substitute.
-
-Do not use an InstallationKey.
-
-Do not use pairing keys.
-
-Do not use the Apple signing identity.
-
-# ============================================================
-# 15. BIND CLAIM TO THE CURRENT SHOT STATE
-# ============================================================
-
-A human must never draw a circle around release X and silently receive release Y.
-
-At claim preparation:
-
-1. resolve exact Shot;
-2. resolve exact current discoverable Release;
-3. verify catalog manifest;
-4. verify Builder signature;
-5. verify current Registry head;
-6. bind release digest + public checkpoint digest into ClaimSoftware.
-
-At claim execution:
-
-The contract MUST verify that the supplied checkpoint digest still equals the
-current relevant Registry head if the active ShotRegistry ABI permits exact
-verification.
-
-If the Shot updated between review and mint:
-
-    revert
-
-The UI then says:
-
-    This app changed while you were claiming it.
-    Review the update and claim again.
-
-Do NOT silently rebase a Claim onto newer software.
-
-# ============================================================
-# 16. ONE CLAIM PER IDENTITY
-# ============================================================
-
-Contract invariant:
-
-    claimTokenOf[shotId][claimant] == none
-
-before mint.
-
-After mint:
-
-    claimTokenOf[shotId][claimant] == exact tokenId
-
-forever.
-
-A second Claim against the same Shot MUST revert deterministically.
-
-This remains true after:
-
-- app updates;
-- alias change;
-- builder profile change;
-- phone replacement;
-- Mac replacement;
-- signing refresh;
-- Builder transfer.
-
-# ============================================================
-# 17. LIMITED EDITION RACES
-# ============================================================
-
-Do not invent reservation semantics in v1.
-
-If only one slot remains and two valid identities submit:
-
-- chain ordering decides;
-- first valid canonical claim succeeds;
-- second reverts because supply is exhausted.
-
-The losing UI says:
-
-    This edition closed before your claim confirmed.
-
-Do not say Claimed before canonical confirmation.
-
-Do not fake a reserved number while transaction is pending.
-
-# ============================================================
-# 18. GASLESS IS A PRODUCT INVARIANT
-# ============================================================
-
-Normal users NEVER see:
-
-- gas estimates;
-- ETH balances;
-- RPC selection;
-- chain selection;
-- "connect wallet";
-- seed import before claiming;
-- transaction fee approval.
-
-The Companion signs.
-
-Tohseno relays.
-
-Robinhood Chain executes.
-
-The existing constrained relayer may be extended only with exact allowlisted
-Claims operations.
-
-Do not expose an arbitrary transaction relay.
-
-The claims relayer may submit only the precise supported actions needed for:
-
-- Tohseno account bootstrap when required;
-- ClaimEdition opening;
-- ClaimSoftware.
-
-Rate limit it.
-
-Persist jobs before submission.
-
-Make retries idempotent.
-
-Never hold a user's DeviceKey.
-
-# ============================================================
-# 19. TOHSENO ADDRESS / WALLET IDENTITY
-# ============================================================
-
-A person installing Tohseno already has a Companion DeviceKey.
-
-Do not add a separate wallet onboarding ceremony.
-
-Do not create a new unrelated EOA.
-
-Reuse the existing account architecture truthfully.
-
-The existing BuilderAccount implementation may serve as the on-chain Tohseno
-smart account controlled by that DeviceKey.
-
-Technical protocol vocabulary remains unchanged:
-
-    BuilderAccount
-    BuilderID
-
-But product UI for a person who has not shipped anything may simply say:
-
-    Tohseno address
-
-A person does not become conceptually a Builder merely by claiming an app.
-
-When that same account controls a Shot, it is the BuilderID for Registry law.
-
-ADR 0035 supersedes ADR 0034 only where account deployment was restricted to the
-first public Builder action.
-
-The new rule is:
-
-    The Tohseno smart account is deployed lazily on the person's
-    first PUBLIC Tohseno action.
-
-A Claim is a public action.
-
-A Ship is a public action.
-
-Whichever comes first may bootstrap the same deterministic account.
-
-Do not create two identities.
-
-# ============================================================
-# 20. CLAIM PRIVACY MUST BE HONEST
-# ============================================================
-
-Claiming is public.
-
-The account address and relationship to the claimed Shot are observable on-chain.
-
-This is a deliberate change from the prior default where end-user installation
-identity remained private.
-
-Preserve the old privacy law for installation itself.
-
-DO NOT publish:
-
-- physical iPhone identifier;
-- InstallationKey;
-- Apple team;
-- Mac identity;
-- pairing identity;
-- IP address;
-- source path;
-- install date unless separately implied by private local state;
-- evolution prompts;
-- device name.
-
-The public fact is:
-
-    Tohseno account X claimed Shot Y.
-
-No more.
-
-Before the person's first Claim, show one compact disclosure:
-
-    Claims are public on Robinhood Chain.
-    Your Tohseno address will be associated with this app.
-
-Do not show this every time after they understand it.
-
-Do not call it proof that they are a unique human.
-
-# ============================================================
-# 21. CONTRACT EVENTS
-# ============================================================
-
-Emit enough exact evidence to reconstruct Claims without trusting the catalog.
-
-At minimum:
-
-    ClaimEditionOpened(...)
-
-and:
-
-    SoftwareClaimed(
-        bytes32 indexed shotId,
-        address indexed claimant,
-        uint256 indexed tokenId,
-        uint64 claimNumber,
-        bytes32 releaseDigest,
-        bytes32 checkpointDigest,
-        bytes32 gestureCommitment
-    )
-
-Block time is canonical claim time.
-
-Do not duplicate mutable app metadata on-chain.
-
-Do not store:
-
-- app name;
-- description;
-- icon URL;
-- Builder handle;
-- source;
-- gesture raw touch stream.
-
-# ============================================================
-# 22. CLAIM METADATA
-# ============================================================
-
-The NFT must be useful in Tohseno and intelligible to standard wallet/indexer
-surfaces where Robinhood Chain support permits.
-
-Implement a stable token metadata route.
-
-Conceptually:
-
-    /api/claims/v1/token/<tokenId>
-
-Each token metadata object should resolve immutable encounter information:
-
-- app name as of claimed release;
-- ShotID;
-- Claim number;
-- edition policy;
-- claimed at;
-- exact release;
-- Builder;
-- normalized Claim mark rendering;
-- external URL to the Claim receipt.
-
-Do not let future app updates rewrite the historical meaning of an old Claim.
-
-If mutable current app metadata is shown, separate it explicitly from:
-
-    metadata at encounter
-
-The cryptographic receipt remains immutable.
-
-# ============================================================
-# 23. CLAIM RECEIPT SCHEMA
-# ============================================================
-
-Create one closed, versioned off-chain object.
-
-Expected conceptual name:
-
-    tohseno.claim-receipt/1
-
-It MUST bind:
-
-- schema;
-- active chain;
-- claims contract address;
-- ShotRegistry address;
-- ShotID;
-- tokenId;
-- claimNumber;
-- claimant address;
-- exact release ID/digest;
-- exact public checkpoint digest;
-- exact gesture commitment;
-- normalized gesture geometry;
-- canonical transaction hash;
-- canonical block number/hash;
-- canonical block timestamp;
-- edition policy;
-- exact source/icon digest needed to render historical receipt.
-
-Do not include private device or pairing data.
-
-The receipt may be reconstructed from chain + immutable catalog facts, but if
-persisted by the service it must remain independently verifiable.
-
-# ============================================================
-# 24. THE CLAIM GESTURE
-# ============================================================
-
-The primary gesture is fixed:
-
-    DRAW A CIRCLE AROUND THE APP.
-
-Do not brainstorm alternatives.
-
-Implement this ritual.
-
-Visual composition:
-
-- app icon centered;
-- generous black/neutral field;
-- faint incomplete Tohseno-like ring or spatial cue;
-- minimal instruction:
-
-      Draw a circle around it.
-
-The person places one finger down and draws one continuous loop around the
-artifact.
-
-The loop does NOT need to be geometrically perfect.
-
-It may wobble.
-
-It may be narrow or wide.
-
-It may be expressive.
-
-The app should recognize intentional enclosure, not handwriting quality.
-
-When the loop closes:
-
-1. freeze the exact visible path;
-2. make the loop visually settle/close;
-3. produce one restrained native haptic;
-4. transition to:
-
-       Claiming…
-
-5. build the exact claim authorization;
-6. sign;
-7. relay;
-8. wait for canonical on-chain confirmation.
-
-Only after confirmed NFT mint:
-
-       Claimed
-       #312 of 888
-
-or:
-
-       Claimed
-       #312 · Open Edition
-
-The mark remains visible around the artifact.
-
-# ============================================================
-# 25. THE GESTURE IS EXPRESSION, NOT BIOMETRICS
-# ============================================================
-
-This is a hard privacy boundary.
-
-DO NOT persist or transmit:
-
-- touch timestamps;
-- velocity;
-- acceleration;
-- pressure;
-- force;
-- radius;
-- azimuth;
-- altitude;
-- device motion;
-- hand/finger inference;
-- behavioral signature;
-- raw UIKit touch-event metadata.
-
-Use only final 2D geometry.
-
-As points arrive, capture only canvas-local x/y coordinates necessary to render
-the current path.
-
-After stroke completion:
-
-1. map positions into normalized unit-canvas coordinates;
-2. resample by arc length to exactly 64 points;
-3. quantize each x and y to a fixed-width integer representation;
-4. serialize through a closed `tohseno.claim-mark/1` encoding;
-5. SHA-256 the canonical bytes;
-6. use that digest as `gestureCommitment`.
-
-Discard the raw point stream after canonical normalized geometry exists.
-
-Create shared test vectors so Swift, Rust/server and any receipt renderer agree
-on the exact commitment.
-
-The gesture is NOT cryptographic entropy.
-
-The gesture is NOT the signing key.
-
-The DeviceKey signature remains authorization.
-
-# ============================================================
-# 26. CIRCLE ACCEPTANCE
-# ============================================================
-
-Do not make the ritual frustrating.
-
-The stroke is acceptable when all of the following are true:
-
-- one continuous stroke;
-- enough spatial distance to represent an intentional loop;
-- the path substantially encloses the app icon center;
-- endpoint returns within a forgiving threshold of the start region;
-- path is not merely a tap or short line.
-
-Do NOT score circularity.
-
-Do NOT reject because the loop is ugly.
-
-Do NOT turn it into a CAPTCHA.
-
-Do NOT expose a percentage score.
-
-The semantic condition is:
-
-    the human drew a boundary around the artifact.
-
-# ============================================================
-# 27. ACCESSIBILITY
-# ============================================================
-
-Claiming must remain possible for people who cannot perform the drawing gesture.
-
-Preserve the circle as the primary product ritual.
-
-Under accessibility interaction where drawing is not reasonably available,
-provide one intentional alternative:
-
-    Hold to close the circle
-
-The same visual ring closes while the control is held for a bounded duration.
-
-This alternative produces a canonical accessibility Claim mark representation,
-not fabricated hand geometry.
-
-The cryptographic Claim semantics remain identical.
-
-VoiceOver labels must explain:
-
-    Claim this app
-
-not raw NFT/EIP-712 details.
-
-# ============================================================
-# 28. CLAIM MUST PRECEDE NORMAL NETWORK INSTALL
-# ============================================================
-
-ADR 0035 changes the normal Registry relationship.
-
-Current primary action:
-
-    Install
-
-becomes:
-
-    Claim
-
-The normal Tohseno Registry path is now:
-
-    Claim
-      ↓
-    confirmed
-      ↓
-    prepare/install
-
-A person may still inspect public source without claiming where the source is
-public under ADR 0034.
-
-Do not pretend Claim scarcity is DRM.
-
-But the normal one-tap Tohseno Install and Fork experiences begin from a
-confirmed Claim.
-
-# ============================================================
-# 29. CLAIM AUTOMATICALLY SENDS THE APP TO THE MAC
-# ============================================================
-
-After on-chain confirmation, DO NOT ask:
-
-    Would you like to send this to your Mac?
-
-That is redundant.
-
-Claim already expresses the intention.
-
-Immediately create the exact existing durable network-install intention against
-the release bound into the Claim.
-
-Reuse the current verified Install receive pipeline.
-
-Do not write a second downloader/build system.
-
-Flow:
-
-    Claim confirmed
+Tohseno Evolution — Wireless-First Distribution 
++ Network Trust You are working inside the root 
+of the Tohseno repository. This is an 
+evolutionary change to the product, protocol, 
+UX, documentation, and implementation. Do not 
+treat this as a greenfield rewrite. Before 
+changing anything, deeply inspect the 
+repository and understand the architecture that 
+actually exists today: the current 
+whitepaper/report, ADRs, STATE.md, 
+LIVING_CONNECTION.md, readiness/release 
+documents, Mac app, Companion app, CLI, 
+registry/web surfaces, backend/relay code, 
+signing model, Claim model, Ship/Release model, 
+CoreDevice integration, local persistence, and 
+tests. The goal is to evolve Tohseno toward two 
+new first-class truths. The trust truth: > 
+**Software you can trust because people you 
+trust have seen it.** The distribution truth: > 
+**Claim anywhere. Your Mac prepares the 
+software. Your iPhone installs it when it 
+becomes reachable. A cable is a compatibility 
+mechanism, not the product.** These two ideas — 
+wireless-first delivery and network-mediated 
+software trust — are now first-class 
+architectural directions for Tohseno. Do not 
+merely change copy. Bring the underlying 
+architecture closer to making these statements 
+genuinely true. ──────── 0. FIRST: 
+UNDERSTAND THE SYSTEM Before implementation, 
+study the current repository exhaustively. Read 
+the latest working paper / whitepaper. Read all 
+ADRs relevant to: • Builder identity • 
+DeviceKey • Companion authority • Ship • 
+Release • Claim • verification • registry • 
+delivery • CoreDevice • relay • remote actions 
+• local signing • installation • source 
+provenance Read at minimum: • STATE.md • 
+LIVING_CONNECTION.md • the latest 
+release/readiness documents • the current 
+working paper / whitepaper • existing ADRs • 
+golden-path documentation • current tests 
+around shipping, claiming, building, 
+installation, pairing, and registry state 
+Inspect the implementation corresponding to 
+those documents. Determine: 1. what is actually 
+implemented; 2. what exists only in 
+documentation; 3. what exists only as future 
+design; 4. where documentation and code 
+disagree; 5. which protocol encodings or 
+invariants are intentionally frozen; 6. which 
+concepts can safely evolve additively; 7. which 
+proposed changes require migrations; 8. which 
+parts of this prompt are already partially 
+implemented. Do not assume file names, APIs, 
+structs, services, or abstractions in this 
+prompt are exact if the repository has evolved. 
+The repository is the source of truth. Before 
+making large implementation changes, document 
+the architectural decisions in the style 
+already established by Tohseno. 
+──────── 1. WHAT TOHSENO IS BECOMING 
+Tohseno is not merely an app factory. It is 
+becoming a person-to-person software network. 
+The factory remains central. A Builder can turn 
+an intention into software. They can Ship that 
+software. Another person can encounter the 
+software, understand its provenance, inspect 
+the available evidence around it, see who has 
+reviewed it, Claim it, and ultimately choose 
+whether to run it on their own device. The 
+important shift is: > Tohseno should not decide 
+what software people are allowed to run. 
+Instead: > Tohseno should make the decision of 
+whether to run software radically more legible. 
+The final authority belongs to the person whose 
+device will execute the software. That person 
+should eventually be able to understand: • who 
+built the software; • which Builder identity 
+signed it; • which exact release they are 
+considering; • where the source came from; • 
+whether the source and built artifact 
+correspond; • whether the build is 
+reproducible; • what permissions the software 
+requests; • what entitlements it uses; • what 
+dependencies it contains; • what domains and 
+services it communicates with; • whether 
+payment functionality exists; • what machine 
+verification occurred; • what findings were 
+produced; • who reviewed the exact release; • 
+what those people actually reviewed; • whether 
+any reviewers are already part of the 
+recipient’s social graph; • how those reviewers 
+have behaved historically. Do not build a 
+decentralized imitation of App Store Review. 
+Avoid the framing: > Tohseno says this app is 
+safe. Prefer: > Here is the artifact. > > Here 
+is its provenance. > > Here is what machines 
+observed. > > Here are the people who examined 
+this exact release. > > Here is their history. 
+> > You decide whether to run it. The user is 
+not being abandoned with responsibility. The 
+user is being given final authority supported 
+by unusually good evidence. That distinction is 
+fundamental. ──────── 2. PRESERVE 
+BUILDER AUTHORITY This is a hard architectural 
+invariant unless inspection of the repository 
+demonstrates that the existing protocol defines 
+something materially different: > **Builder 
+authority lives on the Companion / iPhone 
+DeviceKey.** Do not make any of the following 
+the root of Builder authority: • Farcaster • 
+GitHub • Base • Ethereum • X • OAuth • email • 
+a Tohseno server account • a wallet provider • 
+$TOHSENO ownership • token stake • follower 
+count The root model should remain 
+conceptually: ```text human
+  ↓ Builder ↓ BuilderID / BuilderAccount ↓ 
+DeviceKey
+  ↓ human approval on Companion ``` The 
+Companion-held DeviceKey is sovereign. External 
+identities decorate and contextualize the 
+Builder. They do not replace the Builder. 
+Conceptually: ```text
+                         BUILDER
+                           │
+                       BuilderID
+                           │
+                  DeviceKey authority
+                           │
+               Secure Enclave / Companion
+                           │
+          
+┌────────────────┼────────────────┐
+          │ │ │ ▼ ▼ ▼
+     Farcaster GitHub Base
+        FID account ID address
+   social identity technical identity economics
+          │ ▼ X
+       optional ``` External identity 
+compromise must not independently grant 
+publishing authority. External identity loss 
+must not destroy the Builder identity. External 
+identity providers must not be able to 
+impersonate a Builder. The DeviceKey must 
+remain capable of authorizing important Tohseno 
+actions independently of these external 
+systems. ──────── 3. IDENTITY BINDINGS 
+SHOULD BE FIRST-CLASS OBJECTS Introduce or 
+formalize an additive concept equivalent to: 
+```text IdentityBinding ``` if the current 
+protocol does not already model this correctly. 
+An IdentityBinding means approximately: > This 
+Tohseno Builder cryptographically claims or 
+verifies a relationship with this external 
+identity. Possible binding classes: ```text 
+farcaster github base x ``` The exact canonical 
+representation should follow existing Tohseno 
+protocol conventions. Do not blindly introduce 
+a new schema if the repository already contains 
+an appropriate signed-profile/attestation 
+primitive. Every identity binding should 
+answer: • Which Builder does this belong to? • 
+Which external identity is bound? • Which 
+stable external identifier is canonical? • What 
+display metadata is mutable? • What proof 
+established the binding? • Who signed the 
+Tohseno-side statement? • When was it created? 
+• Can it be revoked? • Can it expire? • Can it 
+be refreshed? • What happens if the external 
+username changes? • What happens if the 
+external account is compromised? • What remains 
+historically visible after disconnection? 
+External identity bindings are context. They 
+are not Builder authority. ──────── 4. 
+FARCASTER AS FIRST-CLASS SOCIAL IDENTITY 
+Farcaster should become Tohseno’s primary 
+social identity layer. Do not turn Tohseno into 
+a Farcaster client. Do not make Farcaster 
+mandatory for Builder authority. Farcaster is 
+useful because it gives Tohseno portable social 
+context around a Builder: • stable FID; • 
+username; • display name; • PFP; • bio; • 
+verified addresses where relevant; • follows; • 
+social relationships. Prefer stable protocol 
+identifiers such as the FID as the canonical 
+binding rather than mutable usernames. The UI 
+can display: ```text Farcaster @jpfraneto ✓ 
+``` while internally the relationship should 
+look conceptually like: ```text BuilderID X
+    ↕ Farcaster FID Y ``` The connection 
+ceremony must be verifiable. Study the current 
+signing and Companion architecture and design 
+the cleanest proof possible. Do not create a 
+purely cosmetic OAuth association that cannot 
+later be independently reasoned about. We 
+already operate infrastructure related to the 
+Farcaster / Snapchain / Hypersnap ecosystem. 
+Inspect what exists and determine whether it 
+can appropriately support: • identity 
+resolution; • profile metadata; • follows; • 
+social graph queries; • verification. Avoid 
+introducing an unnecessary mandatory 
+centralized Farcaster API dependency if our 
+existing infrastructure allows a more sovereign 
+architecture. However, do not overcomplicate 
+the initial implementation merely for 
+ideological purity. Choose a practical 
+architecture that preserves the ability to 
+become more self-hosted over time. 
+──────── 5. FARCASTER’S ROLE IS SOCIAL 
+CONTEXT, NOT SECURITY AUTHORITY The important 
+initial behavior is: > A recipient can see 
+whether people they already follow have 
+reviewed a release. For example: ```text 
+NETWORK REVIEW 18 builders reviewed this 
+release. 3 are people you follow. ``` That is 
+immediately useful. However: > **Farcaster 
+Follow != security Trust.** Someone may follow 
+another person because they are: • funny; • 
+interesting; • a friend; • an artist; • a 
+founder; • a musician; • entertaining; • 
+politically interesting; • culturally relevant. 
+A social follow must not silently become a 
+security delegation. Initially, Farcaster 
+follows should be treated as a trust prior / 
+social context. Later, Tohseno may introduce a 
+private native trust concept. Conceptually: 
+```text Trust Alice for: [x] privacy [x] iOS 
+permissions [ ] financial contracts [ ] 
+cryptography ``` Do not overbuild scoped trust 
+in this pass unless necessary. But ensure the 
+architecture does not permanently conflate: 
+```text follow ``` with: ```text trust ``` 
+These are different concepts. ──────── 
+6. GITHUB AS FIRST-CLASS TECHNICAL IDENTITY 
+GitHub should become a first-class technical 
+identity and provenance layer. Farcaster 
+approximately helps answer: > Who is this human 
+in a social graph? GitHub approximately helps 
+answer: > What evidence exists of this human’s 
+technical history and relationship to this 
+source? A Builder should be able to connect 
+GitHub. Prefer a durable GitHub account 
+identifier internally rather than treating 
+mutable usernames as canonical. The UI may 
+display: ```text GitHub jpfraneto ✓ ``` but 
+the binding should survive a username change 
+where possible. GitHub can eventually provide 
+contextual evidence such as: • linked account; 
+• repositories; • source repository 
+relationship; • commit authorship; • 
+contribution history; • merged changes; • 
+relationship between a Builder and a source 
+tree. Do not reduce this to a simplistic: 
+```text GitHub score: 92 ``` Do not equate: • 
+stars; • followers; • number of repositories; • 
+contribution count; with security authority. 
+GitHub provides technical context and 
+provenance. Reputation should still emerge 
+primarily from observable behavior inside the 
+Tohseno network. ──────── 7. BASE / 
+WALLET AS ECONOMIC IDENTITY Allow a Builder to 
+bind one or more economic identities, initially 
+including a Base/EVM address if compatible with 
+the existing architecture. Again: > wallet != 
+Builder authority. A Base address should be 
+treated as a bound economic identity. It may 
+eventually participate in: • $TOHSENO; • review 
+markets; • bounties; • rewards; • payments; • 
+verification jobs; • challenge bonds; • 
+security grants; • economic commitments. Do not 
+make wallet ownership itself evidence of 
+technical competence. Do not make token 
+ownership evidence of trustworthiness. Do not 
+let a whale purchase security reputation. 
+──────── 8. X IS OPTIONAL DECORATION X 
+may be connected as another external social 
+identity. It is useful for: • social 
+continuity; • discovery; • public Builder 
+context. But X should not be structurally 
+necessary to the network. Do not architect the 
+trust graph around a centralized X API. Do not 
+allow X account compromise to affect Builder 
+authority. Treat X as optional 
+decoration/context. ──────── 9. 
+SECURITY REQUIRES PRECISE LANGUAGE Study the 
+current protocol meanings of: • Claim • 
+VerificationResult • Evidence • Ship • Release 
+• Shot • checkpoint • digest • Builder 
+signature • candidate • build • source 
+provenance Do not casually overload established 
+terms. Security architecture becomes dangerous 
+when several different actions all become 
+called “verification.” Maintain precise 
+semantics. ──────── 10. CLAIM MUST 
+REMAIN CLAIM Claim should not silently become: 
+• “I verified this app.” • “I trust this app.” 
+• “I own this app.” • “I installed this app.” • 
+“This app is safe.” • “I endorse this Builder.” 
+• “I audited this release.” If the current 
+protocol defines Claim as something equivalent 
+to: > this Tohseno identity encountered / 
+claimed this particular Shot or release; 
+preserve that semantic purity. Claim is useful 
+precisely because it means one thing. Do not 
+contaminate it with security semantics. 
+──────── 11. MACHINE VERIFICATION AND 
+HUMAN ATTESTATION ARE DIFFERENT Formalize or 
+introduce two different concepts. A. 
+Verification Report A Verification Report 
+contains machine-generated 
+observations/evidence about an exact immutable 
+release. Possible contents include: • Shot ID; 
+• Release ID; • release digest; • checkpoint 
+digest; • source tree digest; • dependency 
+inventory; • dependency versions; • dependency 
+changes; • build scripts; • signing 
+information; • reproducibility status; • 
+requested entitlements; • privacy-sensitive 
+permissions; • network destinations; • payment 
+SDKs; • embedded binaries; • suspicious source 
+patterns; • known vulnerabilities; • provenance 
+checks; • policy checks; • static-analysis 
+findings; • model-assisted findings. A 
+Verification Report can be generated through 
+combinations of: • deterministic tooling; • 
+source inspection; • static analysis; • 
+dependency analysis; • binary inspection; • 
+build inspection; • reproducibility checks; • 
+local models; • remote models; • Bankr-routed 
+intelligence; • future verification workers. 
+The important principle is: > Machine output is 
+evidence. Machine output is not automatically 
+human authority. A model must not be able to 
+silently say: > JP reviewed this app. if JP did 
+not. ──────── 12. INTRODUCE RELEASE 
+ATTESTATION AS A DISTINCT PRIMITIVE Introduce 
+or formalize a concept equivalent to: ```text 
+ReleaseAttestation ``` A ReleaseAttestation 
+means: > A particular Builder/reviewer is 
+willing to cryptographically sign a bounded 
+statement about a particular immutable release 
+after inspecting a declared set of evidence or 
+scopes. Conceptually: ```text 
+ReleaseAttestation {
+    version shotID releaseID releaseDigest 
+    checkpointDigest? reviewerBuilderID 
+    reviewerDeviceKeyID reviewPolicyVersion 
+    verificationReportDigest? scopes [
+        source, dependencies, entitlements, 
+        permissions, networking, privacy, 
+        payments, reproducibility
+    ] outcome findings[] createdAt signature } 
+``` This is conceptual only. Do not copy the 
+schema blindly. Use the existing canonical 
+serialization, hashing, signing, and protocol 
+conventions of Tohseno. Important invariants: 
+1. An attestation refers to an exact immutable 
+release. 2. An attestation is cryptographically 
+attributable to a Builder authority. 3. The 
+attestation states what was reviewed. 4. It may 
+reference machine-generated evidence. 5. It 
+does not claim metaphysical certainty that 
+software is “safe.” 6. It becomes historical 
+evidence. 7. It cannot silently transfer to a 
+future release. 8. It must be possible to 
+determine exactly what statement was signed. 9. 
+A verifier cannot sign one digest and have the 
+UI display the attestation against another. 10. 
+Replay must be considered explicitly. 
+──────── 13. DO NOT SAY “THIS APP IS 
+SAFE” Do not create: ```text SAFE ✓ ``` Do not 
+create: ```text Tohseno Safety Score 96 / 100 
+``` Do not create a centralized omniscient 
+verdict. Use bounded factual language. 
+Examples: ```text Reviewed by 18 builders ``` 
+```text 3 people you follow reviewed this 
+release ``` ```text Source reproduced ``` 
+```text No camera entitlement detected ``` 
+```text Location: While Using App ``` ```text 3 
+network destinations detected ``` ```text 1 
+dependency changed since previous release ``` 
+```text No blocking findings under Review 
+Policy 1 ``` ```text Review incomplete ``` 
+```text Findings present ``` Every summarized 
+statement must be traceable to actual evidence. 
+Do not manufacture confidence through UI 
+styling. ──────── 14. ATTESTATIONS 
+BELONG TO EXACT RELEASES This is critical. 
+Suppose: ```text Ayunoando Release 1.4.2 18 
+attestations ``` The Builder then ships: 
+```text Ayunoando Release 1.4.3 ``` Release 
+1.4.3 must not inherit the eighteen 
+attestations. The new release should begin with 
+its own review state. For example: ```text 
+Ayunoando Release 1.4.3 Recently updated 0 
+attestations for this release ``` What can 
+carry forward: • Builder identity; • Builder 
+history; • reviewer history; • previous 
+releases; • previous attestations; • previous 
+findings; • previous reproducibility record; • 
+social relationships; • trust relationships. 
+What does not carry forward: > the claim that 
+someone reviewed code they have not actually 
+reviewed. This distinction must exist in: • 
+protocol; • storage; • indexes; • APIs; • 
+registry UX; • Companion UX. ──────── 
+15. MALICIOUS UPDATE MUST BE PART OF THE THREAT 
+MODEL The trust network must explicitly handle 
+this attack: ```text Builder releases harmless 
+app
+        ↓ earns trust ↓ many reviewers attest 
         ↓
-    durable install intention
+later Builder ships malicious update ``` 
+Builder reputation may provide historical 
+context. But a trusted Builder does not make an 
+unreviewed update automatically trusted. The UI 
+must distinguish: ```text Builder has strong 
+history ``` from: ```text This exact release 
+has been reviewed ``` Never collapse those into 
+the same signal. ──────── 16. “LENDING 
+INTELLIGENCE THROUGHPUT” SHOULD BECOME A REAL 
+NETWORK ACTIVITY A central future idea is: > 
+Network members can lend intelligence 
+throughput to understanding software. Design 
+the architecture so this can become real. 
+Conceptually: ```text new release
+     ↓ verification jobs ↓ deterministic 
+analysis
+     ↓ model-assisted analysis ↓ Verification 
+Report
+     ↓ human inspection ↓ DeviceKey signs 
+Release Attestation ``` The Mac is naturally 
+the place for intelligence work. The Companion 
+is naturally the place for sovereign human 
+approval. The Mac may: • download exact inputs; 
+• resolve source; • inspect dependencies; • 
+build; • run scanners; • run static analysis; • 
+inspect entitlements; • inspect network 
+behavior; • run local models; • call remote 
+intelligence; • spend inference credits; • 
+produce structured evidence. The Companion can 
+then present something like: ```text REVIEW 
+AYUNOANDO 1.4.2 Source analyzed Dependencies 
+inspected Entitlements inspected Network 
+destinations inspected 3 findings [ Inspect 
+Findings ] I reviewed this evidence and want to 
+sign: [x] Source [x] Dependencies [x] 
+Entitlements [ ] Privacy [ Sign Attestation ] 
+``` Do not blindly implement this exact UI. Use 
+it as the mental model. The important 
+separation is: ```text Mac = intelligence 
+workbench iPhone = human authority ``` 
+──────── 17. AUTONOMOUS VERIFIERS MAY 
+EXIST LATER Future Tohseno participants may 
+configure their nodes to automatically 
+contribute computation. For example: > 
+Contribute up to $5/month of inference toward 
+reviewing software in my network. This is a 
+valid future direction. Design current 
+verification primitives so future verification 
+workers can exist. However, machine-generated 
+statements and autonomous agents must remain 
+distinguishable from human-signed attestations. 
+Do not let: ```text AI scan completed ``` 
+render as: ```text Alice reviewed this app ``` 
+unless Alice explicitly authorized that exact 
+meaning under a clearly defined delegated 
+policy. No ambiguity. ──────── 18. 
+REPUTATION SHOULD BE EARNED THROUGH BEHAVIOR, 
+NOT PURCHASED This is a foundational principle: 
+> **Reputation should be earned through 
+behavior, not purchased.** Do not implement: 
+```text more $TOHSENO
+     = more trusted ``` Do not implement: 
+```text higher stake
+     = greater security authority ``` Do not 
+implement: ```text more Farcaster followers
+     = better verifier ``` Do not implement: 
+```text more GitHub stars
+     = better verifier ``` Instead, preserve 
+objective historical facts. Examples: ```text 
+releases shipped releases reviewed review 
+scopes findings submitted findings confirmed 
+findings disputed attestations withdrawn 
+attestations contradicted reproducibility 
+history source provenance history apps shipped 
+time participating ``` A reputation experience 
+can be derived from this history. Avoid 
+prematurely creating one irreversible: ```text 
+ReputationScore = 9382 ``` inside the protocol. 
+Reputation should ideally remain a projection 
+over evidence. Different consumers may weight 
+evidence differently. ──────── 19. 
+TRUST SHOULD EVENTUALLY BE PERSONALIZED The 
+most interesting question is not: > Is this app 
+globally trusted? It is: > What does **my 
+network** know about this artifact? Example: 
+```text NETWORK REVIEW 42 builders reviewed 
+this release. YOUR NETWORK Sofia reviewed it. 
+Antoine reviewed it. You follow both on 
+Farcaster. ``` Eventually native trust 
+preferences may allow more precise 
+interpretation. Two users may legitimately see 
+different trust context around the same 
+release. That is acceptable. It may even be 
+desirable. Do not force one global trust 
+hierarchy where none exists. ──────── 
+20. DO NOT TURN TOHSENO INTO A POPULARITY 
+MACHINE Protect the character of the network. 
+Do not let this evolution become: • follower 
+farming; • engagement optimization; • public 
+follower counts everywhere; • reviewer 
+leaderboards based on fame; • social feeds; • 
+influencer rankings; • attention markets 
+masquerading as security. The goal is not: > 
+Who is the most popular Builder? The goal is: > 
+What evidence exists around this artifact, and 
+which people relevant to me have contributed to 
+that evidence? If existing Tohseno architecture 
+intentionally keeps follow relationships 
+private or deemphasizes follower counts, 
+preserve that direction. ──────── 21. 
+$TOHSENO IS AN ECONOMIC LAYER, NOT THE TRUTH 
+LAYER $TOHSENO may eventually provide economic 
+coordination underneath the verification 
+network. The likely long-term loop is: ```text 
+release needs review
+        ↓ verification/review bounty ↓ people 
++ machines contribute intelligence
+        ↓ verification reports ↓ human 
+attestations
+        ↓ useful work receives compensation 
+``` Possible future token uses include: • 
+verification rewards; • review bounties; • 
+finding rewards; • challenge bonds; • reviewer 
+availability markets; • security grants; • 
+treasury-funded review; • protocol fees. 
+However: > Do not reward reviewers for saying 
+that software is safe. Do not create: ```text 
+positive verdict → token reward ``` That 
+produces corrupt incentives. Economic rewards 
+should compensate useful work. Examples might 
+include: • completing a requested review; • 
+producing verified evidence; • discovering a 
+confirmed issue; • performing a reproducibility 
+check; • participating in a bounty; • providing 
+specialized review capacity. Do not attempt to 
+finalize staking/slashing/tokenomics in this 
+evolutionary pass unless absolutely required. 
+Build the primitives first. Let real network 
+behavior inform the eventual economic design. 
+──────── 22. WIRELESS-FIRST IS THE 
+SECOND MAJOR EVOLUTION The product must stop 
+thinking of USB cable connectivity as the 
+normal runtime distribution model. The correct 
+abstraction is: > **Is the intended iPhone 
+reachable by this Mac?** Not: > Is a cable 
+plugged in? Study the existing architecture 
+carefully. Important existing pieces may 
+already include: • Companion → relay → Mac 
+commands; • durable commands; • Mac offline 
+behavior; • build preparation; • artifact 
+retention; • CoreDevice detection; • deferred 
+installation; • automatic resumption when a 
+device appears. Reuse this architecture. Do not 
+create a cloud build system merely because 
+Claim can happen remotely. The private Mac 
+factory remains central. ──────── 23. 
+THE NEW GOLDEN PATH The product should support 
+this mental model: ```text Someone sends me: 
+tohseno.com/anky
+        ↓ I open it on my iPhone ↓ Tohseno 
+Companion opens
+        ↓ I see: Anky by jpfraneto exact 
+release Builder identity Farcaster identity 
+GitHub identity source provenance machine 
+observations release attestations people I 
+follow who reviewed it
+        ↓ CLAIM ↓ the request reaches my Mac 
         ↓
-    paired Mac mailbox
+my Mac privately: verifies fetches builds signs 
+prepares
+        ↓ READY TO INSTALL ↓ my associated 
+iPhone becomes reachable
+        ↓ install ↓ run ``` The person may 
+Claim while away from home. The Mac may be at 
+home. The Mac may temporarily be offline. The 
+iPhone may temporarily be unreachable. Those 
+conditions should become ordinary durable 
+states, not catastrophic errors. 
+──────── 24. CLAIM ANYWHERE A recipient 
+should eventually be able to Claim a public 
+Tohseno release regardless of whether: • their 
+Mac is currently open; • the Mac is currently 
+online; • their iPhone is currently near the 
+Mac; • a cable is connected. The Claim should 
+produce durable intent. If the Mac is offline: 
+```text Claimed Waiting for your Mac ``` When 
+the Mac reconnects: ```text Your Mac is 
+preparing Anky ``` After 
+build/signing/verification completes: ```text 
+Ready for your iPhone ``` If the iPhone is 
+currently unreachable: ```text Ready for your 
+iPhone Tohseno will install this when your 
+iPhone is reachable. ``` When the correct phone 
+becomes reachable: ```text Installing… ``` 
+Then: ```text Installed ``` Use real backend 
+state. Do not fake progress. Do not imply 
+asynchronous behavior exists unless it actually 
+does. ──────── 25. REPLACE “WAITING FOR 
+CABLE” WITH DEVICE REACHABILITY Find all domain 
+assumptions equivalent to: ```text 
+waiting_for_cable ``` Refactor them toward 
+device reachability. Possible conceptual states 
+include: ```text iphone_unknown 
+iphone_associated iphone_unreachable 
+iphone_reachable iphone_locked 
+iphone_needs_pairing 
+iphone_needs_developer_mode iphone_needs_trust 
+ready_to_install installing installed ``` These 
+exact names are not mandatory. Choose the 
+smallest state machine that accurately 
+describes the implementation. Transport should 
+be secondary metadata. For example: ```text 
+reachableVia: - wifi - usb ``` The domain 
+concept is: ```text reachable ``` not: ```text 
+cable_connected ``` ──────── 26. USB IS 
+A TRANSPORT / BOOTSTRAP MECHANISM A cable may 
+still be required in some Apple-controlled 
+situations. Tohseno must remain honest about 
+Apple’s constraints. But USB should no longer 
+be built into the product ontology. The 
+hierarchy should be: ```text 1. already-paired 
+wireless / nearby delivery 2. wireless pairing 
+when supported 3. one-time cable bootstrap when 
+Apple requires it ``` Not: ```text STEP 1 
+CONNECT YOUR USB CABLE ``` Verify current Apple 
+behavior and official documentation before 
+encoding assumptions around: • first-time 
+pairing; • wireless pairing; • supported iOS 
+versions; • supported Xcode versions; • 
+Developer Mode; • trusted Mac relationships; • 
+CoreDevice; • install over Wi-Fi; • device 
+discovery. Do not hardcode Apple-version claims 
+from this prompt. Determine capabilities 
+dynamically where practical. ──────── 
+27. PAIR YOUR IPHONE, NOT “PLUG IN YOUR CABLE” 
+The primary UX concept should become: ```text 
+Pair your iPhone ``` or: ```text Connect your 
+iPhone ``` Then: ```text Searching for nearby 
+devices… ``` If wireless setup is available: 
+```text JP's iPhone [ Pair ] ``` Only when the 
+environment actually requires a cable should 
+the UI explain: ```text One-time cable setup 
+This iPhone and Mac need a cable for initial 
+pairing. After pairing, Tohseno will use 
+supported wireless delivery whenever possible. 
+``` Do not show cable instructions prematurely. 
+Do not make users think a cable will be 
+required every time they install an app. 
+──────── 28. DURABLE COMPANION ↔ 
+PHYSICAL DEVICE ASSOCIATION One of the most 
+important missing primitives is likely a 
+durable association between: 1. the Companion 
+identity / DeviceKey requesting software; 2. 
+the physical CoreDevice that should receive the 
+software. Conceptually: ```text Companion 
+DeviceKey A
+        ↕ Physical Apple Device B ``` This 
+relationship should be established during an 
+appropriate trusted bootstrap ceremony. It 
+should be persisted. It should survive 
+application restarts. It should avoid 
+ambiguity. It should allow Tohseno to answer: > 
+Which physical device should receive an install 
+requested by this Companion? without asking 
+every time. Study the stable device identifiers 
+exposed by Apple’s current tooling and 
+determine what can safely be persisted. Be 
+careful with: • privacy; • identifier 
+stability; • device replacement; • erased 
+phones; • restored phones; • multiple phones; • 
+lost phones; • pairing changes. Document the 
+chosen strategy. ──────── 29. MULTIPLE 
+IPHONES MUST BE A REAL SUPPORTED MODEL Do not 
+design around: ```text one human one Mac one 
+iPhone forever ``` A user may have: • primary 
+iPhone; • secondary iPhone; • test iPhone; • 
+old iPhone; • replacement iPhone; • future 
+iPad; • future Vision device; • future 
+Watch-related companion state. At minimum, the 
+domain model should support multiple associated 
+install targets. The current UX may still 
+optimize for one primary device. But do not 
+make the underlying architecture impossible to 
+evolve. Possible concepts: ```text 
+InstallTarget id deviceType displayName 
+association lastSeen reachability primary ``` 
+Again: use the existing architecture rather 
+than inventing unnecessary abstractions. 
+──────── 30. MULTIPLE DEVICES MUST 
+NEVER CAUSE ACCIDENTAL INSTALLATION Threat 
+model this explicitly. Scenario: ```text JP's 
+Mac can currently see: JP iPhone Nacha iPhone 
+Test iPhone ``` JP claims an app from JP’s 
+Companion. The Mac must not simply install 
+onto: ```text first CoreDevice returned by API 
+``` or: ```text only connected device ``` if 
+more than one exists. The intended recipient 
+device must be known. The request must be bound 
+strongly enough to avoid installing the app on 
+the wrong physical phone. If no safe 
+association exists, ask for explicit 
+selection/confirmation. Do not guess. 
+──────── 31. DEVICE ASSOCIATION SHOULD 
+BE ESTABLISHED DURING BOOTSTRAP The ideal 
+bootstrap relationship may look conceptually 
+like: ```text Mac discovers physical iPhone
+        ↓ Mac installs or recognizes Companion 
         ↓
-    exact release verification
-        ↓
-    source download
-        ↓
-    build safety
-        ↓
-    local source/build preparation
-
-If Mac is offline:
-
-    Claimed
-    Waiting for your Mac
-
-That state may persist for hours.
-
-No error.
-
-When Mac later comes online, it resumes automatically.
-
-# ============================================================
-# 30. CLAIM BINDS INSTALL TO THE ENCOUNTERED RELEASE
-# ============================================================
-
-The automatic post-Claim preparation MUST use the exact release recorded in the
-Claim.
-
-If an app updates while the Mac is offline:
-
-Do NOT silently prepare the newer release.
-
-Prepare what the person claimed.
-
-Afterward the user may separately see:
-
-    Update available
-
-This preserves encounter truth.
-
-# ============================================================
-# 31. CLAIM STATES
-# ============================================================
-
-Use a finite human state model.
-
-For an unclaimed open edition:
-
-    Claim
-
-During human gesture:
-
-    Drawing
-
-During chain work:
-
-    Claiming…
-
-Confirmed, Mac unknown/offline:
-
-    Claimed
-    Waiting for your Mac
-
-Mac downloading/verifying:
-
-    Claimed
-    Preparing on your Mac
-
-Mac buildable:
-
-    Claimed
-    Ready for your iPhone
-
-Installed:
-
-    Claimed
-    Installed
-
-New network release:
-
-    Claimed
-    Update available
-
-Limited edition exhausted before this identity claimed:
-
-    Closed
-    888 / 888 claimed
-
-Timed edition expired:
-
-    Closed
-
-Never show Claimed before canonical mint confirmation.
-
-# ============================================================
-# 32. UPDATE DOES NOT MINT AGAIN
-# ============================================================
-
-When a claimed app updates:
-
-- no second NFT;
-- no new Claim number;
-- no new gesture;
-- no edition reset;
-- no supply change;
-- no claim transaction.
-
-The identity already has a durable relationship with the Shot.
-
-Update is software evolution, not another encounter.
-
-# ============================================================
-# 33. SHIPPING IS ONE EVENT
-# ============================================================
-
-Refactor product semantics so this is mechanically enforced.
-
-For every public Shot:
-
-    shipped_at
-
-is immutable and derived from the first accepted public registration/catalog
-transition.
-
-There may be exactly one:
-
-    shot.shipped
-
-event.
-
-Every subsequent accepted catalog release produces:
-
-    shot.updated
-
-Never another ship.
-
-If existing code calls both first registration and append "publication", internal
-generic publication vocabulary may remain where mechanically useful.
-
-Human-facing and Registry event semantics MUST distinguish birth from update.
-
-# ============================================================
-# 34. CLI SHIPPING LANGUAGE
-# ============================================================
-
-Keep:
-
-    tohseno deploy
-
-because it is a good builder command.
-
-On a candidate/local Shot:
-
-    tohseno deploy
-
-means Ship.
-
-First-deploy output should become approximately:
-
-    Preparing Prayer Lock…
-
-    ✓ Source snapshot
-    ✓ Build profile
-    ✓ Registry release
-    ✓ Ready to ship
-
-    Claim edition:
-    Open Edition · one per Tohseno identity
-
-    Waiting for approval on your iPhone…
-
-After all truths exist:
-
-    ✓ Approved
-    ✓ Registered on Robinhood Chain
-    ✓ Claim edition opened
-    ✓ Source published
-    ✓ Registry updated
-
-    Shipped.
-
-    https://tohseno.com/...
-
-On an already shipped Shot:
-
-    tohseno deploy
-
-means Update.
-
-Final output:
-
-    ✓ Approved
-    ✓ Registry checkpoint appended
-    ✓ Source published
-    ✓ Registry updated
-
-    Updated.
-
-    https://tohseno.com/...
-
-Never say:
-
-    Shipped v2
-
-# ============================================================
-# 35. FIRST SHIP MUST CHOOSE CLAIM POLICY
-# ============================================================
-
-The Claim policy belongs to birth.
-
-At first deploy, include policy in the exact Companion approval.
-
-Companion publication sheet must allow:
-
-    Open
-    Limited
-    Until date
-    Limited until date
-
-Open should be the visually simplest/default option.
-
-Example:
-
-    How can people claim Prayer Lock?
-
-    ● Open Edition
-      Anyone can claim once.
-
-    ○ Limited
-      First ___ Tohseno identities.
-
-    ○ Until date
-
-    ○ Limited until date
-
-The selected policy becomes part of the signed exact Ship authorization.
-
-Once signed and opened on-chain:
-
-    immutable.
-
-# ============================================================
-# 36. NONINTERACTIVE CLI CLAIM-POLICY FLAGS
-# ============================================================
-
-Support exact bounded flags for automation where needed.
-
-Choose clear final names consistent with current CLI style.
-
-Conceptually:
-
-    tohseno deploy --claim-edition open
-
-    tohseno deploy \
-      --claim-edition limited \
-      --max-claims 888
-
-    tohseno deploy \
-      --claim-edition timed \
-      --closes-at 2026-09-08T18:00:00Z
-
-    tohseno deploy \
-      --claim-edition limited \
-      --max-claims 888 \
-      --closes-at ...
-
-Do not accept conflicting combinations.
-
-For an already shipped Shot, supplying Claim Edition flags MUST fail:
-
-    This app already shipped.
-    Its Claim Edition is permanent.
-
-# ============================================================
-# 37. SHIP TRANSACTION ORDER
-# ============================================================
-
-The first Shot must not appear publicly claimable until all birth facts agree.
-
-Persist a resumable state machine.
-
-Conceptually:
-
-    source staged
-        ↓
-    catalog release prepared
-        ↓
-    Registry registration prepared
-        ↓
-    Claim Edition policy prepared
-        ↓
-    ONE Companion human approval
-        ↓
-    exact bounded signatures returned
-        ↓
-    ensure Tohseno account
-        ↓
-    commitShot
-        ↓
-    wait required generation-0.8 delay
-        ↓
-    RegisterShot
-        ↓
-    verify canonical ShotRegistry state
-        ↓
-    open Claim Edition
-        ↓
-    verify Claim contract state
-        ↓
-    promote immutable source
-        ↓
-    promote catalog release
-        ↓
-    emit/project ONE shot.shipped event
-        ↓
-    return public link
-
-If Registry registration succeeds but Claim Edition transaction temporarily
-fails:
-
-- do NOT register another Shot;
-- do NOT create another Ship;
-- persist partial state;
-- retry exact remaining action idempotently;
-- keep app undiscoverable until Claim Edition exists.
-
-# ============================================================
-# 38. UPDATE TRANSACTION ORDER
-# ============================================================
-
-For an existing Shot:
-
-    snapshot
-      ↓
-    signed catalog update
-      ↓
-    Companion authorization
-      ↓
-    AppendCheckpoint
-      ↓
-    canonical confirmation
-      ↓
-    promote immutable source/catalog
-      ↓
-    project shot.updated
-
-Claims contract is untouched.
-
-Do not reopen edition.
-
-# ============================================================
-# 39. FORKS
-# ============================================================
-
-Keep ADR 0034's exact parent-release fork relation.
-
-A Fork remains private/local until intentionally shipped.
-
-When shipped:
-
-- NEW ShotID;
-- NEW Builder/controller;
-- one `shot.shipped` event for child;
-- own immutable Claim Edition;
-- exact parent Shot/release relation preserved;
-- parent unchanged.
-
-Registry timeline may project:
-
-    Radio for Birds entered Tohseno
-    Forked from Tiny Radio
-
-This is both:
-
-    child shot.shipped
-
-and a derived fork relation.
-
-Do not create a second ship event merely to represent the fork.
-
-# ============================================================
-# 40. FOLLOW BUILDERS
-# ============================================================
-
-Add:
-
-    Follow
-
-to Builder identity.
-
-A person follows a BuilderID, not a mutable handle.
-
-Handle changes do not break following.
-
-Following is NOT:
-
-- on-chain;
-- a token;
-- a public social graph;
-- a follower count;
-- a popularity score;
-- a recommendation signal;
-- part of Builder profile authority.
-
-Following is private personal preference state.
-
-No public endpoint may answer:
-
-    how many followers does Builder X have?
-
-Do not implement that number.
-
-# ============================================================
-# 41. FOLLOW STATE
-# ============================================================
-
-Store following state privately within the existing personal Mac/Companion
-relationship.
-
-Use the existing encrypted durable command/projection infrastructure.
-
-Required behavior:
-
-From Companion:
-
-    Follow
-
-must feel immediate even if Mac is offline.
-
-Companion:
-
-1. updates optimistic local presentation;
-2. persists an idempotent private follow operation;
-3. queues it through existing encrypted outbox;
-4. Mac durably reconciles;
-5. projection returns;
-6. both surfaces converge.
-
-From Mac:
-
-    Follow
-
-updates local durable state and projects to Companion.
-
-Use exact BuilderID.
-
-Unfollow is idempotent.
-
-Do not introduce a public follow server merely to synchronize two paired devices.
-
-# ============================================================
-# 42. NO FOLLOWER COUNTS
-# ============================================================
-
-This is deliberate.
-
-Do NOT add:
-
-    12.4K followers
-
-Do NOT rank Builders by follows.
-
-Do NOT create follow leaderboards.
-
-Do NOT expose a public follow graph.
-
-The reason to follow someone is:
-
-    I want to notice when their software changes.
-
-Nothing more.
-
-# ============================================================
-# 43. THE REGISTRY IS NOT A MARKETPLACE GRID
-# ============================================================
-
-The current Registry surface must evolve.
-
-The Registry is the world outside the workshop.
-
-Your Apps remains:
-
-    source
-    build
-    app
-    simulator
-    iPhone
-    evolve
-    ship/update
-
-Registry becomes:
-
-    discover
-    follow
-    claim
-    timelines
-    forks
-    editions
-    updates
-
-REMOVE the quick:
-
-    New Shot
-
-composer from Registry.
-
-Creation already has a proper location.
-
-Do not place a factory control inside the world.
-
-# ============================================================
-# 44. REGISTRY INFORMATION ARCHITECTURE
-# ============================================================
-
-Use exactly three primary Registry modes:
-
-    Discover
-    Following
-    Updates
-
-and Search.
-
-No more primary tabs in this evolution.
-
-## Discover
-
-The public living network.
-
-## Following
-
-The same type of network events, filtered to Builders the user follows.
-
-## Updates
-
-A private, high-signal inbox about the person's existing relationship to
-software and their own actions.
-
-# ============================================================
-# 45. DISCOVER IS A TIMELINE OF SOFTWARE
-# ============================================================
-
-Do not turn Discover into human posts.
-
-There are:
-
-- no text posts;
-- no replies;
-- no comments;
-- no likes;
-- no reposts;
-- no quote posts;
-- no engagement score.
-
-Software itself creates the events.
-
-Examples:
-
-    PRAYER LOCK
-    entered Tohseno
-    311 / 888 claimed
-    by @maubaron
-
-    ANKY
-    updated
-    Open Edition · 4,821 claimed
-    by @jpfraneto
-
-    RADIO FOR BIRDS
-    entered Tohseno
-    forked from Tiny Radio
-    by @alice
-
-    EIGHT
-    8 / 8 claimed
-    edition closed
-
-This is network activity.
-
-Not social media.
-
-# ============================================================
-# 46. PUBLIC TIMELINE EVENT MODEL
-# ============================================================
-
-Create a deterministic public timeline projection from existing authoritative
-facts.
-
-Do NOT make the timeline itself a new authority.
-
-Every event must reference its evidence.
-
-Create a closed event schema if useful, conceptually:
-
-    tohseno.timeline-event/1
-
-Canonical public event types for this release:
-
-    shot.shipped
-    shot.updated
-    shot.forked
-    claim.edition_closed
-
-Do not add arbitrary event types.
-
-`shot.shipped`:
-
-    exactly once per ShotID
-
-`shot.updated`:
-
-    once per accepted post-birth catalog release
-
-`shot.forked`:
-
-    derived when a newly shipped child has a verified parent relation
-
-`claim.edition_closed`:
-
-    derived when finite supply fills or timed horizon expires
-
-Do not emit every Claim into the global Discover feed.
-
-# ============================================================
-# 47. CLAIM ACTIVITY MUST NOT FLOOD THE WORLD
-# ============================================================
-
-Raw Claim events exist and are public on-chain.
-
-That does NOT mean Discover should render one row per mint.
-
-Do NOT produce:
-
-    Alice claimed X
-    Bob claimed X
-    Carol claimed X
-    Dave claimed X
-
-forever.
-
-Instead:
-
-- show current claim count on app/event cards;
-- show edition close as an event;
-- allow app Timeline/detail to inspect claim history or recent claims;
-- paginate raw claims where shown;
-- keep Discover quiet enough that software events remain legible.
-
-# ============================================================
-# 48. EVENT ORDERING
-# ============================================================
-
-Use canonical evidence ordering.
-
-For on-chain-backed events prefer:
-
-    blockNumber
-    transactionIndex
-    logIndex
-
-and canonical block timestamp.
-
-For catalog update events bind them to the corresponding canonical Registry
-receipt rather than `Date.now()` from an application server.
-
-Reorg-aware indexing is required.
-
-No duplicate `shot.shipped` after reindex/restart.
-
-# ============================================================
-# 49. FOLLOWING
-# ============================================================
-
-Following is a local/private filtered view of the public timeline.
-
-Do not make the server learn the full follow list just to render it in v1.
-
-The network is initially small enough to:
-
-1. fetch the bounded public event window;
-2. filter by locally held BuilderIDs.
-
-If pagination requires additional pages to fill the view, continue bounded
-fetching.
-
-Optimize later if actual scale requires it.
-
-Privacy first.
-
-# ============================================================
-# 50. UPDATES IS NOT DISCOVER
-# ============================================================
-
-Updates is a private software inbox.
-
-It should contain only events where this person's action or relationship matters.
-
-Eligible examples:
-
-    Prayer Lock updated
-    You claimed #184
-    [Update]
-
-    Weird Camera is ready
-    Your Mac finished preparing it.
-    [Connect iPhone]
-
-    Someone shipped a fork of Anky
-    [View fork]
-
-    Your 888 Edition is complete
-    888 / 888 claimed
-
-    Your alias request was approved
-
-    Prayer Lock publication needs your approval
-    [Open Companion]
-
-    Your evolution finished
-    [Open App]
-
-Do not put generic Discover events in Updates.
-
-Following a Builder does NOT automatically generate an Updates notification for
-every update.
-
-Those events belong in Following.
-
-Future explicit notification preferences may change that.
-
-Not now.
-
-# ============================================================
-# 51. NOTIFICATION PHILOSOPHY
-# ============================================================
-
-Do NOT create another red-badge attention machine.
-
-No notification per Claim.
-
-No:
-
-    someone claimed your app
-    someone claimed your app
-    someone claimed your app
-
-A Builder can always see claim count.
-
-High-signal edition completion is worthy:
-
-    888 / 888 claimed
-
-If daily aggregate claim summaries already fit naturally into existing durable
-state, one bounded aggregate may be acceptable.
-
-Do not build a scheduler solely for this release.
-
-Registry sidebar may show one restrained unread Updates count/dot.
-
-Use Tohseno's existing accent language.
-
-Do not add engagement-red notification styling.
-
-# ============================================================
-# 52. UPDATE INBOX DURABILITY
-# ============================================================
-
-Private Updates need:
-
-- stable IDs;
-- idempotent insertion;
-- read/unread state;
-- durable local storage;
-- paired-device reconciliation where current Companion architecture permits;
-- no server-visible private history unless already within encrypted relay
-  transport.
-
-Restarting Mac or Companion must not duplicate every Update.
-
-# ============================================================
-# 53. APP TIMELINE
-# ============================================================
-
-Every public Shot page gains:
-
-    Timeline
-
-This is the app's life.
-
-Example:
-
-    NOW
-    v4 / current update
-
-    AUG 30
-    431 / 888 claimed
-
-    AUG 29
-    Updated
-
-    AUG 27
-    Radio for Birds shipped as a fork
-
-    AUG 25
-    Claim #184
-
-    AUG 20
-    Updated
-
-    AUG 14
-    Shipped
-    888 Edition opened
-
-The exact presentation may be more restrained.
-
-The semantic structure must be correct.
-
-There is one birth.
-
-Everything follows from it.
-
-# ============================================================
-# 54. BUILDER PROFILE
-# ============================================================
-
-Builder profile becomes meaningful as a place in the Registry.
-
-Display:
-
-- avatar if available;
-- display name;
-- handle;
-- verified external attestations;
-- shortened BuilderID with technical detail disclosure;
-- Follow / Following;
-- software they shipped;
-- software timeline/activity.
-
-Do NOT add:
-
-- follower count;
-- likes;
-- bio engagement metrics;
-- post composer;
-- direct messages;
-- social reputation score.
-
-Builder reputation comes from software and its lineage.
-
-# ============================================================
-# 55. MAC REGISTRY UI
-# ============================================================
-
-Keep the existing workshop UI intact for Your Apps.
-
-Do not make Build/App/Source mystical.
-
-That UI is a machine.
-
-When user selects Registry, the center should clearly become the world.
-
-Required layout:
-
-    Registry
-
-    Discover   Following   Updates                Search
-
-Then living event cards/content.
-
-Remove:
-
-    quick New Shot
-
-from Registry.
-
-Do not show:
-
-    Apps on this Mac
-
-as if they are Registry content.
-
-Local apps remain in the normal sidebar/workshop.
-
-Registry event/app cards should support:
-
-- app icon;
-- app name;
-- Builder;
-- Follow state where useful;
-- Ship/Update/Fork event context;
-- Claim Edition state;
-- current Claim count;
-- current user's Claim state;
-- Claim CTA;
-- open app detail/timeline.
-
-# ============================================================
-# 56. COMPANION REGISTRY UI
-# ============================================================
-
-Companion receives the same conceptual Registry:
-
-    Discover
-    Following
-    Updates
-
-adapted naturally for iPhone.
-
-The phone is the primary Claim surface.
-
-App detail is intentionally quieter than Mac workshop UI.
-
-No build internals.
-
-No source inventory.
-
-No transaction hexadecimal wall.
-
-The primary app encounter should feel like:
-
-    artifact
-    builder
-    small description
-    edition status
-    Claim
-
-with timeline/details below.
-
-# ============================================================
-# 57. THE APP PAGE IS AN ALTAR FOR THE ARTIFACT
-# ============================================================
-
-Do not literally label it "altar."
-
-Translate the idea into restraint.
-
-The app page should give the artifact space.
-
-Example composition:
-
-                [ icon ]
-
-             PRAYER LOCK
-
-              @maubaron
-
-      A small ritual for beginning
-               the day.
-
-           311 / 888 CLAIMED
-
-
-                CLAIM
-
-Do not surround the Claim button with:
-
-- charts;
-- token prices;
-- gas;
-- wallet connect;
-- trading UI;
-- engagement metrics.
-
-The central question is:
-
-    Do I want this software in my world?
-
-# ============================================================
-# 58. AFTER CLAIM
-# ============================================================
-
-Once confirmed, replace primary claim state with something like:
-
-                CLAIMED
-               #312 / 888
-
-                 ◯
-
-       Waiting for your Mac
-
-or:
-
-                CLAIMED
-               #312 / 888
-
-            Ready for iPhone
-
-The user's actual normalized mark should remain available as the visual Claim
-receipt.
-
-# ============================================================
-# 59. PROFILE BECOMES A CABINET OF ENCOUNTERS
-# ============================================================
-
-Companion Profile should not lead with generic crypto wallet vocabulary.
-
-Show identity first.
-
-Then:
-
-    Claimed
-
-Each Claim card:
-
-    Tohseno
-    Open Edition · #31
-
-    Prayer Lock
-    888 Edition · #184
-
-    Weird Camera
-    Open Edition · #902
-
-Tap one:
-
-    Prayer Lock
-
-    Claim #184 of 888
-    Claimed Aug 30, 2026
-
-    Release at encounter
-    ...
-
-    Your mark
-    [render normalized loop]
-
-    Builder
-    @maubaron
-
-    [Open]
-    [Timeline]
-    [Receipt]
-
-Technical details may reveal:
-
-    Tohseno address
-    chain
-    token ID
-    transaction
-    ShotID
-
-Do not make those the emotional center.
-
-# ============================================================
-# 60. DO NOT AUTOMATICALLY TURN CLAIMS INTO PUBLIC PROFILE CONTENT
-# ============================================================
-
-The chain fact is public.
-
-That does not require Tohseno to aggressively surface someone's complete claim
-history on their public Builder webpage.
-
-For v1:
-
-- user's own Profile shows their Claims;
-- direct Claim receipt links work;
-- on-chain data remains queryable;
-- do NOT automatically add "everything this Builder claimed" to public profile.
-
-Preserve contextual privacy even around public facts.
-
-# ============================================================
-# 61. WEBSITE REGISTRY
-# ============================================================
-
-Evolve:
-
-    https://tohseno.com/registry
-
-into the public Discover view.
-
-No authenticated Following view is required on the web.
-
-No wallet connection.
-
-Render real public timeline facts.
-
-Search continues to resolve:
-
-- app;
-- Builder;
-- handle;
-- ShotID.
-
-# ============================================================
-# 62. WEBSITE APP PAGE
-# ============================================================
-
-Change the primary action from:
-
-    Install
-
-to:
-
-    Claim
-
-Show exact edition state.
-
-Examples:
-
-    OPEN EDITION · ∞
-    4,821 claimed
-
-    311 / 888 claimed
-
-    Closed · 888 / 888
-
-    Open for 3h 41m
-
-Claim button on iPhone:
-
-    Open in Tohseno Companion
-
-using the existing safe deep-link strategy.
-
-On Mac:
-
-    Claim on your iPhone
-
-and open native Tohseno/route the request to paired Companion if the local
-product supports that path.
-
-Without Tohseno:
-
-    Get Tohseno
-
-No wallet connect.
-
-# ============================================================
-# 63. WEBSITE BUILDER PAGE
-# ============================================================
-
-Public Builder pages gain:
-
-    Follow
-
-If opened on a device with Tohseno Companion, use a bounded deep link containing
-only the exact BuilderID and safe routing metadata.
-
-If not installed, explain that Following lives in Tohseno.
-
-Do not create browser accounts merely for Follow.
-
-Do not create cookie-based follower identity as a second identity system.
-
-# ============================================================
-# 64. WEBSITE CLAIM RECEIPT
-# ============================================================
-
-Add one canonical receipt route.
-
-Conceptually:
-
-    https://tohseno.com/c/<token-id>
-
-or another clear non-conflicting route.
-
-Display:
-
-- artifact;
-- claim number;
-- edition;
-- normalized mark;
-- claimed timestamp;
-- Builder;
-- Shot link;
-- chain verification detail.
-
-The receipt is not a speculative NFT marketplace page.
-
-No floor price.
-
-No "list."
-
-No transfer button.
-
-# ============================================================
-# 65. EXISTING ALIAS "CLAIM" TERMINOLOGY
-# ============================================================
-
-The current service already uses language equivalent to alias claims.
-
-Do not create ambiguous code where:
-
-    claim
-
-could mean either:
-
-    global alias request
-    software NFT Claim
-
-Rename internal APIs/types where necessary.
-
-Use explicit vocabulary such as:
-
-    AliasClaimRequest
-    SoftwareClaim
-    ClaimEdition
-
-Routes should also be unambiguous.
-
-Do not break existing alias semantics.
-
-# ============================================================
-# 66. REGISTRY API — CLAIMS
-# ============================================================
-
-Extend the existing versioned Registry service.
-
-Add exact read capabilities for:
-
-- claims contract status/activation;
-- Shot Claim Edition;
-- Claim state for an exact Tohseno account + Shot;
-- Claim receipt;
-- paginated Shot claims;
-- token metadata;
-- public timeline;
-- Shot timeline.
-
-Add exact write/orchestration capabilities for:
-
-- prepare Claim Edition opening;
-- submit authorized Claim Edition opening;
-- prepare Software Claim;
-- submit Software Claim authorization.
-
-Do not let the server sign on behalf of claimant or Builder.
-
-# ============================================================
-# 67. CLAIM PREPARATION API
-# ============================================================
-
-A prepare endpoint must return structured facts, not an opaque digest.
-
-Companion must receive enough information to independently validate:
-
-- active chain;
-- claims contract;
-- registry;
-- Shot;
-- Builder;
-- exact release;
-- exact checkpoint;
-- claimant account;
-- edition policy;
-- nonce;
-- deadline.
-
-Companion constructs/recomputes canonical EIP-712 digest itself.
-
-Mac/server cannot ask:
-
-    sign 0xdeadbeef
-
-without context.
-
-# ============================================================
-# 68. CLAIM INDEXER
-# ============================================================
-
-Extend production indexing to TohsenoClaimsV1.
-
-Index:
-
-- edition openings;
-- Claims;
-- token IDs;
-- claim number;
-- claimant;
-- release digest;
-- checkpoint digest;
-- gesture commitment;
-- canonical block;
-- canonical transaction.
-
-Handle reorg.
-
-Do not count a pending transaction as a Claim.
-
-Claim count shown to users must derive from canonical contract state/indexed
-canonical evidence.
-
-For high-stakes checks such as final slot availability, read fresh chain state.
-
-# ============================================================
-# 69. TIMED EDITION CLOSURE
-# ============================================================
-
-A timed edition does not need an operator transaction to become closed.
-
-Contract claim eligibility derives directly from block timestamp.
-
-Registry may project:
-
-    claim.edition_closed
-
-when the canonical chain time has crossed the immutable deadline.
-
-The projection is derived.
-
-Do not pretend an on-chain "close" transaction occurred if none did.
-
-# ============================================================
-# 70. CLAIM NUMBER
-# ============================================================
-
-Claim number is assigned by canonical contract execution.
-
-Never preallocate it in UI.
-
-Never display:
-
-    You will be #312
-
-before transaction confirms.
-
-After confirmation:
-
-    #312
-
-is immutable.
-
-# ============================================================
-# 71. SOURCE ACCESS IS NOT DRM
-# ============================================================
-
-ADR 0034 deliberately publishes buildable source.
-
-A limited Claim Edition does not magically make those bytes inaccessible.
-
-Be truthful.
-
-A finite edition means:
-
-    only N Tohseno identities can receive the canonical Tohseno Claim receipt.
-
-The normal Tohseno Install/Fork ritual requires Claim.
-
-But public source availability remains governed by the release's source and
-license declarations.
-
-Do not market finite claims as technical exclusion if source is public.
-
-# ============================================================
-# 72. FORK PERMISSION
-# ============================================================
-
-Retain `fork_allowed`.
-
-A Claim does not override Builder-declared fork permission.
-
-If:
-
-    fork_allowed = false
-
-the claimed user can Install but Tohseno does not offer Fork.
-
-If true:
-
-    Claim
-      ↓
-    Fork
-
-is available.
-
-No legal permission is inferred from NFT ownership.
-
-# ============================================================
-# 73. INSTALL PERMISSION
-# ============================================================
-
-Retain existing install compatibility and safety rules.
-
-Claim confirmation does not override:
-
-- unsafe build hooks;
-- unsupported entitlements;
-- incompatible iOS;
-- missing Xcode;
-- missing Apple signing;
-- device Trust;
-- Developer Mode;
-- locked phone;
-- physical verification.
-
-Claim may succeed while install cannot.
-
-Present that truth separately.
-
-Example:
-
-    Claimed #184
-
-    This app requires a capability Tohseno cannot currently re-sign
-    with your Apple team.
-
-Do not undo the Claim.
-
-# ============================================================
-# 74. CLAIM DOES NOT REQUIRE THE MAC ONLINE
-# ============================================================
-
-This is a flagship experience.
-
-Test it explicitly.
-
-Scenario:
-
-1. Mac offline/asleep.
-2. User encounters a Shot on iPhone.
-3. User Claims.
-4. Companion signs.
-5. Tohseno relays on-chain transaction.
-6. Claim confirms.
-7. UI says:
-
-       Claimed #71
-       Waiting for your Mac
-
-8. Installation intention stays durable.
-9. Hours later Mac reconnects.
-10. Mac receives exact request.
-11. Mac verifies exact claimed release.
-12. Mac downloads and prepares.
-13. Companion updates:
-
-       Ready for your iPhone
-
-No user re-submission.
-
-# ============================================================
-# 75. DO NOT TURN CLAIM INTO PAYMENT
-# ============================================================
-
-No price.
-
-No Stripe.
-
-No token.
-
-No USDC.
-
-No $TOHSENO requirement.
-
-No wallet balance prerequisite.
-
-No "free mint" marketing language in the primary interface.
-
-The product word is:
-
-    Claim
-
-The technical detail may say:
-
-    Gas sponsored by Tohseno
-
-inside receipt/details.
-
-# ============================================================
-# 76. DO NOT TURN REGISTRY INTO NFT CULTURE
-# ============================================================
-
-Do not add:
-
-- floor prices;
-- volume;
-- rarity ranks;
-- traits for speculation;
-- OpenSea links as primary UI;
-- mint countdown hype copy;
-- flipping;
-- offers;
-- holder leaderboards.
-
-The on-chain object is infrastructure for durable encounter.
-
-The product is software.
-
-# ============================================================
-# 77. UPDATE AVAILABILITY
-# ============================================================
-
-When a claimed Shot updates:
-
-derive:
-
-    Update available
-
-for that user's installed/claimed relationship.
-
-If not installed:
-
-    New version available
-
-but preserve the original Claim receipt.
-
-If local source has been forked/evolved:
-
-do NOT silently overwrite it.
-
-Reuse ADR 0034's upstream-change honesty.
-
-# ============================================================
-# 78. BUILDER FOLLOWING + UPDATES
-# ============================================================
-
-A person following @alice should naturally see:
-
-    Alice shipped Camera Thing
-
-and later:
-
-    Camera Thing updated
-
-inside Following.
-
-They should NOT automatically receive OS notifications for both.
-
-Following creates awareness.
-
-It does not seize attention.
-
-# ============================================================
-# 79. MAC SIDEBAR
-# ============================================================
-
-Keep current sidebar hierarchy restrained.
-
-Registry may display a subtle unread Updates indicator when useful.
-
-Do not create separate sidebar items for:
-
-- Discover;
-- Following;
-- Claims;
-- NFTs;
-- Notifications.
-
-They live inside Registry.
-
-Your Apps remain visually primary workshop objects.
-
-Profile remains identity/memory.
-
-# ============================================================
-# 80. COMPANION NAVIGATION
-# ============================================================
-
-Preserve the current small navigation model.
-
-Do not add a Wallet tab.
-
-Do not add a Notifications tab.
-
-Do not add an NFT tab.
-
-Claimed software lives in Profile.
-
-Discover/Following/Updates live in Registry.
-
-Apps remain the user's current working/installed relationship.
-
-Create remains available where currently governed.
-
-# ============================================================
-# 81. PRODUCT LANGUAGE
-# ============================================================
-
-Use exact vocabulary.
-
-First network entry:
-
-    Ship
-    Shipped
-
-Later source release:
-
-    Update
-    Updated
-
-Human acquisition:
-
-    Claim
-    Claimed
-
-Physical software state:
-
-    Prepare
-    Ready for iPhone
-    Installing
-    Installed
-
-Derivative creation:
-
-    Fork
-    Forked from
-
-Builder preference:
-
-    Follow
-    Following
-
-Do not interchange:
-
-    Ship
-    Update
-    Claim
-    Install
-
-They mean different things.
-
-# ============================================================
-# 82. THREAT MODEL — CLAIMS
-# ============================================================
-
-Extend threat model.
-
-At minimum address:
-
-- malicious relayer;
-- replayed Claim signature;
-- replayed Edition-open signature;
-- wrong chain;
-- wrong Claims contract;
-- wrong ShotRegistry;
-- stale Registry head;
-- release changed during Claim;
-- forged gesture commitment;
-- server substitution of receipt geometry;
-- duplicate Claim;
-- Claim cap race;
-- timed expiry race;
-- unregistered Shot;
-- wrong Shot controller opening edition;
-- transferred Shot controller after edition open;
-- claimant smart-account bootstrap;
-- forged claimant account;
-- contract reentrancy;
-- unsafe ERC-721 receiver callbacks;
-- transfer attempts;
-- metadata server failure;
-- indexer reorg;
-- relayer gas abuse;
-- limited-edition Sybil behavior;
-- privacy leakage between Claim account and installation device.
-
-Document explicitly:
-
-    One-per-Tohseno-identity is not Sybil resistance.
-
-# ============================================================
-# 83. ERC-721 MINT SAFETY
-# ============================================================
-
-Because the recipient may be a smart account and Claims are non-transferable,
-do not introduce arbitrary recipient callback execution during mint merely for
-conventional safe-transfer behavior.
-
-Inspect the exact current BuilderAccount capabilities.
-
-Use the smallest safe mint path consistent with ERC-721 ownership semantics and
-the non-transferable design.
-
-No arbitrary external callback should be needed to create a Claim.
-
-# ============================================================
-# 84. CONTRACT ADMINISTRATION
-# ============================================================
-
-Prefer no mutable owner/admin state.
-
-The Claims contract should not need:
-
-- owner mint;
-- pause;
-- edition edit;
-- arbitrary URI replacement;
-- supply override;
-- emergency confiscation.
-
-If any administrative ability is genuinely required, justify it in ADR 0035 and
-threat model before implementing it.
-
-Default is immutable mechanics.
-
-A contract bug requires successor/abandonment rather than pretending immutable
-claims can be patched invisibly.
-
-# ============================================================
-# 85. CLAIM CONTRACT TESTS
-# ============================================================
-
-Add exhaustive Foundry tests.
-
-At minimum:
-
-- open edition for registered Shot;
-- reject unregistered Shot;
-- exact current controller authorization;
-- reject wrong controller;
-- ERC-1271 verification;
-- nonce replay rejection;
-- deadline rejection;
-- wrong chain/domain;
-- second edition open rejected;
-- open policy immutable;
-- open edition unlimited claims;
-- finite supply exactly N;
-- N+1 rejected;
-- timed claim before close;
-- timed claim at/after close rejected according to exact boundary;
-- limited+timed behavior;
-- one account one Claim;
-- second Claim rejected;
-- unique token IDs;
-- exact per-Shot claim numbers;
-- release digest recorded;
-- checkpoint digest recorded;
-- gesture commitment recorded;
-- head mismatch rejected;
-- transfer rejected;
-- approval/transfer path cannot bypass non-transferability;
-- claim survives Shot update;
-- edition survives Shot controller transfer;
-- fork child gets independent edition;
-- no admin mint;
-- no arbitrary relayer authority;
-- event fields exact;
-- gas snapshot.
-
-# ============================================================
-# 86. CROSS-LANGUAGE SIGNATURE VECTORS
-# ============================================================
-
-Create frozen test vectors for:
-
-    OpenClaimEdition
-    ClaimSoftware
-
-Verify exact agreement across:
-
-- Solidity;
-- Rust;
-- Swift.
-
-Use canonical P-256 / BuilderAccount signing law already present.
-
-Do not double-hash.
-
-Enforce low-s as current protocol requires.
-
-# ============================================================
-# 87. GESTURE VECTORS
-# ============================================================
-
-Create a shared fixture, conceptually:
-
-    fixtures/claim-mark-v1.json
-
-Include:
-
-- ordinary clockwise loop;
-- counterclockwise loop;
-- irregular loop;
-- wide loop;
-- narrow loop;
-- failed line;
-- failed tap;
-- failed non-enclosing path;
-- quantized bytes;
-- expected SHA-256 commitment.
-
-Swift generation and server/Rust validation must agree exactly.
-
-# ============================================================
-# 88. SHIPPING INVARIANT TESTS
-# ============================================================
-
-Add tests proving:
-
-- first public release → exactly one `shot.shipped`;
-- second catalog release → `shot.updated`;
-- tenth catalog release → still only one Ship;
-- service restart/reindex does not duplicate Ship;
-- retry after partially completed first birth does not duplicate Ship;
-- alias mutation does not create Ship;
-- Builder profile mutation does not create Ship;
-- refresh does not create Ship;
-- installation does not create Ship;
-- fork child creates its own one Ship;
-- parent receives no new Ship event.
-
-# ============================================================
-# 89. FOLLOW TESTS
-# ============================================================
-
-Test:
-
-- Follow by exact BuilderID;
-- handle rename preserves follow;
-- duplicate Follow idempotent;
-- Unfollow idempotent;
-- Companion offline Follow queues;
-- Mac reconnect reconciles;
-- Mac-origin Follow projects to Companion;
-- no public Registry record;
-- no on-chain record;
-- no follower-count endpoint;
-- Following feed includes matching Builder events;
-- Following feed excludes non-followed Builders.
-
-# ============================================================
-# 90. UPDATES INBOX TESTS
-# ============================================================
-
-Test:
-
-- claimed app update creates one relevant item;
-- repeated polling creates no duplicate;
-- Ready for iPhone creates actionable item;
-- fork of user's Shot creates one item;
-- edition close creates one item;
-- alias state transition creates one item;
-- individual Claims do NOT each create notifications;
-- reading persists;
-- reconnect does not resurrect read items;
-- public Discover events do not automatically enter Updates.
-
-# ============================================================
-# 91. TIMELINE TESTS
-# ============================================================
-
-Test:
-
-- deterministic ordering;
-- chain reorg handling;
-- canonical timestamp;
-- no `Date.now()` authority;
-- one Ship;
-- N Updates;
-- child fork relation;
-- edition close;
-- claim count current;
-- pagination;
-- no global feed claim flood.
-
-# ============================================================
-# 92. CLAIM → OFFLINE MAC E2E
-# ============================================================
-
-Add an automated production-shaped E2E around the existing network harness.
-
-Prove:
-
-    claimant account
-       ↓
-    exact published Shot
-       ↓
-    gesture commitment
-       ↓
-    ClaimSoftware authorization
-       ↓
-    NFT mint
-       ↓
-    confirmed Claim receipt
-       ↓
-    durable install intention while Mac unavailable
-       ↓
-    Mac returns
-       ↓
-    exact claimed release downloaded
-       ↓
-    existing install pipeline receives it
-
-No production fake success branch.
-
-# ============================================================
-# 93. LIMITED EDITION E2E
-# ============================================================
-
-Use a tiny fixture edition:
-
-    maxClaims = 2
-
-Prove:
-
-- identity A Claims #1;
-- identity B Claims #2;
-- edition is closed;
-- identity C cannot Claim;
-- UI/API report 2 / 2;
-- identity A cannot Claim again;
-- update does not reopen edition.
-
-# ============================================================
-# 94. OPEN EDITION E2E
-# ============================================================
-
-Prove:
-
-- Open Edition has no cap;
-- multiple distinct test identities Claim;
-- each receives sequential Claim number;
-- each holds one NFT;
-- no quantity exists;
-- app Update changes neither edition nor old Claims.
-
-# ============================================================
-# 95. PHYSICAL ACCEPTANCE — PRIMARY RITUAL
-# ============================================================
-
-The product is not accepted until the actual ritual works on a physical iPhone.
-
-Use a real public Shot.
-
-On iPhone:
-
-1. open live app URL;
-2. tap Claim;
-3. Companion opens correct Shot/release;
-4. app icon appears centered;
-5. draw a natural imperfect circle;
-6. circle is accepted;
-7. haptic occurs;
-8. UI says Claiming…;
-9. actual DeviceKey signs;
-10. production relayer submits;
-11. Robinhood confirms;
-12. token exists;
-13. UI changes to Claimed ONLY now;
-14. exact claim number appears;
-15. actual loop renders as receipt;
-16. Profile contains Claim.
-
-Record:
-
-- ShotID;
-- account;
-- token ID;
-- claim number;
-- tx hash;
-- block;
-- gesture commitment;
-- release digest;
-- checkpoint digest.
-
-Never record private key.
-
-# ============================================================
-# 96. PHYSICAL ACCEPTANCE — MAC OFFLINE
-# ============================================================
-
-Repeat with Mac intentionally offline.
-
-Claim must complete.
-
-Then:
-
-    Claimed
-    Waiting for your Mac
-
-Bring Mac online later.
-
-Verify:
-
-- durable request arrives;
-- exact claimed release resolves;
-- source verifies;
-- source prepares;
-- Companion changes to Ready for your iPhone.
-
-Then plug phone in.
-
-Verify physical install.
-
-This is a REQUIRED acceptance test.
-
-# ============================================================
-# 97. PHYSICAL ACCEPTANCE — ONE SHIP, ONE UPDATE
-# ============================================================
-
-Builder:
-
-1. create/adopt small app;
-2. first `tohseno deploy`;
-3. choose finite or Open edition;
-4. approve;
-5. observe:
-
-       Shipped.
-
-6. another person Claims;
-7. builder changes visible behavior;
-8. runs `tohseno deploy` again;
-9. approves;
-10. terminal MUST say:
-
-       Updated.
-
-11. Registry Timeline contains:
-
-       one Ship
-       one Update
-
-12. Claim Edition remains exactly unchanged.
-13. claimant sees Update available.
-14. claimant installs update.
-15. no new Claim transaction exists.
-
-# ============================================================
-# 98. PHYSICAL ACCEPTANCE — FOLLOW
-# ============================================================
-
-On recipient Companion:
-
-1. open Builder;
-2. Follow;
-3. take Mac offline if useful;
-4. Builder ships a second distinct Shot;
-5. recipient's Following view later shows the new Ship;
-6. Builder updates existing Shot;
-7. Following shows Update;
-8. no follower count appears anywhere;
-9. no public follow record exists.
-
-# ============================================================
-# 99. WEBSITE ACCEPTANCE
-# ============================================================
-
-On live production origin verify:
-
-    /registry
-    canonical Shot route
-    Builder route
-    Claim receipt route
-    Claim token metadata route
-    claims contract status endpoint
-
-Verify:
-
-- finite supply real;
-- open supply real;
-- Claim CTA routes correctly;
-- closed edition cannot Claim;
-- Builder Follow deep link correct;
-- app Timeline distinguishes Ship/Update;
-- no "shipped v2";
-- no wallet connect;
-- no gas;
-- no NFT marketplace language;
-- canonical claim receipt resolves.
-
-# ============================================================
-# 100. CONTRACT DEPLOYMENT
-# ============================================================
-
-This prompt AUTHORIZES deployment of the new additive TohsenoClaimsV1 contract
-to Robinhood Chain only after:
-
-- complete Foundry suite passes;
-- exact source is committed;
-- runtime hash is known;
-- constructor references exact active trusted ShotRegistry;
-- deployment credential is the correct governed credential;
-- deployment evidence is prepared;
-- no existing generation-0.8 contract is modified.
-
-Do not deploy a new Registry generation.
-
-Record exact:
-
-- chain ID;
-- contract address;
-- deployment tx;
-- deployment block/hash;
-- runtime code hash;
-- constructor/reference state;
-- source commit.
-
-Create signed activation evidence using the repository's established trust model
-adapted cleanly for this additive Claims contract.
-
-Clients fail closed unless activation verifies.
-
-# ============================================================
-# 101. RELAYER DEPLOYMENT
-# ============================================================
-
-Extend the current constrained production relayer.
-
-Do not make a new general wallet service.
-
-Allow only exact claims-related calls.
-
-Update production configuration dark first.
-
-Health/status must distinguish:
-
-    Claims contract configured
-    Claims activation verified
-    Claim relayer funded
-    Claim relay enabled
-
-Do not say Ready when any necessary boundary is absent.
-
-# ============================================================
-# 102. WEBSITE RELEASE ORDER
-# ============================================================
-
-Avoid a broken advertising window.
-
-Safe sequence:
-
-1. merge/deploy backwards-compatible Claims read/index support dark;
-2. deploy additive TohsenoClaimsV1;
-3. record/activate exact Claims contract;
-4. enable chain indexer;
-5. deploy relayer support dark;
-6. deploy Mac/Companion source implementation;
-7. run local + CI matrices;
-8. produce signed/notarized target release when governed gates permit;
-9. physically test real Claim;
-10. physically test offline-Mac handoff;
-11. physically test install;
-12. test one Update;
-13. verify one Ship invariant;
-14. activate Claim write path;
-15. enable new Registry/website Claim UI;
-16. verify public origin from outside localhost.
-
-Do not advertise Claim before actual mint works.
-
-# ============================================================
-# 103. 1.1 AND 1.2 RELEASE DISCIPLINE
-# ============================================================
-
-If 1.1.0 remains unreleased:
-
-DO NOT quietly replace its source candidate with ADR 0035.
-
-Retain its exact release commit and readiness evidence.
-
-ADR 0035 should target the next correct minor line.
-
-If current release architecture requires shipping 1.1 before 1.2 can become
-public, obey that order.
-
-Do not manufacture old acceptance.
-
-If 1.1 completes during this session and owner evidence is available, finish its
-governed release exactly.
-
-Otherwise leave 1.1 evidence truthful and keep 1.2 Claims UI dark until an
-appropriate released client exists.
-
-# ============================================================
-# 104. UPDATE CURRENT DOCS
-# ============================================================
-
-Reconcile current source truth in the same change.
-
-At minimum update:
-
-- README.md
-- AGENTS.md
-- docs/STATE.md
-- docs/ARCHITECTURE.md
-- docs/LIVING_CONNECTION.md
-- threat model
-- current CLI docs
-- current Registry docs
-- Companion docs
-- website docs
-- privacy docs
-- release runbooks
-- contract docs
-- new ADR 0035
-
-Pay special attention to stale text that still says Companion is not an identity
-or wallet if ADR 0034/0035 now makes DeviceKey + smart account a public
-authorization boundary.
-
-Preserve distinctions:
-
-    Companion pairing identity
-    Companion Builder DeviceKey
-    Tohseno smart-account address
-    BuilderID when controlling a Shot
-    InstallationKey
-    Apple signing identity
-    recovery authority
-
-Do not merge them in prose.
-
-# ============================================================
-# 105. WEBSITE POSITIONING
-# ============================================================
-
-Do not replace Tohseno's core shipping mission with NFT marketing.
-
-The main website remains about native software moving person-to-person.
-
-Claims enrich the network.
-
-Suitable language:
-
-    Ship iPhone apps.
-    Person to person.
-
-and, in Registry/app context:
-
-    Claim software you want in your world.
-
-Do not lead with:
-
-    Mint NFTs for apps
-
-That is infrastructure language, not the product.
-
-# ============================================================
-# 106. REGISTRY EMOTIONAL TEST
-# ============================================================
-
-Open the current macOS app.
-
-Select one of Your Apps.
-
-It should still feel like:
-
-    workshop
-    machine
-    source
-    build
-    phone
-
-Then select Registry.
-
-It must feel like walking through a door.
-
-You should see:
-
-    software entering the network;
-    software changing;
-    forks becoming new software;
-    editions filling and closing;
-    Builders worth following;
-    things you can Claim.
-
-If Registry feels like:
-
-    another settings screen
-    another app grid
-    another create form
-
-the product is wrong.
-
-# ============================================================
-# 107. CLAIM EMOTIONAL TEST
-# ============================================================
-
-A user should never need to understand:
-
-    ERC-721
-    EIP-712
-    ERC-1271
-    relayer
-    gas
-    Robinhood RPC
-    BuilderAccountFactory
-
-to experience the main ritual.
-
-They encounter:
-
-    Prayer Lock
-
-They press:
-
-    Claim
-
-They draw:
-
-    one circle
-
-The system says:
-
-    Claiming…
-
-Reality happens.
-
-Then:
-
-    Claimed
-    #184 of 888
-
-And their Mac quietly begins preparing the software.
-
-That is the experience.
-
-# ============================================================
-# 108. NO FAKE SUCCESS
-# ============================================================
-
-Retain Tohseno's epistemology.
-
-"Claimed" means:
-
-    canonical NFT exists.
-
-"Shipped" means:
-
-    first Registry state + first catalog source + immutable Claim Edition
-    are all verifiably live.
-
-"Updated" means:
-
-    new Registry checkpoint + catalog release are canonically live.
-
-"Ready for iPhone" means:
-
-    exact claimed/selected release has been verified and built enough to
-    require only the named device action.
-
-"Installed" means:
-
-    physical device inventory verified exact bundle.
-
-"Following" means:
-
-    durable private follow state exists.
-
-Never infer any of these from button press alone.
-
-# ============================================================
-# 109. REQUIRED LOCAL VERIFICATION
-# ============================================================
-
-Run the complete current AGENTS.md verification matrix.
-
-At minimum include all currently relevant:
-
-    cargo fmt --all -- --check
-
-    cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
-
-    cargo test --locked --workspace --all-targets --all-features
-
-    Swift package builds/tests across:
-      apple-identity
-      fascia
-      CompanionKit
-      Companion
-      macOS Tohseno
-
-    exact Xcode build fixtures
-
-    forge fmt --check
-    forge build
-    forge test -vvv
-
-    website typecheck
-    website tests
-
-    Studio tests if still governed
-
-    installer tests
-
-    activation tests
-
-    network E2E
-
-    ontology/lifecycle scripts
-
-    Companion E2E
-
-    macOS service lifecycle
-
-plus every new Claims/timeline/follow suite.
-
-Warnings remain errors where repository policy requires it.
-
-# ============================================================
-# 110. CI
-# ============================================================
-
-Add Claims coverage to authoritative CI.
-
-CI must prove:
-
-- Solidity;
-- cross-language signatures;
-- claim mark vectors;
-- Registry service;
-- timeline;
-- one-Ship invariant;
-- Follow;
-- Updates;
-- website;
-- native clients.
-
-Do not make live Robinhood writes from ordinary CI.
-
-Read-only live activation/code checks are acceptable under current policy.
-
-# ============================================================
-# 111. COMMIT AND PUSH
-# ============================================================
-
-After implementation:
-
-1. inspect complete diff;
-2. confirm no secrets;
-3. confirm old 1.1 evidence remains truthful;
-4. confirm unrelated dirty work untouched;
-5. create cohesive commits;
-6. push through authoritative repository rules;
-7. do not force push;
-8. do not bypass tag protection.
-
-This prompt authorizes the implementation to reach `origin/main` when repository
-policy permits.
-
-# ============================================================
-# 112. PRODUCTION DEPLOYMENT
-# ============================================================
-
-Deploy all backward-compatible production support using the repository's current
-hosting/deployment system.
-
-Do not migrate providers.
-
-Deploy as needed:
-
-- Registry API;
-- claim indexer;
-- timeline;
-- token metadata/receipt service;
-- constrained relayer;
-- website;
-- relay changes only if actually required.
-
-Use real durable storage.
-
-Run public-origin health checks.
-
-Claims write/UI remains dark until contract activation + physical proof passes.
-
-# ============================================================
-# 113. RELEASE
-# ============================================================
-
-Choose the next correct version from repository state.
-
-Expected:
-
-    1.2.0
-
-Do NOT reuse immutable 1.1 or 1.0.2 evidence.
-
-When release gates are available:
-
-- clean exact source commit;
-- universal build under current policy;
-- Developer ID signing;
-- hardened runtime;
-- notarization;
-- stapling;
-- Gatekeeper;
-- mounted DMG;
-- exact manifest;
-- exact SHA-256;
-- origin round trip;
-- clean Mac install;
-- Companion install/pair;
-- Claim physical test;
-- offline Mac test;
-- physical install;
-- one Update;
-- Follow test.
-
-Only then activate stable release.
-
-# ============================================================
-# 114. PRODUCTION SMOKE SHOT
-# ============================================================
-
-Use a real small compatible Shot.
-
-Do not insert fake rows.
-
-Its first ship must use the normal path:
-
-    tohseno init
-    tohseno deploy
-    Companion chooses Claim Edition
-    Companion approves
-    Registry registers
-    Claim Edition opens
-
-Then a second Tohseno identity must Claim through normal Companion flow.
-
-Record exact real evidence.
-
-For first production Claims testing, a tiny app is preferred over a complex
-entitlement-heavy app.
-
-The purpose is proving the network.
-
-# ============================================================
-# 115. FINAL ACCEPTANCE CHECKLIST
-# ============================================================
-
-Do not call ADR 0035 complete until each applicable item is YES.
-
-SHIP
-
-[ ] Is each Shot shipped exactly once?
-[ ] Does first deploy say Shipped?
-[ ] Does later deploy say Updated?
-[ ] Can retries never create another Ship?
-[ ] Does fork child get its own one Ship?
-
-CLAIM EDITION
-
-[ ] Does every new public Shot get exactly one edition?
-[ ] Is Open Edition possible?
-[ ] Is finite N possible?
-[ ] Is timed possible?
-[ ] Is limited+timed possible?
-[ ] Is edition policy immutable?
-[ ] Do updates leave it unchanged?
-
-CLAIM
-
-[ ] Is one account limited to one Claim per Shot?
-[ ] Is every Claim a real non-transferable ERC-721 NFT?
-[ ] Is Claim gasless to the user?
-[ ] Does Companion DeviceKey authorize it?
-[ ] Is exact release bound?
-[ ] Is exact checkpoint bound?
-[ ] Is gesture commitment bound?
-[ ] Is claim number assigned only on-chain?
-[ ] Does UI wait for canonical confirmation?
-
-GESTURE
-
-[ ] Does user draw one continuous circle?
-[ ] Is an imperfect expressive loop accepted?
-[ ] Is only final x/y geometry retained?
-[ ] Are timing/pressure/velocity discarded?
-[ ] Does canonical 64-point representation verify cross-language?
-[ ] Does user's mark appear in Claim receipt?
-[ ] Does accessibility path exist?
-
-OFFLINE
-
-[ ] Can Claim complete with Mac asleep?
-[ ] Does installation intention survive?
-[ ] Does Mac later receive it?
-[ ] Does Mac prepare exact claimed release?
-[ ] Does Companion eventually say Ready for your iPhone?
-
-INSTALL
-
-[ ] Does claimed release locally build?
-[ ] Does recipient use their Apple signing identity?
-[ ] Does cable handoff remain truthful?
-[ ] Does Installed require physical evidence?
-
-REGISTRY
-
-[ ] Has New Shot composer been removed from Registry?
-[ ] Does Discover feel like network activity?
-[ ] Does Following filter by private Builder follows?
-[ ] Does Updates contain only high-signal personal items?
-[ ] Are individual Claims absent from global-feed spam?
-[ ] Does app Timeline contain exactly one Ship?
-
-FOLLOW
-
-[ ] Can Builder be followed?
-[ ] Does handle change preserve follow?
-[ ] Is follow private?
-[ ] Are there zero follower counts?
-[ ] Is there no public follow graph?
-
-PROFILE
-
-[ ] Does own Profile show Claimed software?
-[ ] Can Claim receipt render exact mark?
-[ ] Is Tohseno address available in technical detail?
-[ ] Is there no wallet-connect ceremony?
-
-WEBSITE
-
-[ ] Does app page say Claim rather than Install?
-[ ] Does edition state render from real chain data?
-[ ] Does Claim deep-link to Companion?
-[ ] Does Builder page allow Follow?
-[ ] Does receipt route work?
-[ ] Is there no NFT marketplace chrome?
-
-CHAIN
-
-[ ] Is generation-0.8 ShotRegistry unchanged?
-[ ] Is TohsenoClaimsV1 separately deployed?
-[ ] Is exact runtime activation verified?
-[ ] Does relayer remain constrained?
-[ ] Is no user private key server-side?
-
-RELEASE
-
-[ ] Is code committed?
-[ ] Is it pushed?
-[ ] Is CI green?
-[ ] Are production support services deployed?
-[ ] Is Claim contract deployed/activated?
-[ ] Has a real production Claim succeeded?
-[ ] Has offline-Mac flow succeeded?
-[ ] Has physical install succeeded?
-[ ] Has one Update been proven?
-[ ] Is stable release advertised only after those truths?
-
-# ============================================================
-# 116. FINAL REPORT
-# ============================================================
-
-Return a precise engineering report containing:
-
-1. ADR 0035 path;
-2. architecture implemented;
-3. exact release target;
-4. exact commit SHA(s);
-5. pushed branch;
-6. CI run;
-7. TohsenoClaimsV1 address;
-8. deployment transaction;
-9. runtime code hash;
-10. activation evidence;
-11. active generation-0.8 Registry coordinates independently verified;
-12. production service deployment IDs;
-13. production smoke ShotID;
-14. Claim Edition type;
-15. claimant Tohseno address;
-16. Claim token ID;
-17. Claim number;
-18. Claim transaction hash;
-19. gesture commitment;
-20. exact claimed release;
-21. offline-Mac test result;
-22. physical install result;
-23. one-Update result;
-24. Follow result;
-25. website/app/receipt URLs;
-26. release DMG URL + SHA-256 if legitimately released;
-27. any exact remaining owner-attended boundary.
-
-Do not include private keys, recovery words or secrets.
-
-# ============================================================
-# 117. THE FINAL PRODUCT TEST
-# ============================================================
-
-Step away from implementation.
-
-Open Tohseno.
-
-On the left are Your Apps.
-
-Choose one.
-
-It feels like a workshop.
-
-Source.
-Build.
-Simulator.
-Phone.
-Evolve.
-Update.
-
-Now click Registry.
-
-The room changes.
-
-Software is alive here.
-
-A new app entered Tohseno this morning.
-
-Another changed an hour ago.
-
-A fork became its own thing.
-
-An edition reached 888 / 888 and closed.
-
-A Builder you follow shipped something new.
-
-You encounter an artifact.
-
-You open it.
-
-There is space around it.
-
-You see:
-
-    431 / 888 claimed
-
-You press:
-
-    CLAIM
-
-Your iPhone shows the artifact.
-
-You draw one imperfect circle around it.
-
-The circle closes.
-
-A haptic.
-
-    Claiming…
-
-The Mac may be asleep.
-
-That does not matter.
-
-Robinhood Chain confirms.
-
-Only then:
-
-    CLAIMED
-    #432 / 888
-
-Your mark is there.
-
-It is yours.
-
-The app now exists in your Profile as something you encountered.
-
-Your Mac wakes three hours later.
-
-Without another request it receives the exact intention.
-
-It verifies the exact software you claimed.
-
-It downloads it.
-
-It prepares it.
-
-Your phone eventually says:
-
-    Ready for your iPhone.
-
-You plug in the cable.
-
-The native app materializes.
-
-Days later the Builder changes it.
-
-The Registry does NOT say they shipped it again.
-
-It says:
-
-    Updated.
-
-Because a thing can only enter the world once.
-
-It can change forever after that.
-
-You follow that Builder because you want to notice what they make next.
-
-There are no follower counts.
-
-There are no posts.
-
-There are no likes.
-
-There is software.
-
-There are people.
-
-There are encounters.
-
-There is lineage.
-
-There is time.
-
-If the system left behind by this prompt does not materially produce that
-experience using real production state, continue working.
-
-Tohseno 1.1 made software travel.
-
-ADR 0035 makes encountering software mean something.
-
-Build the place.
+Companion establishes DeviceKey identity
+        ↓ pairing ceremony proves: "This 
+Companion belongs to this physical device"
+        ↓ Mac stores association ``` Study 
+what the existing onboarding actually does and 
+evolve it rather than rebuilding the entire 
+system. The relationship should eventually 
+allow: ```text remote Companion request
+        ↓ Mac knows intended install target ↓ 
+correct device receives software ``` 
+──────── 32. MAC AS PRIVATE FACTORY The 
+Mac’s role should become explicit. The Mac is a 
+private software factory. Responsibilities may 
+include: ```text SOURCE fetch exact source 
+resolve capsule verify digest maintain source 
+provenance ``` ```text BUILD compile resolve 
+dependencies prepare signing produce artifact 
+retain artifact ``` ```text VERIFY run 
+deterministic checks inspect source inspect 
+dependencies inspect entitlements inspect 
+permissions run model-assisted analysis produce 
+Verification Report ``` ```text DELIVER receive 
+durable requests associate requests with 
+intended devices wait for device reachability 
+install resume interrupted delivery ``` The Mac 
+should not conceptually be: > the thing the 
+cable plugs into. Its role is much larger and 
+more coherent than that. Reflect this in UI and 
+documentation. ──────── 33. COMPANION 
+AS HUMAN AUTHORITY The iPhone Companion should 
+remain the place where important human 
+authority is expressed. Examples may include: • 
+publishing; • signing Builder actions; • 
+Claiming; • approving external identity 
+bindings; • signing Release Attestations; • 
+approving sensitive actions; • managing 
+associated devices; • approving installs where 
+required. The web can inform. The Mac can 
+prepare. The relay can transport. The models 
+can analyze. But important human authority 
+should remain legible on the human-held device. 
+──────── 34. REGISTRY / PUBLIC APP UX 
+MUST EXPRESS TRUST Study the current public 
+Registry/App pages. Evolve them so an app page 
+eventually communicates: ```text AYUNOANDO by 
+jpfraneto Release 1.4.2 ``` Then: ```text 
+BUILDER jpfraneto Farcaster @jpfraneto ✓ 
+GitHub jpfraneto ✓ Base 0x... ✓ ``` Then: 
+```text PROVENANCE Builder signature ✓ Source 
+available Source digest … Build reproducibility 
+… ``` Then: ```text NETWORK REVIEW 18 
+attestations for this exact release ``` Then 
+personalized context where available: ```text 
+YOUR NETWORK 3 people you follow reviewed this 
+release ``` Then machine observations: ```text 
+OBSERVATIONS Camera No access detected 
+Microphone No access detected Location While 
+using app Network 3 destinations Payments 
+Stripe Dependencies 1 changed since previous 
+release ``` Then: ```text [ Inspect Evidence ] 
+``` And finally: ```text [ Claim ] ``` Only 
+display facts the implementation actually 
+knows. No fake green checkmarks. No placeholder 
+verification presented as real evidence. 
+Progressive disclosure. The top-level 
+experience should remain understandable to a 
+normal person. ──────── 35. BUILDER 
+PROFILE SHOULD EXPRESS AUTHORITY + CONTEXT + 
+HISTORY Study the current Builder profile and 
+evolve it. The profile should make a clear 
+distinction between: 1. sovereign Builder 
+authority; 2. connected external identities; 3. 
+behavior/history; 4. verification activity. 
+Conceptually: ```text
+                [ PFP ]
+              jpfraneto
+        Farcaster @jpfraneto ✓ GitHub 
+        jpfraneto ✓ Base 0x91...38 ✓ X 
+        @jpfraneto
+``` Then: ```text BUILDER AUTHORITY This 
+Builder's publishing authority is held by a 
+DeviceKey on Tohseno Companion. DeviceKey 
+91F8…A20C Active ``` Then: ```text ACTIVITY 14 
+apps shipped 39 releases 72 releases reviewed 
+``` Then potentially: ```text REVIEW HISTORY 
+Source reviews 62 Privacy reviews 29 Dependency 
+reviews 71 Confirmed findings 11 ``` Do not 
+necessarily expose all metrics publicly. 
+Respect the privacy model. Do not manufacture a 
+single reputation score unless extremely 
+justified. ──────── 36. IDENTITY 
+CONNECTION UX The profile should allow additive 
+identity connections. Existing Builders must 
+not be blocked if they have no Farcaster or 
+GitHub. Possible UI: ```text CONNECTED 
+IDENTITIES Farcaster Not connected [ Connect ] 
+GitHub Not connected [ Connect ] Base 0x91...38 
+✓ X Not connected [ Connect ] ``` An identity 
+connection should not merely set a database 
+field. It must have a verifiable binding model 
+underneath it. The user should understand that: 
+```text Connected identities prove context. 
+They do not control your Builder. ``` Do not 
+necessarily use that exact copy. But preserve 
+the conceptual distinction. ──────── 
+37. MACHINE VERIFICATION UX A Verification 
+Report should eventually have a human-readable 
+representation. For example: ```text 
+VERIFICATION REPORT Release Ayunoando 1.4.2 
+Source Matched expected digest Build Reproduced 
+successfully Entitlements Location: While Using 
+App Network api.stripe.com api.example.com 
+cdn.example.com Dependencies 12 total 1 changed 
+Findings 2 informational 0 blocking ``` Allow 
+deeper technical detail without overwhelming 
+ordinary recipients. Structured 
+machine-readable evidence should exist 
+underneath the UI. ──────── 38. RELEASE 
+ATTESTATION UX A reviewer must understand what 
+they are signing. Do not present a giant: 
+```text VERIFY APP ``` button with ambiguous 
+semantics. Instead, something more precise: 
+```text REVIEW RELEASE Ayunoando 1.4.2 I 
+reviewed: [x] Source [x] Dependencies [x] 
+Entitlements [x] Network destinations [ ] 
+Payment behavior [ ] Privacy behavior 
+Verification report: 0x93a8… Outcome: No 
+blocking findings under Review Policy 1 [ Sign 
+Attestation ] ``` The signed canonical payload 
+must correspond to what the UI says. Never let 
+UX and signed semantics diverge. 
+──────── 39. ATTESTATIONS MAY NEED 
+WITHDRAWAL / SUPERSESSION Threat model honest 
+mistakes. A reviewer may sign an attestation 
+and later realize: • they reviewed the wrong 
+thing; • new evidence emerged; • their 
+assessment was mistaken; • their DeviceKey was 
+compromised. Determine whether attestations 
+should support: • withdrawal; • supersession; • 
+revocation notices; • dispute annotations. Do 
+not erase historical records silently. Prefer 
+append-only historical truth where possible. 
+For example: ```text Attestation A signed Sep 1 
+Withdrawal B references Attestation A signed 
+Sep 3 ``` The Registry can then truthfully 
+display: ```text Attestation withdrawn ``` 
+rather than pretending it never existed. Follow 
+existing Tohseno protocol philosophy. 
+──────── 40. REVIEW POLICY MUST BE 
+VERSIONED If people sign statements like: 
+```text I reviewed this release ``` the meaning 
+of “reviewed” must not float over time. 
+Introduce or identify a versioned review 
+policy. For example: ```text 
+tohseno-review-policy/1 ``` The policy may 
+define scopes and what checks each scope means. 
+An attestation can then bind: ```text 
+reviewPolicyVersion ``` This allows policy 
+evolution without rewriting historical claims. 
+Keep the first policy small. Do not attempt to 
+define a perfect universal security standard. 
+──────── 41. VERIFICATION REPORTS MUST 
+BE CONTENT-ADDRESSED WHERE POSSIBLE Because 
+attestations refer to evidence, the evidence 
+should not be mutable underneath them. Prefer a 
+model where the Verification Report has a 
+canonical digest. Conceptually: ```text 
+VerificationReport
+        ↓ canonical encoding ↓ digest ↓ 
+ReleaseAttestation references digest ``` This 
+gives us: ```text "I signed my assessment of 
+this exact report about this exact release." 
+``` The report itself may include references to 
+larger artifacts. Follow existing 
+content-addressing conventions in the 
+repository. ──────── 42. SOURCE CHANGES 
+MUST BREAK OLD EVIDENCE If a release’s source 
+changes, the release identity/digest must 
+change. Never allow: ```text same release 
+identifier different source same attestations 
+``` The exact implementation should align with 
+the current Shot/Release/checkpoint 
+architecture. Preserve Tohseno’s existing 
+content-addressed and immutable-history 
+philosophy. ──────── 43. SECURITY 
+EVIDENCE SHOULD DISTINGUISH FACT FROM 
+INTERPRETATION This distinction matters. 
+Examples of relatively direct observations: 
+```text NSCameraUsageDescription exists ``` 
+```text dependency foo version 1.9.2 ``` 
+```text binary contacts api.example.com ``` 
+```text source digest = X ``` Examples of 
+interpretation: ```text camera usage appears 
+appropriate ``` ```text network behavior 
+appears benign ``` ```text dependency risk 
+seems low ``` Preserve this distinction in the 
+data model where reasonable. Machine 
+observations should be auditable. Human 
+interpretation should be attributable. 
+──────── 44. THREAT MODEL THE TRUST 
+NETWORK This evolution is security-sensitive. 
+Create an explicit threat model. At minimum 
+consider: Identity attacks • fake Farcaster 
+binding; • fake GitHub binding; • fake Base 
+binding; • replayed identity proof; • username 
+change; • compromised OAuth account; • 
+compromised social account; • external service 
+outage; • account deletion; • identity 
+squatting. Builder attacks • DeviceKey 
+compromise; • DeviceKey loss; • DeviceKey 
+rotation; • malicious Builder; • Builder 
+accumulates trust using benign releases then 
+ships malware; • Builder changes source after 
+review; • Builder publishes intentionally 
+confusing release identifiers. Attestation 
+attacks • reviewer signs wrong digest; • stale 
+attestation shown on a new release; • 
+copied/replayed attestation; • Sybil reviewers; 
+• colluding reviewers; • paid positive reviews; 
+• reviewer claims broader scope than performed; 
+• compromised reviewer DeviceKey; • malicious 
+UI tricks reviewer into signing different 
+payload. Machine intelligence attacks • 
+hallucination; • prompt injection embedded in 
+source comments/files; • malicious README 
+instructions; • adversarial source intended to 
+manipulate an LLM; • dependency metadata 
+poisoning; • obfuscated code; • runtime 
+behavior differing from static analysis; • 
+malicious build scripts; • remote model 
+provider sees private source unexpectedly. 
+Delivery attacks • Claim for release X installs 
+release Y; • request replay; • relay mutation; 
+• stale queued installation; • compromised 
+relay; • compromised Mac; • wrong source; • 
+wrong artifact; • source/build mismatch; • 
+wrong physical phone; • accidental install on 
+another person’s device; • ambiguous CoreDevice 
+selection. Document mitigations and residual 
+risks. ──────── 45. RELAY MUST NOT 
+BECOME TRUSTED AUTHORITY The relay transports 
+intent. It should not become capable of 
+silently changing what software gets installed. 
+Where compatible with current architecture, 
+remote requests should bind enough immutable 
+information that the Mac can verify: ```text 
+request → intended Shot/release → exact 
+digest → requesting Companion identity → 
+intended action ``` The Mac should 
+independently validate what it receives. The 
+relay should not need access to private signing 
+keys. Study the existing relay architecture and 
+preserve its security model. ──────── 
+46. REMOTE CLAIM MUST BE IDEMPOTENT A durable 
+asynchronous system must avoid duplicate 
+builds/installs. Scenario: ```text Claim Mac 
+offline relay retries Mac reconnects network 
+retries ``` The system must not accidentally 
+perform the same intended action repeatedly. 
+Review existing idempotency semantics. 
+Strengthen them where necessary. Golden path 
+expectations should include: ```text remote 
+request executes exactly once ``` where 
+“exactly once” may be implemented as idempotent 
+at-least-once transport if appropriate. Use 
+correct distributed-systems semantics. 
+──────── 47. BUILD ONCE, INSTALL LATER 
+If an app is successfully built while the 
+target phone is unavailable: Do not throw away 
+the artifact merely because installation cannot 
+happen immediately. The system should be 
+capable of: ```text build
+  ↓ verified artifact retained ↓ Ready to 
+Install
+  ↓ device becomes reachable ↓ install ``` 
+Study current artifact retention behavior. Do 
+not rebuild unnecessarily if the already-built 
+artifact remains valid. Make validity rules 
+explicit: • release digest; • signing state; • 
+provisioning expiration; • device 
+compatibility; • developer certificate; • build 
+configuration. If a retained artifact is no 
+longer valid, transition honestly and 
+rebuild/re-sign when appropriate. 
+──────── 48. REACHABILITY SHOULD DRIVE 
+DELIVERY The delivery system should react to 
+device state changes. Conceptually: ```text 
+pending install
+      + associated target device + target 
+becomes reachable
+      ↓ attempt install ``` If installation 
+fails because: ```text device locked ``` 
+display that. If: ```text Developer Mode 
+disabled ``` display that. If: ```text pairing 
+missing ``` display that. If: ```text signing 
+expired ``` display that. Do not reduce every 
+failure to: ```text Connect cable ``` The UI 
+should explain the actual condition. 
+──────── 49. DO NOT PROMISE BACKGROUND 
+MAGIC THAT IOS/MACOS CANNOT PROVIDE Be 
+ambitious but truthful. Inspect what: • the Mac 
+app can do while open; • the Mac app can do in 
+background; • launch agents/services can do; • 
+CoreDevice APIs/tools permit; • iOS permits; • 
+Companion can receive while backgrounded; • 
+relay can persist. If continuous behavior 
+requires a Mac helper/service, architect it 
+explicitly. Do not show: ```text Your Mac will 
+automatically install this anytime forever ``` 
+if the Mac must actually be awake with Tohseno 
+running. Make the constraints visible without 
+making the experience feel brittle. 
+──────── 50. PRIVACY MUST BE EXPLICIT 
+Trust networks can easily become surveillance 
+systems. Classify information. At minimum 
+distinguish: ```text PUBLIC PROTOCOL DATA ``` 
+Examples may include: • public releases; • 
+public Builder profile bindings; • public 
+attestations. ```text PUBLIC REGISTRY METADATA 
+``` Examples may include: • display names; • 
+app metadata; • public review counts. ```text 
+PRIVATE LOCAL DATA ``` Examples may include: • 
+private apps; • local source; • local build 
+information; • device associations. ```text 
+PRIVATE TRUST DATA ``` Examples may include: • 
+explicit “I trust Alice for privacy”; • 
+personalized trust weights. ```text RELAY 
+METADATA ``` Understand what relay servers 
+learn. ```text OPTIONAL SOCIAL DATA ``` 
+Understand what Farcaster/GitHub data is 
+fetched and whether it is stored. Do not 
+casually centralize: • complete user social 
+graphs; • all software installed by a user; • 
+private trust relationships; • stable 
+physical-device identifiers; • private 
+repositories; • raw source; • OAuth 
+credentials. Prefer data minimization. 
+──────── 51. FARCASTER GRAPH STORAGE 
+SHOULD BE MINIMAL Ask: > Does Tohseno need to 
+permanently copy someone’s entire Farcaster 
+follow graph? Maybe not. If the graph can be 
+queried when needed or maintained through 
+existing node infrastructure, prefer that to 
+duplicating unnecessary social data. If caching 
+is needed, define: • purpose; • TTL; • 
+invalidation; • privacy impact. Do not create a 
+second social network database merely because 
+the data is accessible. ──────── 52. 
+GITHUB ACCESS SHOULD REQUEST MINIMAL 
+PERMISSIONS If GitHub integration is 
+implemented: • request only necessary scopes; • 
+avoid private repository access unless 
+explicitly needed and explained; • do not 
+ingest arbitrary private source; • store 
+durable identifiers; • handle username changes; 
+• protect tokens; • support disconnect/revoke. 
+If a GitHub App architecture is more 
+appropriate than generic OAuth, evaluate it. 
+Use official current GitHub documentation. 
+──────── 53. APP RELEASE PAGES SHOULD 
+BE EXACT Whenever possible, public deep links 
+should resolve clearly to: ```text app identity 
++ current release ``` and the UI must make 
+clear what is being Claimed. If: ```text 
+tohseno.com/anky ``` resolves to the latest 
+release, the Claim ceremony should still bind 
+the exact immutable release selected at the 
+moment of Claim. Avoid a race where: ```text 
+user views release X Builder publishes Y user 
+taps Claim user unknowingly claims Y ``` The UI 
+and signed intent should resolve this 
+precisely. ──────── 54. TRUST 
+INFORMATION MUST FOLLOW THE EXACT RELEASE 
+Likewise: If the user sees: ```text 18 
+attestations ``` those attestations must 
+correspond to the release they are about to 
+Claim. If the latest release changes while the 
+page is open, handle it explicitly. For 
+example: ```text A newer release is available. 
+You are currently viewing 1.4.2. [ View 1.4.3 ] 
+``` Do not silently swap trust evidence 
+underneath a user’s decision. ──────── 
+55. UX LANGUAGE MUST BE CONSISTENT Prefer 
+precise terms such as: • Builder • Shot • App • 
+Release • Claim • Review • Attestation • 
+Evidence • Verification • Your network • People 
+you follow • Your iPhone • Pair • Reachable • 
+Prepare • Build • Install Do not casually use 
+the following as synonyms: ```text follow trust 
+review verify claim install own approve safe 
+``` Each means something different. Define the 
+terms in product documentation. 
+──────── 56. DO NOT OVERLOAD USERS WITH 
+PROTOCOL LANGUAGE The architecture can be 
+rigorous underneath while the product stays 
+simple. A normal user should not need to 
+understand: • content-addressed storage; • 
+DeviceKey derivation; • FIDs; • EIP-712; • 
+digest algorithms; • CoreDevice identifiers; • 
+relay idempotency; • canonical serialization. 
+Prefer: ```text Built by JP ``` with deeper 
+detail available under: ```text Inspect 
+provenance ``` Prefer: ```text 3 people you 
+follow reviewed this release ``` with deeper 
+detail under: ```text View attestations ``` 
+Progressive disclosure. ──────── 57. DO 
+NOT LOSE THE MAGIC The simple experience must 
+remain: ```text friend sends app
+      ↓ open ↓ see what it is ↓ see who made 
+it
+      ↓ see relevant trust context ↓ Claim ↓ 
+Mac handles preparation
+      ↓ iPhone gets the software ``` The trust 
+architecture exists to make that simple flow 
+defensible. It must not turn Claiming an app 
+into completing a security certification exam. 
+The normal path should be obvious. The deep 
+path should be available. ──────── 58. 
+EVOLVE THE EXISTING PROTOCOL ADDITIVELY WHERE 
+POSSIBLE The repository already has historical 
+protocol commitments. Respect them. If Shot, 
+Ship, Claim, Release encodings, or canonical 
+digests are frozen, do not mutate them 
+casually. Prefer additive primitives equivalent 
+to: ```text IdentityBinding VerificationReport 
+ReleaseAttestation TrustPreference 
+DeviceAssociation ``` where appropriate. If an 
+existing primitive already correctly represents 
+one of these concepts, extend/reuse it instead 
+of creating duplication. For every protocol 
+object, explicitly answer: • What is immutable? 
+• What is signed? • Who signs it? • What is 
+canonical? • How is it hashed? • Can it be 
+replayed? • Can it be revoked? • Can it be 
+superseded? • Can it expire? • What Builder 
+does it belong to? • What release does it 
+belong to? • Is it protocol-critical? • Is it 
+derived/indexed? • Is it public? • Is it 
+private? ──────── 59. MIGRATIONS MUST 
+PRESERVE EXISTING USERS Existing: • Builders; • 
+DeviceKeys; • apps; • Shots; • releases; • 
+Claims; • pairings; • private apps; must 
+continue working. Farcaster and GitHub are 
+additive. Do not require existing Builders to 
+connect either. Possible UI: ```text Complete 
+your Builder identity [ Connect Farcaster ] [ 
+Connect GitHub ] Optional ``` Do not gate basic 
+Tohseno usage behind social accounts. Device 
+association migrations must be conservative. If 
+an existing Companion cannot be safely 
+associated with a physical CoreDevice 
+automatically, require a one-time explicit 
+confirmation. Never guess an install 
+destination. ──────── 60. 
+IMPLEMENTATION PHASES After studying the 
+repository, create a detailed execution plan. 
+Adapt ordering if repository dependencies 
+require it. The rough desired phases are: Phase 
+A — Architecture and invariants Write ADRs or 
+equivalent architecture documentation for: 1. 
+Network Trust and Release Attestations 2. 
+Wireless-First Apple Delivery Potentially 
+separate identity binding into another ADR if 
+the existing architecture warrants it. Update 
+the working paper where appropriate. Do not 
+claim functionality exists before it exists. 
+Clearly distinguish: ```text implemented 
+partially implemented designed future ``` Phase 
+B — Wireless-first domain model Implement the 
+underlying state model necessary for: • device 
+reachability; • persistent install intent; • 
+durable target association; • deferred 
+installation; • resumption; • correct failure 
+states; • multiple visible devices. Remove 
+cable-specific domain assumptions where they 
+are not actually fundamental. Phase C — Durable 
+Companion ↔ device association Implement or 
+formalize: ```text Companion identity
+        ↕ physical install target ``` Include: 
+• persistence; • migration; • 
+reset/reassociation; • multiple-device safety; 
+• lost/replaced device behavior; • tests. Phase 
+D — Wireless-first delivery Make: ```text Claim 
+anywhere → Mac prepares → artifact retained 
+→ associated iPhone becomes reachable → 
+install ``` a genuine supported product path. 
+Reuse existing relay infrastructure. Do not 
+replace the private Mac factory with cloud 
+execution. Phase E — Wireless-first UX Update 
+Mac and Companion UX so: • 
+wireless/reachability is default; • USB appears 
+only when required; • actual states are 
+communicated; • remote Claims have 
+understandable progress; • installation 
+destination is clear. Phase F — External 
+identity binding foundation Build the 
+domain/protocol model for verifiable external 
+identity bindings. Support architecture for: • 
+Farcaster; • GitHub; • Base; • optional X. 
+Implement the integrations that can be 
+completed correctly in this pass. Do not fake 
+unavailable connections. Phase G — Farcaster 
+connection Implement the first-class social 
+binding. At minimum: • stable FID binding; • 
+display metadata; • PFP; • username; • 
+connection/disconnection; • verification of 
+binding; • social graph retrieval where 
+appropriate. Use existing Hypersnap/Snapchain 
+infrastructure if appropriate. Phase H — GitHub 
+connection Implement the technical identity 
+binding. At minimum: • durable account 
+identifier; • username; • profile; • verified 
+connection; • disconnect; • secure token 
+handling. Expose source/repository provenance 
+where already reasonably available. Do not turn 
+this into broad GitHub analytics. Phase I — 
+Verification Report Formalize machine evidence 
+around an exact release. Reuse existing 
+verification pipeline. Generate deterministic 
+structured output where possible. Create a 
+canonical digest for the report if appropriate. 
+Phase J — Release Attestation Allow a reviewer 
+to: ```text select exact release
+        ↓ inspect Verification Report ↓ 
+choose review scopes/outcome
+        ↓ approve on Companion ↓ sign exact 
+canonical payload
+        ↓ publish/store attestation ``` The 
+attestation must never accidentally attach to 
+another release. Phase K — Trust-aware Registry 
+UX Expose: • Builder identity; • external 
+bindings; • exact release; • provenance; • 
+machine observations; • Release Attestations; • 
+personalized Farcaster-follow context. Do not 
+invent nonexistent data. Phase L — Tests and 
+owner-attended evidence Extend automated tests 
+and physical-device test scripts. A feature is 
+not “done” merely because the architecture 
+compiles. Produce real evidence. 
+──────── 61. REQUIRED GOLDEN PATH A — 
+BUILDER SHIPS Verify: ```text Builder
+    ↓ creates/updates app ↓ Ship exact 
+release
+    ↓ Companion DeviceKey authorizes ↓ 
+release becomes canonical
+    ↓ Registry displays exact release ``` 
+Preserve existing behavior. ──────── 
+62. REQUIRED GOLDEN PATH B — EXTERNAL IDENTITY 
+Verify: ```text Builder
+    ↓ Connect Farcaster ↓ binding ceremony ↓ 
+stable FID bound
+    ↓ Builder profile shows verified Farcaster 
+identity ``` Repeat conceptually for GitHub. 
+Then verify: ```text disconnect Farcaster ``` 
+does not remove or transfer Builder authority. 
+──────── 63. REQUIRED GOLDEN PATH C — 
+SOCIAL TRUST CONTEXT Verify: ```text Recipient 
+opens app release
+        ↓ release has attestations ↓ 
+recipient has connected Farcaster
+        ↓ some reviewers are followed by 
+recipient
+        ↓ UI distinguishes them ``` Example: 
+```text 18 builders reviewed this release. 3 
+are people you follow. ``` This must not imply 
+that all follows are explicit Tohseno trust 
+relationships. ──────── 64. REQUIRED 
+GOLDEN PATH D — CLAIM WHILE MAC ONLINE Verify: 
+```text Recipient opens release
+        ↓ Claim ↓ durable request reaches 
+correct Mac
+        ↓ exact release resolved ↓ 
+verification/build runs
+        ↓ artifact retained ↓ correct 
+associated iPhone receives install ``` 
+──────── 65. REQUIRED GOLDEN PATH E — 
+CLAIM WHILE MAC OFFLINE Verify: ```text 
+Recipient Claims
+        ↓ Mac offline ↓ request persists ↓ 
+Mac later returns
+        ↓ request executes ↓ exact release 
+builds ``` No duplicate execution. No lost 
+Claim intent. No wrong release. 
+──────── 66. REQUIRED GOLDEN PATH F — 
+IPHONE UNREACHABLE Verify: ```text build 
+finishes
+        ↓ intended iPhone unavailable ↓ 
+artifact remains Ready to Install
+        ↓ iPhone becomes reachable later ↓ 
+installation resumes ``` The user should not 
+have to repeat the entire Claim/build process. 
+──────── 67. REQUIRED GOLDEN PATH G — 
+MULTIPLE IPHONES Verify: ```text Mac sees: 
+Phone A Phone B Phone C ``` A request 
+originating from Companion A must install on 
+physical Phone A. No accidental installation 
+onto B or C. If association is unavailable or 
+ambiguous, the system must stop and request 
+explicit resolution. ──────── 68. 
+REQUIRED GOLDEN PATH H — RELEASE REVIEW Verify: 
+```text Release X exists
+        ↓ Mac creates Verification Report ↓ 
+reviewer inspects evidence
+        ↓ reviewer chooses scopes ↓ Companion 
+signs ReleaseAttestation
+        ↓ attestation becomes visible on 
+Release X ``` Verify signature and digest 
+integrity. ──────── 69. REQUIRED GOLDEN 
+PATH I — UPDATE DOES NOT INHERIT REVIEWS 
+Verify: ```text Release X 10 attestations ``` 
+Then: ```text Builder ships Release Y ``` 
+Expected: ```text Release Y 0 attestations ``` 
+while: • Release X still shows its 10 
+historical attestations; • Builder history 
+remains; • reviewer history remains; • social 
+context remains. No stale review propagation. 
+──────── 70. REQUIRED GOLDEN PATH J — 
+SOCIAL ACCOUNT DOES NOT CONTROL BUILDER Test 
+that possession of: • Farcaster; • GitHub; • 
+Base wallet; • X; without the Builder DeviceKey 
+does not independently permit: • Ship; • 
+Update; • release signing; • Builder authority 
+changes; • attestation signing as that Builder. 
+──────── 71. REQUIRED GOLDEN PATH K — 
+CABLE FALLBACK Test both: ```text 
+wireless-capable / already-paired device ``` 
+and: ```text environment requiring initial 
+cable bootstrap ``` The first should not prompt 
+for USB. The second should explain why USB is 
+necessary. After successful pairing, supported 
+wireless behavior should become the default. 
+──────── 72. REQUIRED FAILURE STATES 
+Test and document: ```text Mac offline relay 
+unavailable wrong device reachable device 
+locked Developer Mode disabled pairing missing 
+signing expired build failed source digest 
+mismatch verification failed attestation 
+signature invalid identity binding invalid 
+Farcaster unavailable GitHub unavailable OAuth 
+token revoked multiple ambiguous devices stale 
+release new release published during Claim ``` 
+No generic: ```text Something went wrong ``` 
+when the system has actionable information. 
+──────── 73. OBSERVABILITY Add enough 
+structured diagnostics to understand real 
+behavior. Especially around: ```text remote 
+request created remote request received request 
+identity requested release Mac processing 
+started source resolved source verified 
+verification started verification completed 
+build started build completed artifact retained 
+intended target target reachable/unreachable 
+installation deferred installation resumed 
+installation succeeded identity binding created 
+identity binding verified Verification Report 
+created Release Attestation signed Release 
+Attestation published ``` Never log: • private 
+keys; • signing secrets; • OAuth tokens; • 
+access tokens; • passwords; • recovery phrases; 
+• unnecessary private source; • raw private 
+user content. ──────── 74. CURRENT 
+APPLE REALITY MUST BE VERIFIED Do not rely 
+solely on assumptions in this prompt about 
+Apple behavior. Before implementing 
+version-sensitive logic, consult current 
+official Apple documentation. Verify current 
+behavior around: • Xcode; • CoreDevice; • 
+wireless device discovery; • first pairing; • 
+Wi-Fi installation; • Developer Mode; • 
+developer certificates; • provisioning; • 
+signing; • free provisioning versus paid 
+Developer Program; • device trust; • iOS 
+version requirements. Encode capability checks 
+where reasonable. Document which limitations 
+come from Apple rather than Tohseno. 
+──────── 75. DO NOT MAKE CLOUD BUILDS 
+THE DEFAULT The current direction remains: > 
+software is built and signed by the recipient’s 
+own Mac. Do not respond to remote Claim by 
+moving builds into a centralized Tohseno 
+server. The private Mac factory is a feature. 
+The relay coordinates. The Mac executes. The 
+Companion authorizes. The recipient’s Apple 
+environment signs/installs. Preserve that. 
+──────── 76. DO NOT MAKE TOKENOMICS A 
+BLOCKER This architectural pass should make the 
+verification economy possible. It does not need 
+to finalize it. Do not spend the majority of 
+implementation effort building: • staking; • 
+slashing; • emission schedules; • LP 
+management; • token dashboards; • governance. 
+The real primitive we need first is: ```text 
+humans performing useful review work + 
+cryptographic attribution + exact-release 
+attestations + behavioral history ``` Token 
+economics can wrap around behavior once 
+behavior exists. ──────── 77. DO NOT 
+MAKE BLOCKCHAIN VISIBLE WHERE IT DOES NOT HELP 
+A normal user should not need to know: ```text 
+chain ID transaction hash ABI EIP-712 type 
+contract generation ``` to understand: ```text 
+JP built this. Sofia reviewed this exact 
+release. Your Mac will prepare it. ``` Keep 
+cryptographic details accessible for 
+inspection. Do not require users to understand 
+them. ──────── 78. DOCUMENT THE NEW 
+CONCEPTUAL STACK The repository should 
+eventually be able to explain the architecture 
+approximately as: ```text DEVICEKEY Sovereign 
+Builder authority FARCASTER Social identity + 
+existing relationship graph GITHUB Technical 
+identity + source provenance BASE Economic 
+identity + future verification economy TOHSENO 
+HISTORY Behavior + releases + reviews + 
+attestations MAC Private factory + intelligence 
+workbench + delivery node COMPANION Human 
+authority + consent REGISTRY Public 
+artifact/provenance/trust view ``` This 
+distinction should be clear enough that future 
+contributors do not accidentally collapse the 
+layers. ──────── 79. DOCUMENT THE NEW 
+TRUST MODEL The repository should explicitly 
+capture: > Tohseno does not certify arbitrary 
+software as safe. Instead, Tohseno provides: 1. 
+artifact identity; 2. Builder provenance; 3. 
+signed release history; 4. machine-generated 
+verification evidence; 5. human Release 
+Attestations; 6. social context around 
+reviewers; 7. behavioral history; 8. final user 
+authority. This is the trust model. 
+──────── 80. DOCUMENT THE NEW 
+DISTRIBUTION MODEL The repository should also 
+explicitly capture: > Installation is 
+destination-driven, not cable-driven. 
+Conceptually: ```text Claim
+  ↓ durable intent ↓ Mac preparation ↓ 
+verified built artifact
+  ↓ associated install target ↓ wait for 
+reachability
+  ↓ install ``` USB and Wi-Fi are transports. 
+The user’s physical iPhone is the destination. 
+──────── 81. WEBSITE / LANDING-PAGE 
+IMPLICATIONS Do not necessarily redesign the 
+entire marketing site unless it is within the 
+current task scope. However, update product 
+language where necessary to avoid contradicting 
+the architecture. The core message is no longer 
+merely: ```text Skip the App Store ``` That can 
+remain an important provocative expression. But 
+Tohseno now has a more complete explanation: > 
+Build software person-to-person. > > See who 
+made it. > > See what it does. > > See who 
+reviewed it. > > Claim it anywhere. > > Your 
+own Mac prepares it. > > Your own devices 
+remain under your authority. And especially: > 
+**Software you can trust because people you 
+trust have seen it.** Do not over-market future 
+capabilities that are not yet implemented. 
+──────── 82. KEEP CURRENT RELEASE 
+READINESS HONEST Do not retroactively mark 
+unfinished physical-device paths as complete 
+merely because code exists. Preserve the 
+repository’s discipline around evidence. 
+Distinguish: ```text unit tested integration 
+tested simulator tested local Mac tested 
+physical iPhone tested remote tested 
+owner-attended tested clean-Mac tested ``` 
+Update readiness/state files honestly. 
+──────── 83. TEST THE ACTUAL DEEP LINK 
+FLOW A major desired user experience is: 
+```text tohseno.com/anky ``` opened from: • 
+Messages; • Farcaster; • X; • Safari; • another 
+application. Study the current 
+universal-link/deep-link architecture. The 
+desired behavior on an iPhone with Companion 
+installed is: ```text public app URL
+        ↓ Companion ↓ exact app/release 
+context ``` The desired behavior when Companion 
+is unavailable must also be coherent. Do not 
+invent behavior unsupported by Apple. Test the 
+real path. ──────── 84. CLAIM SHOULD 
+CAPTURE THE EXACT RELEASE SEEN When the user 
+sees an app through a deep link, ensure the 
+Claim ceremony resolves a stable exact release. 
+Conceptually: ```text URL
+   ↓ Registry resolves app ↓ release X 
+displayed
+   ↓ Claim binds release X ``` Not: ```text 
+URL
+   ↓ user reads X ↓ new Y published ↓ Claim 
+silently installs Y ``` Concurrency matters. 
+Design this correctly. ──────── 85. 
+TRUST DATA SHOULD BE AVAILABLE BEFORE CLAIM The 
+user should ideally see the most relevant trust 
+evidence before deciding to Claim. The flow 
+should not be: ```text Claim first then learn 
+what it does ``` It should be: ```text 
+encounter
+        ↓ inspect enough context ↓ Claim ``` 
+Claim remains lightweight. Deep inspection 
+remains optional. ──────── 86. 
+REVIEWING SHOULD BE A FIRST-CLASS NETWORK 
+ACTION A Builder profile should eventually be 
+shaped not only by: ```text software created 
+``` but also: ```text intelligence contributed 
+``` This is important. The network is not only: 
+```text builders shipping apps ``` It is: 
+```text builders shipping apps + people helping 
+everyone understand those apps ``` Someone may 
+eventually become highly respected inside 
+Tohseno because they are an exceptional 
+reviewer, even if they rarely publish apps 
+themselves. Design reputation history so this 
+can happen. ──────── 87. SECURITY 
+SPECIALIZATION SHOULD REMAIN POSSIBLE Do not 
+hardcode the assumption that every reviewer is 
+equally authoritative about every domain. 
+Future reviewers may specialize in: • 
+Swift/iOS; • privacy; • cryptography; • payment 
+security; • smart contracts; • networking; • 
+accessibility; • dependency analysis; • AI 
+behavior; • data handling. The first 
+implementation does not need a full expertise 
+ontology. But the scoped attestation design 
+should leave room for it. ──────── 88. 
+BEHAVIORAL REPUTATION SHOULD BE AUDITABLE If 
+the UI eventually says something like: ```text 
+Experienced privacy reviewer ``` there should 
+be inspectable underlying history. Avoid opaque 
+algorithmic reputation when possible. Prefer: 
+```text 43 privacy-scoped attestations 6 
+confirmed privacy findings ``` to: ```text 
+Privacy score: 873 ``` Transparency fits the 
+network. ──────── 89. HANDLE DEVICEKEY 
+ROTATION Study how DeviceKey rotation currently 
+works or should work. The new architecture must 
+define what happens to: • Builder identity; • 
+old releases; • old attestations; • external 
+identity bindings; • device associations; • 
+reputation history. Historical signatures by 
+old valid DeviceKeys must remain interpretable. 
+Rotation should not erase history. A revoked 
+key must not continue signing new authoritative 
+actions. ──────── 90. HANDLE EXTERNAL 
+IDENTITY CHANGES For Farcaster: • username may 
+change; • PFP may change; • account state may 
+evolve according to protocol semantics. For 
+GitHub: • username may change; • account may be 
+deleted; • installation may be revoked. For 
+Base: • user may want multiple addresses; • 
+address control remains cryptographic but 
+preferred economic identity can change. Design 
+bindings around stable identifiers. Treat 
+display names and avatars as mutable cached 
+metadata. ──────── 91. DO NOT CREATE 
+SILENT SECURITY DELEGATION Connecting Farcaster 
+must not mean: ```text everyone I follow can 
+approve apps for me ``` Connecting GitHub must 
+not mean: ```text everyone who contributed to 
+my repo can approve releases ``` Holding tokens 
+must not mean: ```text I have voting authority 
+over someone's phone ``` Security authority 
+must remain explicit. Personal trust may become 
+a recommendation signal. Installation authority 
+remains with the user. ──────── 92. THE 
+RECIPIENT RETAINS FINAL AUTHORITY The 
+philosophical symmetry should be maintained. 
+The Builder says: > I, holder of this Builder 
+authority, publish this exact release. The 
+reviewer says: > I, holder of this 
+Builder/reviewer authority, attest to this 
+bounded review of this exact release. The 
+recipient says: > I have seen the available 
+evidence and choose to run this software on my 
+device. No centralized Tohseno actor needs to 
+substitute for these humans. Tohseno 
+coordinates the evidence and actions. 
+──────── 93. NON-GOALS FOR THIS PASS Do 
+not allow this evolution to explode 
+uncontrollably. Unless foundationally 
+necessary, do not fully implement: • final 
+$TOHSENO tokenomics; • staking/slashing; • DAO 
+governance; • global decentralized identity 
+standards; • global reputation scores; • social 
+feeds; • public follower leaderboards; • 
+recommendation algorithms; • a Farcaster clone; 
+• a GitHub analytics product; • perfect malware 
+detection; • formal verification of arbitrary 
+Swift; • centralized cloud builds; • arbitrary 
+remote code execution; • every Apple platform; 
+• generalized anonymous security markets; • 
+complex expertise taxonomies; • fully 
+autonomous AI reviewers presented as humans. 
+Leave deliberate seams for future work. 
+──────── 94. QUALITY BAR This is an 
+architectural evolution, not a hackathon patch. 
+For each meaningful feature: 1. understand 
+current behavior; 2. define invariant; 3. 
+document architecture; 4. update domain model; 
+5. update canonical data model if needed; 6. 
+implement persistence; 7. implement networking; 
+8. implement cryptography/signing where 
+required; 9. implement UX; 10. implement 
+migrations; 11. test happy path; 12. test 
+failure states; 13. test security assumptions; 
+14. update documentation; 15. update 
+readiness/state honestly. Do not keep two 
+contradictory models alive. Examples: Do not: 
+```text rename "Connect cable" to "Find iPhone" 
+``` while the underlying domain still 
+fundamentally assumes a cable. Do not: ```text 
+add Farcaster icon ``` without a meaningful 
+identity binding. Do not: ```text show 
+"Reviewed" ``` without an exact-release signed 
+attestation. Do not: ```text show "Safe" ``` 
+because a model returned no findings. Do not: 
+```text show reputation ``` without evidence 
+underneath it. ──────── 95. CLEAN UP 
+OBSOLETE ARCHITECTURAL LANGUAGE After 
+implementation, search the repository for stale 
+assumptions. Especially: ```text cable required 
+USB required connect cable waiting for cable 
+one connected phone safe app verified app 
+trusted app ``` Determine whether each instance 
+remains technically true. Update: • UI copy; • 
+docs; • comments; • state enums; • tests; • 
+diagrams; • README; • whitepaper; • onboarding. 
+Do not delete historically important ADR 
+content merely because the architecture 
+evolved. Historical documents can remain 
+historical. Current docs should be clear. 
+──────── 96. CREATE A DECOMPRESSION 
+REPORT WHEN FINISHED At the end of the work, 
+produce a detailed architectural 
+decompression/evolution report in the style 
+appropriate for this repository. The report 
+must describe: What you found Explain the 
+starting architecture after repository study. 
+Identify important discrepancies between docs 
+and implementation. What changed Cover: • 
+protocol; • domain model; • Mac; • Companion; • 
+relay; • delivery; • CoreDevice; • 
+registry/web; • identity; • Farcaster; • 
+GitHub; • Base binding; • verification; • 
+attestations; • UX; • tests. What invariants 
+were preserved Especially: • DeviceKey 
+authority; • Claim semantics; • immutable 
+exact-release identity; • local/private 
+factory; • recipient authority; • historical 
+protocol commitments. What is genuinely working 
+Separate: • unit evidence; • integration 
+evidence; • simulator evidence; • local Mac 
+evidence; • physical-device evidence; • remote 
+relay evidence; • owner-attended evidence; • 
+clean-Mac evidence. What is designed but not 
+implemented Be extremely precise. Do not blur: 
+```text architecture exists ``` with: ```text 
+user can do this today ``` Remaining risks At 
+minimum: • Apple pairing restrictions; • 
+wireless reliability; • device-association 
+correctness; • Farcaster availability; • GitHub 
+availability; • identity proof weaknesses; • 
+Sybil reviewers; • malicious Builders; • 
+malicious updates; • review collusion; • 
+machine-analysis limitations; • prompt 
+injection; • privacy; • eventual token 
+incentives. Next smallest valuable step Do not 
+conclude by proposing another giant rewrite. 
+Identify the smallest next milestone that most 
+increases the amount of this vision that is 
+actually true for a real human on a real Mac 
+and real iPhone. ──────── 97. THE 
+PRODUCT STORY AFTER THIS EVOLUTION The 
+repository should be able to explain Tohseno 
+approximately like this: > Tohseno is a 
+person-to-person software network. > > Builders 
+ship software under cryptographic authority 
+held on their iPhone. > > Anyone can encounter 
+and Claim a published app. > > Their own Mac 
+verifies, builds, and prepares the software. > 
+> Their iPhone receives it when it is 
+reachable. > > A cable is used only when Apple 
+actually requires it. > > The network helps 
+people decide what to run by exposing 
+provenance, machine evidence, and attestations 
+from other people. > > Farcaster supplies 
+portable social context. > > GitHub supplies 
+technical identity and provenance. > > Base 
+supplies an economic identity without 
+controlling Builder authority. > > Reputation 
+comes from behavior. > > The final authority 
+belongs to the person running the software. And 
+at the center: > **Software you can trust 
+because people you trust have seen it.** 
+──────── 98. THE ARCHITECTURAL FLYWHEEL 
+Keep this larger system in mind: ```text CREATE
+   ↓ SHIP ↓ RELEASE ↓ VERIFY ↓ REVIEW ↓ 
+ATTEST
+   ↓ CLAIM ↓ BUILD ↓ INSTALL ↓ USE ↓ MORE 
+HISTORY
+   ↓ MORE REPUTATION ↓ BETTER TRUST SIGNALS 
+   ↓
+MORE SOFTWARE CAN MOVE PERSON-TO-PERSON ``` 
+Every shipped artifact expands the software 
+registry. Every verification creates evidence. 
+Every review contributes intelligence. Every 
+attestation creates accountable history. Every 
+Claim expands the distribution graph. Every 
+successful build strengthens the 
+private-factory model. Every installation gives 
+another human sovereign access to software they 
+deliberately chose to run. The network effect 
+we care about is not attention for its own 
+sake. It is trust accumulating around software. 
+──────── 99. IMPLEMENT THE SMALLEST 
+COHERENT VERSION FIRST This prompt describes 
+the direction of Tohseno, not a demand to 
+irresponsibly ship every possible future 
+feature in one commit. After studying the 
+repository, identify the smallest coherent 
+slice that makes the two new truths materially 
+more real: 1. wireless-first delivery; 2. 
+network-mediated trust. A strong first 
+milestone may look like: ```text WIRELESS 
+remote Claim → durable Mac work → durable 
+install intent → Companion ↔ physical-device 
+association → install when target becomes 
+reachable ``` plus: ```text TRUST Builder 
+external identity bindings → first 
+deterministic Verification Report → first 
+exact-release human Attestation → Registry 
+displays attestation → Farcaster relationship 
+context ``` Do not ship a fake broad system 
+when one honest narrow vertical slice can prove 
+the architecture. Prefer end-to-end truth over 
+feature count. ──────── 100. FINAL 
+NORTH STAR The system we are building should 
+eventually make this flow feel obvious: ```text 
+Someone sends me an app.
+        ↓ I see who built it. ↓ I see where 
+the software came from.
+        ↓ I see what machines observed. ↓ I 
+see who reviewed this exact release.
+        ↓ I see which of those people I 
+already know or trust.
+        ↓ I Claim it. ↓ My Mac privately 
+verifies and builds it.
+        ↓ The artifact waits durably if 
+necessary.
+        ↓ My intended iPhone becomes 
+reachable.
+        ↓ The correct device receives the 
+software.
+        ↓ I retain final authority over 
+whether I run it. ``` The product should feel 
+simple. The machinery underneath it should be 
+rigorous. The network should not replace human 
+judgment. It should make human judgment better 
+informed, more accountable, and more connected. 
+The Mac should not disappear. It should become 
+the private factory and intelligence workbench. 
+The Companion should not disappear. It should 
+become the human authority surface. Farcaster 
+should not become the root identity. It should 
+become the first-class social context. GitHub 
+should not become a reputation score. It should 
+become technical identity and provenance. Base 
+and $TOHSENO should not become the truth layer. 
+They should become the economic layer around 
+useful work. And a cable should not define the 
+product. It should be used only when the 
+underlying Apple environment genuinely requires 
+it. The deepest product promise remains: > 
+**Software you can trust because people you 
+trust have seen it.** And the deepest 
+distribution promise becomes: > **Claim 
+anywhere. Your Mac prepares it. Your iPhone 
+receives it when it is reachable.**
+Build toward making those statements literally 

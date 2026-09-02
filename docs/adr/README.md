@@ -2,6 +2,19 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0037](0037-network-mediated-release-trust.md) defines network trust as
+exact-release evidence: additive external identity bindings, content-addressed
+machine Verification Reports, bounded DeviceKey-signed human Release
+Attestations, and private social context. It preserves Claim semantics and
+forbids centralized safety verdicts, stale review inheritance, popularity
+scores, or external identities becoming Builder authority.
+
+[ADR 0036](0036-destination-driven-apple-delivery.md) makes a privately
+associated physical iPhone the installation destination while USB and local
+network remain observed transports. It retains verified artifacts until the
+exact target is reachable, fails closed on ambiguity, and keeps Apple pairing,
+Trust, Developer Mode, signing, and installation constraints visible.
+
 [ADR 0035](0035-claiming-software.md) adds Claim as a public, intentional,
 non-transferable software encounter; makes a Shot ship exactly once and update
 thereafter; opens one immutable Claim Edition at first Ship; and turns Registry

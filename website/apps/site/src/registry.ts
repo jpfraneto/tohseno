@@ -134,6 +134,25 @@ interface SignedProfileRecord {
   acceptedAt: string;
 }
 
+interface AliasClaimRecord {
+  schema: "tohseno.alias-claim-record/1";
+  status: "pending_policy_review";
+  digest: Hex;
+  key_id: Hex;
+  envelope: JsonObject;
+  received_at: string;
+}
+
+interface AliasApprovalRecord {
+  schema: "tohseno.alias-approval/1";
+  request_id: Hex;
+  alias: string;
+  shot_id: Hex;
+  builder_id: string;
+  claim_digest: Hex;
+  approved_at: string;
+}
+
 interface TimelineEvent {
   schema: "tohseno.timeline-event/1";
   event_id: Hex;
@@ -172,6 +191,7 @@ export async function createRegistryRouter(
     handles: join(root, "handles"),
     aliases: join(root, "aliases"),
     aliasClaims: join(root, "alias-claims"),
+    aliasApprovals: join(root, "alias-approvals"),
     aliasNonces: join(root, "alias-nonces"),
   };
   await Promise.all(Object.values(directories).map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
@@ -221,6 +241,32 @@ export async function createRegistryRouter(
     const records = await discoverable((await allRecords(directories.releases))
       .filter((record) => releaseOf(record).shot_id === shotID).sort(newestFirst));
     return records[0];
+  };
+
+  const reviewableAliasRequest = async (requestID: Hex) => {
+    const claimRecord = await readJSON<AliasClaimRecord>(
+      join(directories.aliasClaims, `${requestID.slice(2)}.json`),
+    );
+    if (!claimRecord || claimRecord.schema !== "tohseno.alias-claim-record/1"
+        || claimRecord.status !== "pending_policy_review") {
+      throw new HttpError(404, "Pending alias request not found");
+    }
+    const verified = verifyStoredAliasClaim(claimRecord);
+    const claim = object(claimRecord.envelope.claim, "alias claim");
+    if (normalizeHex32(claim.request_id) !== requestID || claimRecord.digest !== verified.digest
+        || claimRecord.key_id !== verified.keyID) {
+      throw new HttpError(409, "Stored alias request evidence is inconsistent");
+    }
+    const builder = normalizeBuilder(claim.builder_id);
+    const shotID = normalizeHex32(claim.shot_id);
+    const alias = normalizeGlobalAlias(claim.alias);
+    await verifyCurrentBuilderKey(chain, builder, verified.keyID);
+    const release = await discoverableShot(shotID);
+    if (!release || releaseOf(release).builder_id !== builder
+        || object(releaseOf(release).permissions, "permissions").install_allowed !== true) {
+      throw new HttpError(422, "Alias review requires a current installable Shot from this Builder");
+    }
+    return { alias, builder, claimRecord, release, requestID, shotID, verified };
   };
 
   const claimContextOf = (record: CatalogRecord): ClaimCatalogContext => {
@@ -456,7 +502,7 @@ export async function createRegistryRouter(
           || object(releaseOf(release).permissions, "permissions").install_allowed !== true) {
         throw new HttpError(422, "Alias claims require an installable Shot controlled by this Builder");
       }
-      const alias = normalizeName(claim.alias, "alias", 40);
+      const alias = normalizeGlobalAlias(claim.alias);
       const requestID = normalizeHex32(claim.request_id);
       const nonce = positiveSafeInteger(claim.nonce, "alias nonce");
       await serialized(async () => {
@@ -476,9 +522,84 @@ export async function createRegistryRouter(
       return json({ schema: "tohseno.alias-claim-receipt/1", request_id: requestID,
         alias, status: "pending_policy_review" }, 202);
     }
+    if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/alias-reviews"
+        && (method === "GET" || method === "HEAD")) {
+      if (!config.registry.aliasReviewTokenSha256) {
+        throw new HttpError(503, "Global alias review is not enabled");
+      }
+      authorizeToken(request, config.registry.aliasReviewTokenSha256);
+      const requestID = normalizeHex32(parts[4]);
+      const context = await reviewableAliasRequest(requestID);
+      const approval = await readJSON<AliasApprovalRecord>(
+        join(directories.aliasApprovals, `${requestID.slice(2)}.json`),
+      );
+      if (approval && (approval.schema !== "tohseno.alias-approval/1"
+          || approval.alias !== context.alias || approval.shot_id !== context.shotID
+          || approval.builder_id !== context.builder
+          || approval.claim_digest !== context.verified.digest)) {
+        throw new HttpError(409, "Alias request has inconsistent approval evidence");
+      }
+      const release = releaseOf(context.release);
+      const display = object(release.display, "release.display");
+      return head(json({ schema: "tohseno.alias-review/1", request_id: requestID,
+        status: approval ? "approved" : "pending_policy_review", alias: context.alias,
+        route: `/${context.alias}`, shot_id: context.shotID, builder_id: context.builder,
+        claim_digest: context.verified.digest, signer_key_id: context.verified.keyID,
+        received_at: context.claimRecord.received_at, approved_at: approval?.approved_at ?? null,
+        current_release: { name: display.name, release_digest: context.release.releaseDigest,
+          checkpoint_sequence: release.checkpoint_sequence,
+          canonical_route: context.release.route } }), method);
+    }
+    if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/alias-reviews"
+        && method === "POST") {
+      if (!config.registry.aliasReviewTokenSha256) {
+        throw new HttpError(503, "Global alias review is not enabled");
+      }
+      authorizeToken(request, config.registry.aliasReviewTokenSha256);
+      requireJSON(request);
+      const body = await boundedJSON(request, 4 * 1024);
+      exactKeys(body, ["decision"], "alias review");
+      if (body.decision !== "approve") {
+        throw new HttpError(422, "The bounded alias review action is approve");
+      }
+      const requestID = normalizeHex32(parts[4]);
+      const { alias, builder, shotID, verified } = await reviewableAliasRequest(requestID);
+      const result = await serialized(async () => {
+        const approvalPath = join(directories.aliasApprovals, `${requestID.slice(2)}.json`);
+        const pointerPath = join(directories.aliases, `${alias}.json`);
+        const existingApproval = await readJSON<AliasApprovalRecord>(approvalPath);
+        const existingPointer = await readJSON<JsonObject>(pointerPath);
+        if (existingApproval && (existingApproval.schema !== "tohseno.alias-approval/1"
+            || existingApproval.alias !== alias || existingApproval.shot_id !== shotID
+            || existingApproval.builder_id !== builder || existingApproval.claim_digest !== verified.digest)) {
+          throw new HttpError(409, "Alias request already has different approval evidence");
+        }
+        if (existingPointer && (existingPointer.schema !== "tohseno.global-alias/1"
+            || existingPointer.request_id !== requestID || existingPointer.shot_id !== shotID
+            || existingPointer.builder_id !== builder)) {
+          throw new HttpError(409, "Alias is unavailable");
+        }
+        const approval: AliasApprovalRecord = existingApproval ?? {
+          schema: "tohseno.alias-approval/1", request_id: requestID, alias, shot_id: shotID,
+          builder_id: builder, claim_digest: verified.digest, approved_at: new Date().toISOString(),
+        };
+        if (!existingApproval) await atomicJSON(approvalPath, approval, true);
+        if (!existingPointer) {
+          await atomicJSON(pointerPath, {
+            schema: "tohseno.global-alias/1", alias, shot_id: shotID, builder_id: builder,
+            request_id: requestID, claim_digest: verified.digest,
+            approved_at: approval.approved_at,
+          }, true);
+        }
+        return { approval, created: !existingPointer };
+      });
+      return json({ schema: "tohseno.alias-approval-receipt/1", alias,
+        route: `/${alias}`, shot_id: shotID, request_id: requestID,
+        approved_at: result.approval.approved_at }, result.created ? 201 : 200);
+    }
     if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/aliases"
         && parts[4] !== "claims" && (method === "GET" || method === "HEAD")) {
-      const alias = normalizeName(parts[4], "alias", 40);
+      const alias = normalizeGlobalAlias(parts[4]);
       const value = await readJSON<JsonObject>(join(directories.aliases, `${alias}.json`));
       if (!value) throw new HttpError(404, "Alias not found");
       return head(json(value), method);
@@ -663,14 +784,20 @@ export async function createRegistryRouter(
           return release.builder_id === indexed.builderID
             && object(release.display, "display").app_slug === builderRoute[2];
         }).sort(newestFirst)[0];
-        return record ? shotHTML(publicRecord(record)) : undefined;
+        if (!record) return undefined;
+        return shotHTML(publicRecord(record), await claims?.editionForDisplay(
+          normalizeHex32(releaseOf(record).shot_id),
+        ));
       }
       const alias = pathname.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
-      if (!alias) return undefined;
+      if (!alias || alias.length > 64) return undefined;
       const pointer = await readJSON<JsonObject>(join(directories.aliases, `${alias}.json`));
       if (!pointer || pointer.schema !== "tohseno.global-alias/1") return undefined;
       const target = await discoverableShot(normalizeHex32(pointer.shot_id));
-      return target ? shotHTML(publicRecord(target)) : undefined;
+      if (!target) return undefined;
+      return shotHTML(publicRecord(target), await claims?.editionForDisplay(
+        normalizeHex32(releaseOf(target).shot_id),
+      ));
     },
     currentClaimContext: async (shotID, releaseDigest) => {
       const current = await discoverableShot(normalizeHex32(shotID));
@@ -1130,12 +1257,30 @@ function verifySignedAliasClaim(envelope: JsonObject): { digest: Hex; keyID: Hex
     "deadline", "requested_at"], "alias claim");
   if (claim.schema !== ALIAS_CLAIM_SCHEMA) throw new HttpError(422, "unsupported alias claim schema");
   normalizeBuilder(claim.builder_id); normalizeHex32(claim.shot_id); normalizeHex32(claim.request_id);
-  normalizeName(claim.alias, "alias", 40);
+  normalizeGlobalAlias(claim.alias);
   positiveSafeInteger(claim.nonce, "alias nonce");
   canonicalRecentTimestamp(claim.requested_at, "alias requested_at", 60 * 60);
   const deadline = positiveSafeInteger(claim.deadline, "alias deadline");
   const now = Math.floor(Date.now() / 1000);
   if (deadline <= now || deadline > now + 60 * 60) throw new HttpError(422, "alias claim deadline is stale or too far ahead");
+  return verified;
+}
+
+function verifyStoredAliasClaim(record: AliasClaimRecord): { digest: Hex; keyID: Hex } {
+  const verified = verifySignedObject(record.envelope, "claim", SIGNED_ALIAS_CLAIM_SCHEMA);
+  const claim = object(record.envelope.claim, "alias claim");
+  exactKeys(claim, ["schema", "builder_id", "shot_id", "alias", "request_id", "nonce",
+    "deadline", "requested_at"], "alias claim");
+  if (claim.schema !== ALIAS_CLAIM_SCHEMA) throw new HttpError(422, "unsupported alias claim schema");
+  normalizeBuilder(claim.builder_id); normalizeHex32(claim.shot_id); normalizeHex32(claim.request_id);
+  normalizeGlobalAlias(claim.alias); positiveSafeInteger(claim.nonce, "alias nonce");
+  const requestedAt = canonicalTimestampSeconds(claim.requested_at, "alias requested_at");
+  const receivedAt = recordedTimestampSeconds(record.received_at, "alias received_at");
+  const deadline = positiveSafeInteger(claim.deadline, "alias deadline");
+  if (receivedAt < requestedAt - 5 * 60 || receivedAt > requestedAt + 65 * 60
+      || receivedAt > deadline) {
+    throw new HttpError(409, "Stored alias request was not accepted inside its signed window");
+  }
   return verified;
 }
 
@@ -1174,14 +1319,30 @@ async function verifyCurrentBuilderKey(chain: ChainVerifier, builder: string, ke
 }
 
 function canonicalRecentTimestamp(value: unknown, name: string, maximumAgeSeconds: number): void {
+  const seconds = canonicalTimestampSeconds(value, name);
+  const now = Date.now() / 1000;
+  if (seconds < now - maximumAgeSeconds || seconds > now + 5 * 60) {
+    throw new HttpError(422, `${name} is stale or in the future`);
+  }
+}
+
+function canonicalTimestampSeconds(value: unknown, name: string): number {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) {
     throw new HttpError(422, `${name} is not canonical UTC`);
   }
   const seconds = Date.parse(value) / 1000;
-  const now = Date.now() / 1000;
-  if (!Number.isFinite(seconds) || seconds < now - maximumAgeSeconds || seconds > now + 5 * 60) {
-    throw new HttpError(422, `${name} is stale or in the future`);
+  if (!Number.isFinite(seconds)) throw new HttpError(422, `${name} is not a real timestamp`);
+  return seconds;
+}
+
+function recordedTimestampSeconds(value: unknown, name: string): number {
+  if (typeof value !== "string"
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) {
+    throw new HttpError(422, `${name} is not canonical UTC`);
   }
+  const seconds = Date.parse(value) / 1000;
+  if (!Number.isFinite(seconds)) throw new HttpError(422, `${name} is not a real timestamp`);
+  return seconds;
 }
 
 function validateDisplay(value: JsonObject): void {
@@ -1460,12 +1621,118 @@ function timelinePage(events: TimelineEvent[], url: URL): JsonObject {
 }
 
 function registryHTML(records: JsonObject[], query: string, launched: boolean, events: TimelineEvent[] = [], editions = new Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>()): string { const lead = launched ? "Software enters this network once, changes through Updates, and moves person to person." : "Registry support is online in pre-launch verification mode. No public app or write path is claimed."; return page("The Registry", `<header><p class="eyebrow">PERSON-TO-PERSON NATIVE SOFTWARE</p><h1>Software is alive here.</h1><p class="lead">${lead}</p><div class="registry-modes"><strong>Discover</strong><span>Following lives privately in Tohseno</span><span>Updates live privately in Tohseno</span></div><form class="search" action="/registry" method="get"><label for="registry-search">Search apps, builders, or ShotID</label><div><input id="registry-search" name="q" maxlength="100" value="${escapeHTML(query)}"><button type="submit">Search</button></div></form></header>${timelineCards(records, events, editions, launched)}`); }
-function shotHTML(record: JsonObject, edition?: { opened: boolean; maxClaims: bigint; totalClaims: bigint; closesAt: bigint; closed: boolean }): string { const release = object(record.release, "release"); const display = object(release.display, "display"); const permissions = object(release.permissions, "permissions"); const exact = `${String(release.shot_id).slice(2)}?release=${String(record.release_digest)}`; const editionLabel = !edition?.opened ? "Claim Edition unavailable" : edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed`; const action = edition?.opened ? edition.closed ? `<span class="primary disabled">Closed</span>` : `<a class="primary" href="tohseno://claim/${exact}">Open in Tohseno Companion</a>` : `<a class="primary" href="/download">Get Tohseno</a>`; return page(String(display.name), `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">SIGNED NATIVE APP</p><h1>${escapeHTML(String(display.name))}</h1><p class="lead">${escapeHTML(String(display.description))}</p><p class="edition">${escapeHTML(editionLabel)}</p></header><section class="proof"><a href="/@${escapeHTML(String(release.builder_id))}">Builder ${escapeHTML(String(release.builder_id))}</a><span>${release.checkpoint_sequence === 1 ? "Shipped" : `Update ${escapeHTML(String(release.checkpoint_sequence))}`}</span><span>${permissions.fork_allowed ? "Fork allowed after Claim" : "Install only after Claim"}</span></section><div class="actions">${action}<a href="${escapeHTML(String(record.source_url))}">Download public source</a></div><section class="timeline"><h2>Timeline</h2><p>One birth. Permanent Updates. Canonical Claim history.</p><a href="/api/registry/v1/shots/${release.shot_id}/timeline">View exact timeline evidence</a></section>`); }
+function shotHTML(
+  record: JsonObject,
+  edition?: { opened: boolean; maxClaims: bigint; totalClaims: bigint; closesAt: bigint; closed: boolean },
+): string {
+  const release = object(record.release, "release");
+  const display = object(release.display, "display");
+  const permissions = object(release.permissions, "permissions");
+  const build = object(release.build, "build");
+  const source = object(release.source, "source");
+  const safety = object(build.safety, "build.safety");
+  const exact = `${String(release.shot_id).slice(2)}?release=${String(record.release_digest)}`;
+  const editionLabel = !edition?.opened
+    ? "Claim Edition unavailable"
+    : edition.maxClaims === 0n
+      ? `Open Edition · ${edition.totalClaims} claimed`
+      : `${edition.totalClaims} / ${edition.maxClaims} claimed`;
+  const claimAction = edition?.opened
+    ? edition.closed
+      ? `<span class="primary disabled">Claim Edition closed</span>`
+      : `<a class="primary" href="tohseno://claim/${exact}">On iPhone: open in Companion</a>`
+    : `<span class="primary disabled">Claim is not available yet</span>`;
+  const dependencyCount = Array.isArray(build.dependency_locks) ? build.dependency_locks.length : 0;
+  const builderLabel = typeof display.builder_handle === "string"
+    ? `@${display.builder_handle}`
+    : compactBuilder(String(release.builder_id));
+  const checkpointLabel = release.checkpoint_sequence === 1
+    ? "Shipped once"
+    : `Update ${escapeHTML(String(release.checkpoint_sequence))}`;
+  const reviewCopy = "No DeviceKey-signed human Release Attestations are published by this Registry yet.";
+
+  return page(String(display.name), `
+    <a class="back" href="/registry">← Registry</a>
+    <header class="app-hero">
+      <p class="eyebrow">ONE EXACT PUBLIC RELEASE</p>
+      <h1>${escapeHTML(String(display.name))}</h1>
+      <p class="lead">${escapeHTML(String(display.description))}</p>
+      <p class="edition">${escapeHTML(editionLabel)}</p>
+      <p class="exact-release">Release ${escapeHTML(compactDigest(String(record.release_digest)))} · Checkpoint ${escapeHTML(String(release.checkpoint_sequence))}</p>
+      <div class="actions">
+        ${claimAction}
+        <a href="/download/macos">On Mac: download Tohseno</a>
+        <a href="${escapeHTML(String(record.source_url))}">Download public source</a>
+      </div>
+    </header>
+
+    <section class="friend-path">
+      <p class="eyebrow">GET IT ON YOUR IPHONE</p>
+      <h2>Four small steps.</h2>
+      <ol>
+        <li><strong>Open this same link on your Mac.</strong><span>Download and install Tohseno. You need macOS 14 or later and the full Xcode app; the published download route is pinned to one signed, notarized DMG and exact SHA-256.</span></li>
+        <li><strong>Pair your iPhone once.</strong><span>Open Tohseno on the Mac and follow setup. Apple may require a cable for first pairing; after pairing, Tohseno also uses Xcode-supported Wi-Fi reachability when available.</span></li>
+        <li><strong>Open this link on that iPhone.</strong><span>Tap “On iPhone: open in Companion,” inspect the exact Builder and release, then draw the Claim circle. Claim is public; installation details stay private.</span></li>
+        <li><strong>Let your Mac prepare it.</strong><span>Your Mac verifies the exact source, builds and signs its own copy with your Apple identity, keeps the artifact if needed, and installs when your paired iPhone is reachable and unlocked.</span></li>
+      </ol>
+      <p class="quiet">Send the address in this browser. The Claim button is pinned to the exact release shown above, even if the Builder publishes an Update later.</p>
+    </section>
+
+    <section class="evidence-grid">
+      <article class="evidence-card">
+        <p class="eyebrow">BUILDER + PROVENANCE</p>
+        <h2><a href="/@${escapeHTML(String(release.builder_id))}">${escapeHTML(builderLabel)}</a></h2>
+        <dl>
+          <div><dt>Network event</dt><dd>${checkpointLabel}</dd></div>
+          <div><dt>Release</dt><dd>${escapeHTML(compactDigest(String(record.release_digest)))}</dd></div>
+          <div><dt>Source</dt><dd>${escapeHTML(compactDigest(String(source.sha256)))}</dd></div>
+          <div><dt>Fork</dt><dd>${permissions.fork_allowed ? "Builder permits it after Claim" : "Not permitted"}</dd></div>
+        </dl>
+        <p>The Registry accepted this page only after the DeviceKey-signed manifest, current Builder authority, chain checkpoint, receipt, and source bytes agreed.</p>
+      </article>
+      <article class="evidence-card">
+        <p class="eyebrow">MACHINE-READABLE FACTS</p>
+        <h2>${escapeHTML(humanBuildClassification(String(safety.classification)))}</h2>
+        <dl>
+          <div><dt>Minimum iOS</dt><dd>${escapeHTML(String(build.minimum_ios))}</dd></div>
+          <div><dt>Dependency locks</dt><dd>${dependencyCount}</dd></div>
+          <div><dt>Install</dt><dd>${permissions.install_allowed ? "Declared allowed" : "Not allowed"}</dd></div>
+          <div><dt>Signing</dt><dd>Your own Apple identity</dd></div>
+        </dl>
+        <p>These are bounded catalog/build observations, not a claim that the app is safe.</p>
+      </article>
+      <article class="evidence-card">
+        <p class="eyebrow">NETWORK REVIEW</p>
+        <h2>Not available for this release.</h2>
+        <p>${reviewCopy}</p>
+        <p>Claim means you encountered this exact release. It does not mean you reviewed, endorsed, installed, or certified it.</p>
+      </article>
+    </section>
+
+    <section class="requirements">
+      <p class="eyebrow">BEFORE YOU START</p>
+      <h2>Apple’s security still applies.</h2>
+      <p>You need a Mac with full Xcode, an Apple Account visible to Xcode, Developer Mode on the iPhone, Trust/pairing, and enough Personal Team capacity. Tohseno skips App Store submission; it does not bypass Apple signing or device security.</p>
+    </section>
+
+    <section class="timeline">
+      <h2>Exact history</h2>
+      <p>One birth, permanent Updates, and canonical Claim evidence for this Shot.</p>
+      <a href="/api/registry/v1/shots/${release.shot_id}/timeline">View exact timeline evidence</a>
+    </section>
+  `);
+}
 function builderHTML(builder: string, records: JsonObject[], profile?: JsonObject): string { const title = profile ? String(profile.display_name) : builder; const handle = profile?.handle ? `<p class="eyebrow">@${escapeHTML(String(profile.handle))}</p>` : ""; const address = builder.split(":").at(-1)!; return page("Builder", `<a class="back" href="/registry">← Registry</a><header><p class="eyebrow">BUILDER</p><h1>${escapeHTML(title)}</h1>${handle}<p class="lead">A public track record assembled from a DeviceKey-signed profile, signed releases, and current chain authority.</p><p class="eyebrow">${escapeHTML(builder)}</p><div class="actions"><a class="primary" href="tohseno://follow/${escapeHTML(address)}">Follow privately in Tohseno</a></div><p>Follow state stays on your Mac and paired Companion. There is no public follower count.</p></header>${cards(records)}`); }
 function cards(records: JsonObject[], launched = true): string { if (!records.length) return launched ? `<section class="empty"><h2>The network is ready.</h2><p>The first independently verified release will appear here.</p></section>` : `<section class="empty"><h2>Pre-launch verification.</h2><p>Publication and public launch remain disabled until the signed Mac release and acceptance gates pass.</p></section>`; return `<main class="grid">${records.map((record) => { const release = object(record.release, "release"); const display = object(release.display, "display"); return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`; }).join("")}</main>`; }
 function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<main class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event"><p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</main>`; }
 function compactBuilder(value: string): string { return `…${value.slice(-10)}`; }
-function page(title: string, body: string): string { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)} — Tohseno</title><meta name="description" content="Native software, person to person."><link rel="stylesheet" href="/landing.css"><style>body{max-width:1180px;margin:auto;padding:32px}header{padding:10vh 0 6vh}h1{font-size:clamp(3rem,8vw,7rem);line-height:.88;max-width:1000px}.lead{font-size:clamp(1.1rem,2vw,1.45rem);max-width:720px;line-height:1.5}.edition{font:700 1rem monospace;color:#ff7a1a;margin-top:30px}.eyebrow{font:700 .72rem monospace;letter-spacing:.15em;color:#ff7a1a}.registry-modes{display:flex;gap:22px;flex-wrap:wrap;margin:32px 0;font:600 .78rem monospace}.registry-modes strong{color:#ff7a1a}.registry-modes span{color:#888}.search{max-width:680px;margin-top:32px}.search label{display:block;margin-bottom:8px;font:600 .8rem monospace}.search div{display:flex;gap:8px}.search input{min-width:0;flex:1;padding:13px;background:#171615;color:inherit;border:1px solid #393632}.search button{padding:13px 18px;border:1px solid #ff7a1a;background:#ff7a1a;color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.timeline-feed{display:grid;gap:1px;background:#393632;border:1px solid #393632}.network-event{display:grid;grid-template-columns:1fr auto;gap:6px 24px;padding:30px;background:#11110f}.network-event h2,.network-event p{margin:0}.network-event h2{font-size:clamp(1.7rem,4vw,3.2rem)}.network-event h2 a{color:inherit;text-decoration:none}.network-event .event-action{font-size:1.15rem}.network-event .builder-link,.network-event time{font:600 .75rem monospace;color:#ff8a32}.network-event time{grid-column:2;grid-row:1;color:#777}.card,.empty,.proof,.timeline{display:block;padding:28px;border:1px solid #393632;background:#171615;color:inherit;text-decoration:none}.card:hover{border-color:#ff7a1a;transform:translateY(-2px)}.card h2{font-size:2rem}.card span,.actions a,.proof a,.timeline a{color:#ff8a32}.back{display:inline-block;margin-top:20px;color:inherit}.proof{display:flex;gap:24px;flex-wrap:wrap;font:600 .8rem monospace}.actions{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}.actions a,.actions span{padding:14px 18px;border:1px solid #ff7a1a;text-decoration:none}.actions .primary{background:#ff7a1a;color:#111}.actions .disabled{background:#393632;border-color:#393632;color:#aaa}.timeline{margin-top:52px}</style></head><body><nav><a href="/">TOHSENO</a> · <a href="/registry">REGISTRY</a></nav>${body}</body></html>`; }
+function compactDigest(value: string): string { return value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value; }
+function humanBuildClassification(value: string): string {
+  if (value === "green") return "Automatic build profile";
+  if (value === "requires_mac_review") return "Requires review on your Mac";
+  return "Automatic build unavailable";
+}
+function page(title: string, body: string): string { return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHTML(title)} — Tohseno</title><meta name="description" content="Native software, person to person."><link rel="stylesheet" href="/landing.css"><style>body{max-width:1180px;margin:auto;padding:32px}header{padding:10vh 0 6vh}h1{font-size:clamp(3rem,8vw,7rem);line-height:.88;max-width:1000px}.lead{font-size:clamp(1.1rem,2vw,1.45rem);max-width:720px;line-height:1.5}.edition{font:700 1rem monospace;color:#ff7a1a;margin-top:30px}.exact-release,.quiet{max-width:780px;color:#999;line-height:1.55}.exact-release{font:600 .78rem monospace}.eyebrow{font:700 .72rem monospace;letter-spacing:.15em;color:#ff7a1a}.registry-modes{display:flex;gap:22px;flex-wrap:wrap;margin:32px 0;font:600 .78rem monospace}.registry-modes strong{color:#ff7a1a}.registry-modes span{color:#888}.search{max-width:680px;margin-top:32px}.search label{display:block;margin-bottom:8px;font:600 .8rem monospace}.search div{display:flex;gap:8px}.search input{min-width:0;flex:1;padding:13px;background:#171615;color:inherit;border:1px solid #393632}.search button{padding:13px 18px;border:1px solid #ff7a1a;background:#ff7a1a;color:#111}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.timeline-feed{display:grid;gap:1px;background:#393632;border:1px solid #393632}.network-event{display:grid;grid-template-columns:1fr auto;gap:6px 24px;padding:30px;background:#11110f}.network-event h2,.network-event p{margin:0}.network-event h2{font-size:clamp(1.7rem,4vw,3.2rem)}.network-event h2 a{color:inherit;text-decoration:none}.network-event .event-action{font-size:1.15rem}.network-event .builder-link,.network-event time{font:600 .75rem monospace;color:#ff8a32}.network-event time{grid-column:2;grid-row:1;color:#777}.card,.empty,.proof,.timeline,.friend-path,.requirements,.evidence-card{display:block;padding:28px;border:1px solid #393632;background:#171615;color:inherit;text-decoration:none}.card:hover{border-color:#ff7a1a;transform:translateY(-2px)}.card h2{font-size:2rem}.card span,.actions a,.proof a,.timeline a,.evidence-card a{color:#ff8a32}.back{display:inline-block;margin-top:20px;color:inherit}.proof{display:flex;gap:24px;flex-wrap:wrap;font:600 .8rem monospace}.actions{display:flex;gap:14px;margin-top:24px;flex-wrap:wrap}.actions a,.actions span{padding:14px 18px;border:1px solid #ff7a1a;text-decoration:none}.actions .primary{background:#ff7a1a;color:#111}.actions .disabled{background:#393632;border-color:#393632;color:#aaa}.friend-path{margin:24px 0 16px;padding:clamp(28px,5vw,58px)}.friend-path h2,.requirements h2{font-size:clamp(2rem,5vw,4rem);margin:.25em 0 .7em}.friend-path ol{list-style:none;counter-reset:steps;padding:0;display:grid;gap:1px;background:#393632}.friend-path li{counter-increment:steps;display:grid;grid-template-columns:auto 1fr;gap:6px 18px;padding:24px;background:#11110f}.friend-path li:before{content:counter(steps);grid-row:1/3;width:34px;height:34px;border:1px solid #ff7a1a;border-radius:50%;display:grid;place-items:center;color:#ff7a1a;font:700 .85rem monospace}.friend-path li span{color:#aaa;line-height:1.5}.evidence-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1px;background:#393632;border:1px solid #393632}.evidence-card{border:0;background:#11110f}.evidence-card h2{font-size:1.65rem}.evidence-card p{line-height:1.55;color:#aaa}.evidence-card dl div{display:flex;justify-content:space-between;gap:16px;border-top:1px solid #292725;padding:10px 0}.evidence-card dt{color:#888}.evidence-card dd{margin:0;text-align:right}.requirements{margin-top:16px}.requirements p{max-width:800px;line-height:1.6}.timeline{margin-top:16px}@media(max-width:640px){body{padding:18px}.friend-path li{grid-template-columns:auto 1fr}.friend-path li span{grid-column:2}.evidence-card dl div{display:block}.evidence-card dd{text-align:left;margin-top:4px}.network-event{grid-template-columns:1fr}.network-event time{grid-column:1;grid-row:auto}}</style></head><body><nav><a href="/">TOHSENO</a> · <a href="/registry">REGISTRY</a></nav>${body}</body></html>`; }
 
 function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined, currentClaimContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); }, claimReceiptContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); } }; }
 
@@ -1637,6 +1904,14 @@ function normalizeDigest(value: unknown): Hex { if (typeof value !== "string" ||
 function normalizeHex32(value: unknown): Hex { const result = normalizeDigest(value); if (/^0x0{64}$/.test(result)) throw new HttpError(422, "identifier must not be zero"); return result; }
 function normalizeBuilder(value: unknown): string { if (typeof value !== "string" || !/^eip155:4663:0x[0-9a-f]{40}$/.test(value) || value.endsWith("0".repeat(40))) throw new HttpError(422, "builder_id is invalid"); return value; }
 function normalizeName(value: unknown, name: string, maximum: number): string { if (typeof value !== "string" || value.length < 2 || value.length > maximum || !IDENTIFIER.test(value)) throw new HttpError(422, `${name} is invalid`); return value; }
+function normalizeGlobalAlias(value: unknown): string {
+  // Keep the signed global route compatible with CatalogDisplay.app_slug so
+  // Companion can request the exact slug the Builder already approved.
+  const alias = normalizeName(value, "alias", 64);
+  if (["api", "claims", "docs", "download", "healthz", "install", "privacy", "registry",
+    "releases", "s"].includes(alias)) throw new HttpError(422, "alias is reserved by the Tohseno website");
+  return alias;
+}
 function searchableRelease(release: JsonObject): string { const display = object(release.display, "display"); return [display.name, display.description, display.builder_handle, display.app_slug, release.shot_id, release.builder_id].filter((value) => typeof value === "string").join("\n").toLocaleLowerCase("en-US"); }
 function normalizeStagingID(value: string): string { if (!/^[0-9a-f]{32}$/.test(value)) throw new HttpError(404, "Staging reservation not found"); return value; }
 function positiveSafeInteger(value: unknown, name: string): number { if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new HttpError(422, `${name} must be a positive safe integer`); return value; }

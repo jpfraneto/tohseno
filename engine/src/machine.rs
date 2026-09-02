@@ -2912,7 +2912,7 @@ impl Engine {
                 }
                 _ => {
                     self.events.emit(Event::handoff(format!(
-                        "Plug in your iPhone anytime, then run `tohseno refresh {app_name}`.",
+                        "Make your paired iPhone reachable anytime, then run `tohseno refresh {app_name}`.",
                     )));
                 }
             }
@@ -3742,7 +3742,7 @@ impl DevicePipeline {
             let state = device::check().map_err(EngineError::Device)?;
             let (handoff, ready) = match state {
                 DeviceState::Ready(device) => (None, Some(device)),
-                DeviceState::CableMissing => {
+                DeviceState::DeviceUnreachable => {
                     (Some("Connect a paired iPhone by cable or local network."), None)
                 }
                 DeviceState::TrustRequired => (Some("Tap Trust on your iPhone."), None),

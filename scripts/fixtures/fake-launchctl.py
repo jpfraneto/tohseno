@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import BinaryIO, NoReturn
 
 
-LABEL = "com.tohseno.workspace-service"
+PRODUCTION_LABEL = "com.tohseno.workspace-service"
+VERIFICATION_LABEL_PREFIX = f"{PRODUCTION_LABEL}.verification."
 MARKER_NAME = ".tohseno-test-launchctl-v1"
 MARKER_BYTES = b"TOHSENO_TEST_LAUNCHCTL_V1\n"
 MAXIMUM_STATE_BYTES = 64 * 1024
@@ -106,12 +107,29 @@ def expected_domain() -> str:
     return f"gui/{os.getuid()}"
 
 
-def expected_target() -> str:
-    return f"{expected_domain()}/{LABEL}"
+def configured_label() -> str:
+    if os.environ.get("TOHSENO_VERIFICATION_MODE") != "1":
+        return PRODUCTION_LABEL
+    label = os.environ.get("TOHSENO_VERIFICATION_SERVICE_LABEL", "")
+    if not label.startswith(VERIFICATION_LABEL_PREFIX) or len(label) > 128:
+        raise FixtureError("verification service label has the wrong namespace")
+    suffix = label.removeprefix(VERIFICATION_LABEL_PREFIX)
+    if not suffix or any(
+        not (character.isascii() and (character.isalnum() or character in ".-"))
+        for character in suffix
+    ):
+        raise FixtureError("verification service label is invalid")
+    return label
 
 
-def load_plist(path: Path, install_root: Path, launch_agents: Path) -> dict[str, object]:
-    expected_path = launch_agents / f"{LABEL}.plist"
+def expected_target(label: str) -> str:
+    return f"{expected_domain()}/{label}"
+
+
+def load_plist(
+    path: Path, install_root: Path, launch_agents: Path, label: str
+) -> dict[str, object]:
+    expected_path = launch_agents / f"{label}.plist"
     if path != expected_path:
         raise FixtureError("launchctl fixture received an unexpected LaunchAgent path")
     value = plistlib.loads(read_regular_bounded(path))
@@ -127,7 +145,7 @@ def load_plist(path: Path, install_root: Path, launch_agents: Path) -> dict[str,
     expected_stdout = str(install_root / "logs/workspace-service.log")
     expected_stderr = str(install_root / "logs/workspace-service.error.log")
     if (
-        value.get("Label") != LABEL
+        value.get("Label") != label
         or arguments != expected_arguments
         or value.get("RunAtLoad") is not True
         or value.get("KeepAlive") != {"SuccessfulExit": False}
@@ -249,12 +267,13 @@ def start_process(plist: dict[str, object], pid_path: Path, install_root: Path) 
 
 def main() -> int:
     try:
+        label = configured_label()
         state_root = required_absolute_directory("TOHSENO_TEST_LAUNCHCTL_STATE")
         install_root = required_absolute_directory("TOHSENO_INSTALL_ROOT")
         launch_agents = required_absolute_directory("TOHSENO_LAUNCH_AGENTS_DIR")
         if read_regular_bounded(state_root / MARKER_NAME) != MARKER_BYTES:
             raise FixtureError("launchctl fixture marker is missing")
-        expected_plist = launch_agents / f"{LABEL}.plist"
+        expected_plist = launch_agents / f"{label}.plist"
         registered_path = state_root / "registered-plist"
         pid_path = state_root / "service.pid"
         arguments = sys.argv[1:]
@@ -262,13 +281,13 @@ def main() -> int:
         if len(arguments) == 3 and arguments[0] == "bootstrap":
             if arguments[1] != expected_domain() or Path(arguments[2]) != expected_plist:
                 raise FixtureError("bootstrap escaped the isolated user service")
-            load_plist(expected_plist, install_root, launch_agents)
+            load_plist(expected_plist, install_root, launch_agents, label)
             replace_private(registered_path, f"{expected_plist}\n".encode("utf-8"))
             return 0
 
-        if arguments == ["kickstart", "-k", expected_target()]:
+        if arguments == ["kickstart", "-k", expected_target(label)]:
             load_registered(registered_path, expected_plist)
-            plist = load_plist(expected_plist, install_root, launch_agents)
+            plist = load_plist(expected_plist, install_root, launch_agents, label)
             stop_process(pid_path)
             start_process(plist, pid_path, install_root)
             return 0
@@ -281,12 +300,12 @@ def main() -> int:
             remove_regular(registered_path)
             return 0
 
-        if arguments == ["print", expected_target()]:
+        if arguments == ["print", expected_target(label)]:
             load_registered(registered_path, expected_plist)
             pid = load_pid(pid_path)
             if pid is None or not process_exists(pid):
                 return 3
-            print(json.dumps({"label": LABEL, "pid": pid}, separators=(",", ":")))
+            print(json.dumps({"label": label, "pid": pid}, separators=(",", ":")))
             return 0
 
         raise FixtureError("unsupported launchctl operation")

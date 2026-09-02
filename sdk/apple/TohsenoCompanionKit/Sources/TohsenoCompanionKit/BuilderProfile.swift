@@ -117,7 +117,7 @@ public struct AliasClaim: Codable, Equatable, Sendable {
               BuilderDeviceAnnouncement.hex32(shotID) != nil,
               BuilderDeviceAnnouncement.hex32(requestID) != nil,
               alias.range(of: #"^[a-z0-9]+(?:-[a-z0-9]+)*$"#, options: .regularExpression) != nil,
-              (2 ... 40).contains(alias.count), nonce > 0, deadline > 0,
+              (2 ... 64).contains(alias.count), nonce > 0, deadline > 0,
               requestedAt.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"#, options: .regularExpression) != nil
         else { throw TohsenoCompanionError.invalidEncoding("invalid alias claim") }
         schema = Self.schemaV1

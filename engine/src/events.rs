@@ -104,10 +104,12 @@ mod tests {
     async fn subscribers_receive_the_typed_voice() {
         let bus = EventBus::default();
         let mut receiver = bus.subscribe();
-        bus.emit(Event::handoff("Plug in your iPhone with a cable."));
+        bus.emit(Event::handoff(
+            "Make your paired iPhone reachable and keep it unlocked.",
+        ));
         assert_eq!(
             receiver.recv().await.unwrap(),
-            Event::Handoff("Plug in your iPhone with a cable.".into())
+            Event::Handoff("Make your paired iPhone reachable and keep it unlocked.".into())
         );
     }
 }

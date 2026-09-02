@@ -78,6 +78,8 @@ public final class CompanionModel {
     public var profileDisplayName = ""
     public var profileHandle = ""
     public var requestedAlias = ""
+    public var requestedAliasShotID = ""
+    public private(set) var lastAliasRequestID: String?
     public private(set) var builderID: String?
     public private(set) var profileNotice: String?
     public private(set) var claimEditions: [String: PublicClaimEdition] = [:]
@@ -85,6 +87,22 @@ public final class CompanionModel {
     public private(set) var claimedSoftware: [ClaimedSoftwareEncounter] = []
     public private(set) var privateUpdates: [PrivateUpdateItem] = []
     public var claimsActive: Bool { network.claims.active }
+    public var aliasEligibleApps: [PublicAppRelease] {
+        guard let builderID else { return [] }
+        return publicApps.filter {
+            $0.release.builderID == builderID && $0.release.permissions.installAllowed
+        }
+    }
+    public var selectedAliasAppSlug: String? {
+        aliasEligibleApps.first(where: {
+            $0.release.shotID == requestedAliasShotID
+        })?.release.display.appSlug
+    }
+    public var canRequestGlobalAlias: Bool {
+        !requestedAliasShotID.isEmpty
+            && (!requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || selectedAliasAppSlug != nil)
+    }
 
     /// The one text box. Nothing else is composed on the phone.
     public var intent = ""
@@ -165,6 +183,7 @@ public final class CompanionModel {
             async let timeline = network.timeline()
             publicApps = try await releases
             publicTimeline = try await timeline
+            selectDefaultAliasAppIfNeeded()
             await deriveClaimedAppUpdates()
             networkNotice = nil
         } catch {
@@ -347,6 +366,7 @@ public final class CompanionModel {
         do {
             let id = try await builderIdentity.builderID()
             builderID = id
+            selectDefaultAliasAppIfNeeded()
             if let profile = try await network.builderProfile(builderID: id) {
                 profileDisplayName = profile.displayName
                 profileHandle = profile.handle ?? ""
@@ -387,8 +407,17 @@ public final class CompanionModel {
         defer { busy = false }
         do {
             let id = try await builderIdentity.builderID()
-            guard let app = publicApps.first(where: { $0.release.builderID == id }) else {
-                profileNotice = "Publish an installable app before requesting a global alias."
+            guard let app = publicApps.first(where: {
+                $0.release.builderID == id && $0.release.shotID == requestedAliasShotID
+            }) else {
+                selectDefaultAliasAppIfNeeded()
+                profileNotice = "Choose the exact published app for this global alias."
+                return
+            }
+            let alias = requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased().nilIfEmpty ?? app.release.display.appSlug
+            guard let alias else {
+                profileNotice = "Enter an alias for this published app."
                 return
             }
             let now = UInt64(Date().timeIntervalSince1970.rounded(.down))
@@ -398,16 +427,17 @@ public final class CompanionModel {
             let claim = try AliasClaim(
                 builderID: id,
                 shotID: app.release.shotID,
-                alias: requestedAlias.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                alias: alias,
                 requestID: "0x\(random.map { String(format: "%02x", $0) }.joined())",
                 nonce: aliasNonce + 1,
                 deadline: now + 900,
                 requestedAt: Self.networkTimestamp()
             )
-            try await network.requestAlias(builderIdentity.sign(claim: claim))
+            let receipt = try await network.requestAlias(builderIdentity.sign(claim: claim))
             aliasNonce = claim.nonce
             requestedAlias = ""
-            profileNotice = "Alias request signed and queued for explicit policy review."
+            lastAliasRequestID = receipt.requestID
+            profileNotice = "Alias /\(receipt.alias) is signed and queued for explicit policy review."
         } catch {
             profileNotice = "Alias request failed. Check the alias and try again."
         }
@@ -417,6 +447,13 @@ public final class CompanionModel {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: Date())
+    }
+
+    private func selectDefaultAliasAppIfNeeded() {
+        let eligible = aliasEligibleApps
+        if !eligible.contains(where: { $0.release.shotID == requestedAliasShotID }) {
+            requestedAliasShotID = eligible.first?.release.shotID ?? ""
+        }
     }
 
     /// Accepts only the existing signed, expiring, single-use pairing

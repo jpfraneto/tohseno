@@ -66,7 +66,9 @@ mod tests {
         let mut renderer = Renderer::new(&mut output, false);
         renderer.render(&Event::status("building shot 3…")).unwrap();
         renderer
-            .render(&Event::handoff("Plug in your iPhone with a cable."))
+            .render(&Event::handoff(
+                "Make your paired iPhone reachable and keep it unlocked.",
+            ))
             .unwrap();
         renderer
             .render(&Event::result("shot 3 of press is on your phone."))
@@ -79,7 +81,7 @@ mod tests {
             String::from_utf8(output).unwrap(),
             concat!(
                 "building shot 3…\n",
-                "Plug in your iPhone with a cable.\n",
+                "Make your paired iPhone reachable and keep it unlocked.\n",
                 "shot 3 of press is on your phone.\n",
                 "  Writing project\n",
                 "  Building target\n"

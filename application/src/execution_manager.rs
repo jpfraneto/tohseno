@@ -1232,8 +1232,8 @@ async fn record_and_deliver_with_wait(
                     "The verified candidate is waiting for the configured iPhone before installation, launch, and acceptance.",
                 )?;
                 // Source and build work already finished. Holding the local
-                // factory while a cable is missing would block unrelated apps
-                // for no reason, so the lease goes back until the phone is here.
+                // factory while the target is unreachable would block unrelated
+                // apps for no reason, so the lease goes back until the phone is here.
                 drop(lease.take());
                 DevicePipeline::new(events.clone())
                     .wait_for_device()

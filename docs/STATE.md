@@ -1,13 +1,15 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-08-31. This is the plain-language
+Written 2026-07-30, amended through 2026-09-01. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
 ## Current product direction: claimable person-to-person software
 
-ADR 0035 is the latest product decision. It retains ADR 0034's signed,
-buildable person-to-person source and adds one public act: Claim. The Mac is
+ADR 0035 retains ADR 0034's signed, buildable person-to-person source and adds
+one public act: Claim. ADR 0036 now makes the intended iPhone—not its current
+USB or Wi-Fi transport—the private delivery destination, and ADR 0037 defines
+future network trust as exact-release evidence rather than a safety score. The Mac is
 the factory, Companion is the human authority, generation 0.8 plus the signed
 catalog remains the public Shot witness, and a separately activated additive
 Claims contract records non-transferable exact encounters. A Shot ships once,
@@ -57,13 +59,19 @@ increments local authority immediately and revokes both relay mailboxes. Mac
 Settings now lists, renames, revokes, and starts QR pairing for additional
 personal devices.
 
-The install path selects a physical iPhone only when exactly one reachable
-CoreDevice target exists. More than one target fails closed instead of choosing
-the first phone. `Installed` requires a successful devicectl install followed
-by an exact bundle-ID inventory query. Device absence, lock, Trust, Developer
-Mode, and multiple-device ambiguity retain the verified artifact as **Ready to
-install** with the smallest action. The background retry performs no device
-polling unless a saved build is actually waiting.
+Initial Companion setup persists a one-way digest of the exact physical
+CoreDevice that received Companion. The install path now consumes that private
+bootstrap evidence: when it exists, only the matching phone is eligible across
+USB or Xcode local-network transport, even if other phones are visible; when it
+is absent, another phone is never substituted. Older records without the
+digest retain the exactly-one-reachable-device compatibility fallback and fail
+closed on multiple devices. `Installed` requires a successful devicectl
+install followed by an exact bundle-ID inventory query. Device absence, lock,
+Trust, Developer Mode, and unresolved legacy ambiguity retain the verified
+artifact as **Ready to install** with the smallest action. The background retry
+performs no device polling unless a saved build is actually waiting. ADR 0036's
+full versioned, multi-target, Companion-ID-bound replacement model remains
+unimplemented and the bootstrap selector has no physical acceptance evidence.
 
 The frozen 1.1.0 source candidate includes the public catalog/blob service,
 constrained active-generation relayer, DeviceKey publication approval,
@@ -89,6 +97,17 @@ signed, notarized, stapled 1.2 release candidate is public only for the
 owner-attended physical walkthrough; there is still no canonical physical
 Claim. Exact blockers live in `release/V1_2_0_READINESS.json`; 1.1 evidence
 remains bound to its recorded source commit.
+
+Current post-RC6 source also adds a stable deploy-time app slug, exact app
+selection for Companion alias requests, an authenticated append-only alias
+approval endpoint, and live root Registry routes such as `/your-app`. The app
+page explains the four-step recipient path, pins Claim to the exact release,
+and distinguishes signed provenance and bounded machine facts from unavailable
+human Release Attestations. The Mac and CLI now describe Wi-Fi/USB
+reachability instead of presenting every normal installation as a cable
+operation. These are source facts only: the website has not been redeployed,
+no alias has been approved in production, RC6 has not been replaced, and no
+new physical or release evidence follows from this change.
 
 ## Native macOS transition
 

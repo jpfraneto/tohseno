@@ -466,7 +466,7 @@ public final class TohsenoAppModel {
             networkActionMessage = action == .install
                 ? (result.installationStatus == "installed"
                     ? "Installed on your iPhone."
-                    : "Ready for your iPhone. Connect and unlock it to finish installation.")
+                    : "Ready for your iPhone. Make the paired phone reachable and unlock it to finish installation.")
                 : "Fork ready in \(result.sourcePath)."
             networkReview = nil
             await reloadWorkspace()

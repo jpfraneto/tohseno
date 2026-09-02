@@ -106,6 +106,74 @@ fn parse_claim_edition(
     }))
 }
 
+fn publication_app_slug(
+    requested: Option<&str>,
+    prior: Option<&str>,
+    display_name: &str,
+    shot_id: &str,
+) -> Result<String, BoxError> {
+    if let Some(prior) = prior {
+        validate_app_slug(prior)?;
+        if requested.is_some_and(|value| value != prior) {
+            return Err("This app already shipped. Its human app slug is stable.".into());
+        }
+        return Ok(prior.into());
+    }
+    if let Some(value) = requested {
+        validate_app_slug(value)?;
+        return Ok(value.into());
+    }
+
+    let mut slug = String::new();
+    let mut separator = false;
+    for character in display_name.chars() {
+        if character.is_ascii_alphanumeric() {
+            if separator && !slug.is_empty() && slug.len() < 64 {
+                slug.push('-');
+            }
+            separator = false;
+            if slug.len() < 64 {
+                slug.push(character.to_ascii_lowercase());
+            }
+        } else if !slug.is_empty() {
+            separator = true;
+        }
+        if slug.len() == 64 {
+            break;
+        }
+    }
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.len() < 2 {
+        slug = format!("app-{}", &shot_id[..8]);
+    }
+    validate_app_slug(&slug)?;
+    Ok(slug)
+}
+
+fn validate_app_slug(value: &str) -> Result<(), BoxError> {
+    let valid = (2..=64).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && !value.starts_with('-')
+        && !value.ends_with('-')
+        && !value.contains("--");
+    if !valid {
+        return Err("--app-slug must be 2–64 lowercase letters, numbers, or single hyphens".into());
+    }
+    if [
+        "api", "claims", "docs", "download", "healthz", "install", "privacy", "registry",
+        "releases", "s",
+    ]
+    .contains(&value)
+    {
+        return Err("--app-slug is reserved by the Tohseno website".into());
+    }
+    Ok(())
+}
+
 fn unix_time(value: u64) -> String {
     OffsetDateTime::from_unix_timestamp(value as i64)
         .ok()
@@ -211,6 +279,119 @@ struct RegistryPublicationStatus {
     status: String,
     public_release: Option<serde_json::Value>,
     failure: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FriendRouteObservation {
+    slug: String,
+    url: String,
+    status: FriendRouteStatus,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum FriendRouteStatus {
+    Live,
+    AwaitingReview,
+    Conflict,
+    Unavailable,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GlobalAliasPointer {
+    schema: String,
+    alias: String,
+    shot_id: String,
+    builder_id: String,
+    request_id: String,
+    claim_digest: String,
+    approved_at: String,
+}
+
+impl GlobalAliasPointer {
+    fn validate(&self, expected_alias: &str, expected_shot: &str) -> Result<(), BoxError> {
+        let builder_address = self
+            .builder_id
+            .strip_prefix("eip155:4663:0x")
+            .ok_or("friend route has an invalid BuilderID")?;
+        if self.schema != "tohseno.global-alias/1"
+            || self.alias != expected_alias
+            || self.shot_id != expected_shot
+            || builder_address.len() != 40
+            || !builder_address
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+            || OffsetDateTime::parse(&self.approved_at, &Rfc3339).is_err()
+        {
+            return Err("friend route does not bind the expected app".into());
+        }
+        Bytes32::from_hex("friend route request ID", &self.request_id)?;
+        Bytes32::from_hex("friend route claim digest", &self.claim_digest)?;
+        Bytes32::from_hex("friend route ShotID", &self.shot_id)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CurrentPublicRelease {
+    schema: String,
+    release_digest: String,
+    route: String,
+    release: CurrentPublicReleaseIdentity,
+    chain: serde_json::Value,
+    manifest_url: String,
+    source_url: String,
+    icon_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurrentPublicReleaseIdentity {
+    shot_id: String,
+    source: CurrentPublicSourceIdentity,
+    display: CurrentPublicDisplayIdentity,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurrentPublicSourceIdentity {
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurrentPublicDisplayIdentity {
+    icon_sha256: Option<String>,
+}
+
+impl CurrentPublicRelease {
+    fn validate(&self, expected_shot: &str, expected_release: &str) -> Result<(), BoxError> {
+        let shot = Bytes32::from_hex("friend route current ShotID", expected_shot)?.to_string();
+        let release =
+            Bytes32::from_hex("friend route current release", expected_release)?.to_string();
+        let source = Bytes32::from_hex("friend route current source", &self.release.source.sha256)?
+            .to_string();
+        let icon = self
+            .release
+            .display
+            .icon_sha256
+            .as_deref()
+            .map(|value| Bytes32::from_hex("friend route current icon", value))
+            .transpose()?
+            .map(|value| value.to_string());
+        if self.schema != "tohseno.public-catalog-release/1"
+            || self.release_digest != release
+            || self.release.shot_id != shot
+            || self.route != format!("/s/{}", shot.trim_start_matches("0x"))
+            || self.manifest_url != format!("/api/registry/v1/releases/{release}")
+            || self.source_url != format!("/api/registry/v1/blobs/{source}")
+            || !self.chain.is_object()
+            || self.icon_url != icon.map(|digest| format!("/api/registry/v1/blobs/{digest}"))
+        {
+            return Err("friend route does not bind the expected exact release".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -533,7 +714,7 @@ pub async fn receive(
         let outcome = match (kind, result.installation_status.as_str()) {
             (ReceiveKind::Install, "installed") => "Installed on your iPhone.",
             (ReceiveKind::Install, _) => {
-                "Ready for your iPhone. Connect and unlock it to finish installation."
+                "Ready for your iPhone. Make the paired phone reachable and unlock it to finish installation."
             }
             (ReceiveKind::Fork, _) => {
                 "Fork ready. It has a new local Shot identity and can be evolved or shipped."
@@ -547,15 +728,28 @@ pub async fn receive(
     Ok(())
 }
 
+pub struct DeployOptions<'a> {
+    pub dry_run: bool,
+    pub project_id: Option<&'a str>,
+    pub claim_edition: Option<&'a str>,
+    pub max_claims: Option<u64>,
+    pub closes_at: Option<&'a str>,
+    pub app_slug: Option<&'a str>,
+}
+
 pub async fn deploy(
-    dry_run: bool,
-    project_id: Option<&str>,
-    claim_edition: Option<&str>,
-    max_claims: Option<u64>,
-    closes_at: Option<&str>,
+    options: DeployOptions<'_>,
     json_output: bool,
     bus: &tohseno_engine::EventBus,
 ) -> Result<(), BoxError> {
+    let DeployOptions {
+        dry_run,
+        project_id,
+        claim_edition,
+        max_claims,
+        closes_at,
+        app_slug: requested_app_slug,
+    } = options;
     let service = ServiceClient::ensure_running().await.map_err(to_box)?;
     let projects: ProjectList = service.get("/api/v1/projects").await.map_err(to_box)?;
     validate_project_list(&projects)?;
@@ -584,6 +778,15 @@ pub async fn deploy(
         .ok_or("Run 'tohseno init' first so this app has one stable candidate ShotID")?;
     let shot_bytes = Bytes32::from_hex("candidate_shot_id", &format!("0x{shot_text}"))?;
     let shot_id = ShotId::from_bytes(shot_bytes.into_bytes());
+    let app_slug = publication_app_slug(
+        requested_app_slug,
+        project
+            .latest_publication
+            .as_ref()
+            .and_then(|publication| publication.app_slug.as_deref()),
+        &project.display_name,
+        shot_text,
+    )?;
     let next_sequence = project
         .latest_publication
         .as_ref()
@@ -662,6 +865,7 @@ pub async fn deploy(
                 &timestamp,
                 &directory,
                 requested_claim_edition.as_ref(),
+                &app_slug,
             )
             .await?,
         )
@@ -760,6 +964,7 @@ async fn build_approval_request(
     issued_at: &str,
     directory: &Path,
     requested_claim_edition: Option<&RequestedClaimEdition>,
+    app_slug: &str,
 ) -> Result<PublicationApprovalRequest, BoxError> {
     let builder_device = load_builder_device(directory)?;
     if builder_device.test_only {
@@ -806,7 +1011,7 @@ async fn build_approval_request(
             description: "A native iPhone app shared person to person with Tohseno.".into(),
             icon_sha256: None,
             builder_handle: None,
-            app_slug: None,
+            app_slug: Some(app_slug.into()),
         },
         source: SourceArtifact {
             format: SourceArtifactFormat::DeterministicTar,
@@ -1517,6 +1722,7 @@ async fn advance_publication(
                 checkpoint_sequence: preparation.checkpoint_sequence,
                 status: "published".into(),
                 public_url: Some(public_url.clone()),
+                app_slug: verified_release.display.app_slug.clone(),
                 transaction_hash: Some(transaction_hash.into()),
                 updated_at: canonical_now()?,
             },
@@ -2154,19 +2360,26 @@ pub async fn status(json_output: bool, bus: &tohseno_engine::EventBus) -> Result
     let projects: ProjectList = service.get("/api/v1/projects").await.map_err(to_box)?;
     validate_project_list(&projects)?;
     let selected = select_current_project(&projects.projects).ok();
-    let registry = reqwest::Client::builder()
+    let client = reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(3))
         .timeout(std::time::Duration::from_secs(5))
         .redirect(reqwest::redirect::Policy::none())
-        .build()?
-        .get(format!("{REGISTRY_ORIGIN}/api/registry/v1/status"))
+        .build()?;
+    let origin = registry_origin();
+    let registry = client
+        .get(format!("{origin}/api/registry/v1/status"))
         .send()
         .await
         .ok()
         .is_some_and(|response| response.status().is_success());
+    let friend_route = match selected {
+        Some(project) => observe_friend_route(&client, &origin, project).await,
+        None => None,
+    };
     let value = json!({
         "schema": "tohseno.network-status/1",
         "project": selected,
+        "friend_route": friend_route.as_ref(),
         "local_service": "ready",
         "companion_required_for_publish": true,
         "registry_available": registry,
@@ -2177,8 +2390,25 @@ pub async fn status(json_output: bool, bus: &tohseno_engine::EventBus) -> Result
     if json_output {
         println!("{}", serde_json::to_string(&value)?);
     } else if let Some(project) = selected {
+        let publication = project.latest_publication.as_ref().map(|published| {
+            let canonical = published.public_url.as_deref().unwrap_or("unavailable");
+            match published.app_slug.as_deref() {
+                Some(slug) => {
+                    let route = friend_route
+                        .as_ref()
+                        .map(friend_route_copy)
+                        .unwrap_or_else(|| {
+                            format!("Friend route: {origin}/{slug} · unavailable")
+                        });
+                    format!("Public release: {canonical}\nRelease slug: {slug}\n{route}")
+                }
+                None => format!(
+                    "Public release: {canonical}\nRelease slug: not set\nNext: publish an Update with 'tohseno deploy --app-slug your-app' before requesting a friend route."
+                ),
+            }
+        });
         bus.emit(Event::result(format!(
-            "{}\nLocal Mac ✓\nCandidate Shot {}\nRegistry {}\nNext: {}",
+            "{}\nLocal Mac ✓\nCandidate Shot {}\nRegistry {}\n{}",
             project.display_name,
             project
                 .candidate_shot_id
@@ -2186,11 +2416,7 @@ pub async fn status(json_output: bool, bus: &tohseno_engine::EventBus) -> Result
                 .map(|id| format!("0x{id}"))
                 .unwrap_or_else(|| "not initialized".into()),
             if registry { "✓" } else { "unavailable" },
-            if project.latest_publication.is_some() {
-                "tohseno deploy"
-            } else {
-                "tohseno deploy --dry-run"
-            }
+            publication.unwrap_or_else(|| "Next: tohseno deploy --dry-run".into()),
         )));
     } else {
         bus.emit(Event::result(format!(
@@ -2199,6 +2425,132 @@ pub async fn status(json_output: bool, bus: &tohseno_engine::EventBus) -> Result
         )));
     }
     Ok(())
+}
+
+async fn observe_friend_route(
+    client: &reqwest::Client,
+    origin: &str,
+    project: &LivingProjectRecord,
+) -> Option<FriendRouteObservation> {
+    let publication = project.latest_publication.as_ref()?;
+    let slug = publication.app_slug.as_deref()?;
+    let Some(shot) = project.candidate_shot_id.as_deref() else {
+        return Some(FriendRouteObservation {
+            slug: slug.into(),
+            url: format!("{origin}/{slug}"),
+            status: FriendRouteStatus::Conflict,
+        });
+    };
+    Some(observe_friend_route_exact(client, origin, slug, shot, &publication.release_digest).await)
+}
+
+async fn observe_friend_route_exact(
+    client: &reqwest::Client,
+    origin: &str,
+    slug: &str,
+    shot: &str,
+    release: &str,
+) -> FriendRouteObservation {
+    let url = format!("{origin}/{slug}");
+    let expected_shot = match Bytes32::from_hex("friend route ShotID", shot) {
+        Ok(value) => value.to_string(),
+        Err(_) => {
+            return FriendRouteObservation {
+                slug: slug.into(),
+                url,
+                status: FriendRouteStatus::Conflict,
+            }
+        }
+    };
+    let expected_release = match Bytes32::from_hex("friend route release", release) {
+        Ok(value) => value.to_string(),
+        Err(_) => {
+            return FriendRouteObservation {
+                slug: slug.into(),
+                url,
+                status: FriendRouteStatus::Conflict,
+            }
+        }
+    };
+    let response = match client
+        .get(format!("{origin}/api/registry/v1/aliases/{slug}"))
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => {
+            return FriendRouteObservation {
+                slug: slug.into(),
+                url,
+                status: FriendRouteStatus::Unavailable,
+            }
+        }
+    };
+    let status = if response.status() == reqwest::StatusCode::NOT_FOUND {
+        FriendRouteStatus::AwaitingReview
+    } else if response.status().is_success() {
+        match response_json::<GlobalAliasPointer>(response, 64 * 1024).await {
+            Ok(pointer) if pointer.validate(slug, &expected_shot).is_ok() => {
+                let current = client
+                    .get(format!("{origin}/api/registry/v1/shots/{expected_shot}"))
+                    .send()
+                    .await;
+                match current {
+                    Ok(current) if current.status().is_success() => {
+                        match response_json::<CurrentPublicRelease>(current, 256 * 1024).await {
+                            Ok(current)
+                                if current.validate(&expected_shot, &expected_release).is_ok() =>
+                            {
+                                match client.head(&url).send().await {
+                                    Ok(page) if page.status().is_success() => {
+                                        FriendRouteStatus::Live
+                                    }
+                                    Ok(page) if page.status() == reqwest::StatusCode::NOT_FOUND => {
+                                        FriendRouteStatus::Conflict
+                                    }
+                                    _ => FriendRouteStatus::Unavailable,
+                                }
+                            }
+                            _ => FriendRouteStatus::Conflict,
+                        }
+                    }
+                    Ok(current) if current.status() == reqwest::StatusCode::NOT_FOUND => {
+                        FriendRouteStatus::Conflict
+                    }
+                    _ => FriendRouteStatus::Unavailable,
+                }
+            }
+            _ => FriendRouteStatus::Conflict,
+        }
+    } else {
+        FriendRouteStatus::Unavailable
+    };
+    FriendRouteObservation {
+        slug: slug.into(),
+        url,
+        status,
+    }
+}
+
+fn friend_route_copy(route: &FriendRouteObservation) -> String {
+    match route.status {
+        FriendRouteStatus::Live => format!(
+            "Friend route: {} ✓\nNext: send this exact link to your friend.",
+            route.url
+        ),
+        FriendRouteStatus::AwaitingReview => format!(
+            "Friend route: {} · awaiting review\nNext: In Companion open Profile → Global alias request and select this exact app.",
+            route.url
+        ),
+        FriendRouteStatus::Conflict => format!(
+            "Friend route conflict: {} does not resolve to this exact release. Do not send it.",
+            route.url
+        ),
+        FriendRouteStatus::Unavailable => format!(
+            "Friend route check unavailable: {}. Verify Registry health before sending it.",
+            route.url
+        ),
+    }
 }
 
 fn validate_project_list(value: &ProjectList) -> Result<(), BoxError> {
@@ -2335,5 +2687,159 @@ mod claim_edition_tests {
         ] {
             assert!(value.is_err());
         }
+    }
+
+    #[test]
+    fn app_slugs_are_stable_and_safe_for_human_routes() {
+        let shot = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assert_eq!(
+            publication_app_slug(None, None, "Field Notebook", shot).unwrap(),
+            "field-notebook"
+        );
+        assert_eq!(
+            publication_app_slug(None, None, "🧭", shot).unwrap(),
+            "app-01234567"
+        );
+        assert_eq!(
+            publication_app_slug(None, Some("field-notebook"), "Renamed", shot).unwrap(),
+            "field-notebook"
+        );
+        assert!(
+            publication_app_slug(Some("renamed"), Some("field-notebook"), "Renamed", shot).is_err()
+        );
+        for invalid in ["A Name", "-name", "name-", "a", "registry"] {
+            assert!(publication_app_slug(Some(invalid), None, "Ignored", shot).is_err());
+        }
+    }
+
+    #[test]
+    fn friend_route_evidence_must_bind_the_exact_slug_and_shot() {
+        let shot = format!("0x{}", "11".repeat(32));
+        let release = format!("0x{}", "66".repeat(32));
+        let source = format!("0x{}", "88".repeat(32));
+        let pointer = GlobalAliasPointer {
+            schema: "tohseno.global-alias/1".into(),
+            alias: "field-notebook".into(),
+            shot_id: shot.clone(),
+            builder_id: format!("eip155:4663:0x{}", "22".repeat(20)),
+            request_id: format!("0x{}", "33".repeat(32)),
+            claim_digest: format!("0x{}", "44".repeat(32)),
+            approved_at: "2026-09-01T12:00:00.000Z".into(),
+        };
+        assert!(pointer.validate("field-notebook", &shot).is_ok());
+        assert!(pointer.validate("another-app", &shot).is_err());
+        assert!(pointer
+            .validate("field-notebook", &format!("0x{}", "55".repeat(32)))
+            .is_err());
+
+        let current = CurrentPublicRelease {
+            schema: "tohseno.public-catalog-release/1".into(),
+            release_digest: release.clone(),
+            route: format!("/s/{}", shot.trim_start_matches("0x")),
+            release: CurrentPublicReleaseIdentity {
+                shot_id: shot.clone(),
+                source: CurrentPublicSourceIdentity {
+                    sha256: source.clone(),
+                },
+                display: CurrentPublicDisplayIdentity { icon_sha256: None },
+            },
+            chain: json!({ "canonical": true }),
+            manifest_url: format!("/api/registry/v1/releases/{release}"),
+            source_url: format!("/api/registry/v1/blobs/{source}"),
+            icon_url: None,
+        };
+        assert!(current.validate(&shot, &release).is_ok());
+        assert!(current
+            .validate(&shot, &format!("0x{}", "77".repeat(32)))
+            .is_err());
+
+        let live = FriendRouteObservation {
+            slug: "field-notebook".into(),
+            url: "https://tohseno.com/field-notebook".into(),
+            status: FriendRouteStatus::Live,
+        };
+        assert!(friend_route_copy(&live).contains("send this exact link"));
+        let mut conflict = live;
+        conflict.status = FriendRouteStatus::Conflict;
+        let copy = friend_route_copy(&conflict);
+        assert!(copy.contains("exact release"));
+        assert!(copy.contains("Do not send it"));
+    }
+
+    #[tokio::test]
+    async fn friend_route_probe_requires_pointer_and_human_page_agreement() {
+        use axum::routing::get;
+        use axum::{Json, Router};
+
+        let shot = format!("0x{}", "11".repeat(32));
+        let release = format!("0x{}", "66".repeat(32));
+        let source = format!("0x{}", "88".repeat(32));
+        let pointer = json!({
+            "schema": "tohseno.global-alias/1",
+            "alias": "field-notebook",
+            "shot_id": shot,
+            "builder_id": format!("eip155:4663:0x{}", "22".repeat(20)),
+            "request_id": format!("0x{}", "33".repeat(32)),
+            "claim_digest": format!("0x{}", "44".repeat(32)),
+            "approved_at": "2026-09-01T12:00:00.000Z"
+        });
+        let public_release = json!({
+            "schema": "tohseno.public-catalog-release/1",
+            "release_digest": release,
+            "route": format!("/s/{}", shot.trim_start_matches("0x")),
+            "release": {
+                "shot_id": shot,
+                "source": { "sha256": source },
+                "display": { "icon_sha256": null }
+            },
+            "chain": { "canonical": true },
+            "manifest_url": format!("/api/registry/v1/releases/{release}"),
+            "source_url": format!("/api/registry/v1/blobs/{source}"),
+            "icon_url": null
+        });
+        let shot_route = format!("/api/registry/v1/shots/{shot}");
+        let application = Router::new()
+            .route(
+                "/api/registry/v1/aliases/field-notebook",
+                get(move || async move { Json(pointer) }),
+            )
+            .route(
+                &shot_route,
+                get(move || async move { Json(public_release) }),
+            )
+            .route("/field-notebook", get(|| async { "exact app page" }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, application).await.unwrap() });
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+
+        let live =
+            observe_friend_route_exact(&client, &origin, "field-notebook", &shot, &release).await;
+        assert_eq!(live.status, FriendRouteStatus::Live);
+        let conflict = observe_friend_route_exact(
+            &client,
+            &origin,
+            "field-notebook",
+            &format!("0x{}", "55".repeat(32)),
+            &release,
+        )
+        .await;
+        assert_eq!(conflict.status, FriendRouteStatus::Conflict);
+        let stale_release = observe_friend_route_exact(
+            &client,
+            &origin,
+            "field-notebook",
+            &shot,
+            &format!("0x{}", "77".repeat(32)),
+        )
+        .await;
+        assert_eq!(stale_release.status, FriendRouteStatus::Conflict);
+        let awaiting =
+            observe_friend_route_exact(&client, &origin, "not-approved", &shot, &release).await;
+        assert_eq!(awaiting.status, FriendRouteStatus::AwaitingReview);
+        server.abort();
     }
 }

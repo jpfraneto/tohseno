@@ -84,6 +84,18 @@ public struct PublicClaimEdition: Codable, Equatable, Sendable {
     }
 }
 
+public struct AliasClaimReceipt: Codable, Equatable, Sendable {
+    public let schema: String
+    public let requestID: String
+    public let alias: String
+    public let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case schema, alias, status
+        case requestID = "request_id"
+    }
+}
+
 public struct SoftwareClaimPreparation: Codable, Equatable, Sendable {
     public struct Edition: Codable, Equatable, Sendable {
         public let maxClaims: UInt64
@@ -335,13 +347,20 @@ public struct PublicNetworkClient: Sendable {
         }
     }
 
-    public func requestAlias(_ envelope: SignedAliasClaim) async throws {
+    public func requestAlias(_ envelope: SignedAliasClaim) async throws -> AliasClaimReceipt {
         let url = origin.appending(path: "api/registry/v1/aliases/claims")
         let body = try JSONEncoder().encode(EnvelopeRequest(envelope: envelope))
         let (data, response) = try await request(url: url, method: "POST", body: body)
         guard response.statusCode == 202, data.count <= 512 * 1024 else {
             throw URLError(.badServerResponse)
         }
+        let receipt = try JSONDecoder().decode(AliasClaimReceipt.self, from: data)
+        guard receipt.schema == "tohseno.alias-claim-receipt/1",
+              isDigest(receipt.requestID),
+              receipt.alias == envelope.claim.alias,
+              receipt.status == "pending_policy_review"
+        else { throw URLError(.cannotParseResponse) }
+        return receipt
     }
 
     public func claimEdition(shotID: String) async throws -> PublicClaimEdition {

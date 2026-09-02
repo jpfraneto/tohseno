@@ -230,7 +230,7 @@ pub fn project(record: &ReadinessRecord, observed: &ReadinessObservation) -> Rea
         return view(false, "finish_xcode", "Let Xcode finish its setup", "Open Xcode, accept Apple's license if asked, and allow required components to install. Tohseno advances only after Xcode reports that setup is complete.", Some("open_xcode"), Some("Open Xcode"));
     }
     match observed.device.as_ref() {
-        None | Some(device::DeviceState::CableMissing) => return view(false, "connect_iphone", "Connect and unlock your iPhone", "Use a cable. Keep the phone unlocked while Tohseno checks Apple's device state.", Some("check"), Some("Check Again")),
+        None | Some(device::DeviceState::DeviceUnreachable) => return view(false, "connect_iphone", "Make your iPhone reachable", "Keep the iPhone nearby, unlocked, and on the same Wi-Fi as this Mac. If Xcode has not paired it yet, Apple may require a cable for the one-time setup.", Some("check"), Some("Check Again")),
         Some(device::DeviceState::TrustRequired) => return view(false, "trust_mac", "Trust this Mac on your iPhone", "Unlock the iPhone, tap Trust, and enter its passcode. Tohseno cannot claim this step for you.", Some("check"), Some("Check Again")),
         Some(device::DeviceState::DeveloperModeRequired) => return view(false, "developer_mode", "Turn on Developer Mode", "On iPhone open Settings → Privacy & Security → Developer Mode. Turn it on and let the phone restart, then reconnect and unlock it.", Some("check"), Some("Check Again")),
         Some(device::DeviceState::Ready(_)) => {}
@@ -412,7 +412,7 @@ mod tests {
         observed.components_ready = false;
         assert_eq!(project(&record, &observed).step, "finish_xcode");
         observed = ready_observation();
-        observed.device = Some(device::DeviceState::CableMissing);
+        observed.device = Some(device::DeviceState::DeviceUnreachable);
         assert_eq!(project(&record, &observed).step, "connect_iphone");
         observed.device = Some(device::DeviceState::TrustRequired);
         assert_eq!(project(&record, &observed).step, "trust_mac");

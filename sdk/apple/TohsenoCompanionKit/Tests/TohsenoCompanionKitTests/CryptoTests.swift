@@ -3,6 +3,29 @@ import XCTest
 @testable import TohsenoCompanionKit
 
 final class CryptoTests: XCTestCase {
+    func testGlobalAliasUsesTheCatalogAppSlugBound() throws {
+        let builderID = "eip155:4663:0x" + String(repeating: "1", count: 40)
+        let digest = "0x" + String(repeating: "2", count: 64)
+        XCTAssertNoThrow(try AliasClaim(
+            builderID: builderID,
+            shotID: digest,
+            alias: String(repeating: "a", count: 64),
+            requestID: digest,
+            nonce: 1,
+            deadline: 2_000_000_000,
+            requestedAt: "2026-09-01T12:00:00Z"
+        ))
+        XCTAssertThrowsError(try AliasClaim(
+            builderID: builderID,
+            shotID: digest,
+            alias: String(repeating: "a", count: 65),
+            requestID: digest,
+            nonce: 1,
+            deadline: 2_000_000_000,
+            requestedAt: "2026-09-01T12:00:00Z"
+        ))
+    }
+
     func testActiveBuilderIDUsesTheExactCAIP10Width() {
         let valid = "eip155:4663:0x" + String(repeating: "1", count: 40)
         XCTAssertEqual(valid.count, 54)

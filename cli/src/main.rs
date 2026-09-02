@@ -131,6 +131,9 @@ enum Command {
         /// RFC 3339 closing time for a timed first-Ship Claim Edition.
         #[arg(long, value_name = "TIMESTAMP")]
         closes_at: Option<String>,
+        /// Human app slug signed into this release (for example, anky).
+        #[arg(long, value_name = "SLUG")]
+        app_slug: Option<String>,
     },
     /// Show this project's local, Companion, and public network readiness.
     Status,
@@ -752,13 +755,17 @@ async fn dispatch(
             claim_edition,
             max_claims,
             closes_at,
+            app_slug,
         } => {
             network_commands::deploy(
-                dry_run,
-                project_id.as_deref(),
-                claim_edition.map(ClaimEditionArgument::as_str),
-                max_claims,
-                closes_at.as_deref(),
+                network_commands::DeployOptions {
+                    dry_run,
+                    project_id: project_id.as_deref(),
+                    claim_edition: claim_edition.map(ClaimEditionArgument::as_str),
+                    max_claims,
+                    closes_at: closes_at.as_deref(),
+                    app_slug: app_slug.as_deref(),
+                },
                 json,
                 bus,
             )
@@ -1778,7 +1785,7 @@ async fn product_doctor(
     let device_state = if xcode {
         match device::check() {
             Ok(device::DeviceState::Ready(_)) => "ready",
-            Ok(device::DeviceState::CableMissing) => "cable_missing",
+            Ok(device::DeviceState::DeviceUnreachable) => "device_unreachable",
             Ok(device::DeviceState::TrustRequired) => "trust_required",
             Ok(device::DeviceState::DeveloperModeRequired) => "developer_mode_required",
             Err(_) => "unknown",
@@ -1786,7 +1793,7 @@ async fn product_doctor(
     } else if device::cable_visible() {
         "xcode_required"
     } else {
-        "cable_missing"
+        "device_unreachable"
     };
     let paths = service_commands::ServicePaths::discover()?;
     let service_installed = paths.launch_agent.is_file();
@@ -2948,6 +2955,8 @@ mod tests {
             "888",
             "--closes-at",
             "2099-09-08T18:00:00Z",
+            "--app-slug",
+            "field-notebook",
         ])
         .is_ok());
         assert!(Cli::try_parse_from(["tohseno", "deploy", "--claim-edition", "auction",]).is_err());

@@ -27,11 +27,13 @@ function sha256(bytes: Uint8Array): `0x${string}` {
   return `0x${new Bun.CryptoHasher("sha256").update(bytes).digest("hex")}`;
 }
 
-async function fixture() {
+async function fixture(claims?: ClaimsPublicationBridge) {
   const root = await mkdtemp(join(tmpdir(), "tohseno-registry-test-"));
   roots.push(root);
+  const aliasReviewToken = "alias-review-fixture";
   const config = loadConfig({ NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
-    REGISTRY_ENABLED: "true", REGISTRY_ROOT: root, ROBINHOOD_RPC_URL: "https://rpc.example.test" });
+    REGISTRY_ENABLED: "true", REGISTRY_ROOT: root, ROBINHOOD_RPC_URL: "https://rpc.example.test",
+    REGISTRY_ALIAS_REVIEW_TOKEN_SHA256: sha256(new TextEncoder().encode(aliasReviewToken)).slice(2) });
   const source = new TextEncoder().encode("deterministic source archive");
   const privateKey = p256.utils.randomPrivateKey();
   const publicKey = p256.getPublicKey(privateKey, false);
@@ -69,8 +71,20 @@ async function fixture() {
     blockTimestamp: candidateRelease.published_at as string };
   },
     verifyBuilderKey: async () => {} };
-  return { router: await createRegistryRouter(config, verifier), envelope, release, source,
-    privateKey, publicKey, config };
+  return { router: await createRegistryRouter(config, verifier, claims), envelope, release, source,
+    privateKey, publicKey, config, aliasReviewToken };
+}
+
+function openClaimsBridge(): ClaimsPublicationBridge {
+  return {
+    async closureForTimeline() { return undefined; },
+    async editionForDisplay() { return { opened: true, maxClaims: 0n, totalClaims: 0n,
+      openedAt: 1n, closesAt: 0n, closed: false }; },
+    async verifyOpenEdition() {},
+    async advanceOpenEdition(_value, _candidate, transactionHash) {
+      return { transactionHash: transactionHash ?? `0x${"99".repeat(32)}`, confirmed: true };
+    },
+  };
 }
 
 function signedObject(
@@ -336,7 +350,8 @@ describe("public Registry trust bridge", () => {
   });
 
   test("accepts only signed monotonic Builder profiles and permissioned alias requests", async () => {
-    const { router, envelope, release, source, privateKey, publicKey } = await fixture();
+    const { router, envelope, release, source, privateKey, publicKey, aliasReviewToken } =
+      await fixture(openClaimsBridge());
     const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ envelope }),
     }));
@@ -385,11 +400,99 @@ describe("public Registry trust bridge", () => {
     }));
     expect(claimed.status).toBe(202);
     expect((await claimed.json() as Record<string, unknown>).status).toBe("pending_policy_review");
+    const unauthorizedReview = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ decision: "approve" }),
+      })).catch((error: Error) => new Response(error.message, { status: 401 }));
+    expect(unauthorizedReview.status).toBe(401);
+    const unauthorizedInspection = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`,
+    )).catch((error: Error) => new Response(error.message, { status: 401 }));
+    expect(unauthorizedInspection.status).toBe(401);
+    const pendingInspection = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`, {
+        headers: { authorization: `Bearer ${aliasReviewToken}` },
+      }));
+    expect(pendingInspection.status).toBe(200);
+    expect(await pendingInspection.json()).toMatchObject({
+      schema: "tohseno.alias-review/1", status: "pending_policy_review",
+      alias: "prayer", route: "/prayer", shot_id: release.shot_id,
+      builder_id: release.builder_id, approved_at: null,
+      current_release: { name: "Prayer Lock", release_digest: envelope.authorization.digest,
+        checkpoint_sequence: 1, canonical_route: `/s/${String(release.shot_id).slice(2)}` },
+    });
+    const approved = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`, {
+        method: "POST", headers: { "content-type": "application/json",
+          authorization: `Bearer ${aliasReviewToken}` },
+        body: JSON.stringify({ decision: "approve" }),
+      }));
+    expect(approved.status).toBe(201);
+    expect(await approved.json()).toMatchObject({
+      schema: "tohseno.alias-approval-receipt/1", alias: "prayer", route: "/prayer",
+      shot_id: release.shot_id, request_id: claim.request_id,
+    });
+    const aliasPage = await router.renderHumanRoute("/prayer");
+    expect(aliasPage).toContain("Four small steps.");
+    expect(aliasPage).toContain("Open this same link on your Mac.");
+    expect(aliasPage).toContain("On Mac: download Tohseno");
+    expect(aliasPage).toContain(
+      `href="tohseno://claim/${String(release.shot_id).slice(2)}?release=${envelope.authorization.digest}"`,
+    );
+    expect(aliasPage).toContain("The Claim button is pinned to the exact release");
+    const publicAlias = await router.fetch(new Request(
+      "http://localhost/api/registry/v1/aliases/prayer",
+    ));
+    expect(publicAlias.status).toBe(200);
+    expect(await publicAlias.json()).toMatchObject({
+      schema: "tohseno.global-alias/1", alias: "prayer",
+      shot_id: release.shot_id, builder_id: release.builder_id,
+      request_id: claim.request_id, claim_digest: claimEnvelope.authorization.digest,
+    });
+    const idempotentApproval = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`, {
+        method: "POST", headers: { "content-type": "application/json",
+          authorization: `Bearer ${aliasReviewToken}` },
+        body: JSON.stringify({ decision: "approve" }),
+    }));
+    expect(idempotentApproval.status).toBe(200);
+    const approvedInspection = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/alias-reviews/${claim.request_id}`, {
+        headers: { authorization: `Bearer ${aliasReviewToken}` },
+      }));
+    expect(approvedInspection.status).toBe(200);
+    expect(await approvedInspection.json()).toMatchObject({
+      status: "approved", alias: "prayer", approved_at: expect.any(String),
+    });
     const claimReplay = await router.fetch(new Request("http://localhost/api/registry/v1/aliases/claims", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ envelope: claimEnvelope }),
     })).catch((error: Error) => new Response(error.message, { status: 409 }));
     expect(claimReplay.status).toBe(409);
+
+    const maximumAlias = "a".repeat(64);
+    const maximumClaim = { ...claim, alias: maximumAlias,
+      request_id: `0x${"98".repeat(32)}`, nonce: 2 };
+    const maximumEnvelope = signedObject("claim", "tohseno.signed-alias-claim/1",
+      maximumClaim, privateKey, publicKey);
+    const maximumAccepted = await router.fetch(new Request(
+      "http://localhost/api/registry/v1/aliases/claims", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envelope: maximumEnvelope }),
+      }));
+    expect(maximumAccepted.status).toBe(202);
+
+    const oversizedClaim = { ...claim, alias: "a".repeat(65),
+      request_id: `0x${"97".repeat(32)}`, nonce: 3 };
+    const oversizedEnvelope = signedObject("claim", "tohseno.signed-alias-claim/1",
+      oversizedClaim, privateKey, publicKey);
+    const oversizedRejected = await router.fetch(new Request(
+      "http://localhost/api/registry/v1/aliases/claims", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ envelope: oversizedEnvelope }),
+      })).catch((error: Error) => new Response(error.message, { status: 422 }));
+    expect(oversizedRejected.status).toBe(422);
   });
 
   test("rejects source bytes whose declared length differs from the signed release", async () => {

@@ -322,6 +322,17 @@ const STATIC_FILES: Record<
 
 const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;
 const BROWSER_MODULE_PATH = /^\/modules\/[a-z0-9-]+\.js$/;
+const GLOBAL_ALIAS_PATH = /^\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const RESERVED_GLOBAL_PATHS = new Set([
+  "/api", "/claims", "/docs", "/download", "/healthz", "/install", "/privacy",
+  "/registry", "/releases", "/s",
+]);
+
+function isGlobalAliasPath(pathname: string): boolean {
+  return pathname.length <= 65
+    && GLOBAL_ALIAS_PATH.test(pathname)
+    && !RESERVED_GLOBAL_PATHS.has(pathname);
+}
 
 function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
@@ -331,7 +342,8 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/install" || pathname === "/download") return "native-installer";
   if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
   if (pathname === "/") return "landing-page";
-  if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")) return "public-registry";
+  if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
+      || isGlobalAliasPath(pathname)) return "public-registry";
   if (pathname === "/docs") return "docs-page";
   if (pathname === "/privacy") return "privacy-page";
   if (pathname === "/healthz") return "health";
@@ -488,7 +500,7 @@ export async function createApplication(
     }
 
     if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
-        || pathname.startsWith("/claims/")) {
+        || pathname.startsWith("/claims/") || isGlobalAliasPath(pathname)) {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
       let content: string | undefined;
       if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);

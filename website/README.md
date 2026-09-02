@@ -12,7 +12,7 @@ builder path:
 ```text
 cd YourApp
 tohseno init
-tohseno deploy
+tohseno deploy --app-slug your-app
 ```
 
 It describes the exact boundary: another person's Mac downloads verified
@@ -30,8 +30,8 @@ or operating-system security.
 - Companion-signed catalog publication and current-chain verification;
 - constrained factory/RegisterShot/AppendCheckpoint transaction submission;
 - signed monotonic Builder profile updates; and
-- signed global-alias requests that remain pending until explicit policy
-  approval.
+- signed global-alias requests that remain pending until an authenticated,
+  append-only policy approval.
 
 The catalog database is only an index. A release becomes visible only when the
 Builder DeviceKey signature, authorized live BuilderAccount key, transaction
@@ -57,6 +57,41 @@ Registry state requires an explicit absolute durable `REGISTRY_ROOT` and HTTPS
 dedicated lowercase private key. Per-source/global rate limits, staging record
 and byte capacity, thirty-minute expiry cleanup, bounded request bodies, atomic
 writes, and content-addressed immutable promotion are fail-closed.
+
+The deploy-time `--app-slug` is signed into every release and stays stable for
+later Updates. It creates the Builder-local route immediately; a root route
+such as `https://tohseno.com/your-app` still requires the Builder to select the
+exact app and sign a global-alias request in Companion. The server keeps that
+request pending. An operator can enable the one bounded approval action by
+setting `REGISTRY_ALIAS_REVIEW_TOKEN_SHA256` to the lowercase SHA-256 of a
+separate high-entropy bearer token, then approve a reviewed request ID:
+
+```sh
+curl --fail-with-body \
+  -H "Authorization: Bearer $alias_review_token" \
+  "https://tohseno.com/api/registry/v1/alias-reviews/0xREQUEST_ID"
+
+curl --fail-with-body \
+  -H "Authorization: Bearer $alias_review_token" \
+  -H 'Content-Type: application/json' \
+  --data '{"decision":"approve"}' \
+  "https://tohseno.com/api/registry/v1/alias-reviews/0xREQUEST_ID"
+```
+
+The authenticated GET returns only a bounded operator projection of the signed
+request, current app/release, signer key, digest, and approval state. Both GET
+and POST recheck the immutable request signature, signed time window, current
+Builder DeviceKey authority, and current installable Shot; POST additionally
+checks alias availability before atomically writing approval evidence and the
+route. Approval is idempotent for the same request and returns a conflict
+instead of overwriting a different owner. The token itself must not enter
+source, logs, or the durable Registry root.
+
+After approval, `tohseno status` independently reads the public alias pointer
+and current Shot projection, checks that they bind the local app's exact Shot,
+release digest, and canonical route, and confirms the human root page responds
+before labeling the link live. A mismatch or later Update is a **do not send**
+conflict until the local project reconciles, not a route the CLI follows.
 
 ## Claims service
 

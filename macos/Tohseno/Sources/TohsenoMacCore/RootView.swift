@@ -610,7 +610,7 @@ private struct RegistryOnRampCard: View {
             if model.cliIntegration?.enabled == true {
                 VStack(alignment: .leading, spacing: 10) {
                     RegistryCommandRow(number: "1", command: "tohseno init", detail: "Run inside the Xcode app you want to connect.")
-                    RegistryCommandRow(number: "2", command: "tohseno deploy", detail: "Prepare the source and send the exact approval to Companion.")
+                    RegistryCommandRow(number: "2", command: "tohseno deploy --app-slug your-app", detail: "Sign a stable human slug into the source release and send the exact approval to Companion.")
                 }
                 if let message = model.cliMessage {
                     Label(message, systemImage: "checkmark.circle.fill")
@@ -649,7 +649,7 @@ private struct RegistryOnRampCard: View {
                         .font(.headline)
                     Text(model.pairedCompanionDevices.isEmpty
                         ? "Scan one pairing QR in Companion. After pairing, deploy approvals arrive on your iPhone automatically—you do not scan a new QR for every Ship."
-                        : "Run tohseno deploy and the exact source and Registry action will appear on your paired iPhone for approval.")
+                        : "Run tohseno deploy --app-slug your-app and the exact source, stable slug, and Registry action will appear on your paired iPhone for approval.")
                         .font(.subheadline)
                         .foregroundStyle(TohsenoTheme.silver)
                 }
@@ -904,7 +904,7 @@ private struct TohsenoWelcomeSequence: View {
                         .buttonStyle(PrimaryActionStyle())
                         .accessibilityIdentifier("readiness.welcome.begin")
 
-                    Text("You’ll connect your iPhone next. Keep it nearby, unlocked, and on its cable.")
+                    Text("You’ll connect your iPhone next. Keep it nearby and unlocked. Tohseno asks for a cable only when Apple requires first pairing.")
                         .font(.caption)
                         .foregroundStyle(TohsenoTheme.silver.opacity(0.72))
                         .multilineTextAlignment(.center)
@@ -1138,7 +1138,7 @@ private struct SetupContextBanner: View {
     private var purpose: String {
         switch readiness.step {
         case "connect_cable":
-            "The cable is the private road that carries your apps from this Mac to your iPhone."
+            "This one-time cable step lets Apple pair this Mac and iPhone. After pairing, Tohseno also uses Xcode-supported Wi-Fi delivery when available."
         case "trust_mac":
             "Trust lets your two devices work together directly, without sending your project elsewhere."
         case "install_xcode":
@@ -1524,7 +1524,7 @@ private struct AppDetailView: View {
         switch state {
         case .waiting: "clock"
         case .building: "hammer.fill"
-        case .readyForPhone: "cable.connector"
+        case .readyForPhone: "iphone.gen3"
         case .installing: "arrow.down.to.line.compact"
         case .installed: "checkmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"
@@ -1667,7 +1667,7 @@ private struct BuildJourney: View {
         ("Intent", "text.bubble"),
         ("Source", "curlybraces"),
         ("Simulator", "iphone"),
-        ("iPhone", "cable.connector"),
+        ("iPhone", "iphone.gen3"),
     ]
 
     var body: some View {
@@ -2011,8 +2011,8 @@ private struct DeviceHandoffCard: View {
 
     private var title: String {
         switch app.presentation.state {
-        case .waiting, .building, .readyForPhone: "Connect & unlock your iPhone"
-        case .installing: "Installing over the cable"
+        case .waiting, .building, .readyForPhone: "Make your iPhone reachable"
+        case .installing: "Installing on your iPhone"
         case .installed: "Your app is on your iPhone"
         case .failed: "Your source is safe"
         }
@@ -2020,10 +2020,10 @@ private struct DeviceHandoffCard: View {
 
     private var detail: String {
         switch app.presentation.state {
-        case .waiting, .building: "You can connect it now. Tohseno will use it when the verified build is ready."
-        case .readyForPhone: "Keep the cable connected. Installation begins as soon as the phone is ready."
+        case .waiting, .building: "Keep the paired iPhone nearby, unlocked, and on the same Wi-Fi. USB remains available when Xcode needs it."
+        case .readyForPhone: "The verified build is saved. Installation begins when the paired iPhone is reachable over Wi-Fi or USB."
         case .installing: "Keep the iPhone unlocked until the app opens."
-        case .installed: "The cable is only needed to install a new build."
+        case .installed: "Future builds use Xcode-supported Wi-Fi or USB whenever this paired iPhone is reachable."
         case .failed: "Open Build to see where work stopped. Nothing accepted was replaced."
         }
     }
@@ -2033,7 +2033,7 @@ private struct DeviceHandoffCard: View {
         case .installing: "arrow.down.to.line.compact"
         case .installed: "checkmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"
-        default: "cable.connector"
+        default: "iphone.gen3"
         }
     }
 }

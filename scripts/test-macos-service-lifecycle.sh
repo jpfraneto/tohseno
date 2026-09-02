@@ -4,6 +4,7 @@ umask 077
 
 script_name="test-macos-service-lifecycle.sh"
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
+. "$repository_root/scripts/fixtures/verification-keychain.sh"
 temporary_parent="$(CDPATH= cd -- "${TMPDIR:-/tmp}" && pwd -P)"
 temporary_root="$(mktemp -d "$temporary_parent/tohseno-macos-service.XXXXXX")"
 workspace_secret_reference=""
@@ -26,6 +27,10 @@ fake_environment() {
     TOHSENO_DATA_ROOT="$temporary_root/data" \
     TOHSENO_HOME="$temporary_root/shots" \
     TOHSENO_SERVICE_PORT=0 \
+    TOHSENO_VERIFICATION_MODE=1 \
+    TOHSENO_VERIFICATION_KEYCHAIN_PATH="$verification_keychain_path" \
+    TOHSENO_VERIFICATION_KEYCHAIN_SERVICE="$verification_keychain_service" \
+    TOHSENO_VERIFICATION_SERVICE_LABEL="$verification_service_label" \
     TOHSENO_TEST_LAUNCHER_LOG="$install_root/launcher-selections.log" \
     "$@"
 }
@@ -79,7 +84,7 @@ cleanup() {
       ps -p "$failed_pid" -o pid=,ppid=,stat=,command= >&2 || true
     fi
   fi
-  launch_agent="$launch_agents/com.tohseno.workspace-service.plist"
+  launch_agent="$launch_agents/$verification_service_label.plist"
   if [ -n "$fake_launchctl" ] && [ -x "$fake_launchctl" ] &&
     [ -n "$launchctl_state" ] && [ -f "$launchctl_state/registered-plist" ] &&
     [ -f "$launch_agent" ] && [ ! -L "$launch_agent" ]; then
@@ -100,12 +105,14 @@ cleanup() {
     workspace-seed:workspace_*)
       /usr/bin/security delete-generic-password \
         -a "$workspace_secret_reference" \
-        -s com.tohseno.workspace-service \
+        -s "$verification_keychain_service" \
+        "$verification_keychain_path" \
         >/dev/null 2>&1 || cleanup_status=1
       ;;
     "") ;;
     *) cleanup_status=1 ;;
   esac
+  delete_tohseno_verification_keychain "$temporary_root" || cleanup_status=1
   case "$temporary_root" in
     "$temporary_parent"/tohseno-macos-service.*)
       if [ -d "$temporary_root" ] && [ ! -L "$temporary_root" ]; then
@@ -123,6 +130,8 @@ for dependency in cargo curl id ps python3 security; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency is unavailable"
 done
 [ "$(uname -s)" = "Darwin" ] || fail "the real service lifecycle requires macOS"
+create_tohseno_verification_keychain "$temporary_root" "macos-service" ||
+  fail "an isolated verification Keychain could not be created"
 
 (cd "$repository_root" && cargo build --locked -p tohseno >/dev/null)
 candidate="$repository_root/target/debug/tohseno"
@@ -168,7 +177,7 @@ run_tohseno() {
 
 runtime_path="$install_root/service/runtime.json"
 workspace_record="$install_root/service/workspace.json"
-launch_agent="$launch_agents/com.tohseno.workspace-service.plist"
+launch_agent="$launch_agents/$verification_service_label.plist"
 pid_path="$launchctl_state/service.pid"
 
 if ! run_tohseno --json service install \

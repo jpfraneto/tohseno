@@ -52,6 +52,7 @@ public enum AppleIdentityError: Error, Equatable, Sendable {
     case orphanedKey
     case corruptMetadata
     case secureEnclaveUnavailable
+    case verificationModeRequiresSoftwareTest
     case keychain(String, OSStatus)
     case cryptographicFailure(String)
 
@@ -66,6 +67,7 @@ public enum AppleIdentityError: Error, Equatable, Sendable {
         case .orphanedKey: "orphaned_key"
         case .corruptMetadata: "corrupt_keychain_metadata"
         case .secureEnclaveUnavailable: "secure_enclave_unavailable"
+        case .verificationModeRequiresSoftwareTest: "verification_requires_software_test"
         case .keychain: "keychain_failure"
         case .cryptographicFailure: "cryptographic_failure"
         }
@@ -91,6 +93,8 @@ public enum AppleIdentityError: Error, Equatable, Sendable {
             "Apple identity metadata is invalid or no longer matches its key"
         case .secureEnclaveUnavailable:
             "Secure Enclave P-256 is unavailable; use software-test only for CI or testing"
+        case .verificationModeRequiresSoftwareTest:
+            "an isolated verification Keychain accepts only software-test identities"
         case let .keychain(operation, status):
             "Keychain \(operation) failed with OSStatus \(status)"
         case let .cryptographicFailure(operation):
@@ -104,8 +108,61 @@ public final class AppleIdentityStore: @unchecked Sendable {
 
     private let metadataService = "org.tohseno.apple-identity.metadata.v1"
     private let metadataSchema = "tohseno.apple-identity.key-metadata/1"
+#if os(macOS)
+    private let keychain: SecKeychain?
+#endif
 
-    public init() {}
+    public init() {
+#if os(macOS)
+        keychain = nil
+#endif
+    }
+
+#if os(macOS)
+    init(keychain: SecKeychain) {
+        self.keychain = keychain
+    }
+
+    public static func configured(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> AppleIdentityStore {
+        guard environment["TOHSENO_VERIFICATION_MODE"] == "1" else {
+            return AppleIdentityStore()
+        }
+        guard let path = environment["TOHSENO_VERIFICATION_KEYCHAIN_PATH"],
+              path.hasPrefix("/")
+        else {
+            throw AppleIdentityError.keychain("verification configuration", errSecParam)
+        }
+        let values: URLResourceValues
+        do {
+            values = try URL(fileURLWithPath: path).resourceValues(
+                forKeys: [.isRegularFileKey, .isSymbolicLinkKey]
+            )
+        } catch {
+            throw AppleIdentityError.keychain("verification Keychain inspection", errSecParam)
+        }
+        guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            throw AppleIdentityError.keychain("verification Keychain inspection", errSecParam)
+        }
+        var keychain: SecKeychain?
+        let openStatus = SecKeychainOpen(path, &keychain)
+        guard openStatus == errSecSuccess, let keychain else {
+            throw AppleIdentityError.keychain("verification Keychain open", openStatus)
+        }
+        let unlockStatus = SecKeychainUnlock(keychain, 0, nil, false)
+        guard unlockStatus == errSecSuccess else {
+            throw AppleIdentityError.keychain("verification Keychain unlock", unlockStatus)
+        }
+        return AppleIdentityStore(keychain: keychain)
+    }
+#else
+    public static func configured(
+        environment _: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> AppleIdentityStore {
+        AppleIdentityStore()
+    }
+#endif
 
     public func create(
         tag: String,
@@ -120,6 +177,11 @@ public final class AppleIdentityStore: @unchecked Sendable {
         {
             throw AppleIdentityError.orphanedKey
         }
+#if os(macOS)
+        if keychain != nil, backend != .softwareTest {
+            throw AppleIdentityError.verificationModeRequiresSoftwareTest
+        }
+#endif
 
         let keyTag = applicationTag(tag: tag, backend: backend)
         let privateKey = try generateKey(applicationTag: keyTag, backend: backend)
@@ -204,9 +266,9 @@ public final class AppleIdentityStore: @unchecked Sendable {
             backend: loaded.metadata.backend,
             privateKey: loaded.key
         )
-        let keyStatus = SecItemDelete([
+        let keyStatus = SecItemDelete(scopedSearch([
             kSecValuePersistentRef: loaded.persistentReference,
-        ] as CFDictionary)
+        ]) as CFDictionary)
         guard keyStatus == errSecSuccess else {
             throw AppleIdentityError.keychain("key deletion", keyStatus)
         }
@@ -233,6 +295,11 @@ public final class AppleIdentityStore: @unchecked Sendable {
             kSecAttrKeySizeInBits: 256,
             kSecPrivateKeyAttrs: privateAttributes,
         ]
+#if os(macOS)
+        if let keychain {
+            attributes[kSecUseKeychain] = keychain
+        }
+#endif
 
         if backend == .secureEnclave {
             var accessError: Unmanaged<CFError>?
@@ -309,11 +376,11 @@ public final class AppleIdentityStore: @unchecked Sendable {
             throw AppleIdentityError.corruptMetadata
         }
         var item: CFTypeRef?
-        let status = SecItemCopyMatching([
+        let status = SecItemCopyMatching(scopedSearch([
             kSecValuePersistentRef: persistentReference,
             kSecReturnRef: true,
             kSecMatchLimit: kSecMatchLimitOne,
-        ] as CFDictionary, &item)
+        ]) as CFDictionary, &item)
         guard status == errSecSuccess, let item else {
             if status == errSecItemNotFound {
                 throw AppleIdentityError.corruptMetadata
@@ -358,21 +425,45 @@ public final class AppleIdentityStore: @unchecked Sendable {
     }
 
     private func keyQuery(applicationTag: Data) -> [CFString: Any] {
-        [
+        scopedSearch([
             kSecClass: kSecClassKey,
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
             kSecAttrKeyClass: kSecAttrKeyClassPrivate,
             kSecAttrApplicationTag: applicationTag,
-        ]
+        ])
     }
 
-    private func metadataQuery(tag: String) -> [CFString: Any] {
+    private func metadataBaseQuery(tag: String) -> [CFString: Any] {
         [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: metadataService,
             kSecAttrAccount: tag,
             kSecAttrSynchronizable: kCFBooleanFalse as Any,
         ]
+    }
+
+    private func metadataQuery(tag: String) -> [CFString: Any] {
+        scopedSearch(metadataBaseQuery(tag: tag))
+    }
+
+    private func scopedSearch(_ query: [CFString: Any]) -> [CFString: Any] {
+        var result = query
+#if os(macOS)
+        if let keychain {
+            result[kSecMatchSearchList] = [keychain]
+        }
+#endif
+        return result
+    }
+
+    private func scopedAdd(_ query: [CFString: Any]) -> [CFString: Any] {
+        var result = query
+#if os(macOS)
+        if let keychain {
+            result[kSecUseKeychain] = keychain
+        }
+#endif
+        return result
     }
 
     private func metadataData(tag: String) throws -> Data? {
@@ -394,7 +485,7 @@ public final class AppleIdentityStore: @unchecked Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(metadata)
-        var query = metadataQuery(tag: metadata.tag)
+        var query = scopedAdd(metadataBaseQuery(tag: metadata.tag))
         query[kSecValueData] = data
         query[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(query as CFDictionary, nil)
