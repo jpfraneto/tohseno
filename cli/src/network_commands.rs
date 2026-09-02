@@ -1972,6 +1972,10 @@ async fn verify_active_release_on_chain(
             "catalog release is not bound to this client's active signed generation".into(),
         );
     }
+    let activation = active
+        .signed_activation
+        .as_ref()
+        .ok_or("the active generation omitted its verified deployment evidence")?;
     let rpc = robinhood_rpc_origin();
     let chain_hex = rpc_string(client, &rpc, "eth_chainId", json!([])).await?;
     if parse_hex_u64(&chain_hex)? != active.definition.chain.chain_id {
@@ -1981,20 +1985,12 @@ async fn verify_active_release_on_chain(
         (
             "BuilderAccountFactory",
             expected_factory,
-            active
-                .definition
-                .contracts
-                .builder_account_factory
-                .runtime_code_keccak256,
+            activation.factory.runtime_code_keccak256,
         ),
         (
             "ShotRegistry",
             expected_registry,
-            active
-                .definition
-                .contracts
-                .shot_registry
-                .runtime_code_keccak256,
+            activation.registry.runtime_code_keccak256,
         ),
     ] {
         let code = rpc_string(

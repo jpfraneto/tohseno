@@ -9,7 +9,9 @@
 //! inactive; a release whose trust root fails any verification step refuses
 //! to resolve at all rather than silently falling back to inactive.
 
-use tohseno_protocol::contract_activation::{ReleaseAuthorityPolicy, SignedContractActivation};
+use tohseno_protocol::contract_activation::{
+    ContractActivation, ReleaseAuthorityPolicy, SignedContractActivation,
+};
 use tohseno_protocol::contract_generation::ContractGeneration;
 use tohseno_protocol::digest::Bytes32;
 use tohseno_protocol::identity::ROBINHOOD_CHAIN_ID;
@@ -54,6 +56,7 @@ pub struct ResolvedContractGeneration {
     pub definition_digest: Bytes32,
     pub trusted_release_authority_policy_digest: Option<Bytes32>,
     pub signed_activation_head: Option<Bytes32>,
+    pub signed_activation: Option<ContractActivation>,
     pub state: ContractGenerationState,
 }
 
@@ -137,15 +140,17 @@ fn resolve_with_trust_root(
             definition_digest,
             trusted_release_authority_policy_digest: None,
             signed_activation_head: None,
+            signed_activation: None,
             state: ContractGenerationState::Inactive,
         });
     };
-    let (policy_digest, activation_head) = verify_trust_root(&definition, &trust_root)?;
+    let (policy_digest, activation_head, activation) = verify_trust_root(&definition, &trust_root)?;
     Ok(ResolvedContractGeneration {
         definition,
         definition_digest,
         trusted_release_authority_policy_digest: Some(policy_digest),
         signed_activation_head: Some(activation_head),
+        signed_activation: Some(activation),
         state: ContractGenerationState::Active,
     })
 }
@@ -156,7 +161,7 @@ fn resolve_with_trust_root(
 fn verify_trust_root(
     definition: &ContractGeneration,
     trust_root: &EmbeddedTrustRoot<'_>,
-) -> Result<(Bytes32, Bytes32), ContractGenerationError> {
+) -> Result<(Bytes32, Bytes32, ContractActivation), ContractGenerationError> {
     let untrusted = |reason: String| ContractGenerationError::TrustRootInvalid(reason);
     let pinned = Bytes32::from_hex(
         "trusted_release_authority_policy_digest",
@@ -202,7 +207,7 @@ fn verify_trust_root(
         .activation
         .signing_digest()
         .map_err(|error| untrusted(format!("the activation head digest failed: {error}")))?;
-    Ok((policy_digest, activation_head))
+    Ok((policy_digest, activation_head, signed.activation))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -265,6 +270,11 @@ mod tests {
             resolved.signed_activation_head.unwrap().to_hex(),
             "0x2b640260595def403343810d0dc4ee231e1faff427581be4f7b40cff4c189d28"
         );
+        let activation = resolved.signed_activation.unwrap();
+        assert_eq!(
+            activation.registry.runtime_code_keccak256.to_hex(),
+            "0xfc80358a8f52ac8ae96691fecb611ade47447df79274e70defdd37989f3ca5e0"
+        );
     }
 
     #[test]
@@ -282,6 +292,7 @@ mod tests {
         assert_eq!(resolved.state, ContractGenerationState::Inactive);
         assert_eq!(resolved.trusted_release_authority_policy_digest, None);
         assert_eq!(resolved.signed_activation_head, None);
+        assert_eq!(resolved.signed_activation, None);
         assert!(!resolved.allows_new_builder_identity());
         assert!(!resolved.allows_public_signing());
         assert!(resolved.inactive_reason().contains("no trusted"));
@@ -447,6 +458,7 @@ mod tests {
             resolved.signed_activation_head,
             Some(signed.activation.signing_digest().unwrap())
         );
+        assert_eq!(resolved.signed_activation, Some(signed.activation));
     }
 
     #[test]
