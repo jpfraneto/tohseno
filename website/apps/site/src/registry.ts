@@ -826,7 +826,7 @@ class RobinhoodVerifier implements ChainVerifier {
   async verify(envelope: JsonObject, transactionHash: Hex): Promise<ChainEvidence> {
     const release = releaseOf(envelope);
     const builder = normalizeBuilder(release.builder_id);
-    const controller = `0x${builder.split(":").at(-1)}` as Hex;
+    const controller = builderAddress(builder);
     const shotID = normalizeHex32(release.shot_id);
     const head = normalizeDigest(release.public_checkpoint_digest);
     const sequence = positiveSafeInteger(release.checkpoint_sequence, "checkpoint_sequence");
@@ -866,7 +866,7 @@ class RobinhoodVerifier implements ChainVerifier {
 
   async verifyBuilderKey(builderID: string, keyID: Hex): Promise<void> {
     const normalized = normalizeBuilder(builderID);
-    const account = `0x${normalized.split(":").at(-1)}` as Hex;
+    const account = builderAddress(normalized);
     const code = await this.client.getCode({ address: account });
     if (!code || code === "0x") throw new HttpError(404, "BuilderAccount is not deployed");
     const authorized = await this.client.readContract({
@@ -880,7 +880,7 @@ class RobinhoodVerifier implements ChainVerifier {
       if (verifyEnvelope(record.envelope, this.config) !== record.releaseDigest) return false;
       const release = releaseOf(record.envelope);
       const builder = normalizeBuilder(release.builder_id);
-      const controller = `0x${builder.split(":").at(-1)}` as Hex;
+      const controller = builderAddress(builder);
       const shotID = normalizeHex32(release.shot_id);
       const head = normalizeDigest(release.public_checkpoint_digest);
       const sequence = positiveSafeInteger(release.checkpoint_sequence, "checkpoint_sequence");
@@ -1903,6 +1903,9 @@ function exactKeys(value: JsonObject, keys: readonly string[], name: string): vo
 function normalizeDigest(value: unknown): Hex { if (typeof value !== "string" || !HEX32.test(value)) throw new HttpError(422, "digest must be 32 lowercase hex bytes"); return value as Hex; }
 function normalizeHex32(value: unknown): Hex { const result = normalizeDigest(value); if (/^0x0{64}$/.test(result)) throw new HttpError(422, "identifier must not be zero"); return result; }
 function normalizeBuilder(value: unknown): string { if (typeof value !== "string" || !/^eip155:4663:0x[0-9a-f]{40}$/.test(value) || value.endsWith("0".repeat(40))) throw new HttpError(422, "builder_id is invalid"); return value; }
+export function builderAddress(value: unknown): Hex {
+  return normalizeBuilder(value).split(":").at(-1)! as Hex;
+}
 function normalizeName(value: unknown, name: string, maximum: number): string { if (typeof value !== "string" || value.length < 2 || value.length > maximum || !IDENTIFIER.test(value)) throw new HttpError(422, `${name} is invalid`); return value; }
 function normalizeGlobalAlias(value: unknown): string {
   // Keep the signed global route compatible with CatalogDisplay.app_slug so

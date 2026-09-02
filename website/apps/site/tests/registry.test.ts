@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { p256 } from "@noble/curves/p256";
 import { loadConfig } from "../config.ts";
 import {
+  builderAddress,
   canonicalCatalogJSON,
   canonicalRegistryActionDigest,
   createRegistryRouter,
@@ -14,6 +15,11 @@ import type { ClaimsPublicationBridge } from "../src/claims.ts";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
+
+test("extracts the canonical account address from a BuilderID without adding a second prefix", () => {
+  const account = `0x${"22".repeat(20)}` as const;
+  expect(builderAddress(`eip155:4663:${account}`)).toBe(account);
+});
 
 function hex(bytes: Uint8Array): `0x${string}` {
   return `0x${[...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
