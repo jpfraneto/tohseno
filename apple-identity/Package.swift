@@ -20,7 +20,13 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "CTohsenoVerificationKeychain",
+            path: "Sources/CTohsenoVerificationKeychain",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "TohsenoAppleIdentity",
+            dependencies: ["CTohsenoVerificationKeychain"],
             path: "Sources/TohsenoAppleIdentity"
         ),
         .executableTarget(

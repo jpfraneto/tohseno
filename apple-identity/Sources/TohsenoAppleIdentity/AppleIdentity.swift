@@ -1,26 +1,7 @@
+import CTohsenoVerificationKeychain
 import CryptoKit
 import Foundation
 import Security
-
-#if os(macOS)
-// File-backed verification Keychains are deliberately isolated from the
-// login Keychain. The Swift SDK marks these two stable Security.framework
-// entry points deprecated, so bind their C ABI here instead of exporting
-// deprecation diagnostics into every package that imports this library.
-@_silgen_name("SecKeychainOpen")
-private func tohsenoSecKeychainOpen(
-    _ pathName: UnsafePointer<Int8>,
-    _ keychain: UnsafeMutablePointer<SecKeychain?>
-) -> OSStatus
-
-@_silgen_name("SecKeychainUnlock")
-private func tohsenoSecKeychainUnlock(
-    _ keychain: SecKeychain?,
-    _ passwordLength: UInt32,
-    _ password: UnsafeRawPointer?,
-    _ usePassword: Bool
-) -> OSStatus
-#endif
 
 public enum AppleIdentityBackend: String, Codable, Sendable {
     case secureEnclave = "secure_enclave"
@@ -165,14 +146,15 @@ public final class AppleIdentityStore: @unchecked Sendable {
         guard values.isRegularFile == true, values.isSymbolicLink != true else {
             throw AppleIdentityError.keychain("verification Keychain inspection", errSecParam)
         }
-        var keychain: SecKeychain?
+        var unmanagedKeychain: Unmanaged<SecKeychain>?
         let openStatus = path.withCString {
-            tohsenoSecKeychainOpen($0, &keychain)
+            TohsenoVerificationKeychainOpen($0, &unmanagedKeychain)
         }
-        guard openStatus == errSecSuccess, let keychain else {
+        guard openStatus == errSecSuccess, let unmanagedKeychain else {
             throw AppleIdentityError.keychain("verification Keychain open", openStatus)
         }
-        let unlockStatus = tohsenoSecKeychainUnlock(keychain, 0, nil, false)
+        let keychain = unmanagedKeychain.takeRetainedValue()
+        let unlockStatus = TohsenoVerificationKeychainUnlock(keychain, 0, nil, false)
         guard unlockStatus == errSecSuccess else {
             throw AppleIdentityError.keychain("verification Keychain unlock", unlockStatus)
         }
