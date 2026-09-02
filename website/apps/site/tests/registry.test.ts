@@ -176,7 +176,7 @@ describe("public Registry trust bridge", () => {
       `http://localhost/api/registry/v1/releases/${promoted.release_digest}`,
     ))).json() as { chain: Record<string, unknown> };
     expect(Object.keys(evidence.chain).sort()).toEqual([
-      "blockHash", "blockNumber", "checkpointSequence", "controller", "head", "signerKeyID",
+      "blockHash", "blockNumber", "checkpointSequence", "controller", "head", "signerKeyId",
       "transactionHash",
     ]);
     const catalog = await router.fetch(new Request("http://localhost/api/registry/v1/shots"));

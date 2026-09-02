@@ -1496,7 +1496,7 @@ function publicChainEvidence(chain: ChainEvidence | JsonObject): JsonObject { re
   controller: chain.controller,
   head: chain.head,
   checkpointSequence: chain.checkpointSequence,
-  signerKeyID: chain.signerKeyID,
+  signerKeyId: chain.signerKeyID,
 }; }
 function publicRecordProjection(record: JsonObject): JsonObject { return {
   schema: record.schema,
