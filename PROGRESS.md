@@ -15,7 +15,7 @@ without treating planned or source-only behavior as released behavior.
   person-to-person source network and ADR 0035 governs Claim, exactly one Ship,
   later Updates, and the separately activated Claims contract.
 - Native 1.2.0 remains a release candidate. `release/V1_2_0_READINESS.json`
-  records that RC6 is signed, notarized, stapled, and publicly downloadable,
+  records that RC7 is signed, notarized, stapled, and publicly downloadable,
   but Registry and Claims writes remain dark outside an owner-attended window.
   No canonical physical Claim or second-person install has been proven.
 
@@ -112,6 +112,23 @@ without treating planned or source-only behavior as released behavior.
 - [x] Produce `EVOLUTION_REPORT.md` and `NEXT_STEPS.md` as the final
   decompression and owner handoff.
 
+## RC7 release evidence observed 2026-09-02
+
+- [x] Checkpoint and push exact release source commit
+  `ff7e67f808becf1532ec29f16931626c922f2792` on `main`.
+- [x] Build the universal RC7 app from a clean detached worktree, Developer ID
+  sign it for Team `84V63LKV45`, and receive Apple notarization acceptance under
+  submission `1f2da094-d87e-4002-9d97-04d3fde3cc6c`.
+- [x] Staple and validate the ticket, mount the DMG, and receive Gatekeeper
+  acceptance for app CDHash `469d9c1ad7d4e91ed538e941458589f305954e11`.
+- [x] Publish immutable prerelease `v1.2.0-rc.7` with DMG SHA-256
+  `e161400ff522693e6a6290365533233ee3e6c9686a07fdca28bfd7be48c80b69`.
+- [x] Deploy exact website source `ff7e67f` as Railway deployment
+  `b32d1244-df0b-4ff9-ac20-245088a9bfc2` and activate the exact RC7 URL/digest.
+- [x] Verify live health, `/install`, the RC7 redirect, random-slug 404,
+  authenticated alias-review boundary, dark Registry/Claims relayers, and
+  byte-for-byte public download agreement.
+
 ## Deliberately not claimed
 
 - ADR 0036's full versioned, multi-target, Companion-ID-bound association and
@@ -121,8 +138,8 @@ without treating planned or source-only behavior as released behavior.
 - Verification Reports, human Release Attestations, Identity Bindings,
   Farcaster context, GitHub proof, and Base/economic context are designed in
   ADR 0037 but not implemented or rendered as if present.
-- No production service, relayer, alias, Claim, notarized client, or physical
-  installation was activated by this source change.
+- The production service and notarized RC7 client are active. No relayer,
+  alias, Ship, Claim, or physical installation has been activated or claimed.
 - The actual first Ship and friend's physical Claim/install remain an
   owner-attended operation requiring the paired iPhones, enabled constrained
   relayers, production configuration, and new released client bytes.

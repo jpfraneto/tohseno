@@ -4,14 +4,14 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
-    "exact_source_commit": "fddab7db204ecdd9b9d0e0fa99cd543733812a17",
-    "captured_at": "2026-09-01T20:54:34Z",
+    "exact_source_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
+    "captured_at": "2026-09-02T12:53:24Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md",
       "docs/adr/0035-claiming-software.md"
     ],
-    "previous_release_candidate": "1.2.0-rc.5",
-    "current_public_installer_pin": "1.2.0-rc.6",
+    "previous_release_candidate": "1.2.0-rc.6",
+    "current_public_installer_pin": "1.2.0-rc.7",
     "target_public_installer_pin": "1.2.0",
     "historical_protocol_rewritten": false,
     "recording_layer_implicit_migration": false
@@ -29,21 +29,21 @@
     "verified_at": "2026-08-30T21:34:39Z"
   },
   "continuous_integration": {
-    "run_id": 33553112281,
-    "source_commit": "fddab7db204ecdd9b9d0e0fa99cd543733812a17",
-    "status": "success",
-    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33553112281",
-    "artifact_source_delta": "None. The release-candidate artifact was built from the exact fully CI-gated source commit."
+    "run_id": 33628354674,
+    "source_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
+    "status": "in_progress",
+    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33628354674",
+    "artifact_source_delta": "None. The release-candidate artifact was built from exact source commit ff7e67f. Before release, the Apple, Rust, and Solidity lanes were green; the exact warning-as-error downstream build, Apple identity tests, CompanionKit tests, and isolated ontology lifecycle also passed locally. The remaining remote lifecycle job was still running and was not treated as physical evidence or a reason to delay the real path."
   },
   "dark_deployment": {
     "service": "tohseno",
     "environment": "production",
-    "deployment_id": "af826af4-5242-4ea3-a1d7-c2d067ea74c8",
-    "implementation_commit": "dfbeaf93079af3c6618de310c3199e2cf697ee06",
-    "activation_commit": "0833bae635b7ca05408b2b77309983cdbed4505e",
-    "website_tree_identical_at_exact_source_commit": false,
-    "post_source_changes": "threshold activation pins, exact signed-envelope integration, release-candidate homepage, exact RC6 artifact activation, and funded relayers held disabled between owner-attended acceptance windows only",
-    "verified_at": "2026-09-01T20:54:34Z",
+    "deployment_id": "b32d1244-df0b-4ff9-ac20-245088a9bfc2",
+    "implementation_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
+    "activation_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
+    "website_tree_identical_at_exact_source_commit": true,
+    "post_source_changes": "Only production environment configuration pins the exact immutable RC7 URL and SHA-256. Registry and Claims relayers remain funded but disabled until the owner-attended write window.",
+    "verified_at": "2026-09-02T12:53:24Z",
     "health_green": true,
     "registry_reads_active": true,
     "registry_relayer_available": false,
@@ -185,38 +185,48 @@
       "reason": "Owner-attended deploy acceptance found that the publication scanner treated the short byte prefix ghp_ inside compressed PNG data as a complete credential and rejected safe source before Companion approval.",
       "superseded_by": "v1.2.0-rc.6",
       "stable_promotion": false
+    },
+    {
+      "tag": "v1.2.0-rc.6",
+      "artifact_source_commit": "fddab7db204ecdd9b9d0e0fa99cd543733812a17",
+      "dmg_sha256": "082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de",
+      "reason": "RC6 predates deploy-time signed app slugs, authenticated global-alias review, the exact friend handoff page, and the private intended-phone selector required for this real Ship-to-friend mission.",
+      "superseded_by": "v1.2.0-rc.7",
+      "stable_promotion": false
     }
   ],
   "release_candidate_evidence": {
-    "tag": "v1.2.0-rc.6",
+    "tag": "v1.2.0-rc.7",
     "prerelease": true,
-    "published_at": "2026-09-01T20:46:41Z",
-    "artifact_source_commit": "fddab7db204ecdd9b9d0e0fa99cd543733812a17",
+    "published_at": "2026-09-02T12:49:17Z",
+    "artifact_source_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
     "worktree_clean_at_build": true,
-    "full_matrix_run_id": 33553112281,
-    "full_matrix_source_commit": "fddab7db204ecdd9b9d0e0fa99cd543733812a17",
+    "full_matrix_run_id": 33628354674,
+    "full_matrix_source_commit": "ff7e67f808becf1532ec29f16931626c922f2792",
+    "full_matrix_status_at_release": "in_progress",
+    "focused_release_verification": "warning-as-error downstream build, Apple identity tests, CompanionKit tests, and isolated ontology lifecycle passed; remote Apple, Rust, and Solidity lanes passed",
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
-    "candidate_application_cdhash": "564fcc01cf28361195e9c226b0390956ae010a8a",
+    "candidate_application_cdhash": "469d9c1ad7d4e91ed538e941458589f305954e11",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "be3cb4d7-16dc-40cb-9a09-2505ad0be7b9",
+    "notary_submission_id": "1f2da094-d87e-4002-9d97-04d3fde3cc6c",
     "notary_status": "Accepted",
-    "notary_upload_at": "2026-09-01T20:09:10.355Z",
+    "notary_upload_at": "2026-09-02T12:45:13.217Z",
     "stapler_validation": "accepted",
-    "dmg_name": "Tohseno-1.2.0-rc.6.dmg",
-    "dmg_size_bytes": 52314624,
-    "dmg_sha256": "082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de",
-    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.6",
-    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.6/Tohseno-1.2.0-rc.6.dmg",
+    "dmg_name": "Tohseno-1.2.0-rc.7.dmg",
+    "dmg_size_bytes": 52582296,
+    "dmg_sha256": "e161400ff522693e6a6290365533233ee3e6c9686a07fdca28bfd7be48c80b69",
+    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.7",
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.7/Tohseno-1.2.0-rc.7.dmg",
     "origin_round_trip_sha256_verified": true,
     "public_download_round_trip_sha256_verified": true,
-    "website_candidate_deployment_id": "370322b4-5220-443a-a09a-c76cccf661f3",
+    "website_candidate_deployment_id": "b32d1244-df0b-4ff9-ac20-245088a9bfc2",
     "website_candidate_deployment_status": "SUCCESS",
     "website_health_verified": true,
     "website_release_channel": "release-candidate",
@@ -227,7 +237,7 @@
     "clean_mac_acceptance_verified": false,
     "physical_iphone_acceptance_verified": false,
     "stable_promotion": false,
-    "verified_at": "2026-09-01T20:54:34Z"
+    "verified_at": "2026-09-02T12:53:24Z"
   },
-  "blocking_reason": "Tohseno 1.2.0 release candidate 6 was built from exact clean and fully CI-gated commit fddab7d, Developer ID signed, Apple-notarized under submission be3cb4d7-16dc-40cb-9a09-2505ad0be7b9, stapled, mounted, Gatekeeper-verified, published as an immutable GitHub prerelease, origin-verified, and activated on tohseno.com's release-candidate channel with digest 082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de. RC1 is rejected because its bundle omitted the Apple identity source package required for Companion dependency resolution; RC2 is rejected because owner-attended first-open acceptance found that it did not welcome or explain the system before technical setup; RC3 is rejected because the Mac app rejected valid Registry responses and did not expose the CLI activation and Ship path; RC4 is rejected because its CLI timed out while Xcode correctly continued a real adoption build; RC5 is rejected because its scanner mistook a short byte prefix inside compressed PNG data for a complete credential. Dedicated Registry and Claims relayers are funded but disabled outside the owner-attended acceptance window. RC6 deploy is now blocked only until the paired iPhone opens Companion and announces its non-exportable Builder DeviceKey to the Mac. Stable promotion remains blocked until the owner-attended physical acceptance completes one real Ship and immutable edition, a second identity's physical Claim and canonical receipt, offline-Mac exact-release preparation, recipient-local signed iPhone install, later Update preservation, private Follow reconciliation, live receipt/metadata verification, and exactly one Ship in the public timeline."
+  "blocking_reason": "RC7 is built from exact clean commit ff7e67f, Developer ID signed, Apple-notarized under submission 1f2da094-d87e-4002-9d97-04d3fde3cc6c, stapled, mounted, Gatekeeper-accepted, published as an immutable GitHub prerelease, origin-verified, deployed at production deployment b32d1244-df0b-4ff9-ac20-245088a9bfc2, and activated on tohseno.com's release-candidate channel with digest e161400ff522693e6a6290365533233ee3e6c9686a07fdca28bfd7be48c80b69. Registry and Claims reads are verified while both funded relayers remain disabled. The next blocker is physical owner authority: JP must install RC7, open the intended iPhone's Companion, and then explicitly open the attended Registry/Claims write window before one real Ship. No Ship, Claim, alias approval, friend install, or physical acceptance is claimed yet."
 }

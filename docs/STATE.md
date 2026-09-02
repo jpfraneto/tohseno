@@ -98,16 +98,21 @@ owner-attended physical walkthrough; there is still no canonical physical
 Claim. Exact blockers live in `release/V1_2_0_READINESS.json`; 1.1 evidence
 remains bound to its recorded source commit.
 
-Current post-RC6 source also adds a stable deploy-time app slug, exact app
+RC7, built from exact source commit `ff7e67f`, now releases the stable
+deploy-time app slug, exact app
 selection for Companion alias requests, an authenticated append-only alias
 approval endpoint, and live root Registry routes such as `/your-app`. The app
 page explains the four-step recipient path, pins Claim to the exact release,
 and distinguishes signed provenance and bounded machine facts from unavailable
 human Release Attestations. The Mac and CLI now describe Wi-Fi/USB
 reachability instead of presenting every normal installation as a cable
-operation. These are source facts only: the website has not been redeployed,
-no alias has been approved in production, RC6 has not been replaced, and no
-new physical or release evidence follows from this change.
+operation. RC7 is Developer ID signed, Apple-notarized, stapled, mounted,
+Gatekeeper-accepted, published as immutable prerelease `v1.2.0-rc.7`, and
+active on the production release-candidate download channel with SHA-256
+`e161400ff522693e6a6290365533233ee3e6c9686a07fdca28bfd7be48c80b69`.
+The exact public bytes round-trip to the local artifact. Registry and Claims
+reads are live while both funded relayers remain disabled. No alias, Ship,
+Claim, friend installation, or physical acceptance has occurred yet.
 
 ## Native macOS transition
 
