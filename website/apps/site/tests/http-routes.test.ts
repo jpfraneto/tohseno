@@ -211,7 +211,7 @@ describe("public pages", () => {
 
     expect(body).toContain('class="simple-home is-candidate"');
     expect(body).toContain('data-download-channel="release-candidate"');
-    expect(body).toContain("RC6 is signed and notarized");
+    expect(body).toContain("RC7 is signed and notarized");
     expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
     expect(body).toContain("Peer-to-peer distribution for Apple software");
     expect(body).toContain("<code>tohseno init</code>");
