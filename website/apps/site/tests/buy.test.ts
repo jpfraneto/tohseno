@@ -140,19 +140,37 @@ function mockFetch(currentQuote = quote()): typeof fetch {
 }
 
 describe("wallet-routed $TOHSENO purchase", () => {
-  test("keeps the reviewed purchase prototype dark until separately authorized", async () => {
+  test("serves the wallet-routed purchase as part of the public site", async () => {
     const application = await createApplication({
       config: loadConfig({ NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000" }),
     });
     const response = await application.fetch(new Request("http://localhost:3000/buy"));
-    expect(response.status).toBe(404);
-    expect((await application.fetch(new Request("http://localhost:3000/buy.js"))).status).toBe(404);
-    expect((await application.fetch(new Request("http://localhost:3000/api/buy/v1/config"))).status).toBe(404);
+    expect(response.status).toBe(200);
+    expect((await application.fetch(new Request("http://localhost:3000/buy.js"))).status).toBe(200);
+    expect((await application.fetch(new Request("http://localhost:3000/buy.css"))).status).toBe(200);
 
-    const body = readFileSync(fileURLToPath(new URL("../public/buy.html", import.meta.url)), "utf8");
-    expect(body).toContain("<h1>Software,<br><em>person to person.</em></h1>");
-    expect(body).toContain("The software network does not require the token.");
+    const body = await response.text();
+    const style = readFileSync(fileURLToPath(new URL("../public/buy.css", import.meta.url)), "utf8");
+    const script = readFileSync(fileURLToPath(new URL("../public/buy.js", import.meta.url)), "utf8");
+    expect(body).toContain('<h1 id="buy-title">Buy <em>$TOHSENO.</em></h1>');
+    expect(body).toContain("Never a gate to the network.");
+    expect(body).toContain("You do not need $TOHSENO to build, publish, verify, Claim, or install software.");
+    expect(body).toContain("Start where<br>your wallet is.");
+    expect(body).toContain("Know what you are buying.");
     expect(body).toContain(TOHSENO_TOKEN);
+    expect(body).not.toContain("hero-art");
+    expect(body).not.toContain("buy-hero");
+    expect(body).toContain("<footer");
+    expect(body).toContain('src="/landing-assets/wordmark.svg"');
+    expect(body).toMatch(/property="og:image" content="http:\/\/localhost:3000\/og-buy\.png\?v=[0-9a-f]{8}"/);
+    expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+    expect(style).toContain("--cream: #f7f4ee");
+    expect(style).toContain("--orange: #f04a13");
+    expect(style).toContain("overflow-x: hidden");
+    expect(style).toContain("@media (max-width: 680px)");
+    expect(style).toContain(".mascot-note");
+    expect(style).toContain(".swap-card");
+    expect(script).toContain('querySelector("[data-edit-quote]")');
   });
 
   test("exposes supported EVM chains and current exact-pool market data", async () => {

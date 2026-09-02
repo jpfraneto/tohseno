@@ -89,23 +89,35 @@ describe("public pages", () => {
   test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
-    expect(body).toContain("peer-to-peer network for distributing native iPhone apps—without App Store submission or review");
-    expect(body).toContain("<code>tohseno init</code>");
-    expect(body).toContain("<code>tohseno deploy</code>");
-    expect(body).toContain("Approve in Companion");
-    expect(body).toContain("Share the link");
+    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
+    expect(body).toContain("Build on Mac. Publish to Tohseno.");
+    expect(body).toContain("A link is the channel.<br><em>People are the network.</em>");
+    expect(body).toContain("A new path between Apple customers.");
+    expect(body).toContain("<strong>Build on Mac</strong>");
+    expect(body).toContain("<strong>Publish a Shot</strong>");
+    expect(body).toContain("<strong>Share one link</strong>");
+    expect(body).toContain("<strong>Verify and install</strong>");
+    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
+    expect(body).toContain("Apple’s curated marketplace.");
+    expect(body).toContain("An open distribution network.");
+    expect(body).toContain('<a href="#how-it-works">How it works</a>');
+    expect(body).toContain('id="protocol"');
+    expect(body).toContain("Every public release leaves a receipt.");
+    expect(body).toContain("Builder authority");
+    expect(body).toContain("Shot Registry");
+    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
+    expect(body).toContain("Chain ID 4663");
+    expect(body).toContain("macOS 14+");
+    expect(body).toContain("Xcode");
+    expect(body).toContain("iPhone");
+    expect(body).toContain("Apple Account");
     expect(body).toContain("The Mac release and public network are being verified. Public downloads are still closed.");
-    expect(body).toContain("Build the first<br>one together.</h2>");
-    expect(body).toContain("prepare its first verified release");
-    expect(body).toContain('$99 <span>one time</span>');
-    expect(body).toContain('href="https://t.me/jpfraneto"');
-    expect(body).toContain("You agree on the fit before any payment");
-    expect(body).toContain("Apple Developer Program membership is separate");
     expect(body).not.toContain("Public downloads are open");
     expect(body).not.toContain('href="/registry"');
     expect(body).not.toContain('href="/download/macos"');
     expect(body).not.toContain("data-installer-download");
+    expect(body).toContain("<footer");
+    expect(body).not.toContain("hero-symbol");
     const registry = await (await application.fetch(request("/registry"))).text();
     expect(registry).toContain("Pre-launch verification.");
     expect(registry).toContain("No public app or write path is claimed.");
@@ -127,29 +139,34 @@ describe("public pages", () => {
     // can never ship behind a stale cached copy.
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
-    expect(body).toContain("peer-to-peer network for distributing native iPhone apps—without App Store submission or review");
-    expect(body).toContain("Two commands. One approval.<br>Software moves.</h2>");
-    expect(body).toContain("<code>tohseno init</code>");
-    expect(body).toContain("<code>tohseno deploy</code>");
-    expect(body).toContain("Approve in the Companion app.</h3>");
-    expect(body).toContain("Share the link.</h3>");
-    expect(body).toContain("Nothing becomes public without that approval.");
-    expect(body).toContain("Another Mac verifies the source, builds it in Xcode");
-    expect(body).toContain("A link is the channel.<br>People are the network.</h2>");
-    expect(body).toContain("removes App Store submission and review from this person-to-person path");
-    expect(body).toContain("It cannot impersonate a Builder, approve a release, or sign an app for its recipient.");
-    expect(body).toContain("Skip App Store submission.<br>Keep Apple’s signing security.</h2>");
-    expect(body).toContain("There is still Xcode, provisioning, Developer Mode, Trust");
-    expect(body).toContain("The sender also approves public releases in Tohseno Companion.");
-    expect(body).toContain('href="https://developer.apple.com/help/account/membership/programs-overview/"');
-    expect(body).toContain("Ship the first<br>one together.</h2>");
-    expect(body).toContain('$99 <span>one time</span>');
-    expect(body).toContain("Pair your Mac and Companion. Build a native app and ship its first verified release.");
-    expect(body).toContain('href="https://t.me/jpfraneto"');
-    expect(body).toContain('aria-label="Talk to @jpfraneto on Telegram about Tohseno Pro"');
-    expect(body).toContain("You agree on the fit before any payment");
-    expect(body).toContain("Apple Developer Program membership is separate");
+    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
+    expect(body).toContain("Build on Mac. Publish to Tohseno.");
+    expect(body).toContain("A link is the channel.<br><em>People are the network.</em>");
+    expect(body).toContain("Make software.<br>Move it through your circle.</h2>");
+    expect(body).toContain("<strong>Build on Mac</strong>");
+    expect(body).toContain("<strong>Publish a Shot</strong>");
+    expect(body).toContain("<strong>Share one link</strong>");
+    expect(body).toContain("<strong>Verify and install</strong>");
+    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
+    expect(body).toContain("The App Store");
+    expect(body).toContain("Apple’s curated marketplace.");
+    expect(body).toContain("An open distribution network.");
+    expect(body).toContain("macOS 14+");
+    expect(body).toContain("Xcode");
+    expect(body).toContain("iPhone");
+    expect(body).toContain("Apple Account");
+    expect(body).toContain('<a class="nav-action" href="/registry">Explore apps</a>');
+    expect(body).toContain('id="protocol"');
+    expect(body).toContain("Every public release leaves a receipt.");
+    expect(body).toContain("Builder authority");
+    expect(body).toContain("Shot Registry");
+    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
+    expect(body).toContain("Chain ID 4663");
+    expect(landingStyle.toString()).not.toContain("height: 100svh");
+    expect(landingStyle.toString()).toContain("overflow-x: hidden;");
+    expect(landingStyle.toString()).toContain("@media (max-width: 820px)");
+    expect(body).toContain("<footer");
+    expect(body).not.toContain("hero-symbol");
     expect(body).not.toContain("You are the moat");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
@@ -160,12 +177,12 @@ describe("public pages", () => {
     expect(body).toContain("Download for Mac");
     expect(body).toContain("macOS 14+");
     expect(body).not.toContain("paste into Terminal");
-    expect(body).toContain('src="/logo.svg"');
-    expect(body).toContain('<link rel="preload" href="/logo.svg" as="image" type="image/svg+xml">');
+    expect(body).toContain('src="/landing-assets/wordmark.svg"');
+    expect(body).toContain('<link rel="preload" href="/landing-assets/mascot.png" as="image" type="image/png">');
     expect(body).not.toContain('class="paint-intro"');
     expect(body).toContain('src="/landing.js"');
-    expect(body).toContain('property="og:title" content="Tohseno — Peer-to-peer distribution for Apple software."');
-    expect(body).toContain('name="twitter:title" content="Tohseno — Peer-to-peer distribution for Apple software."');
+    expect(body).toContain('property="og:title" content="Software for Apple devices. Distributed by anyone."');
+    expect(body).toContain('name="twitter:title" content="Software for Apple devices. Distributed by anyone."');
     expect(body).not.toContain("One App Per Day");
     expect(body).not.toContain("ticker-track");
     expect(body).not.toContain("data-copy-contract");
@@ -181,16 +198,15 @@ describe("public pages", () => {
     expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
     expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
     expect(body).not.toContain('href="/docs"');
-    expect(body).not.toContain('href="/privacy"');
+    expect(body).toContain('href="/privacy"');
     expect((await application.fetch(request("/docs"))).status).toBe(308);
     expect((await application.fetch(request("/privacy"))).status).toBe(200);
-    expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
     expect(body).toContain(
-      "<title>Tohseno — Peer-to-Peer Apple Software</title>",
+      "<title>Tohseno — Permissionless Distribution for Apple Software</title>",
     );
     expect(body).toContain(
-      'content="Tohseno is the peer-to-peer network for distributing native iPhone apps without App Store submission or review. Build on Mac. Approve on Companion. Share a link."',
+      'content="Tohseno is the permissionless distribution network for Apple software. Build on Mac. Publish a verifiable release. Share it person to person."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -209,24 +225,32 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(body).toContain('class="simple-home is-candidate"');
+    expect(body).toContain('class="network-home is-candidate"');
     expect(body).toContain('data-download-channel="release-candidate"');
     expect(body).toContain("RC7 is signed and notarized");
-    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
-    expect(body).toContain("Peer-to-peer distribution for Apple software");
-    expect(body).toContain("<code>tohseno init</code>");
-    expect(body).toContain("<code>tohseno deploy</code>");
-    expect(body).toContain("Approve in Companion");
-    expect(body).toContain("Two commands. One approval.<br>Software moves.</h2>");
-    expect(body).toContain("Skip App Store submission.<br>Keep Apple’s signing security.</h2>");
+    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
+    expect(body).toContain("Permissionless distribution for Apple software");
+    expect(body).toContain("Build on Mac. Publish to Tohseno.");
+    expect(body).toContain("<strong>Build on Mac</strong>");
+    expect(body).toContain("<strong>Publish a Shot</strong>");
+    expect(body).toContain("<strong>Share one link</strong>");
+    expect(body).toContain("<strong>Verify and install</strong>");
+    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
+    expect(body).toContain("macOS 14+");
+    expect(body).toContain("Xcode");
+    expect(body).toContain("iPhone");
+    expect(body).toContain("Apple Account");
+    expect(body).toContain('id="protocol"');
+    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
     expect(body).toContain("Public network shipping remains closed");
-    expect(body).toContain("Test the Mac<br>and Companion now.</h2>");
     expect(body).toContain('href="/download/macos" data-installer-download');
-    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(2);
+    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
     expect(body).toContain("Download for Mac");
     expect(body).not.toContain("Public downloads are still closed");
     expect(body).not.toContain("$99");
     expect(body).not.toContain('href="/registry"');
+    expect(body).toContain("<footer");
+    expect(body).not.toContain("hero-symbol");
   });
 
   test("hands documentation to the standalone site and serves privacy", async () => {
@@ -267,6 +291,8 @@ describe("public pages", () => {
         continue;
       }
       const path = new URL(link, "http://localhost:3000").pathname;
+      // The independently governed purchase route is covered by buy.test.ts.
+      if (path === "/buy") continue;
       const target = await application.fetch(request(path));
       expect(target.status).toBe(path === "/download/macos" ? 503 : 200);
     }
@@ -289,20 +315,25 @@ describe("public pages", () => {
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
     expect(landingStyle).not.toContain("@font-face");
-    expect(landingStyle).toContain("--paper: #f5f3ef");
-    expect(landingStyle).toContain("--ink: #1d1d1f");
-    expect(landingStyle).toContain("--orange: #ff5a00");
-    expect(landingStyle).toContain("background: var(--paper)");
-    expect(landingStyle).toContain('font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue"');
+    expect(landingStyle).toContain("--cream: #f7f4ee");
+    expect(landingStyle).toContain("--ink: #131313");
+    expect(landingStyle).toContain("--orange: #f04a13");
+    expect(landingStyle).toContain("var(--cream)");
+    expect(landingStyle).toContain('font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display"');
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
     expect(landingStyle).not.toContain(".paint-intro");
     expect(landingStyle).not.toContain(".paint-mark-color");
-    expect(landingStyle).toContain("@keyframes site-arrive");
-    expect(landingStyle).toContain("@media (max-width: 1000px)");
+    expect(landingStyle).toContain(".hero-visual");
+    expect(landingStyle).toContain("@media (max-width: 1040px)");
     expect(landingStyle).toContain("@media (max-width: 640px)");
     expect(landingStyle).not.toContain(".shot-flow");
-    expect(landingStyle).toContain(".network-flow");
-    expect(landingStyle).toContain(".hero-sequence");
+    expect(landingStyle).not.toContain(".hero-sequence");
+    expect(landingStyle).not.toContain("height: 100svh");
+    expect(landingStyle).toContain("overflow-x: hidden");
+    expect(landingStyle).toContain(".people-loop");
+    expect(landingStyle).toContain(".step-grid");
+    expect(landingStyle).toContain(".apple-contrast");
+    expect(landingStyle).toContain(".protocol-grid");
     expect(landingStyle).not.toContain(".ticker-track");
   });
 
@@ -404,6 +435,8 @@ describe("public pages", () => {
       ["/styles.css", "text/css"],
       ["/landing.css", "text/css"],
       ["/landing.js", "text/javascript"],
+      ["/buy.css", "text/css"],
+      ["/buy.js", "text/javascript"],
       ["/fonts/fraunces-latin.woff2", "font/woff2"],
       ["/fonts/plex-mono-latin.woff2", "font/woff2"],
       ["/app.js", "text/javascript"],
@@ -413,8 +446,23 @@ describe("public pages", () => {
       ["/releases/native-v1.json", "application/json"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
+      ["/og-buy.png", "image/png"],
       ["/favicon.png", "image/png"],
       ["/tohseno-logo.png", "image/png"],
+      ["/landing-assets/wordmark.svg", "image/svg+xml"],
+      ["/landing-assets/mascot.png", "image/png"],
+      ["/landing-assets/network.png", "image/png"],
+      ["/landing-assets/build-mac.svg", "image/svg+xml"],
+      ["/landing-assets/publish.svg", "image/svg+xml"],
+      ["/landing-assets/share.svg", "image/svg+xml"],
+      ["/landing-assets/verify-install.svg", "image/svg+xml"],
+      ["/landing-assets/builder-authority.svg", "image/svg+xml"],
+      ["/landing-assets/shot-registry.svg", "image/svg+xml"],
+      ["/landing-assets/claims.svg", "image/svg+xml"],
+      ["/landing-assets/mac.svg", "image/svg+xml"],
+      ["/landing-assets/xcode.svg", "image/svg+xml"],
+      ["/landing-assets/iphone.svg", "image/svg+xml"],
+      ["/landing-assets/apple-account.svg", "image/svg+xml"],
       ["/app-breathekeeper.png", "image/png"],
       ["/app-who-ate.png", "image/png"],
       ["/app-handoff.png", "image/png"],

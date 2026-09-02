@@ -3,200 +3,145 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080908">
-  <meta name="description" content="Buy $TOHSENO from a connected EVM wallet. Routes are checked live into the official Robinhood Chain token.">
+  <meta name="theme-color" content="#f7f4ee">
+  <meta name="description" content="Buy the optional $TOHSENO market token through a wallet-verified route into its official Robinhood Chain contract.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="Buy $TOHSENO — Software, person to person">
-  <meta property="og:description" content="Route from a connected EVM wallet into the official $TOHSENO token on Robinhood Chain.">
+  <meta property="og:title" content="Buy $TOHSENO — The optional market layer">
+  <meta property="og:description" content="The software network does not require the token. Every route is checked before your wallet signs.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/buy">
   <meta property="og:image" content="{{BUY_OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Two people pass a native app through the orange Tohseno circle.">
+  <meta property="og:image:alt" content="$TOHSENO on Robinhood Chain.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Buy $TOHSENO — Software, person to person">
-  <meta name="twitter:description" content="A route into $TOHSENO on Robinhood Chain, checked before your wallet signs.">
+  <meta name="twitter:title" content="Buy $TOHSENO — The optional market layer">
+  <meta name="twitter:description" content="The software network does not require the token. Every route is checked before your wallet signs.">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/buy">
-  <link rel="preload" href="{{BUY_OG_IMAGE_URL}}" as="image" type="image/png">
+  <link rel="preload" href="/landing-assets/mascot.png" as="image" type="image/png">
   <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="stylesheet" href="/buy.css?v={{BUY_ASSET_REVISION}}">
   <title>Buy $TOHSENO — Tohseno</title>
 </head>
-<body>
+<body class="buy-page">
   <a class="skip-link" href="#swap">Skip to the swap</a>
 
-  <header class="buy-nav page-shell">
+  <header class="buy-header page-shell">
     <a class="wordmark" href="/" aria-label="Tohseno home">
-      <img src="/logo.svg" alt="">
-      <span>TOHSENO</span>
+      <img src="/landing-assets/wordmark.svg" alt="Tohseno">
     </a>
-    <div class="nav-side">
-      <span class="live-route"><i aria-hidden="true"></i> Routes checked live</span>
+    <nav class="buy-nav" aria-label="Purchase links">
+      <a href="/">The network</a>
       <a href="https://dexscreener.com/robinhood/0x0b2b50f640fc821024a000f441b0e5c97db5f48e326aaf8472f21295079d7be9" target="_blank" rel="noopener noreferrer">Chart ↗</a>
-    </div>
+      <span class="live-route"><i aria-hidden="true"></i> Routes checked live</span>
+    </nav>
   </header>
 
-  <main>
-    <section class="buy-hero page-shell">
-      <div class="hero-copy">
-        <p class="eyebrow">$TOHSENO · ROBINHOOD CHAIN</p>
-        <h1>Software,<br><em>person to person.</em></h1>
-        <p class="hero-lede">Tohseno turns an intention into a native app, then lets its source and history move to the next builder. $TOHSENO is the onchain token bearing that name.</p>
-        <p class="token-boundary">The software network does not require the token. Buying it is optional and carries market, liquidity, bridge, and smart-contract risk.</p>
+  <main class="buy-main page-shell" id="swap">
+    <section class="buy-story" aria-labelledby="buy-title">
+      <div class="story-copy">
+        <p class="eyebrow">The optional market layer</p>
+        <h1 id="buy-title">Buy <em>$TOHSENO.</em></h1>
+        <p class="buy-lede">A token around the network.<br><strong>Never a gate to the network.</strong></p>
+        <p class="buy-context">You do not need $TOHSENO to build, publish, verify, Claim, or install software. Buying is optional.</p>
       </div>
-      <div class="hero-art">
-        <img src="{{BUY_OG_IMAGE_URL}}" alt="Two hands pass an app from intention to finished software through the Tohseno circle.">
-      </div>
-    </section>
 
-    <section class="trade-section page-shell" id="swap">
-      <div class="trade-intro">
-        <p class="eyebrow">THE ROUTE</p>
-        <h2>Start where<br>your wallet is.</h2>
-        <p>The destination is fixed: the exact $TOHSENO contract on Robinhood Chain. Your source chain and asset stay yours to choose. Relay prepares the route; your wallet signs every step.</p>
-
+      <div class="market-panel">
+        <div class="market-heading"><span><i aria-hidden="true"></i> Robinhood Chain</span><a href="https://robinhoodchain.blockscout.com/token/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">Verify contract ↗</a></div>
         <dl class="market-grid" aria-label="Current market">
-          <div>
-            <dt>Price</dt>
-            <dd data-market-price>—</dd>
-          </div>
-          <div>
-            <dt>Liquidity</dt>
-            <dd data-market-liquidity>—</dd>
-          </div>
-          <div>
-            <dt>24h volume</dt>
-            <dd data-market-volume>—</dd>
-          </div>
+          <div><dt>Price</dt><dd data-market-price>—</dd></div>
+          <div><dt>Liquidity</dt><dd data-market-liquidity>—</dd></div>
+          <div><dt>24h volume</dt><dd data-market-volume>—</dd></div>
         </dl>
-
         <div class="contract-block">
           <span>Official contract</span>
           <button type="button" class="contract-copy" data-copy-contract aria-label="Copy the official TOHSENO contract address">
-            <code>0x3644…8bA3</code>
-            <span data-copy-label>COPY</span>
+            <code>0x3644…8bA3</code><span data-copy-label>Copy</span>
           </button>
-          <a href="https://robinhoodchain.blockscout.com/token/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">Verify on Blockscout ↗</a>
+        </div>
+        <div class="direct-links">
+          <a href="https://app.uniswap.org/swap?chain=robinhood&amp;outputCurrency=0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">Open in Uniswap ↗</a>
+          <a href="https://dexscreener.com/robinhood/0x0b2b50f640fc821024a000f441b0e5c97db5f48e326aaf8472f21295079d7be9" target="_blank" rel="noopener noreferrer">View market ↗</a>
         </div>
       </div>
 
-      <div class="swap-card" aria-labelledby="swap-title">
-        <div class="card-topline">
-          <div>
-            <p class="card-kicker">BUY</p>
-            <h2 id="swap-title">$TOHSENO</h2>
-          </div>
-          <button type="button" class="wallet-button" data-connect-wallet>Connect wallet</button>
-        </div>
-
-        <p class="wallet-state" data-wallet-state aria-live="polite">Connect an EVM wallet to find a route.</p>
-
-        <form data-swap-form novalidate>
-          <div class="source-box">
-            <div class="field-row">
-              <label for="buy-amount">You pay</label>
-              <button type="button" class="max-button" data-max disabled>MAX</button>
-            </div>
-            <div class="amount-row">
-              <input id="buy-amount" data-amount inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="balance-label" disabled>
-              <select data-currency aria-label="Asset to pay with" disabled>
-                <option>—</option>
-              </select>
-            </div>
-            <div class="chain-row">
-              <label for="origin-chain">From</label>
-              <select id="origin-chain" data-chain disabled>
-                <option>Connect wallet</option>
-              </select>
-              <span id="balance-label" data-balance>Balance —</span>
-            </div>
-          </div>
-
-          <div class="route-line" aria-hidden="true"><span>↓</span></div>
-
-          <div class="destination-box">
-            <div>
-              <span>You receive</span>
-              <strong data-output-amount>—</strong>
-            </div>
-            <div class="token-chip">
-              <span class="mini-enso" aria-hidden="true"></span>
-              <span>TOHSENO<small>Robinhood Chain</small></span>
-            </div>
-          </div>
-
-          <button type="submit" class="quote-button" data-quote disabled>Review route</button>
-        </form>
-
-        <section class="quote-panel" data-quote-panel hidden aria-live="polite">
-          <div class="quote-line"><span>Minimum received</span><strong data-minimum>—</strong></div>
-          <div class="quote-line"><span>Route</span><strong data-route>—</strong></div>
-          <div class="quote-line"><span>Estimated time</span><strong data-time>—</strong></div>
-          <div class="quote-line"><span>Total route impact</span><strong data-impact>—</strong></div>
-          <p class="impact-warning" data-impact-warning hidden></p>
-          <label class="risk-confirm" data-risk-confirm-wrap hidden>
-            <input type="checkbox" data-risk-confirm>
-            <span>I reviewed this unusually expensive route.</span>
-          </label>
-          <button type="button" class="execute-button" data-execute>Buy $TOHSENO</button>
-          <p class="execution-state" data-execution-state></p>
-        </section>
-
-        <div class="card-foot">
-          <p><strong>No custody.</strong> Tohseno never receives your seed phrase or your funds. Review every wallet prompt and the exact output before signing.</p>
-          <p>Cross-chain routes require native gas on the source chain. Quotes move with liquidity and expire.</p>
-        </div>
+      <div class="mascot-note" aria-label="The token is optional">
+        <img src="/landing-assets/mascot.png" alt="The Tohseno workshop mascot holding a wrench">
+        <p>Software moves through people.<br><strong>The token never decides who gets to build.</strong></p>
       </div>
     </section>
 
-    <section class="fallback-section">
-      <div class="page-shell fallback-inner">
+    <section class="swap-card" aria-labelledby="swap-title">
+      <div class="card-topline">
         <div>
-          <p class="eyebrow">ALREADY ON ROBINHOOD CHAIN?</p>
-          <h2>Take the shortest path.</h2>
-          <p>Open the exact output token in Uniswap. The official pool is TOHSENO/AAPL; other onchain routers may still find a better intermediate path.</p>
+          <p class="card-kicker">Wallet-routed purchase</p>
+          <h2 id="swap-title">Start where<br>your wallet is.</h2>
         </div>
-        <div class="fallback-links">
-          <a class="primary-link" href="https://app.uniswap.org/swap?chain=robinhood&amp;outputCurrency=0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">Open in Uniswap <span>↗</span></a>
-          <a href="https://dexscreener.com/robinhood/0x0b2b50f640fc821024a000f441b0e5c97db5f48e326aaf8472f21295079d7be9" target="_blank" rel="noopener noreferrer">Inspect liquidity <span>↗</span></a>
-        </div>
+        <button type="button" class="wallet-button" data-connect-wallet>Connect wallet</button>
       </div>
-    </section>
 
-    <section class="truth-section page-shell">
-      <p class="eyebrow">WHAT YOU ARE BUYING</p>
-      <div class="truth-grid">
-        <h2>A token is not<br>the protocol.</h2>
-        <div>
-          <p>Tohseno’s public record, software identity, ownership, and verification rules do not come from this token. The token is a separate ERC-20 market on Robinhood Chain.</p>
-          <p>No price, return, utility, or future liquidity is promised. The token is unverified in some route-provider catalogs; the contract address above is the identity to check.</p>
+      <p class="wallet-state" data-wallet-state aria-live="polite">Connect an EVM wallet to find a route.</p>
+
+      <form data-swap-form novalidate>
+        <div class="source-box">
+          <div class="field-row">
+            <label for="buy-amount">You pay</label>
+            <button type="button" class="max-button" data-max disabled>Max</button>
+          </div>
+          <div class="amount-row">
+            <input id="buy-amount" data-amount inputmode="decimal" autocomplete="off" placeholder="0.00" aria-describedby="balance-label" disabled>
+            <select data-currency aria-label="Asset to pay with" disabled><option>—</option></select>
+          </div>
+          <div class="chain-row">
+            <label for="origin-chain">From</label>
+            <select id="origin-chain" data-chain disabled><option>Connect wallet</option></select>
+            <span id="balance-label" data-balance>Balance —</span>
+          </div>
         </div>
+
+        <div class="route-line" aria-hidden="true"><span>↓</span></div>
+
+        <div class="destination-box">
+          <div><span>You receive</span><strong data-output-amount>—</strong></div>
+          <div class="token-chip"><span class="mini-enso" aria-hidden="true"></span><span>TOHSENO<small>Robinhood Chain</small></span></div>
+        </div>
+
+        <button type="submit" class="quote-button" data-quote disabled>Review route</button>
+      </form>
+
+      <section class="quote-panel" data-quote-panel hidden aria-live="polite">
+        <div class="quote-panel-head"><span>Route review</span><button type="button" data-edit-quote>Change amount</button></div>
+        <div class="quote-line"><span>Minimum received</span><strong data-minimum>—</strong></div>
+        <div class="quote-line"><span>Route</span><strong data-route>—</strong></div>
+        <div class="quote-line"><span>Estimated time</span><strong data-time>—</strong></div>
+        <div class="quote-line"><span>Total route impact</span><strong data-impact>—</strong></div>
+        <p class="impact-warning" data-impact-warning hidden></p>
+        <label class="risk-confirm" data-risk-confirm-wrap hidden><input type="checkbox" data-risk-confirm><span>I reviewed this unusually expensive route.</span></label>
+        <button type="button" class="execute-button" data-execute>Buy $TOHSENO</button>
+        <p class="execution-state" data-execution-state></p>
+      </section>
+
+      <div class="card-foot">
+        <p><strong>No custody.</strong> Tohseno never receives your recovery phrase or your funds.</p>
+        <p>Review every wallet prompt. Cross-chain routes require source-chain gas, move with liquidity, and expire.</p>
       </div>
     </section>
   </main>
 
+  <aside class="risk-line page-shell" aria-label="Purchase risk">
+    <strong>Know what you are buying.</strong>
+    <p>$TOHSENO is a market token, not ownership of Tohseno, a promise of returns, or permission to use the software network. Market, liquidity, bridge, and smart-contract risk apply.</p>
+  </aside>
+
   <footer class="buy-footer page-shell">
-    <a class="wordmark" href="/">
-      <img src="/logo.svg" alt="">
-      <span>TOHSENO</span>
-    </a>
-    <p>The person-to-person native software network.</p>
-    <div>
-      <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source</a>
-      <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community</a>
-    </div>
+    <a href="/" aria-label="Tohseno home"><img src="/landing-assets/wordmark.svg" alt="Tohseno"></a>
+    <p>Permissionless distribution for Apple software.</p>
+    <nav aria-label="Footer"><a href="/">Network</a><a href="/privacy">Privacy</a><a href="https://robinhoodchain.blockscout.com/token/0x364415f884fc93775a4c1825c1a3af1f0c2d8ba3" target="_blank" rel="noopener noreferrer">Contract ↗</a></nav>
   </footer>
 
   <dialog class="wallet-dialog" data-wallet-dialog>
     <form method="dialog">
-      <div class="dialog-topline">
-        <div>
-          <p class="card-kicker">CONNECT</p>
-          <h2>Choose a wallet</h2>
-        </div>
-        <button value="cancel" aria-label="Close wallet chooser">×</button>
-      </div>
+      <div class="dialog-topline"><div><p class="card-kicker">Connect</p><h2>Choose a wallet</h2></div><button value="cancel" aria-label="Close wallet chooser">×</button></div>
       <div class="wallet-options" data-wallet-options></div>
       <p>Use an installed EVM wallet or open this page inside your wallet’s browser. Tohseno never asks for a recovery phrase.</p>
     </form>

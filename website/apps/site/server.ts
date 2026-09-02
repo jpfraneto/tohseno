@@ -8,6 +8,7 @@ import { createBillingRouter } from "./src/billing.ts";
 import { createManagedRouter } from "./src/managed.ts";
 import { createRegistryRouter } from "./src/registry.ts";
 import { createClaimsRouter } from "./src/claims.ts";
+import { createBuyRouter } from "./src/buy.ts";
 import type { RegistryRouter } from "./src/registry.ts";
 
 const PUBLIC_DIRECTORY = join(import.meta.dir, "public");
@@ -244,7 +245,7 @@ say 'Double-click it, then drag Tohseno into Applications.'
     .replace("__DOWNLOAD_NAME__", shellSingleQuote(downloadName));
 }
 
-const PAGE_PATHS = ["/", "/docs", "/privacy", "/healthz"] as const;
+const PAGE_PATHS = ["/", "/buy", "/docs", "/privacy", "/healthz"] as const;
 
 const STATIC_FILES: Record<
   string,
@@ -253,6 +254,11 @@ const STATIC_FILES: Record<
   "/styles.css": { file: "styles.css", type: "text/css; charset=utf-8" },
   "/landing.css": {
     file: "landing.css",
+    type: "text/css; charset=utf-8",
+    revalidate: true,
+  },
+  "/buy.css": {
+    file: "buy.css",
     type: "text/css; charset=utf-8",
     revalidate: true,
   },
@@ -271,6 +277,11 @@ const STATIC_FILES: Record<
   },
   "/landing.js": {
     file: "landing.js",
+    type: "text/javascript; charset=utf-8",
+    revalidate: true,
+  },
+  "/buy.js": {
+    file: "buy.js",
     type: "text/javascript; charset=utf-8",
     revalidate: true,
   },
@@ -301,12 +312,69 @@ const STATIC_FILES: Record<
   },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/logo.svg": { file: "logo.svg", type: "image/svg+xml" },
+  "/landing-assets/wordmark.svg": {
+    file: "landing-assets/wordmark.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/mascot.png": {
+    file: "landing-assets/mascot.png",
+    type: "image/png",
+  },
+  "/landing-assets/network.png": {
+    file: "landing-assets/network.png",
+    type: "image/png",
+  },
+  "/landing-assets/build-mac.svg": {
+    file: "landing-assets/build-mac.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/publish.svg": {
+    file: "landing-assets/publish.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/share.svg": {
+    file: "landing-assets/share.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/verify-install.svg": {
+    file: "landing-assets/verify-install.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/builder-authority.svg": {
+    file: "landing-assets/builder-authority.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/shot-registry.svg": {
+    file: "landing-assets/shot-registry.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/claims.svg": {
+    file: "landing-assets/claims.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/mac.svg": {
+    file: "landing-assets/mac.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/xcode.svg": {
+    file: "landing-assets/xcode.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/iphone.svg": {
+    file: "landing-assets/iphone.svg",
+    type: "image/svg+xml",
+  },
+  "/landing-assets/apple-account.svg": {
+    file: "landing-assets/apple-account.svg",
+    type: "image/svg+xml",
+  },
   "/whitepaper.pdf": {
     file: "tohseno-whitepaper.pdf",
     type: "application/pdf",
     revalidate: true,
   },
   "/og.png": { file: "og.png", type: "image/png" },
+  "/og-buy.png": { file: "og-buy.png", type: "image/png" },
   "/favicon.png": { file: "favicon.png", type: "image/png" },
   "/tohseno-logo.png": { file: "tohseno-logo.png", type: "image/png" },
   "/app-breathekeeper.png": {
@@ -324,7 +392,7 @@ const SHOT_ICON_PATH = /^\/shot-icons\/shot-(?:00[1-9]|0[1-9]\d|100)\.webp$/;
 const BROWSER_MODULE_PATH = /^\/modules\/[a-z0-9-]+\.js$/;
 const GLOBAL_ALIAS_PATH = /^\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const RESERVED_GLOBAL_PATHS = new Set([
-  "/api", "/claims", "/docs", "/download", "/healthz", "/install", "/privacy",
+  "/api", "/buy", "/claims", "/docs", "/download", "/healthz", "/install", "/privacy",
   "/registry", "/releases", "/s",
 ]);
 
@@ -335,6 +403,7 @@ function isGlobalAliasPath(pathname: string): boolean {
 }
 
 function semanticRoute(pathname: string): string {
+  if (pathname.startsWith("/api/buy/v1/")) return "buy-api";
   if (pathname.startsWith("/api/intent-relay/")) return "intent-relay";
   if (pathname.startsWith("/api/billing/v1/")) return "billing";
   if (pathname.startsWith("/api/managed/v1/")) return "managed-compute";
@@ -342,6 +411,7 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/install" || pathname === "/download") return "native-installer";
   if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
   if (pathname === "/") return "landing-page";
+  if (pathname === "/buy") return "buy-page";
   if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
       || isGlobalAliasPath(pathname)) return "public-registry";
   if (pathname === "/docs") return "docs-page";
@@ -413,6 +483,7 @@ export async function createApplication(
   const config = options.config ?? loadConfig();
   const relay = await createRelayRouter(config);
   const billing = await createBillingRouter(config);
+  const buy = createBuyRouter();
   const managed = await createManagedRouter(config);
   let registryReference: RegistryRouter | undefined;
   const claims = await createClaimsRouter(config, undefined, undefined, {
@@ -447,12 +518,30 @@ export async function createApplication(
     .update(landingStyleBytes)
     .digest("hex")
     .slice(0, 12);
-  const renderPage = async (file: string): Promise<string> =>
+  const [buyStyleBytes, buyScriptBytes, buyOgBytes] = await Promise.all([
+    Bun.file(join(PUBLIC_DIRECTORY, "buy.css")).bytes(),
+    Bun.file(join(PUBLIC_DIRECTORY, "buy.js")).bytes(),
+    Bun.file(join(PUBLIC_DIRECTORY, "og-buy.png")).bytes(),
+  ]);
+  const buyAssetRevision = new Bun.CryptoHasher("sha256")
+    .update(buyStyleBytes)
+    .update(buyScriptBytes)
+    .digest("hex")
+    .slice(0, 12);
+  const buyOgVersion = new Bun.CryptoHasher("sha256")
+    .update(buyOgBytes)
+    .digest("hex")
+    .slice(0, 8);
+  const renderPage = async (
+    file: string,
+    extra: Record<string, string> = {},
+  ): Promise<string> =>
     renderTemplate(await Bun.file(join(PUBLIC_DIRECTORY, file)).text(), {
       CANONICAL_ORIGIN: config.baseUrl,
       OG_IMAGE_URL: `${config.baseUrl}/og.png?v=${ogImageVersion}`,
       LANDING_STYLE_REVISION: landingStyleRevision,
       DOWNLOAD_CHANNEL: config.distribution.macosChannel,
+      ...extra,
     });
   const networkLaunchEnabled = config.registry.enabled
     && config.registry.relayerEnabled
@@ -462,12 +551,17 @@ export async function createApplication(
     : config.distribution.macosEnabled
       ? "index-candidate.html"
       : "index.html";
-  const [landingPage, privacyPage] = await Promise.all([
+  const [landingPage, buyPage, privacyPage] = await Promise.all([
     renderPage(landingFile),
+    renderPage("buy.html", {
+      BUY_ASSET_REVISION: buyAssetRevision,
+      BUY_OG_IMAGE_URL: `${config.baseUrl}/og-buy.png?v=${buyOgVersion}`,
+    }),
     renderPage("privacy.html"),
   ]);
   const pages: Record<string, string> = {
     "/": landingPage,
+    "/buy": buyPage,
     "/privacy": privacyPage,
   };
 
@@ -478,6 +572,7 @@ export async function createApplication(
     const canonicalResponse = canonicalBoundary(request, config);
     if (canonicalResponse) return canonicalResponse;
     if (relay.handles(pathname)) return relay.fetch(request);
+    if (buy.handles(pathname)) return buy.fetch(request);
     if (billing.handles(pathname)) return billing.fetch(request);
     if (managed.handles(pathname)) return managed.fetch(request);
     if (claims.handles(pathname)) return claims.fetch(request);

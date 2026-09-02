@@ -14,6 +14,7 @@ const elements = {
   quoteButton: document.querySelector("[data-quote]"),
   output: document.querySelector("[data-output-amount]"),
   quotePanel: document.querySelector("[data-quote-panel]"),
+  editQuote: document.querySelector("[data-edit-quote]"),
   minimum: document.querySelector("[data-minimum]"),
   route: document.querySelector("[data-route]"),
   time: document.querySelector("[data-time]"),
@@ -110,6 +111,7 @@ function currentCurrency() {
 function clearQuote() {
   state.quote = null;
   state.routeTooExpensive = false;
+  elements.form.hidden = false;
   elements.quotePanel.hidden = true;
   elements.riskWrap.hidden = true;
   elements.risk.checked = false;
@@ -376,6 +378,7 @@ function renderQuote(quote) {
   const impact = Number(details.totalImpact?.percent);
   const loss = Number.isFinite(impact) && impact < 0 ? Math.abs(impact) : 0;
   setText(elements.impact, Number.isFinite(impact) ? `${impact.toFixed(2)}%` : "—");
+  elements.form.hidden = true;
   elements.quotePanel.hidden = false;
   state.routeTooExpensive = loss > 50;
   if (loss > 15) {
@@ -507,6 +510,7 @@ elements.form.addEventListener("submit", async (event) => {
     await fetchQuote();
   } catch (error) {
     clearQuote();
+    elements.form.hidden = true;
     elements.quotePanel.hidden = false;
     setText(elements.impactWarning, errorMessage(error));
     elements.impactWarning.hidden = false;
@@ -548,6 +552,12 @@ elements.risk.addEventListener("change", () => {
 });
 
 elements.execute.addEventListener("click", executeQuote);
+
+elements.editQuote.addEventListener("click", () => {
+  clearQuote();
+  setControls();
+  elements.amount.focus();
+});
 
 elements.copyContract.addEventListener("click", async () => {
   try {
