@@ -609,11 +609,20 @@ export async function createRegistryRouter(
       const path = blobPath(directories.blobs, digest);
       const metadata = await stat(path).catch(() => undefined);
       if (!metadata?.isFile()) throw new HttpError(404, "Blob not found");
-      return head(withSecurityHeaders(new Response(Bun.file(path), { headers: {
+      const range = method === "GET" ? byteRange(request.headers.get("range"), metadata.size) : undefined;
+      const headers = {
         "content-type": "application/octet-stream", "content-length": String(metadata.size),
         "cache-control": "public, max-age=31536000, immutable", "content-disposition": "attachment",
-        "x-content-sha256": digest,
-      } })), method);
+        "accept-ranges": "bytes", "x-content-sha256": digest,
+      };
+      if (range) {
+        const bytes = await Bun.file(path).slice(range.start, range.end + 1).arrayBuffer();
+        return withSecurityHeaders(new Response(bytes, {
+          status: 206, headers: { ...headers, "content-length": String(range.end - range.start + 1),
+            "content-range": `bytes ${range.start}-${range.end}/${metadata.size}` },
+        }));
+      }
+      return head(withSecurityHeaders(new Response(Bun.file(path), { headers })), method);
     }
     if (url.pathname === "/api/registry/v1/staging" && method === "POST") {
       requireJSON(request);
@@ -2027,6 +2036,17 @@ export function builderAddress(value: unknown): Hex {
   return normalizeBuilder(value).split(":").at(-1)! as Hex;
 }
 function normalizeName(value: unknown, name: string, maximum: number): string { if (typeof value !== "string" || value.length < 2 || value.length > maximum || !IDENTIFIER.test(value)) throw new HttpError(422, `${name} is invalid`); return value; }
+function byteRange(value: string | null, size: number): { start: number; end: number } | undefined {
+  if (value === null) return undefined;
+  const matched = value.match(/^bytes=(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$/);
+  const start = matched ? Number(matched[1]) : Number.NaN;
+  const end = matched ? Number(matched[2]) : Number.NaN;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || end >= size
+      || end - start + 1 > 16 * 1024 * 1024) {
+    throw new HttpError(416, "Requested blob range is invalid");
+  }
+  return { start, end };
+}
 function normalizeGlobalAlias(value: unknown): string {
   // Keep the signed global route compatible with CatalogDisplay.app_slug so
   // Companion can request the exact slug the Builder already approved.

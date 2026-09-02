@@ -179,6 +179,14 @@ describe("public Registry trust bridge", () => {
       "blockHash", "blockNumber", "checkpointSequence", "controller", "head", "signerKeyId",
       "transactionHash",
     ]);
+    const ranged = await router.fetch(new Request(
+      `http://localhost${String(promoted.source_url)}`,
+      { headers: { range: "bytes=1-4" } },
+    ));
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get("accept-ranges")).toBe("bytes");
+    expect(ranged.headers.get("content-range")).toBe(`bytes 1-4/${source.byteLength}`);
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(source.slice(1, 5));
     const catalog = await router.fetch(new Request("http://localhost/api/registry/v1/shots"));
     const page = await catalog.json() as { releases: Array<Record<string, unknown>> };
     expect(page.releases).toHaveLength(1);

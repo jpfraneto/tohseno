@@ -2158,44 +2158,75 @@ async fn verified_source_artifact(
         expected.sha256,
         Uuid::new_v4().simple()
     ));
-    let response = client
-        .get(format!("{origin}{}", evidence.source_url))
-        .send()
-        .await?;
-    if response.status() != reqwest::StatusCode::OK
-        || response
-            .content_length()
-            .is_some_and(|length| length != expected.byte_length)
-    {
-        return Err("source server did not return the exact declared artifact length".into());
-    }
     let mut file = tokio::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(&temporary)
         .await?;
-    let mut stream = response.bytes_stream();
-    let mut hasher = sha2::Sha256::new();
-    use sha2::Digest as _;
-    let mut length = 0_u64;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
-        length = length
-            .checked_add(chunk.len() as u64)
-            .ok_or("source artifact length overflowed")?;
-        if length > expected.byte_length {
-            let _ = tokio::fs::remove_file(&temporary).await;
-            return Err("source artifact exceeded its declared length".into());
+    const RANGE_BYTES: u64 = 16 * 1024 * 1024;
+    let result: Result<(), BoxError> = async {
+        let mut hasher = sha2::Sha256::new();
+        use sha2::Digest as _;
+        let mut length = 0_u64;
+        let expected_digest = expected.sha256.to_string();
+        while length < expected.byte_length {
+            let end = length
+                .saturating_add(RANGE_BYTES - 1)
+                .min(expected.byte_length - 1);
+            let response = client
+                .get(format!("{origin}{}", evidence.source_url))
+                .header(reqwest::header::RANGE, format!("bytes={length}-{end}"))
+                .send()
+                .await?;
+            let range_length = end - length + 1;
+            let expected_content_range = format!("bytes {length}-{end}/{}", expected.byte_length);
+            if response.status() != reqwest::StatusCode::PARTIAL_CONTENT
+                || response.content_length() != Some(range_length)
+                || response
+                    .headers()
+                    .get(reqwest::header::CONTENT_RANGE)
+                    .and_then(|value| value.to_str().ok())
+                    != Some(expected_content_range.as_str())
+                || response
+                    .headers()
+                    .get("x-content-sha256")
+                    .and_then(|value| value.to_str().ok())
+                    != Some(expected_digest.as_str())
+            {
+                return Err(
+                    "source server did not honor the exact content-addressed byte range".into(),
+                );
+            }
+            let mut stream = response.bytes_stream();
+            let mut received = 0_u64;
+            while let Some(chunk) = stream.next().await {
+                let chunk = chunk?;
+                received = received
+                    .checked_add(chunk.len() as u64)
+                    .ok_or("source artifact range length overflowed")?;
+                if received > range_length {
+                    return Err("source artifact range exceeded its declared length".into());
+                }
+                hasher.update(&chunk);
+                file.write_all(&chunk).await?;
+            }
+            if received != range_length {
+                return Err("source artifact range ended before its declared length".into());
+            }
+            length = end + 1;
         }
-        hasher.update(&chunk);
-        file.write_all(&chunk).await?;
+        file.flush().await?;
+        file.sync_all().await?;
+        if Bytes32::new(hasher.finalize().into()) != expected.sha256 {
+            return Err("downloaded source artifact failed SHA-256 verification".into());
+        }
+        Ok(())
     }
-    file.flush().await?;
-    file.sync_all().await?;
+    .await;
     drop(file);
-    if length != expected.byte_length || Bytes32::new(hasher.finalize().into()) != expected.sha256 {
-        let _ = tokio::fs::remove_file(&temporary).await;
-        return Err("downloaded source artifact failed SHA-256 verification".into());
+    if let Err(error) = result {
+        let _ = fs::remove_file(&temporary);
+        return Err(error);
     }
     fs::rename(&temporary, &destination)?;
     Ok(destination)
