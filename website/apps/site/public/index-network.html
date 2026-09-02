@@ -3,37 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5efe6">
-  <meta name="description" content="A person-to-person network for native iPhone apps. Make software, share the source, and stay the moat.">
+  <meta name="theme-color" content="#f5f3ef">
+  <meta name="description" content="Tohseno is the peer-to-peer network for distributing native iPhone apps without App Store submission or review. Build on Mac. Approve on Companion. Share a link.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="Tohseno — You are the moat">
-  <meta property="og:description" content="Native iPhone apps, person to person. The source can travel. What makes it matter is you.">
+  <meta property="og:title" content="Tohseno — Peer-to-peer distribution for Apple software.">
+  <meta property="og:description" content="Ship native iPhone apps person to person. Your Mac builds. Companion approves. Every recipient verifies and signs.">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
   <meta property="og:image" content="{{OG_IMAGE_URL}}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Tohseno — You are the moat. Not the code.">
+  <meta property="og:image:alt" content="Tohseno — peer-to-peer distribution for Apple software.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Tohseno — You are the moat">
-  <meta name="twitter:description" content="Native iPhone apps, person to person.">
+  <meta name="twitter:title" content="Tohseno — Peer-to-peer distribution for Apple software.">
+  <meta name="twitter:description" content="Ship native iPhone apps person to person. Your Mac builds. Companion approves. Every recipient verifies and signs.">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
   <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml">
   <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
-  <title>Tohseno — Native iPhone Apps, Person to Person</title>
+  <title>Tohseno — Peer-to-Peer Apple Software</title>
 </head>
 <body class="simple-home is-launched" data-download-channel="{{DOWNLOAD_CHANNEL}}">
   <a class="skip-link" href="#main">Skip to the main content</a>
-
-  <div class="paint-intro" aria-hidden="true">
-    <div class="paint-mark">
-      <img class="paint-mark-ghost" src="/logo.svg" alt="">
-      <span class="paint-mark-color"><img src="/logo.svg" alt=""></span>
-      <span class="paint-brush"></span>
-    </div>
-    <p>TOHSENO</p>
-  </div>
 
   <div class="site-arrival">
     <header class="simple-nav page-shell">
@@ -42,72 +33,101 @@
         <span>TOHSENO</span>
       </a>
       <nav class="simple-nav-links" aria-label="Primary">
-        <a class="text-link pro-nav-link" href="#pro">Pro · $99</a>
-        <a class="text-link" href="/registry">Open the network <span aria-hidden="true">↗</span></a>
+        <a class="text-link" href="#network">How it works</a>
+        <a class="text-link" href="/registry">Registry</a>
+        <a class="text-link" href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source</a>
       </nav>
     </header>
 
     <main id="main">
-      <section class="welcome-hero page-shell" id="top">
-        <p class="launch-state"><span aria-hidden="true"></span> Live · native software, person to person</p>
-        <p class="simple-kicker">Native software, person to person.</p>
-        <h1>Welcome.</h1>
-        <p class="network-deck">This is the person-to-person network for native iPhone apps.</p>
-        <p class="network-explain">We go around the App Store—not around Apple’s security. Make an app, share its exact source, and let another person’s Mac verify, build, and sign it for their iPhone.</p>
-        <div class="hero-actions">
-          <a class="primary-action" href="/download/macos" data-installer-download aria-label="Download Tohseno for Mac">
-            <span data-download-title>Download for Mac</span>
-          </a>
-          <a class="quiet-action" href="/registry">Explore the Registry <span aria-hidden="true">→</span></a>
+      <section class="product-hero page-shell" id="top">
+        <div class="hero-copy">
+          <p class="simple-kicker">Peer-to-peer distribution for Apple software</p>
+          <h1>Ship iPhone apps.<br>Person to person.</h1>
+          <p class="hero-summary">Tohseno is the peer-to-peer network for distributing native iPhone apps—without App Store submission or review.</p>
+          <ol class="hero-sequence" aria-label="How Tohseno ships an app">
+            <li><code>tohseno init</code></li>
+            <li><code>tohseno deploy</code></li>
+            <li>Approve in Companion</li>
+            <li>Share the link</li>
+          </ol>
+          <div class="hero-actions">
+            <a class="primary-action" href="/download/macos" data-installer-download aria-label="Download Tohseno for Mac">
+              <span data-download-title>Download for Mac</span>
+            </a>
+            <a class="quiet-action" href="/registry">Explore the Registry <span aria-hidden="true">→</span></a>
+          </div>
+          <p class="download-detail" data-download-detail>macOS 14+ · Apple silicon and Intel</p>
         </div>
-        <p class="download-detail" data-download-detail>macOS 14+ · Apple silicon and Intel</p>
+        <img class="hero-symbol" src="/logo.svg" alt="" aria-hidden="true">
       </section>
 
-      <section class="apple-truth page-shell" id="apple-limits">
-        <div class="section-intro">
-          <p class="simple-kicker">The honest Apple part</p>
-          <h2>Start free.<br>Pay Apple when you need reach.</h2>
+      <section class="network-system page-shell" id="network">
+        <div class="network-intro">
+          <p class="simple-kicker">How it works</p>
+          <h2>Two commands. One approval.<br>Software moves.</h2>
+          <p>Start with an ordinary Xcode project. Tohseno packages the exact source, asks you to authorize the release, and gives you a link.</p>
         </div>
-        <div class="account-grid">
+        <div class="network-flow" aria-label="How an app moves through Tohseno">
           <article>
-            <p class="account-label">Apple Account</p>
-            <p class="account-price">Free</p>
-            <h3>Three apps on each device.</h3>
-            <p>Personal Team provisioning lasts 7 days. Rebuild and reinstall the app to keep using it. It is enough to make something real and put it in your own hands.</p>
+            <p class="flow-number">01</p>
+            <h3><code>tohseno init</code></h3>
+            <p>Connect an existing Xcode project. Tohseno leaves the repository and signing settings yours.</p>
           </article>
-          <article class="paid-account">
-            <p class="account-label">Apple Developer Program</p>
-            <p class="account-price">$99 <span>USD / year in the U.S.</span></p>
-            <h3>More capabilities. Real distribution.</h3>
-            <p>Membership unlocks Apple’s broader developer capabilities and App Store distribution. Regional pricing can vary.</p>
+          <article>
+            <p class="flow-number">02</p>
+            <h3><code>tohseno deploy</code></h3>
+            <p>Prepare the exact public source and release action. Tohseno shows what will be shared.</p>
+          </article>
+          <article>
+            <p class="flow-number">03</p>
+            <h3>Approve in the Companion app.</h3>
+            <p>Companion’s private DeviceKey authorizes the exact release. Nothing becomes public without that approval.</p>
+          </article>
+          <article>
+            <p class="flow-number">04</p>
+            <h3>Share the link.</h3>
+            <p>Another Mac verifies the source, builds it in Xcode, and signs it with its owner’s Apple identity.</p>
           </article>
         </div>
-        <a class="apple-source" href="https://developer.apple.com/help/account/basics/about-your-developer-account" target="_blank" rel="noopener noreferrer">Check the current limits at Apple <span aria-hidden="true">↗</span></a>
+      </section>
+
+      <section class="network-rule">
+        <div class="page-shell rule-inner">
+          <p class="simple-kicker">The distribution model</p>
+          <h2>A link is the channel.<br>People are the network.</h2>
+          <div class="rule-copy">
+            <p>Tohseno removes App Store submission and review from this person-to-person path. A developer publishes buildable source and proof; another developer independently builds it.</p>
+            <p>The server can move bytes and relay constrained actions. It cannot impersonate a Builder, approve a release, or sign an app for its recipient.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="apple-truth" id="apple-limits">
+        <div class="page-shell apple-inner">
+          <div>
+            <p class="simple-kicker">What it changes</p>
+            <h2>Skip App Store submission.<br>Keep Apple’s signing security.</h2>
+          </div>
+          <div class="apple-copy">
+            <p>There is no App Store submission or review in this path. There is still Xcode, provisioning, Developer Mode, Trust, and an Apple signature on every installed app.</p>
+            <p>Each person needs a Mac running macOS 14 or later, Xcode, an iPhone, and an Apple Account. The sender also approves public releases in Tohseno Companion.</p>
+            <a class="text-link" href="https://developer.apple.com/help/account/membership/programs-overview/" target="_blank" rel="noopener noreferrer">See Apple’s current program details <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
       </section>
 
       <section class="pro-offer page-shell" id="pro">
-        <div class="pro-heading">
-          <p class="simple-kicker">Founding offer</p>
-          <h2>Tohseno Pro.</h2>
+        <div class="pro-copy">
+          <p class="simple-kicker">Tohseno Pro</p>
+          <h2>Ship the first<br>one together.</h2>
+          <p>Personal setup. Pair your Mac and Companion. Build a native app and ship its first verified release. A direct line to the person building Tohseno.</p>
+        </div>
+        <div class="pro-buy">
           <p class="pro-price">$99 <span>one time</span></p>
+          <a class="pro-action" href="https://t.me/jpfraneto" target="_blank" rel="noopener noreferrer" aria-label="Talk to @jpfraneto on Telegram about Tohseno Pro">Talk about Pro <span aria-hidden="true">↗</span></a>
+          <p class="pro-note">This opens a conversation with <strong>@jpfraneto</strong>. You agree on the fit before any payment. Apple Developer Program membership is separate.</p>
         </div>
-        <div class="pro-details">
-          <p class="pro-lead">Build your first native iPhone app with a direct line to the person building Tohseno.</p>
-          <ul>
-            <li>Personal setup session</li>
-            <li>Help taking your first app from intent to iPhone</li>
-            <li>Priority founder support while the network is young</li>
-          </ul>
-          <a class="pro-action" href="https://t.me/jpfraneto" target="_blank" rel="noopener noreferrer" aria-label="Talk to @jpfraneto on Telegram about Tohseno Pro">Get Tohseno Pro · open Telegram <span aria-hidden="true">↗</span></a>
-          <p class="pro-note">Checkout is human for now. This opens a conversation with <strong>@jpfraneto</strong>; you agree on the fit before any payment. Apple Developer Program membership is separate and paid directly to Apple.</p>
-        </div>
-      </section>
-
-      <section class="moat page-shell">
-        <p class="simple-kicker">Build in the open</p>
-        <h2>You are the moat.<br><em>Not the code.</em></h2>
-        <p class="moat-copy">Tohseno is a playground for expression and independent software economies. You do not have to hide the work because someone might copy it. They can copy the source. They cannot copy your taste, trust, speed, relationships, or reason for making it.</p>
-        <p class="closing-line">Let the code travel. Keep becoming impossible to copy.</p>
       </section>
     </main>
 
@@ -116,7 +136,7 @@
         <img src="/logo.svg" alt="">
         <span>TOHSENO</span>
       </a>
-      <p>Exact source. Builder-signed. Recipient-verified. Built locally with your Apple identity.</p>
+      <p>The peer-to-peer network for distributing Apple software.</p>
       <div>
         <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source</a>
         <a href="https://community.tohseno.com" target="_blank" rel="noopener noreferrer">Community</a>

@@ -445,14 +445,17 @@ export async function createApplication(
   const networkLaunchEnabled = config.registry.enabled
     && config.registry.relayerEnabled
     && config.distribution.macosEnabled;
-  const [landingPage, docsPage, privacyPage] = await Promise.all([
-    renderPage(networkLaunchEnabled ? "index-network.html" : "index.html"),
-    renderPage("docs.html"),
+  const landingFile = networkLaunchEnabled
+    ? "index-network.html"
+    : config.distribution.macosEnabled
+      ? "index-candidate.html"
+      : "index.html";
+  const [landingPage, privacyPage] = await Promise.all([
+    renderPage(landingFile),
     renderPage("privacy.html"),
   ]);
   const pages: Record<string, string> = {
     "/": landingPage,
-    "/docs": docsPage,
     "/privacy": privacyPage,
   };
 
@@ -467,6 +470,22 @@ export async function createApplication(
     if (managed.handles(pathname)) return managed.fetch(request);
     if (claims.handles(pathname)) return claims.fetch(request);
     if (registry.handles(pathname)) return registry.fetch(request);
+
+    if (pathname === "/docs") {
+      if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
+      return headResponse(
+        withSecurityHeaders(
+          new Response(null, {
+            status: 308,
+            headers: {
+              location: "https://docs.tohseno.com/",
+              "cache-control": "public, max-age=300",
+            },
+          }),
+        ),
+        method,
+      );
+    }
 
     if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
         || pathname.startsWith("/claims/")) {

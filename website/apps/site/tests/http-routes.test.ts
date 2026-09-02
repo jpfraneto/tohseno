@@ -41,6 +41,20 @@ async function launchedApplication(): Promise<{
   return { application, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
+async function candidateApplication(): Promise<TohsenoApplication> {
+  return createApplication({
+    config: loadConfig({
+      NODE_ENV: "test",
+      PORT: "3000",
+      BASE_URL: "http://localhost:3000",
+      MACOS_DOWNLOAD_ENABLED: "true",
+      MACOS_DOWNLOAD_CHANNEL: "release-candidate",
+      MACOS_DOWNLOAD_URL: "https://downloads.tohseno.com/Tohseno-1.2.0-rc.6.dmg",
+      MACOS_DOWNLOAD_SHA256: "c".repeat(64),
+    }),
+  });
+}
+
 function request(path: string, init: RequestInit = {}): Request {
   return new Request(`http://localhost:3000${path}`, init);
 }
@@ -75,17 +89,20 @@ describe("public pages", () => {
   test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("<h1>Welcome.</h1>");
-    expect(body).toContain("This is the person-to-person network for native iPhone apps.");
-    expect(body).toContain("Pre-launch · the public door is being verified");
-    expect(body).toContain("Mac release in verification");
-    expect(body).toContain("Tohseno Pro.</h2>");
+    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
+    expect(body).toContain("peer-to-peer network for distributing native iPhone apps—without App Store submission or review");
+    expect(body).toContain("<code>tohseno init</code>");
+    expect(body).toContain("<code>tohseno deploy</code>");
+    expect(body).toContain("Approve in Companion");
+    expect(body).toContain("Share the link");
+    expect(body).toContain("The Mac release and public network are being verified. Public downloads are still closed.");
+    expect(body).toContain("Build the first<br>one together.</h2>");
+    expect(body).toContain("prepare its first verified release");
     expect(body).toContain('$99 <span>one time</span>');
     expect(body).toContain('href="https://t.me/jpfraneto"');
-    expect(body).toContain("you agree on the fit before any payment");
+    expect(body).toContain("You agree on the fit before any payment");
     expect(body).toContain("Apple Developer Program membership is separate");
-    expect(body).toContain("Public installs remain closed until the signed Mac release");
-    expect(body).not.toContain("Live · native software, person to person");
+    expect(body).not.toContain("Public downloads are open");
     expect(body).not.toContain('href="/registry"');
     expect(body).not.toContain('href="/download/macos"');
     expect(body).not.toContain("data-installer-download");
@@ -110,25 +127,30 @@ describe("public pages", () => {
     // can never ship behind a stale cached copy.
     expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
 
-    expect(body).toContain("<h1>Welcome.</h1>");
-    expect(body).toContain("This is the person-to-person network for native iPhone apps.");
-    expect(body).toContain("Live · native software, person to person");
-    expect(body).toContain("We go around the App Store—not around Apple’s security.");
-    expect(body).toContain("Start free.<br>Pay Apple when you need reach.");
-    expect(body).toContain("Three apps on each device.");
-    expect(body).toContain("Personal Team provisioning lasts 7 days.");
-    expect(body).toContain("$99 <span>USD / year in the U.S.</span>");
-    expect(body).toContain("App Store distribution");
-    expect(body).toContain("Tohseno Pro.</h2>");
+    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
+    expect(body).toContain("peer-to-peer network for distributing native iPhone apps—without App Store submission or review");
+    expect(body).toContain("Two commands. One approval.<br>Software moves.</h2>");
+    expect(body).toContain("<code>tohseno init</code>");
+    expect(body).toContain("<code>tohseno deploy</code>");
+    expect(body).toContain("Approve in the Companion app.</h3>");
+    expect(body).toContain("Share the link.</h3>");
+    expect(body).toContain("Nothing becomes public without that approval.");
+    expect(body).toContain("Another Mac verifies the source, builds it in Xcode");
+    expect(body).toContain("A link is the channel.<br>People are the network.</h2>");
+    expect(body).toContain("removes App Store submission and review from this person-to-person path");
+    expect(body).toContain("It cannot impersonate a Builder, approve a release, or sign an app for its recipient.");
+    expect(body).toContain("Skip App Store submission.<br>Keep Apple’s signing security.</h2>");
+    expect(body).toContain("There is still Xcode, provisioning, Developer Mode, Trust");
+    expect(body).toContain("The sender also approves public releases in Tohseno Companion.");
+    expect(body).toContain('href="https://developer.apple.com/help/account/membership/programs-overview/"');
+    expect(body).toContain("Ship the first<br>one together.</h2>");
     expect(body).toContain('$99 <span>one time</span>');
-    expect(body).toContain("Personal setup session");
-    expect(body).toContain("Help taking your first app from intent to iPhone");
+    expect(body).toContain("Pair your Mac and Companion. Build a native app and ship its first verified release.");
     expect(body).toContain('href="https://t.me/jpfraneto"');
     expect(body).toContain('aria-label="Talk to @jpfraneto on Telegram about Tohseno Pro"');
-    expect(body).toContain("you agree on the fit before any payment");
+    expect(body).toContain("You agree on the fit before any payment");
     expect(body).toContain("Apple Developer Program membership is separate");
-    expect(body).toContain("You are the moat.<br><em>Not the code.</em>");
-    expect(body).toContain("They can copy the source. They cannot copy your taste");
+    expect(body).not.toContain("You are the moat");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
@@ -140,16 +162,17 @@ describe("public pages", () => {
     expect(body).not.toContain("paste into Terminal");
     expect(body).toContain('src="/logo.svg"');
     expect(body).toContain('<link rel="preload" href="/logo.svg" as="image" type="image/svg+xml">');
-    expect(body).toContain('class="paint-intro" aria-hidden="true"');
+    expect(body).not.toContain('class="paint-intro"');
     expect(body).toContain('src="/landing.js"');
-    expect(body).toContain('property="og:title" content="Tohseno — You are the moat"');
-    expect(body).toContain('name="twitter:title" content="Tohseno — You are the moat"');
+    expect(body).toContain('property="og:title" content="Tohseno — Peer-to-peer distribution for Apple software."');
+    expect(body).toContain('name="twitter:title" content="Tohseno — Peer-to-peer distribution for Apple software."');
     expect(body).not.toContain("One App Per Day");
     expect(body).not.toContain("ticker-track");
     expect(body).not.toContain("data-copy-contract");
     expect(body).not.toContain("cal.com/jpfraneto/day");
     expect(body).not.toContain("sojourn");
     expect(body).not.toContain("BOOK A DAY");
+    expect(body).not.toContain("Claim this");
 
     expect(body).not.toContain("dexscreener.com");
     expect(body).not.toContain("bun run tohseno");
@@ -159,16 +182,15 @@ describe("public pages", () => {
     expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
     expect(body).not.toContain('href="/docs"');
     expect(body).not.toContain('href="/privacy"');
-    for (const path of ["/docs", "/privacy"]) {
-      expect((await application.fetch(request(path))).status).toBe(200);
-    }
+    expect((await application.fetch(request("/docs"))).status).toBe(308);
+    expect((await application.fetch(request("/privacy"))).status).toBe(200);
     expect(body).toContain('href="https://community.tohseno.com"');
     expect(body).toContain('rel="noopener noreferrer"');
     expect(body).toContain(
-      "<title>Tohseno — Native iPhone Apps, Person to Person</title>",
+      "<title>Tohseno — Peer-to-Peer Apple Software</title>",
     );
     expect(body).toContain(
-      'content="A person-to-person network for native iPhone apps. Make software, share the source, and stay the moat."',
+      'content="Tohseno is the peer-to-peer network for distributing native iPhone apps without App Store submission or review. Build on Mac. Approve on Companion. Share a link."',
     );
     expect(body).toMatch(
       /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
@@ -181,55 +203,52 @@ describe("public pages", () => {
     launched.cleanup();
   });
 
-  test("serves current factory docs and privacy", async () => {
+  test("makes the release candidate the homepage invitation while public writes stay dark", async () => {
+    const application = await candidateApplication();
+    const response = await application.fetch(request("/"));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    expect(body).toContain('class="simple-home is-candidate"');
+    expect(body).toContain('data-download-channel="release-candidate"');
+    expect(body).toContain("RC6 is signed and notarized");
+    expect(body).toContain("<h1>Ship iPhone apps.<br>Person to person.</h1>");
+    expect(body).toContain("Peer-to-peer distribution for Apple software");
+    expect(body).toContain("<code>tohseno init</code>");
+    expect(body).toContain("<code>tohseno deploy</code>");
+    expect(body).toContain("Approve in Companion");
+    expect(body).toContain("Two commands. One approval.<br>Software moves.</h2>");
+    expect(body).toContain("Skip App Store submission.<br>Keep Apple’s signing security.</h2>");
+    expect(body).toContain("Public network shipping remains closed");
+    expect(body).toContain("Test the Mac<br>and Companion now.</h2>");
+    expect(body).toContain('href="/download/macos" data-installer-download');
+    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(2);
+    expect(body).toContain("Download for Mac");
+    expect(body).not.toContain("Public downloads are still closed");
+    expect(body).not.toContain("$99");
+    expect(body).not.toContain('href="/registry"');
+  });
+
+  test("hands documentation to the standalone site and serves privacy", async () => {
     const application = await testApplication();
-    for (const path of ["/docs", "/privacy"]) {
-      const response = await application.fetch(request(path));
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
-      expect(body).not.toContain('href="/intake"');
-      // Only the latest release is ever named; retired versions stay unnamed.
-      expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
-      if (path === "/docs") {
-        expect(body).toContain("App → Intent → App on your iPhone");
-        expect(body).toContain("One readiness instruction at a time");
-        expect(body).toContain("Create one deliberately small app");
-        expect(body).toContain("Use it, then describe the change");
-        expect(body).toContain("Download Tohseno for Mac");
-        expect(body).toContain("macOS 14 or newer");
-        expect(body).toContain("Managed intelligence is optional");
-        expect(body).toContain(
-          "loopback Local Workspace Service",
-        );
-        expect(body).not.toContain("npm i -g tohseno");
-        expect(body).not.toContain("$9.99");
-        expect(body).toContain("<code>~/Desktop/Tohseno</code>");
-        expect(body).toContain(
-          "does not upload canonical Shot data",
-        );
-        expect(body).toContain("not blanket-gitignored");
-        expect(body).toContain("<code>.tohseno/private</code>");
-        expect(body).toContain("Robinhood Chain mainnet (chain ID 4663)");
-        expect(body).toContain("current client-trusted generation");
-        expect(body).toContain("0xb1bd208cd2af98e701f43d06aaa889d3a594df65");
-        expect(body).toContain("0x3fe6508ba2660bc575080024f402c192a2e035a0");
-        expect(body).toContain("source hosting, catalog discovery, and download are not implemented");
-        expect(body).toContain("No current Tohseno workflow uploads an app repository");
-        expect(body).not.toContain(INSTALL_COMMAND);
-        expect(body).not.toContain("inactive, untrusted candidate");
-        expect(body).not.toContain("native <strong>Tohseno 1.0.1</strong>");
-      } else {
-        expect(body).toContain("The installed factory sends no Tohseno telemetry");
-        expect(body).toContain("Native and managed intelligence");
-        expect(body).toContain("Tohseno → Bankr → model-provider");
-        expect(body).toContain("Pending Relay Intention");
-        expect(body).toContain("never receives the decryption key");
-        expect(body).toContain("at most seven days");
-        expect(body).toContain("single-use bearer token");
-        expect(body).toContain("private but <strong>not encrypted</strong>");
-      }
-    }
+    const docs = await application.fetch(request("/docs"));
+    expect(docs.status).toBe(308);
+    expect(docs.headers.get("location")).toBe("https://docs.tohseno.com/");
+
+    const privacy = await application.fetch(request("/privacy"));
+    expect(privacy.status).toBe(200);
+    const body = await privacy.text();
+    expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+    expect(body).not.toContain('href="/intake"');
+    expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
+    expect(body).toContain("The installed factory sends no Tohseno telemetry");
+    expect(body).toContain("Native and managed intelligence");
+    expect(body).toContain("Tohseno → Bankr → model-provider");
+    expect(body).toContain("Pending Relay Intention");
+    expect(body).toContain("never receives the decryption key");
+    expect(body).toContain("at most seven days");
+    expect(body).toContain("single-use bearer token");
+    expect(body).toContain("private but <strong>not encrypted</strong>");
   });
 
   test("landing navigation and progressive controls target real content", async () => {
@@ -269,22 +288,21 @@ describe("public pages", () => {
     expect(landingScript).not.toContain("execCommand");
 
     const landingStyle = readFileSync(landingStylePath, "utf8");
-    expect(landingStyle).toContain("@font-face");
-    expect(landingStyle).toContain("--paper: #f5efe6");
-    expect(landingStyle).toContain("--ink: #211e1b");
+    expect(landingStyle).not.toContain("@font-face");
+    expect(landingStyle).toContain("--paper: #f5f3ef");
+    expect(landingStyle).toContain("--ink: #1d1d1f");
     expect(landingStyle).toContain("--orange: #ff5a00");
     expect(landingStyle).toContain("background: var(--paper)");
-    expect(landingStyle).not.toContain("#080908");
+    expect(landingStyle).toContain('font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue"');
     expect(landingStyle).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(landingStyle).toContain(".paint-intro");
-    expect(landingStyle).toContain(".paint-mark-color");
-    expect(landingStyle).toContain("clip-path: inset(100% 0 0 0)");
-    expect(landingStyle).toContain("@keyframes progress-orbit");
-    expect(landingStyle).toContain("@keyframes paint-reveal");
-    expect(landingStyle).toContain("@keyframes mark-settle");
+    expect(landingStyle).not.toContain(".paint-intro");
+    expect(landingStyle).not.toContain(".paint-mark-color");
     expect(landingStyle).toContain("@keyframes site-arrive");
-    expect(landingStyle).toContain("@media (max-width: 760px)");
+    expect(landingStyle).toContain("@media (max-width: 1000px)");
+    expect(landingStyle).toContain("@media (max-width: 640px)");
     expect(landingStyle).not.toContain(".shot-flow");
+    expect(landingStyle).toContain(".network-flow");
+    expect(landingStyle).toContain(".hero-sequence");
     expect(landingStyle).not.toContain(".ticker-track");
   });
 
