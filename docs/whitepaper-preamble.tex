@@ -1,0 +1,76 @@
+\usepackage[letterpaper,margin=0.74in,headheight=15pt,headsep=0.20in,footskip=0.35in]{geometry}
+\usepackage{fontspec}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{ragged2e}
+\usepackage{etoolbox}
+\usepackage{needspace}
+
+\definecolor{TohsenoInk}{HTML}{151515}
+\definecolor{TohsenoAsh}{HTML}{5C5C5C}
+\definecolor{TohsenoOrange}{HTML}{D64A1C}
+\definecolor{TohsenoRule}{HTML}{D9D3CC}
+\definecolor{TohsenoCode}{HTML}{F5F2EE}
+
+\setmainfont{SF Pro Text}
+\setsansfont{SF Pro Display}
+\setmonofont{Menlo}[Scale=0.78]
+
+\color{TohsenoInk}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5.5pt plus 1pt minus 1pt}
+\setlength{\emergencystretch}{3em}
+\linespread{1.03}
+
+\titleformat{\section}
+  {\sffamily\bfseries\color{TohsenoInk}\fontsize{22.5pt}{25.5pt}\selectfont}
+  {}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{13pt}
+
+\titleformat{\subsection}
+  {\sffamily\bfseries\color{TohsenoInk}\fontsize{16pt}{19pt}\selectfont}
+  {}{0pt}{}
+\titlespacing*{\subsection}{0pt}{20pt}{7pt}
+
+\titleformat{\subsubsection}
+  {\sffamily\bfseries\color{TohsenoOrange}\fontsize{11.5pt}{14pt}\selectfont}
+  {}{0pt}{}
+\titlespacing*{\subsubsection}{0pt}{14pt}{4pt}
+
+\titleformat{\paragraph}[runin]
+  {\sffamily\bfseries\color{TohsenoInk}}
+  {}{0pt}{}[.]
+
+\setlist[itemize]{leftmargin=1.35em,itemsep=2pt,topsep=3pt}
+\setlist[enumerate]{leftmargin=1.55em,itemsep=2pt,topsep=3pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\sffamily\fontsize{8pt}{9pt}\selectfont\color{TohsenoAsh}\thepage}
+\renewcommand{\headrulewidth}{0.35pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{TohsenoRule}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrulewidth}{0pt}
+
+\AtBeginEnvironment{quote}{\color{TohsenoAsh}\itshape}
+\AtBeginEnvironment{longtable}{\small}
+\renewcommand{\arraystretch}{1.18}
+
+\AtBeginDocument{\hypersetup{
+  colorlinks=true,
+  linkcolor=TohsenoOrange,
+  urlcolor=TohsenoOrange,
+  citecolor=TohsenoOrange,
+  pdfauthor={JP Franetovic / Anky, Inc.},
+  pdftitle={TOHSENO: Person-to-Person Native Software},
+  pdfsubject={Third working-paper edition},
+  pdfkeywords={TOHSENO, person-to-person software, Shot, Apple, iPhone, macOS, Companion, Registry, Claim}
+}}
+
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}

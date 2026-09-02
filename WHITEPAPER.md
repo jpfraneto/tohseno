@@ -1,135 +1,335 @@
-# TOHSENO: A Protocol for Software Continuity
+\thispagestyle{empty}
+\begingroup
+\fontsize{9.1pt}{11.1pt}\selectfont
+\setlength{\parskip}{4pt}
 
-## Persistent identity across changing implementations
+# ONE PAGE TL;DR:
 
-**Author:** JP Franetovic  
-**Affiliation:** Anky, Inc.  
-**Date:** August 2026  
-**Status:** Composite pre-1.0 protocol candidate; working paper
+TOHSENO is a person-to-person native software network. It exists because software has become easier to generate than to keep, understand, move, or continue. Today an app is usually trapped inside a vendor account, a repository, a binary, an App Store listing, or the machine and model session that produced it. TOHSENO makes a different object primary: continuing software with an identity, source, history, authority, and path from one person's hands to another's.
+
+The system has three centers of truth. **The Mac is the factory.** It holds the source, runs the coding intelligence, builds with Xcode, verifies the result, and installs it on a physical iPhone. **The iPhone Companion is the human authority.** It holds the Builder DeviceKey, approves exact public actions, carries private change requests, and performs the Claim ritual. **The Registry is the public witness.** It combines an immutable on-chain checkpoint with a Builder-signed catalog release and exact source bytes so strangers do not have to trust the operator's database. A link is only transport between these truths; it is never authority by itself.
+
+A Builder can adopt an existing Xcode project without rewriting it, or create a new app through the Tohseno factory. Private work stays on the Builder's Mac. When the Builder chooses **Ship**, the Mac creates a deterministic, sanitized, buildable source snapshot. The Companion shows the exact bounded publication and approves it. The network accepts the release only when the DeviceKey signature, live BuilderAccount authority, Registry receipt, public checkpoint, signed catalog, and source digest all agree. Software is shipped exactly once. Every later public release of the same software is an **Update**. A fork starts different software with a new random ShotID and an explicit relation to the exact parent release.
+
+The recipient does not receive a magical binary or borrow the Builder's Apple identity. Their Mac verifies the release, safely extracts the source, checks whether it is suitable for automatic building, invokes their local Xcode, signs the app with their own Apple development identity, and installs it on their own iPhone. This direct path skips App Store submission and review. It does not skip Apple's code signing, provisioning, Trust, Developer Mode, Xcode, entitlements, or operating-system security. Source can travel without allowing the transport server or recipient to impersonate the Builder.
+
+Every public Shot opens one immutable **Claim Edition** at first Ship. Another Tohseno identity can draw one circle around the app in Companion and Claim the exact Shot release and public checkpoint it encountered. The normalized mark is committed, the Companion authorizes the action, and an additive non-transferable receipt is recorded on Robinhood Chain. A Claim is not payment, purchase, license, installation proof, transferable inventory, proof of unique humanity, or ownership of the Shot. It is a durable public sentence: *this Tohseno identity encountered this software at this point in its life.* Claiming then queues private preparation of that exact release on the person's Mac, even if the Mac is offline. Installation remains a later, separate, private truth.
+
+Underneath the network is the **Shot**, TOHSENO's continuity primitive. A Shot has a random stable identity and an authorized, reducible history binding origin, accepted promises, concrete bodies, immutable accepted states, evidence, and change. Its implementation, model, repository, language, bundle, device, or Builder can change without silently rewriting the past. The protocol does not decide whether a rewrite is philosophically the same software or whether it is good. It makes the continuity judgment explicit, attributable, and mechanically checkable. Git still names content; Xcode still builds; Apple still signs; the chain still witnesses. TOHSENO composes those systems around a continuing software object.
+
+The social surface follows the same restraint. **Discover** is a deterministic timeline of software births, Updates, forks, and edition closures - not posts and not an App Store ranking. **Following** is a private set synchronized between a person's Mac and Companion, with no public graph or follower count. **Updates** is a private high-signal inbox for facts that affect the person's own apps, Claims, forks, approvals, or preparations. Public activity is deliberately narrow; source, prompts, local paths, Apple credentials, device identity, installs, private intentions, and private evolution remain outside it.
+
+As of this edition, generation 0.8.0 is the client-trusted active Registry generation. The additive Claims contract has separately threshold-verified activation and production read indexing. The 1.2.0 release candidate is Developer ID signed, Apple-notarized, stapled, digest-pinned, and available only on the labeled candidate channel. Registry and Claims relayers, Claims writes, and stable promotion remain dark until the owner-attended physical sequence proves one real Ship and edition, a second identity's Claim, offline-Mac preparation, recipient-signed iPhone installation, a later Update preserving the Claim, private Follow reconciliation, live receipts, and exactly one Ship. TOHSENO's central discipline is simple: missing evidence never becomes a success claim.
+
+\endgroup
+\newpage
+
+# TOHSENO: Person-to-Person Native Software
+
+## A protocol, Mac factory, iPhone authority, and public witness for software people can carry forward
+
+**Author:** JP Franetovic\
+**Affiliation:** Anky, Inc.\
+**Edition:** Third working-paper edition\
+**Date:** August 31, 2026\
+**Status:** Pre-1.2 working paper; protocol-exact, release-state bounded
 
 ## Abstract
 
-Software is usually identified by something that gives it a present form: a repository, package, binary, bundle identifier, account, deployment, model session, vendor, or running service. Those identifiers can name locations, providers, or exact artifacts. They do not by themselves define one continuing software object across materially different implementations.
+Software distribution usually moves an artifact while leaving continuity, authority, source custody, and future change to social convention. Central stores can distribute binaries efficiently, repositories can preserve exact content, package systems can reproduce artifacts, and signatures can attest an actor. None of those mechanisms alone defines one continuing software object that can change bodies, move between people, remain privately evolvable, and still expose a narrow public history.
 
-TOHSENO proposes such an object: the **Shot**. A Shot has a random stable identifier and a controller-authorized history. That history can bind a commitment to the founding **Intention** record, an accepted and revisioned **Genome**, **Expressions**, immutable accepted **Versions**, and evidence about verification and use. Continuity is not inferred from code similarity. It is an explicit protocol claim: the controller derived from a selected valid prior prefix authorizes a state under constraints, and deterministic reduction makes its ancestry mechanically checkable. Commitments, signatures, and reduction establish branch-local integrity, authorization, and causal order; they do not establish usefulness, semantic wisdom, or legal title.
+TOHSENO proposes a person-to-person native software network built around such an object: the **Shot**. A Shot is a random stable identity plus an authorized, deterministically reducible history. The Apple implementation gives that protocol a concrete social and technical form. A Builder's Mac owns execution truth. A paired iPhone Companion owns human authorization truth. The generation-0.8 ShotRegistry and a signed off-chain catalog jointly own public network truth. A recipient verifies exact source, builds locally with Xcode, signs with their own Apple identity, and installs on their own iPhone. App Store submission and review are absent from this direct path; Apple's signing and operating-system boundaries remain.
 
-A Shot can exist and be verified locally without publication. An optional public Witness may record a narrow projection without creating the Shot or acquiring control. Git, content-addressed storage, reproducible builds, and supply-chain attestations can serve as substrates and evidence; TOHSENO does not replace them. Its proposed contribution is the software-specific continuity state machine that composes them.
+The network names four public events with care. A Shot is **Shipped** once. Later public releases are **Updates**. A **Fork** begins a different Shot from one exact parent release. A **Claim** is one identity's non-transferable, public receipt for encountering a Shot at an exact release and checkpoint. Claim is deliberately separated from payment, licensing, ownership, and installation. Discover, private Following, and private Updates make software history visible without constructing an attention market.
 
-The first factory is Apple-oriented, but neither Apple nor its Generator is privileged. If the Builder retains keys, records, source, assets, data, and build knowledge, another Generator can continue the Shot. The first Generator can disappear. The Shot remains.
+This edition presents TOHSENO as the system it has become: continuity protocol, native Mac factory, Companion authority, deterministic public-source distribution, public witness, and restrained social network. It also preserves the limits that make the claims defensible. A signature does not prove wisdom. A checkpoint does not contain source. A Claim does not prove installation. A build does not prove a physical device accepted it. A deployed contract or notarized artifact does not activate a release. Each truth has an evidence boundary, and the product fails closed when those boundaries do not agree.
 
-## 1. Introduction: software without continuity
+## 1. What changed
 
-Software has acquired excellent identifiers for many things around it. Git names exact content and connects commits into histories. Package managers name releases. OCI descriptors address packaged artifacts. App stores bind listings to vendor accounts and bundle identifiers. Build systems describe derivations. Supply-chain attestations state how an artifact was produced. A running service can be named by an origin, account, or endpoint.
-
-Each answer is useful, but each answers a narrower question than this one:
+The prior whitepaper centered a protocol question:
 
 > What makes a materially changed implementation a later state of the same software object?
 
-Ordinary practice answers socially. A maintainer says that a rewrite is version 2. A company moves a product between repositories. A mobile application is rebuilt for another platform. A hosted service changes every internal component while keeping its name and account. These continuities may be sensible, but the underlying systems usually identify the artifacts, locations, and authorities involved rather than encoding the continuity claim itself.
+That question remains foundational, but the repository has answered a second one:
 
-Generative systems make the gap easier to see. They can produce many plausible implementations from the same request, replace a source tree, or reconstruct an interface in another language. Artificial intelligence did not create the continuity problem; rewrites, ports, forks, maintainer transfers, and disappearing vendors long predate it. Generation makes implementation cheaper and more replaceable, so the absence of a durable object around which implementations change becomes more consequential. A prompt or agent session cannot carry that burden. It is provider-specific, often incomplete, and neither an accepted state nor an authority record.
+> How can that software move from one person to another without surrendering its source, its history, the Builder's authority, the recipient's Apple identity, or the ability to change it again?
 
-TOHSENO tests a narrow hypothesis:
+The answer changed TOHSENO's center of gravity. The earlier paper described the Shot, neutral lineage, Apple-oriented factory, optional Witness, and an incomplete public lifecycle. Since the commit audited by that edition, the implementation has moved through more than one hundred commits and a broad product reconstruction. The meaningful changes are not simply additional features.
 
-> A Shot is a continuing software object whose identity is independent of any particular implementation.
+First, `Tohseno.app` became the primary product. It is a native SwiftUI Mac application over the one existing Rust service and factory. Browser Studio and the CLI remain support, recovery, and automation surfaces; neither is a second implementation engine.
 
-The claim is not that software possesses an essence, or that a protocol can discover metaphysical sameness. The claim is operational. A Shot is constituted by a stable identity and a typed, signed, reducible history with domain-specific rules for origin, accepted constraints, implementations, evidence, and authority. Independent conforming software can decide whether a sequence of records is a valid continuation of that object. It cannot decide whether the continuation was a good idea.
+Second, an ordinary existing Xcode project became a first-class beginning. Tohseno can adopt a project without writing into it, fabricating a prior Shot, or claiming historical lineage that was never recorded. Contact with working software can now precede a blank creation prompt. Generated apps remain supported, but generation is one source of software rather than the definition of the system.
 
-This separation is the center of the proposal. A radical rewrite may be admitted under the same Shot if the authorized controller accepts it through the required transitions. The controller may instead create a distinct Shot and declare a parent relationship. The protocol exposes which choice was made, who had authority to make it, which commitments changed, and what evidence was recorded or referenced. It does not turn judgment into a hash.
+Third, the iPhone Companion changed from an optional remote control into the human authority for the public network. It holds the Builder DeviceKey, approves exact Ship and Update actions, authorizes profiles, performs Claims, carries durable private evolution requests, and remains cryptographically separate from Apple signing identity, pairing identity, recovery authority, and app InstallationKeys.
 
-The result is neither a replacement for version control nor a universal identity layer. It is a candidate protocol object for software continuity.
+Fourth, the active generation-0.8 Registry was connected to a signed source catalog and recipient-local build path. A public checkpoint alone intentionally contains almost nothing. A catalog release alone is an off-chain assertion. Exact source bytes alone carry no Builder authority. Together, with live contract state and canonical transaction evidence, they make a release independently verifiable.
 
-## 2. Continuity through change
+Fifth, public time gained a grammar: **Ship once, Update forever**. A fork is not another update. Installation is not public acquisition. Claim became the durable encounter primitive, with one immutable edition per Shot and one non-transferable receipt per claiming Tohseno identity.
 
-The Ship of Theseus, a changing organism, and a seed becoming a tree all supply the same useful intuition: material persistence and identity persistence are different questions. None supplies a protocol rule. A seed does not contain a pixel-perfect mature tree; a person is not identified by a checksum of one bodily state; a ship's name does not settle every dispute about replacement. These analogies reveal the problem and then stop.
+Finally, the Registry became a living software world rather than a catalog grid. Discover records births and changes. Following stays private. Updates stays personal and high-signal. The design deliberately refuses public follower counts, engagement rankings, a wallet-connect ceremony, and transferable Claim inventory.
 
-TOHSENO replaces metaphor with explicit distinctions:
+This whitepaper therefore no longer presents Apple as an example attached to a general protocol. It presents the protocol and the Apple network as two layers of one current system. The normative encodings still live in `protocol/`; the network decisions add product, transport, evidence, and release law without rewriting the frozen protocol or the deployed generation-0.8 ABI.
 
-- The **Shot** is the continuing protocol object.
-- The **Intention** records committed founding-material descriptors; retained bytes can be checked against them.
-- The **Genome** records the currently accepted operational promises and boundaries.
-- An **Expression** is one concrete body in a particular environment.
-- A **Version** records one accepted state of one Expression.
-- An **Evolution** relates adjacent already accepted Versions through an earlier Evolutionary Intent.
-- **Contact** is the encounter between an Expression and reality.
-- **Evidence** records bounded machine findings or observations from Contact.
-- A **Generator** proposes an implementation.
-- A **Verifier** records bounded outcomes under a declared gate policy.
-- The controller derived from the selected prior prefix authorizes the next action.
-- An optional **Witness** preserves a narrow public projection; it does not create identity.
+## 2. The proposition
 
-The biological vocabulary is therefore mnemonic, not ontological. The Genome is not the Shot, and software is not literally alive. Continuity results from a stable identifier, preserved records, accepted constraints, content commitments, explicit transition rules, controller authorization, and visible lineage.
+TOHSENO begins from a practical observation: generative intelligence lowers the cost of producing source, but it does not automatically create custody, continuity, provenance, distribution, or a durable relationship between a person and the software in use.
 
-Figure 1 shows the core distinction. The ShotID does not change when source, runtime, or Generator changes. A declared ExpressionID also remains stable; new Expressions and accepted Versions receive distinct identifiers.
+A prompt can produce an app. It cannot by itself answer:
 
-```mermaid
-flowchart LR
-    S["ShotID: stable identity"]
-    E1["Expression A<br/>Apple"]
-    V1["Version A.1"]
-    V2["Version A.2"]
-    E2["Expression B<br/>another runtime"]
-    V3["Version B.1"]
-    S --> E1
-    S --> E2
-    E1 --> V1 --> V2
-    E2 --> V3
-    G1["Generator 1"] -.->|candidate for| V1
-    G2["Generator 2"] -.->|candidate for| V2
-    G3["Generator 3"] -.->|candidate for| V3
-```
+- Where does the exact source live after the model session ends?
+- Who may authorize the next accepted change?
+- Which prior state was that change based on?
+- Can another person obtain and inspect the exact software?
+- Can that person build it without borrowing the original Builder's credentials?
+- Can a radical rewrite remain the same software without pretending its bytes are unchanged?
+- Can a fork acknowledge its origin without inheriting authority?
+- Can an encounter matter publicly without becoming a purchase or a tradable asset?
 
-*Figure 1 — The continuing Shot. One Shot may have changing accepted Versions and multiple Expressions. Generators produce candidates; they are not the identity.*
+TOHSENO's proposition is that native software can move person to person as **verifiable source with continuity**, while each participant retains their own execution and platform authority.
 
-The stable identifier is useful only because the rest of the state machine gives references to it consequences. A random label with no verifiable genesis, transition law, or retained material would be ceremonial. TOHSENO's newness claim must therefore rest on the complete object, not on the label alone.
-
-## 3. The proposed primitive
-
-### 3.1 Definition
-
-Within this candidate, a **Shot** is minimally a random stable ShotID, a signed founding Commitment, and the authorized reducible prefix that begins with it. It may accumulate the following typed state:
-
-1. the founding commitment to an exact Intention record and initial authority;
-2. an accepted Genome and its explicit revision history;
-3. declared Expressions and immutable accepted Versions;
-4. evidence and evolutionary decisions bound to exact Versions; and
-5. later controller state, availability observations, associations, and parent relations.
-
-This definition identifies an event-sourced aggregate specialized for software. State at a selected head is not stored as an unexamined mutable row. It is derived from a valid prefix of signed actions. Domain rules determine which actions may follow: an initial Genome must be proposed and accepted; an Expression must bind an accepted Genome; a Version requires a matching successful VerificationResult; feedback must name an accepted Version; an Ownership action must be authorized by the controller derived at that prefix; and so on.
-
-The Shot is not identical to its name, alias, folder, repository, prompt, source tree, current body, binary, app-store listing, token, controller, Generator, public checkpoint, or any Version. These may cease to be current, be lost, duplicated, or be succeeded without changing the ShotID. Accepted records cannot be changed in place within a valid retained lineage. Whether the Shot remains *materially continuable* is a separate question considered in Section 10.
-
-### 3.2 What the ShotID proves
-
-A native ShotID is a cryptographically random, nonzero 32-byte value created once. It is deliberately not derived from an Intention, source digest, BuilderID, token address, bundle identifier, name, or repository. Deriving it from mutable content would make continuity impossible; deriving it from a controller would make transfer change identity.
-
-The ShotID alone proves almost nothing. It is a high-entropy namespace value with negligible accidental-collision probability, not evidence of authorship, content, public registration, legal ownership, or quality. Its significance arises when a verifier is given a valid founding action and enough authorized lineage to reduce the Shot's state. A reference to a bare ShotID should therefore be read as a claim awaiting context.
-
-For exact content, the protocol uses content commitments. For continuity, it uses the stable ShotID. Conflating those functions would either make changing software impossible or make exact-state verification vague.
-
-### 3.3 A minimal transition model
-
-The normative encodings are in the [protocol specification](protocol/SPECIFICATION.md), schemas, and conformance vectors. The following notation is explanatory.
-
-Let a lineage action be:
+\Needspace{19\baselineskip}
+The core path is:
 
 ```text
-a_i = (schema, sequence i, previous h_(i-1), ShotID,
-       actor, timestamp, availability, payload, H(payload))
+BUILDER                         PUBLIC WITNESS                     RECIPIENT
 
-h_i = SHA-256(RFC8785(a_i))
+iPhone Companion               ShotRegistry                      iPhone Companion
+holds DeviceKey                + signed catalog                  authorizes Claim
+approves exact action          + exact source blob               and private intent
+        |                              |                                  |
+        v                              v                                  v
+Builder's Mac  ----------->  canonical release link  ----------->  Recipient's Mac
+snapshots source              verifies public facts               verifies source
+builds and verifies           records Ship/Update                 builds with Xcode
+        |                                                         signs as recipient
+        v                                                               |
+ Builder's iPhone                                                      v
+                                                                   Recipient's iPhone
 ```
 
-The action commitment `h_i` is also the digest signed once by its P-256 signature sidecar. Sequence one has no predecessor and carries a `Commitment` payload:
+No arrow in this diagram transfers a private key. No server compiles on behalf of the recipient. No chain stores source. No Claim proves that an iPhone install occurred. Each boundary transports only what the next boundary can verify.
 
-```text
-Commitment(H(Intention), initial BuilderID,
-           initial controller key, origin, time)
-```
+## 3. Three truths and the systems between them
 
-The full Intention record may be carried later, including privately, but its canonical digest must match the founding commitment. A deterministic reducer `R` accepts one complete prefix only if sequences and predecessor commitments are contiguous, timestamps do not move backward, the ShotID is constant, signatures are valid, each actor and signer matches the controller state derived by that prefix, and each payload-specific transition is legal. Pure reduction trusts the initial controller/key binding declared by the Commitment; it does not independently establish public BuilderAccount authority.
+The architecture is easier to understand when its authorities are kept separate.
 
-A VersionID is content-bound within a Shot and Expression:
+| Truth | Authority | What it can establish | What it cannot establish |
+| --- | --- | --- | --- |
+| Human authorization | iPhone Companion and its Builder DeviceKey | The authorized human approved one exact bounded Tohseno action | That source built, a transaction landed, or an iPhone installed the app |
+| Execution | The Mac, Xcode, deterministic gates, and physical device observation | Which source was observed, built, locally signed, installed, and verified | That a public release was authorized or canonically witnessed |
+| Public network | Active ShotRegistry state, canonical receipts, signed catalog, and exact source bytes | Which Builder-authorized release is discoverable at which checkpoint | Private intentions, device identity, installation, or semantic quality |
+
+Several supporting systems connect these authorities without replacing them.
+
+The **content-blind relay** transports signed, end-to-end encrypted Companion envelopes. It can retain opaque mail while a Mac sleeps. It cannot read intentions, sign a release, run a model, build source, or create public authority.
+
+The **catalog service** stages source, indexes public evidence, serves immutable blobs, and orchestrates tightly constrained transaction jobs. Its database is an index. Security-sensitive clients check current chain state and signatures again.
+
+The **Registry contracts** establish BuilderAccount authority and public Shot checkpoints. They do not store app code, artifact digests, intentions, prompts, Apple credentials, installation identity, or private lineage.
+
+The **Apple platform** remains the final code-signing and device-execution boundary. Tohseno does not collect Apple credentials or substitute a Tohseno signature for Apple's.
+
+The **coding harness** proposes source changes. It is not the Shot, Builder, Verifier, or final acceptance authority. A successful model process is only a candidate outcome until deterministic gates pass.
+
+This separation is not incidental complexity. It is the mechanism that allows source to move while authority, execution, and private life remain bounded.
+
+## 4. The Mac is the factory
+
+### 4.1 One native product over one persistent factory
+
+`Tohseno.app` is a normal macOS application, not a browser wrapper. It owns navigation, windows, file selection, drag and drop, keyboard interaction, restoration, menus, accessibility, device guidance, and presentation. Behind it, the existing Rust Local Workspace Service remains the single admission and execution boundary.
+
+The service is persistent. Closing the Mac window does not cancel an admitted request. Every command is journaled before semantic execution. Stable command, app, Shot, project, and execution identities make retries idempotent. A service restart reconstructs accepted work from durable state rather than from UI memory.
+
+The native app is a client. It does not implement another Shot reducer, build system, signing path, or file mutator in Swift. Browser Studio and the CLI converge on the same application service. This one-factory rule matters because a simple interface is trustworthy only if it is a projection of the same state that recovery and automation use.
+
+### 4.2 Adopt existing software or create it
+
+The primary starting point is contact with software that already exists. A person selects an `.xcodeproj` or `.xcworkspace`. Tohseno inspects the container, scheme, bundle settings, deployment target, Git state, relevant repository instructions, available harness, and device/build observations. It writes no metadata into the selected repository merely because it was adopted.
+
+Adoption creates a private, stable project relationship. It is not a claim that Tohseno existed in the project's past. Moving the folder does not silently create a new identity, and losing the folder does not fabricate one. When the owner initializes the public-network path, the observed source becomes a truthful new Tohseno root. Earlier Git, App Store, and product history can remain human context, but it is not rewritten as protocol ancestry.
+
+Creation remains a complete second path. A person can write one intention, optionally name the app, attach up to eight validated PNG or JPEG references, choose or accept an intelligence route, and send. Plain Return sends from a focused composer; Shift-Return inserts a line. There is no Conception phase or planning round trip in front of the build. The engine composes and accepts the initial Genome in the one bounded birth run.
+
+### 4.3 Change from the phone, execute on the Mac
+
+For living projects, the ordinary loop begins on the iPhone: open the app in Companion, write what should change, and press **Evolve App**. The request binds the exact observed base. The phone signs it, encrypts it to the Mac, stores it durably, and can retry through the relay. The Mac authenticates the command, checks capability and revocation, rejects replay, verifies the exact base again, journals the command, and only then runs the configured harness in the exact source root.
+
+If the base changed before admission, the request is stale. Tohseno never silently rebases it. If the phone closes after durable submission, the Mac can continue. If the Mac is offline, the phone's outbox waits. If the relay repeats an envelope, layered idempotency returns the same result rather than evolving twice.
+
+The phone is therefore the place where a human notices and requests change. The Mac remains the place where source is actually changed.
+
+### 4.4 Bounded intelligence and deterministic completion
+
+TOHSENO can use an authenticated local coding harness, an owner-approved custom executable, an explicitly consented loopback model endpoint, or optional managed inference. Local and bring-your-own execution are not gated by a Tohseno subscription or managed balance. Managed execution is separately consented, priced, reserved against an append-only balance, and hard-capped before source is sent.
+
+One request permits one implementation harness invocation and, only for a concrete code or build defect, at most one focused repair. The two share one wall-clock budget. Device, signing, provisioning, network, lineage, and protocol failures never invoke intelligence as a generic retry mechanism.
+
+A harness exit is not completion. The factory performs deterministic source, build, test, code-signing, installation, launch, and acceptance gates. A missing iPhone becomes **Ready for your iPhone** rather than success. Reconnecting the intended physical device resumes delivery without another model call. **Installed** requires the supported CoreDevice installation to succeed and the exact bundle to appear in that phone's inventory.
+
+The selected-app workspace exposes the useful human path: **Build / App / Source**. It can show bounded changed files, semantic activity, an honest non-interactive Simulator capture, the cable stage, and a deliberate Details receipt. It does not restore the deleted execution dashboard, raw harness output, internal phases, prompts, or protocol controls to the normal path.
+
+## 5. The Companion is the human authority
+
+The Companion is a native iPhone application installed and paired during Tohseno onboarding. It is both a private interface to a person's Mac and the approval surface for bounded public actions. Those roles share a product but not a single undifferentiated key.
+
+The private Mac-Companion channel uses pairing identity, authenticated key agreement, revocable capabilities, signed commands, end-to-end encryption, durable outboxes, acknowledgements, replay protection, and bounded retention. It carries private app snapshots, intentions, status, Following, and Updates. The relay cannot decrypt that traffic.
+
+Public Builder authority uses a protocol-compatible P-256 **Builder DeviceKey**. Its private scalar remains on the iPhone under the strongest compatible this-device-only, non-exportable Keychain or Secure Enclave mechanism. The Mac sends structured action facts, not an opaque digest. Companion validates the closed payload, recomputes canonical digests, presents a bounded human summary, and signs only the exact approval.
+
+For a first Ship, one approval may cover only the exact catalog release, the exact Registry registration, the exact BuilderAccount bootstrap facts when needed, and the immutable Claim Edition policy. A later Update approval may cover only that release and its exact AppendCheckpoint action. Companion does not grant future publication authority.
+
+The Builder DeviceKey is not an Apple signing certificate. The Mac never exports an Apple private key to Companion. It is also distinct from the recoverable private pairing identity, the Builder recovery authority, and each generated app's InstallationKey. Conflating those roles would allow compromise in one domain to impersonate another.
+
+Companion's public Claim action is expressive but still exact. A person draws one forgiving circle around an app. The gesture is normalized to a unit canvas, resampled to exactly 64 points, encoded in a fixed-width closed format, and committed with SHA-256. Timing, pressure, velocity, device motion, and biometric inference are not retained. The gesture is not entropy and not authentication; the DeviceKey remains the authorization proof.
+
+The result is a human authority surface that says more than "a key signed" but less than "a human can never be compromised." Tohseno can prove which key, payload, digest, account state, and receipt agreed. It cannot prove attention, wisdom, legal title, or freedom from coercion.
+
+## 6. Public source as a deliberate boundary
+
+Person-to-person distribution begins by treating source publication as a security and privacy event, not as a casual archive upload.
+
+The Mac constructs a deterministic sanitized snapshot in a private temporary directory without changing the working source. It excludes version-control internals, build products, DerivedData, user settings, caches, environment files, private Tohseno state, logs, provisioning material, signing material, and known secrets. High-confidence secret findings fail closed and identify paths without disclosing contents. `.gitignore` is useful repository policy, but it is not the publication security boundary.
+
+Snapshot paths are normalized, sorted, relative, collision-checked, and bounded. Symlinks, hard links, special files, traversal, ambiguous archives, and oversized trees are rejected. Deterministic metadata makes the same source produce the same artifact bytes. The catalog binds both the artifact SHA-256 and the protocol source-tree commitment.
+
+Internet source is executable input. A narrow **Green Install Profile** permits automatic building only for ordinary native iOS source with pinned dependencies and without arbitrary Run Script phases, custom executables, unsafe build rules, compiler or package plugins, unsupported entitlements, or archive ambiguity. A non-Green release is not called malicious; it is labeled **Requires review on your Mac** with reasons before any `xcodebuild` invocation. Unsupported behavior fails before build.
+
+The recipient extracts into a new root, recomputes the source-tree commitment, and verifies the public release evidence independently. Xcode uses the recipient's local development team. If the original bundle identifier cannot be registered, Tohseno derives a stable recipient-local namespace through build-setting overrides rather than silently rewriting downloaded source. Capabilities that cannot survive recipient signing fail with their exact reason.
+
+This path changes the usual distribution object. The recipient does not merely trust a Builder-signed binary, and the Builder does not need the recipient's Apple credentials. The transmitted object is exact, authorized, buildable source plus enough evidence to decide what it is.
+
+## 7. The Registry is a shared public witness
+
+The Registry is not one database and not one contract. It is the agreement of several independently checkable facts.
+
+### 7.1 BuilderAccount authority
+
+A Tohseno BuilderID is the address of a generation-0.8 BuilderAccount on Robinhood Chain. Its active P-256 DeviceKeys are contract authority. The address is deterministically predicted from the approved factory generation and the initial DeviceKey, but prediction alone is not deployment or live authority. Security-sensitive clients verify the threshold-signed generation activation, runtime code, constructor state, current keys, nonces, and receipts.
+
+The account is deployed lazily for a person's first public Tohseno action - Ship or Claim. The constrained relayer may submit the exact factory call, but it never receives the DeviceKey and cannot become a generic wallet.
+
+### 7.2 Public checkpoints
+
+The active ShotRegistry stores a random ShotID, controller, current head, checkpoint sequence, and associated contract state. First publication uses commit/reveal with a fresh privately persisted salt and the exact minimum delay. Checkpoint sequence begins at one even when the private app already has many Versions. Later Updates append exactly one checkpoint. Registry transfer changes controller while preserving head and checkpoint count.
+
+Every head is the SHA-256 commitment of a closed `tohseno.public-checkpoint/1` object. That object intentionally excludes source, artifact digest, intention, Genome, ExpressionID, VersionID, private lineage, installation facts, controller, free text, and hashes derived from private material. Its narrowness prevents a public witness from becoming a covert publication of private ancestry.
+
+A checkpoint proves very little alone. Its authorization comes from the paired Registry action, live ERC-1271 decision, canonical receipt, and trusted active generation.
+
+### 7.3 Signed catalog releases
+
+The off-chain `tohseno.catalog-release/1` object binds the public checkpoint to the software people can actually fetch. It includes the active generation and witness, ShotID, BuilderID, immutable release ID, time, display metadata, source artifact digest and length, source-tree commitment, Xcode container and scheme, original bundle identifier, minimum iOS version, device family, dependency locks, safety classification, install and fork declarations, optional exact parent release, expected checkpoint sequence, and public-checkpoint digest.
+
+The Builder DeviceKey signs that complete canonical object. It contains no private intention, prompt, reference, absolute source path, environment, pairing capability, Apple credential, profile, certificate, private key, or installation fact.
+
+A public release becomes discoverable only when these agree:
+
+1. the catalog's Builder DeviceKey signature;
+2. live BuilderAccount authority;
+3. the signed active generation, chain, and Registry;
+4. canonical transaction and block evidence;
+5. the Registry's current head and checkpoint sequence;
+6. the manifest's public-checkpoint digest; and
+7. the staged source bytes, artifact digest, and source-tree commitment.
+
+The chain proves a Builder-controlled checkpoint. The signed catalog binds that checkpoint to an exact release. Content addressing proves the fetched bytes. None can safely substitute for the other two.
+
+### 7.4 Links, aliases, and profiles
+
+The canonical software link uses immutable ShotID and release identity. Human-readable Builder slugs and global aliases are routing conveniences, not ownership. A signed Builder profile may bind BuilderID, display name, granted handle, avatar commitment, external attestations, and update time. External identity can attest that an account maps to a BuilderID; it cannot replace DeviceKey-to-BuilderAccount authority.
+
+A link may open the Mac or Companion at an exact Shot and release. The receiving client resolves every security-sensitive fact again. Deep-link parameters are references, never trusted release records.
+
+## 8. The public grammar: Ship, Update, Fork, Claim
+
+### 8.1 Ship once
+
+A private or local candidate becomes a discoverable network Shot exactly once. That birth is **Ship**. Its `shipped_at` derives from canonical first-registration evidence, not from application-server time. First Ship also opens the Shot's one immutable Claim Edition.
+
+This matters because birth cannot happen repeatedly without erasing the meaning of history. Marketing versions, Git tags, App Store builds, and private Versions may be numerous before public birth. The Registry still records exactly one Ship.
+
+### 8.2 Update forever
+
+Every accepted later public release of the same Shot is an **Update**. The developer operation may remain `tohseno deploy`, but the resulting fact is not another shipment. An Update binds a new source release and public checkpoint while preserving the ShotID and Claim Edition.
+
+Updates do not reset Claim supply, reopen a timed edition, erase earlier releases, or invalidate existing Claims. A person who claimed an earlier release retains that exact encounter even when the Shot changes later.
+
+### 8.3 Fork explicitly
+
+A Fork begins with one immutable parent release, then creates a different random ShotID and local project identity. The recipient receives visible owner source, not the parent's authority or private history. The relationship binds child ShotID, parent ShotID, and parent release digest. The child stays private until its Builder ships it once and opens its own edition.
+
+Forking therefore says both "this came from there" and "this is now different software." It avoids the two common fictions: pretending the fork has no origin, or pretending the fork can act as its parent.
+
+### 8.4 Claim an encounter
+
+A Claim says:
+
+> This Tohseno identity encountered and claimed this Shot at this exact point in its life.
+
+At first Ship, the Builder selects one immutable edition policy: open, limited, timed, or limited-and-timed. Zero supply means unlimited and zero close time means never. There are no prices, quantities per person, auctions, tiers, allowlists, paid mints, per-release editions, or later administration.
+
+One Tohseno account can Claim a Shot once. The action binds the Claims contract and chain, trusted ShotRegistry, claimant account, ShotID, exact release digest, exact current public checkpoint, Claim-mark commitment, nonce, and deadline. The contract checks that the checkpoint is still current at execution. Changed heads, duplicate Claims, closed editions, exhausted supply, stale nonces, wrong domains, and invalid ERC-1271 signatures fail.
+
+The additive `TohsenoClaimsV1` contract is non-upgradeable and references the unchanged active ShotRegistry. It has no owner mint, policy editor, supply override, pause, confiscation, URI replacement, transfer, approval, or upgrade path. It records an immutable edition, one immutable Claim per account and Shot, sequential Claim numbers per Shot, and global token IDs. The receipt uses ERC-721-compatible structure with transfer and approval paths closed; it is not inventory.
+
+A Claim is deliberately not:
+
+- payment or purchase;
+- a software license or entitlement check;
+- proof that one unique human exists;
+- proof that Xcode built or an iPhone installed the app;
+- Builder authority or control of the Shot;
+- a transferable asset, marketplace item, or scarcity claim over public source.
+
+This negative definition is essential. Installation is too contingent and private to serve as the durable public relationship. Payment would make software encounter a commercial event. A generic wallet would merge Tohseno authority with unrelated financial identity. Claim creates a narrower public fact.
+
+### 8.5 Claim, then prepare
+
+Canonical Claim confirmation automatically persists a private intention to prepare the exact claimed release on the person's Mac. It does not ask the chain or website to build anything. If the Mac is asleep, the encrypted outbox waits. When the Mac returns, it verifies the release independently, downloads it, checks safety, and prepares it through the existing local path.
+
+If an Update exists, the claimed release is prepared first. **Update available** is a separate fact. If Xcode, signing, a cable, Trust, Developer Mode, entitlements, or hardware prevent installation, the Claim remains valid and the failure remains truthful. Claim and Install are two different verbs because they are two different kinds of evidence.
+
+## 9. A social network for software, not attention
+
+The Registry's social shape follows public software facts rather than human posting behavior.
+
+**Discover** is a deterministic, reorg-aware timeline with a closed event set: `shot.shipped`, `shot.updated`, `shot.forked`, and `claim.edition_closed`. Events are ordered by canonical block and receipt facts. Individual Claims do not flood the feed; counts and edition closure summarize them.
+
+**Following** filters public Builder events by exact BuilderID. The set is private to the person's Mac and paired Companion. Follow and Unfollow are idempotent, work while either peer is offline, reconcile in both directions, and survive handle changes. There is no public follow server, graph, count, leaderboard, popularity score, or notification-per-update economy.
+
+**Updates** is a durable private inbox for facts with a direct relationship to the person: a claimed app changed, preparation became ready, a fork of their Shot shipped, their edition closed, an alias changed, publication needs approval, or evolution completed. Stable event IDs and reconciled read state avoid restart spam. Generic Discover activity does not enter it.
+
+A Shot page can therefore show one birth, subsequent Updates, exact fork relations, Claim count and edition state, and verifiable release evidence. A Builder page can show signed identity, attestations, shipped software, and activity without turning other people into a visible audience metric. A person's own Companion Profile can become a cabinet of claimed software: exact encounter, mark, Builder, release, and expandable public receipt.
+
+This is a different model of software discovery. It asks what was born, what changed, where it came from, who authorized it, and which encounters mattered. It does not ask what maximizes time on a feed.
+
+## 10. The Shot underneath the network
+
+The public network depends on a deeper continuity object. Without it, Ship and Update would be labels on unrelated artifacts.
+
+### 10.1 Definition
+
+A **Shot** is a random stable ShotID plus a signed founding commitment and the authorized reducible history that begins with it. That history can contain:
+
+- the founding commitment to exact Intention material and initial authority;
+- an accepted, explicitly revisioned Genome;
+- declared Expressions and immutable accepted Versions;
+- VerificationResults, Evidence, and version-bound Feedback;
+- Evolutionary Intents and later Evolutions;
+- controller changes, availability observations, and parent relations.
+
+The Shot is not its name, alias, folder, repository, prompt, source tree, current body, binary, bundle identifier, App Store listing, token, controller, Generator, checkpoint, or any one Version. Each may change or disappear without changing the ShotID. The ShotID alone proves almost nothing; it becomes meaningful only with a valid founding action and enough authorized lineage to reduce state.
+
+### 10.2 Origin, promises, bodies, moments
+
+The **Intention** preserves committed origin. It may include words, images, references, or other exact material descriptors. It is historical evidence, not a product brief that can be edited after implementation.
+
+The **Genome** preserves accepted promises: purpose, intended users, essential experience, behavioral and experiential invariants, privacy principles, boundaries, non-goals, required capabilities, forbidden transformations, acceptance principles, platform commitments, and matters free to change. A new Genome becomes current only through an explicit proposal and acceptance. A Version cannot silently revise the law it claims to satisfy.
+
+An **Expression** is one concrete body in an environment. An iPhone app and a later web implementation may be separate Expressions of one Shot if the controller explicitly admits them under accepted Genome commitments. The protocol exposes that judgment; it does not prove semantic sameness.
+
+A **Version** is one immutable accepted state of one Expression. It binds the Expression, ordinal, current Genome, source commitment, provenance, capability graph, matching successful VerificationResult, known incompleteness, time, and optional build identity. Its VersionID is content-bound within the Shot and Expression:
 
 ```text
 VersionID = SHA-256(
@@ -138,637 +338,207 @@ VersionID = SHA-256(
 )
 ```
 
-The formula does not make two programs semantically equivalent. It unambiguously names the tuple of Shot, Expression, ordinal, accepted Genome digest, and source digest. The full signed Version action binds the remaining accepted-state facts.
+An **Evolution** retrospectively relates adjacent already accepted Versions through an earlier Evolutionary Intent. Version acceptance does not require history to pretend that every successful change began with perfect foresight. When Evolution is recorded, it makes the relationship and intended scope explicit.
 
-The lineage is a single-predecessor chain for any reducible branch. The broader history can contain competing children of one head, so the observed structure is a tree of incompatible prefixes rather than a mergeable Git DAG. The reducer does not erase competing heads or choose a global winner. A deliberately created descendant or fork is a different ShotID with an explicit `ParentRelation`; this is distinct from a same-Shot lineage conflict.
+### 10.3 Authorized reducible history
 
-### 3.4 What persists
+The neutral lineage is an append-only, single-predecessor sequence on each branch. Every action names its sequence, prior commitment, ShotID, actor, time, availability, payload, and payload digest. Its canonical action commitment is SHA-256 over RFC 8785 JSON, signed once as a P-256 prehash.
 
-Across a valid continuation, the following persist:
+A deterministic reducer rejects gaps, changed ShotID, backward time, unknown schema members, invalid signatures, actors that do not match derived controller state, and illegal payload transitions. Competing valid successors form incompatible branches. The protocol does not silently choose whichever record arrived last as a universal head.
 
-- the ShotID;
-- the founding commitment and, when available, exact Intention record;
-- the append-only authorized lineage up to the selected head;
-- every prior accepted Genome revision and Version commitment;
-- the controller state derived from the founding Commitment and later authorized Ownership actions;
-- explicit relationships among Expressions, Versions, evidence, and Evolutions.
+This construction establishes branch-local integrity, authorization, causal order, and declared state. It does not establish usefulness, originality, safety, semantic fidelity, legal ownership, independent verification, or a globally preferred branch.
 
-Names, interfaces, frameworks, languages, source layouts, Generators, models, devices, accounts, repositories, package coordinates, and distribution channels may change. A Genome may change only by proposal and acceptance. An Expression may receive later Versions; a newly declared Expression receives another ExpressionID. The protocol does not decide when a material change ought to become a new Expression rather than a new Version. An accepted Version never changes in place.
+### 10.4 Local continuity and public checkpoints are different
 
-This is scoped continuity, not universal tracking. Installation identity is local to an application installation. Continuity statements have an explicit Shot audience and bounded claims. The protocol does not give every application a universal cross-service identity for a person.
+A full local lineage can contain private intention, private references, local source commitments, Feedback, and ancestry. Publishing its head would leak a digest path to private material. Generation 0.8 therefore uses an ancestry-free public checkpoint with its own witness-local sequence. The checkpoint is a narrow public time marker, not an exported local Version.
 
-## 4. Shot anatomy
+The signed catalog can bind an exact public release to that checkpoint without changing the frozen lineage format. Claims can bind an encounter to the release and current checkpoint through a separately activated additive contract. Product evolution is therefore additive around the protocol: public distribution and social facts do not rewrite historical byte encodings.
 
-Figure 2 shows the records that carry the object. Not every conceptual role is a distinct wire payload: Contact is an event in use; Lived Evidence is represented through version-bound Feedback; and Generator and Verifier are roles around proposal and testing. The canonical lineage payload types are defined by the neutral `/2` schema.
+## 11. Apple distribution without pretending Apple disappeared
 
-```mermaid
-flowchart TB
-    ID["ShotID"]
-    C["Founding Commitment<br/>Intention digest + initial authority"]
-    I["Intention<br/>preserved origin"]
-    G["Accepted Genome<br/>revisioned promises"]
-    X1["Expression A"]
-    X2["Expression B"]
-    VA["Accepted Versions"]
-    VB["Accepted Versions"]
-    EV["Verification Results"]
-    FB["Version-bound Feedback"]
-    AU["Controller / Ownership actions"]
-    L["Hash-linked signed lineage"]
-    ID --> C --> L
-    I --> C
-    L --> G
-    L --> X1 --> VA
-    L --> X2 --> VB
-    EV --> VA
-    VA --> FB
-    VB --> FB
-    AU --> L
-```
+The current network is deliberately Apple-specific in execution. That specificity makes the claim testable.
 
-*Figure 2 — Shot anatomy. The Shot is the whole reducible object, not the Genome or any single body. Arrows show logical bindings rather than public disclosure.*
+On the Builder side, Xcode compiles and signs the Builder's local candidate for their own device. Tohseno can prove a physical install only through Apple's supported tools and exact device inventory. On publication, the network distributes source and release evidence, not the Builder's provisioning profile or signing identity.
 
-### 4.1 Intention
+On the recipient side, full Xcode performs a local build. The recipient selects or already has an Apple development team. Tohseno applies bounded build-setting overrides for recipient-local identity and then lets Xcode and Apple decide what can be provisioned. Trust, Developer Mode, cable reachability, device lock state, entitlement support, provisioning expiration, and signing failures remain visible states.
 
-The **Intention** is the founding-material record from which the Shot is claimed to have begun. In the neutral model it contains one to sixty-four original materials: words, images, references, examples, or other artifacts described by exact digests and availability. Inline text, when present, is bound to exact bytes and length. An optional note and capture time are part of the canonical record.
+This direct developer path removes App Store submission and review from the transfer between two people. It does not create a universal consumer installation mechanism. Current participation requires a compatible Mac, full Xcode, an iPhone, and an Apple Account; provisioning and Apple policy still constrain how long and where a development-signed app runs. Broader Apple distribution remains Apple's domain.
 
-The Intention is historical evidence, not a perpetually edited product brief. Correcting its spelling after seeing the implementation would change its commitment and falsely rewrite origin. Later understanding belongs in Feedback, an Evolutionary Intention, or a Genome proposal. The full founding material may remain intentionally private while its digest remains bound at genesis.
+The distinction matters politically and technically. "Skip App Store submission" is a bounded workflow statement. "Bypass Apple security" would be false. TOHSENO's model is interesting precisely because it works with recipient signing rather than distributing someone else's signing authority.
 
-Preservation does not establish that the Intention was original, lawful, wise, or written by the person named in prose. It establishes that later Shot history refers to the same committed Intention record and, when artifact bytes are supplied and verified, to the same committed content.
+## 12. Privacy and security boundaries
 
-### 4.2 Genome
+TOHSENO is local-first, but local-first is not a claim that nothing becomes public. It is a rule that public facts are explicit, narrow, and authorized.
 
-The **Genome** is the accepted, app-specific interpretation of what must remain true for the founding Intention to become itself. It records a revision number and structured statements about purpose, intended users, essential experience, behavioral and experiential invariants, interaction laws, aesthetic commitments, privacy and ownership principles, boundaries, non-goals, required capabilities, forbidden transformations, acceptance principles, platform commitments, and matters free to change. It is generative law for one Shot, not a whitelist of factory-supported product shapes.
+### 12.1 What stays private
 
-It is more precise than “DNA.” The Genome is neither source code nor a complete architecture. It is not the static factory Constitution, a Generator prompt, model memory, or test suite. The Constitution contains only cross-Shot integrity, privacy, security, provenance, platform-truth, and completion rules. Files, gates, and tests may represent and check portions of a Genome, but they remain mechanisms serving the accepted law. Some provisions are mechanically testable; others require honest intelligent review.
+Private by default are intentions, prompts, reference images, source paths, local working state, exact private lineage, Feedback, execution records, raw harness output, model credentials, Apple credentials, provisioning material, pairing capabilities, device names, InstallationKeys, physical install facts, private Following, and private Updates.
 
-The distinction can be stated compactly:
+Generated app directories contain an integral `.tohseno/` boundary. Safe identity and integrity records may remain visible and Git-trackable. Exact intentions, references, feedback, executions, logs, and `.tohseno/private/` stay explicitly ignored. The directory is never blanket-ignored because doing so would discard durable app-local identity and history. Publishing a Git repository is never treated as consent to publish the private paths inside this boundary.
 
-> Intention preserves origin. Genome preserves promises.
+### 12.2 What becomes public
 
-A Genome becomes current only through two signed actions: a proposal and an explicit acceptance that references that proposal's action commitment. Revision one has no base. A later proposal must name the exact current revision and digest and summarize its mutations. A Version cannot smuggle in a Genome change by merely pointing at new prose.
+Ship makes the selected sanitized source snapshot, signed catalog metadata, ShotID, BuilderID, public checkpoint, canonical receipts, and bounded display metadata public. Claim makes the claimant Tohseno account-to-Shot relationship, exact encounter, Claim number, normalized-mark receipt, and chain evidence public. Companion discloses that relationship before a first Claim.
 
-The Genome does not make semantic conformance decidable. A malicious or careless controller can accept a weak Genome, revise away a defining promise, or approve an implementation that violates a nuanced requirement. The protocol makes those decisions attributable and reviewable; it cannot make them sound.
+Neither act publishes the physical iPhone, Mac identity, Apple team, installation status, pairing relationship, IP address as product metadata, private intention, prompt, or local absolute path.
 
-### 4.3 Expression
+### 12.3 Fail-closed composition
 
-An **Expression** is one concrete body of the Shot in an environment. Its declaration has a random stable ExpressionID, a kind, a name, one or more platforms, the accepted Genome revision and digest it claims to embody, and a reference describing the availability of its definition artifact.
+TOHSENO resists substitution by requiring evidence layers to agree. A server cannot replace a source archive without breaking its digest. It cannot replace catalog facts without breaking the DeviceKey signature. It cannot invent Registry acceptance without canonical receipt and live state. It cannot sign as the Builder because it lacks the DeviceKey. A recipient cannot publish an Update as the parent merely because source was public.
 
-Two iOS implementations may be successive Versions of one Expression if the controller treats them as continuations of that body. A mobile application and a web or desktop application may instead be separate Expressions under one Shot. They share Shot identity; each declaration and Version binds its specified accepted Genome revision. They need not share source, interface, storage format, or capabilities.
+The construction still depends on ordinary hard problems: endpoint compromise, key custody, malicious source, vulnerable dependencies, Xcode and platform behavior, RPC availability, relayer funding, chain reorganization, denial of service, secret scanning limits, and human review. A Builder can authorize a bad release. A compromised Companion can authorize within its keys. A compromised Mac can misrepresent local execution to its owner. A Green classifier reduces automatic-build risk; it does not prove safety.
 
-The protocol does not mechanically prove that multiple Expressions are “really” the same application. It proves that an authorized lineage declared them to be bodies of one Shot under specified Genome commitments. Reviewers can inspect the declaration and evidence; the controller bears the semantic judgment.
+Immutable contracts and editions make defects expensive. Generation and Claims activation are therefore separate threshold-signed client trust decisions. A deployed address in configuration is never enough. Relayers are constrained transport and funding mechanisms, not authorities. On ambiguity, the relevant write or product claim remains unavailable.
 
-The neutral schema also includes **Organ** declarations: immutable, expression-scoped capability units whose dependency graph, state ownership, permissions, events, Genome constraints, and acceptance tests contribute to a Version's capability-graph digest. Organ is useful structured capability vocabulary. The current Apple Fascia gives it a concrete profile. It should not be mistaken for the Shot's timeless essence or assumed to map naturally to every future runtime.
+## 13. Claims the system can and cannot make
 
-### 4.4 Version
+| Question | Evidence | Defensible conclusion | Not established |
+| --- | --- | --- | --- |
+| Are these exact source bytes? | Artifact SHA-256, deterministic archive, and source-tree commitment | Supplied bytes match the signed release | Safety, usefulness, or perpetual availability |
+| Did the Builder authorize this release? | DeviceKey signature, live BuilderAccount authority, exact Registry action and receipt | The current authorized key approved this bounded release | Human wisdom, legal title, or uncompromised endpoints |
+| Is this the Registry head? | Active-generation verification, canonical chain receipt, and current contract state | The checkpoint is currently accepted for the Shot | That the checkpoint contains source or private lineage |
+| Is this later state the same Shot? | Stable ShotID and valid authorized lineage or public checkpoint continuation | The recognized authority made an explicit continuity decision | Objective semantic sameness or quality |
+| Did verification pass? | Matching VerificationResult and deterministic gate evidence | Every declared gate passed for that candidate | Adequacy or independence of every gate |
+| Did an iPhone install it? | Supported install command plus exact physical device inventory | This Mac observed the exact bundle on the intended phone | Public Claim, unique humanity, or future availability |
+| Did this identity Claim the app? | Canonical Claims receipt bound to Shot, release, checkpoint, account, and mark commitment | The account made one public encounter claim | Purchase, license, installation, Shot ownership, or personhood |
+| Can the software continue? | Custody of authority, records, source, assets, data, dependencies, and build knowledge | Continuation is practically possible to the extent those materials suffice | Future platform access or permanent buildability |
 
-A **Version** is one immutable accepted state of one Expression. Its record binds:
+The primitive lies in this composition with constrained meanings. Strong cryptography attached to vague claims would be less useful than explicit boundaries.
 
-- the ExpressionID and expression-local ordinal;
-- the accepted Genome revision and digest;
-- the source digest;
-- materialization provenance;
-- the exact capability-graph digest;
-- a matching successful VerificationResult action;
-- known incompleteness;
-- acceptance time; and
-- optional build identity and build digest.
+## 14. Implementation and release state
 
-“Immutable” here is a verification property, not a claim that storage media cannot be edited. Changing the canonical action changes its commitment, breaks successor links, or invalidates the signature. The old accepted state remains the state recorded by its full signed Version action. Later work creates another Version; it does not rewrite this one.
+This section is non-normative and time-bounded to August 31, 2026. Protocol, product, contract, client, and distribution versions are not interchangeable.
 
-A working tree is not a Version. Neither is a model response, candidate source directory, Git commit, successful compilation, binary, deployment, or app-store release. Any may contribute evidence or a digest. A Version exists in accepted protocol history only after a successful matching VerificationResult and an authorized Version action.
+### 14.1 Implemented
 
-Acceptance does not imply completeness or reproducibility. Known incompleteness is explicit, a build digest is optional, and material referenced by a digest may later be unavailable. Provenance and source fields are controller-signed declarations: the neutral reducer does not authenticate a Generator or materialization event, and interpretation of `source_digest` belongs to the applicable profile. Reproducing an artifact requires the stronger conditions of a reproducible build system and retention of all necessary inputs.
+The repository implements the neutral Shot lineage and conformance system; the generated Apple factory; the native Mac app; private existing-project adoption and evolution; persistent command journals; one bounded harness path; deterministic Apple build/sign/install gates; the branded Companion; authenticated encrypted pairing and relay; durable offline command delivery; generation-0.8 activation verification; deterministic safe source publication; signed catalog releases; Registry receipt verification; constrained Registry jobs; recipient download/build/sign/install/fork/refresh; Builder profiles and aliases; Claim action and mark vectors; the additive Claims contract and activation verifier; Claim receipt models; Discover, private Following, and private Updates; and end-to-end local network fixtures.
 
-### 4.5 Evolution
+Generation 0.8.0 is the current client-trusted ShotRegistry generation on Robinhood Chain. The additive `TohsenoClaimsV1` deployment has a separate threshold-signed activation bound to that exact Registry. Production reads verify activation, runtime code, Registry binding, and canonical indexing.
 
-A recorded **Evolution** is an authorized lineage relation between two distinct adjacent accepted Versions of the same Expression, grounded in an earlier Evolutionary Intent. It names the exact from- and to-VersionIDs and Genome digests, states preserved invariants, and—when the Genome changed—references the exact Genome acceptance.
+The current native 1.2.0 release candidate 2 was built from a clean CI-gated source commit. It is a universal Mac DMG, Developer ID signed, accepted by Apple notarization, stapled, mounted and Gatekeeper-checked, published at an immutable prerelease URL, digest-pinned, independently round-tripped from origin, and active on the website's labeled release-candidate channel.
 
-Not every source edit, Git commit, build, model generation, deployment, or accepted Version is by itself an Evolution. The target Version must already be accepted; the reducer then checks adjacency and intent. Current law does not require every noninitial accepted Version to be followed by an Evolution. An accepted head can therefore advance without one. Evolution adds the explicit claim that an adjacent successor answers an earlier scoped intent; it is not the mechanism that accepts the target Version. This is an important limitation if a profile expects every accepted change to complete the full evolutionary loop.
+These are real but partial facts.
 
-At protocol level this yields four different cases:
+### 14.2 Still dark or unproven
 
-1. **Working change:** files differ, but no accepted action exists. The Shot's accepted state has not moved.
-2. **Accepted successor:** required records, verification, and Version authorization advance the accepted state of the same Expression.
-3. **Completed Evolution:** a later action relates adjacent accepted Versions to an earlier Evolutionary Intent and any required Genome acceptance.
-4. **New Shot:** a separate ShotID begins, optionally recording `fork`, `descendant`, or `inspired_by` relation to a parent head.
+Stable 1.2.0 is not published. Registry and Claims relayers are disabled. Claims writes are disabled. The Claim index is canonically empty before the required physical walkthrough. The candidate has not completed independent clean-Mac and physical-iPhone acceptance for the full 1.2 sequence.
 
-Copying a folder does not automatically create any of these claims. Possession of files is not controller authority.
+\Needspace{14\baselineskip}
+Activation requires one owner-attended production proof in causal order:
 
-### 4.6 Builder, controller, BuilderID, and DeviceKey
+1. one real first Ship through normal Companion approval;
+2. one immutable Claim Edition opened with that Ship;
+3. a second Tohseno identity's physical Companion Claim and canonical receipt;
+4. Claim while the recipient Mac is offline, followed by automatic preparation of the exact release;
+5. recipient-local Xcode signing and verified physical iPhone installation;
+6. one later Update that preserves the Claim and edition;
+7. private Following reconciliation across Mac and Companion;
+8. live public Claim receipt and metadata paths; and
+9. proof that the timeline contains exactly one Ship.
 
-The **Builder** is the human or organization making creative and custodial decisions. The wire protocol cannot prove that a human personally considered each decision; it proves that an authorized key signed it. For this reason the paper uses **controller** for the mechanically evaluated authority state.
+No mock, simulator card, pending transaction, admin database row, source test, notarized DMG, or contract deployment can substitute for that sequence. If it fails, the candidate and evidence remain preserved, writes remain dark, and stable promotion remains closed.
 
-A **BuilderID** is the protocol identifier representing that authority. In the successor public design it has the form `eip155:4663:0x…` and denotes a BuilderAccount address on chain 4663. An address-shaped local or predicted identifier is not proof that the account exists or is publicly authoritative. Neutral lineage binds an initial BuilderID and P-256 controller public key; an Ownership action signed by the current controller installs the next BuilderID and controller key.
+### 14.3 Retained and deferred paths
 
-A **DeviceKey** is a P-256 key authorized within a BuilderAccount with protocol and/or device-administration permissions. Ordinary revocation cannot remove the final active device; the final administrator may be revoked only after recovery is configured. Recovery begins a three-day delay and then permits replacement of the key set; an active administrator may cancel any time before finalization lands, including after the delay. Recovery authority, device rotation, Builder control, and Apple code-signing identity are different concerns. Apple signing is external to TOHSENO's controller-key protocol.
+The browser Studio, explicit recording layer, CLI, npm bootstrap, legacy cable and entitlement code, private token association, and managed Stripe/Bankr machinery remain in the repository for support, compatibility, development, or separately gated operation. They are not the primary consumer path and do not authorize release claims merely by existing in source.
 
-The frozen v0.7 identity supports only its initial device key; rotation and recovery were never completed for that lineage. The successor on-chain design closes the contract semantics. The current protocol and client resolver treat generation 0.8.0 as active under a threshold-signed release authority. The public Builder, registry, receipt, catalog, and artifact workflows that would use it are not implemented, so accepted product state remains local unless a person uses a separate explicit source-sharing transport.
+No successor Registry contract generation or deployment ceremony is active on `main`. Generation 0.8 remains immutable. Claims is additive rather than a disguised Registry upgrade. Non-Apple factories, broader consumer signing distribution, independently audited immutable contracts, stronger recovery custody, and other ecosystems remain future work unless separate evidence says otherwise.
 
-### 4.7 Generator and Verifier
+## 15. Non-goals
 
-A **Generator** is any system that proposes implementation material or a transition: Codex, Claude Code, another coding harness, a human team, a specialized program synthesizer, or a deterministic toolchain. The first Generator has no permanent privilege.
+TOHSENO is not:
 
-A **Verifier** is intended to be a deterministic system that evaluates declared gates and records bounded results against a candidate. It may establish that canonical commitments match, signatures verify, source conforms to a profile rule, a permission is present or absent, specified tests pass, or a build succeeds. The VerificationResult binds the candidate VersionID, Genome, source, capability graph, gate conjunction, known incompleteness, and time. Current wire law allows a gate to declare itself nondeterministic and does not require every gate to be deterministic, so the record alone cannot establish that property.
+- an App Store clone or a universal consumer distribution service;
+- an Apple security bypass, signing service, provisioning broker, or credential custodian;
+- a cloud IDE, mobile source editor, autonomous deployment agent, or second coding harness;
+- a blockchain source store, generic wallet, token marketplace, or financial protocol;
+- a proof-of-personhood system, social popularity graph, or engagement feed;
+- a replacement for Git, content addressing, reproducible builds, package managers, supply-chain attestations, Xcode, or code review;
+- a machine oracle for semantic sameness, usefulness, originality, legality, or safety;
+- a promise that public source will build forever or that every app can be re-signed under every Apple entitlement;
+- a claim that cryptographic controller authority settles legal ownership.
 
-A Verifier does not prove usefulness, beauty, absence of all defects, full semantic fidelity to natural language, or metaphysical sameness between Expressions. A gate also does not prove that the external test runner itself was trustworthy. Verifier policy and evidence remain reviewable assumptions.
+TOHSENO composes existing mechanisms around a software-specific continuity and distribution object. Its novelty, if the system earns it, is not a new hash or signature curve. It is the causal architecture: one continuing Shot; source retained and deliberately published; human approval separated from machine execution; public witness separated from private life; recipient signing separated from Builder authority; and encounter separated from ownership and payment.
 
-The intended separation is:
+## 16. Conclusion
 
-> Generation produces a proposal. Verification records bounded machine claims. Authorization admits a matching Version into history.
+The first TOHSENO question was whether software could retain identity while every implementation detail changed. The Shot answered by making continuity a stable, authorized, reducible object rather than an intuition attached to a repository or brand.
 
-The neutral wire schema requires a successful VerificationResult before a Version, but it does not cryptographically enforce organizational independence between Generator and Verifier. A single operator could run both, and the controller could authorize nonsense. Independence is therefore a system and profile requirement, not a fact implied by the record type alone.
+The current system asks what that object is for. The answer is movement.
 
-## 5. Origin and law without revisionism
+A Builder can begin with existing software or an intention. The Mac can change and verify it. The Companion can carry the human's authority. The Builder can Ship exact source once and publish Updates without surrendering keys. The Registry can witness a narrow public history without ingesting private lineage. Another person can Claim one encounter, bring the exact release home to their Mac, rebuild it with Xcode, sign it as themselves, install it on their iPhone, fork it honestly, and carry it forward.
 
-The Intention/Genome split solves a recurring provenance failure. If one document must serve both as the origin story and the current specification, evolution produces pressure to rewrite history. A later implementation discovers what the original words omitted; the document is “clarified”; the new system then appears to have satisfied an intention that did not exist at genesis.
+That path does not abolish trust. It makes trust smaller and more inspectable. The Builder is trusted for the meaning of the software they authorize. The recipient trusts their own Mac, Xcode, review, and signing identity for execution. The network verifies the points where those worlds meet. Missing evidence stays missing.
 
-TOHSENO instead treats origin and present law as separate timelines. The founding action commits to the Intention. The Intention action, whenever disclosed, must match that digest and may occur only once. The Genome begins at revision one and may change explicitly. Feedback can explain why. An Evolutionary Intent can select exact feedback actions and request implementation-, Expression-, Organ-, or Genome-scoped changes. A later Genome proposal names its exact base and mutation summary.
+Software can then be more than a binary delivered by an institution or a folder abandoned by a generator. It can have a birth, a changing body, a witnessed history, encounters, descendants, and people capable of continuing it.
 
-This does not make the founding words supreme. A vague, harmful, or obsolete Intention may deserve to be left behind. The controller can authorize a Genome that departs radically from it. What the protocol prevents is silent retroactive repair. When the Intention record and material are available, a reviewer can compare committed origin with later accepted promises; otherwise only the founding commitment is visible.
+The Mac is the factory. The Companion is the human authority. The Registry is the public witness. The next person signs for themselves.
 
-That distinction also limits the founding record's power. Intention is evidence of origin, not a perpetual veto, source of legal rights, or oracle of meaning. Genome is accepted law at a selected valid head, not proof that reality conforms to it.
+The first Generator can disappear. The software can still move.
 
-## 6. Bodies and accepted moments
-
-Software continuity requires both stable identity and exact-state identity. A ShotID alone deliberately survives content changes; a VersionID deliberately does not. Expressions locate exact Versions within distinct bodies.
-
-Suppose a field-notebook Shot first appears as a native iPhone app. Its Apple Expression has an ExpressionID and Version 1 binds the accepted Genome, source, capabilities, verification, and known limitations. A later rewrite in a different UI framework can be Version 2 of the same Expression if the authorized history treats it that way. A web implementation can be a second Expression with its own random ExpressionID and ordinal sequence. Both bodies can cite the same Genome revision accepted in the selected lineage while having different source and platform commitments.
-
-There is no requirement that all Expressions advance together. The iPhone body might be on Version 4 and the web body on Version 1. Feedback must name the exact ExpressionID and VersionID to which the observation is attributed, so an observation about the web interface cannot silently become evidence about the mobile implementation.
-
-The protocol's immutability is selective. Accepted moments and prior actions do not change. The head, Genome, controller, known availability, and collection of Expressions derived from a selected valid prefix can change only by adding valid actions. This freezes history without freezing software.
-
-An unavailable artifact demonstrates the limit of commitments. A digest can prove that rediscovered bytes are the committed bytes; it cannot reconstruct missing bytes. An `artifact_availability` action can later record an observation without rewriting the referenced record, but an availability label does not make material exist.
-
-## 7. Generation, verification, and authorization
-
-Agentic development often collapses three acts. A model writes code, runs tests that it selected, and reports completion. That report can be useful, but it combines proposal, measurement, and acceptance under one epistemic boundary.
-
-TOHSENO separates them because their failure modes differ:
-
-- A Generator can misunderstand the request, omit files, fabricate a success report, or optimize for a weak test.
-- A Verifier can have incomplete gates, execute compromised tools, or correctly prove an irrelevant property.
-- A controller can be careless, coerced, compromised, or simply choose badly.
-
-The protocol does not eliminate any failure. It makes the roles and resulting claims distinct. A failed VerificationResult may remain in recorded history, but it cannot authorize a Version. A passed result must match the candidate's source digest, Genome, capability graph, VersionID, and known incompleteness. The controller derived from the selected prior prefix then signs the Version action. The signature establishes key authorization, not conscious human review.
-
-This design permits a Generator to be replaced without replacing Shot identity. A new system receives the retained Intention, Genome accepted at the selected head, selected evidence, exact accepted state, and a scoped evolutionary request. It proposes source. A compatible Verifier evaluates the proposal. The controller rejects it or authorizes it. No model session needs to become canonical memory.
-
-```mermaid
-flowchart LR
-    I["Accepted state +<br/>Evolutionary Intent"]
-    G1["Generator A"]
-    G2["Generator B"]
-    C1["Candidate A"]
-    C2["Candidate B"]
-    V["Verifier / declared gates"]
-    A["Controller authorization"]
-    N["Next accepted Version"]
-    I --> G1 --> C1 --> V
-    I --> G2 --> C2 --> V
-    V -->|bounded claims| A
-    A -->|accept one| N
-    A -->|reject| X["No accepted-state change"]
-```
-
-*Figure 3 — Replaceable Generators. Multiple systems may propose candidates for one Shot. Verification and controller authorization determine whether any candidate becomes an accepted Version.*
-
-The figure describes protocol possibility, not a claim that the present factory has demonstrated every Generator or runtime. Interoperability requires other implementations to reproduce canonicalization, signatures, reduction, profile rules, and materialization semantics. Until they do, replaceability is designed and testable at record boundaries but only partly evidenced in operation.
-
-## 8. Contact, evidence, and evolution
-
-A build passing is not the same as an application working in life. TOHSENO calls the encounter between a particular Expression Version and its environment **Contact**. Contact is not a magical validation stage and is not currently a standalone lineage payload. It names the point at which the software meets a person, device, routine, and circumstance that a machine gate cannot fully model.
-
-Two classes of evidence must remain distinct.
-
-**Machine Evidence** consists of bounded technical findings: a digest matched, a signature verified, a schema and semantic reducer accepted a record, a test passed, a build completed, a source scanner found or rejected a declared capability, or an artifact matched an expected commitment. Its force is conditional on the gate, tool, inputs, and environment.
-
-**Lived Evidence** records what Contact revealed: a gesture felt natural or false; a routine survived a week or failed on the first day; a person misunderstood the central behavior; the supposedly secondary feature contained the actual value; the Shot should become smaller; or the accepted Genome should change. The neutral protocol represents this through `Feedback`, which must name an exact accepted Expression and Version and may include text, structured observations, attachments, author information, and an optional matching build identity.
-
-Feelings must not impersonate cryptographic proof. A Feedback action proves controller-authorized inclusion and preserves any author attribution as recorded; its optional author field is not independently authenticated. It does not prove either authorship or universal confusion. Conversely, a green test suite must not impersonate usefulness.
-
-Figure 4 shows the lifecycle. Authorization is shown after verification for Version acceptance. In the exact reducer, a Genome change requires its own proposal and acceptance, the target Version is recorded after matching verification, and the Evolution action then connects the old and new accepted Versions.
-
-```mermaid
-flowchart LR
-    O["Founding Intention<br/>commitment"] --> G["Generation"]
-    CG["Genome at selected head"] --> G
-    G --> P["Candidate"]
-    P --> M["Machine verification"]
-    M --> A["Controller authorization"]
-    A --> N["Accepted Version"]
-    N -.->|when used| ER["Evolution record<br/>relates adjacent Versions"]
-    N --> C["Contact"]
-    C --> E["Version-bound Feedback"]
-    E --> EI["Evolutionary Intent"]
-    EI --> G
-    M -->|failure recorded;<br/>no Version| R["Revise or reject"]
-```
-
-*Figure 4 — The evolutionary loop. Machine Evidence and Lived Evidence answer different questions. Evolution is a later optional relation between accepted adjacent Versions; it is not required for Version acceptance.*
-
-### 8.1 A field-notebook Shot
-
-Consider Maya, who wants a small private field notebook for observations made on walks.
-
-1. Maya records an Intention in plain words and includes two sketches. The system commits their exact bytes and creates a random ShotID. The materials can remain local.
-2. A Generator proposes Genome revision 1: the notebook is for one person's field observations; capture must be quick; data remains on device; there are no accounts or analytics; observations can be corrected without erasing earlier accepted history. Maya accepts that proposal.
-3. The Apple factory declares an iPhone Expression and its capability graph. A coding harness proposes the first source tree.
-4. Deterministic gates check bounded facts: source and Genome commitments agree, forbidden capabilities are absent, required profile checks pass, and the app builds in the supported environment. These checks do not show that capture feels quick.
-5. Maya's controller authorizes Version 1. Its record binds the source, Genome, capability graph, VerificationResult, provenance, and known incompleteness.
-6. Assuming she separately completes device installation, Maya uses that exact Version on walks. She finds that the three-step capture flow makes short observations disappear from practice. This is a protocol example, not a claim that the repository has evidenced a successful physical-device installation.
-7. She records private Feedback against the exact iPhone Expression and Version 1. The note is not generalized to later versions.
-8. She authorizes an Evolutionary Intent selecting that signed Feedback action and asking for one-step capture while preserving local-only storage and the rest of the Genome.
-9. A different compatible Generator receives the scoped materials and proposes candidate source for Version 2. This is a protocol-level possibility; the current repository does not claim a completed cross-vendor interoperability trial.
-10. Verification checks the declared gates. Maya may reject the candidate with no accepted-state change, or authorize Version 2 and the Evolution from Version 1.
-11. Years later, a desktop Generator may declare a new Expression under the same Shot and Genome accepted at the selected head. It receives its own ExpressionID and Version sequence rather than pretending to be the iPhone body.
-12. The original Generator and model session are gone. If Maya still possesses the authoritative records, controller capability, necessary source and assets, local data, build instructions, and compatible tooling, the Shot can continue.
-
-The protocol proves the record relationships in this story. It does not prove that Maya's revised interface is better, that the desktop body deserves the same identity, or that every necessary artifact was retained. Those remain judgment and custody questions.
-
-## 9. Lineage, control, forks, recovery, and transfer
-
-### 9.1 Authorized prefixes, not a global chain
-
-Every non-root lineage action has exactly one predecessor; the sequence-one Commitment has none. Full reduction begins there, while incremental reduction begins from a retained trusted state. For a given branch, accepted state is therefore a linear, contiguous prefix.
-
-Authority does not prevent equivocation. A controller can sign two different actions with the same sequence and predecessor. Each child may begin a separately valid continuation from the common prior state. TOHSENO has no merge action, global consensus algorithm, last-writer-wins rule, or automatic canonical-head election. Implementers are expected to retain competing causally valid heads rather than discard the inconvenient one.
-
-This matters for the word **fork**. Two siblings under the same ShotID are a lineage conflict: incompatible claims about the next state of one Shot. An explicit protocol fork is a new Shot with a distinct ShotID and a `ParentRelation` of `fork`. `descendant` and `inspired_by` are other available relationships. A parent-authorization signature proves a statement's bytes and signer; a verifier must separately establish that the signer controlled the parent at the named head.
-
-The protocol does not decide when a conflict should become a new Shot, which private head a community should follow, or whether two branches should be reconciled outside the current state machine. A public registry can serialize the public checkpoint head that it accepted under its own rules. That is a witness-specific public fact, not automatic victory over every private branch.
-
-### 9.2 What control means
-
-Protocol control is the ability of the authority recognized by a chosen valid prior state to authorize the next lineage action. The initial controller and key are bound by the founding Commitment. Every later action must be signed by the current key and name the current BuilderID as actor. An `Ownership` action, signed by that controller, installs a different BuilderID and a new controller key.
-
-The action is called Ownership in the schema, but it proves a narrower fact than the everyday word suggests. It has no required countersignature from the incoming controller. It does not transfer copyright, licenses, app-store agreements, domains, repositories, tokens, or physical devices. It changes the authority recognized by subsequent lineage reduction.
-
-Possessing a Shot folder is consequently not enough to extend accepted history. Copying an export is not transfer. Knowing a ShotID is not control. A hosted service account is not authority unless the accepted controller state explicitly depends on a key under that service—and such dependence would be an implementation choice, not protocol privilege.
-
-### 9.3 Device delegation and recovery
-
-The successor public-account design separates the stable BuilderID from physical DeviceKeys. A BuilderAccount can hold multiple P-256 keys with protocol and device-administration permissions. Ordinary revocation cannot remove the final active device; the final administrator may be revoked only after recovery is configured. A distinct recovery authority can initiate replacement of the key set. Finalization becomes available after three days, while an active administrator can cancel any time before it lands.
-
-These contract semantics should not be confused with a complete end-to-end authority system. The neutral lineage reducer retains one current controller key. It has no action proving that a new DeviceKey under the same BuilderID became authorized by an on-chain rotation. `Ownership` cannot serve that purpose because it requires the BuilderID to change. The current candidate also has no completed local interface for successor device rotation, recovery, or public authority proof. A verifier that relies on public BuilderAccount state therefore needs an external trusted-generation and ERC-1271 validation context not supplied by pure lineage reduction.
-
-The frozen v0.7 identity boundary is narrower still: it supports its initial key and encrypted recovery material but no completed rotation or recovery command. Claims of finished recovery would be false.
-
-### 9.4 Who decides “same software”?
-
-The controller derived from the selected prior prefix decides whether to continue under the same Shot, declare another Expression, or begin a related Shot. The protocol constrains how that decision is recorded. It does not discover the correct philosophical answer.
-
-A malicious controller can authorize a text editor as the next Version of a weather application, weaken the Genome first, or sign incompatible heads. TOHSENO makes the authorization and mutations attributable. It cannot prevent the controller from making an absurd continuity claim. Observers remain free to reject that claim socially, technically, or legally.
-
-This limit is not an embarrassment to hide. It is the boundary between a protocol for explicit continuity and an impossible oracle for semantic identity.
-
-## 10. Local-first privacy and continuation
-
-### 10.1 Existence does not require publication
-
-A Shot is locally reducible relative to the initial controller/key binding declared by its founding Commitment when its records, commitments, signatures, and authority history verify. This does not by itself establish public BuilderAccount authority. No registry transaction, hosted account, token, public node, or Anky service is required for local reduction. The first factory is designed to create and use Shots locally, and public projection is a later deliberate act.
-
-At wire level, a signed action declares either `intentionally_private` or `publicly_available` handling. The protocol does not require every founding action to be private, and those values are not a quality ladder. An on-chain anchor does not imply byte availability; replication does not imply authenticity; intentional privacy is not an inferior form of publication.
-
-A commitment to private material is not consent to reveal it. The Intention can remain private. Private Feedback must travel in an intentionally private action. Publishing a digest can still leak information if the committed material has low entropy or an attacker can guess candidates, so privacy also depends on careful record design and custody.
-
-TOHSENO's continuity statements likewise avoid a universal user identifier. They use an application InstallationKey, an explicit Shot audience, optional recipient InstallationID, bounded claims, nonce, and validity interval. This permits scoped statements without making every application installation linkable by default.
-
-### 10.2 What must survive
-
-If TOHSENO, Anky, Inc., the first Generator, every hosted service, and every public Witness disappear, a locally held Shot can still retain:
-
-- its ShotID and signed authorized lineage;
-- committed Intention and Genome records that the holder actually possesses;
-- declared Expressions, Version commitments, evidence, and relationships;
-- the ability to verify canonical bytes and signatures with a conforming implementation; and
-- controller authority, if the currently recognized key remains available; a future externally validated recovery path may provide another route.
-
-That list preserves identity and history. Material continuation requires more. The Builder must also retain or lawfully reacquire the source, assets, private data, dependency inputs, build instructions, toolchain knowledge, signing and distribution prerequisites, and any secrets required by the Expression. A digest cannot regenerate missing source. A protocol record cannot keep an obsolete SDK runnable. A controller key cannot recover data that was never exported.
-
-The compressed claim therefore has a condition:
-
-> The first Generator can disappear. If the Builder retains authority, authorized records, and sufficient implementation material, the Shot can continue.
-
-Without those materials, the Shot may remain identifiable and auditable but not executable or evolvable. This is the difference between documentary survival and material survival.
-
-### 10.3 Three meanings of owned software
-
-“Owned software” is useful only after separating three meanings.
-
-**Material possession** means that the Builder controls the source, assets, build instructions, local data, protocol records, and enough dependencies or reproducible descriptions to operate or replace an Expression without the original Generator's permission.
-
-**Protocol control** means that authority recognized by the accepted controller state can sign the next valid action. It is a cryptographic and state-machine fact relative to a trusted lineage prefix.
-
-**Legal ownership** concerns copyright, licensing, employment agreements, platform rules, contracts, and property law. TOHSENO does not adjudicate it. A stolen controller key does not convey copyright; copyright does not by itself supply a controller signature.
-
-The current portable bundle demonstrates why the distinctions matter. It inventories and re-verifies records, may include private lineage only by explicit export mode, and preserves the exact signed records included in that selected mode. It deliberately omits Expression source, retained build artifacts, private working memory, and owner private keys, and declares itself not materialization-ready. Import does not transfer control. The bundle is valuable provenance transport, but it is not by itself material possession of continuable software.
-
-## 11. Publication, Witnesses, nodes, and optional associations
-
-### 11.1 A narrow public projection
-
-The successor Witness design avoids publishing the local lineage head. A `tohseno.public-checkpoint/1` record contains fixed protocol and scope fields, the witness generation, chain and registry coordinates, the random ShotID, a witness-local sequence, the preceding public checkpoint, and publication time. It deliberately excludes local action heads and sequence numbers, Intention, Genome, source, build and artifact digests, ExpressionID, VersionID, Feedback, availability, token relationships, controller, content, and free text.
-
-This is not a public backup of the Shot. It is an ancestry-free continuity and ordering projection. A segment of checkpoint records can prove canonical bytes and adjacency. Public authority additionally requires the paired registry action, live signature decision, receipt evidence, and a client trust decision about the contract generation.
-
-An optional Witness may:
-
-- validate the typed public actions defined for its generation;
-- serialize registration, checkpoint append, and registry-controller transfer operations;
-- retain one accepted public head and nonce for a ShotID;
-- make accepted public state available for indexing and mirroring.
-
-Independent observers may retain conflicting signed attempts; the registry itself does not make rejected transactions permanent records. A Witness may not create a Shot, grant permission for local existence, become controller by relaying an action, choose a globally canonical private head, or turn an address into possession of software. The checkpoint format neither requires nor carries undisclosed private material.
-
-Initial registration requires a salted commitment binding controller, ShotID, registry, chain, and deadline. Duplicate live commitments preserve their first timestamp, and reveal is valid only inside the specified time window. Later checkpoints require exact predecessor and next sequence. Registry-controller transfer preserves the public head. The registry accepts controllers through a standard contract-signature interface rather than permanently privileging one account implementation.
-
-```mermaid
-flowchart LR
-    subgraph Local["Builder-controlled local boundary"]
-        P["Private Intention, Genome,<br/>source, Feedback, lineage"]
-        K["Controller authority"]
-        D["Local publication decision"]
-        Q["Ancestry-free public checkpoint"]
-        RA["Paired RegistryAction"]
-        D --> Q --> RA
-        K -->|authorizes| RA
-        P -.->|not a checkpoint input| X["Remains local"]
-    end
-    RA --> W["Optional Witness / registry"]
-    Q --> W
-    W --> N1["Independent node"]
-    W --> N2["Independent indexer"]
-```
-
-*Figure 5 — Local existence and optional witnessing. The Witness/registry orders accepted checkpoints through paired public actions; the checkpoint does not contain or control the private Shot lineage.*
-
-### 11.2 Nodes are observers, not owners
-
-A node may verify canonical encodings, content commitments, signatures, and the causal adjacency of the records it possesses. Given authority context, it may reduce state. It may retain competing heads, replicate publicly available records, index relationships, or serve a surviving copy after another node disappears.
-
-A partial node must not claim completeness. A middle segment can prove internal adjacency and signatures without proving the missing initial authority history. A node does not become controller by storing data, and arrival order does not create truth. “Nodes index; Builders own” is safe only if *own* here means the Builder retains material and protocol control—not legal title, and not a claim that current exports contain all material.
-
-The current node implementation and the public Witness are not yet one operational system. That implementation boundary is recorded in Section 16.
-
-### 11.3 Token Association
-
-A **Token Association** is an optional, signed, chain-specific lineage relationship. It can associate or remove a token address, may carry a symbol, and may cite an optional anchor on another chain. The reducer retains association history and at most one current association; it validates anchor shape but does not query a chain or prove that the cited transaction exists.
-
-The token is not the Shot. Token control does not automatically grant Shot control; an Ownership action does not transfer a token; a token transfer does not amend lineage authority; and an anchor does not prove that software or private records are available. The current public-checkpoint format cannot carry Token Association. A future public relationship would need a separate privacy-bounded format.
-
-No blockchain or token is required by the Shot ontology. `$TOHSENO`, `$AAPL`, Bankr, Robinhood Chain, and any market design are peripheral implementation or association questions, not foundations of software continuity.
-
-## 12. Protocol profiles and replaceable factories
-
-The candidate separates four levels that historical materials sometimes conflated:
-
-| Level | Governs | Example at this revision |
-| --- | --- | --- |
-| Profile-neutral candidate ontology | Shot identity, origin, accepted law, Expressions, Versions, evidence, authority, lineage | Neutral coherent-intention lineage `/2` |
-| Protocol profile | Exact platform constraints, encodings, gates, and compatibility rules | Apple Fascia and Apple metadata schemas |
-| Factory product | Intake, generation handoff, verification, local storage, preview, feedback, export | TOHSENO CLI and Studio |
-| Generated Shot | One Builder's Intention, accepted Genome, source, data, and accepted Versions | A particular local Apple application |
-
-The first factory targets Apple platforms. At repository HEAD it creates a visible local Shot folder and first preserves the exact Intention and references. It discovers the local Xcode, SDK, Simulator, connected-device, and last-known-device context; asks the selected intelligence for a strict app-specific Birth Plan, Genome, organs, and Experience Contract; deterministically validates that proposal; and only then permits materialization. The same harness builds the complete Release implementation, runs automated and target-user journeys with controlled adapters where appropriate, captures multi-state evidence, and repairs the candidate before the engine independently evaluates protocol conformance, intent fidelity, and experience verification. Only the engine can append the accepted first Version. Private Feedback remains bound to exact accepted Versions and may ground a later Evolutionary Intent.
-
-The internal Apple capability catalog is data-driven and treats SDK and device powers as product material with explicit support, permission, entitlement, hardware, Simulator, unknown, and factory-gap states. Simulator absence is not a product prohibition. Camera, microphone, speech, ARKit, RealityKit, motion, haptics, local persistence, networking, and other declared capabilities are representable when their platform requirements and privacy declarations are honest. A must-level factory capability gap or missing physical trial leaves the candidate unsealed rather than silently replacing the intended interaction.
-
-The repository's `genome/LAWS.md` is the static factory Constitution injected into the coding harness. It is not the accepted Genome of every Shot and cannot author a product. The Apple **Fascia** is a deterministic membrane of platform, privacy, data-movement, and provenance truth; a per-Shot fascia manifest is a different schema. Generic signed-continuity and installation concerns are protocol substrate. App-specific **Organs** come from the accepted Birth Plan and alone can claim fulfillment of product requirements. These biological terms support the Apple profile and capability model; they do not grant Apple a permanent place in the definition of a Shot.
-
-Codex and Claude Code are supported harnesses, but neither is canonical. The current harness launches in a permissive unattended mode and materialization executes generated code on the Builder's machine; this is a significant implementation risk, not a property of Shot identity. A future factory may use a human team, another model, or a deterministic generator. A non-Apple Expression is allowed by the neutral model but has not been demonstrated by this repository.
-
-For a replacement factory to provide more than nominal compatibility, it must reproduce canonical encodings, signature rules, Version derivation, lineage reduction, authority checks, availability handling, and the relevant profile's verification semantics. Reading JSON and preserving a ShotID is insufficient.
-
-## 13. Relation to existing systems
-
-### 13.1 The strongest objection: Git plus metadata
-
-[Git](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects) already provides content-addressed blobs and trees, immutable commit objects, parent-linked history, distributed branching and merging, portable repositories, and [signed commits and tags](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work). TOHSENO should use these capabilities rather than imitate them.
-
-TOHSENO is physically a standardized series of typed, signed records, content commitments, and ordinary files, and it may use Git. It introduces no new hash function, signature scheme, or general graph structure. “Git plus metadata” correctly describes those materials. The claimed primitive is their shared software-specific transition semantics; its usefulness depends on whether independent implementations can reproduce them.
-
-Git identifies exact content objects and connects commits chosen by repository participants. It has no intrinsic stable repository identity and no application state machine that necessarily spans unrelated object graphs or remotes; repository continuity is largely social and locational. Git does not natively distinguish founding Intention from accepted Genome; declare multiple runtime Expressions as bodies of one software object; require a matching VerificationResult before an accepted application Version; bind lived Feedback to that exact Version; define the candidate's Builder-specific controller transfer and contract-level recovery policy; or distinguish a private lineage from an ancestry-free public witness projection.
-
-TOHSENO's additional object is the controller-authorized software lifecycle state machine spanning materially different content objects. A Git commit can be a source commitment, provenance fact, or evidence inside a Version. It does not become the Shot. Conversely, a Shot without retained source history would be materially weak. The systems are complementary.
-
-A signed manifest presents the same challenge more directly. A sufficiently rich series of signed manifests could encode every TOHSENO record. TOHSENO's claim is precisely the shared semantics: closed record types, canonicalization, authority transitions, accepted-Genome rules, Version preconditions, evidence binding, privacy handling, and deterministic reduction. If these rules are not independently implemented or useful, the ShotID is merely ceremonial. The protocol's success depends on interoperability, not branding a manifest.
-
-### 13.2 Exact content and reproducible artifacts
-
-[Software Heritage persistent identifiers](https://www.swhid.org/specification/v1.2/0.Introduction/) and [IPFS-style CIDs](https://specs.ipfs.tech/cid/) are intrinsic or content-addressed identifiers. They excel at naming exact source artifacts or data. A content change produces another identifier, which is the correct behavior for evidence but the wrong behavior for a continuity identity intended to survive change. Such identifiers can address Intention materials, source trees, builds, or lineage actions within a Shot.
-
-[Nix](https://releases.nixos.org/nix/nix-2.34.8/manual/store/derivation/index.html) and [Guix](https://arxiv.org/abs/1305.4584) model builds as derivations and immutable store outputs. [Reproducible-build practice](https://reproducible-builds.org/docs/definition/) asks whether the same source, environment, and instructions produce bit-identical artifacts. [OCI descriptors](https://github.com/opencontainers/image-spec/blob/main/descriptor.md) bind media type, size, and digest for packaged content. These systems answer how to identify, construct, and distribute an exact state. TOHSENO's Version may cite their outputs or evidence. A successful TOHSENO build does not, by itself, satisfy the stronger reproducible-build definition.
-
-### 13.3 Supply-chain provenance and bills of materials
-
-[in-toto](https://in-toto.io/docs/specs/) describes authorized steps and materials in a software supply chain. [SLSA provenance](https://slsa.dev/spec/v1.2/provenance) states where, when, and how an artifact was produced. [SPDX](https://spdx.github.io/spdx-spec/v3.0.1/scope/) and [CycloneDX](https://cyclonedx.org/specification/overview/) represent software composition, dependencies, vulnerabilities, and lifecycle relationships. These standards can carry richer technical facts than a TOHSENO Version record, and extensible formats could encode Shot-specific fields.
-
-Their standard semantics do not decide which candidate a Builder accepted as the next body of one continuing software object, whether an operational constitution changed, or how lived evidence participates in that decision. TOHSENO should consume their attestations as Machine Evidence rather than claim to replace them.
-
-### 13.4 Controlled identifiers and claims
-
-[W3C DIDs](https://www.w3.org/TR/did-core/) provide persistent identifiers with method-specific controller resolution and update rules. [Verifiable Credentials](https://www.w3.org/TR/vc-data-model-2.0/) provide cryptographically attributable claims and explicitly separate successful verification from truth of the claim. These are reusable identity and claim mechanisms. They do not define TOHSENO's software-specific Intention, Genome, Expression, Version, and evolution rules.
-
-A future profile could express a Builder identity through a DID or package selected facts as credentials. That would replace or extend identity plumbing, not automatically supply software continuity semantics. TOHSENO's current BuilderID is chain-specific and should not be described as a universal DID.
-
-### 13.5 Event sourcing
-
-TOHSENO lineage applies the established [event-sourcing pattern](https://martinfowler.com/eaaDev/EventSourcing.html): state is derived from an append-only sequence of domain events along one selected authorized prefix. Event sourcing supplies the architecture, including its familiar problems of schema evolution, snapshots, conflicts, and missing events. TOHSENO supplies one proposed software domain model, canonical bytes, controller authorization, privacy distinctions, and transition law.
-
-This comparison narrows the novelty claim appropriately. The Shot is a proposed software-specific aggregate and composition of responsibilities, not a new theory of logs.
-
-### 13.6 Platform identity, registries, and tokens
-
-An [Apple bundle identifier](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleidentifier) identifies a bundle within Apple's ecosystem and is tied to signing and distribution arrangements. An app-store listing adds a vendor account and marketplace continuity. Neither necessarily spans a new bundle, independent desktop or web Expression, lost account, or controller-authorized history outside the platform. These identifiers can be recorded as Expression or build facts without becoming Shot identity.
-
-Blockchain registries can order signed actions and make state widely observable. [ERC-721](https://eips.ethereum.org/EIPS/eip-721) standardizes non-fungible token identity, transfer, and ownership state. An NFT can point to software or a ShotID, but token ownership neither supplies the software materials nor proves that a controller-authorized rewrite is semantically continuous. TOHSENO's narrow Witness and separate Token Association are designed to avoid that conflation.
-
-### 13.7 Prompts, sessions, and model memory
-
-A prompt records an instruction. An agent session may preserve conversation, tool use, planning context, and provider-specific state. Model memory may retain repository facts or preferences. These are useful generation inputs, but they are incomplete, mutable, and bound to a harness or provider. They do not determine which generated source was accepted, what Genome governed it, which exact Version produced feedback, or who may continue the lineage.
-
-The prompt can be Intention material, a reference, or provenance. The session can be private working memory. Neither is the Shot.
-
-The repository therefore defines a coherent candidate primitive at the record and state-machine level. It has not yet demonstrated an interoperable ecosystem primitive: there is no independent conforming implementation, non-Apple factory, or cross-implementation continuation trial at this revision. That is the relevant empirical test still ahead.
-
-## 14. Security model, limitations, and non-goals
-
-### 14.1 What the construction resists
-
-Given secure hash and signature assumptions, correct canonicalization, retained records, and an uncompromised controller key, the neutral lineage is designed to resist:
-
-- undetected mutation of canonical payload or action bytes;
-- substitution of a different Intention record for the founding commitment;
-- skipped sequence numbers, broken predecessor links, replay into another Shot, and backward timestamps;
-- unauthorized actions relative to the controller state of a complete prefix;
-- implicit Genome replacement through an ordinary Version;
-- acceptance of a Version without a matching passed VerificationResult;
-- feedback silently migrating to a different Expression or Version;
-- changing an Expression's capability graph after verification while reusing the old result; and
-- overwriting an observed conflicting successor without exposing that a different signed head exists, provided observers retain both.
-
-Closed JSON schemas, RFC 8785 canonicalization, fixed-width lowercase encodings, P-256 curve validation, and low-s signature checks reduce ambiguity. Schema validation is necessary but insufficient; semantic reduction and external authority context remain necessary.
-
-### 14.2 What it does not solve
-
-**Key compromise and malicious authority.** An attacker with the current controller key can sign valid-looking harmful actions. A controller can intentionally authorize nonsense or equivocate. Recovery and delegation reduce some operational risks but introduce their own authorities and are incomplete end to end in the current product.
-
-**Semantic truth.** Hashes prove byte equality. Signatures prove possession of a signing capability in a context. Reducers prove rule satisfaction. None proves that an Intention is authentic in a social sense, a Genome is coherent, an implementation fulfills natural language, Feedback is honest, or a radical rewrite deserves continuity.
-
-**Generator honesty.** A Generator can lie in prose, insert malicious code, omit data, or exploit weak gates. Only independently obtained evidence within a trusted execution policy narrows that risk. The current schema does not require a separately authenticated Verifier.
-
-**Complete verification.** Tests sample behavior. Static scans have blind spots. Build success says little about usability. A VerificationResult can truthfully pass inadequate gates. `known_incompleteness` improves disclosure but cannot enumerate unknown defects.
-
-**Availability and reproducibility.** Content commitments do not store bytes. Nodes can serve only records and artifacts they possess. Public checkpoints intentionally omit private lineage facts. Exact source can be lost; dependencies can disappear; hardware and platforms can become obsolete. Reproducibility requires stronger retained inputs and deterministic toolchains.
-
-**Safe materialization.** Building and running generated software executes code. The current Apple factory is not a general sandbox, and its harness uses permission-bypass modes. Local-first execution removes a hosted intermediary but does not remove the risk of malicious generation, dependency tooling, or compromised build systems.
-
-**Privacy against all inference.** Keeping bytes local and projecting ancestry-free checkpoints reduces disclosure, but timing, a stable public ShotID, transaction senders, public controller state, and low-entropy commitments can still leak information. A public ShotID is intentionally linkable within its public witness scope.
-
-**Legal title and policy compliance.** The protocol does not settle copyright, license compatibility, employment ownership, export controls, app-store policy, consumer protection, or token regulation.
-
-**Global consensus.** Local lineage has no global ordering or canonical-head election. The optional registry orders only its narrow public state on one witness chain. Chain finality, censorship, reorganization, fees, and contract defects remain external risks.
-
-### 14.3 Non-goals
-
-TOHSENO does not attempt to prove personal identity, consciousness, biological life, universal application sameness, bug freedom, or product value. It does not require every creative act to enter global consensus. It does not replace source control, package management, reproducible builds, supply-chain provenance, SBOMs, platform signing, backups, licensing, or human review.
-
-Its narrower goal is to make one statement operational: *this accepted state is claimed, by authority recognized from this prior state, to continue this Shot under these committed constraints and evidence.*
-
-## 15. Constitutional invariants
-
-The following concise invariants state the candidate's conceptual constitution. Exact encodings and edge conditions remain governed by the normative specification.
-
-1. **Stable identity.** A ShotID is stable and independent of a Generator, model, repository, source tree, bundle, build, account service, runtime, distribution channel, token, current controller, and public Witness.
-2. **Committed origin.** The sequence-one Commitment binds one Intention-record commitment. A later disclosed Intention must match it and cannot replace it; the commitment does not guarantee continued possession of the private bytes.
-3. **Explicit law revision.** A Genome becomes current at a selected prefix only through an authorized proposal and explicit acceptance of that exact proposal. A Version cannot change the Genome implicitly.
-4. **Accepted-state integrity.** A full Version action binds one Expression, contiguous ordinal, the accepted Genome at the prior prefix, source digest, provenance, capability graph, passed VerificationResult, known incompleteness, acceptance time, and optional build facts. Altering the action breaks its commitment or signature.
-5. **Authorized causal history.** State derives from one contiguous, fully authorized prefix. A conforming observer that sees competing causally valid successors must not silently select the last arrival as canonical; the protocol supplies no global winner.
-6. **Explicit, fallible continuity.** Declaring a rewrite or another body under the same Shot is an attributable controller decision, not machine proof of semantic sameness or wisdom.
-7. **Bounded verification.** A passed VerificationResult records that every declared gate returned pass. Its evidentiary force depends on gate adequacy, runner trust, and verifier policy; it does not establish independence, usefulness, full fidelity, safety, or absence of defects.
-8. **Version-bound experience.** Feedback names the exact accepted Expression and Version to which an encounter is attributed. Its binding is machine-checkable; occurrence, authorship, meaning, and truth remain matters of judgment.
-9. **Control is not title.** Only authority recognized from prior derived state can authorize the next lineage action. Cryptographic control does not settle legal ownership.
-10. **Local validity precedes publication.** A signed lineage can be verified without a company, node, registry, token, or Witness. Public checkpoints are optional projections and do not carry private lineage fields or material, but they expose ShotID, time, witness coordinates, and associated public transaction metadata.
-11. **Privacy is deliberate.** A private descriptor or commitment is not consent to publish its material. Compatibility does not require a universal cross-application identity.
-12. **Token separation.** Token Association is optional and never substitutes for Shot identity, Version identity, material possession, or controller authority.
-13. **Material continuity is conditional.** A replaceable Generator is meaningful only when the Builder retains controller capability, authorized records, and enough source, assets, data, build knowledge, and dependencies to continue or replace an Expression.
-14. **Evolution is retrospective.** Version acceptance advances Expression state independently. An Evolution, when recorded, relates adjacent already accepted Versions through an earlier Evolutionary Intent; current reduction does not require every accepted successor to have one.
-
-These invariants deliberately avoid a stronger but unsupported claim that a Generator can never verify its own output. The present wire law records bounded gates and requires their successful result before Version acceptance; organizational independence must be imposed and evidenced by a profile or implementation.
-
-## 16. Implementation status at commit `bdb536e1e7f7468bb5b801088f7b21a5c6aba717`
-
-This section is non-normative. It describes the local checkout audited for this paper, whose commit timestamp is 2026-08-02 UTC. The checkout identifies its workspace and product surfaces as 0.8.2 and is fourteen commits after the `v0.8.1` tag. Its `V0_8_2_READINESS.json` record has channel `stable` but `ready: false`; no `v0.8.2` tag or immutable-release evidence exists at this revision. The defensible status is therefore a post-0.8.1 **0.8.2 candidate**, not a proven published 0.8.2 release. The protocol specification separately describes a composite pre-1.0 candidate and retains frozen v0.7 compatibility surfaces. Product, protocol, contract-generation, and artifact versions are not interchangeable.
-
-### 16.1 Implemented and exercised locally
-
-The Rust workspace implements and tests the neutral lineage records, RFC 8785/SHA-256 commitments, P-256 signatures, closed-schema validation, deterministic reduction, Genome proposal and acceptance, Expression and Organ declarations, VerificationResults, accepted Versions, version-bound Feedback, Evolutionary Intents, Evolutions, Ownership, Parent Relations, availability observations, v1 adaptation, and private Token Association. During this audit, `cargo test --locked --workspace --all-targets --all-features` passed 281 tests with no failure. The Apple identity and Apple Fascia Swift suites passed 7 and 9 tests respectively, and the Foundry contract suite passed 81 tests. The macOS signing-dependent ontology lifecycle script was not rerun for this paper.
-
-The CLI and localhost Studio expose a substantial private Apple lifecycle: create or adopt a visible Shot folder; preserve Intention material; take one unattended Shot whose validated intelligence-proposed Genome is accepted internally; run Codex or Claude Code through native one-shot modes; verify source under the Apple profile; require exact-candidate iPhone install and launch before signing an accepted Version; materialize retained artifacts for Simulator use; attach private Feedback to an exact Version; form feedback-selected evolutionary intent; record an optional Evolution; inspect accepted Genome and protocol state; and export or import verified record bundles. Repository dogfood reports real harness use and Simulator builds. It does not yet provide evidence of a successful physical-iPhone installation for this delivery-required source path.
-
-The current export/import transport is intentionally record-only. Its manifest must say that it is not materialization-ready and enumerate omitted source, build artifacts, private working memory, and owner keys. Import re-verifies inventory and lineage but neither takes control nor materializes an Expression.
-
-The node implements bounded storage, verification, indexing, branching, and static-peer synchronization for eligible `publicly_available` ordinary-lineage records it possesses. It rejects private replication and avoids claiming universal completeness or consensus. It is not yet a public-checkpoint or registry-receipt node.
-
-### 16.2 Apple factory scope
-
-Apple is the only implemented materialization profile. Its current effective gates are narrower than its general vocabulary: SwiftUI on iOS 17, no network/accounts/tracking/cloud or third-party runtime dependencies, constrained local storage, and local notifications as the sole supported protected capability. Simulator preview is evidenced. Physical-device success is not.
-
-The sealed Apple Fascia remains labeled candidate 0.7.0 by immutable-artifact policy. That does not make 0.7.0 the current product version, nor does the 0.8.2 workspace version make the composite protocol canonical 1.0. No non-Apple factory is implemented.
-
-### 16.3 Contracts and activation at the audited commit
-
-Repository ceremony evidence records that generation 0.8.0 `BuilderAccountFactory` and `ShotRegistry` contracts were deployed to Robinhood Chain, chain 4663, first as an inactive candidate. This audit did not independently query that public chain.
-
-The activation commit in this revision's ancestry adds a two-of-three release-authority policy, a threshold-signed sequence-one activation, a fresh P-256 precompile probe, independent verifier output, and owner decision records. Based on that embedded ceremony evidence for the deployed contracts, the client resolver treats generation 0.8.0 as active. Its offline network-status command reports `active` but `ready: false`, because registry verification is not implemented. The contracts themselves do not carry an on-chain activation flag.
-
-At the commit audited for this section, the repository did not speak with one normative voice about activation: higher-ranked protocol prose still said inactive while engine code and release evidence said active. The current repository has reconciled that contradiction in favor of the observable release state: generation 0.8.0 is the client-trusted active generation. This historical audit remains explicit because the later wording change cannot retroactively erase the discrepancy that existed at the audited commit.
-
-The activation evidence also records material security deviations. All three release-authority keys were generated on one Mac, so threshold signing does not protect against compromise of that machine. The owner record calls the required 72-hour production canary waived; real-chain BuilderAccount recovery remains unexercised. Accepted ADR 0009 makes both that canary and human or competitive audit prerequisites to activation and defines no waiver path. The ceremony therefore did not satisfy those accepted gates. Two AI reviews exist, but independent human or formal contract audit remains outstanding.
-
-### 16.4 Public functionality remains fail-closed
-
-Even under the engine's active resolver state, the end-user public lifecycle is not operational. Secure successor BuilderID creation is unimplemented. A default fresh identity remains explicitly test-only; an explicit Secure Enclave request fails closed; legacy v0.7 identities cannot authorize public actions. There is no complete CLI or Studio flow to deploy a BuilderAccount, retain commit/reveal state, register a Shot, append a public checkpoint, transfer registry control, or verify a publication receipt.
-
-Application metadata `/2` cannot claim registry publication. The required successor metadata schema and Fascia revision do not exist. The current node reports active generation 0.8.0 but still has no live controller resolver or inventory, verification, or synchronization surface for public checkpoints or receipts. Public-action surfaces therefore remain not ready despite the activation record.
-
-The contracts are unaudited by a human security firm and have no formal verification claim. There is no evidence here of a deployed or verified `$TOHSENO`, `$AAPL`, or per-Shot token. The optional Bankr path records a private Token Association and cannot substitute for publication.
-
-### 16.5 Retired, incomplete, and future work
-
-The v0.7 contract generation, predicted addresses, handles, public relations, app-store self-claims, legacy on-chain Appcoin relation/model, and public mutation paths are retired. The v0.7 contracts were never deployed and their deployment scripts remain fail-closed tombstones. Frozen local v0.7 records remain verifiable for compatibility.
-
-Implemented but incomplete work includes the Apple/Simulator lifecycle, record-only transport, ordinary-lineage node replication, the delivery-required device path without recorded physical-device dogfood, and a generated-code execution boundary that is not sandboxed. The optional private token relation is implemented for its private scope but has no public projection.
-
-Specified or candidate work includes secure public Builder creation, full device rotation/recovery authority proof, registry RPC and relayer flows, publication receipts, checkpoint-aware nodes and discovery, bounded remote feedback, a successor metadata/Fascia publication profile, non-Apple factories, and stronger material-continuation bundles. None should be inferred from the timeless object model.
-
-## 17. Conclusion
-
-Software already has strong ways to name exact states, reproduce builds, attest supply chains, package artifacts, control accounts, and publish registries. What these mechanisms do not by themselves provide is an explicit continuity identity spanning materially different implementations while preserving origin, accepted constraints, authority, exact accepted moments, and evidence.
-
-TOHSENO proposes the Shot for that role. The Shot is not a soul, brand, prompt, repository, token, or immutable program. It is a stable random identity plus a controller-authorized, deterministically reducible history. The Intention preserves committed origin. The Genome records accepted promises. Expressions give the Shot replaceable bodies. Versions preserve exact accepted states. Feedback names the exact state to which Contact is attributed. Evolution records an explicit relation between accepted moments. Witnessing remains an optional narrow projection.
-
-The construction does not prove semantic sameness. It makes a continuity judgment explicit, attributable, and mechanically checkable within declared limits. It does not confer legal ownership. It distinguishes protocol control from material possession and admits that current record transport alone does not guarantee either practical continuation or reproducibility.
-
-That modest boundary is also what makes the proposal defensible. TOHSENO need not invent new cryptography to define a distinct software-specific aggregate. Its value will depend on independent implementations, strong custody, useful profiles, honest verification, and Builders retaining the material their software needs. Without those, ShotID is a durable label around missing capability. With them, implementation becomes replaceable without making history disposable.
-
-The first Generator can disappear. The Shot remains—not because identity was hidden in code, but because continuity was made an explicit authorized object and the Builder retained what continuation requires.
-
+\newpage
 ## References
 
-### Normative and repository sources
+### Normative and architectural sources
 
-1. TOHSENO, [Protocol Specification](protocol/SPECIFICATION.md), composite pre-1.0 candidate.
-2. TOHSENO, [Conformance](protocol/CONFORMANCE.md), canonicalization requirements and vectors.
-3. TOHSENO, [Implementer Guide](protocol/IMPLEMENTERS.md).
-4. TOHSENO, [ADR 0004: Coherent Intention and Lineage](docs/adr/0004-coherent-intention-lineage.md).
-5. TOHSENO, [ADR 0005: Authentic Local Shot Execution](docs/adr/0005-authentic-local-shot-execution.md).
-6. TOHSENO, [ADR 0006: Public Witness and Contract Generation](docs/adr/0006-public-witness-and-contract-generation.md).
-7. TOHSENO, [ADR 0007: Application-Metadata Publication Policy](docs/adr/0007-app-metadata-publication-policy.md).
-8. TOHSENO, [Threat Model](docs/THREAT_MODEL.md).
-9. TOHSENO, [ADR 0009: One-Time Inactive 0.8.0 Deployment](docs/adr/0009-one-time-inactive-0-8-0-deployment.md).
-10. TOHSENO, [ADR 0010: Instantiated Runtime Hash Binding](docs/adr/0010-instantiated-runtime-hash-binding.md).
-11. TOHSENO, [Repository State](docs/STATE.md) and [Dogfood Report](docs/DOGFOOD_REPORT.md).
-12. TOHSENO, [Post-Activation Product Gap Audit](release/POST_ACTIVATION_PRODUCT_GAP_AUDIT.md).
-13. TOHSENO, [0.8.2 Readiness Record](release/V0_8_2_READINESS.json).
-14. TOHSENO, [Activation Evidence Index](release/contract-activations/README.md), [Owner Canary Decision](release/contract-activations/OWNER_CANARY_WAIVER.md), and [Owner Policy Approval](release/contract-activations/OWNER_POLICY_APPROVAL.md).
-15. TOHSENO, [0.8.0 Production-Readiness Evidence](release/CONTRACT_0_8_0_PRODUCTION_READINESS.json).
+1. TOHSENO, [Protocol Specification](https://github.com/jpfraneto/tohseno/blob/main/protocol/SPECIFICATION.md) and [Deterministic Conformance](https://github.com/jpfraneto/tohseno/blob/main/protocol/CONFORMANCE.md).
+2. TOHSENO, [ADR 0034: Tohseno Makes Native Software Person-to-Person](https://github.com/jpfraneto/tohseno/blob/main/docs/adr/0034-person-to-person-native-software.md).
+3. TOHSENO, [ADR 0035: Claiming Software](https://github.com/jpfraneto/tohseno/blob/main/docs/adr/0035-claiming-software.md).
+4. TOHSENO, [ADR 0033: Tohseno Maintains Living iPhone Projects](https://github.com/jpfraneto/tohseno/blob/main/docs/adr/0033-living-project-connection.md).
+5. TOHSENO, [ADR 0025: Native macOS Is the Product](https://github.com/jpfraneto/tohseno/blob/main/docs/adr/0025-native-macos-app-factory-managed-balance.md).
+6. TOHSENO, [Person-to-Person Architecture](https://github.com/jpfraneto/tohseno/blob/main/docs/ARCHITECTURE.md), [Repository State](https://github.com/jpfraneto/tohseno/blob/main/docs/STATE.md), and [Privacy Boundary](https://github.com/jpfraneto/tohseno/blob/main/docs/PRIVACY.md).
+7. TOHSENO, [Claims Deployment and Activation](https://github.com/jpfraneto/tohseno/blob/main/release/CLAIMS_V1_DEPLOYMENT_AND_ACTIVATION.md) and [1.2.0 Readiness Evidence](https://github.com/jpfraneto/tohseno/blob/main/release/V1_2_0_READINESS.json).
+8. TOHSENO, [Generation-0.8 Activation Evidence](https://github.com/jpfraneto/tohseno/blob/main/release/contract-activations/README.md) and [Claims Activation Evidence](https://github.com/jpfraneto/tohseno/blob/main/release/claims-activations/README.md).
 
-### Primary specifications and foundational sources
+### Related mechanisms
 
-16. Git Project, [Git Internals: Git Objects](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects), [Git References](https://git-scm.com/book/en/v2/Git-Internals-Git-References), and [Signing Work](https://git-scm.com/book/en/v2/Git-Tools-Signing-Your-Work).
-17. Software Heritage, [SWHID Specification v1.2](https://www.swhid.org/specification/v1.2/0.Introduction/).
-18. Multiformats, [Content Identifier Specification](https://specs.ipfs.tech/cid/).
-19. Reproducible Builds, [Definition](https://reproducible-builds.org/docs/definition/).
-20. Nix Project, [Store Paths](https://releases.nixos.org/nix/nix-2.34.8/manual/store/store-path.html) and [Derivations](https://releases.nixos.org/nix/nix-2.34.8/manual/store/derivation/index.html).
-21. Ludovic Courtès, [Functional Package Management with Guix](https://arxiv.org/abs/1305.4584), 2013.
-22. Open Container Initiative, [Image Manifest](https://github.com/opencontainers/image-spec/blob/main/manifest.md) and [Descriptor](https://github.com/opencontainers/image-spec/blob/main/descriptor.md).
-23. in-toto Project, [Specification Index](https://in-toto.io/docs/specs/).
-24. Supply-chain Levels for Software Artifacts, [SLSA Provenance v1.2](https://slsa.dev/spec/v1.2/provenance).
-25. SPDX, [SPDX 3.0.1 Scope](https://spdx.github.io/spdx-spec/v3.0.1/scope/).
-26. CycloneDX, [Specification Overview](https://cyclonedx.org/specification/overview/).
-27. W3C, [Decentralized Identifiers v1.0](https://www.w3.org/TR/did-core/) and [Verifiable Credentials Data Model v2.0](https://www.w3.org/TR/vc-data-model-2.0/).
-28. Martin Fowler, [Event Sourcing](https://martinfowler.com/eaaDev/EventSourcing.html), 2005.
-29. Apple, [`CFBundleIdentifier`](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleidentifier).
-30. Ethereum Improvement Proposals, [ERC-721: Non-Fungible Token Standard](https://eips.ethereum.org/EIPS/eip-721).
-31. GitHub, [Copilot session persistence](https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/session-persistence) and [Copilot Memory](https://docs.github.com/en/enterprise-cloud@latest/copilot/concepts/agents/copilot-memory).
-32. IETF, [RFC 8785: JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785).
+9. IETF, [RFC 8785: JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785).
+10. Git Project, [Git Internals](https://git-scm.com/book/en/v2/Git-Internals-Git-Objects).
+11. Reproducible Builds, [Definition](https://reproducible-builds.org/docs/definition/).
+12. in-toto Project, [Specification](https://in-toto.io/docs/specs/), and SLSA, [Provenance](https://slsa.dev/spec/v1.2/provenance).
+13. W3C, [Decentralized Identifiers v1.0](https://www.w3.org/TR/did-core/) and [Verifiable Credentials Data Model v2.0](https://www.w3.org/TR/vc-data-model-2.0/).
+14. Ethereum Improvement Proposals, [ERC-721](https://eips.ethereum.org/EIPS/eip-721) and [ERC-5192](https://eips.ethereum.org/EIPS/eip-5192).
+15. Apple, [Code Signing](https://developer.apple.com/support/code-signing/) and [`CFBundleIdentifier`](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleidentifier).
 
-## Appendix A. Claim boundaries
+\newpage
+## Appendix A. Compact glossary
 
-The same record can support different kinds of claims. Keeping them separate prevents both cryptographic overstatement and philosophical vagueness.
+| Term | Meaning |
+| --- | --- |
+| Shot | Continuing software object with a random stable identity and authorized history |
+| Intention | Immutable committed founding-material record |
+| Genome | Explicitly accepted and revisioned promises and boundaries |
+| Expression | One concrete body of a Shot in an environment |
+| Version | One immutable accepted state of an Expression |
+| Evolution | Retrospective authorized relation between adjacent accepted Versions |
+| BuilderID | Generation-0.8 BuilderAccount address used as Tohseno public identity |
+| Builder DeviceKey | Non-exportable P-256 key held by Companion for bounded public authorization |
+| Public checkpoint | Narrow ancestry-free Registry head containing no private lineage or source digest |
+| Catalog release | DeviceKey-signed object binding a checkpoint to exact public source and build facts |
+| Ship | The one public birth of a Shot |
+| Update | Any later accepted public release of that Shot |
+| Fork | New Shot with an explicit relation to one exact parent release |
+| Claim Edition | One immutable open, limited, timed, or limited-and-timed Claim policy fixed at first Ship |
+| Claim | One Tohseno account's non-transferable public encounter receipt for a Shot |
+| Claim mark | Canonical expressive circle representation whose digest is bound to a Claim |
+| Discover | Canonical public timeline of bounded software events |
+| Following | Private BuilderID preference set synchronized between Mac and Companion |
+| Updates | Private relationship-backed inbox synchronized between Mac and Companion |
 
-| Question | Mechanism | Defensible conclusion | Not established |
-| --- | --- | --- | --- |
-| Are these the committed bytes? | RFC 8785 plus SHA-256 | Supplied canonical bytes match a digest | Truth, authorship, availability elsewhere |
-| Did this key authorize the action? | P-256 signature plus authority reduction | The valid key recognized by the selected prior state signed the action | Human attention, freedom from compromise, legal title |
-| Is this a valid lineage continuation? | Sequence, predecessor, timestamp, ShotID, payload rules, controller state | The action extends one complete authorized prefix | Global canonical head, semantic wisdom |
-| Was this source digest accepted? | Full Version action plus the applicable source-digest law | A particular source digest and Genome digest were admitted under the Shot and Expression | Availability of source bytes, reproducibility, safety, usefulness |
-| Did verification record a pass? | VerificationResult and gates | Every recorded gate outcome is pass and matching facts are bound | Whether the runner executed as claimed; adequacy or independence of gates |
-| Was an encounter claimed for this state? | Version-bound Feedback | The authorized lineage contains an observation attributed as recorded to that Version | Occurrence, independent authorship, or universal truth of the observation |
-| Is a rewrite the same software? | Controller-authorized continuation under one Shot | The recognized authority made an explicit continuity claim | Metaphysical or objective semantic equivalence |
-| Can the Shot continue materially? | Custody of authority, records, source, assets, data, dependencies, and tooling | Continuation is practically possible to the extent those materials suffice | Future platform access or perpetual buildability |
+\Needspace{18\baselineskip}
+\par\noindent{\sffamily\bfseries\fontsize{16pt}{19pt}\selectfont Appendix B. Constitutional invariants}\par\vspace{7pt}
 
-The primitive lies not in a metaphor or any single cryptographic field, but in the composition of mechanisms with constrained claim semantics.
+1. A ShotID is random, stable, and independent of content, name, Builder, bundle, token, or channel.
+2. Accepted history is append-only; origin and accepted Versions are not edited in place.
+3. Continuity is an explicit authorized judgment, not machine proof of semantic sameness.
+4. A public checkpoint never imports private ancestry or hashes derived from it.
+5. The Mac owns execution truth; the Companion owns bounded human authorization; the Registry and signed catalog own public network truth.
+6. Public source requires exact Companion approval and deterministic sanitization.
+7. A recipient independently verifies, builds, and signs with their own Apple identity.
+8. A Shot Ships once. Later public releases are Updates. A Fork receives a new ShotID.
+9. One Shot has one immutable Claim Edition. One Tohseno account can Claim that Shot once.
+10. Claim is not payment, license, installation, ownership, personhood, or transferable inventory.
+11. Following and Updates remain private; there is no public attention graph.
+12. A chain deployment, database row, artifact build, signature, notarization, or source test never proves a later evidence state by implication.
+13. Missing or contradictory evidence fails closed.
+14. Frozen protocol encoding and the active generation-0.8 ABI are not rewritten to express new product behavior.
