@@ -3,7 +3,7 @@ set -eu
 
 repository_root="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd -P)"
 app="${1:-$repository_root/dist/native/Tohseno.app}"
-output="${2:-$repository_root/dist/native/Tohseno-1.2.0-rc.8.dmg}"
+output="${2:-$repository_root/dist/native/Tohseno-1.2.0-rc.9.dmg}"
 [ -d "$app/Contents" ] && [ ! -L "$app" ] || { printf '%s\n' 'create-dmg.sh: app bundle is missing or unsafe.' >&2; exit 1; }
 case "$output" in "$repository_root"/dist/*.dmg|"$repository_root"/dist/*/*.dmg) ;; *) printf '%s\n' 'create-dmg.sh: output must be below repository dist/.' >&2; exit 2 ;; esac
 stage="$(mktemp -d "${TMPDIR:-/tmp}/tohseno-dmg.XXXXXX")"
