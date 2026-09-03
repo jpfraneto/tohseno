@@ -1,15 +1,15 @@
 {
   "schema": "tohseno.native-release-manifest/1",
-  "native_release_version": "1.2.0",
-  "minimum_npm_cli_version": "1.2.0",
+  "native_release_version": "1.2.1",
+  "minimum_npm_cli_version": "1.2.1",
   "layout_version": "tohseno-user-release/2",
   "artifacts": [
     {
       "architecture": "arm64",
       "target": "aarch64-apple-darwin",
-      "url": "https://github.com/jpfraneto/tohseno/releases/download/npm-v1.2.0/tohseno-cli-1.2.0-aarch64-apple-darwin.tar.gz",
-      "byte_size": 13239982,
-      "sha256": "54cc8b76846df5def59ba556fa001a959026670f81cc785571fb15f2479b2fe1",
+      "url": "https://github.com/jpfraneto/tohseno/releases/download/npm-v1.2.1/tohseno-cli-1.2.1-aarch64-apple-darwin.tar.gz",
+      "byte_size": 13259116,
+      "sha256": "b42f154831df9b690f307c92b764d2d30a1f1061201142ace3f8e58f1529d014",
       "signing": {
         "kind": "apple-developer-id",
         "team_id": "84V63LKV45",
@@ -19,9 +19,9 @@
     {
       "architecture": "x64",
       "target": "x86_64-apple-darwin",
-      "url": "https://github.com/jpfraneto/tohseno/releases/download/npm-v1.2.0/tohseno-cli-1.2.0-x86_64-apple-darwin.tar.gz",
-      "byte_size": 14020586,
-      "sha256": "8821b0e66822561270bb7f4aff552a23cb898bfcd19b6f082da5264a39ee34c9",
+      "url": "https://github.com/jpfraneto/tohseno/releases/download/npm-v1.2.1/tohseno-cli-1.2.1-x86_64-apple-darwin.tar.gz",
+      "byte_size": 14078151,
+      "sha256": "306e0ef8015173d001086cd8d6f5f9c976c83a062eca21dd5f8f7d17603e0318",
       "signing": {
         "kind": "apple-developer-id",
         "team_id": "84V63LKV45",

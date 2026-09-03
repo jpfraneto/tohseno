@@ -589,11 +589,11 @@ describe("public pages", () => {
     );
     expect(await response.json()).toEqual(expected);
     expect(expected.schema).toBe("tohseno.native-release-manifest/1");
-    expect(expected.native_release_version).toBe("1.2.0");
-    expect(expected.minimum_npm_cli_version).toBe("1.2.0");
+    expect(expected.native_release_version).toBe("1.2.1");
+    expect(expected.minimum_npm_cli_version).toBe("1.2.1");
     expect(expected.artifacts).toHaveLength(2);
     for (const artifact of expected.artifacts) {
-      expect(artifact.url).toContain("/releases/download/npm-v1.2.0/");
+      expect(artifact.url).toContain("/releases/download/npm-v1.2.1/");
       expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(artifact.signing.kind).toBe("apple-developer-id");
       expect(artifact.signing.team_id).toBe("84V63LKV45");
