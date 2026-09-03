@@ -40,14 +40,19 @@ Return/Shift–Return composers, Build/App/Source workspace, pairing, DeviceKey
 approval, Ship/Update/Claim, source verification, recipient Apple signing, and
 intended-device installation boundaries are unchanged.
 
-This source is locally covered by Mac and Companion tests and captured fixture
-images. It is not yet a signed/notarized release artifact and has not been
-accepted on another person's Mac or physical iPhone. Deterministic fixtures are
-not physical pairing, Ship, Claim, or install evidence.
+This source is locally covered by focused Rust, Mac, CompanionKit, and website
+checks. Exact clean commit `a82050c4efc64973f8e5c6a6925cdae0f29d2a24`
+is published as signed, notarized, stapled prerelease `v1.2.0-rc.9`. Its
+53,156,943-byte DMG has SHA-256
+`24ca9eec77ac004292b371af2b2eb96f6830d6e92f55ba142fb24c12b2c38eef`;
+both the GitHub-origin download and the production `tohseno.com/download/macos`
+path returned those exact bytes. It has not been accepted on another person's
+Mac or physical iPhone. Automated checks are not physical pairing, Ship, Claim,
+or install evidence.
 
 The website source also now supports an injected Registry blob store.
 `filesystem` preserves the existing local sharded permanent blobs; `r2` moves
-only immutable public source and icon bytes to private Cloudflare R2 keys
+only immutable public source and media bytes to private Cloudflare R2 keys
 `sha256/<digest>`. Catalogs, indexes, staging uploads, jobs, profiles, aliases,
 Claims state, and migration audits remain on the durable Registry volume.
 Remote writes are create-only and pending/final bytes must pass full SHA-256 and
@@ -65,9 +70,16 @@ the retained filesystem copy also produced the exact full digest and range,
 after which production returned to R2 and passed health and range checks.
 
 No publication, Claim, signature, catalog record, or chain state changed during
-the migration. Registry and Claims writes remain dark. Cloudflare Bucket Lock
-has not been applied: the remaining owner-attended R2 action is an indefinite
-lock for only `sha256/`, never `pending/` or the whole bucket.
+the migration, and it did not broaden Registry or Claims write authority.
+Cloudflare Bucket Lock rule `registry-final-objects` is enabled indefinitely for
+only `sha256/`; staging keys under `pending/` and the rest of the bucket remain
+outside that lock.
+
+Production deployment `b216aaae-af3d-4042-b043-d696c76f0edf` now serves the
+network timeline and pins the exact RC9 URL and digest on the visibly labeled
+release-candidate channel. Health, Registry rendering, the installer metadata,
+the redirect headers, and the complete public download were observed on the
+live service.
 
 ## Current product direction: claimable person-to-person software
 
