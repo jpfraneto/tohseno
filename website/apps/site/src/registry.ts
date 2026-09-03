@@ -14,6 +14,13 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { AppConfig } from "../config.ts";
+import {
+  createRegistryBlobStore,
+  RegistryBlobStoreError,
+  type RegistryBlobDescriptor,
+  type RegistryBlobLocator,
+  type RegistryBlobStore,
+} from "./blob-store.ts";
 import type { ClaimCatalogContext, ClaimsPublicationBridge } from "./claims.ts";
 import { HttpError, withSecurityHeaders } from "./security.ts";
 
@@ -105,6 +112,8 @@ export interface StagingRecord {
   expiresAt: string;
   sourceUploaded: boolean;
   iconUploaded: boolean;
+  sourceByteLength?: number;
+  iconByteLength?: number;
 }
 
 export interface PublicationJob {
@@ -114,7 +123,9 @@ export interface PublicationJob {
   tokenSHA256: string;
   registry: JsonObject;
   claimEdition?: JsonObject;
-  status: "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted" | "complete" | "failed";
+  status: "prepared" | "storage_pending" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted" | "complete" | "failed";
+  blobsStaged?: boolean;
+  cleanupComplete?: boolean;
   accountTransactionHash?: Hex;
   commitTransactionHash?: Hex;
   registryTransactionHash?: Hex;
@@ -172,6 +183,7 @@ export async function createRegistryRouter(
   verifier?: ChainVerifier,
   claims?: ClaimsPublicationBridge,
   injectedRelayer?: ConstrainedRelayer,
+  injectedBlobStore?: RegistryBlobStore,
 ): Promise<RegistryRouter> {
   if (!config.registry.enabled) return unavailableRouter();
   const root = config.registry.root!;
@@ -181,7 +193,6 @@ export async function createRegistryRouter(
     throw new Error("REGISTRY_ROOT must be a real directory, not a symlink");
   }
   const directories = {
-    blobs: join(root, "blobs", "sha256"),
     staging: join(root, "staging"),
     releases: join(root, "releases"),
     shots: join(root, "shots"),
@@ -195,6 +206,8 @@ export async function createRegistryRouter(
     aliasNonces: join(root, "alias-nonces"),
   };
   await Promise.all(Object.values(directories).map((path) => mkdir(path, { recursive: true, mode: 0o700 })));
+  const blobStore = injectedBlobStore ?? createRegistryBlobStore(config.registry);
+  await blobStore.initialize();
   const chain = verifier ?? new RobinhoodVerifier(config);
   const relayer = injectedRelayer ?? (config.registry.relayerEnabled
     ? createRelayer(config)
@@ -283,27 +296,32 @@ export async function createRegistryRouter(
     stagingID: string,
     staging: StagingRecord,
     transactionHash: Hex,
-  ): Promise<JsonObject> {
+  ): Promise<{ publicRecord: JsonObject; cleanupComplete: boolean }> {
     const release = releaseOf(staging.envelope);
     const display = object(release.display, "release.display");
     if (!staging.sourceUploaded) throw new HttpError(409, "Source artifact has not been staged");
     if (display.icon_sha256 !== null && display.icon_sha256 !== undefined && !staging.iconUploaded) {
       throw new HttpError(409, "Icon artifact has not been staged");
     }
+    const descriptors = await pendingDescriptors(directories.staging, staging);
+    await ensurePendingBlobs(blobStore, directories.staging, staging, descriptors);
     const record = await (async () => {
       const existing = await readJSON<CatalogRecord>(join(directories.releases, `${staging.releaseDigest.slice(2)}.json`));
       if (existing) {
-        if (!chain.revalidate || await chain.revalidate(existing)) return existing;
+        if (!chain.revalidate || await chain.revalidate(existing)) {
+          await promotePendingBlobs(blobStore, staging, descriptors);
+          await updateIndexes(directories, existing);
+          return existing;
+        }
         throw new HttpError(409, "Existing release evidence is no longer canonical");
       }
       await requireBuilderLocalSlugAvailable(directories.releases, release);
       const evidence = await chain.verify(staging.envelope, transactionHash);
       const sourceDigest = normalizeDigest(object(release.source, "release.source").sha256);
-      await promote(join(directories.staging, `${stagingID}.source`), blobPath(directories.blobs, sourceDigest), sourceDigest);
+      await promotePendingBlobs(blobStore, staging, descriptors);
       let iconURL: string | undefined;
       if (display.icon_sha256) {
         const iconDigest = normalizeDigest(display.icon_sha256);
-        await promote(join(directories.staging, `${stagingID}.icon`), blobPath(directories.blobs, iconDigest), iconDigest);
         iconURL = `/api/registry/v1/blobs/${iconDigest}`;
       }
       const route = canonicalRoute(release);
@@ -313,10 +331,10 @@ export async function createRegistryRouter(
         ...(iconURL ? { iconURL } : {}) };
       await atomicJSON(join(directories.releases, `${staging.releaseDigest.slice(2)}.json`), next, true);
       await updateIndexes(directories, next);
-      await rm(join(directories.staging, `${stagingID}.json`), { force: true });
       return next;
     })();
-    return publicRecord(record);
+    const cleanupComplete = await cleanupPublishedStaging(blobStore, directories.staging, stagingID);
+    return { publicRecord: publicRecord(record), cleanupComplete };
   }
 
   async function publicationStatus(request: Request, id: string): Promise<Response> {
@@ -329,10 +347,26 @@ export async function createRegistryRouter(
     job = await serialized(async () => {
       const current = await readJSON<PublicationJob>(path);
       if (!current) throw new HttpError(404, "Publication job not found");
-      if (!["complete", "failed"].includes(current.status)) {
+      if (current.status === "complete" && !current.cleanupComplete) {
+        current.cleanupComplete = await cleanupPublishedStaging(blobStore, directories.staging, current.stagingID);
+        current.updatedAt = new Date().toISOString();
+        await atomicJSON(path, current, false);
+      } else if (current.status !== "failed") {
         try {
           const staging = await readJSON<StagingRecord>(join(directories.staging, `${current.stagingID}.json`));
           if (!staging) throw new HttpError(409, "Publication staging reservation is unavailable");
+          if (!current.blobsStaged) {
+            const descriptors = await pendingDescriptors(directories.staging, staging);
+            await ensurePendingBlobs(blobStore, directories.staging, staging, descriptors);
+            current.blobsStaged = true;
+            current.status = "prepared";
+            delete current.failure;
+            current.updatedAt = new Date().toISOString();
+            // This durable flag is written before the first possible chain
+            // call. A process crash therefore cannot turn local-only bytes
+            // into a public transaction.
+            await atomicJSON(path, current, false);
+          }
           await relayer.advance(current, staging);
           if (current.status === "submitted" && current.registryTransactionHash) {
             const release = releaseOf(staging.envelope);
@@ -348,19 +382,24 @@ export async function createRegistryRouter(
               current.claimsTransactionHash = claim.transactionHash;
               if (!claim.confirmed) throw new PublicationPending("claims_submitted");
             }
-            current.publicRecord = await finalizeStaging(
+            const finalized = await finalizeStaging(
               current.stagingID,
               staging,
               current.registryTransactionHash,
             );
+            current.publicRecord = finalized.publicRecord;
+            current.cleanupComplete = finalized.cleanupComplete;
             current.status = "complete";
           }
         } catch (error) {
           if (error instanceof PublicationPending) {
             current.status = error.status;
+          } else if (error instanceof RegistryBlobStoreError && error.kind === "transient") {
+            current.status = "storage_pending";
+            current.failure = "Durable Registry storage is temporarily unavailable; this publication will retry.";
           } else {
             current.status = "failed";
-            current.failure = error instanceof Error ? error.message.slice(0, 300) : "publication failed";
+            current.failure = publicPublicationFailure(error);
           }
         }
         current.updatedAt = new Date().toISOString();
@@ -606,23 +645,31 @@ export async function createRegistryRouter(
     }
     if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/blobs" && (method === "GET" || method === "HEAD")) {
       const digest = normalizeDigest(parts[4]);
-      const path = blobPath(directories.blobs, digest);
-      const metadata = await stat(path).catch(() => undefined);
-      if (!metadata?.isFile()) throw new HttpError(404, "Blob not found");
-      const range = method === "GET" ? byteRange(request.headers.get("range"), metadata.size) : undefined;
+      const locator = blobLocator(await allRecords(directories.releases), digest);
+      if (!locator) throw new HttpError(404, "Blob not found");
+      let metadata;
+      try { metadata = await blobStore.metadata(locator); }
+      catch (error) { throw blobStoreHttpError(error); }
+      const range = method === "GET" ? byteRange(request.headers.get("range"), metadata.byteLength) : undefined;
       const headers = {
-        "content-type": "application/octet-stream", "content-length": String(metadata.size),
+        "content-type": metadata.contentType, "content-length": String(metadata.byteLength),
         "cache-control": "public, max-age=31536000, immutable", "content-disposition": "attachment",
         "accept-ranges": "bytes", "x-content-sha256": digest,
       };
       if (range) {
-        const bytes = await Bun.file(path).slice(range.start, range.end + 1).arrayBuffer();
-        return withSecurityHeaders(new Response(bytes, {
+        let blob;
+        try { blob = await blobStore.read(locator, range); }
+        catch (error) { throw blobStoreHttpError(error); }
+        return withSecurityHeaders(new Response(blob.stream, {
           status: 206, headers: { ...headers, "content-length": String(range.end - range.start + 1),
-            "content-range": `bytes ${range.start}-${range.end}/${metadata.size}` },
+            "content-range": `bytes ${range.start}-${range.end}/${metadata.byteLength}` },
         }));
       }
-      return head(withSecurityHeaders(new Response(Bun.file(path), { headers })), method);
+      if (method === "HEAD") return head(withSecurityHeaders(new Response(null, { headers })), method);
+      let blob;
+      try { blob = await blobStore.read(locator); }
+      catch (error) { throw blobStoreHttpError(error); }
+      return withSecurityHeaders(new Response(blob.stream, { headers }));
     }
     if (url.pathname === "/api/registry/v1/staging" && method === "POST") {
       requireJSON(request);
@@ -632,7 +679,7 @@ export async function createRegistryRouter(
       const releaseDigest = verifyEnvelope(envelope, config);
       const token = randomHex(32);
       const record = await serialized(async () => {
-        await collectExpiredStaging(directories.staging);
+        await collectExpiredStaging(directories.staging, directories.jobs, blobStore);
         await requireStagingCapacity(directories.staging, releaseOf(envelope), config);
         await requireBuilderLocalSlugAvailable(directories.releases, releaseOf(envelope));
         await requireBuilderLocalSlugAvailableInStaging(directories.staging, releaseOf(envelope));
@@ -643,6 +690,10 @@ export async function createRegistryRouter(
           envelope, releaseDigest, createdAt: now.toISOString(),
           expiresAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
           sourceUploaded: false, iconUploaded: false,
+          sourceByteLength: positiveSafeInteger(
+            object(releaseOf(envelope).source, "release.source").byte_length,
+            "source.byte_length",
+          ),
         };
         await atomicJSON(join(directories.staging, `${stagingID}.json`), value, true);
         return value;
@@ -669,11 +720,17 @@ export async function createRegistryRouter(
       }
       const temporary = join(directories.staging, `${stagingID}.${kind}.partial`);
       const observed = await writeBoundedBody(request, temporary, maximum);
-      if (observed !== expected) { await rm(temporary, { force: true }); throw new HttpError(422, `${kind} digest mismatch`); }
+      if (observed.digest !== expected) { await rm(temporary, { force: true }); throw new HttpError(422, `${kind} digest mismatch`); }
       await rename(temporary, join(directories.staging, `${stagingID}.${kind}`));
-      if (kind === "source") staging.sourceUploaded = true; else staging.iconUploaded = true;
+      if (kind === "source") {
+        staging.sourceUploaded = true;
+        staging.sourceByteLength = observed.byteLength;
+      } else {
+        staging.iconUploaded = true;
+        staging.iconByteLength = observed.byteLength;
+      }
       await atomicJSON(join(directories.staging, `${stagingID}.json`), staging, false);
-      return json({ schema: "tohseno.catalog-blob-staged/1", kind, sha256: observed });
+      return json({ schema: "tohseno.catalog-blob-staged/1", kind, sha256: observed.digest });
     }
     if (parts.length === 6 && parts.slice(0, 4).join("/") === "api/registry/v1/staging" && parts[5] === "finalize" && method === "POST") {
       requireJSON(request);
@@ -685,8 +742,14 @@ export async function createRegistryRouter(
       const body = await boundedJSON(request, 16 * 1024);
       exactKeys(body, ["transaction_hash"], "finalize request");
       const transactionHash = normalizeDigest(body.transaction_hash) as Hex;
-      const record = await serialized(() => finalizeStaging(stagingID, staging, transactionHash));
-      return json(record, 201);
+      let finalized;
+      try {
+        finalized = await serialized(() => finalizeStaging(stagingID, staging, transactionHash));
+      } catch (error) {
+        if (error instanceof RegistryBlobStoreError) throw blobStoreHttpError(error);
+        throw error;
+      }
+      return json(finalized.publicRecord, 201);
     }
     if (parts.length === 6 && parts.slice(0, 4).join("/") === "api/registry/v1/staging" && parts[5] === "publish" && method === "POST") {
       if (!relayer) throw new HttpError(503, "The constrained Registry relayer is not enabled");
@@ -931,7 +994,7 @@ class RobinhoodVerifier implements ChainVerifier {
   }
 }
 
-type PendingStatus = "prepared" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted";
+type PendingStatus = "prepared" | "storage_pending" | "account_ready" | "committed" | "waiting_maturity" | "submitted" | "claims_submitted";
 
 class PublicationPending extends Error {
   constructor(readonly status: PendingStatus) { super(status); }
@@ -1420,7 +1483,11 @@ async function authorizedStaging(request: Request, root: string, id: string): Pr
   return record;
 }
 
-async function writeBoundedBody(request: Request, path: string, maximum: number): Promise<Hex> {
+async function writeBoundedBody(
+  request: Request,
+  path: string,
+  maximum: number,
+): Promise<{ digest: Hex; byteLength: number }> {
   const length = Number(request.headers.get("content-length") ?? "NaN");
   if (!Number.isSafeInteger(length) || length < 1 || length > maximum) throw new HttpError(413, "Blob size is missing or outside its bound");
   const file = await open(path, "wx", 0o600);
@@ -1430,7 +1497,7 @@ async function writeBoundedBody(request: Request, path: string, maximum: number)
     const reader = request.body?.getReader(); if (!reader) throw new HttpError(400, "Blob body is required");
     while (true) { const { done, value } = await reader.read(); if (done) break; count += value.byteLength; if (count > maximum || count > length) throw new HttpError(413, "Blob exceeded its declared bound"); hasher.update(value); await file.write(value); }
     if (count !== length) throw new HttpError(400, "Blob length differs from Content-Length");
-    await file.sync(); return `0x${hasher.digest("hex")}`;
+    await file.sync(); return { digest: `0x${hasher.digest("hex")}`, byteLength: count };
   } catch (error) { await rm(path, { force: true }); throw error; }
   finally { await file.close(); }
 }
@@ -1894,13 +1961,25 @@ function sourceKey(request: Request, config: AppConfig): string {
   return /^[0-9a-f:.]{2,64}$/i.test(value) ? `source:${value}` : "source:invalid";
 }
 
-async function collectExpiredStaging(root: string, now = Date.now()): Promise<void> {
+async function collectExpiredStaging(
+  root: string,
+  jobsRoot: string,
+  blobStore: RegistryBlobStore,
+  now = Date.now(),
+): Promise<void> {
   const names = await readdir(root).catch(() => [] as string[]);
   for (const name of names.slice(0, 10_000)) {
     if (!/^[0-9a-f]{32}\.json$/.test(name)) continue;
     const id = name.slice(0, 32);
     const record = await readJSON<StagingRecord>(join(root, name));
     if (!record || Date.parse(record.expiresAt) > now) continue;
+    const job = await readJSON<PublicationJob>(join(jobsRoot, `${id}.json`));
+    if (job && job.schema === "tohseno.registry-publication-job/2"
+        && job.status !== "complete" && job.status !== "failed") {
+      continue;
+    }
+    try { await blobStore.removePending(id); }
+    catch { continue; }
     await Promise.all([
       rm(join(root, name), { force: true }),
       rm(join(root, `${id}.source`), { force: true }),
@@ -2072,37 +2151,131 @@ function chainTimestamp(value: bigint): string {
 }
 function sha256Hex(value: Uint8Array): Hex { return `0x${new Bun.CryptoHasher("sha256").update(value).digest("hex")}`; }
 function timingSafeText(a: string, b: string): boolean { if (a.length !== b.length) return false; let difference = 0; for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index); return difference === 0; }
-function blobPath(root: string, digest: Hex): string { return join(root, digest.slice(2, 4), digest.slice(4)); }
-async function promote(source: string, destination: string, expected: Hex): Promise<void> {
-  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
-  if (await lstat(destination).catch(() => undefined)) {
-    if (await fileSHA256(destination) !== expected) {
-      throw new HttpError(500, "Existing content-addressed blob failed its digest");
-    }
-    await rm(source, { force: true });
-    return;
-  }
-  await rename(source, destination);
+
+interface PendingBlobDescriptors {
+  source: RegistryBlobDescriptor;
+  icon?: RegistryBlobDescriptor;
 }
-async function fileSHA256(path: string): Promise<Hex> {
-  const metadata = await lstat(path);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new HttpError(500, "Content-addressed blob path is not a regular file");
+
+async function pendingDescriptors(
+  stagingRoot: string,
+  staging: StagingRecord,
+): Promise<PendingBlobDescriptors> {
+  const release = releaseOf(staging.envelope);
+  const source = object(release.source, "release.source");
+  const sourceDescriptor: RegistryBlobDescriptor = {
+    digest: normalizeDigest(source.sha256),
+    byteLength: positiveSafeInteger(source.byte_length, "source.byte_length"),
+  };
+  const display = object(release.display, "release.display");
+  if (!display.icon_sha256) return { source: sourceDescriptor };
+  let iconByteLength = staging.iconByteLength;
+  if (iconByteLength === undefined) {
+    const details = await lstat(join(stagingRoot, `${staging.stagingID}.icon`)).catch(() => undefined);
+    if (!details?.isFile() || details.isSymbolicLink() || details.size < 1) {
+      throw new RegistryBlobStoreError("integrity", "The staged Registry icon is not a regular file");
+    }
+    iconByteLength = details.size;
   }
-  const file = await open(path, "r");
-  const hasher = new Bun.CryptoHasher("sha256");
-  const buffer = new Uint8Array(1024 * 1024);
+  return {
+    source: sourceDescriptor,
+    icon: { digest: normalizeDigest(display.icon_sha256), byteLength: iconByteLength },
+  };
+}
+
+async function ensurePendingBlobs(
+  blobStore: RegistryBlobStore,
+  stagingRoot: string,
+  staging: StagingRecord,
+  descriptors: PendingBlobDescriptors,
+): Promise<void> {
+  await blobStore.stagePending(
+    staging.stagingID,
+    "source",
+    join(stagingRoot, `${staging.stagingID}.source`),
+    descriptors.source,
+  );
+  if (descriptors.icon) {
+    await blobStore.stagePending(
+      staging.stagingID,
+      "icon",
+      join(stagingRoot, `${staging.stagingID}.icon`),
+      descriptors.icon,
+    );
+  }
+}
+
+async function promotePendingBlobs(
+  blobStore: RegistryBlobStore,
+  staging: StagingRecord,
+  descriptors: PendingBlobDescriptors,
+): Promise<void> {
+  await blobStore.promotePending(staging.stagingID, "source", descriptors.source);
+  if (descriptors.icon) {
+    await blobStore.promotePending(staging.stagingID, "icon", descriptors.icon);
+  }
+}
+
+async function cleanupPublishedStaging(
+  blobStore: RegistryBlobStore,
+  stagingRoot: string,
+  stagingID: string,
+): Promise<boolean> {
   try {
-    while (true) {
-      const { bytesRead } = await file.read(buffer, 0, buffer.length, null);
-      if (bytesRead === 0) break;
-      hasher.update(buffer.subarray(0, bytesRead));
-    }
-  } finally {
-    await file.close();
+    await blobStore.removePending(stagingID);
+    await Promise.all([
+      rm(join(stagingRoot, `${stagingID}.json`), { force: true }),
+      rm(join(stagingRoot, `${stagingID}.source`), { force: true }),
+      rm(join(stagingRoot, `${stagingID}.icon`), { force: true }),
+      rm(join(stagingRoot, `${stagingID}.source.partial`), { force: true }),
+      rm(join(stagingRoot, `${stagingID}.icon.partial`), { force: true }),
+    ]);
+    return true;
+  } catch {
+    // Catalog publication is already durable. Retain all local material so a
+    // later status request can retry cleanup without reconstructing evidence.
+    return false;
   }
-  return `0x${hasher.digest("hex")}`;
 }
+
+function blobLocator(records: CatalogRecord[], digest: Hex): RegistryBlobLocator | undefined {
+  for (const record of records) {
+    const release = releaseOf(record);
+    const source = object(release.source, "release.source");
+    if (source.sha256 === digest) {
+      return {
+        digest,
+        byteLength: positiveSafeInteger(source.byte_length, "source.byte_length"),
+      };
+    }
+    if (object(release.display, "release.display").icon_sha256 === digest) {
+      return { digest };
+    }
+  }
+  return undefined;
+}
+
+function blobStoreHttpError(error: unknown): HttpError {
+  if (!(error instanceof RegistryBlobStoreError)) {
+    return new HttpError(503, "Registry blob storage is temporarily unavailable");
+  }
+  switch (error.kind) {
+  case "not_found": return new HttpError(404, "Blob not found");
+  case "transient": return new HttpError(503, "Registry blob storage is temporarily unavailable");
+  case "integrity": return new HttpError(500, "Published Registry blob failed integrity verification");
+  }
+}
+
+function publicPublicationFailure(error: unknown): string {
+  if (error instanceof RegistryBlobStoreError) {
+    return error.kind === "integrity"
+      ? "Durable Registry bytes failed integrity verification."
+      : "Durable Registry storage is unavailable.";
+  }
+  if (error instanceof HttpError) return error.message.slice(0, 300);
+  return "Publication failed safely before catalog promotion.";
+}
+
 async function atomicJSON(path: string, value: unknown, exclusive: boolean): Promise<void> { const temporary = `${path}.${crypto.randomUUID()}.partial`; await writeFile(temporary, `${canonicalCatalogJSON(value)}\n`, { mode: 0o600, flag: "wx" }); if (exclusive && await stat(path).catch(() => undefined)) { await rm(temporary, { force: true }); throw new HttpError(409, "Record already exists"); } await rename(temporary, path); }
 async function readJSON<T>(path: string): Promise<T | undefined> { try { const metadata = await stat(path); if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error("invalid record"); return JSON.parse(await readFile(path, "utf8")) as T; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; } }
 function escapeHTML(value: string): string { return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]!); }

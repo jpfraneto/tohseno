@@ -16,11 +16,17 @@ struct FirstRunView: View {
         VStack(alignment: .leading, spacing: 0) {
             WordmarkView()
             Spacer()
-            Text("Keep this iPhone\nconnected to your Mac.")
+            Text("BRING YOUR IPHONE INTO THE WORKSHOP")
+                .font(.caption.weight(.bold))
+                .tracking(1.7)
+                .foregroundStyle(Tohseno.orange)
+            FirstRunWorkshopConnection()
+                .padding(.vertical, 22)
+            Text("Connect this iPhone\nto your Mac workshop.")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(Tohseno.bone)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Tohseno on your Mac is completing the private connection. You can revoke this iPhone from the Mac at any time.")
+            Text("The Mac is the factory. This iPhone becomes the private remote and keeper of your human approval. You can revoke it from the Mac at any time.")
                 .font(.system(size: 16))
                 .foregroundStyle(Tohseno.ash)
                 .fixedSize(horizontal: false, vertical: true)
@@ -59,6 +65,37 @@ struct FirstRunView: View {
         }
     }
 
+}
+
+private struct FirstRunWorkshopConnection: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            actor("Mac factory", symbol: "macbook")
+            HStack(spacing: 3) {
+                Circle().frame(width: 4, height: 4)
+                Rectangle().frame(height: 1)
+                Circle().frame(width: 4, height: 4)
+            }
+            .foregroundStyle(Tohseno.orange)
+            .accessibilityHidden(true)
+            actor("This iPhone", symbol: "iphone.gen3")
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Tohseno.orange.opacity(0.22)))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Connect the Mac factory to this iPhone keeper")
+        .accessibilityIdentifier("workshop.first-run-connection")
+    }
+
+    private func actor(_ title: String, symbol: String) -> some View {
+        VStack(spacing: 7) {
+            Image(systemName: symbol).font(.title2).foregroundStyle(Tohseno.orange)
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(Tohseno.bone)
+        }
+        .frame(maxWidth: .infinity)
+    }
 }
 
 /// Shown exactly once, only when this iPhone's identity is first created.

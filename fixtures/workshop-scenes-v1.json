@@ -1,0 +1,28 @@
+{
+  "schema": "tohseno.workshop-fixtures/1",
+  "note": "Deterministic UI scenarios. evidence names an existing application projection; no fixture is deployment, Claim, pairing, or physical-install evidence.",
+  "scenes": [
+    { "id": "brand_new_user", "surface": "mac_welcome", "evidence": "readiness.step=welcome", "claim": "Ready to start" },
+    { "id": "iphone_not_connected", "surface": "mac_readiness", "evidence": "readiness.step=connect_cable", "claim": "Waiting for the cable" },
+    { "id": "iphone_connected_but_locked", "surface": "mac_app", "evidence": "presentation.state=installing+activity.handoff=device_locked", "claim": "Unlock the intended iPhone" },
+    { "id": "trust_required", "surface": "mac_readiness", "evidence": "readiness.step=trust_mac", "claim": "Waiting for Trust" },
+    { "id": "developer_mode_required", "surface": "mac_readiness", "evidence": "readiness.step=developer_mode", "claim": "Waiting for Developer Mode" },
+    { "id": "companion_installing", "surface": "mac_readiness", "evidence": "readiness.step=installing_companion", "claim": "Installing on iPhone" },
+    { "id": "pairing_recovery_ceremony", "surface": "mac_readiness", "evidence": "readiness.step=pairing_companion", "claim": "Connecting privately" },
+    { "id": "paired_and_ready", "surface": "mac_workshop", "evidence": "readiness.ready=true+readiness.companion_connected=true", "claim": "Your iPhone is connected" },
+    { "id": "empty_workshop", "surface": "mac_workshop", "evidence": "workspace.visible_apps=[]", "claim": "Take one clear Shot" },
+    { "id": "one_installed_app", "surface": "mac_workshop", "evidence": "presentation.state=installed", "claim": "The workshop is connected" },
+    { "id": "several_apps", "surface": "mac_workshop", "evidence": "workspace.visible_apps.count=3", "claim": "Three app objects on the shelf" },
+    { "id": "app_building", "surface": "mac_workshop", "evidence": "presentation.state=building", "claim": "The Mac factory is building" },
+    { "id": "waiting_for_mac", "surface": "companion_workshop", "evidence": "presentation.state=waiting", "claim": "Waiting for the Mac workshop" },
+    { "id": "ready_to_install", "surface": "mac_workshop", "evidence": "presentation.state=ready_for_phone", "claim": "The app is ready for its iPhone" },
+    { "id": "verified_installed", "surface": "mac_workshop", "evidence": "presentation.state=installed", "claim": "The workshop is connected" },
+    { "id": "build_failure", "surface": "mac_workshop", "evidence": "presentation.state=failed", "claim": "One app needs your attention" },
+    { "id": "ship_awaiting_approval", "surface": "keeper_inbox", "evidence": "private_update.kind=publication_approval", "claim": "Ship approval is waiting" },
+    { "id": "shipped", "surface": "network", "evidence": "timeline.kind=shot.shipped", "claim": "Entered Tohseno" },
+    { "id": "claim_available_inactive", "surface": "companion_release", "evidence": "claims.active=true+claim_edition.open=true+claim_state=absent", "claim": "Claim" },
+    { "id": "claim_canonical_queued", "surface": "keeper_inbox", "evidence": "private_update.kind=claimed", "claim": "Claimed; preparation queued" },
+    { "id": "mac_offline_from_companion", "surface": "companion_workshop", "evidence": "companion.connection=disconnected", "claim": "Mac currently offline" },
+    { "id": "update_available", "surface": "keeper_inbox", "evidence": "private_update.kind=claimed_app_updated", "claim": "Update available" }
+  ]
+}

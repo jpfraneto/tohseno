@@ -22,6 +22,12 @@ The sanitized source artifact and a closed Companion-signed catalog: public disp
 
 The public checkpoint itself is far narrower and contains no source or content digest. The signed catalog and content-addressed blob bind software bytes off-chain to that narrow on-chain witness.
 
+The server may store those immutable source/icon bytes in a private R2 bucket.
+Bucket/account names and S3 credentials are operational secrets and are not
+part of the catalog, browser configuration, native app, or public response.
+Incoming staging, publication jobs, profiles, aliases, Claims state, and local
+migration evidence do not move to R2.
+
 ## A public Claim contains
 
 Claim deliberately exposes the relationship between one Tohseno account and one Shot at an exact release/checkpoint, plus a canonical Claim-mark commitment, per-Shot claim number and global non-transferable token ID.

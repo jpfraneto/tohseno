@@ -32,6 +32,31 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
+    func testLivingWorkshopRendersAtTheShippingWindowSize() async throws {
+        let suite = "tohseno-workshop-render-fixture-\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = TohsenoAppModel(client: UIFixtureFactoryClient(), preferences: preferences)
+        await model.reload()
+
+        let size = NSSize(width: 1_100, height: 760)
+        let host = NSHostingView(
+            rootView: TohsenoLivingWorkshopFixtureView(model: model)
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        XCTAssertGreaterThan(png.count, 20_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_WORKSHOP_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
+    @MainActor
     func testFirstOpenWelcomeRendersAtTheShippingWindowSize() throws {
         let suite = "tohseno-welcome-render-fixture-\(UUID().uuidString)"
         let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -122,6 +147,72 @@ final class NativeFactoryTests: XCTestCase {
         ])
     }
 
+    func testLivingWorkshopProjectsOnlyRealApplicationAndAuthorityState() {
+        let ready = ReadinessView(
+            schema: "tohseno.readiness/1", ready: true, step: "ready",
+            headline: "Ready", detail: "Ready", primaryAction: nil, primaryLabel: nil,
+            deviceName: "Jorge’s iPhone", deviceProductType: "iPhone 15",
+            companionConnected: true
+        )
+        let keeper = PairedCompanionDevice(
+            deviceID: "keeper_fixture", deviceIDAbbreviation: "keeper",
+            displayName: "Jorge’s iPhone", pairedAt: "2026-09-03T00:00:00Z",
+            lastSeen: "2026-09-03T00:01:00Z", syncState: "connected", revoked: false
+        )
+        let builder = BuilderIdentityView(
+            builderID: "eip155:4663:0x1111111111111111111111111111111111111111",
+            chainID: 4663, accountAddress: "0x1111111111111111111111111111111111111111",
+            identityGeneration: "device_key_v1", scope: "public",
+            authorityStatus: "authorized", deploymentStatus: "deployed",
+            deviceKeyID: "0x" + String(repeating: "aa", count: 32),
+            securityLevel: "secure_enclave", testOnly: false
+        )
+        let network = RegistryNetworkStatus(
+            schema: "tohseno.network-status/2", productVersion: "1.2.0",
+            activeGeneration: "0.8.0", ready: true, rpcChecked: true,
+            publicAuthorityAvailable: true, publishingAvailable: true,
+            reason: "Exact active public evidence agrees."
+        )
+        let update = PrivateUpdateItem(
+            kind: .publicationApproval, subjectID: "shot_fixture", evidenceID: "publication_fixture",
+            title: "Ship approval is waiting", detail: "Approve on Companion.",
+            occurredAt: "2026-09-03T00:02:00Z"
+        )
+        let registry = RegistrySnapshot(
+            builder: builder, network: network, records: [], privateUpdates: [update]
+        )
+        let projection = LivingWorkshopProjection(
+            apps: [workshopApp(.installed)], readiness: ready,
+            pairedDevices: [keeper], registry: registry
+        )
+
+        XCTAssertEqual(projection.chapter, .installed)
+        XCTAssertEqual(projection.phone, .connected)
+        XCTAssertEqual(projection.keeper, .connected)
+        XCTAssertEqual(projection.threshold, .publishingAvailable)
+        XCTAssertEqual(projection.unreadUpdates, 1)
+        XCTAssertEqual(projection.apps.map(\.state), [.installed])
+
+        let states: [(PresentedState, WorkshopChapter)] = [
+            (.waiting, .building), (.building, .building),
+            (.readyForPhone, .readyToInstall), (.installing, .installing),
+            (.installed, .installed), (.failed, .needsAttention),
+        ]
+        for (state, chapter) in states {
+            XCTAssertEqual(
+                LivingWorkshopProjection(
+                    apps: [workshopApp(state)], readiness: ready,
+                    pairedDevices: [], registry: nil
+                ).chapter,
+                chapter
+            )
+        }
+        XCTAssertEqual(
+            LivingWorkshopProjection(apps: [], readiness: ready, pairedDevices: [], registry: nil).chapter,
+            .takeShot
+        )
+    }
+
     func testHumanPresentationMatchesRustFixture() throws {
         let repository = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -133,6 +224,62 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(Set(states.values), Set(PresentedState.allCases.map(\.rawValue)))
         XCTAssertEqual(states["waiting_for_device"], PresentedState.readyForPhone.rawValue)
         XCTAssertEqual(states["accepted"], PresentedState.installed.rawValue)
+    }
+
+    func testDeterministicWorkshopCatalogCoversEveryRequiredTruthSource() throws {
+        let repository = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let data = try Data(contentsOf: repository.appendingPathComponent("fixtures/workshop-scenes-v1.json"))
+        let document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(document["schema"] as? String, "tohseno.workshop-fixtures/1")
+        let scenes = try XCTUnwrap(document["scenes"] as? [[String: String]])
+        XCTAssertEqual(Set(scenes.compactMap { $0["id"] }), [
+            "brand_new_user", "iphone_not_connected", "iphone_connected_but_locked",
+            "trust_required", "developer_mode_required", "companion_installing",
+            "pairing_recovery_ceremony", "paired_and_ready", "empty_workshop",
+            "one_installed_app", "several_apps", "app_building", "waiting_for_mac",
+            "ready_to_install", "verified_installed", "build_failure",
+            "ship_awaiting_approval", "shipped", "claim_available_inactive",
+            "claim_canonical_queued", "mac_offline_from_companion", "update_available",
+        ])
+        XCTAssertEqual(scenes.count, 22)
+        XCTAssertTrue(scenes.allSatisfy {
+            !($0["surface"] ?? "").isEmpty
+                && !($0["evidence"] ?? "").isEmpty
+                && !($0["claim"] ?? "").isEmpty
+        })
+
+        let readinessClaims = Dictionary(uniqueKeysWithValues: [
+            "welcome", "connect_cable", "trust_mac", "developer_mode",
+            "installing_companion", "pairing_companion",
+        ].map { step in
+            let view = ReadinessView(
+                schema: "tohseno.native-onboarding-view/1", ready: false,
+                step: step, headline: "Fixture", detail: "Fixture",
+                primaryAction: nil, primaryLabel: nil
+            )
+            return ("readiness.step=\(step)", view.setupStatus)
+        })
+        for scene in scenes where scene["evidence"]?.hasPrefix("readiness.step=") == true {
+            XCTAssertEqual(readinessClaims[scene["evidence"]!], scene["claim"])
+        }
+        let presentationEvidence: Set<String> = Set(PresentedState.allCases.map {
+            "presentation.state=\($0.rawValue)"
+        })
+        for scene in scenes where scene["evidence"]?.hasPrefix("presentation.state=") == true
+            && scene["evidence"]?.contains("+") == false {
+            XCTAssertTrue(presentationEvidence.contains(scene["evidence"]!))
+        }
+        let privateUpdateEvidence = Set([
+            PrivateUpdateKind.publicationApproval,
+            .claimed,
+            .claimedAppUpdated,
+        ].map { "private_update.kind=\($0.rawValue)" })
+        for scene in scenes where scene["evidence"]?.hasPrefix("private_update.kind=") == true {
+            XCTAssertTrue(privateUpdateEvidence.contains(scene["evidence"]!))
+        }
     }
 
     func testOnlyActiveReadinessStepsUseTheLoadingMark() {
@@ -190,7 +337,7 @@ final class NativeFactoryTests: XCTestCase {
         }
 
         let welcome = try XCTUnwrap(source.range(of: "TohsenoWelcomeSequence"))
-        let diagnostics = try XCTUnwrap(source.range(of: "ReadinessProgressPanel"))
+        let diagnostics = try XCTUnwrap(source.range(of: "WorkshopReadinessScene"))
         XCTAssertLessThan(welcome.lowerBound, diagnostics.lowerBound)
     }
 
@@ -635,24 +782,65 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     func testRequiredAccessibilityIdentifiersRemainPresent() throws {
-        let root = URL(fileURLWithPath: #filePath)
+        let sourceRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/TohsenoMacCore/RootView.swift")
-        let source = try String(contentsOf: root, encoding: .utf8)
+            .appendingPathComponent("Sources/TohsenoMacCore")
+        let source = try ["RootView.swift", "LivingWorkshop.swift"]
+            .map { try String(contentsOf: sourceRoot.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
         for identifier in [
-            "readiness.primary", "create-app.sidebar", "creation.intention",
-            "adopt-app.sidebar", "adopt-app.empty",
+            "readiness.primary", "create-app.workshop", "creation.intention",
+            "adopt-app.workshop", "adopt-app.empty",
             "creation.submit", "evolution.intention", "evolution.submit",
             "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
             "app.workspace-tabs", "app.change", "app.files", "app.build-log",
             "app.preview", "app.iphone-handoff", "app.open-source",
-            "registry.sidebar", "registry.modes", "registry.search",
+            "registry.workshop", "registry.modes", "registry.search",
             "registry.timeline", "registry.updates",
             "creation.starters", "readiness.progress", "readiness.harness",
             "readiness.welcome.begin",
+            "workshop.scene", "workshop.app-shelf", "workshop.network-threshold",
+            "workshop.one-shot", "workshop.shot.intention", "workshop.shot.submit",
+            "workshop.command-palette", "workshop.list-fallback",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }
+    }
+
+    func testLivingWorkshopReplacesTheAdministrativeSidebarWithoutRestoringStudio() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TohsenoMacCore")
+        let root = try String(
+            contentsOf: sourceRoot.appendingPathComponent("RootView.swift"), encoding: .utf8
+        )
+        let workshop = try String(
+            contentsOf: sourceRoot.appendingPathComponent("LivingWorkshop.swift"), encoding: .utf8
+        )
+        XCTAssertTrue(root.contains("LivingWorkshopView(model: model"))
+        XCTAssertFalse(root.contains("NavigationSplitView {"))
+        XCTAssertTrue(workshop.contains("Mac factory"))
+        XCTAssertTrue(workshop.contains("Intended iPhone"))
+        XCTAssertTrue(workshop.contains("Keeper"))
+        XCTAssertTrue(workshop.contains("Network threshold"))
+        XCTAssertTrue(workshop.contains("Take the Shot"))
+        XCTAssertFalse(workshop.contains("Execution pipeline"))
+    }
+
+    private func workshopApp(_ state: PresentedState) -> AppSummary {
+        AppSummary(
+            shotID: "workshop_\(state.rawValue)", displayName: "Fixture",
+            bundleIdentifier: "org.tohseno.fixture",
+            icon: IconDescriptor(
+                revision: "fixture", blobID: "fixture", mediaType: "image/png",
+                byteLength: 1, placeholder: true
+            ),
+            expressionID: "expression_fixture", latestVersionID: "version_fixture",
+            latestVersionOrdinal: 1, latestVersionCreatedAt: "2026-09-03T00:00:00Z",
+            execution: nil,
+            presentation: Presentation(state: state, headline: "Fixture state"),
+            archived: false, retired: false, sortIndex: 0
+        )
     }
 }
 

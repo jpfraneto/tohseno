@@ -5,16 +5,25 @@ description: The native product surface over the one persistent local factory.
 
 `Tohseno.app` is the primary consumer surface. It is a native SwiftUI application over the one existing Rust service and factory—not a second implementation of the build system.
 
-## Navigation
+## The Living Workshop
 
-The normal Mac destinations are:
+The normal Mac window is one spatial workshop rather than an administrative
+sidebar. It shows the Mac factory, the current app bench, the intended iPhone,
+the Keeper, and the public network threshold as one relationship. Every object
+is a projection of current readiness, app, paired-device, or Registry state; an
+animation never invents a build, pairing, Ship, Claim, or install.
 
-- **Apps** — adopted and created apps, creation, evolution, build history, source, and phone delivery.
-- **Registry** — Discover, private Following, private Updates, search, and verified public software.
-- **Profile** — the person's bounded public Builder identity and private relationship state.
+The normal destinations remain available:
+
+- **App shelf** — adopted and created apps, creation, evolution, build history, source, and phone delivery.
+- **One Shot** — the persistent one-intention creation dock.
+- **Network** — Discover, private Following, private Updates, search, and verified public software.
+- **Keeper** — the person's bounded public Builder identity and private relationship state.
 - **Settings** — readiness, coding route, paired devices, balance, and diagnostics.
 
-When the library is empty, **Adopt Existing App** is first and **Create a First App** is second. There is no return of the deleted Studio dashboard or a mandatory blank prompt wall.
+The first-open chapter introduces intention → Mac → iPhone before the concrete
+Apple readiness sequence. Detailed connection evidence stays available behind
+a disclosure. There is no return of the deleted Studio dashboard.
 
 ## One service underneath
 
@@ -29,6 +38,11 @@ In a focused intention composer:
 - **Return** sends.
 - **Shift–Return** inserts a line.
 - The send path has exactly-once guards.
+
+Outside a composer, arrow keys select app objects, Return opens the selection,
+`/` opens the small command palette, and Escape closes overlays or returns
+toward the workshop. Ship, Claim, signing, and install remain deliberate actions
+without single-key shortcuts.
 
 Settings for creation are open by default so detected authenticated harnesses are visible. Discovery checks bounded known locations—standalone, Homebrew/global, Volta, npm-global, Bun, and installed NVM paths—without executing a user shell.
 

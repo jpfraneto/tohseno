@@ -1,8 +1,42 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-02. This is the plain-language
+Written 2026-07-30, amended through 2026-09-03. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
+
+## Current source evolution: durable public bytes and the Living Workshop
+
+ADR 0039 now makes **One Shot** the visible native identity and the **Living
+Workshop** the primary Mac and Companion shell over the one existing factory.
+The Mac scene presents the factory, current app bench, intended iPhone, Keeper,
+network threshold, app shelf, and creation dock as one coherent place. Companion
+shows the same relationship from the pocket. The old destinations remain
+reachable through spatial objects, a destination bar, the app shelf/list, and
+the existing exact app/public-release views. The six-state presentation model,
+Return/Shift–Return composers, Build/App/Source workspace, pairing, DeviceKey
+approval, Ship/Update/Claim, source verification, recipient Apple signing, and
+intended-device installation boundaries are unchanged.
+
+This source is locally covered by Mac and Companion tests and captured fixture
+images. It is not yet a signed/notarized release artifact and has not been
+accepted on another person's Mac or physical iPhone. Deterministic fixtures are
+not physical pairing, Ship, Claim, or install evidence.
+
+The website source also now supports an injected Registry blob store.
+`filesystem` preserves the existing local sharded permanent blobs; `r2` moves
+only immutable public source and icon bytes to private Cloudflare R2 keys
+`sha256/<digest>`. Catalogs, indexes, staging uploads, jobs, profiles, aliases,
+Claims state, and migration audits remain on the durable Registry volume.
+Remote writes are create-only and pending/final bytes must pass full SHA-256 and
+length readback before public catalog visibility. Public blob URLs are stable;
+provider outages do not become false `404` responses.
+
+Production has not been cut over. A 2026-09-03 read-only inventory found one
+461,076,480-byte Anky source blob whose local SHA-256 matches its signed catalog
+digest. The service has no R2 variables and the accessible Cloudflare account
+has no dedicated Registry bucket, so no migration apply, selector change,
+credential, or Bucket Lock is claimed. Owner-attended setup and the known-Anky
+live read remain the next boundary.
 
 ## Current product direction: claimable person-to-person software
 

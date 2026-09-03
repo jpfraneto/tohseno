@@ -560,6 +560,25 @@ struct CompanionFlowTests {
     }
 
     @MainActor
+    @Test("One Shot can leave naming to the existing factory")
+    func unnamedOneShot() async {
+        let backend = StubBackend()
+        let subject = CompanionModel(backend: backend, deviceName: "Fixture iPhone")
+        subject.openCreate()
+        subject.intent = "Make one calm breathing timer."
+        #expect(subject.appName.isEmpty)
+        #expect(subject.canCreate)
+
+        await subject.create()
+
+        let creations = await backend.creations
+        #expect(creations.count == 1)
+        #expect(creations[0].suggestedName == nil)
+        #expect(creations[0].intention == "Make one calm breathing timer.")
+        #expect(subject.screen == .apps)
+    }
+
+    @MainActor
     @Test("Your Apps lists the person's apps and nothing else")
     func yourApps() async {
         let retired = ShotSummary(

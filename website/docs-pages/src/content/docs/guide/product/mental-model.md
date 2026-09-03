@@ -9,6 +9,8 @@ The normal product is deliberately smaller than the machine underneath it.
 
 | Product word | Meaning |
 | --- | --- |
+| One Shot | The one-intention creation gesture; it enters the existing factory, not a second planner. |
+| Living Workshop | The native place where the Mac factory, intended iPhone, app objects, Keeper, and network threshold are projected from real state. |
 | App | A native iPhone app connected to source and history on this Mac. |
 | Create | Begin a new app from an intention. |
 | Adopt | Connect an existing Xcode app without altering its repository. |
@@ -20,7 +22,10 @@ The normal product is deliberately smaller than the machine underneath it.
 | Update | Make a later public release of the same Shot. |
 | Claim | Publicly record one Tohseno identity's encounter with one exact Shot release. |
 
-The core abstraction is **App → Intent → App on your iPhone**. The person writes what should change; the system binds the exact base and handles the continuity work.
+The core abstraction is **App → Intent → App on your iPhone**. The Living
+Workshop makes that relationship spatial without changing it. The person writes
+what should change; the system binds the exact base and handles the continuity
+work.
 
 ## The machinery behind the surface
 

@@ -58,10 +58,55 @@ Claims are available through bounded Shot/receipt reads but never flood
 Discover.
 
 Registry state requires an explicit absolute durable `REGISTRY_ROOT` and HTTPS
-`ROBINHOOD_RPC_URL`. `REGISTRY_RELAYER_ENABLED` additionally requires one
-dedicated lowercase private key. Per-source/global rate limits, staging record
-and byte capacity, thirty-minute expiry cleanup, bounded request bodies, atomic
-writes, and content-addressed immutable promotion are fail-closed.
+`ROBINHOOD_RPC_URL`. `REGISTRY_BLOB_STORE=filesystem` is the development and
+rollback default. `REGISTRY_BLOB_STORE=r2` moves only immutable public source
+and icon bytes to the configured private Cloudflare R2 bucket; catalog records,
+indexes, jobs, profiles, Claims state, incoming upload staging, and migration
+evidence remain under `REGISTRY_ROOT`. R2 uses the official
+`https://<ACCOUNT_ID>.r2.cloudflarestorage.com` S3 endpoint with region `auto`;
+no alternate endpoint is accepted. The access key and secret are server-only
+hosting secrets and never enter a browser or native client bundle.
+
+The storage seam uses final keys `sha256/<64 lowercase hex>` and temporary keys
+`pending/<32 lowercase hex>/source|icon`. Writes are conditional/create-only,
+and both pending and final objects are streamed back through SHA-256 and length
+verification before a catalog can become public. ETags are not integrity
+evidence. Full and single-range `GET` plus `HEAD` continue to use the stable
+`/api/registry/v1/blobs/<0x digest>` route; only an absent object is `404`, while
+a provider outage is `503` and an integrity disagreement fails hard.
+
+`REGISTRY_RELAYER_ENABLED` additionally requires one dedicated lowercase
+private key. Before its first possible chain call, a publication job records
+that the exact source/icon bytes are durable in the selected store. Remote
+storage outages stay retryable and persisted transaction hashes prevent a
+retry from issuing duplicate transactions. Per-source/global rate limits,
+staging record and byte capacity, thirty-minute expiry cleanup, bounded request
+bodies, atomic writes, and content-addressed immutable promotion are
+fail-closed.
+
+Inventory and migrate an existing local blob set without changing catalog
+records or deleting local bytes:
+
+```sh
+cd website
+REGISTRY_ENABLED=true \
+REGISTRY_ROOT=/absolute/durable/registry \
+REGISTRY_BLOB_STORE=r2 \
+REGISTRY_R2_ACCOUNT_ID=... REGISTRY_R2_BUCKET=... \
+REGISTRY_R2_ACCESS_KEY_ID=... REGISTRY_R2_SECRET_ACCESS_KEY=... \
+bun run registry:r2:migrate --dry-run
+
+# Repeat with --apply only after reviewing the dry-run counts and digests.
+bun run registry:r2:migrate --apply
+```
+
+Dry-run reads and hashes every local permanent blob without contacting R2.
+Apply repeats the audit, uploads create-only, verifies R2 by reading every byte
+back, keeps all local bytes, and writes a machine-readable audit under
+`REGISTRY_ROOT/r2-migration-audits/`. Cutover and rollback are operator actions;
+see the person-to-person network runbook. Cloudflare's relevant behavior is
+documented in its [AWS SDK example](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)
+and [S3 compatibility table](https://developers.cloudflare.com/r2/api/s3/api/).
 
 The deploy-time `--app-slug` is signed into every release and stays stable for
 later Updates. It creates the Builder-local route immediately; a root route

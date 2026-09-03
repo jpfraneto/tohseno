@@ -2,6 +2,13 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0039](0039-one-shot-living-workshop.md) makes the native Mac and
+Companion a shared living software workshop: Mac factory, intended iPhone,
+keeper/human authority, real app objects, network threshold, and one existing
+One Shot command path. It migrates the Apps, Registry, Updates, and Profile
+capabilities without creating a second factory, restoring Studio, changing any
+protocol or ABI, or turning animation into installation/publication evidence.
+
 [ADR 0038](0038-npm-cli-init-first.md) makes npm the direct CLI installation
 door for builders with an existing Xcode project. npm installs only the
 dependency-free launcher with no postinstall side effects; interactive

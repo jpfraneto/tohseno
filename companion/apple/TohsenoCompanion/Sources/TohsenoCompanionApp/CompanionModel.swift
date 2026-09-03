@@ -879,7 +879,8 @@ public final class CompanionModel {
 
     public var canCreate: Bool {
         let name = appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let usableName = name.range(of: "^[a-z0-9][a-z0-9-]{0,62}$", options: .regularExpression) != nil
+        let usableName = name.isEmpty
+            || name.range(of: "^[a-z0-9][a-z0-9-]{0,62}$", options: .regularExpression) != nil
         return usableName
             && !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !busy
@@ -892,7 +893,7 @@ public final class CompanionModel {
         let name = appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         do {
             _ = try await backend.requestShotCreation(CreateShotRequest(
-                suggestedName: name,
+                suggestedName: name.isEmpty ? nil : name,
                 intention: intent,
                 references: attachments
             ))

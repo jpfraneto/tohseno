@@ -357,7 +357,8 @@ roots.
 | Managed balance authority | configured server `MANAGED_COMPUTE_ROOT` | website managed service | process restart and operator backup/restore |
 | Local network imports and delivery evidence | `~/.tohseno/service/living-projects-v1/` and visible `~/Developer/Tohseno/` source | Local Workspace Service | service/Mac restart; owner source remains visible |
 | Publication approval jobs | `~/.tohseno/service/network-publications-v1/` | Mac + Companion signatures | service/Mac/phone reconnect |
-| Public catalog, staging, blobs, profiles, alias requests | configured durable `REGISTRY_ROOT` | Registry service; signed/chain facts remain independently verifiable | process restart and operator backup/restore |
+| Public catalog/indexes, upload staging, publication jobs, profiles, alias requests | configured durable `REGISTRY_ROOT` | Registry service; signed/chain facts remain independently verifiable | process restart and operator backup/restore |
+| Immutable public source and icon blobs | `REGISTRY_ROOT/blobs/sha256` in filesystem mode; private Cloudflare R2 keys `sha256/<digest>` in R2 mode | injected Registry blob store; signed digest and byte length remain authority | process restart; provider durability plus retained migration source/backup |
 | Private follows and high-signal Updates | `~/.tohseno/service/network-preferences-v1/` | Local Workspace Service + encrypted Companion reconciliation | service/Mac/phone reconnect |
 | Canonical Claims index and durable relayer jobs | configured durable Registry root | Claims service; chain receipts remain independently verifiable | process restart and canonical rebuild |
 

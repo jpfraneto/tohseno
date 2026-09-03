@@ -22,12 +22,13 @@ Default paths are shown. Tests override them with isolated roots.
 | Intelligence selection | `~/.tohseno/service/intelligence-v1.json` + optional Keychain refs | workspace service |
 | Publication jobs | `~/.tohseno/service/network-publications-v1/` | Mac + Companion approvals |
 | Private follows and Updates | `~/.tohseno/service/network-preferences-v1/` | Mac + Companion |
-| Public catalog and blobs | configured `REGISTRY_ROOT` | Registry service |
+| Public catalog, indexes, upload staging, jobs, profiles, aliases | configured `REGISTRY_ROOT` | Registry service |
+| Immutable public source/icon blobs | `REGISTRY_ROOT/blobs/sha256` in filesystem mode or private Cloudflare R2 `sha256/<digest>` objects in R2 mode | Registry blob store |
 | Claims index and relayer jobs | configured durable Registry root | Claims service |
 
 ## Permissions and write discipline
 
-Private stores use bounded versioned schemas, owner-only directory/file permissions, symlink rejection, safe relative paths, and atomic replacement. Unknown store versions fail closed. Relay and public services use configured absolute roots, capacity bounds, create-exclusive or atomic writes, and restart-safe metadata ordering.
+Private stores use bounded versioned schemas, owner-only directory/file permissions, symlink rejection, safe relative paths, and atomic replacement. Unknown store versions fail closed. Relay and public services use configured absolute roots, capacity bounds, create-exclusive or atomic writes, and restart-safe metadata ordering. R2 changes only the immutable blob byte store: catalogs, Claims, jobs, and incoming staging remain local. Remote pending and final objects are create-only and are read back through SHA-256 and length verification before publication; an ETag is never treated as content evidence.
 
 ## Generated app boundary
 

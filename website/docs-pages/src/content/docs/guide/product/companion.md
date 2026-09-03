@@ -3,11 +3,18 @@ title: Tohseno Companion
 description: The iPhone product, private remote control, and holder of human authorization.
 ---
 
-Companion has two roles that share one app but remain conceptually distinct.
+Companion presents its two roles as the pocket side of the same Living
+Workshop. The Mac factory is visibly remote, this iPhone is the keeper, app
+objects sit on one shelf, and Network, Updates, and Keeper are truthful
+destinations rather than a claim that the phone runs a second factory.
 
 ## Private connection to the Mac
 
 Companion shows the apps connected to a paired Mac, their bounded status and history, and **Evolve App**. A person can type, use native speech transcription, and attach up to eight images. The SDK persists the signed command and encrypted outbox bytes before send returns, so an offline phone or sleeping Mac does not erase the request.
+
+**One Shot** opens the existing creation route. The app name remains optional;
+the exact intention and reference bounds are unchanged. Mac-offline state is
+shown explicitly and never presented as a failed or completed build.
 
 The relay is content-blind. It transports opaque mailboxes and ciphertext but has no project authority, content key, source, or Apple signing identity. Delivery, admission, and execution are distinct receipts.
 

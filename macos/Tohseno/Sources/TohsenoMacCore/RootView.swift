@@ -59,61 +59,14 @@ public struct TohsenoRootView: View {
     }
 
     private var factory: some View {
-        NavigationSplitView {
-            List(selection: routeBinding) {
-                Section {
-                    Button(action: chooseProject) {
-                        Label("Adopt Existing App", systemImage: "folder.badge.plus")
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.isSubmitting)
-                    .accessibilityIdentifier("adopt-app.sidebar")
-                }
-                Section("Your Apps") {
-                    ForEach(model.apps) { app in
-                        Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(app.displayName).foregroundStyle(TohsenoTheme.bone)
-                                Text(app.presentation.headline)
-                                    .font(.caption)
-                                    .foregroundStyle(TohsenoTheme.silver)
-                                    .lineLimit(1)
-                            }
-                        } icon: {
-                            AppArtwork(data: model.icons[app.id], size: 28, cornerRadius: 6)
-                        }
-                        .tag(AppRoute.app(app.id))
-                        .accessibilityIdentifier("app.\(app.id)")
-                    }
-                }
-                Section {
-                    Label("Create App", systemImage: "plus.circle")
-                        .tag(AppRoute.create)
-                        .accessibilityIdentifier("create-app.sidebar")
-                    Label("Registry", systemImage: "point.3.connected.trianglepath.dotted")
-                        .tag(AppRoute.registry)
-                        .accessibilityIdentifier("registry.sidebar")
-                    Label("Profile", systemImage: "person.crop.circle")
-                        .tag(AppRoute.profile)
-                        .accessibilityIdentifier("profile.sidebar")
-                }
+        VStack(spacing: 0) {
+            if model.route != .library {
+                WorkshopDestinationBar(model: model)
+                Divider().overlay(TohsenoTheme.iron)
             }
-            .scrollContentBackground(.hidden)
-            .background(TohsenoTheme.carbon)
-            .navigationSplitViewColumnWidth(min: 210, ideal: 250)
-            .safeAreaInset(edge: .top) {
-                HStack(spacing: 10) {
-                    TohsenoMark().frame(width: 28, height: 28)
-                    Text("Tohseno").font(.headline).tracking(1.2)
-                    Spacer()
-                }
-                .padding(14)
-                .background(TohsenoTheme.carbon)
-            }
-        } detail: {
             switch model.route {
             case .library:
-                LibraryEmptyView(adopt: chooseProject) { model.route = .create }
+                LivingWorkshopView(model: model, adopt: chooseProject)
             case .registry:
                 RegistryView(model: model)
             case .profile:
@@ -128,11 +81,9 @@ public struct TohsenoRootView: View {
                 }
             }
         }
-        .navigationSplitViewStyle(.balanced)
-    }
-
-    private var routeBinding: Binding<AppRoute?> {
-        Binding(get: { model.route }, set: { if let value = $0 { model.route = value } })
+        .onExitCommand {
+            if model.route != .library { model.route = .library }
+        }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -1056,7 +1007,7 @@ private struct ReadinessSetupContent: View {
                         .font(.callout.weight(.medium))
                         .foregroundStyle(TohsenoTheme.silver)
                 }
-                ReadinessProgressPanel(readiness: readiness)
+                WorkshopReadinessScene(readiness: readiness)
                 if readiness.companionInstallState == "failed" {
                     Label(
                         "Your iPhone and Apple Account checks already passed. The message above describes the later step that stopped.",
@@ -1159,33 +1110,54 @@ private struct SetupContextBanner: View {
     }
 }
 
-private struct ReadinessProgressPanel: View {
+private struct WorkshopReadinessScene: View {
     let readiness: ReadinessView
+    @State private var showingEvidence = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Setup progress").font(.headline)
-                    Text("Step \(readiness.setupStepNumber) of 8 · \(readiness.setupStatus)")
-                        .font(.caption)
+            HStack(spacing: 12) {
+                setupActor("Mac workshop", symbol: "macbook", active: true)
+                setupConnection(active: readiness.deviceName != nil)
+                setupActor(
+                    readiness.deviceName ?? "Your iPhone",
+                    symbol: "iphone.gen3",
+                    active: readiness.deviceName != nil
+                )
+                setupConnection(active: readiness.companionConnected)
+                setupActor("Keeper", symbol: "hand.raised", active: readiness.companionConnected)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "Mac workshop, intended iPhone, and keeper connection. \(readiness.setupStatus)."
+            )
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Label(readiness.setupStatus, systemImage: readiness.isWorking
+                        ? "arrow.triangle.2.circlepath" : "circle.inset.filled")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(readiness.companionInstallState == "failed" ? .red : TohsenoTheme.amber)
+                    Spacer()
+                    Text("Connection \(readiness.setupStepNumber) of 8")
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(TohsenoTheme.silver)
                 }
-                Spacer()
-                Text(readiness.setupProgress.formatted(.percent.precision(.fractionLength(0))))
-                    .font(.callout.monospacedDigit().weight(.semibold))
+                ProgressView(value: readiness.setupProgress)
+                    .progressViewStyle(.linear)
+                    .tint(readiness.companionInstallState == "failed" ? .red : TohsenoTheme.amber)
             }
-            ProgressView(value: readiness.setupProgress)
-                .progressViewStyle(.linear)
-                .tint(readiness.companionInstallState == "failed" ? .red : TohsenoTheme.amber)
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Setup log")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(TohsenoTheme.silver)
-                ForEach(readiness.setupCheckpoints) { checkpoint in
-                    ReadinessCheckpointRow(checkpoint: checkpoint)
+
+            DisclosureGroup("Connection evidence", isExpanded: $showingEvidence) {
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(readiness.setupCheckpoints) { checkpoint in
+                        ReadinessCheckpointRow(checkpoint: checkpoint)
+                    }
                 }
+                .padding(.top, 8)
             }
+            .font(.caption)
+            .foregroundStyle(TohsenoTheme.silver)
         }
         .padding(16)
         .frame(maxWidth: 620)
@@ -1193,6 +1165,31 @@ private struct ReadinessProgressPanel: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.iron))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .accessibilityIdentifier("readiness.progress")
+    }
+
+    private func setupActor(
+        _ title: String,
+        symbol: String,
+        active: Bool
+    ) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(active ? TohsenoTheme.amber : TohsenoTheme.ash)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .background(TohsenoTheme.void.opacity(0.55))
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+    }
+
+    private func setupConnection(active: Bool) -> some View {
+        Capsule()
+            .fill(active ? TohsenoTheme.amber : TohsenoTheme.iron)
+            .frame(width: 34, height: 2)
+            .accessibilityHidden(true)
     }
 }
 
@@ -2373,7 +2370,7 @@ private struct ShotKeyboardHint: View {
     }
 }
 
-private extension View {
+extension View {
     func shotSubmitOnReturn(
         enabled: Bool,
         action: @escaping () -> Void

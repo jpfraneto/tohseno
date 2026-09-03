@@ -34,4 +34,16 @@ The service database is an index. A security-sensitive client independently chec
 
 Catalog reachability is not labeled chain verification. A card can be visible before the client has enough evidence to install it; the decisive verification runs when a person chooses Claim, Install, or Fork.
 
+## Blob durability boundary
+
+The public catalog remains on the Registry's durable local volume. Only its
+immutable source and icon bytes may use private Cloudflare R2, selected by the
+server. Final objects are keyed by the signed SHA-256 digest, written
+create-only, and streamed back through digest and length verification before a
+catalog record becomes visible. ETags are not content evidence.
+
+Public clients continue to use the Registry route, not an R2 hostname. The
+route supports full reads, `HEAD`, and one byte range. A missing object is
+`404`; storage unavailability is `503` and is never disguised as absence.
+
 See [current status](/guide/reference/current-status/) for which public reads and writes are actually activated now.

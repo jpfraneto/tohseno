@@ -34,6 +34,14 @@ export interface AppConfig {
 export interface RegistryConfig {
   enabled: boolean;
   root?: string;
+  blobStore: "filesystem" | "r2";
+  r2?: {
+    accountId: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+    endpoint: string;
+  };
   rpcUrl?: string;
   chainId: 4663;
   factoryAddress: `0x${string}`;
@@ -303,6 +311,12 @@ export function loadConfig(env: Environment = process.env): AppConfig {
   const registryEnabled = parseBoolean("REGISTRY_ENABLED", env.REGISTRY_ENABLED, false);
   const registryRoot = env.REGISTRY_ROOT;
   const registryRpcUrl = env.ROBINHOOD_RPC_URL;
+  const registryBlobStore = oneOf(
+    "REGISTRY_BLOB_STORE",
+    env.REGISTRY_BLOB_STORE,
+    ["filesystem", "r2"] as const,
+    "filesystem",
+  );
   const registryRelayerEnabled = parseBoolean(
     "REGISTRY_RELAYER_ENABLED",
     env.REGISTRY_RELAYER_ENABLED,
@@ -318,6 +332,35 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     if (rpc.protocol !== "https:" || rpc.username || rpc.password || rpc.hash) {
       throw new Error("ROBINHOOD_RPC_URL must be an HTTPS URL without credentials or a fragment");
     }
+  }
+  let registryR2: RegistryConfig["r2"];
+  if (registryBlobStore === "r2") {
+    if (!registryEnabled) {
+      throw new Error("REGISTRY_ENABLED must be true before R2 Registry blob storage can be selected");
+    }
+    const accountId = env.REGISTRY_R2_ACCOUNT_ID ?? "";
+    const bucket = env.REGISTRY_R2_BUCKET ?? "";
+    const accessKeyId = env.REGISTRY_R2_ACCESS_KEY_ID ?? "";
+    const secretAccessKey = env.REGISTRY_R2_SECRET_ACCESS_KEY ?? "";
+    if (!/^[0-9a-f]{32}$/.test(accountId)) {
+      throw new Error("REGISTRY_R2_ACCOUNT_ID must be one lowercase 32-character Cloudflare account identifier");
+    }
+    if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) {
+      throw new Error("REGISTRY_R2_BUCKET must be one lowercase Cloudflare R2 bucket name");
+    }
+    if (!/^[A-Za-z0-9]{16,128}$/.test(accessKeyId)) {
+      throw new Error("REGISTRY_R2_ACCESS_KEY_ID is required when R2 Registry blob storage is selected");
+    }
+    if (secretAccessKey.length < 32 || secretAccessKey.length > 512 || /[\u0000-\u001f\u007f]/.test(secretAccessKey)) {
+      throw new Error("REGISTRY_R2_SECRET_ACCESS_KEY is required when R2 Registry blob storage is selected");
+    }
+    registryR2 = {
+      accountId,
+      bucket,
+      accessKeyId,
+      secretAccessKey,
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    };
   }
   if (registryRelayerEnabled) {
     if (!registryEnabled) throw new Error("REGISTRY_ENABLED must be true before its relayer can be enabled");
@@ -429,6 +472,8 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     registry: {
       enabled: registryEnabled,
       root: registryRoot,
+      blobStore: registryBlobStore,
+      r2: registryR2,
       rpcUrl: registryRpcUrl,
       chainId: 4663,
       factoryAddress: "0xb1bd208cd2af98e701f43d06aaa889d3a594df65",
@@ -488,6 +533,7 @@ export function safeStartupSummary(
     macosDownloadEnabled: config.distribution.macosEnabled,
     macosDownloadChannel: config.distribution.macosChannel,
     registryEnabled: config.registry.enabled,
+    registryBlobStore: config.registry.blobStore,
     registryRelayerEnabled: config.registry.relayerEnabled,
     registryAliasReviewEnabled: config.registry.aliasReviewTokenSha256 !== undefined,
   };

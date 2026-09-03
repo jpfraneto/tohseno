@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { p256 } from "@noble/curves/p256";
@@ -12,6 +12,11 @@ import {
   type ConstrainedRelayer,
 } from "../src/registry.ts";
 import type { ClaimsPublicationBridge } from "../src/claims.ts";
+import {
+  FilesystemRegistryBlobStore,
+  RegistryBlobStoreError,
+  type RegistryBlobStore,
+} from "../src/blob-store.ts";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
@@ -78,7 +83,7 @@ async function fixture(claims?: ClaimsPublicationBridge) {
   },
     verifyBuilderKey: async () => {} };
   return { router: await createRegistryRouter(config, verifier, claims), envelope, release, source,
-    privateKey, publicKey, config, aliasReviewToken };
+    privateKey, publicKey, config, verifier, aliasReviewToken };
 }
 
 function openClaimsBridge(): ClaimsPublicationBridge {
@@ -119,6 +124,101 @@ function signedRelease(
     signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
     authorization: { algorithm: "p256", digest,
       signature: { r: scalar(signature.r), s: scalar(signature.s) }, low_s: true } };
+}
+
+function signedRegistryAuthorization(
+  release: Record<string, unknown>,
+  privateKey: Uint8Array,
+  publicKey: Uint8Array,
+  registryAddress: `0x${string}`,
+) {
+  const action = {
+    type: "REGISTER_SHOT",
+    shot_id: release.shot_id,
+    controller: String(release.builder_id).split(":").at(-1),
+    head: release.public_checkpoint_digest,
+    salt: `0x${"12".repeat(32)}`,
+    nonce: 0,
+    deadline: Math.floor(Date.now() / 1000) + 3600,
+  };
+  const digest = canonicalRegistryActionDigest(action, registryAddress);
+  const signature = p256.sign(digest.slice(2), privateKey, { prehash: false, lowS: true });
+  return {
+    schema: "tohseno.registry-action/2",
+    domain: { name: "TOHSENO ShotRegistry", version: "2", chain_id: 4663,
+      verifying_contract: registryAddress },
+    action,
+    signer: { x: hex(publicKey.slice(1, 33)), y: hex(publicKey.slice(33, 65)) },
+    authorization: { algorithm: "p256", digest,
+      signature: { r: scalar(signature.r), s: scalar(signature.s) }, low_s: true },
+  };
+}
+
+async function preparePublication(
+  router: Awaited<ReturnType<typeof createRegistryRouter>>,
+  envelope: Record<string, unknown>,
+  source: Uint8Array,
+  registry: Record<string, unknown>,
+) {
+  const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ envelope }),
+  }));
+  expect(staged.status).toBe(201);
+  const reservation = await staged.json() as Record<string, string>;
+  const uploaded = await router.fetch(new Request(`http://localhost${reservation.source_url}`, {
+    method: "PUT", headers: { authorization: `Bearer ${reservation.upload_token}`,
+      "content-length": String(source.byteLength) }, body: source.slice().buffer as ArrayBuffer,
+  }));
+  expect(uploaded.status).toBe(200);
+  const published = await router.fetch(new Request(
+    `http://localhost/api/registry/v1/staging/${reservation.staging_id}/publish`, {
+      method: "POST", headers: { authorization: `Bearer ${reservation.upload_token}`,
+        "content-type": "application/json" },
+      body: JSON.stringify({ registry, claim_edition: { exact: true } }),
+    },
+  ));
+  expect(published.status).toBe(202);
+  return reservation;
+}
+
+class FaultInjectingBlobStore implements RegistryBlobStore {
+  readonly kind = "r2" as const;
+  stageFailures = 0;
+  promoteFailures = 0;
+  readFailure?: "not_found" | "transient";
+  readonly removedPendingIDs: string[] = [];
+
+  constructor(private readonly base: RegistryBlobStore) {}
+  initialize() { return this.base.initialize(); }
+  async stagePending(...args: Parameters<RegistryBlobStore["stagePending"]>) {
+    if (this.stageFailures > 0) {
+      this.stageFailures -= 1;
+      throw new RegistryBlobStoreError("transient", "simulated R2 staging outage");
+    }
+    return this.base.stagePending(...args);
+  }
+  verifyPending(...args: Parameters<RegistryBlobStore["verifyPending"]>) {
+    return this.base.verifyPending(...args);
+  }
+  async promotePending(...args: Parameters<RegistryBlobStore["promotePending"]>) {
+    if (this.promoteFailures > 0) {
+      this.promoteFailures -= 1;
+      throw new RegistryBlobStoreError("transient", "simulated R2 promotion outage");
+    }
+    return this.base.promotePending(...args);
+  }
+  async metadata(...args: Parameters<RegistryBlobStore["metadata"]>) {
+    if (this.readFailure) throw new RegistryBlobStoreError(this.readFailure, "simulated R2 read outage");
+    return this.base.metadata(...args);
+  }
+  async read(...args: Parameters<RegistryBlobStore["read"]>) {
+    if (this.readFailure) throw new RegistryBlobStoreError(this.readFailure, "simulated R2 read outage");
+    return this.base.read(...args);
+  }
+  removePending(...args: Parameters<RegistryBlobStore["removePending"]>) {
+    this.removedPendingIDs.push(args[0]);
+    return this.base.removePending(...args);
+  }
 }
 
 async function publish(
@@ -327,6 +427,193 @@ describe("public Registry trust bridge", () => {
     expect(timeline.events[0]?.canonical_block).toEqual({ number: "124",
       hash: `0x${"98".repeat(32)}`, transaction_index: 2, log_index: 5 });
     expect(await router.renderShot(release.shot_id)).toContain("tohseno://claim/");
+  });
+
+  test("makes remote bytes durable before relaying and retries without duplicate transactions", async () => {
+    const { envelope, release, source, privateKey, publicKey, config } = await fixture();
+    config.registry.relayerEnabled = true;
+    config.registry.relayerPrivateKey = `0x${"01".repeat(32)}`;
+    const store = new FaultInjectingBlobStore(
+      new FilesystemRegistryBlobStore(join(config.registry.root!, "test-remote-blobs")),
+    );
+    store.stageFailures = 1;
+    store.promoteFailures = 1;
+    let relayAttempts = 0;
+    let registryTransactions = 0;
+    const registryTransaction = `0x${"66".repeat(32)}` as const;
+    const relayer: ConstrainedRelayer = {
+      address: `0x${"aa".repeat(20)}`,
+      async advance(job) {
+        relayAttempts += 1;
+        if (!job.registryTransactionHash) {
+          registryTransactions += 1;
+          job.registryTransactionHash = registryTransaction;
+        }
+        job.status = "submitted";
+      },
+    };
+    let claimAttempts = 0;
+    let claimTransactions = 0;
+    const claims: ClaimsPublicationBridge = {
+      async closureForTimeline() { return undefined; },
+      async editionForDisplay() { return { opened: true, maxClaims: 888n, totalClaims: 0n,
+        openedAt: 1n, closesAt: 0n, closed: false }; },
+      async verifyOpenEdition() {},
+      async advanceOpenEdition(_value, _candidate, transactionHash) {
+        claimAttempts += 1;
+        if (!transactionHash) claimTransactions += 1;
+        return { transactionHash: transactionHash ?? `0x${"99".repeat(32)}`, confirmed: true };
+      },
+    };
+    const verifier = {
+      async verify(candidate: Record<string, unknown>) {
+        const candidateRelease = candidate.release as Record<string, unknown>;
+        return { transactionHash: registryTransaction, blockNumber: "123",
+          blockHash: `0x${"77".repeat(32)}` as const,
+          controller: `0x${"22".repeat(20)}` as const,
+          head: candidateRelease.public_checkpoint_digest as `0x${string}`,
+          checkpointSequence: candidateRelease.checkpoint_sequence as number,
+          signerKeyID: `0x${"88".repeat(32)}` as const,
+          blockTimestamp: candidateRelease.published_at as string };
+      },
+      async verifyBuilderKey() {},
+    };
+    const router = await createRegistryRouter(config, verifier, claims, relayer, store);
+    const registry = signedRegistryAuthorization(
+      release as Record<string, unknown>, privateKey, publicKey, config.registry.registryAddress,
+    );
+    const reservation = await preparePublication(router, envelope, source, registry);
+    const statusURL = `http://localhost/api/registry/v1/publications/${reservation.staging_id}`;
+    const headers = { authorization: `Bearer ${reservation.upload_token}` };
+
+    const preChainOutage = await router.fetch(new Request(statusURL, { headers }));
+    expect(preChainOutage.status).toBe(202);
+    expect(await preChainOutage.json()).toMatchObject({ status: "storage_pending" });
+    expect(relayAttempts).toBe(0);
+    expect(registryTransactions).toBe(0);
+
+    const postChainOutage = await router.fetch(new Request(statusURL, { headers }));
+    expect(postChainOutage.status).toBe(202);
+    expect(await postChainOutage.json()).toMatchObject({
+      status: "storage_pending",
+      relayer_transactions: { registry: registryTransaction },
+    });
+    expect(registryTransactions).toBe(1);
+    expect(claimTransactions).toBe(1);
+    expect((await router.fetch(new Request("http://localhost/api/registry/v1/shots"))
+      .then((value) => value.json()) as { releases: unknown[] }).releases).toHaveLength(0);
+
+    const complete = await router.fetch(new Request(statusURL, { headers }));
+    expect(complete.status).toBe(200);
+    expect(await complete.json()).toMatchObject({ status: "complete" });
+    expect(relayAttempts).toBe(2);
+    expect(claimAttempts).toBe(2);
+    expect(registryTransactions).toBe(1);
+    expect(claimTransactions).toBe(1);
+  });
+
+  test("maps blob reads to stable public GET and HEAD failure semantics", async () => {
+    const { envelope, release, source, config, verifier } = await fixture();
+    const store = new FaultInjectingBlobStore(
+      new FilesystemRegistryBlobStore(join(config.registry.root!, "test-remote-blobs")),
+    );
+    const router = await createRegistryRouter(config, verifier, undefined, undefined, store);
+    await publish(router, envelope, source);
+    const url = `http://localhost/api/registry/v1/blobs/${
+      (release.source as Record<string, unknown>).sha256 as string
+    }`;
+
+    const head = await router.fetch(new Request(url, { method: "HEAD" }));
+    expect(head.status).toBe(200);
+    expect(head.headers.get("content-length")).toBe(String(source.byteLength));
+    expect(await head.text()).toBe("");
+
+    const full = await router.fetch(new Request(url));
+    expect(full.status).toBe(200);
+    expect(full.headers.get("x-content-sha256")).toBe(
+      (release.source as Record<string, unknown>).sha256 as string,
+    );
+    expect(new Uint8Array(await full.arrayBuffer())).toEqual(source);
+
+    const ranged = await router.fetch(new Request(url, { headers: { range: "bytes=2-7" } }));
+    expect(ranged.status).toBe(206);
+    expect(ranged.headers.get("content-range")).toBe(`bytes 2-7/${source.byteLength}`);
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(source.slice(2, 8));
+
+    const invalidRange = await router.fetch(new Request(url, { headers: { range: "bytes=7-2" } }))
+      .catch((error: { message: string; status: number }) =>
+        new Response(error.message, { status: error.status }));
+    expect(invalidRange.status).toBe(416);
+
+    const pendingNamespace = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/blobs/pending/${"a".repeat(32)}/source`,
+    )).catch((error: { message: string; status: number }) =>
+      new Response(error.message, { status: error.status }));
+    expect(pendingNamespace.status).toBe(404);
+
+    store.readFailure = "transient";
+    const unavailable = await router.fetch(new Request(url)).catch(
+      (error: { message: string; status: number }) => new Response(error.message, { status: error.status }),
+    );
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.text()).not.toContain("simulated R2");
+
+    store.readFailure = "not_found";
+    const missing = await router.fetch(new Request(url)).catch(
+      (error: { message: string; status: number }) => new Response(error.message, { status: error.status }),
+    );
+    expect(missing.status).toBe(404);
+  });
+
+  test("keeps an active publication and its bytes beyond nominal staging expiry", async () => {
+    const { envelope, release, source, privateKey, publicKey, config, verifier } = await fixture();
+    config.registry.relayerEnabled = true;
+    config.registry.relayerPrivateKey = `0x${"01".repeat(32)}`;
+    const store = new FaultInjectingBlobStore(
+      new FilesystemRegistryBlobStore(join(config.registry.root!, "test-remote-blobs")),
+    );
+    const relayer: ConstrainedRelayer = {
+      address: `0x${"aa".repeat(20)}`,
+      async advance(job) { job.status = "waiting_maturity"; },
+    };
+    const router = await createRegistryRouter(
+      config, verifier, openClaimsBridge(), relayer, store,
+    );
+    const registry = signedRegistryAuthorization(
+      release as Record<string, unknown>, privateKey, publicKey, config.registry.registryAddress,
+    );
+    const reservation = await preparePublication(router, envelope, source, registry);
+    const headers = { authorization: `Bearer ${reservation.upload_token}` };
+    const statusURL = `http://localhost/api/registry/v1/publications/${reservation.staging_id}`;
+    const waiting = await router.fetch(new Request(statusURL, { headers }));
+    expect(waiting.status).toBe(202);
+    expect(await waiting.json()).toMatchObject({ status: "waiting_maturity" });
+
+    const stagingPath = join(config.registry.root!, "staging", `${reservation.staging_id}.json`);
+    const staging = JSON.parse(await readFile(stagingPath, "utf8")) as Record<string, unknown>;
+    staging.expiresAt = "2000-01-01T00:00:00.000Z";
+    await writeFile(stagingPath, `${JSON.stringify(staging)}\n`);
+
+    const another = structuredClone(envelope) as Record<string, any>;
+    another.release.shot_id = `0x${"13".repeat(32)}`;
+    another.release.release_id = `0x${"35".repeat(32)}`;
+    another.release.public_checkpoint_digest = `0x${"57".repeat(32)}`;
+    another.release.display.app_slug = "another-app";
+    const anotherEnvelope = signedRelease(another.release, privateKey, publicKey);
+    const triggerGC = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ envelope: anotherEnvelope }),
+    }));
+    expect(triggerGC.status).toBe(201);
+    expect((await stat(stagingPath)).isFile()).toBeTrue();
+    expect((await stat(join(
+      config.registry.root!, "staging", `${reservation.staging_id}.source`,
+    ))).isFile()).toBeTrue();
+    expect(store.removedPendingIDs).not.toContain(reservation.staging_id);
+    const stillWaiting = await router.fetch(new Request(statusURL, { headers }));
+    expect(stillWaiting.status).toBe(202);
+    expect(await stillWaiting.json()).toMatchObject({ status: "waiting_maturity" });
   });
 
   test("rejects a manifest altered after Companion signature", async () => {

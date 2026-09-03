@@ -4,7 +4,8 @@ import TohsenoCompanionKit
 import UIKit
 #endif
 
-/// The whole product: Your Apps → choose app → what should change → Evolve.
+/// The pocket view of the same living workshop as the Mac. The Companion is
+/// human authority and remote control; it never becomes a second factory.
 public struct CompanionRootView: View {
     @State private var model: CompanionModel
 
@@ -192,20 +193,26 @@ private struct PublicationApprovalView: View {
 
 private enum CompanionRoute: Hashable {
     case app(String)
+    case create
 }
 
 private enum CompanionTab: Hashable {
-    case apps, registry, create, profile
+    case workshop, network, updates, keeper
 }
 
 private struct CompanionNavigation: View {
     @Bindable var model: CompanionModel
-    @State private var selectedTab: CompanionTab = .apps
+    @State private var selectedTab: CompanionTab = .workshop
 
     var body: some View {
         TabView(selection: $selectedTab) {
             NavigationStack(path: appPath) {
-                YourAppsView(model: model)
+                YourAppsView(
+                    model: model,
+                    openNetwork: { selectedTab = .network },
+                    openUpdates: { selectedTab = .updates },
+                    openKeeper: { selectedTab = .keeper }
+                )
                     .companionRootNavigationBar()
                     .navigationDestination(for: CompanionRoute.self) { route in
                         switch route {
@@ -214,27 +221,29 @@ private struct CompanionNavigation: View {
                                 AppView(model: model, shot: shot)
                                     .companionDestinationNavigationBar()
                             }
+                        case .create:
+                            CreateAppView(model: model)
+                                .companionDestinationNavigationBar()
                         }
                     }
             }
-            .tabItem { Label("Apps", systemImage: "square.grid.2x2") }
-            .tag(CompanionTab.apps)
+            .tabItem { Label("Workshop", systemImage: "hammer") }
+            .tag(CompanionTab.workshop)
 
             PublicRegistryView(model: model)
-                .tabItem { Label("Registry", systemImage: "globe.americas.fill") }
-                .tag(CompanionTab.registry)
+                .tabItem { Label("Network", systemImage: "door.left.hand.open") }
+                .tag(CompanionTab.network)
 
-            NavigationStack { CreateAppView(model: model).companionDestinationNavigationBar() }
-                .tabItem { Label("Create", systemImage: "plus.circle.fill") }
-                .tag(CompanionTab.create)
+            KeeperInboxView(model: model)
+                .tabItem {
+                    Label("Updates", systemImage: "tray.full.fill")
+                }
+                .badge(model.privateUpdates.filter { $0.readAt == nil }.count)
+                .tag(CompanionTab.updates)
 
             BuilderProfileView(model: model)
-                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
-                .tag(CompanionTab.profile)
-        }
-        .onChange(of: selectedTab) { _, tab in
-            if tab == .create { model.openCreate() }
-            else if tab == .apps, model.screen == .create { model.openApps() }
+                .tabItem { Label("Keeper", systemImage: "hand.raised.fill") }
+                .tag(CompanionTab.keeper)
         }
     }
 
@@ -243,6 +252,7 @@ private struct CompanionNavigation: View {
             get: {
                 switch model.screen {
                 case let .app(shotID): [.app(shotID)]
+                case .create: [.create]
                 default: []
                 }
             },
@@ -256,6 +266,8 @@ private struct CompanionNavigation: View {
                     if model.screen != .app(shotID), let shot = model.app(shotID) {
                         model.open(shot)
                     }
+                case .create:
+                    if model.screen != .create { model.openCreate() }
                 }
             }
         )
@@ -270,7 +282,6 @@ private struct PublicRegistryView: View {
     private enum Mode: String, CaseIterable, Identifiable {
         case discover = "Discover"
         case following = "Following"
-        case updates = "Updates"
         var id: String { rawValue }
     }
 
@@ -281,41 +292,9 @@ private struct PublicRegistryView: View {
                     ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented).padding()
-                if mode != .updates {
-                    TextField("Search", text: $search).textFieldStyle(.roundedBorder)
-                        .padding(.horizontal).padding(.bottom, 8)
-                }
-                if mode == .updates {
-                    if model.privateUpdates.isEmpty {
-                        ContentUnavailableView("Nothing needs you", systemImage: "checkmark.circle",
-                            description: Text("Personal Claim, preparation, and app changes appear here."))
-                    } else {
-                        List(model.privateUpdates) { update in
-                            Button {
-                                model.setPrivateUpdateRead(update)
-                            } label: {
-                                HStack(alignment: .top, spacing: 10) {
-                                    Circle()
-                                        .fill(update.readAt == nil ? Tohseno.orange : Color.clear)
-                                        .frame(width: 7, height: 7)
-                                        .padding(.top, 7)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(update.title)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-                                        Text(update.detail)
-                                            .font(.subheadline)
-                                            .foregroundStyle(Tohseno.ash)
-                                        Text(update.occurredAt)
-                                            .font(.caption)
-                                            .foregroundStyle(Tohseno.orange)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                } else if visibleEvents.isEmpty {
+                TextField("Search", text: $search).textFieldStyle(.roundedBorder)
+                    .padding(.horizontal).padding(.bottom, 8)
+                if visibleEvents.isEmpty {
                     ContentUnavailableView(
                         mode == .following ? "Follow a Builder" : "A network made by people",
                         systemImage: "point.3.connected.trianglepath.dotted",
@@ -343,7 +322,7 @@ private struct PublicRegistryView: View {
                     .refreshable { await model.refreshPublicNetwork() }
                 }
             }
-            .navigationTitle("Registry")
+            .navigationTitle("Network threshold")
         }
     }
 
@@ -356,6 +335,45 @@ private struct PublicRegistryView: View {
             return [event.shotID, event.builderID, app?.release.display.name ?? "",
                     app?.release.display.description ?? ""].joined(separator: " ").lowercased().contains(query)
         }
+    }
+}
+
+private struct KeeperInboxView: View {
+    @Bindable var model: CompanionModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.privateUpdates.isEmpty {
+                    ContentUnavailableView(
+                        "Nothing needs you",
+                        systemImage: "checkmark.circle",
+                        description: Text("Claims, preparations, and app changes that need human attention appear here.")
+                    )
+                } else {
+                    List(model.privateUpdates) { update in
+                        Button {
+                            model.setPrivateUpdateRead(update)
+                        } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Circle()
+                                    .fill(update.readAt == nil ? Tohseno.orange : Color.clear)
+                                    .frame(width: 7, height: 7)
+                                    .padding(.top, 7)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(update.title).font(.headline).foregroundStyle(.primary)
+                                    Text(update.detail).font(.subheadline).foregroundStyle(Tohseno.ash)
+                                    Text(update.occurredAt).font(.caption).foregroundStyle(Tohseno.orange)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Keeper inbox")
+        }
+        .accessibilityIdentifier("workshop.keeper-inbox")
     }
 }
 
@@ -778,10 +796,39 @@ private struct CompanionLoadingView: View {
 
 struct YourAppsView: View {
     @Bindable var model: CompanionModel
+    let openNetwork: () -> Void
+    let openUpdates: () -> Void
+    let openKeeper: () -> Void
 
     private let columns = [
         GridItem(.adaptive(minimum: 82, maximum: 104), spacing: 12, alignment: .top)
     ]
+
+    private var projection: CompanionWorkshopProjection {
+        let apps = model.apps.map { shot in
+            let presentation = model.presentation(for: shot)
+            return CompanionWorkshopApp(
+                id: shot.shotID,
+                name: shot.displayName,
+                state: presentation.state,
+                headline: presentation.headline
+            )
+        }
+        let publicEvidenceObserved: Bool? = if model.networkNotice != nil {
+            false
+        } else if !model.publicApps.isEmpty || !model.publicTimeline.isEmpty {
+            true
+        } else {
+            nil
+        }
+        return CompanionWorkshopProjection(
+            apps: apps,
+            macConnection: model.connection,
+            keeperAvailable: model.builderDevice != nil,
+            publicEvidenceObserved: publicEvidenceObserved,
+            unreadUpdates: model.privateUpdates.filter { $0.readAt == nil }.count
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -789,21 +836,42 @@ struct YourAppsView: View {
                 await model.syncNow()
             }
 
-            if model.apps.isEmpty {
-                Spacer()
-                VStack(spacing: 12) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 30, weight: .light))
-                        .foregroundStyle(Tohseno.ash)
-                    Text("Adopt an existing iPhone app in Tohseno on your Mac. Once connected, it appears here ready for change requests.")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Tohseno.ash)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, 40)
-                Spacer()
-            } else {
-                ScrollView {
+            ScrollView {
+                VStack(spacing: 18) {
+                    companionWorkshopScene
+
+                    HStack {
+                        Text("APP SHELF")
+                            .font(.caption.weight(.bold))
+                            .tracking(1.5)
+                            .foregroundStyle(Tohseno.ash)
+                        Spacer()
+                        Button {
+                            model.openCreate()
+                        } label: {
+                            Label("One Shot", systemImage: "scope")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("workshop.one-shot")
+                    }
+
+                    if model.apps.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "sparkles.rectangle.stack")
+                                .font(.system(size: 28, weight: .light))
+                                .foregroundStyle(Tohseno.orange)
+                            Text("Your first app will take shape here.")
+                                .font(.headline)
+                            Text("Take a Shot here, or adopt an existing iPhone app in the Mac workshop.")
+                                .font(.subheadline)
+                                .foregroundStyle(Tohseno.ash)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity)
+                        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Tohseno.iron))
+                    } else {
                     LazyVGrid(columns: columns, alignment: .center, spacing: 24) {
                         ForEach(model.apps, id: \.shotID) { shot in
                             Button { model.open(shot) } label: {
@@ -816,19 +884,145 @@ struct YourAppsView: View {
                             .buttonStyle(AppRowButtonStyle())
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 28)
+                    }
+
+                    if let notice = model.notice {
+                        NoticeView(text: notice)
+                    }
                 }
-                .refreshable { await model.syncNow() }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
+            }
+            .refreshable { await model.syncNow() }
+        }
+        .accessibilityIdentifier("workshop.scene")
+    }
+
+    private var companionWorkshopScene: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 4) {
+                Text("POCKET WORKSHOP")
+                    .font(.caption2.weight(.bold))
+                    .tracking(2)
+                    .foregroundStyle(Tohseno.orange)
+                Text(projection.chapter.title)
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
             }
 
-            if let notice = model.notice {
-                NoticeView(text: notice)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
+            HStack(spacing: 8) {
+                PocketActor(
+                    title: "Mac factory",
+                    detail: macDetail,
+                    symbol: "macbook",
+                    color: connectionColor
+                )
+                Image(systemName: model.connection == .connected ? "arrow.right" : "ellipsis")
+                    .foregroundStyle(model.connection == .connected ? Tohseno.orange : Tohseno.ash)
+                    .accessibilityHidden(true)
+                PocketActor(
+                    title: "This iPhone",
+                    detail: "Keeper · remote",
+                    symbol: "iphone.gen3",
+                    color: projection.keeperAvailable ? Tohseno.orange : Tohseno.ash
+                )
+            }
+
+            HStack(spacing: 8) {
+                sceneButton("Network", symbol: "door.left.hand.open", detail: thresholdDetail, action: openNetwork)
+                sceneButton(
+                    "Updates",
+                    symbol: "tray.full",
+                    detail: projection.unreadUpdates == 0 ? "Inbox quiet" : "\(projection.unreadUpdates) unread",
+                    action: openUpdates
+                )
+                sceneButton("Keeper", symbol: "hand.raised", detail: keeperDetail, action: openKeeper)
             }
         }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Tohseno.orange.opacity(0.16), Tohseno.carbon],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 20)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Tohseno.orange.opacity(0.2)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Pocket workshop. \(projection.chapter.title).")
+        .accessibilityIdentifier("workshop.stage")
+    }
+
+    private func sceneButton(
+        _ title: String,
+        symbol: String,
+        detail: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: symbol)
+                Text(title).font(.caption.weight(.semibold))
+                Text(detail).font(.caption2).foregroundStyle(Tohseno.ash).lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(Tohseno.void.opacity(0.62), in: RoundedRectangle(cornerRadius: 11))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var macDetail: String {
+        switch projection.macConnection {
+        case .connected: "Connected"
+        case .pairing: "Pairing"
+        case .reconnecting: "Reconnecting"
+        case .disconnected: "Offline"
+        case .revoked: "Access removed"
+        }
+    }
+
+    private var connectionColor: Color {
+        switch projection.macConnection {
+        case .connected: Tohseno.connected
+        case .pairing, .reconnecting: Tohseno.warning
+        case .disconnected: Tohseno.ash
+        case .revoked: Tohseno.failed
+        }
+    }
+
+    private var thresholdDetail: String {
+        switch projection.threshold {
+        case .unknown: "Not checked"
+        case .checked: "Evidence checked"
+        case .unavailable: "Unavailable"
+        }
+    }
+
+    private var keeperDetail: String {
+        projection.keeperAvailable ? "DeviceKey ready" : "Authority unknown"
+    }
+}
+
+private struct PocketActor: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol).font(.title2).foregroundStyle(color)
+            Text(title).font(.caption.weight(.semibold)).lineLimit(1)
+            Text(detail).font(.caption2).foregroundStyle(Tohseno.ash).lineLimit(1)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 88)
+        .background(Tohseno.void.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(color.opacity(0.28)))
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -1103,19 +1297,25 @@ private struct CreateAppView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("ONE SHOT")
+                        .font(.caption.weight(.bold)).tracking(1.8).foregroundStyle(Tohseno.orange)
+                    Text("One intention enters the Mac factory. Nothing Ships without your separate approval.")
+                        .font(.subheadline).foregroundStyle(Tohseno.ash)
+                }
                 nameField
                     .font(.system(size: 18, weight: .semibold))
                     .padding(14)
                     .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Tohseno.iron))
 
-                Text("What do you want this app to be?")
+                Text("What should exist on your iPhone?")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Tohseno.bone)
 
                 IntentEditor(
                     text: $model.intent,
-                    placeholder: "Describe the app you want…",
+                    placeholder: "Describe one app in ordinary words…",
                     minimumHeight: 190
                 )
 
@@ -1127,7 +1327,7 @@ private struct CreateAppView: View {
                     Task { await model.create() }
                 } label: {
                     if model.busy { ProgressView().tint(Tohseno.void) }
-                    else { Text("Create App") }
+                    else { Text("Take the Shot") }
                 }
                 .buttonStyle(PrimaryButtonStyle(enabled: model.canCreate))
                 .disabled(!model.canCreate)
@@ -1135,18 +1335,18 @@ private struct CreateAppView: View {
             .padding(20)
             .padding(.bottom, 24)
         }
-        .companionInlineNavigationTitle("New App")
+        .companionInlineNavigationTitle("One Shot")
         .scrollDismissesKeyboard(.interactively)
     }
 
     @ViewBuilder
     private var nameField: some View {
 #if os(iOS)
-        TextField("app-name", text: $model.appName)
+        TextField("Optional app name", text: $model.appName)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
 #else
-        TextField("app-name", text: $model.appName)
+        TextField("Optional app name", text: $model.appName)
 #endif
     }
 }

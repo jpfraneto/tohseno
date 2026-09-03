@@ -7,7 +7,7 @@ Creation is the secondary path for a person who does not already have an Xcode p
 
 ## Write the intention
 
-Choose **Create a First App**. Describe one small loop:
+Use the persistent **One Shot** dock. Describe one small loop:
 
 > Make a breathing timer. One large circle expands for four seconds and contracts for six. Tapping anywhere starts or pauses. Keep the last duration on the phone.
 
