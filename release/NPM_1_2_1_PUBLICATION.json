@@ -1,0 +1,55 @@
+{
+  "schema": "tohseno.npm-publication-observation/1",
+  "observed_at": "2026-09-03T03:18:22Z",
+  "package": "tohseno",
+  "npm_version": "1.2.1",
+  "dist_tag": "latest",
+  "published_at": "2026-09-03T03:10:35.767Z",
+  "cli_runtime_version": "1.2.1",
+  "cli_manifest": "https://tohseno.com/releases/cli-v1.json",
+  "cli_manifest_sha256": "ce47128fb2e114e96853bea6a0fc04193b443725bf988cceee2ece67d85f5625",
+  "cli_github_release": "https://github.com/jpfraneto/tohseno/releases/tag/npm-v1.2.1",
+  "runtime_source_commit": "61f39b97795aaacd399a62a60f8d0e0b65558aef",
+  "runtime_source_state_sha256": "50751476f46dd454f594e55f035d480117f9cc3a5b7daef24ee5e3879fd3f7b3",
+  "runtime_artifacts": [
+    {
+      "target": "aarch64-apple-darwin",
+      "byte_length": 13259116,
+      "sha256": "b42f154831df9b690f307c92b764d2d30a1f1061201142ace3f8e58f1529d014"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "byte_length": 14078151,
+      "sha256": "306e0ef8015173d001086cd8d6f5f9c976c83a062eca21dd5f8f7d17603e0318"
+    }
+  ],
+  "tarball": {
+    "url": "https://registry.npmjs.org/tohseno/-/tohseno-1.2.1.tgz",
+    "byte_length": 9507,
+    "sha1": "c31669944997186f5d788ab96ea6fa8514e5a6b9",
+    "sha256": "f63400f2f576c325f11d46cf57d883d9a6988c398a4e0594639b7debf285b9b1",
+    "integrity": "sha512-v5rWtTF/NppX7jeR6s4pzjc3axhOVW+l42Ivin2Kf0ZhgfCFxhH1W2bELSOsKIVQo5ojrTqmTUvIGv+Bm/2btA==",
+    "file_count": 13,
+    "unpacked_byte_length": 30237
+  },
+  "website_deployment": {
+    "provider": "Railway",
+    "environment": "production",
+    "deployment_id": "fb0cffca-5104-4c6a-ad43-0c44c7a7160a",
+    "status": "SUCCESS",
+    "manifest_round_trip_verified": true
+  },
+  "public_smoke": {
+    "npm_latest_resolved_to_1_2_1": true,
+    "npm_install_had_no_machine_lifecycle_side_effect": true,
+    "no_argument_guide_named_init_then_deploy": true,
+    "live_runtime_download_and_checksum_verification_green": true,
+    "developer_id_signature_verified": true,
+    "installed_runtime_reported_1_2_1": true,
+    "installed_runtime_source_commit_matched": true,
+    "init_used_enter_gated_onboarding": true,
+    "init_explained_exact_companion_inventory_and_private_pairing_requirement": true,
+    "physical_companion_inventory_observed": false
+  },
+  "boundary": "This publishes the CLI-only npm launcher and its separately pinned signed command runtime. Source and public-path verification do not fabricate observation of a physical intended iPhone, its installed-app inventory, private Companion pairing, Claim, recipient signing, or physical installation."
+}

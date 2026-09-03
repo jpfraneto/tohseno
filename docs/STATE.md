@@ -479,10 +479,14 @@ At first operational use,
 the launcher uses one fixed CLI manifest, refuses redirects and unapproved
 origins, verifies exact size, SHA-256, release layout/checksums, and Apple
 signing policy, and activates the command runtime only in the existing
-user-owned layout. Public npm `latest` remains 1.2.0 until the 1.2.1 runtime
-archives, manifest, npm tarball, and fresh isolated npm-to-runtime path are
-published and independently verified. The completed 1.2.0 publication evidence
-remains recorded in `release/NPM_1_2_0_PUBLICATION.json`.
+user-owned layout. Public npm `latest` is 1.2.1. Its exact signed runtime
+archives, production manifest, npm tarball, no-side-effect install, lazy runtime
+activation, source identity, signature, `init` Enter gate, and Companion-check
+explanation were independently observed through a fresh public install. No
+physical iPhone or Companion inventory was available during that smoke, so
+physical acceptance remains unobserved. The publication evidence is recorded
+in `release/NPM_1_2_1_PUBLICATION.json`; the earlier 1.2.0 observation remains
+in `release/NPM_1_2_0_PUBLICATION.json`.
 
 ## Private Companion channel
 
@@ -626,11 +630,12 @@ acceptance window.
 Native **1.0.0** remains the current stable native product release. The signed
 `v1.0.0` GitHub release, native manifest, and public installer pin were
 published and independently checked before activation. npm's independently
-versioned CLI door is now 1.2.0. It installs only its side-effect-free launcher
-and lazily activates the exact Developer ID signed 1.2.0 command runtime from
+versioned CLI door is now 1.2.1. It installs only its side-effect-free launcher
+and lazily activates the exact Developer ID signed 1.2.1 command runtime from
 the separate CLI manifest; it does not promote the stable native-app DMG.
 Publication evidence is preserved in `release/NPM_1_0_1_PUBLICATION.json` and
-`release/NPM_1_2_0_PUBLICATION.json`.
+the successive `release/NPM_1_2_0_PUBLICATION.json` and
+`release/NPM_1_2_1_PUBLICATION.json` observations.
 
 Native **1.1.0** remains an unreleased source candidate frozen to exact commit
 `ee16e1e2cef95a2598632bc9444d5011998aebae`; its readiness record remains false
