@@ -33,14 +33,19 @@ length readback before public catalog visibility. Public blob URLs are stable;
 provider outages do not become false `404` responses.
 
 The backward-compatible website source was deployed to the production service
-on 2026-09-03 while the selector remained filesystem; health, Registry status,
-and Anky HEAD/first-range reads passed afterward. Production has not been cut
-over to R2. A read-only inventory found one
-461,076,480-byte Anky source blob whose local SHA-256 matches its signed catalog
-digest. The service has no R2 variables and the accessible Cloudflare account
-has no dedicated Registry bucket, so no migration apply, selector change,
-credential, or Bucket Lock is claimed. Owner-attended setup and the known-Anky
-live read remain the next boundary.
+on 2026-09-03. A mounted-volume dry-run found one 461,076,480-byte Anky source
+blob whose local SHA-256 matched its signed catalog digest. The create-only R2
+migration and complete readback then passed with zero failures, and production
+now selects the private R2 backend. An external full download through Anky's
+unchanged Registry URL matched the signed length and SHA-256; its 1 MiB range
+matched the same full stream byte for byte. A controlled selector rollback to
+the retained filesystem copy also produced the exact full digest and range,
+after which production returned to R2 and passed health and range checks.
+
+No publication, Claim, signature, catalog record, or chain state changed during
+the migration. Registry and Claims writes remain dark. Cloudflare Bucket Lock
+has not been applied: the remaining owner-attended R2 action is an indefinite
+lock for only `sha256/`, never `pending/` or the whole bucket.
 
 ## Current product direction: claimable person-to-person software
 

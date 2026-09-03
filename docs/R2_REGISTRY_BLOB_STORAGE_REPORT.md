@@ -1,7 +1,7 @@
 # Durable Registry blob storage
 
-Status: implemented and locally verified on 2026-09-03; production cutover is
-not performed.
+Status: implemented, migrated, externally verified, rollback-proven, and active
+in production on 2026-09-03. Prefix Bucket Lock remains owner-attended.
 
 ## Result
 
@@ -74,17 +74,33 @@ digest header; `Range: bytes=0-31` returned `206`, an inclusive
 `Content-Range`, and exactly 32 bytes. This is the working pre-cutover baseline,
 not evidence that production uses R2.
 
-The linked production service has no `REGISTRY_R2_*` variables. The accessible
-Cloudflare account has no dedicated Tohseno Registry bucket. Therefore no R2
-bucket was created, no credentials were minted, no bytes were migrated, no
-selector was changed, and no Bucket Lock rule was applied.
+The final backward-compatible source milestone was first deployed to the real
+service with the filesystem selector on 2026-09-03 as Railway deployment
+`7ad998ce-62e5-4172-b2d0-1a351e5557eb`. The four server-only credentials were
+then installed together while the selector remained filesystem. The dedicated
+bucket was confirmed private: no `r2.dev` access and no custom domain.
 
-The final backward-compatible source milestone was deployed to the real service
-with the filesystem selector on 2026-09-03 as Railway deployment
-`7ad998ce-62e5-4172-b2d0-1a351e5557eb`. Afterward `/healthz` and the Registry
-status route succeeded, Anky `HEAD` returned its signed length/digest, and
-`bytes=0-31` returned `206` with the exact inclusive range and 32 bytes. This
-is deployment/cutover-baseline evidence only; it is not an R2 migration.
+The mounted-production dry-run and apply both audited one catalog record, one
+referenced blob, zero unreferenced blobs, and 461,076,480 bytes. Both preserved
+catalog fingerprint
+`0xc0ea7995eb3ed8889147c3bd31f20f529b6070b094679bb9cdaef38d1575e3f1`.
+Apply returned zero failures and retained audit
+`2026-09-03T14-43-22.214Z.json` on the Registry volume. Direct R2 smoke read the
+complete object and its first 1 MiB and matched the expected hashes.
+
+Railway deployment `b0f4b895-80b8-482c-bfff-5aad002a2a56` activated R2. An
+external full `GET` through the unchanged public URL returned `461076480` bytes
+and SHA-256
+`0xb39de082c43c69a3dc517578f319a3fe878c455961ea5ae015106cbd24884bec`.
+The public 1 MiB range returned `206`, exact inclusive `Content-Range`, and
+matched the same bytes from the full stream.
+
+Rollback deployment `4842146c-c81d-4f29-8d8e-dcbad6a0f68e` selected the
+retained filesystem copy without reconstructing or rewriting it. Its external
+full download and 32-byte range matched the same signed digest and length.
+Deployment `13c62e73-910f-4d6e-812b-a32c5325ac61` then restored R2; health and
+the public 32-byte range passed. No Ship, Update, Claim, signature, catalog
+record, or chain state was created or changed by this operation.
 
 ## Migration and rollback
 
@@ -125,8 +141,14 @@ Bucket Lock boundary, and rollback checks are in
 
 ## Exact remaining action
 
-An authorized Cloudflare/Railway owner must create a private dedicated bucket
-and bucket-scoped Object Read & Write credential, place the four secrets in production,
-keep writes dark, run and review dry-run then apply, deploy with the R2 selector,
-and execute the Anky full/range read smoke. Only after healthy observation may
-the owner lock the final `sha256/` prefix; `pending/` must remain deletable.
+With the verified R2 read path still healthy, an authorized owner may run this
+in an attended Cloudflare session and review the confirmation before accepting:
+
+```sh
+wrangler r2 bucket lock add "$REGISTRY_R2_BUCKET" \
+  registry-final-objects sha256/ --retention-indefinite
+```
+
+The rule must cover exactly `sha256/`. Do not add `--force`, do not lock
+`pending/`, and do not lock the whole bucket. The application credential must
+remain unable to create or weaken Bucket Lock rules.
