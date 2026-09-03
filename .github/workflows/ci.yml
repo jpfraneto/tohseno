@@ -156,7 +156,7 @@ jobs:
                and (has("deployment") | not)
                and (has("candidate_version") | not)'
           cargo run --quiet --locked -p tohseno -- --version |
-            grep -Fqx 'tohseno 1.2.0'
+            grep -Fqx 'tohseno 1.2.1'
 
   apple:
     name: Apple identity, Fascia, and Simulator fixture
