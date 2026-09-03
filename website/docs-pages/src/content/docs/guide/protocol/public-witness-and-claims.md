@@ -13,7 +13,7 @@ Its commitment is `SHA-256(RFC8785(public_checkpoint))` and becomes the Registry
 
 ## Signed catalog
 
-The off-chain `tohseno.catalog-release/1` binds that public witness to exact release metadata, source artifact bytes, source-tree commitment, closed Xcode recipe, safety classification, permissions, and optional parent. Companion signs the complete structured manifest. After publication, clients pair it with independent receipt and live-state evidence.
+The off-chain `tohseno.catalog-release/2` binds that public witness to exact release metadata, the real app icon, up to eight Builder-selected screenshots, source artifact bytes, source-tree commitment, closed Xcode recipe, safety classification, permissions, and optional parent. Every public image is bound by digest, byte length, and media type; existing version-1 releases remain valid without synthesized media. Companion signs the complete structured manifest. After publication, clients pair it with independent receipt and live-state evidence.
 
 ## Additive Claims contract
 

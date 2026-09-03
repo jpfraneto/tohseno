@@ -135,6 +135,9 @@ enum Command {
         /// Human app slug signed into this release (for example, anky).
         #[arg(long, value_name = "SLUG")]
         app_slug: Option<String>,
+        /// Add a public PNG/JPEG screenshot to this exact release. Repeat up to eight times.
+        #[arg(long = "screenshot", value_name = "PATH")]
+        screenshots: Vec<PathBuf>,
     },
     /// Show this project's local, Companion, and public network readiness.
     Status,
@@ -764,6 +767,7 @@ async fn dispatch(
             max_claims,
             closes_at,
             app_slug,
+            screenshots,
         } => {
             network_commands::deploy(
                 network_commands::DeployOptions {
@@ -773,6 +777,7 @@ async fn dispatch(
                     max_claims,
                     closes_at: closes_at.as_deref(),
                     app_slug: app_slug.as_deref(),
+                    screenshots: &screenshots,
                 },
                 json,
                 bus,
@@ -3013,6 +3018,20 @@ mod tests {
             "field-notebook",
         ])
         .is_ok());
+        let deploy_with_media = Cli::try_parse_from([
+            "tohseno",
+            "deploy",
+            "--screenshot",
+            "/tmp/one.png",
+            "--screenshot",
+            "/tmp/two.jpg",
+        ])
+        .unwrap();
+        assert!(matches!(
+            deploy_with_media.command,
+            Command::Deploy { screenshots, .. }
+                if screenshots == [PathBuf::from("/tmp/one.png"), PathBuf::from("/tmp/two.jpg")]
+        ));
         assert!(Cli::try_parse_from(["tohseno", "deploy", "--claim-edition", "auction",]).is_err());
         assert!(Cli::try_parse_from([
             "tohseno",

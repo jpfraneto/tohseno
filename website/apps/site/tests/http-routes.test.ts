@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -92,35 +91,15 @@ describe("public pages", () => {
   test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
-    expect(body).toContain("Build on Mac. Publish to Tohseno.");
-    expect(body).toContain("A link is the channel.<br><em>People are the network.</em>");
-    expect(body).toContain("A new path between Apple customers.");
-    expect(body).toContain("<strong>Build on Mac</strong>");
-    expect(body).toContain("<strong>Publish a Shot</strong>");
-    expect(body).toContain("<strong>Share one link</strong>");
-    expect(body).toContain("<strong>Verify and install</strong>");
-    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
-    expect(body).toContain("Apple’s curated marketplace.");
-    expect(body).toContain("An open distribution network.");
-    expect(body).toContain('<a href="#how-it-works">How it works</a>');
-    expect(body).toContain('id="protocol"');
-    expect(body).toContain("Every public release leaves a receipt.");
-    expect(body).toContain("Builder authority");
-    expect(body).toContain("Shot Registry");
-    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
-    expect(body).toContain("Chain ID 4663");
-    expect(body).toContain("macOS 14+");
-    expect(body).toContain("Xcode");
-    expect(body).toContain("iPhone");
-    expect(body).toContain("Apple Account");
-    expect(body).toContain("The Mac release and public network are being verified. Public downloads are still closed.");
-    expect(body).not.toContain("Public downloads are open");
-    expect(body).not.toContain('href="/registry"');
-    expect(body).not.toContain('href="/download/macos"');
-    expect(body).not.toContain("data-installer-download");
+    expect(body).toContain("Software moving<br>through people.");
+    expect(body).toContain("Ship. Fork. Claim.");
+    expect(body).toContain("Claim is not installation");
+    expect(body).toContain("The public timeline is readable. New writes remain gated");
+    expect(body).toContain("No demo Ship, Fork, or Claim is invented");
+    expect(body).toContain('href="/registry"');
+    expect(body).toContain('href="/download/macos"');
+    expect(body).toContain('href="/" aria-current="page"');
     expect(body).toContain("<footer");
-    expect(body).not.toContain("hero-symbol");
     const registry = await (await application.fetch(request("/registry"))).text();
     expect(registry).toContain('class="registry-page"');
     expect(registry).toContain('href="/registry.css"');
@@ -132,133 +111,46 @@ describe("public pages", () => {
     expect(registry).not.toContain("The network is ready.");
   });
 
-  test("serves the person-to-person landing page after launch", async () => {
+  test("serves the canonical activity timeline after launch", async () => {
     const launched = await launchedApplication();
     const { application } = launched;
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    const landingStyle = readFileSync(landingStylePath);
-    const landingStyleRevision = createHash("sha256")
-      .update(landingStyle)
-      .digest("hex")
-      .slice(0, 12);
-    // The revision is derived from the stylesheet itself, so a style change
-    // can never ship behind a stale cached copy.
-    expect(body).toContain(`/landing.css?v=${landingStyleRevision}`);
-
-    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
-    expect(body).toContain("Build on Mac. Publish to Tohseno.");
-    expect(body).toContain("A link is the channel.<br><em>People are the network.</em>");
-    expect(body).toContain("Make software.<br>Move it through your circle.</h2>");
-    expect(body).toContain("<strong>Build on Mac</strong>");
-    expect(body).toContain("<strong>Publish a Shot</strong>");
-    expect(body).toContain("<strong>Share one link</strong>");
-    expect(body).toContain("<strong>Verify and install</strong>");
-    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
-    expect(body).toContain("The App Store");
-    expect(body).toContain("Apple’s curated marketplace.");
-    expect(body).toContain("An open distribution network.");
-    expect(body).toContain("macOS 14+");
-    expect(body).toContain("Xcode");
-    expect(body).toContain("iPhone");
-    expect(body).toContain("Apple Account");
-    expect(body).toContain('<a class="nav-action" href="/registry">Explore apps</a>');
-    expect(body).toContain('id="protocol"');
-    expect(body).toContain("Every public release leaves a receipt.");
-    expect(body).toContain("Builder authority");
-    expect(body).toContain("Shot Registry");
-    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
-    expect(body).toContain("Chain ID 4663");
-    expect(landingStyle.toString()).not.toContain("height: 100svh");
-    expect(landingStyle.toString()).toContain("overflow-x: hidden;");
-    expect(landingStyle.toString()).toContain("@media (max-width: 820px)");
+    expect(body).toContain("Software moving<br>through people.");
+    expect(body).toContain("Shipping and claiming use Companion approval.");
+    expect(body).toContain("LIVE, CANONICAL ACTIVITY");
+    expect(body).toContain("No demo Ship, Fork, or Claim is invented");
+    expect(body).toContain('<a class="primary" href="/registry">Explore the Registry</a>');
     expect(body).toContain("<footer");
-    expect(body).not.toContain("hero-symbol");
-    expect(body).not.toContain("You are the moat");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
-    expect(body.match(/data-installer-download/g)).toHaveLength(1);
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain('data-download-channel="stable"');
-    expect(body).toContain("Download for Mac");
-    expect(body).toContain("macOS 14+");
-    expect(body).not.toContain("paste into Terminal");
     expect(body).toContain('src="/landing-assets/wordmark.svg"');
-    expect(body).toContain('<link rel="preload" href="/landing-assets/mascot.png" as="image" type="image/png">');
-    expect(body).not.toContain('class="paint-intro"');
-    expect(body).toContain('src="/landing.js"');
-    expect(body).toContain('property="og:title" content="Software for Apple devices. Distributed by anyone."');
-    expect(body).toContain('name="twitter:title" content="Software for Apple devices. Distributed by anyone."');
-    expect(body).not.toContain("One App Per Day");
-    expect(body).not.toContain("ticker-track");
-    expect(body).not.toContain("data-copy-contract");
-    expect(body).not.toContain("cal.com/jpfraneto/day");
-    expect(body).not.toContain("sojourn");
-    expect(body).not.toContain("BOOK A DAY");
-    expect(body).not.toContain("Claim this");
-
-    expect(body).not.toContain("dexscreener.com");
-    expect(body).not.toContain("bun run tohseno");
-    expect(body).not.toContain('href="/intake"');
     expect(body).not.toContain('href="#"');
-    expect(body).not.toMatch(/\b(?:revolutionary|unleash|empower)\b/iu);
-    expect(body).not.toMatch(/v0\.\d|0\.7|0\.6/);
-    expect(body).not.toContain('href="/docs"');
     expect(body).toContain('href="/privacy"');
     expect((await application.fetch(request("/docs"))).status).toBe(308);
     expect((await application.fetch(request("/privacy"))).status).toBe(200);
-    expect(body).toContain('rel="noopener noreferrer"');
-    expect(body).toContain(
-      "<title>Tohseno — Permissionless Distribution for Apple Software</title>",
-    );
-    expect(body).toContain(
-      'content="Tohseno is the permissionless distribution network for Apple software. Build on Mac. Publish a verifiable release. Share it person to person."',
-    );
-    expect(body).toMatch(
-      /property="og:image" content="http:\/\/localhost:3000\/og\.png\?v=[0-9a-f]{8}"/,
-    );
-    expect(body).toContain('name="twitter:card" content="summary_large_image"');
-    expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
+    expect(body).toContain("<title>Software moving through people — Tohseno</title>");
     expect(response.headers.get("Content-Security-Policy")).toContain(
       "default-src 'self'",
     );
     launched.cleanup();
   });
 
-  test("makes the release candidate the homepage invitation while public writes stay dark", async () => {
+  test("keeps the canonical timeline while a release-candidate download is available", async () => {
     const application = await candidateApplication();
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(body).toContain('class="network-home is-candidate"');
-    expect(body).toContain('data-download-channel="release-candidate"');
-    expect(body).toContain("RC7 is signed and notarized");
-    expect(body).toContain("<h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>");
-    expect(body).toContain("Permissionless distribution for Apple software");
-    expect(body).toContain("Build on Mac. Publish to Tohseno.");
-    expect(body).toContain("<strong>Build on Mac</strong>");
-    expect(body).toContain("<strong>Publish a Shot</strong>");
-    expect(body).toContain("<strong>Share one link</strong>");
-    expect(body).toContain("<strong>Verify and install</strong>");
-    expect(body).toContain("A friend of Apple.<br>A network for its customers.");
-    expect(body).toContain("macOS 14+");
-    expect(body).toContain("Xcode");
-    expect(body).toContain("iPhone");
-    expect(body).toContain("Apple Account");
-    expect(body).toContain('id="protocol"');
-    expect(body).toContain("Claim writes remain gated until the Claim release activates.");
-    expect(body).toContain("Public network shipping remains closed");
-    expect(body).toContain('href="/download/macos" data-installer-download');
+    expect(body).toContain("Software moving<br>through people.");
+    expect(body).toContain("The public timeline is readable. New writes remain gated");
+    expect(body).toContain('href="/download/macos"');
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain("Download for Mac");
-    expect(body).not.toContain("Public downloads are still closed");
-    expect(body).not.toContain("$99");
-    expect(body).not.toContain('href="/registry"');
+    expect(body).toContain('href="/registry"');
     expect(body).toContain("<footer");
-    expect(body).not.toContain("hero-symbol");
   });
 
   test("hands documentation to the standalone site and serves privacy", async () => {

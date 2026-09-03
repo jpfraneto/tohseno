@@ -1796,6 +1796,9 @@ private struct AppWorkspaceView: View {
     let app: AppSummary
     let change: () -> Void
     let details: () -> Void
+    @State private var choosingScreenshots = false
+    @State private var screenshotURLs: [URL] = []
+    @State private var screenshotSelectionError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -1827,6 +1830,45 @@ private struct AppWorkspaceView: View {
             } label: {
                 Label("App overview", systemImage: "app.dashed")
             }
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("The app's real icon is included automatically. Choose up to eight PNG or JPEG screenshots to publish with this exact release.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if screenshotURLs.isEmpty {
+                        Text("No screenshots selected.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(screenshotURLs.enumerated()), id: \.element) { index, url in
+                            HStack {
+                                Image(systemName: "photo")
+                                Text(url.lastPathComponent).lineLimit(1)
+                                Spacer()
+                                Button("Remove") { screenshotURLs.remove(at: index) }
+                                    .buttonStyle(.plain)
+                            }
+                            .font(.caption)
+                        }
+                    }
+                    HStack {
+                        Button("Add screenshots…") { choosingScreenshots = true }
+                            .disabled(screenshotURLs.count >= 8)
+                            .accessibilityIdentifier("app.ship-screenshots")
+                        Text("\(screenshotURLs.count)/8 selected")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let screenshotSelectionError {
+                        Text(screenshotSelectionError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+                .padding(.top, 5)
+            } label: {
+                Label("Public app page", systemImage: "photo.on.rectangle.angled")
+            }
             HStack {
                 if app.presentation.state == .installed {
                     Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
@@ -1835,10 +1877,30 @@ private struct AppWorkspaceView: View {
                 }
                 Button("Details…", action: details)
                 Spacer()
-                Button("Ship…") { Task { await model.ship(app) } }
+                Button("Ship…") { Task { await model.ship(app, screenshotURLs: screenshotURLs) } }
                     .buttonStyle(.borderedProminent)
                     .disabled(model.isSubmitting || app.presentation.state.isInFlight)
                     .accessibilityIdentifier("app.ship")
+            }
+        }
+        .fileImporter(
+            isPresented: $choosingScreenshots,
+            allowedContentTypes: [.png, .jpeg],
+            allowsMultipleSelection: true
+        ) { result in
+            do {
+                let selected = try result.get()
+                let combined = screenshotURLs + selected
+                var observed = Set<String>()
+                let distinct = combined.filter {
+                    observed.insert($0.standardizedFileURL.path).inserted
+                }
+                screenshotURLs = Array(distinct.prefix(8))
+                screenshotSelectionError = distinct.count > 8
+                    ? "Only the first eight distinct screenshots were selected."
+                    : nil
+            } catch {
+                screenshotSelectionError = error.localizedDescription
             }
         }
     }

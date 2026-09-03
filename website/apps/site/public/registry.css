@@ -18,6 +18,56 @@
   padding-bottom: clamp(82px, 10vw, 132px);
 }
 
+.home-activity-hero {
+  max-width: 980px;
+  padding: clamp(30px, 4vw, 54px) 0 clamp(64px, 9vw, 118px);
+}
+
+.home-activity-hero h1 {
+  margin: 16px 0 26px;
+  font-size: clamp(64px, 9vw, 128px);
+  font-weight: 760;
+  letter-spacing: -.078em;
+  line-height: .84;
+}
+
+.home-activity-hero .lead {
+  max-width: 820px;
+  margin: 0;
+  color: #4f4b45;
+  font-size: clamp(18px, 1.9vw, 25px);
+  letter-spacing: -.025em;
+  line-height: 1.48;
+}
+
+.home-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.activity-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.activity-heading h2 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 62px);
+  letter-spacing: -.06em;
+}
+
+.home-timeline {
+  margin-top: 12px;
+}
+
 .registry-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
@@ -414,6 +464,16 @@
   color: var(--muted);
 }
 
+.event-icon {
+  width: 70px;
+  height: 70px;
+  grid-column: 2;
+  grid-row: 2 / span 4;
+  border-radius: 17px;
+  box-shadow: 0 10px 24px rgb(25 20 16 / 16%);
+  object-fit: cover;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
@@ -439,6 +499,19 @@
   margin: 48px 0 12px;
   font-size: 31px;
   letter-spacing: -.045em;
+}
+
+.card-icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 26px;
+  border-radius: 17px;
+  box-shadow: 0 10px 24px rgb(25 20 16 / 14%);
+  object-fit: cover;
+}
+
+.card-icon + .eyebrow + h2 {
+  margin-top: 14px;
 }
 
 .card > p:not(.eyebrow) {
@@ -469,6 +542,54 @@
 .registry-main > header,
 .app-hero {
   padding: clamp(34px, 5vw, 70px) 0 clamp(52px, 7vw, 92px);
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 3vw, 38px);
+}
+
+.app-icon {
+  width: clamp(82px, 10vw, 128px);
+  height: clamp(82px, 10vw, 128px);
+  flex: 0 0 auto;
+  border-radius: 24%;
+  box-shadow: 0 18px 40px rgb(25 20 16 / 20%);
+  object-fit: cover;
+}
+
+.app-gallery {
+  display: grid;
+  grid-auto-columns: minmax(230px, 330px);
+  grid-auto-flow: column;
+  gap: 12px;
+  overflow-x: auto;
+  margin: 0 0 14px;
+  padding: 4px 2px 18px;
+  scroll-snap-type: x proximity;
+}
+
+.app-gallery figure {
+  margin: 0;
+  scroll-snap-align: start;
+}
+
+.app-gallery img {
+  display: block;
+  width: 100%;
+  height: min(66vh, 620px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--dark);
+  box-shadow: 0 16px 38px rgb(25 20 16 / 12%);
+  object-fit: contain;
+}
+
+.app-gallery figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .edition {
@@ -827,6 +948,19 @@
     grid-row: auto;
   }
 
+  .event-icon {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .activity-heading {
+    display: block;
+  }
+
+  .activity-heading h2 {
+    margin-top: 8px;
+  }
+
   .friend-path li {
     grid-template-columns: auto 1fr;
   }
@@ -842,6 +976,18 @@
   .evidence-card dd {
     margin-top: 4px;
     text-align: left;
+  }
+
+  .home-activity-hero h1 {
+    font-size: clamp(56px, 17vw, 82px);
+  }
+
+  .app-title {
+    display: block;
+  }
+
+  .app-title h1 {
+    margin-top: 24px;
   }
 }
 

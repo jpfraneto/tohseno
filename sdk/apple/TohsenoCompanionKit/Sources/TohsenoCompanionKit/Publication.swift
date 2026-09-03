@@ -398,9 +398,17 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
             "contract_generation", "chain_id", "builder_account_factory", "shot_registry",
             "activation_signing_digest",
         ], "catalog generation")
-        try Self.requireKeys(display, [
-            "name", "description", "icon_sha256", "builder_handle", "app_slug",
-        ], "catalog display")
+        let releaseSchema = release["schema"] as? String
+        if releaseSchema == "tohseno.catalog-release/2" {
+            try Self.requireKeys(display, [
+                "name", "description", "icon_sha256", "icon_byte_length",
+                "icon_media_type", "screenshots", "builder_handle", "app_slug",
+            ], "catalog display")
+        } else {
+            try Self.requireKeys(display, [
+                "name", "description", "icon_sha256", "builder_handle", "app_slug",
+            ], "catalog display")
+        }
         try Self.requireKeys(source, [
             "format", "sha256", "byte_length", "source_tree_sha256", "file_count",
             "uncompressed_byte_length",
@@ -417,7 +425,7 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
         let compressedBytes = Self.uint(source["byte_length"])
         let files = Self.uint(source["file_count"])
         let sourceBytes = Self.uint(source["uncompressed_byte_length"])
-        guard release["schema"] as? String == "tohseno.catalog-release/1",
+        guard ["tohseno.catalog-release/1", "tohseno.catalog-release/2"].contains(releaseSchema ?? ""),
               release["shot_id"] as? String == shotID,
               release["builder_id"] as? String == builderID,
               BuilderDeviceAnnouncement.hex32(release["release_id"] as? String ?? "") != nil,
@@ -440,7 +448,7 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
               permissions["fork_allowed"] as? Bool == forkAllowed,
               permissions["distributor_rights_declared"] as? Bool == true
         else { throw TohsenoCompanionError.invalidEncoding("catalog release differs from approval summary") }
-        try Self.validateDisplay(display)
+        try Self.validateDisplay(display, releaseSchema: releaseSchema!)
         try Self.validateBuild(build)
         try Self.validatePermissions(permissions)
         try Self.validateParent(release["parent"], childShotID: shotID)
@@ -449,13 +457,32 @@ public struct PublicationApprovalRequest: Codable, Equatable, Sendable, Identifi
         }
     }
 
-    private static func validateDisplay(_ value: [String: Any]) throws {
+    private static func validateDisplay(_ value: [String: Any], releaseSchema: String) throws {
         guard let name = value["name"] as? String, bounded(name, 1 ... 160),
               let description = value["description"] as? String, bounded(description, 1 ... 2_000),
               optionalHex32(value["icon_sha256"]),
               optionalIdentifier(value["builder_handle"], maximum: 32),
               optionalIdentifier(value["app_slug"], maximum: 64)
         else { throw TohsenoCompanionError.invalidEncoding("invalid catalog display") }
+        if releaseSchema == "tohseno.catalog-release/1" { return }
+        guard BuilderDeviceAnnouncement.hex32(value["icon_sha256"] as? String ?? "") != nil,
+              let iconBytes = uint(value["icon_byte_length"]), (1 ... 5 * 1024 * 1024).contains(iconBytes),
+              let iconType = value["icon_media_type"] as? String,
+              ["image/png", "image/jpeg"].contains(iconType),
+              let screenshots = value["screenshots"] as? [[String: Any]], screenshots.count <= 8
+        else { throw TohsenoCompanionError.invalidEncoding("invalid public app media") }
+        var digests = Set<String>()
+        for screenshot in screenshots {
+            try requireKeys(screenshot, ["sha256", "byte_length", "media_type"], "catalog screenshot")
+            guard let digest = screenshot["sha256"] as? String,
+                  BuilderDeviceAnnouncement.hex32(digest) != nil,
+                  digests.insert(digest).inserted,
+                  let bytes = uint(screenshot["byte_length"]),
+                  (1 ... 10 * 1024 * 1024).contains(bytes),
+                  let mediaType = screenshot["media_type"] as? String,
+                  ["image/png", "image/jpeg"].contains(mediaType)
+            else { throw TohsenoCompanionError.invalidEncoding("invalid catalog screenshot") }
+        }
     }
 
     private static func validateBuild(_ value: [String: Any]) throws {

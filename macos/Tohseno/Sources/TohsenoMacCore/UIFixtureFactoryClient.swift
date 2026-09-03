@@ -134,7 +134,7 @@ public actor UIFixtureFactoryClient: FactoryServing {
     public func setPrivateUpdateRead(updateID: String, read: Bool) async throws -> PrivateUpdateProjection {
         throw FactoryClientError.transport("UI fixture")
     }
-    public func deploy(projectID: String) async throws -> PublicationPreparationView { throw FactoryClientError.transport("UI fixture") }
+    public func deploy(projectID: String, screenshotPaths: [String]) async throws -> PublicationPreparationView { throw FactoryClientError.transport("UI fixture") }
     public func receiveNetworkRelease(shotID: String, releaseDigest: String, action: NetworkReceiveAction, approveMacReview: Bool) async throws -> NetworkReceiveView { throw FactoryClientError.transport("UI fixture") }
     public func performReadinessAction(_ action: String) async throws -> ReadinessView { try await readiness() }
     public func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult {

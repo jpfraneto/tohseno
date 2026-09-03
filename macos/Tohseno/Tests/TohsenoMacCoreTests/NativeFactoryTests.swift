@@ -199,6 +199,23 @@ final class NativeFactoryTests: XCTestCase {
         ])
     }
 
+    @MainActor
+    func testShipPassesOnlyExplicitlySelectedScreenshotsToTheFactory() async throws {
+        let factory = FakeFactory()
+        let model = TohsenoAppModel(client: factory)
+        await model.reload()
+        let app = try XCTUnwrap(model.workspace?.shots.first)
+        let screenshots = [
+            URL(fileURLWithPath: "/tmp/one.png"),
+            URL(fileURLWithPath: "/tmp/two.jpg"),
+        ]
+
+        await model.ship(app, screenshotURLs: screenshots)
+
+        let deployed = await factory.deployedScreenshotPaths()
+        XCTAssertEqual(deployed, screenshots.map(\.path))
+    }
+
     func testLivingWorkshopProjectsOnlyRealApplicationAndAuthorityState() {
         let ready = ReadinessView(
             schema: "tohseno.readiness/1", ready: true, step: "ready",
@@ -924,6 +941,7 @@ final class NativeFactoryTests: XCTestCase {
 
 private actor FakeFactory: FactoryServing {
     private(set) var createCalls = 0
+    private(set) var deployScreenshotPaths: [String] = []
     let createDelay: Duration
     let receiptValue: ExecutionReceipt?
     var workspaceShots: [AppSummary]?
@@ -941,6 +959,7 @@ private actor FakeFactory: FactoryServing {
         self.readinessResponses = readinessResponses
     }
     func createCallCount() -> Int { createCalls }
+    func deployedScreenshotPaths() -> [String] { deployScreenshotPaths }
 
     func workspace() async throws -> WorkspaceSnapshot {
         WorkspaceSnapshot(
@@ -1023,8 +1042,9 @@ private actor FakeFactory: FactoryServing {
             updatedAt: "2026-08-31T12:00:00Z"
         )
     }
-    func deploy(projectID: String) async throws -> PublicationPreparationView {
-        PublicationPreparationView(
+    func deploy(projectID: String, screenshotPaths: [String]) async throws -> PublicationPreparationView {
+        deployScreenshotPaths = screenshotPaths
+        return PublicationPreparationView(
             schema: "tohseno.publication-preparation/1",
             jobID: "publication_fixture",
             projectID: projectID,

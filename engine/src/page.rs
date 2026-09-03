@@ -333,13 +333,14 @@ fn canonical_json_line<T: Serialize>(value: &T, label: &str) -> Result<Vec<u8>, 
     Ok(bytes)
 }
 
-fn select_icon(source: &Path) -> Result<Vec<u8>, PageError> {
+/// Selects the largest valid PNG from an Xcode `.appiconset` without following
+/// symlinks. Publication callers use `None` to fail closed instead of
+/// presenting Tohseno's private-page fallback as the app's own artwork.
+pub fn select_app_icon(source: &Path) -> Result<Option<Vec<u8>>, PageError> {
     match fs::symlink_metadata(source) {
         Ok(metadata) if metadata.file_type().is_dir() && !metadata.file_type().is_symlink() => {}
         Ok(_) => return Err(PageError::UnsafePath(source.display().to_string())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(FALLBACK_ICON.to_vec())
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.into()),
     }
     let mut candidates = Vec::new();
@@ -354,8 +355,11 @@ fn select_icon(source: &Path) -> Result<Vec<u8>, PageError> {
     Ok(candidates
         .into_iter()
         .next()
-        .map(|candidate| candidate.bytes)
-        .unwrap_or_else(|| FALLBACK_ICON.to_vec()))
+        .map(|candidate| candidate.bytes))
+}
+
+fn select_icon(source: &Path) -> Result<Vec<u8>, PageError> {
+    Ok(select_app_icon(source)?.unwrap_or_else(|| FALLBACK_ICON.to_vec()))
 }
 
 struct IconCandidate {
@@ -1011,6 +1015,34 @@ mod tests {
             audit["definition_repository_path"],
             "contracts/generations/0.8.0/generation.json"
         );
+    }
+
+    #[test]
+    fn public_icon_selection_uses_the_largest_xcode_app_icon_only() {
+        fn png(width: u32, height: u32, marker: u8) -> Vec<u8> {
+            let mut bytes = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+            bytes.extend_from_slice(&width.to_be_bytes());
+            bytes.extend_from_slice(&height.to_be_bytes());
+            bytes.push(marker);
+            bytes
+        }
+        let temporary = tempfile::tempdir().unwrap();
+        let icon_set = temporary
+            .path()
+            .join("Assets.xcassets")
+            .join("AppIcon.appiconset");
+        fs::create_dir_all(&icon_set).unwrap();
+        let small = png(60, 60, 1);
+        let large = png(1024, 1024, 2);
+        fs::write(icon_set.join("small.png"), small).unwrap();
+        fs::write(icon_set.join("large.png"), &large).unwrap();
+        fs::write(
+            temporary.path().join("not-an-app-icon.png"),
+            png(2048, 2048, 3),
+        )
+        .unwrap();
+
+        assert_eq!(select_app_icon(temporary.path()).unwrap(), Some(large));
     }
 
     #[test]

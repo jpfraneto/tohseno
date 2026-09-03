@@ -4,7 +4,29 @@ Written 2026-07-30, amended through 2026-09-03. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
-## Current source evolution: durable public bytes and the Living Workshop
+## Current source evolution: public app media, network activity, and the Living Workshop
+
+ADR 0040 now makes the website root a truthful canonical timeline of someone
+Shipping an app, Forking an exact release into a new Shot, or Claiming an exact
+release. Forks are not duplicated as Ships on that root projection, while
+`/registry` retains ADR 0035's Discover timeline including Updates and Claim
+Edition closure rather than individual Claim events. Empty timelines remain
+empty; no demo or pending event is substituted.
+
+New `tohseno.catalog-release/2` records bind the real largest PNG in the app's
+Xcode `.appiconset` plus zero through eight PNG/JPEG screenshots explicitly
+selected by the Builder. Companion approves their exact hashes, lengths, types,
+and order. The Registry verifies and durably promotes those content-addressed
+bytes through the same selected filesystem/R2 backend, and the exact app page
+renders them. Existing version-1 releases remain valid without synthesized
+media. Private references and the owner-local Simulator capture are never
+published automatically.
+
+The app page now sends an exact-release Claim deep link to Companion. That
+browser action is not an installation or a Claim receipt: Companion retains the
+human disclosure, circle, DeviceKey authorization, canonical confirmation, and
+only then queues the existing recipient-Mac preparation path. Claims and all
+Claims writes remain subject to their separate activation gates.
 
 ADR 0039 now makes **One Shot** the visible native identity and the **Living
 Workshop** the primary Mac and Companion shell over the one existing factory.

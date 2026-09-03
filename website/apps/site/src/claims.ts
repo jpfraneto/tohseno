@@ -94,10 +94,12 @@ export interface ClaimsRouter {
   renderReceipt(tokenID: string): Promise<string | undefined>;
   editionForDisplay(shotID: Hex): Promise<ClaimEditionSnapshot | undefined>;
   closureForTimeline(shotID: Hex): Promise<ClaimEditionClosure | undefined>;
+  claimsForHome(shotIDs: Hex[]): Promise<SoftwareClaimSnapshot[]>;
 }
 
 export type ClaimsPublicationBridge = Pick<ClaimsRouter,
-  "verifyOpenEdition" | "advanceOpenEdition" | "editionForDisplay" | "closureForTimeline">;
+  "verifyOpenEdition" | "advanceOpenEdition" | "editionForDisplay" | "closureForTimeline"
+  | "claimsForHome">;
 
 export interface ClaimEditionClosure {
   reason: "supply_filled" | "time_elapsed";
@@ -722,6 +724,20 @@ export async function createClaimsRouter(
             transactionIndex: null, logIndex: null } };
       }
       return undefined;
+    },
+    claimsForHome: async (shotIDs) => {
+      const observed = await live();
+      if (!observed.active || !reader) return [];
+      const unique = [...new Set(shotIDs)].slice(0, 100);
+      const claims = (await Promise.all(unique.map((shotID) => reader.claimsForShot(shotID)))).flat();
+      const byToken = new Map(claims.map((claim) => [claim.tokenID.toString(), claim]));
+      return [...byToken.values()].filter((claim) => claim.blockNumber !== undefined
+          && claim.blockHash !== undefined && claim.claimedAt !== undefined)
+        .sort((left, right) => left.blockNumber! < right.blockNumber! ? 1
+          : left.blockNumber! > right.blockNumber! ? -1
+          : (right.transactionIndex ?? 0) - (left.transactionIndex ?? 0)
+            || (right.logIndex ?? 0) - (left.logIndex ?? 0))
+        .slice(0, 100);
     },
   };
 }

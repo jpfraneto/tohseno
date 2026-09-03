@@ -302,12 +302,17 @@ public final class TohsenoAppModel {
         catch { errorMessage = error.localizedDescription }
     }
 
-    public func ship(_ app: AppSummary) async {
+    public func ship(_ app: AppSummary, screenshotURLs: [URL] = []) async {
         guard !isSubmitting else { return }
         isSubmitting = true
         defer { isSubmitting = false }
+        let accessedURLs = screenshotURLs.filter { $0.startAccessingSecurityScopedResource() }
+        defer { accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() } }
         do {
-            let request = try await client.deploy(projectID: app.id)
+            let request = try await client.deploy(
+                projectID: app.id,
+                screenshotPaths: screenshotURLs.map(\.path)
+            )
             guard request.schema == "tohseno.publication-preparation/1",
                   request.projectID == app.id,
                   request.status == "waiting_for_companion"

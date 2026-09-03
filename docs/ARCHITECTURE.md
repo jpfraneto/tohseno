@@ -109,13 +109,15 @@ Installed. The saved artifact and retry state survive service/Mac restart.
 
 ### Public release, catalog, and recipient execution
 
-[`network/`](../network/) owns the closed `tohseno.catalog-release/1` model,
+[`network/`](../network/) owns the closed `tohseno.catalog-release/2` model and
+version-1 compatibility,
 deterministic sanitized tar creation/extraction, narrow Xcode build-safety
 classifier, and exact public release evidence verifier. The catalog signature
-binds source bytes and tree, build recipe, permissions, optional immutable fork
-parent, active generation, ShotID, BuilderID, checkpoint sequence, and public
-checkpoint digest. It contains no private intention, absolute path, prompt,
-Apple credential, or installation fact.
+binds the real app icon, explicitly selected public screenshots, source bytes
+and tree, build recipe, permissions, optional immutable fork parent, active
+generation, ShotID, BuilderID, checkpoint sequence, and public checkpoint
+digest. It contains no private intention, absolute path, prompt, Apple
+credential, or installation fact.
 
 [`cli/src/network_commands.rs`](../cli/src/network_commands.rs) implements
 `init`, `deploy`, `status`, `install`, and `fork`. Publication jobs and

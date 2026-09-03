@@ -219,7 +219,7 @@ A checkpoint proves very little alone. Its authorization comes from the paired R
 
 ### 7.3 Signed catalog releases
 
-The off-chain `tohseno.catalog-release/1` object binds the public checkpoint to the software people can actually fetch. It includes the active generation and witness, ShotID, BuilderID, immutable release ID, time, display metadata, source artifact digest and length, source-tree commitment, Xcode container and scheme, original bundle identifier, minimum iOS version, device family, dependency locks, safety classification, install and fork declarations, optional exact parent release, expected checkpoint sequence, and public-checkpoint digest.
+The off-chain `tohseno.catalog-release/2` object binds the public checkpoint to the software people can actually fetch. It includes the active generation and witness, ShotID, BuilderID, immutable release ID, time, display metadata, the app icon and any explicitly selected screenshots by digest, length, media type, and order, source artifact digest and length, source-tree commitment, Xcode container and scheme, original bundle identifier, minimum iOS version, device family, dependency locks, safety classification, install and fork declarations, optional exact parent release, expected checkpoint sequence, and public-checkpoint digest. Existing version-1 records remain readable without synthesized media.
 
 The Builder DeviceKey signs that complete canonical object. It contains no private intention, prompt, reference, absolute source path, environment, pairing capability, Apple credential, profile, certificate, private key, or installation fact.
 
@@ -231,7 +231,7 @@ A public release becomes discoverable only when these agree:
 4. canonical transaction and block evidence;
 5. the Registry's current head and checkpoint sequence;
 6. the manifest's public-checkpoint digest; and
-7. the staged source bytes, artifact digest, and source-tree commitment.
+7. the staged source and presentation-media bytes, their exact signed digests and lengths, and the source-tree commitment.
 
 The chain proves a Builder-controlled checkpoint. The signed catalog binds that checkpoint to an exact release. Content addressing proves the fetched bytes. None can safely substitute for the other two.
 

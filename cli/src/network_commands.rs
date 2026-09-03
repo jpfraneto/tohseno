@@ -22,8 +22,9 @@ use tohseno_engine::Event;
 use tohseno_network::build_profile::{classify_xcode_project, collect_dependency_locks};
 use tohseno_network::catalog::{
     BuildSafety, BuildSafetyClassification, CatalogDisplay, CatalogGeneration,
-    CatalogParentRelease, CatalogRelease, ReleasePermissions, SourceArtifact, SourceArtifactFormat,
-    XcodeBuildRecipe, XcodeContainerKind as CatalogContainerKind, CATALOG_RELEASE_SCHEMA,
+    CatalogParentRelease, CatalogRelease, CatalogScreenshot, PublicImageMediaType,
+    ReleasePermissions, SourceArtifact, SourceArtifactFormat, XcodeBuildRecipe,
+    XcodeContainerKind as CatalogContainerKind, CATALOG_RELEASE_SCHEMA,
 };
 use tohseno_network::evidence::PublicReleaseEvidence;
 use tohseno_network::snapshot::create_deterministic_snapshot;
@@ -54,6 +55,9 @@ const BUILDER_ACCOUNT_CREATION_HEX: &str =
 const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
 const ADOPTION_REQUEST_TIMEOUT: Duration = Duration::from_secs(35 * 60);
 const ADOPTION_PROGRESS_INTERVAL: Duration = Duration::from_secs(10);
+const MAX_PUBLIC_ICON_BYTES: u64 = 5 * 1024 * 1024;
+const MAX_PUBLIC_SCREENSHOT_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_PUBLIC_SCREENSHOTS: usize = 8;
 
 fn parse_claim_edition(
     kind: Option<&str>,
@@ -204,6 +208,10 @@ struct PublicationPreparation {
     source_file_count: u64,
     source_uncompressed_byte_length: u64,
     source_artifact_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon: Option<PublicationImage>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    screenshots: Vec<PublicationImage>,
     build_safety: BuildSafety,
     registry_origin: String,
     chain_id: u64,
@@ -216,6 +224,15 @@ struct PublicationPreparation {
     claim_edition: Option<RequestedClaimEdition>,
     #[serde(skip_serializing_if = "Option::is_none")]
     approval_request: Option<PublicationApprovalRequest>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PublicationImage {
+    sha256: Bytes32,
+    byte_length: u64,
+    media_type: PublicImageMediaType,
+    path: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -263,6 +280,10 @@ struct RemotePublicationState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     upload_token: Option<String>,
     source_uploaded: bool,
+    #[serde(default)]
+    icon_uploaded: bool,
+    #[serde(default)]
+    screenshots_uploaded: usize,
     publication_submitted: bool,
     remote_status: String,
     updated_at: String,
@@ -763,6 +784,7 @@ pub struct DeployOptions<'a> {
     pub max_claims: Option<u64>,
     pub closes_at: Option<&'a str>,
     pub app_slug: Option<&'a str>,
+    pub screenshots: &'a [PathBuf],
 }
 
 pub async fn deploy(
@@ -777,7 +799,11 @@ pub async fn deploy(
         max_claims,
         closes_at,
         app_slug: requested_app_slug,
+        screenshots: requested_screenshots,
     } = options;
+    if requested_screenshots.len() > MAX_PUBLIC_SCREENSHOTS {
+        return Err("A public release may include at most eight screenshots".into());
+    }
     let service = ServiceClient::ensure_running().await.map_err(to_box)?;
     let projects: ProjectList = service.get("/api/v1/projects").await.map_err(to_box)?;
     validate_project_list(&projects)?;
@@ -877,6 +903,15 @@ pub async fn deploy(
     };
     let artifact = directory.join("source.tar");
     let snapshot = create_deterministic_snapshot(Path::new(&project.source_path), &artifact)?;
+    let icon_bytes = tohseno_engine::page::select_app_icon(Path::new(&project.source_path))?
+        .ok_or("This app has no PNG in an Xcode .appiconset; add its app icon before publishing")?;
+    let icon = prepare_public_image_bytes(
+        &icon_bytes,
+        "image/png",
+        &directory.join("icon"),
+        MAX_PUBLIC_ICON_BYTES,
+    )?;
+    let screenshots = prepare_public_screenshots(requested_screenshots, &directory)?;
     let approval_request = if dry_run {
         None
     } else {
@@ -894,6 +929,8 @@ pub async fn deploy(
                 &directory,
                 requested_claim_edition.as_ref(),
                 &app_slug,
+                &icon,
+                &screenshots,
             )
             .await?,
         )
@@ -912,6 +949,8 @@ pub async fn deploy(
         source_file_count: snapshot.file_count,
         source_uncompressed_byte_length: snapshot.source_byte_length,
         source_artifact_path: artifact.display().to_string(),
+        icon: Some(icon),
+        screenshots,
         build_safety: safety,
         registry_origin: REGISTRY_ORIGIN.into(),
         chain_id: 4663,
@@ -956,6 +995,10 @@ pub async fn deploy(
             preparation.source_artifact_sha256,
             preparation.public_checkpoint_digest,
         )));
+        bus.emit(Event::status(format!(
+            "✓ App icon included\n✓ Public screenshots: {}",
+            preparation.screenshots.len()
+        )));
         if is_ship {
             bus.emit(Event::status(format!(
                 "Claim edition:\n{}",
@@ -979,6 +1022,77 @@ pub async fn deploy(
     Ok(())
 }
 
+fn prepare_public_screenshots(
+    requested: &[PathBuf],
+    directory: &Path,
+) -> Result<Vec<PublicationImage>, BoxError> {
+    let mut prepared = Vec::with_capacity(requested.len());
+    let mut digests = std::collections::BTreeSet::new();
+    for (index, source) in requested.iter().enumerate() {
+        let metadata = fs::symlink_metadata(source)
+            .map_err(|_| format!("Public screenshot {} is unavailable", index + 1))?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.len() == 0
+            || metadata.len() > MAX_PUBLIC_SCREENSHOT_BYTES
+        {
+            return Err(format!(
+                "Public screenshot {} must be a regular PNG/JPEG no larger than 10 MiB",
+                index + 1
+            )
+            .into());
+        }
+        let bytes = fs::read(source)?;
+        let image = prepare_public_image_bytes(
+            &bytes,
+            "",
+            &directory.join(format!("screenshot-{:02}", index + 1)),
+            MAX_PUBLIC_SCREENSHOT_BYTES,
+        )?;
+        if !digests.insert(image.sha256) {
+            return Err("Public screenshots must contain different image bytes".into());
+        }
+        prepared.push(image);
+    }
+    Ok(prepared)
+}
+
+fn prepare_public_image_bytes(
+    bytes: &[u8],
+    declared_media_type: &str,
+    destination: &Path,
+    maximum: u64,
+) -> Result<PublicationImage, BoxError> {
+    let byte_length = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    if byte_length == 0 || byte_length > maximum {
+        return Err("Public image is outside its byte bound".into());
+    }
+    let media_type = public_image_media_type(bytes)
+        .ok_or("Public images must contain recognizable PNG or JPEG bytes")?;
+    if !declared_media_type.is_empty() && declared_media_type != media_type.as_str() {
+        return Err("The local app icon media type differs from its bytes".into());
+    }
+    use sha2::Digest as _;
+    let sha256 = Bytes32::new(sha2::Sha256::digest(bytes).into());
+    write_new_private(destination, bytes)?;
+    Ok(PublicationImage {
+        sha256,
+        byte_length,
+        media_type,
+        path: destination.display().to_string(),
+    })
+}
+
+fn public_image_media_type(bytes: &[u8]) -> Option<PublicImageMediaType> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        Some(PublicImageMediaType::Png)
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some(PublicImageMediaType::Jpeg)
+    } else {
+        None
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn build_approval_request(
     job_id: &str,
@@ -993,6 +1107,8 @@ async fn build_approval_request(
     directory: &Path,
     requested_claim_edition: Option<&RequestedClaimEdition>,
     app_slug: &str,
+    icon: &PublicationImage,
+    screenshots: &[PublicationImage],
 ) -> Result<PublicationApprovalRequest, BoxError> {
     let builder_device = load_builder_device(directory)?;
     if builder_device.test_only {
@@ -1037,7 +1153,17 @@ async fn build_approval_request(
         display: CatalogDisplay {
             name: project.display_name.clone(),
             description: "A native iPhone app shared person to person with Tohseno.".into(),
-            icon_sha256: None,
+            icon_sha256: Some(icon.sha256),
+            icon_byte_length: Some(icon.byte_length),
+            icon_media_type: Some(icon.media_type),
+            screenshots: screenshots
+                .iter()
+                .map(|image| CatalogScreenshot {
+                    sha256: image.sha256,
+                    byte_length: image.byte_length,
+                    media_type: image.media_type,
+                })
+                .collect(),
             builder_handle: None,
             app_slug: Some(app_slug.into()),
         },
@@ -1604,6 +1730,8 @@ async fn advance_publication(
             staging_id: receipt.staging_id,
             upload_token: Some(receipt.upload_token),
             source_uploaded: false,
+            icon_uploaded: false,
+            screenshots_uploaded: 0,
             publication_submitted: false,
             remote_status: "staged".into(),
             updated_at: canonical_now()?,
@@ -1613,6 +1741,7 @@ async fn advance_publication(
     };
     if state.schema != "tohseno.remote-publication-state/1"
         || state.staging_id.len() != 32
+        || state.screenshots_uploaded > preparation.screenshots.len()
         || !state
             .staging_id
             .bytes()
@@ -1649,6 +1778,34 @@ async fn advance_publication(
         require_success(response, 64 * 1024).await?;
         state.source_uploaded = true;
         state.remote_status = "source_staged".into();
+        state.updated_at = canonical_now()?;
+        write_replace_private(&state_path, &serde_json::to_vec(&state)?)?;
+        return Ok(true);
+    }
+    if let Some(icon) = preparation.icon.as_ref() {
+        if !state.icon_uploaded {
+            upload_publication_image(&client, &origin, &state.staging_id, token, "icon", icon)
+                .await?;
+            state.icon_uploaded = true;
+            state.remote_status = "icon_staged".into();
+            state.updated_at = canonical_now()?;
+            write_replace_private(&state_path, &serde_json::to_vec(&state)?)?;
+            return Ok(true);
+        }
+    }
+    if state.screenshots_uploaded < preparation.screenshots.len() {
+        let index = state.screenshots_uploaded;
+        upload_publication_image(
+            &client,
+            &origin,
+            &state.staging_id,
+            token,
+            &format!("screenshots/{}", index + 1),
+            &preparation.screenshots[index],
+        )
+        .await?;
+        state.screenshots_uploaded += 1;
+        state.remote_status = "screenshot_staged".into();
         state.updated_at = canonical_now()?;
         write_replace_private(&state_path, &serde_json::to_vec(&state)?)?;
         return Ok(true);
@@ -1771,6 +1928,30 @@ async fn advance_publication(
         }))?,
     )?;
     Ok(true)
+}
+
+async fn upload_publication_image(
+    client: &reqwest::Client,
+    origin: &str,
+    staging_id: &str,
+    token: &str,
+    route: &str,
+    image: &PublicationImage,
+) -> Result<(), BoxError> {
+    let path = PathBuf::from(&image.path);
+    verify_artifact(&path, image.sha256, image.byte_length)?;
+    let file = tokio::fs::File::open(path).await?;
+    let response = client
+        .put(format!(
+            "{origin}/api/registry/v1/staging/{staging_id}/{route}"
+        ))
+        .bearer_auth(token)
+        .header(reqwest::header::CONTENT_LENGTH, image.byte_length)
+        .header(reqwest::header::CONTENT_TYPE, image.media_type.as_str())
+        .body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
+        .send()
+        .await?;
+    require_success(response, 64 * 1024).await
 }
 
 fn validate_stored_claim_edition(
@@ -2692,6 +2873,26 @@ fn to_box(error: Box<dyn std::error::Error + Send + Sync>) -> BoxError {
 #[cfg(test)]
 mod claim_edition_tests {
     use super::*;
+
+    #[test]
+    fn public_screenshot_preparation_binds_type_order_and_unique_bytes() {
+        let temporary = tempfile::tempdir().unwrap();
+        let png = temporary.path().join("one.png");
+        let jpeg = temporary.path().join("two.jpg");
+        fs::write(&png, b"\x89PNG\r\n\x1a\nfirst").unwrap();
+        fs::write(&jpeg, b"\xff\xd8\xffsecond").unwrap();
+        let output = temporary.path().join("prepared");
+        fs::create_dir(&output).unwrap();
+
+        let prepared = prepare_public_screenshots(&[png.clone(), jpeg], &output).unwrap();
+        assert_eq!(prepared.len(), 2);
+        assert_eq!(prepared[0].media_type, PublicImageMediaType::Png);
+        assert_eq!(prepared[1].media_type, PublicImageMediaType::Jpeg);
+
+        let duplicate_output = temporary.path().join("duplicates");
+        fs::create_dir(&duplicate_output).unwrap();
+        assert!(prepare_public_screenshots(&[png.clone(), png], &duplicate_output).is_err());
+    }
 
     #[test]
     fn init_requires_the_fully_verified_companion_state() {

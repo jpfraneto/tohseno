@@ -31,7 +31,7 @@ public protocol FactoryServing: Sendable {
     func setFollow(builderID: String, followed: Bool) async throws -> NetworkFollowProjection
     func upsertPrivateUpdate(_ update: PrivateUpdateItem) async throws -> PrivateUpdateProjection
     func setPrivateUpdateRead(updateID: String, read: Bool) async throws -> PrivateUpdateProjection
-    func deploy(projectID: String) async throws -> PublicationPreparationView
+    func deploy(projectID: String, screenshotPaths: [String]) async throws -> PublicationPreparationView
     func receiveNetworkRelease(shotID: String, releaseDigest: String, action: NetworkReceiveAction, approveMacReview: Bool) async throws -> NetworkReceiveView
     func performReadinessAction(_ action: String) async throws -> ReadinessView
     func adoptProject(path: String, scheme: String?) async throws -> ProjectAdoptionResult
@@ -351,11 +351,20 @@ public actor LoopbackFactoryClient: FactoryServing {
         }
     }
 
-    public func deploy(projectID: String) async throws -> PublicationPreparationView {
+    public func deploy(projectID: String, screenshotPaths: [String]) async throws -> PublicationPreparationView {
         try validateToken(projectID, label: "project ID")
-        return try await helperJSON([
+        guard screenshotPaths.count <= 8,
+              screenshotPaths.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 4_096 })
+        else {
+            throw FactoryClientError.invalidConfiguration("Choose at most eight local screenshots.")
+        }
+        var arguments = [
             "--json", "deploy", "--project-id", projectID,
-        ])
+        ]
+        for path in screenshotPaths {
+            arguments.append("--screenshot=\(path)")
+        }
+        return try await helperJSON(arguments)
     }
 
     public func receiveNetworkRelease(

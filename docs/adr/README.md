@@ -2,6 +2,13 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0040](0040-public-app-media-and-network-home.md) binds the real Xcode app
+icon and up to eight explicitly selected screenshots into catalog release v2,
+renders that immutable media on the app page, and makes `/` a canonical
+Ship/Fork/Claim activity timeline. Claim opens the exact release in Companion
+and remains distinct from installation; existing v1 catalogs, `/registry`
+Discover semantics, frozen encodings, ABIs, and activation gates are preserved.
+
 [ADR 0039](0039-one-shot-living-workshop.md) makes the native Mac and
 Companion a shared living software workshop: Mac factory, intended iPhone,
 keeper/human authority, real app objects, network threshold, and one existing

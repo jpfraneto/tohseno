@@ -187,6 +187,9 @@ describe("Registry blob storage", () => {
   test("object-key helpers reject alternate namespaces and formatting", () => {
     expect(finalKey(`0x${"12".repeat(32)}`)).toBe(`sha256/${"12".repeat(32)}`);
     expect(pendingKey("e".repeat(32), "icon")).toBe(`pending/${"e".repeat(32)}/icon`);
+    expect(pendingKey("e".repeat(32), "screenshot-8"))
+      .toBe(`pending/${"e".repeat(32)}/screenshot-8`);
+    expect(() => pendingKey("e".repeat(32), "screenshot-9")).toThrow(RegistryBlobStoreError);
     expect(() => finalKey("12".repeat(32))).toThrow(RegistryBlobStoreError);
   });
 });

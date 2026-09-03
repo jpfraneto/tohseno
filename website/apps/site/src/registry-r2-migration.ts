@@ -145,11 +145,23 @@ async function migrationPlan(root: string): Promise<MigrationPlan> {
     const display = object(release.display, "catalog display");
     if (display.icon_sha256 !== null && display.icon_sha256 !== undefined) {
       const iconDigest = hex32(display.icon_sha256, "icon digest");
-      const icon = blobs.get(iconDigest);
-      if (!icon) {
-        throw new Error(`catalog release ${releaseDigest} icon ${iconDigest} is absent from local storage`);
+      if (release.schema === "tohseno.catalog-release/2") {
+        requireCatalogBlob(blobs, referenced, releaseDigest, iconDigest,
+          positiveInteger(display.icon_byte_length, "icon byte length"));
+      } else {
+        const icon = blobs.get(iconDigest);
+        if (!icon) {
+          throw new Error(`catalog release ${releaseDigest} icon ${iconDigest} is absent from local storage`);
+        }
+        referenced.add(iconDigest);
       }
-      referenced.add(iconDigest);
+    }
+    const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+    for (const value of screenshots) {
+      const screenshot = object(value, "catalog screenshot");
+      requireCatalogBlob(blobs, referenced, releaseDigest,
+        hex32(screenshot.sha256, "screenshot digest"),
+        positiveInteger(screenshot.byte_length, "screenshot byte length"));
     }
     if (typeof display.name === "string" && display.name.toLocaleLowerCase("en-US") === "anky") {
       const sequence = positiveInteger(release.checkpoint_sequence, "checkpoint sequence");

@@ -18,13 +18,15 @@ import {
   createRegistryBlobStore,
   RegistryBlobStoreError,
   type RegistryBlobDescriptor,
+  type RegistryBlobKind,
   type RegistryBlobLocator,
   type RegistryBlobStore,
 } from "./blob-store.ts";
-import type { ClaimCatalogContext, ClaimsPublicationBridge } from "./claims.ts";
+import type { ClaimCatalogContext, ClaimsPublicationBridge, SoftwareClaimSnapshot } from "./claims.ts";
 import { HttpError, withSecurityHeaders } from "./security.ts";
 
-const RELEASE_SCHEMA = "tohseno.catalog-release/1";
+const RELEASE_SCHEMA_V1 = "tohseno.catalog-release/1";
+const RELEASE_SCHEMA = "tohseno.catalog-release/2";
 const SIGNED_SCHEMA = "tohseno.signed-catalog-release/1";
 const STAGING_SCHEMA = "tohseno.catalog-staging/1";
 const RECORD_SCHEMA = "tohseno.catalog-record/1";
@@ -34,6 +36,8 @@ const ALIAS_CLAIM_SCHEMA = "tohseno.alias-claim/1";
 const SIGNED_ALIAS_CLAIM_SCHEMA = "tohseno.signed-alias-claim/1";
 const MAX_SOURCE_BYTES = 512 * 1024 * 1024;
 const MAX_ICON_BYTES = 5 * 1024 * 1024;
+const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
+const MAX_SCREENSHOTS = 8;
 const HEX32 = /^0x[0-9a-f]{64}$/;
 const ADDRESS = /^0x[0-9a-f]{40}$/;
 const IDENTIFIER = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -65,6 +69,7 @@ export interface RegistryRouter {
   handles(pathname: string): boolean;
   fetch(request: Request): Promise<Response>;
   renderRegistry(query?: string): Promise<string>;
+  renderHome(): Promise<string>;
   renderShot(shotID: string): Promise<string | undefined>;
   renderBuilder(builder: string): Promise<string | undefined>;
   renderHumanRoute(pathname: string): Promise<string | undefined>;
@@ -114,6 +119,7 @@ export interface StagingRecord {
   iconUploaded: boolean;
   sourceByteLength?: number;
   iconByteLength?: number;
+  screenshotsUploaded?: boolean[];
 }
 
 export interface PublicationJob {
@@ -299,10 +305,7 @@ export async function createRegistryRouter(
   ): Promise<{ publicRecord: JsonObject; cleanupComplete: boolean }> {
     const release = releaseOf(staging.envelope);
     const display = object(release.display, "release.display");
-    if (!staging.sourceUploaded) throw new HttpError(409, "Source artifact has not been staged");
-    if (display.icon_sha256 !== null && display.icon_sha256 !== undefined && !staging.iconUploaded) {
-      throw new HttpError(409, "Icon artifact has not been staged");
-    }
+    requireStagedArtifacts(staging);
     const descriptors = await pendingDescriptors(directories.staging, staging);
     await ensurePendingBlobs(blobStore, directories.staging, staging, descriptors);
     const record = await (async () => {
@@ -671,6 +674,25 @@ export async function createRegistryRouter(
       catch (error) { throw blobStoreHttpError(error); }
       return withSecurityHeaders(new Response(blob.stream, { headers }));
     }
+    if (parts.length === 5 && parts.slice(0, 4).join("/") === "api/registry/v1/media"
+        && (method === "GET" || method === "HEAD")) {
+      const digest = normalizeDigest(parts[4]);
+      const image = publicImageLocator(await allRecords(directories.releases), digest);
+      if (!image) throw new HttpError(404, "Public app image not found");
+      let metadata;
+      try { metadata = await blobStore.metadata(image.locator); }
+      catch (error) { throw blobStoreHttpError(error); }
+      const headers = {
+        "content-type": image.mediaType, "content-length": String(metadata.byteLength),
+        "cache-control": "public, max-age=31536000, immutable", "content-disposition": "inline",
+        "x-content-sha256": digest,
+      };
+      if (method === "HEAD") return head(withSecurityHeaders(new Response(null, { headers })), method);
+      let blob;
+      try { blob = await blobStore.read(image.locator); }
+      catch (error) { throw blobStoreHttpError(error); }
+      return withSecurityHeaders(new Response(blob.stream, { headers }));
+    }
     if (url.pathname === "/api/registry/v1/staging" && method === "POST") {
       requireJSON(request);
       const body = await boundedJSON(request, 256 * 1024);
@@ -685,11 +707,14 @@ export async function createRegistryRouter(
         await requireBuilderLocalSlugAvailableInStaging(directories.staging, releaseOf(envelope));
         const stagingID = crypto.randomUUID().replaceAll("-", "");
         const now = new Date();
+        const display = object(releaseOf(envelope).display, "release.display");
+        const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
         const value: StagingRecord = {
           schema: STAGING_SCHEMA, stagingID, tokenSHA256: sha256Hex(new TextEncoder().encode(token)).slice(2),
           envelope, releaseDigest, createdAt: now.toISOString(),
           expiresAt: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
           sourceUploaded: false, iconUploaded: false,
+          screenshotsUploaded: screenshots.map(() => false),
           sourceByteLength: positiveSafeInteger(
             object(releaseOf(envelope).source, "release.source").byte_length,
             "source.byte_length",
@@ -703,34 +728,74 @@ export async function createRegistryRouter(
         source_url: `/api/registry/v1/staging/${record.stagingID}/source`,
         finalize_url: `/api/registry/v1/staging/${record.stagingID}/finalize` }, 201);
     }
-    if (parts.length === 6 && parts.slice(0, 4).join("/") === "api/registry/v1/staging" && method === "PUT") {
+    if ((parts.length === 6 || parts.length === 7)
+        && parts.slice(0, 4).join("/") === "api/registry/v1/staging" && method === "PUT") {
       const stagingID = normalizeStagingID(parts[4]);
-      const kind = parts[5];
-      if (kind !== "source" && kind !== "icon") throw new HttpError(404, "Not found");
       const staging = await authorizedStaging(request, directories.staging, stagingID);
       const release = releaseOf(staging.envelope);
-      const expected = kind === "source" ? normalizeDigest(object(release.source, "release.source").sha256)
-        : normalizeDigest(object(release.display, "release.display").icon_sha256);
-      const maximum = kind === "source" ? MAX_SOURCE_BYTES : MAX_ICON_BYTES;
-      if (kind === "source") {
-        const declared = positiveSafeInteger(object(release.source, "release.source").byte_length, "source.byte_length");
-        if (request.headers.get("content-length") !== String(declared)) {
-          throw new HttpError(422, "Source Content-Length differs from the signed manifest");
-        }
+      const display = object(release.display, "release.display");
+      const source = object(release.source, "release.source");
+      let blobKind: RegistryBlobKind;
+      let localKind: string;
+      let expected: Hex;
+      let expectedLength: number | undefined;
+      let maximum: number;
+      let expectedMediaType: "image/png" | "image/jpeg" | undefined;
+      let screenshotIndex: number | undefined;
+      if (parts.length === 6 && parts[5] === "source") {
+        blobKind = "source"; localKind = "source"; expected = normalizeDigest(source.sha256);
+        expectedLength = positiveSafeInteger(source.byte_length, "source.byte_length");
+        maximum = MAX_SOURCE_BYTES;
+      } else if (parts.length === 6 && parts[5] === "icon") {
+        blobKind = "icon"; localKind = "icon"; expected = normalizeDigest(display.icon_sha256);
+        expectedLength = release.schema === RELEASE_SCHEMA
+          ? positiveSafeInteger(display.icon_byte_length, "display.icon_byte_length") : undefined;
+        maximum = MAX_ICON_BYTES;
+        expectedMediaType = release.schema === RELEASE_SCHEMA
+          ? publicImageMediaType(display.icon_media_type, "display.icon_media_type")
+          : publicImageMediaType(request.headers.get("content-type"), "Content-Type");
+      } else if (parts.length === 7 && parts[5] === "screenshots" && /^[1-8]$/.test(parts[6])) {
+        screenshotIndex = Number(parts[6]) - 1;
+        const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+        const screenshot = object(screenshots[screenshotIndex], "display screenshot");
+        blobKind = `screenshot-${screenshotIndex + 1}`; localKind = blobKind;
+        expected = normalizeDigest(screenshot.sha256);
+        expectedLength = positiveSafeInteger(screenshot.byte_length, "display screenshot byte_length");
+        maximum = MAX_SCREENSHOT_BYTES;
+        expectedMediaType = publicImageMediaType(screenshot.media_type, "display screenshot media_type");
+      } else {
+        throw new HttpError(404, "Not found");
       }
-      const temporary = join(directories.staging, `${stagingID}.${kind}.partial`);
+      if (expectedLength !== undefined && request.headers.get("content-length") !== String(expectedLength)) {
+        throw new HttpError(422, `${blobKind} Content-Length differs from the signed manifest`);
+      }
+      if (expectedMediaType && request.headers.get("content-type") !== expectedMediaType) {
+        throw new HttpError(422, `${blobKind} Content-Type differs from the signed manifest`);
+      }
+      const temporary = join(directories.staging, `${stagingID}.${localKind}.partial`);
       const observed = await writeBoundedBody(request, temporary, maximum);
-      if (observed.digest !== expected) { await rm(temporary, { force: true }); throw new HttpError(422, `${kind} digest mismatch`); }
-      await rename(temporary, join(directories.staging, `${stagingID}.${kind}`));
-      if (kind === "source") {
+      if (observed.digest !== expected) {
+        await rm(temporary, { force: true });
+        throw new HttpError(422, `${blobKind} digest mismatch`);
+      }
+      if (expectedMediaType) await verifyPublicImage(temporary, expectedMediaType);
+      await rename(temporary, join(directories.staging, `${stagingID}.${localKind}`));
+      if (blobKind === "source") {
         staging.sourceUploaded = true;
         staging.sourceByteLength = observed.byteLength;
-      } else {
+      } else if (blobKind === "icon") {
         staging.iconUploaded = true;
         staging.iconByteLength = observed.byteLength;
+      } else {
+        const screenshots = staging.screenshotsUploaded ?? [];
+        if (screenshotIndex === undefined || screenshotIndex >= screenshots.length) {
+          throw new HttpError(409, "Screenshot is not declared by this release");
+        }
+        screenshots[screenshotIndex] = true;
+        staging.screenshotsUploaded = screenshots;
       }
       await atomicJSON(join(directories.staging, `${stagingID}.json`), staging, false);
-      return json({ schema: "tohseno.catalog-blob-staged/1", kind, sha256: observed.digest });
+      return json({ schema: "tohseno.catalog-blob-staged/1", kind: blobKind, sha256: observed.digest });
     }
     if (parts.length === 6 && parts.slice(0, 4).join("/") === "api/registry/v1/staging" && parts[5] === "finalize" && method === "POST") {
       requireJSON(request);
@@ -756,7 +821,7 @@ export async function createRegistryRouter(
       requireJSON(request);
       const stagingID = normalizeStagingID(parts[4]);
       const staging = await authorizedStaging(request, directories.staging, stagingID);
-      if (!staging.sourceUploaded) throw new HttpError(409, "Source artifact has not been staged");
+      requireStagedArtifacts(staging);
       const body = await boundedJSON(request, 256 * 1024);
       const firstShip = releaseOf(staging.envelope).checkpoint_sequence === 1;
       exactKeys(body, firstShip ? ["registry", "claim_edition"] : ["registry"], "publication request");
@@ -800,6 +865,16 @@ export async function createRegistryRouter(
   return {
     handles: (pathname) => pathname.startsWith("/api/registry/v1/"),
     fetch: fetchRoute,
+    renderHome: async () => {
+      const all = (await discoverable(await allRecords(directories.releases))).sort(newestFirst);
+      const events = (await timelineEvents(all, claims))
+        .filter((event) => event.kind === "shot.shipped" || event.kind === "shot.forked");
+      const claimEvents = claims
+        ? await claims.claimsForHome(latestPerShot(all).map((record) =>
+          normalizeHex32(releaseOf(record).shot_id)))
+        : [];
+      return homeHTML(all.map(publicRecord), events, claimEvents, publicLaunch);
+    },
     renderRegistry: async (rawQuery) => {
       const query = rawQuery?.trim().toLocaleLowerCase("en-US");
       if (query && (query.length > 100 || /[\u0000-\u001f\u007f]/.test(query))) return registryHTML([], "", publicLaunch);
@@ -1248,7 +1323,9 @@ function verifyEnvelope(envelope: JsonObject, config: AppConfig): Hex {
   const release = releaseOf(envelope);
   exactKeys(release, ["schema", "generation", "shot_id", "builder_id", "release_id", "published_at",
     "display", "source", "build", "permissions", "parent", "checkpoint_sequence", "public_checkpoint_digest"], "release");
-  if (release.schema !== RELEASE_SCHEMA) throw new HttpError(422, `release.schema must be ${RELEASE_SCHEMA}`);
+  if (release.schema !== RELEASE_SCHEMA && release.schema !== RELEASE_SCHEMA_V1) {
+    throw new HttpError(422, `release.schema must be ${RELEASE_SCHEMA_V1} or ${RELEASE_SCHEMA}`);
+  }
   const generation = object(release.generation, "release.generation");
   exactKeys(generation, ["contract_generation", "chain_id", "builder_account_factory", "shot_registry", "activation_signing_digest"], "generation");
   if (generation.contract_generation !== "0.8.0" || generation.chain_id !== config.registry.chainId
@@ -1264,7 +1341,7 @@ function verifyEnvelope(envelope: JsonObject, config: AppConfig): Hex {
       || !Number.isFinite(published) || published <= 0 || published > Date.now() + 5 * 60 * 1000) {
     throw new HttpError(422, "published_at is not valid canonical UTC");
   }
-  validateDisplay(object(release.display, "release.display"));
+  validateDisplay(object(release.display, "release.display"), String(release.schema));
   validateSource(object(release.source, "release.source"));
   validateBuild(object(release.build, "release.build"));
   validatePermissions(object(release.permissions, "release.permissions"));
@@ -1418,13 +1495,45 @@ function recordedTimestampSeconds(value: unknown, name: string): number {
   return seconds;
 }
 
-function validateDisplay(value: JsonObject): void {
-  exactKeys(value, ["name", "description", "icon_sha256", "builder_handle", "app_slug"], "display");
+function validateDisplay(value: JsonObject, releaseSchema: string): void {
+  const v2 = releaseSchema === RELEASE_SCHEMA;
+  exactKeys(value, v2
+    ? ["name", "description", "icon_sha256", "icon_byte_length", "icon_media_type",
+      "screenshots", "builder_handle", "app_slug"]
+    : ["name", "description", "icon_sha256", "builder_handle", "app_slug"], "display");
   boundedText(value.name, 1, 160, "display.name"); boundedText(value.description, 1, 2000, "display.description");
   if (value.icon_sha256 !== null) normalizeHex32(value.icon_sha256);
+  if (v2) {
+    if (value.icon_sha256 === null) throw new HttpError(422, "catalog release v2 requires an app icon");
+    const iconLength = positiveSafeInteger(value.icon_byte_length, "display.icon_byte_length");
+    if (iconLength > MAX_ICON_BYTES) throw new HttpError(422, "display icon exceeds its byte bound");
+    publicImageMediaType(value.icon_media_type, "display.icon_media_type");
+    if (!Array.isArray(value.screenshots) || value.screenshots.length > MAX_SCREENSHOTS) {
+      throw new HttpError(422, "display.screenshots exceeds its bound");
+    }
+    const digests = new Set<string>();
+    for (const entry of value.screenshots) {
+      const screenshot = object(entry, "display screenshot");
+      exactKeys(screenshot, ["sha256", "byte_length", "media_type"], "display screenshot");
+      const digest = normalizeHex32(screenshot.sha256);
+      const byteLength = positiveSafeInteger(screenshot.byte_length, "display screenshot byte_length");
+      if (byteLength > MAX_SCREENSHOT_BYTES || digests.has(digest)) {
+        throw new HttpError(422, "display screenshots are duplicated or outside their byte bound");
+      }
+      digests.add(digest);
+      publicImageMediaType(screenshot.media_type, "display screenshot media_type");
+    }
+  }
   for (const [field, maximum] of [["builder_handle", 32], ["app_slug", 64]] as const) {
     const item = value[field]; if (item !== null && (typeof item !== "string" || item.length < 2 || item.length > maximum || !IDENTIFIER.test(item))) throw new HttpError(422, `display.${field} is invalid`);
   }
+}
+
+function publicImageMediaType(value: unknown, name: string): "image/png" | "image/jpeg" {
+  if (value !== "image/png" && value !== "image/jpeg") {
+    throw new HttpError(422, `${name} is invalid`);
+  }
+  return value;
 }
 
 function validateSource(value: JsonObject): void {
@@ -1500,6 +1609,30 @@ async function writeBoundedBody(
     await file.sync(); return { digest: `0x${hasher.digest("hex")}`, byteLength: count };
   } catch (error) { await rm(path, { force: true }); throw error; }
   finally { await file.close(); }
+}
+
+async function verifyPublicImage(
+  path: string,
+  expected: "image/png" | "image/jpeg",
+): Promise<void> {
+  const file = await open(path, "r");
+  const signature = new Uint8Array(8);
+  try {
+    const { bytesRead } = await file.read(signature, 0, signature.length, 0);
+    const png = bytesRead === 8
+      && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+        .every((byte, index) => signature[index] === byte);
+    const jpeg = bytesRead >= 3
+      && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff;
+    if ((expected === "image/png" && !png) || (expected === "image/jpeg" && !jpeg)) {
+      throw new HttpError(422, "Public image Content-Type differs from its bytes");
+    }
+  } catch (error) {
+    await file.close();
+    await rm(path, { force: true });
+    throw error;
+  }
+  await file.close();
 }
 
 async function updateIndexes(directories: Record<string, string>, record: CatalogRecord): Promise<void> {
@@ -1716,6 +1849,72 @@ function timelinePage(events: TimelineEvent[], url: URL): JsonObject {
   };
 }
 
+function homeHTML(
+  records: JsonObject[],
+  events: TimelineEvent[],
+  claims: SoftwareClaimSnapshot[],
+  writesEnabled: boolean,
+): string {
+  const byRelease = new Map(records.map((record) => [String(record.release_digest), record]));
+  const forkedReleases = new Set(events.filter((event) => event.kind === "shot.forked")
+    .map((event) => event.release_digest));
+  const activity: Array<{
+    kind: "ship" | "fork" | "claim";
+    record: JsonObject;
+    occurredAt: string;
+    block: bigint;
+    transactionIndex: number;
+    logIndex: number;
+    event?: TimelineEvent;
+    claim?: SoftwareClaimSnapshot;
+  }> = [];
+  for (const event of events) {
+    if (event.kind === "shot.shipped" && forkedReleases.has(event.release_digest)) continue;
+    const record = byRelease.get(event.release_digest);
+    if (!record || (event.kind !== "shot.shipped" && event.kind !== "shot.forked")) continue;
+    activity.push({ kind: event.kind === "shot.shipped" ? "ship" : "fork", record,
+      occurredAt: event.occurred_at, block: BigInt(event.canonical_block.number),
+      transactionIndex: event.canonical_block.transaction_index ?? 0,
+      logIndex: event.canonical_block.log_index ?? 0, event });
+  }
+  for (const claim of claims) {
+    const record = byRelease.get(claim.releaseDigest);
+    if (!record || claim.blockNumber === undefined || !claim.claimedAt) continue;
+    activity.push({ kind: "claim", record, occurredAt: claim.claimedAt,
+      block: claim.blockNumber, transactionIndex: claim.transactionIndex ?? 0,
+      logIndex: claim.logIndex ?? 0, claim });
+  }
+  activity.sort((left, right) => left.block < right.block ? 1 : left.block > right.block ? -1
+    : right.transactionIndex - left.transactionIndex || right.logIndex - left.logIndex);
+  const cards = activity.length ? activity.slice(0, 100).map((item) => {
+    const release = object(item.record.release, "release");
+    const display = object(release.display, "display");
+    const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256
+      ? `<img class="event-icon" src="/api/registry/v1/media/${escapeHTML(String(display.icon_sha256))}" alt="">` : "";
+    if (item.kind === "claim") {
+      const claim = item.claim!;
+      return `<article class="network-event home-event">${icon}<p class="eyebrow">CLAIMED</p><h2><a href="${escapeHTML(String(item.record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">Someone claimed this exact release.</p><p>${escapeHTML(compactBuilder(claim.claimant))} · Claim #${escapeHTML(claim.claimNumber.toString())}</p><a class="builder-link" href="/claims/${claim.tokenID}">View Claim receipt</a><time datetime="${escapeHTML(item.occurredAt)}">${escapeHTML(item.occurredAt)}</time></article>`;
+    }
+    const builder = String(release.builder_id);
+    const verb = item.kind === "fork" ? "forked an app into a new Shot." : "shipped an app.";
+    return `<article class="network-event home-event">${icon}<p class="eyebrow">${item.kind === "fork" ? "FORKED" : "SHIPPED"}</p><h2><a href="${escapeHTML(String(item.record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">Someone ${verb}</p><a class="builder-link" href="/@${escapeHTML(builder)}">${escapeHTML(String(display.builder_handle ?? compactBuilder(builder)))}</a><time datetime="${escapeHTML(item.occurredAt)}">${escapeHTML(item.occurredAt)}</time></article>`;
+  }).join("") : `<section class="empty"><div class="empty-copy"><p class="eyebrow">THE NETWORK IS QUIET</p><h2>The next real event appears here.</h2><p>No demo Ship, Fork, or Claim is invented to fill the timeline.</p></div></section>`;
+  const status = writesEnabled
+    ? "Shipping and claiming use Companion approval."
+    : "The public timeline is readable. New writes remain gated until their exact releases activate.";
+  return page("Software moving through people", `
+    <section class="home-activity-hero">
+      <p class="eyebrow">THE TOHSENO NETWORK</p>
+      <h1>Software moving<br>through people.</h1>
+      <p class="lead">People Ship apps, Fork exact releases, and Claim encounters. Claim is not installation: it opens the exact release in Companion, where the person authorizes the public receipt and their Mac later prepares its own verified build.</p>
+      <div class="actions"><a class="primary" href="/registry">Explore the Registry</a><a href="/download/macos">Get Tohseno for Mac</a></div>
+      <p class="home-status"><span class="live-dot" aria-hidden="true"></span>${status}</p>
+    </section>
+    <section class="activity-heading"><p class="eyebrow">LIVE, CANONICAL ACTIVITY</p><h2>Ship. Fork. Claim.</h2></section>
+    <section class="timeline-feed home-timeline" aria-label="Tohseno network activity">${cards}</section>
+  `, "home");
+}
+
 function registryHTML(
   records: JsonObject[],
   query: string,
@@ -1779,7 +1978,7 @@ function shotHTML(
   const claimAction = edition?.opened
     ? edition.closed
       ? `<span class="primary disabled">Claim Edition closed</span>`
-      : `<a class="primary" href="tohseno://claim/${exact}">On iPhone: open in Companion</a>`
+      : `<a class="primary" href="tohseno://claim/${exact}">Claim in Companion</a>`
     : `<span class="primary disabled">Claim is not available yet</span>`;
   const dependencyCount = Array.isArray(build.dependency_locks) ? build.dependency_locks.length : 0;
   const builderLabel = typeof display.builder_handle === "string"
@@ -1789,12 +1988,20 @@ function shotHTML(
     ? "Shipped once"
     : `Update ${escapeHTML(String(release.checkpoint_sequence))}`;
   const reviewCopy = "No DeviceKey-signed human Release Attestations are published by this Registry yet.";
+  const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256
+    ? `<img class="app-icon" src="/api/registry/v1/media/${escapeHTML(String(display.icon_sha256))}" alt="${escapeHTML(String(display.name))} app icon">`
+    : "";
+  const screenshots = release.schema === RELEASE_SCHEMA && Array.isArray(display.screenshots)
+    ? display.screenshots.map((value, index) => {
+      const screenshot = object(value, "display screenshot");
+      return `<figure><img src="/api/registry/v1/media/${escapeHTML(String(screenshot.sha256))}" alt="${escapeHTML(String(display.name))} screenshot ${index + 1}" loading="lazy"><figcaption>Screenshot ${index + 1}</figcaption></figure>`;
+    }).join("") : "";
 
   return page(String(display.name), `
     <a class="back" href="/registry">← Registry</a>
     <header class="app-hero">
       <p class="eyebrow">ONE EXACT PUBLIC RELEASE</p>
-      <h1>${escapeHTML(String(display.name))}</h1>
+      <div class="app-title">${icon}<h1>${escapeHTML(String(display.name))}</h1></div>
       <p class="lead">${escapeHTML(String(display.description))}</p>
       <p class="edition">${escapeHTML(editionLabel)}</p>
       <p class="exact-release">Release ${escapeHTML(compactDigest(String(record.release_digest)))} · Checkpoint ${escapeHTML(String(release.checkpoint_sequence))}</p>
@@ -1805,13 +2012,15 @@ function shotHTML(
       </div>
     </header>
 
+    ${screenshots ? `<section class="app-gallery" aria-label="${escapeHTML(String(display.name))} screenshots">${screenshots}</section>` : ""}
+
     <section class="friend-path">
       <p class="eyebrow">GET IT ON YOUR IPHONE</p>
       <h2>Four small steps.</h2>
       <ol>
         <li><strong>Open this same link on your Mac.</strong><span>Download and install Tohseno. You need macOS 14 or later and the full Xcode app; the published download route is pinned to one signed, notarized DMG and exact SHA-256.</span></li>
         <li><strong>Pair your iPhone once.</strong><span>Open Tohseno on the Mac and follow setup. Apple may require a cable for first pairing; after pairing, Tohseno also uses Xcode-supported Wi-Fi reachability when available.</span></li>
-        <li><strong>Open this link on that iPhone.</strong><span>Tap “On iPhone: open in Companion,” inspect the exact Builder and release, then draw the Claim circle. Claim is public; installation details stay private.</span></li>
+        <li><strong>Open this link on that iPhone.</strong><span>Tap “Claim in Companion,” inspect the exact Builder and release, then draw the Claim circle. Claim is public; installation details stay private.</span></li>
         <li><strong>Let your Mac prepare it.</strong><span>Your Mac verifies the exact source, builds and signs its own copy with your Apple identity, keeps the artifact if needed, and installs when your paired iPhone is reachable and unlocked.</span></li>
       </ol>
       <p class="quiet">Send the address in this browser. The Claim button is pinned to the exact release shown above, even if the Builder publishes an Update later.</p>
@@ -1885,10 +2094,12 @@ function cards(records: JsonObject[], launched = true): string {
   return `<section class="grid">${records.map((record) => {
     const release = object(record.release, "release");
     const display = object(release.display, "display");
-    return `<a class="card" href="${escapeHTML(String(record.route))}"><p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`;
+    const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256
+      ? `<img class="card-icon" src="/api/registry/v1/media/${escapeHTML(String(display.icon_sha256))}" alt="">` : "";
+    return `<a class="card" href="${escapeHTML(String(record.route))}">${icon}<p class="eyebrow">SHOT ${escapeHTML(String(release.checkpoint_sequence))}</p><h2>${escapeHTML(String(display.name))}</h2><p>${escapeHTML(String(display.description))}</p><span>Open app →</span></a>`;
   }).join("")}</section>`;
 }
-function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<section class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event"><p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</section>`; }
+function timelineCards(records: JsonObject[], events: TimelineEvent[], editions: Map<string, { maxClaims: bigint; totalClaims: bigint; closed: boolean }>, launched: boolean): string { if (!events.length) return cards([], launched); const byRelease = new Map(records.map((record) => [String(record.release_digest), record])); return `<section class="timeline-feed">${events.map((event) => { const record = byRelease.get(event.release_digest); if (!record) return ""; const release = object(record.release, "release"); const display = object(release.display, "display"); const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256 ? `<img class="event-icon" src="/api/registry/v1/media/${escapeHTML(String(display.icon_sha256))}" alt="">` : ""; const edition = editions.get(event.shot_id); const action = event.kind === "shot.shipped" ? "entered Tohseno" : event.kind === "shot.updated" ? "updated" : event.kind === "shot.forked" ? "was born as a fork" : "Claim Edition closed"; const count = edition ? edition.maxClaims === 0n ? `Open Edition · ${edition.totalClaims} claimed` : `${edition.totalClaims} / ${edition.maxClaims} claimed${edition.closed ? " · edition closed" : ""}` : "Claim Edition activating"; return `<article class="network-event">${icon}<p class="eyebrow">${escapeHTML(event.kind.toUpperCase())}</p><h2><a href="${escapeHTML(String(record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">${action}</p><p>${escapeHTML(count)}</p><a class="builder-link" href="/@${escapeHTML(event.builder_id)}">by ${escapeHTML(String(object(release.display, "display").builder_handle ?? compactBuilder(event.builder_id)))}</a><time>${escapeHTML(event.occurred_at)}</time></article>`; }).join("")}</section>`; }
 function compactBuilder(value: string): string { return `…${value.slice(-10)}`; }
 function compactDigest(value: string): string { return value.length > 22 ? `${value.slice(0, 12)}…${value.slice(-8)}` : value; }
 function humanBuildClassification(value: string): string {
@@ -1896,7 +2107,7 @@ function humanBuildClassification(value: string): string {
   if (value === "requires_mac_review") return "Requires review on your Mac";
   return "Automatic build unavailable";
 }
-function page(title: string, body: string): string {
+function page(title: string, body: string, current: "home" | "registry" = "registry"): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1915,8 +2126,8 @@ function page(title: string, body: string): string {
   <header class="site-header page-shell">
     <a class="wordmark" href="/" aria-label="Tohseno home"><img src="/landing-assets/wordmark.svg" alt="Tohseno"></a>
     <nav class="site-nav" aria-label="Primary">
-      <a href="/">Network</a>
-      <a href="/registry" aria-current="page">Registry</a>
+      <a href="/"${current === "home" ? ' aria-current="page"' : ""}>Network</a>
+      <a href="/registry"${current === "registry" ? ' aria-current="page"' : ""}>Registry</a>
       <a class="nav-action" href="/buy">$TOHSENO</a>
     </nav>
   </header>
@@ -1930,7 +2141,7 @@ function page(title: string, body: string): string {
 </html>`;
 }
 
-function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined, currentClaimContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); }, claimReceiptContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); } }; }
+function unavailableRouter(): RegistryRouter { return { handles: (path) => path.startsWith("/api/registry/v1/"), fetch: async () => json({ error: "The public Registry is not enabled." }, 503), renderHome: async () => homeHTML([], [], [], false), renderRegistry: async () => registryHTML([], "", false), renderShot: async () => undefined, renderBuilder: async () => undefined, renderHumanRoute: async () => undefined, currentClaimContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); }, claimReceiptContext: async () => { throw new HttpError(503, "The public Registry is not enabled"); } }; }
 
 class RateLimiter {
   private windows = new Map<string, { started: number; count: number }>();
@@ -1986,6 +2197,10 @@ async function collectExpiredStaging(
       rm(join(root, `${id}.icon`), { force: true }),
       rm(join(root, `${id}.source.partial`), { force: true }),
       rm(join(root, `${id}.icon.partial`), { force: true }),
+      ...Array.from({ length: MAX_SCREENSHOTS }, (_, index) => [
+        rm(join(root, `${id}.screenshot-${index + 1}`), { force: true }),
+        rm(join(root, `${id}.screenshot-${index + 1}.partial`), { force: true }),
+      ]).flat(),
     ]);
   }
 }
@@ -2000,20 +2215,42 @@ async function requireStagingCapacity(
   if (names.length >= config.registry.maxStagingRecords) {
     throw new HttpError(503, "Registry staging capacity is full");
   }
-  let declaredBytes = positiveSafeInteger(
-    object(nextRelease.source, "release.source").byte_length,
-    "source.byte_length",
-  );
+  let declaredBytes = declaredReleaseBytes(nextRelease);
   for (const name of names.slice(0, config.registry.maxStagingRecords)) {
     const record = await readJSON<StagingRecord>(join(root, name));
     if (!record) continue;
-    declaredBytes += positiveSafeInteger(
-      object(releaseOf(record.envelope).source, "release.source").byte_length,
-      "source.byte_length",
-    );
+    declaredBytes += declaredReleaseBytes(releaseOf(record.envelope));
     if (!Number.isSafeInteger(declaredBytes) || declaredBytes > config.registry.maxStagingBytes) {
       throw new HttpError(503, "Registry staging byte capacity is full");
     }
+  }
+}
+
+function declaredReleaseBytes(release: JsonObject): number {
+  let total = positiveSafeInteger(object(release.source, "release.source").byte_length,
+    "source.byte_length");
+  if (release.schema !== RELEASE_SCHEMA) return total;
+  const display = object(release.display, "release.display");
+  total += positiveSafeInteger(display.icon_byte_length, "display.icon_byte_length");
+  const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+  for (const value of screenshots) {
+    total += positiveSafeInteger(object(value, "display screenshot").byte_length,
+      "display screenshot byte_length");
+  }
+  if (!Number.isSafeInteger(total)) throw new HttpError(422, "release byte length is too large");
+  return total;
+}
+
+function requireStagedArtifacts(staging: StagingRecord): void {
+  const display = object(releaseOf(staging.envelope).display, "release.display");
+  if (!staging.sourceUploaded) throw new HttpError(409, "Source artifact has not been staged");
+  if (display.icon_sha256 !== null && display.icon_sha256 !== undefined && !staging.iconUploaded) {
+    throw new HttpError(409, "Icon artifact has not been staged");
+  }
+  const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+  if ((staging.screenshotsUploaded ?? []).length !== screenshots.length
+      || (staging.screenshotsUploaded ?? []).some((uploaded) => !uploaded)) {
+    throw new HttpError(409, "Every declared screenshot must be staged before publication");
   }
 }
 
@@ -2152,55 +2389,62 @@ function chainTimestamp(value: bigint): string {
 function sha256Hex(value: Uint8Array): Hex { return `0x${new Bun.CryptoHasher("sha256").update(value).digest("hex")}`; }
 function timingSafeText(a: string, b: string): boolean { if (a.length !== b.length) return false; let difference = 0; for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index); return difference === 0; }
 
-interface PendingBlobDescriptors {
-  source: RegistryBlobDescriptor;
-  icon?: RegistryBlobDescriptor;
+interface PendingBlobDescriptor {
+  kind: RegistryBlobKind;
+  localKind: string;
+  descriptor: RegistryBlobDescriptor;
 }
 
 async function pendingDescriptors(
   stagingRoot: string,
   staging: StagingRecord,
-): Promise<PendingBlobDescriptors> {
+): Promise<PendingBlobDescriptor[]> {
   const release = releaseOf(staging.envelope);
   const source = object(release.source, "release.source");
-  const sourceDescriptor: RegistryBlobDescriptor = {
-    digest: normalizeDigest(source.sha256),
-    byteLength: positiveSafeInteger(source.byte_length, "source.byte_length"),
-  };
+  const descriptors: PendingBlobDescriptor[] = [{
+    kind: "source", localKind: "source", descriptor: {
+      digest: normalizeDigest(source.sha256),
+      byteLength: positiveSafeInteger(source.byte_length, "source.byte_length"),
+    },
+  }];
   const display = object(release.display, "release.display");
-  if (!display.icon_sha256) return { source: sourceDescriptor };
-  let iconByteLength = staging.iconByteLength;
-  if (iconByteLength === undefined) {
-    const details = await lstat(join(stagingRoot, `${staging.stagingID}.icon`)).catch(() => undefined);
-    if (!details?.isFile() || details.isSymbolicLink() || details.size < 1) {
-      throw new RegistryBlobStoreError("integrity", "The staged Registry icon is not a regular file");
+  if (display.icon_sha256) {
+    let iconByteLength = release.schema === RELEASE_SCHEMA
+      ? positiveSafeInteger(display.icon_byte_length, "display.icon_byte_length")
+      : staging.iconByteLength;
+    if (iconByteLength === undefined) {
+      const details = await lstat(join(stagingRoot, `${staging.stagingID}.icon`)).catch(() => undefined);
+      if (!details?.isFile() || details.isSymbolicLink() || details.size < 1) {
+        throw new RegistryBlobStoreError("integrity", "The staged Registry icon is not a regular file");
+      }
+      iconByteLength = details.size;
     }
-    iconByteLength = details.size;
+    descriptors.push({ kind: "icon", localKind: "icon", descriptor: {
+      digest: normalizeDigest(display.icon_sha256), byteLength: iconByteLength,
+    } });
   }
-  return {
-    source: sourceDescriptor,
-    icon: { digest: normalizeDigest(display.icon_sha256), byteLength: iconByteLength },
-  };
+  const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+  screenshots.forEach((value, index) => {
+    const screenshot = object(value, "display screenshot");
+    descriptors.push({ kind: `screenshot-${index + 1}`, localKind: `screenshot-${index + 1}`,
+      descriptor: { digest: normalizeDigest(screenshot.sha256),
+        byteLength: positiveSafeInteger(screenshot.byte_length, "display screenshot byte_length") } });
+  });
+  return descriptors;
 }
 
 async function ensurePendingBlobs(
   blobStore: RegistryBlobStore,
   stagingRoot: string,
   staging: StagingRecord,
-  descriptors: PendingBlobDescriptors,
+  descriptors: PendingBlobDescriptor[],
 ): Promise<void> {
-  await blobStore.stagePending(
-    staging.stagingID,
-    "source",
-    join(stagingRoot, `${staging.stagingID}.source`),
-    descriptors.source,
-  );
-  if (descriptors.icon) {
+  for (const item of descriptors) {
     await blobStore.stagePending(
       staging.stagingID,
-      "icon",
-      join(stagingRoot, `${staging.stagingID}.icon`),
-      descriptors.icon,
+      item.kind,
+      join(stagingRoot, `${staging.stagingID}.${item.localKind}`),
+      item.descriptor,
     );
   }
 }
@@ -2208,11 +2452,10 @@ async function ensurePendingBlobs(
 async function promotePendingBlobs(
   blobStore: RegistryBlobStore,
   staging: StagingRecord,
-  descriptors: PendingBlobDescriptors,
+  descriptors: PendingBlobDescriptor[],
 ): Promise<void> {
-  await blobStore.promotePending(staging.stagingID, "source", descriptors.source);
-  if (descriptors.icon) {
-    await blobStore.promotePending(staging.stagingID, "icon", descriptors.icon);
+  for (const item of descriptors) {
+    await blobStore.promotePending(staging.stagingID, item.kind, item.descriptor);
   }
 }
 
@@ -2223,12 +2466,15 @@ async function cleanupPublishedStaging(
 ): Promise<boolean> {
   try {
     await blobStore.removePending(stagingID);
+    const screenshotFiles = Array.from({ length: MAX_SCREENSHOTS }, (_, index) =>
+      [`${stagingID}.screenshot-${index + 1}`, `${stagingID}.screenshot-${index + 1}.partial`]).flat();
     await Promise.all([
       rm(join(stagingRoot, `${stagingID}.json`), { force: true }),
       rm(join(stagingRoot, `${stagingID}.source`), { force: true }),
       rm(join(stagingRoot, `${stagingID}.icon`), { force: true }),
       rm(join(stagingRoot, `${stagingID}.source.partial`), { force: true }),
       rm(join(stagingRoot, `${stagingID}.icon.partial`), { force: true }),
+      ...screenshotFiles.map((name) => rm(join(stagingRoot, name), { force: true })),
     ]);
     return true;
   } catch {
@@ -2248,8 +2494,48 @@ function blobLocator(records: CatalogRecord[], digest: Hex): RegistryBlobLocator
         byteLength: positiveSafeInteger(source.byte_length, "source.byte_length"),
       };
     }
-    if (object(release.display, "release.display").icon_sha256 === digest) {
-      return { digest };
+    const display = object(release.display, "release.display");
+    if (display.icon_sha256 === digest) {
+      const byteLength = release.schema === RELEASE_SCHEMA
+        ? positiveSafeInteger(display.icon_byte_length, "display.icon_byte_length") : undefined;
+      return { digest, ...(byteLength ? { byteLength } : {}) };
+    }
+    const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+    for (const value of screenshots) {
+      const screenshot = object(value, "display screenshot");
+      if (screenshot.sha256 === digest) {
+        return { digest, byteLength: positiveSafeInteger(
+          screenshot.byte_length, "display screenshot byte_length",
+        ) };
+      }
+    }
+  }
+  return undefined;
+}
+
+function publicImageLocator(
+  records: CatalogRecord[],
+  digest: Hex,
+): { locator: RegistryBlobLocator; mediaType: "image/png" | "image/jpeg" } | undefined {
+  for (const record of records) {
+    const release = releaseOf(record);
+    if (release.schema !== RELEASE_SCHEMA) continue;
+    const display = object(release.display, "release.display");
+    if (display.icon_sha256 === digest) {
+      return { locator: { digest, byteLength: positiveSafeInteger(
+        display.icon_byte_length, "display.icon_byte_length",
+      ) }, mediaType: publicImageMediaType(display.icon_media_type, "display.icon_media_type") };
+    }
+    const screenshots = Array.isArray(display.screenshots) ? display.screenshots : [];
+    for (const value of screenshots) {
+      const screenshot = object(value, "display screenshot");
+      if (screenshot.sha256 === digest) {
+        return { locator: { digest, byteLength: positiveSafeInteger(
+          screenshot.byte_length, "display screenshot byte_length",
+        ) }, mediaType: publicImageMediaType(
+          screenshot.media_type, "display screenshot media_type",
+        ) };
+      }
     }
   }
   return undefined;

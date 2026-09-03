@@ -20,7 +20,7 @@ import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import type { RegistryConfig } from "../config.ts";
 
-export type RegistryBlobKind = "source" | "icon";
+export type RegistryBlobKind = "source" | "icon" | `screenshot-${number}`;
 export type BlobStoreErrorKind = "not_found" | "transient" | "integrity";
 
 export interface RegistryBlobDescriptor {
@@ -54,9 +54,9 @@ export class RegistryBlobStoreError extends Error {
 }
 
 /**
- * The only Registry persistence seam for immutable public source and icon
- * bytes. Catalogs, jobs, profiles, aliases, Claims state, and upload staging
- * remain in REGISTRY_ROOT.
+ * The only Registry persistence seam for immutable public source and
+ * presentation-image bytes. Catalogs, jobs, profiles, aliases, Claims state,
+ * and upload staging remain in REGISTRY_ROOT.
  */
 export interface RegistryBlobStore {
   readonly kind: "filesystem" | "r2";
@@ -392,7 +392,9 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
 
   async removePending(stagingID: string): Promise<void> {
     validateStagingID(stagingID);
-    for (const kind of ["source", "icon"] as const) {
+    const kinds: RegistryBlobKind[] = ["source", "icon",
+      ...Array.from({ length: 8 }, (_, index) => `screenshot-${index + 1}` as const)];
+    for (const kind of kinds) {
       await boundedRetry(async () => {
         try {
           await this.send(new DeleteObjectCommand({
@@ -446,7 +448,7 @@ export function finalKey(digest: string): string {
 
 export function pendingKey(stagingID: string, kind: RegistryBlobKind): string {
   validateStagingID(stagingID);
-  if (kind !== "source" && kind !== "icon") {
+  if (!validBlobKind(kind)) {
     throw new RegistryBlobStoreError("integrity", "Registry blob kind is invalid");
   }
   return `pending/${stagingID}/${kind}`;
@@ -615,10 +617,16 @@ function validateCoordinates(
   expected: RegistryBlobDescriptor,
 ): void {
   validateStagingID(stagingID);
-  if (kind !== "source" && kind !== "icon") {
+  if (!validBlobKind(kind)) {
     throw new RegistryBlobStoreError("integrity", "Registry blob kind is invalid");
   }
   validateDescriptor(expected);
+}
+
+function validBlobKind(kind: string): kind is RegistryBlobKind {
+  if (kind === "source" || kind === "icon") return true;
+  const match = kind.match(/^screenshot-([1-8])$/);
+  return match !== null;
 }
 
 function validateDescriptor(expected: RegistryBlobDescriptor): void {

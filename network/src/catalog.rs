@@ -6,7 +6,8 @@ use tohseno_protocol::identity::{BuilderId, ROBINHOOD_CHAIN_ID};
 use tohseno_protocol::record::CanonicalTimestamp;
 use tohseno_protocol::signature::{DetachedP256Signature, P256PublicKey};
 
-pub const CATALOG_RELEASE_SCHEMA: &str = "tohseno.catalog-release/1";
+pub const CATALOG_RELEASE_SCHEMA_V1: &str = "tohseno.catalog-release/1";
+pub const CATALOG_RELEASE_SCHEMA: &str = "tohseno.catalog-release/2";
 pub const SIGNED_CATALOG_RELEASE_SCHEMA: &str = "tohseno.signed-catalog-release/1";
 pub const CONTRACT_GENERATION: &str = "0.8.0";
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
@@ -27,8 +28,39 @@ pub struct CatalogDisplay {
     pub name: String,
     pub description: String,
     pub icon_sha256: Option<Bytes32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_byte_length: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_media_type: Option<PublicImageMediaType>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub screenshots: Vec<CatalogScreenshot>,
     pub builder_handle: Option<String>,
     pub app_slug: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum PublicImageMediaType {
+    #[serde(rename = "image/png")]
+    Png,
+    #[serde(rename = "image/jpeg")]
+    Jpeg,
+}
+
+impl PublicImageMediaType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogScreenshot {
+    pub sha256: Bytes32,
+    pub byte_length: u64,
+    pub media_type: PublicImageMediaType,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -126,8 +158,10 @@ pub struct CatalogRelease {
 
 impl CatalogRelease {
     pub fn validate(&self) -> Result<()> {
-        if self.schema != CATALOG_RELEASE_SCHEMA {
-            return invalid(format!("schema must be {CATALOG_RELEASE_SCHEMA}"));
+        if self.schema != CATALOG_RELEASE_SCHEMA && self.schema != CATALOG_RELEASE_SCHEMA_V1 {
+            return invalid(format!(
+                "schema must be {CATALOG_RELEASE_SCHEMA_V1} or {CATALOG_RELEASE_SCHEMA}"
+            ));
         }
         self.generation.validate()?;
         if self.shot_id.is_zero() {
@@ -138,7 +172,7 @@ impl CatalogRelease {
         if self.published_at.unix_timestamp() <= 0 {
             return invalid("published_at must be after the Unix epoch");
         }
-        self.display.validate()?;
+        self.display.validate(&self.schema)?;
         self.source.validate()?;
         self.build.validate()?;
         self.permissions.validate()?;
@@ -193,11 +227,39 @@ impl CatalogGeneration {
 }
 
 impl CatalogDisplay {
-    fn validate(&self) -> Result<()> {
+    fn validate(&self, release_schema: &str) -> Result<()> {
         bounded_text("display.name", &self.name, 1, 160)?;
         bounded_text("display.description", &self.description, 1, 2_000)?;
         if let Some(value) = self.icon_sha256 {
             nonzero("display.icon_sha256", value)?;
+        }
+        if release_schema == CATALOG_RELEASE_SCHEMA_V1 {
+            if self.icon_byte_length.is_some()
+                || self.icon_media_type.is_some()
+                || !self.screenshots.is_empty()
+            {
+                return invalid("catalog release v1 cannot carry public presentation media");
+            }
+        } else {
+            if self.icon_sha256.is_none()
+                || self.icon_media_type.is_none()
+                || !matches!(self.icon_byte_length, Some(1..=5_242_880))
+            {
+                return invalid("catalog release v2 requires one bounded app icon");
+            }
+            if self.screenshots.len() > 8 {
+                return invalid("display.screenshots exceeds the eight-image bound");
+            }
+            let mut digests = std::collections::BTreeSet::new();
+            for screenshot in &self.screenshots {
+                nonzero("display.screenshot.sha256", screenshot.sha256)?;
+                if screenshot.byte_length == 0 || screenshot.byte_length > 10 * 1024 * 1024 {
+                    return invalid("display screenshot is outside its byte bound");
+                }
+                if !digests.insert(screenshot.sha256) {
+                    return invalid("display screenshots must have unique content digests");
+                }
+            }
         }
         if let Some(value) = &self.builder_handle {
             identifier("display.builder_handle", value, 2, 32)?;
@@ -427,5 +489,35 @@ mod tests {
             activation_signing_digest: Bytes32::new([2; 32]),
         };
         assert!(generation.validate().is_err());
+    }
+
+    #[test]
+    fn catalog_v2_binds_one_icon_and_bounded_unique_screenshots() {
+        let icon = Bytes32::new([1; 32]);
+        let screenshot = CatalogScreenshot {
+            sha256: Bytes32::new([2; 32]),
+            byte_length: 128,
+            media_type: PublicImageMediaType::Jpeg,
+        };
+        let display = CatalogDisplay {
+            name: "Field Notes".into(),
+            description: "A small native notebook.".into(),
+            icon_sha256: Some(icon),
+            icon_byte_length: Some(256),
+            icon_media_type: Some(PublicImageMediaType::Png),
+            screenshots: vec![screenshot.clone()],
+            builder_handle: None,
+            app_slug: Some("field-notes".into()),
+        };
+        assert!(display.validate(CATALOG_RELEASE_SCHEMA).is_ok());
+        assert!(display.validate(CATALOG_RELEASE_SCHEMA_V1).is_err());
+
+        let mut duplicate = display.clone();
+        duplicate.screenshots.push(screenshot);
+        assert!(duplicate.validate(CATALOG_RELEASE_SCHEMA).is_err());
+
+        let mut missing_icon = display;
+        missing_icon.icon_sha256 = None;
+        assert!(missing_icon.validate(CATALOG_RELEASE_SCHEMA).is_err());
     }
 }

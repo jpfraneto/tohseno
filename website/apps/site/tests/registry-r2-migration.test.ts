@@ -130,6 +130,43 @@ describe("Registry R2 migration", () => {
     expect(remote.calls).toBe(0);
   });
 
+  test("audits every signed version-2 icon and screenshot byte", async () => {
+    const fixture = await catalogFixture();
+    const icon = new TextEncoder().encode("one version-2 app icon");
+    const screenshot = new TextEncoder().encode("one version-2 screenshot");
+    const iconDigest = contentDigest(icon);
+    const screenshotDigest = contentDigest(screenshot);
+    await writeCanonicalBlob(fixture.root, iconDigest, icon);
+    await writeCanonicalBlob(fixture.root, screenshotDigest, screenshot);
+    await writeFile(
+      join(fixture.root, "releases", `${fixture.releaseDigest.slice(2)}.json`),
+      JSON.stringify({
+        schema: "tohseno.catalog-record/1",
+        releaseDigest: fixture.releaseDigest,
+        envelope: { release: {
+          schema: "tohseno.catalog-release/2",
+          display: { name: "Anky", icon_sha256: iconDigest,
+            icon_byte_length: icon.byteLength, screenshots: [{ sha256: screenshotDigest,
+              byte_length: screenshot.byteLength, media_type: "image/png" }] },
+          source: { sha256: fixture.sourceDigest, byte_length: fixture.source.byteLength },
+          checkpoint_sequence: 1,
+        } },
+      }),
+    );
+
+    const audit = await migrateRegistryBlobs({
+      root: fixture.root,
+      blobStore: new CountingStore(),
+      mode: "dry-run",
+      sourceCommit: "5".repeat(40),
+      observedAt: "2026-09-03T12:03:30.000Z",
+      bucketFingerprint: r2BucketFingerprint("a".repeat(32), "registry-test"),
+    });
+    expect(audit.passed).toBeTrue();
+    expect(audit.catalogReferencedBlobCount).toBe(3);
+    expect(audit.digests).toEqual([fixture.sourceDigest, iconDigest, screenshotDigest].sort());
+  });
+
   test("fails apply instead of overwriting different destination bytes at an expected digest", async () => {
     const fixture = await catalogFixture();
     const destination = await mkdtemp(join(tmpdir(), "tohseno-r2-migration-conflict-"));

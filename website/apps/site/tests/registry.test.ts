@@ -88,6 +88,7 @@ async function fixture(claims?: ClaimsPublicationBridge) {
 
 function openClaimsBridge(): ClaimsPublicationBridge {
   return {
+    claimsForHome: async () => [],
     async closureForTimeline() { return undefined; },
     async editionForDisplay() { return { opened: true, maxClaims: 0n, totalClaims: 0n,
       openedAt: 1n, closesAt: 0n, closed: false }; },
@@ -297,6 +298,98 @@ describe("public Registry trust bridge", () => {
     expect(await router.renderRegistry("no such app")).not.toContain("Prayer Lock");
   });
 
+  test("publishes signed app icons and screenshots and renders the canonical home activity", async () => {
+    const claims = {
+      ...openClaimsBridge(),
+      claimsForHome: async () => [{ tokenID: 7n, shotID: `0x${"11".repeat(32)}` as const,
+        claimNumber: 1n, claimant: `0x${"aa".repeat(20)}` as const,
+        releaseDigest: "" as `0x${string}`, checkpointDigest: `0x${"55".repeat(32)}` as const,
+        gestureCommitment: `0x${"99".repeat(32)}` as const, blockNumber: 124n,
+        blockHash: `0x${"98".repeat(32)}` as const, claimedAt: "2026-08-30T12:05:00Z",
+        transactionIndex: 2, logIndex: 3 }],
+    } satisfies ClaimsPublicationBridge;
+    const fixtureValue = await fixture(claims);
+    const { release, source, privateKey, publicKey, config, verifier } = fixtureValue;
+    const router = await createRegistryRouter(config, verifier, claims, {
+      address: `0x${"aa".repeat(20)}`,
+      async advance() { throw new Error("media must be staged before relaying"); },
+    });
+    const icon = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
+    const screenshot = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1]);
+    const mediaRelease = structuredClone(release) as Record<string, unknown>;
+    mediaRelease.schema = "tohseno.catalog-release/2";
+    const display = mediaRelease.display as Record<string, unknown>;
+    display.icon_sha256 = sha256(icon);
+    display.icon_byte_length = icon.byteLength;
+    display.icon_media_type = "image/png";
+    display.screenshots = [{ sha256: sha256(screenshot), byte_length: screenshot.byteLength,
+      media_type: "image/jpeg" }];
+    const envelope = signedRelease(mediaRelease, privateKey, publicKey);
+    const releaseDigest = (envelope.authorization as Record<string, unknown>).digest as `0x${string}`;
+    const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ envelope }),
+    }));
+    expect(staged.status).toBe(201);
+    const reservation = await staged.json() as Record<string, string>;
+    claims.claimsForHome = async () => [{ tokenID: 7n,
+      shotID: mediaRelease.shot_id as `0x${string}`, claimNumber: 1n,
+      claimant: `0x${"aa".repeat(20)}` as const, releaseDigest,
+      checkpointDigest: mediaRelease.public_checkpoint_digest as `0x${string}`,
+      gestureCommitment: `0x${"99".repeat(32)}` as const, blockNumber: 124n,
+      blockHash: `0x${"98".repeat(32)}` as const, claimedAt: "2026-08-30T12:05:00Z",
+      transactionIndex: 2, logIndex: 3 }];
+    const authorization = { authorization: `Bearer ${reservation.upload_token}` };
+    expect((await router.fetch(new Request(`http://localhost${reservation.source_url}`, {
+      method: "PUT", headers: { ...authorization, "content-length": String(source.byteLength) },
+      body: source,
+    }))).status).toBe(200);
+    const registry = signedRegistryAuthorization(mediaRelease, privateKey, publicKey,
+      config.registry.registryAddress);
+    await expect(router.fetch(new Request(
+      `http://localhost/api/registry/v1/staging/${reservation.staging_id}/publish`, {
+        method: "POST", headers: { ...authorization, "content-type": "application/json" },
+        body: JSON.stringify({ registry, claim_edition: { exact: true } }),
+      },
+    ))).rejects.toMatchObject({ status: 409 });
+    await expect(router.fetch(new Request(`http://localhost${reservation.finalize_url}`, {
+      method: "POST", headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ transaction_hash: `0x${"66".repeat(32)}` }),
+    }))).rejects.toMatchObject({ status: 409 });
+    expect((await router.fetch(new Request(
+      `http://localhost/api/registry/v1/staging/${reservation.staging_id}/icon`, {
+        method: "PUT", headers: { ...authorization, "content-length": String(icon.byteLength),
+          "content-type": "image/png" }, body: icon,
+      },
+    ))).status).toBe(200);
+    expect((await router.fetch(new Request(
+      `http://localhost/api/registry/v1/staging/${reservation.staging_id}/screenshots/1`, {
+        method: "PUT", headers: { ...authorization, "content-length": String(screenshot.byteLength),
+          "content-type": "image/jpeg" }, body: screenshot,
+      },
+    ))).status).toBe(200);
+    expect((await router.fetch(new Request(`http://localhost${reservation.finalize_url}`, {
+      method: "POST", headers: { ...authorization, "content-type": "application/json" },
+      body: JSON.stringify({ transaction_hash: `0x${"66".repeat(32)}` }),
+    }))).status).toBe(201);
+
+    const publicIcon = await router.fetch(new Request(
+      `http://localhost/api/registry/v1/media/${display.icon_sha256}`,
+    ));
+    expect(publicIcon.headers.get("content-type")).toBe("image/png");
+    expect(publicIcon.headers.get("content-disposition")).toBe("inline");
+    expect(new Uint8Array(await publicIcon.arrayBuffer())).toEqual(icon);
+    const shot = await router.renderShot(String(mediaRelease.shot_id));
+    expect(shot).toContain("Prayer Lock app icon");
+    expect(shot).toContain("Screenshot 1");
+    const home = await router.renderHome();
+    expect(home).toContain("SHIPPED");
+    expect(home).toContain("CLAIMED");
+    expect(home).toContain("Someone claimed this exact release.");
+    expect(home).toContain("Claim is not installation");
+    expect(home).not.toContain("SHOT.UPDATED");
+  });
+
   test("projects exactly one Ship, permanent Updates, deterministic pagination, and one current card", async () => {
     const { router, envelope, release, source, privateKey, publicKey } = await fixture();
     await publish(router, envelope, source);
@@ -358,6 +451,7 @@ describe("public Registry trust bridge", () => {
     };
     let claimAdvances = 0;
     const claims: ClaimsPublicationBridge = {
+      claimsForHome: async () => [],
       async closureForTimeline() { return { reason: "supply_filled", occurredAt: "2026-08-30T12:05:00Z",
         canonicalBlock: { number: "124", hash: `0x${"98".repeat(32)}` as const,
           transactionIndex: 2, logIndex: 5 } }; },
@@ -455,6 +549,7 @@ describe("public Registry trust bridge", () => {
     let claimAttempts = 0;
     let claimTransactions = 0;
     const claims: ClaimsPublicationBridge = {
+      claimsForHome: async () => [],
       async closureForTimeline() { return undefined; },
       async editionForDisplay() { return { opened: true, maxClaims: 888n, totalClaims: 0n,
         openedAt: 1n, closesAt: 0n, closed: false }; },

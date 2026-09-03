@@ -420,7 +420,7 @@ function semanticRoute(pathname: string): string {
   if (pathname.startsWith("/api/registry/v1/")) return "registry-api";
   if (pathname === "/install" || pathname === "/download") return "native-installer";
   if (pathname === "/download/macos" || pathname === "/api/distribution/v1/macos") return "macos-download";
-  if (pathname === "/") return "landing-page";
+  if (pathname === "/") return "public-network";
   if (pathname === "/buy") return "buy-page";
   if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
       || isGlobalAliasPath(pathname)) return "public-registry";
@@ -606,11 +606,12 @@ export async function createApplication(
       );
     }
 
-    if (pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
+    if (pathname === "/" || pathname === "/registry" || pathname.startsWith("/s/") || pathname.startsWith("/@")
         || pathname.startsWith("/claims/") || isGlobalAliasPath(pathname)) {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
       let content: string | undefined;
-      if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);
+      if (pathname === "/") content = await registry.renderHome();
+      else if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);
       else if (/^\/claims\/[1-9]\d*$/.test(pathname)) content = await claims.renderReceipt(pathname.slice(8));
       else if (/^\/s\/[0-9a-f]{64}$/.test(pathname)) content = await registry.renderShot(`0x${pathname.slice(3)}`);
       else if (/^\/@[^/]+$/.test(pathname)) content = await registry.renderBuilder(decodeURIComponent(pathname.slice(2)));
