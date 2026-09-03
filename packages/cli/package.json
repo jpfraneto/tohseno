@@ -1,7 +1,7 @@
 {
   "name": "tohseno",
   "version": "1.2.0",
-  "description": "Secure bootstrap and launcher for the native TOHSENO app factory on macOS",
+  "description": "Install the TOHSENO CLI and publish Xcode apps person to person",
   "type": "module",
   "bin": {
     "tohseno": "bin/tohseno.js"
@@ -29,7 +29,6 @@
     "access": "public"
   },
   "scripts": {
-    "postinstall": "node src/postinstall.js",
     "test": "node --test test/*.test.js",
     "test:pack": "node test/pack-install.test.js"
   }

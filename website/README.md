@@ -10,10 +10,15 @@ The landing page leads with “Ship iPhone apps. Person to person.” and the re
 builder path:
 
 ```text
+npm install --global tohseno
 cd YourApp
 tohseno init
 tohseno deploy --app-slug your-app
 ```
+
+The npm install owns only the CLI launcher and has no postinstall side effects.
+Interactive `init` explains one fact at a time and waits for Enter before the
+real Xcode adoption begins.
 
 It describes the exact boundary: another person's Mac downloads verified
 source, builds with Xcode, signs locally, and installs on their iPhone. It does

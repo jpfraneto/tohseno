@@ -463,15 +463,19 @@ receipts. The local service verifies a release-pinned public key and exact
 installation bind before changing entitlement. Monthly is $9.99 and yearly is
 $99. Billing is configuration-gated and currently inactive.
 
-The repository prepares `packages/cli` 1.0.2 as the dependency-free npm peer
-of native TOHSENO 1.0.2. A fresh global Mac install enters the existing
-first-run guide directly from npm postinstall. The bootstrap uses one fixed
-HTTPS manifest, refuses redirects and unapproved origins, verifies exact size,
-SHA-256, release layout/checksums, and Apple signing policy, and installs only
-into the existing user-owned layout. It now also requires the manifest's native
-version to equal 1.0.2, so publishing npm before the signed native manifest
-fails closed. The public npm `latest` and native manifest remain 1.0.1 and
-1.0.0 respectively until the separate 1.0.2 owner release actions occur.
+The repository prepares `packages/cli` 1.2.0 as the dependency-free npm CLI
+door. A global install writes only the JavaScript launcher: it performs no
+postinstall download, service mutation, Companion setup, or GUI launch. The
+no-argument command shows `cd`, `tohseno init`, then `tohseno deploy`.
+Interactive init explains Xcode adoption, the stable candidate ShotID,
+Companion authority, and one Ship followed by Updates one Enter-gated line at
+a time; JSON and non-interactive use do not pause. At first operational use,
+the launcher uses one fixed CLI manifest, refuses redirects and unapproved
+origins, verifies exact size, SHA-256, release layout/checksums, and Apple
+signing policy, and activates the command runtime only in the existing
+user-owned layout. Public npm `latest` remains 1.0.1 until the 1.2.0 CLI
+manifest, signed archives, and npm package are separately published and
+verified.
 
 ## Private Companion channel
 

@@ -1,6 +1,6 @@
 export const NPM_CLI_VERSION = "1.2.0";
 export const PRODUCT_VERSION = "1.2.0";
-export const MANIFEST_URL = "https://tohseno.com/releases/native-v1.json";
+export const MANIFEST_URL = "https://tohseno.com/releases/cli-v1.json";
 export const MANIFEST_ORIGINS = new Set(["https://tohseno.com"]);
 export const ARTIFACT_ORIGINS = new Set([
   "https://github.com",

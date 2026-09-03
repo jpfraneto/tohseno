@@ -1,12 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCommand, redact } from "../src/cli.js";
+import { GUIDE, HELP, parseCommand, redact } from "../src/cli.js";
 import { compareVersions } from "../src/semver.js";
 import { nodeArchitecture, validateManifest, validatedHttpsURL } from "../src/manifest.js";
 import { validateArchivePaths } from "../src/archive.js";
 import { verifyArtifactBytes } from "../src/download.js";
 import { ensureInstallerMarker, verifyAppleSignature } from "../src/installer.js";
-import { isGlobalNpmInstall, startFreshGlobalInstall } from "../src/postinstall.js";
 import { startProduct } from "../src/start.js";
 import { createHash } from "node:crypto";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -41,9 +40,19 @@ function manifest() {
 }
 
 test("command parsing keeps native commands opaque", () => {
-  assert.deepEqual(parseCommand([]), { kind: "start", args: [] });
-  assert.deepEqual(parseCommand(["install"]), { kind: "install", args: [] });
+  assert.deepEqual(parseCommand([]), { kind: "guide", args: [] });
+  assert.deepEqual(parseCommand(["init"]), { kind: "delegate", args: ["init"] });
+  assert.deepEqual(parseCommand(["deploy"]), { kind: "delegate", args: ["deploy"] });
+  assert.deepEqual(parseCommand(["install"]), { kind: "delegate", args: ["install"] });
   assert.deepEqual(parseCommand(["create", "my-app"]), { kind: "delegate", args: ["create", "my-app"] });
+});
+
+test("the npm CLI makes init then deploy the primary path", () => {
+  assert.match(GUIDE, /cd \/path\/to\/YourApp\n  tohseno init\n  tohseno deploy/);
+  assert.match(GUIDE, /one line at a time/);
+  assert.match(HELP, /tohseno init \[path\]/);
+  assert.match(HELP, /tohseno deploy/);
+  assert.ok(HELP.indexOf("tohseno init") < HELP.indexOf("tohseno open"));
 });
 
 test("stable semantic versions compare without prerelease ambiguity", () => {
@@ -140,39 +149,6 @@ test("Apple signature verification passes the manifest requirement inline", () =
       `=${requirement}`,
       "/verified/release/bin/tohseno",
     ],
-  });
-});
-
-test("only a fresh global Mac install starts first run automatically", async () => {
-  assert.equal(isGlobalNpmInstall("darwin", { npm_config_global: "true" }), true);
-  assert.equal(isGlobalNpmInstall("darwin", {}), false);
-  assert.equal(isGlobalNpmInstall("linux", { npm_config_global: "true" }), false);
-
-  const calls = [];
-  const status = await startFreshGlobalInstall({
-    platform: "darwin",
-    environment: { npm_config_global: "true" },
-    findInstalledNative: async () => null,
-    spawn: (executable, args, options) => {
-      calls.push({ executable, args, options });
-      return { status: 0 };
-    },
-    executable: "/node",
-    entrypoint: "/package/bin/tohseno.js",
-  });
-  assert.equal(status, 0);
-  assert.deepEqual(calls, [{
-    executable: "/node",
-    args: ["/package/bin/tohseno.js"],
-    options: { env: { npm_config_global: "true" }, stdio: "inherit" },
-  }]);
-
-  await startFreshGlobalInstall({
-    platform: "darwin",
-    environment: { npm_config_global: "true" },
-    findInstalledNative: async () => ({ version: "1.2.0" }),
-    repairInstallerMarker: async () => {},
-    spawn: () => { throw new Error("must not start twice"); },
   });
 });
 

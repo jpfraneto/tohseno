@@ -1,23 +1,30 @@
-# TOHSENO npm bootstrap
+# TOHSENO CLI for npm
 
-`tohseno@1.2.0` is the dependency-free Node 20+ front door for the native
-TOHSENO 1.2.0 Mac product. It is not the factory: it locates or securely
-installs the authorized native release in the existing no-sudo
-`~/.tohseno/` layout and delegates to `~/.tohseno/bin/tohseno`.
+`tohseno@1.2.0` is the dependency-free Node 20+ CLI installer for TOHSENO
+1.2.0 on macOS.
 
-On a fresh global Mac installation, npm immediately runs that verified front
-door. It installs the native release, starts the Local Workspace Service, and
-opens the first-run cable guide. Local dependency installs and global updates
-that already have a native installation do not open first run.
+```sh
+npm install --global tohseno
+cd /path/to/YourApp
+tohseno init
+tohseno deploy
+```
 
-The npm and native product versions are exact peers. The 1.2.0 package refuses
-an older public native manifest, so npm cannot claim the release before the
-signed native artifact and its exact manifest are public.
+npm installs only the small command launcher. It does not download a runtime,
+start a service, set up Companion, or open a GUI during install. Running
+`tohseno` with no arguments shows the commands above. Interactive `init` then
+explains the real path one line at a time and waits for Enter between steps.
+
+When a real command first needs the compiled runtime, the launcher downloads
+the exact architecture from a fixed HTTPS manifest, verifies byte length,
+SHA-256, the closed release tree and checksums, and the declared Apple
+Developer ID requirement, then activates it in the existing no-sudo
+`~/.tohseno/` layout. It does not install `Tohseno.app`.
 
 The production manifest is fixed at
-`https://tohseno.com/releases/native-v1.json`. Publication remains
-fail-closed until the native release, exact sizes/digests, compatibility, and
-signing policy are authorized there. No environment variable can replace the
+`https://tohseno.com/releases/cli-v1.json`. Publication remains fail-closed
+until the command runtime, exact sizes/digests, compatibility, and signing
+policy are authorized there. No environment variable can replace the
 production manifest URL.
 
 Development:
@@ -29,6 +36,5 @@ node test/pack-install.test.js
 npm pack --dry-run
 ```
 
-Publishing is a manual owner action documented in
-`../../docs/runbooks/NPM_1_0_0.md`. This repository does not publish or change
-the npm dist-tag automatically.
+Publishing remains an owner-authorized npm action. This repository does not
+change the npm dist-tag automatically.

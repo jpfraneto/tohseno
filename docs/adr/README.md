@@ -2,6 +2,13 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0038](0038-npm-cli-init-first.md) makes npm the direct CLI installation
+door for builders with an existing Xcode project. npm installs only the
+dependency-free launcher with no postinstall side effects; interactive
+`tohseno init` teaches the real Xcode, ShotID, Companion, Ship, Update, and
+`deploy` path one Enter-gated line at a time while structured and
+non-interactive use remains unblocked.
+
 [ADR 0037](0037-network-mediated-release-trust.md) defines network trust as
 exact-release evidence: additive external identity bindings, content-addressed
 machine Verification Reports, bounded DeviceKey-signed human Release
@@ -96,9 +103,10 @@ When omitted, the factory reserves a local technical slug and gives the one
 existing implementation model responsibility for choosing the user-facing
 product name from the exact intention, with no extra planning invocation.
 
-[ADR 0021](0021-npm-install-enters-first-run.md) governs the retained legacy
-npm-to-first-run transition. ADR 0025 supersedes it as the normal consumer
-door; its bootstrap remains a supported compatibility/developer path.
+[ADR 0021](0021-npm-install-enters-first-run.md) governed the legacy
+npm-to-first-run transition. ADR 0025 removed it as the normal consumer door,
+and ADR 0038 supersedes its remaining automatic postinstall behavior with a
+side-effect-free CLI installation and init-first guide.
 
 [ADR 0020](0020-cable-genesis-earned-pro-npm-front-door.md) defined TOHSENO
 0.9.9's product boundary: the first Mac↔iPhone relationship begins

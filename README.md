@@ -16,6 +16,7 @@ The generated-app factory and durable iPhone-to-Mac evolution path remain part
 of the same product.
 
 This direction is governed by
+[`ADR 0038`](docs/adr/0038-npm-cli-init-first.md),
 [`ADR 0035`](docs/adr/0035-claiming-software.md) and
 [`ADR 0034`](docs/adr/0034-person-to-person-native-software.md), building on
 [`ADR 0033`](docs/adr/0033-living-project-connection.md),
@@ -69,9 +70,14 @@ You need macOS 14 or later and full Xcode. An iPhone, cable, Trust, Developer
 Mode, and an Apple Personal Team are needed for Companion and generated-app
 installation; Tohseno never collects Apple credentials.
 
-The normal product is `Tohseno.app`: install and pair its Companion, then use
-Apps, Registry, Profile, or Create. Existing projects also have one terminal
-path:
+Install the CLI from npm when you already have an Xcode project to publish:
+
+```bash
+npm install --global tohseno
+```
+
+The npm install has no postinstall download or GUI launch. Then enter the
+project and follow the guided terminal path:
 
 ```bash
 cd ExistingApp
@@ -79,9 +85,10 @@ tohseno init
 tohseno deploy --app-slug your-app
 ```
 
-`init` adopts without restructuring or changing Git. `deploy` snapshots safe
-source and waits for exact Companion approval before the first Ship or a later
-Update. The optional slug is signed into the release and remains stable; after
+Interactive `init` explains one step at a time and waits for Enter before
+continuing. It adopts without restructuring or changing Git. `deploy`
+snapshots safe source and waits for exact Companion approval before the first
+Ship or a later Update. The optional slug is signed into the release and remains stable; after
 the exact app's separate Companion-signed alias request and operator review it
 can become `https://tohseno.com/your-app`. First Ship also fixes the Shot's one
 Claim Edition. Once Claims is
@@ -112,11 +119,12 @@ origin-verified `v1.0.2-rc.2` DMG is active only on the public
 release-candidate channel for independent acceptance. Stable activation still
 requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
-The normal website action downloads the signed, notarized DMG directly. On a
+`Tohseno.app` remains the native Mac product and the normal website action
+downloads its signed, notarized DMG directly. On a
 Mac the page labels it **Download for this Mac**; while acceptance is pending,
 its detail also says **Release candidate**. On another system it states the
 real macOS 14-or-newer requirement. The retained shell installer is a
-compatibility path, not the consumer door. The normal install requires no
+compatibility path, not the consumer door. That native-app install requires no
 Terminal, npm, Node, Bun, or Homebrew.
 Developers can build the unsigned universal bundle with:
 

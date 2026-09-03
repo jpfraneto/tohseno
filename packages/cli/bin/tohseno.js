@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import process from "node:process";
 import { spawnSync } from "node:child_process";
-import { HELP, parseCommand, redact } from "../src/cli.js";
+import { GUIDE, HELP, parseCommand, redact } from "../src/cli.js";
 import { NPM_CLI_VERSION, PRODUCT_VERSION } from "../src/constants.js";
 import { delegate, installedNative } from "../src/native.js";
 import { installAuthorizedNative } from "../src/installer.js";
@@ -10,7 +10,8 @@ import { startProduct } from "../src/start.js";
 async function main() {
   const command = parseCommand(process.argv.slice(2));
   if (command.kind === "help") { console.log(HELP); return 0; }
-  if (command.kind === "version") { console.log(`tohseno npm ${NPM_CLI_VERSION}`); return 0; }
+  if (command.kind === "version") { console.log(`tohseno ${NPM_CLI_VERSION}`); return 0; }
+  if (command.kind === "guide") { console.log(GUIDE); return 0; }
   if (process.platform !== "darwin") throw new Error("TOHSENO installs on macOS only.");
   let installed = await installedNative(PRODUCT_VERSION);
   if (command.kind === "doctor") {
@@ -33,13 +34,12 @@ async function main() {
     return delegate(["doctor"]);
   }
   if (!installed) {
-    console.log("Installing TOHSENO…");
+    console.log("Installing the verified TOHSENO CLI runtime…");
     await installAuthorizedNative();
     installed = await installedNative(PRODUCT_VERSION);
     if (!installed) throw new Error("the verified native release did not activate safely");
   }
   if (command.kind === "delegate") return delegate(command.args);
-  if (command.kind === "install") return 0;
   return startProduct();
 }
 

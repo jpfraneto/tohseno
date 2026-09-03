@@ -13,6 +13,7 @@ mod native_client;
 mod native_install;
 mod native_session;
 mod network_commands;
+mod onboarding;
 mod protocol_commands;
 mod renderer;
 mod service_client;
@@ -680,6 +681,13 @@ async fn run_main(cli: Cli) {
 }
 
 async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    if !cli.json
+        && matches!(&cli.command, Command::Init { .. })
+        && io::stdin().is_terminal()
+        && io::stdout().is_terminal()
+    {
+        onboarding::run_init(&mut io::stdin().lock(), &mut io::stdout().lock())?;
+    }
     let bus = EventBus::default();
     // The LaunchAgent runs `--json service run`, and that long-lived process
     // never prints a command result for `--json` to keep clean. Suppressing
