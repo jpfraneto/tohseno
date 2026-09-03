@@ -54,6 +54,30 @@
     "physical_device_observed": false,
     "clean_mac_observed": false
   },
+  "continuous_integration": {
+    "run_url": "https://github.com/jpfraneto/tohseno/actions/runs/33786645015",
+    "status": "failure",
+    "restarted": false,
+    "passing_surfaces": [
+      "Rust formatting, Clippy, tests, examples, and documentation",
+      "contract build, fuzz, invariant, and generated-artifact checks",
+      "Apple identity, Fascia, and CompanionKit"
+    ],
+    "known_failures": [
+      {
+        "step": "Candidate CLI smoke",
+        "classification": "stale workflow assertion",
+        "evidence": "The workflow expected product_version 1.2.0; the tagged source reports 1.2.1."
+      },
+      {
+        "step": "Build and test the Companion product surface",
+        "classification": "GitHub-runner Swift compatibility gap",
+        "evidence": "The runner rejected a Bool? switch as non-exhaustive; local Xcode 26.3 Companion tests and the Simulator build passed."
+      }
+    ],
+    "release_artifact_checks_remain_valid": true,
+    "older_toolchain_companion_compatibility_verified": false
+  },
   "environment": {
     "macos": "26.6.2 (25G83)",
     "xcode": "26.3 (17C529)",

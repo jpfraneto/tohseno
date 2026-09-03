@@ -49,6 +49,15 @@ physical-iPhone, haptic, or live Workshop Session behavior is claimed for RC10.
 The additive release evidence is recorded in
 `release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
 
+The automatic CI run for the tagged source completed with two known failures.
+Its CLI smoke check still expected product version `1.2.0` while this source's
+CLI truthfully reports `1.2.1`. Its GitHub macOS toolchain also rejected a
+`Bool?` switch in Companion as non-exhaustive; the same Companion package tests
+and Simulator build had passed locally under Xcode 26.3. The run was not
+restarted. These failures do not alter the byte, signature, notarization, or
+Gatekeeper evidence for the Mac DMG, but older-toolchain Companion compatibility
+remains unverified and is not claimed.
+
 ## Previous source evolution: public app media, network activity, and the Living Workshop
 
 ADR 0040 now makes the website root a truthful canonical timeline of someone

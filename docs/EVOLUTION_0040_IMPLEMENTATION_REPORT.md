@@ -152,6 +152,15 @@ did not claim a clean-Mac launch, intended-iPhone installation, physical
 haptic, or live two-device Workshop Session. Exact machine-readable evidence
 is in `release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
 
+The automatic CI run for the tagged commit later failed in two known places:
+the candidate CLI smoke still expected version `1.2.0` although this source's
+CLI reports `1.2.1`, and the GitHub macOS toolchain rejected a `Bool?` switch as
+non-exhaustive while building Companion. The Rust tests, Clippy, formatting,
+contract jobs, local Xcode 26.3 Companion tests, and local Simulator build had
+passed. The remote run was inspected once and not restarted. Its result does
+not undo the separate exact-byte Apple release checks, but it leaves
+older-toolchain Companion compatibility outside the RC10 evidence.
+
 ## Deliberately not implemented or claimed
 
 - No standalone Shot is silently enrolled into the Session. The small SDK
