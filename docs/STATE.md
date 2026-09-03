@@ -44,10 +44,14 @@ ID signed with hardened runtime, Apple-notarized under submission
 53,585,271-byte DMG has SHA-256
 `5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686`; a fresh
 download from the public GitHub release matched the retained artifact
-byte-for-byte. The website remains separately pinned to RC9. No clean-Mac,
-physical-iPhone, haptic, or live Workshop Session behavior is claimed for RC10.
-The additive release evidence is recorded in
-`release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
+byte-for-byte. Production deployment `9c650c3c-1858-47ea-9d69-6ec710d88be6`
+now serves RC10 on the visibly labeled release-candidate channel. Its live API,
+redirect URL, channel, and digest were verified, and a complete download through
+`tohseno.com/download/macos` again matched the 53,585,271-byte artifact and
+SHA-256. No clean-Mac, physical-iPhone, haptic, or live Workshop Session
+behavior is claimed for RC10. The additive release evidence is recorded in
+`release/V1_2_0_RC10_GITHUB_EVIDENCE.json` and
+`release/V1_2_0_RC10_WEBSITE_EVIDENCE.json`.
 
 The automatic CI run for the tagged source completed with two known failures.
 Its CLI smoke check still expected product version `1.2.0` while this source's
@@ -129,8 +133,8 @@ Cloudflare Bucket Lock rule `registry-final-objects` is enabled indefinitely for
 only `sha256/`; staging keys under `pending/` and the rest of the bucket remain
 outside that lock.
 
-Production deployment `b216aaae-af3d-4042-b043-d696c76f0edf` now serves the
-network timeline and pins the exact RC9 URL and digest on the visibly labeled
+Production deployment `9c650c3c-1858-47ea-9d69-6ec710d88be6` now serves the
+network timeline and pins the exact RC10 URL and digest on the visibly labeled
 release-candidate channel. Health, Registry rendering, the installer metadata,
 the redirect headers, and the complete public download were observed on the
 live service.
@@ -690,7 +694,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.2.0-rc.6` bytes on the labeled release-candidate channel; stable `v1.2.0`
+`v1.2.0-rc.10` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -826,13 +830,13 @@ stapled, mounted, Gatekeeper-checked, and published as a 52,314,624-byte
 universal DMG with SHA-256
 `082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de`.
 Both the GitHub origin and tohseno.com round trips matched. RC6 was superseded
-by the later candidates recorded in `release/V1_2_0_READINESS.json`; RC9 is the
-current labeled public candidate.
+by the later candidates recorded in `release/V1_2_0_READINESS.json`; RC10 is
+the current labeled public candidate.
 Stable 1.2 still requires the remaining production proof in ADR 0035: a second
 identity Claim, canonical Claim receipt, offline-Mac preparation,
 recipient-signed physical install, later Update preservation, Follow
 reconciliation, and live receipt paths. The exact Registry and Claims
-activations recorded for RC9 are live; that does not fabricate any of those
+activations retained across RC10 are live; that does not fabricate any of those
 still-missing human or physical facts.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain

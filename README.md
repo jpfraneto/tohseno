@@ -31,8 +31,9 @@ subscription gating of local/BYO execution. First setup installs and pairs the
 Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.10` is the
 current signed, notarized, digest-pinned GitHub prerelease, built from exact
 commit `a87bed012902dd11f78ea3922fa6fed25ed98dac`; its public download was
-verified byte-for-byte. The website remains separately pinned to RC9, and no
-RC10 physical-device behavior has been represented as observed.
+verified byte-for-byte. The production website's visibly labeled
+release-candidate download now serves those same exact RC10 bytes. No RC10
+physical-device behavior has been represented as observed.
 [`docs/STATE.md`](docs/STATE.md) records the exact evidence and remaining human
 and physical boundaries.
 
@@ -124,7 +125,7 @@ subscription, trial, qualification, or balance gate. Tohseno-hosted
 intelligence is coming soon; the incomplete managed-credits purchase surface is
 not presented as a usable product.
 
-The signed, notarized, origin-verified `v1.2.0-rc.9` DMG is active only on the
+The signed, notarized, origin-verified `v1.2.0-rc.10` DMG is active only on the
 public release-candidate channel for independent acceptance. Stable activation still
 requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).

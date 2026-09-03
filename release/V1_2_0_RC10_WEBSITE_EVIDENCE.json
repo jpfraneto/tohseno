@@ -1,0 +1,49 @@
+{
+  "schema": "tohseno.website-download-activation-evidence/1",
+  "version": "1.2.0-rc.10",
+  "channel": "release-candidate",
+  "authorization": {
+    "authorized_by": "repository owner",
+    "authorization_form": "can you upload it?",
+    "context": "The owner asked this after observing that the website still downloaded RC9 while RC10 was already available on GitHub.",
+    "recorded_at": "2026-09-03T18:59:54Z"
+  },
+  "source_release": {
+    "tag": "v1.2.0-rc.10",
+    "commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
+    "github_evidence": "release/V1_2_0_RC10_GITHUB_EVIDENCE.json"
+  },
+  "artifact": {
+    "url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.10/Tohseno-1.2.0-rc.10.dmg",
+    "bytes": 53585271,
+    "sha256": "5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686"
+  },
+  "deployment": {
+    "provider": "Railway",
+    "project": "tohseno-production",
+    "environment": "production",
+    "service": "tohseno",
+    "deployment_id": "9c650c3c-1858-47ea-9d69-6ec710d88be6",
+    "status": "SUCCESS"
+  },
+  "live_verification": {
+    "verified_at": "2026-09-03T18:59:54Z",
+    "distribution_api": "https://tohseno.com/api/distribution/v1/macos",
+    "distribution_available": true,
+    "minimum_macos_version": "14.0",
+    "download_route": "https://tohseno.com/download/macos",
+    "download_status": 307,
+    "redirect_url_match": true,
+    "release_channel_header": "release-candidate",
+    "sha256_header_match": true,
+    "complete_download_bytes": 53585271,
+    "complete_download_sha256": "5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686",
+    "complete_download_match": true
+  },
+  "claims": {
+    "stable_promoted": false,
+    "clean_mac_observed": false,
+    "physical_iphone_observed": false,
+    "workshop_session_observed": false
+  }
+}

@@ -167,8 +167,9 @@ The source change prepared RC10. Subsequent owner-authorized release work built
 exact commit `a87bed012902dd11f78ea3922fa6fed25ed98dac`, signed and notarized the
 universal app, stapled and verified its DMG, and published those immutable bytes
 as the labeled `v1.2.0-rc.10` GitHub prerelease. That operational release does
-not activate RC10 on the website or establish any physical Workshop evidence;
-the website remains separately pinned to RC9.
+not establish any physical Workshop evidence. A later owner-authorized
+configuration deployment activated those exact bytes on the website's visibly
+labeled release-candidate channel without promoting them to stable.
 
 ## Consequences
 

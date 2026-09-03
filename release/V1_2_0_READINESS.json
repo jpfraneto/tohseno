@@ -4,14 +4,17 @@
   "channel": "release-candidate",
   "ready": false,
   "source": {
-    "exact_source_commit": "a82050c4efc64973f8e5c6a6925cdae0f29d2a24",
-    "captured_at": "2026-09-03T16:21:30Z",
+    "exact_source_commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
+    "captured_at": "2026-09-03T18:59:54Z",
     "accepted_product_adrs": [
       "docs/adr/0034-person-to-person-native-software.md",
-      "docs/adr/0035-claiming-software.md"
+      "docs/adr/0035-claiming-software.md",
+      "docs/adr/0039-one-shot-living-workshop.md",
+      "docs/adr/0040-public-app-media-and-network-home.md",
+      "docs/adr/0041-workshop-runtime.md"
     ],
-    "previous_release_candidate": "1.2.0-rc.8",
-    "current_public_installer_pin": "1.2.0-rc.9",
+    "previous_release_candidate": "1.2.0-rc.9",
+    "current_public_installer_pin": "1.2.0-rc.10",
     "target_public_installer_pin": "1.2.0",
     "historical_protocol_rewritten": false,
     "recording_layer_implicit_migration": false
@@ -22,6 +25,13 @@
     "authorized_at": "2026-08-31T17:38:00Z",
     "authorization_form": "Build and publish the 1.2 release candidate to tohseno.com so that I can download it from there and go through the whole process myself first."
   },
+  "rc10_website_activation_authorization": {
+    "authorized": true,
+    "authorized_by": "repository owner",
+    "authorization_form": "can you upload it?",
+    "authorization_context": "The owner asked this immediately after being shown that the website still downloaded RC9 while RC10 was already available on GitHub.",
+    "recorded_at": "2026-09-03T18:59:54Z"
+  },
   "protection": {
     "immutable_release_policy_verified": true,
     "release_tag_protection_verified": true,
@@ -29,21 +39,21 @@
     "verified_at": "2026-08-30T21:34:39Z"
   },
   "continuous_integration": {
-    "run_id": null,
-    "source_commit": "a82050c4efc64973f8e5c6a6925cdae0f29d2a24",
-    "status": "not_repeated_for_rc9",
-    "url": null,
-    "artifact_source_delta": "The full matrix was deliberately not repeated for RC9. The changed app-media, Companion approval, public Registry, Claim handoff, and network-timeline surfaces passed their focused Rust, CompanionKit, macOS, website typecheck, and website test coverage. The exact clean source then passed the universal native build, bundle verification, Apple signing/notarization, mounted Gatekeeper assessment, immutable origin round trip, and production website-to-DMG digest round trip."
+    "run_id": 33786645015,
+    "source_commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
+    "status": "failure_with_known_non_artifact_boundaries",
+    "url": "https://github.com/jpfraneto/tohseno/actions/runs/33786645015",
+    "artifact_source_delta": "The tagged source passed Rust formatting, Clippy, tests, examples, documentation, contract jobs, Apple identity, Fascia, and CompanionKit in CI. The CLI smoke failed because its workflow assertion still expected 1.2.0 while the source reports 1.2.1. The GitHub macOS toolchain rejected one Bool? Companion switch as non-exhaustive although local Xcode 26.3 Companion tests and the Simulator build passed. The exact clean source separately passed the universal native build, bundle verification, Apple signing/notarization, mounted Gatekeeper assessment, immutable origin round trip, and production website-to-DMG digest round trip. Older-toolchain Companion compatibility remains unverified."
   },
   "dark_deployment": {
     "service": "tohseno",
     "environment": "production",
-    "deployment_id": "b216aaae-af3d-4042-b043-d696c76f0edf",
+    "deployment_id": "9c650c3c-1858-47ea-9d69-6ec710d88be6",
     "implementation_commit": "cca1a729e5bce5f918333f4b131b7b55f9caddff",
-    "activation_commit": "a82050c4efc64973f8e5c6a6925cdae0f29d2a24",
+    "activation_commit": "e54c5a9c52f06ce9f95ecb4ebcccea8193b6df34",
     "website_tree_identical_at_exact_source_commit": true,
-    "post_source_changes": "Production environment configuration pins the exact immutable RC9 URL and SHA-256. The root serves the canonical Ship/Fork/Claim timeline, signed catalog media is publicly projectable, and Registry and Claims relayers remain funded and narrowly enabled for the owner-attended Ship and friend Claim window.",
-    "verified_at": "2026-09-03T16:21:30Z",
+    "post_source_changes": "Production environment configuration pins the exact immutable RC10 URL and SHA-256. The root serves the canonical Ship/Fork/Claim timeline, signed catalog media is publicly projectable, and Registry and Claims relayers remain funded and narrowly enabled for the owner-attended Ship and friend Claim window.",
+    "verified_at": "2026-09-03T18:59:54Z",
     "health_green": true,
     "registry_reads_active": true,
     "registry_relayer_available": true,
@@ -212,37 +222,37 @@
     }
   ],
   "release_candidate_evidence": {
-    "tag": "v1.2.0-rc.9",
+    "tag": "v1.2.0-rc.10",
     "prerelease": true,
-    "published_at": "2026-09-03T16:19:22Z",
-    "artifact_source_commit": "a82050c4efc64973f8e5c6a6925cdae0f29d2a24",
+    "published_at": "2026-09-03T17:59:58Z",
+    "artifact_source_commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
     "worktree_clean_at_build": true,
-    "full_matrix_run_id": null,
-    "full_matrix_source_commit": null,
-    "full_matrix_status_at_release": "not_repeated_for_rc9",
-    "focused_release_verification": "website typecheck and 154 tests, macOS 38 tests, CompanionKit 25 tests, focused Rust checks, a clean universal native build, unsigned and notarized native bundle verification, mounted Gatekeeper acceptance, and immutable GitHub-origin and tohseno.com download digest round trips passed",
+    "full_matrix_run_id": 33786645015,
+    "full_matrix_source_commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
+    "full_matrix_status_at_release": "failed_with_known_cli_assertion_and_older_swift_runner_boundaries",
+    "focused_release_verification": "WorkshopKit 9 tests, CompanionKit 25 tests, macOS 40 tests, Companion 41 tests, focused Rust tests and Clippy, a clean universal native build, unsigned and notarized native bundle verification, mounted Gatekeeper acceptance, and immutable GitHub-origin and tohseno.com download digest round trips passed; older-toolchain Companion compatibility remains unverified",
     "welcome_compute_url": "mailto:support@anky.app",
     "build_machine": "macOS 26.6.2 (25G83), Xcode 26.3 (17C529), Rust 1.88.0",
     "signing_identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
     "signing_certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
     "bundle_identifier": "com.tohseno.mac",
-    "candidate_application_cdhash": "9e0c81ae2f5000a641774d9810837c5de5d5591c",
+    "candidate_application_cdhash": "6bb045af1cf759f3a92cf938bc17d854e0c477fe",
     "architectures": [
       "arm64",
       "x86_64"
     ],
-    "notary_submission_id": "5fae3b02-5f7a-4580-96b4-05a62f543681",
+    "notary_submission_id": "7777bf52-9b8f-4514-8c74-3d15998eea81",
     "notary_status": "Accepted",
-    "notary_upload_at": "2026-09-03T16:12:58.511Z",
+    "notary_upload_at": "2026-09-03T17:53:56.157Z",
     "stapler_validation": "accepted",
-    "dmg_name": "Tohseno-1.2.0-rc.9.dmg",
-    "dmg_size_bytes": 53156943,
-    "dmg_sha256": "24ca9eec77ac004292b371af2b2eb96f6830d6e92f55ba142fb24c12b2c38eef",
-    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.9",
-    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.9/Tohseno-1.2.0-rc.9.dmg",
+    "dmg_name": "Tohseno-1.2.0-rc.10.dmg",
+    "dmg_size_bytes": 53585271,
+    "dmg_sha256": "5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686",
+    "github_release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.10",
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.10/Tohseno-1.2.0-rc.10.dmg",
     "origin_round_trip_sha256_verified": true,
     "public_download_round_trip_sha256_verified": true,
-    "website_candidate_deployment_id": "b216aaae-af3d-4042-b043-d696c76f0edf",
+    "website_candidate_deployment_id": "9c650c3c-1858-47ea-9d69-6ec710d88be6",
     "website_candidate_deployment_status": "SUCCESS",
     "website_health_verified": true,
     "website_release_channel": "release-candidate",
@@ -253,7 +263,7 @@
     "clean_mac_acceptance_verified": false,
     "physical_iphone_acceptance_verified": false,
     "stable_promotion": false,
-    "verified_at": "2026-09-03T16:21:30Z"
+    "verified_at": "2026-09-03T18:59:54Z"
   },
-  "blocking_reason": "RC9 is built from exact clean commit a82050c, Developer ID signed, Apple-notarized under submission 5fae3b02-5f7a-4580-96b4-05a62f543681, stapled, mounted, Gatekeeper-accepted, published as an immutable GitHub prerelease, origin/public-download verified, and activated on tohseno.com's release-candidate channel with digest 24ca9eec77ac004292b371af2b2eb96f6830d6e92f55ba142fb24c12b2c38eef. The website now serves the canonical Ship/Fork/Claim timeline and signed public app media path. JP's real Companion-authorized Anky Ship and immutable Claim Edition remain public. The remaining external steps are a second human's exact-release Claim, local build with their Apple identity, and install on their intended iPhone; none of those remaining physical facts is claimed yet."
+  "blocking_reason": "RC10 is built from exact clean commit a87bed0, Developer ID signed, Apple-notarized under submission 7777bf52-9b8f-4514-8c74-3d15998eea81, stapled, mounted, Gatekeeper-accepted, published as an immutable GitHub prerelease, origin/public-download verified, and activated on tohseno.com's release-candidate channel with digest 5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686. The tagged CI run has a stale CLI version assertion and an older-runner Companion Swift compatibility failure, neither of which is represented as passing. The website serves the canonical Ship/Fork/Claim timeline and signed public app media path. JP's real Companion-authorized Anky Ship and immutable Claim Edition remain public. The remaining external steps are a second human's exact-release Claim, local build with their Apple identity, and install on their intended iPhone; no clean-Mac, Workshop Session, or remaining physical fact is claimed yet."
 }

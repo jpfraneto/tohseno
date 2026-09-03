@@ -147,10 +147,16 @@ notarized artifact; neither category establishes physical-device behavior.
   byte-for-byte and its mounted app passed signature, notarization, bundle,
   architecture, and Gatekeeper verification.
 
-This release did not change the production website pin, which remains RC9. It
-did not claim a clean-Mac launch, intended-iPhone installation, physical
-haptic, or live two-device Workshop Session. Exact machine-readable evidence
-is in `release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
+The initial GitHub publication did not change the production website pin. The
+owner subsequently authorized that upload after observing the RC9 download,
+and production deployment `9c650c3c-1858-47ea-9d69-6ec710d88be6` switched the
+visibly labeled release-candidate route to RC10. Its API and redirect expose the
+exact URL and digest, and a complete download through the website matched the
+53,585,271-byte artifact and SHA-256. This still does not claim a clean-Mac
+launch, intended-iPhone installation, physical haptic, or live two-device
+Workshop Session. Exact machine-readable evidence is in
+`release/V1_2_0_RC10_GITHUB_EVIDENCE.json` and
+`release/V1_2_0_RC10_WEBSITE_EVIDENCE.json`.
 
 The automatic CI run for the tagged commit later failed in two known places:
 the candidate CLI smoke still expected version `1.2.0` although this source's
@@ -169,9 +175,8 @@ older-toolchain Companion compatibility outside the RC10 evidence.
 - No general multi-target association, remote relay, background wake system,
   durable event log, managed Tohseno inference provider, credit purchase, or
   protocol/ABI change was added.
-- No RC10 website activation, stable promotion, or physical acceptance was
-  performed. RC9 remains the truthful website candidate while RC10 is the
-  separately labeled GitHub prerelease.
+- No RC10 stable promotion or physical acceptance was performed. RC10 is the
+  truthful website and GitHub prerelease candidate.
 - No physical iPhone, haptic, local-network reconnection, intended-device
   selection, or revocation behavior was represented as observed.
 

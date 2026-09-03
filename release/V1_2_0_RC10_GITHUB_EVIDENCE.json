@@ -1,5 +1,8 @@
 {
   "schema": "tohseno.github-release-evidence/1",
+  "captured_at": "2026-09-03T18:00:49Z",
+  "scope": "GitHub publication before the later website activation",
+  "later_evidence": "release/V1_2_0_RC10_WEBSITE_EVIDENCE.json",
   "release": {
     "version": "1.2.0-rc.10",
     "channel": "github-prerelease",
