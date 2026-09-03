@@ -18,14 +18,19 @@ shelf, and a persistent One Shot dock in the same world. The first-open and
 readiness chapters now introduce that relationship before exposing detailed
 evidence. The Companion home is the same workshop seen from the pocket, with
 the Mac visibly remote, this iPhone central, and Network, Updates, and Keeper
-present as real destinations.
+present as real destinations. Tohseno is separately embodied as the workshop
+keeper: its posture, gesture, and one short line are derived only from the same
+real scene chapter, so it cannot celebrate ahead of build/install evidence or
+be confused with the Companion's human-authority destination.
 
 All visuals are native SwiftUI vectors/SF Symbols and can be replaced without
 changing state or authority. Motion is state-driven and disabled by Reduce
 Motion. A list fallback, labels, identifiers, keyboard selection, `/` command
 palette, Return-to-open, and the existing Return/Shift–Return composer semantics
-remain available. No sound, points, currency, fake celebration, or shortcut for
-Ship, Claim, signing, or installation was added.
+remain available. Companion gives one restrained system haptic when the person
+deliberately takes a Shot, alongside its existing Claim haptic; there is no
+continuous sound, points, currency, fake celebration, or shortcut for Ship,
+Claim, signing, or installation.
 
 ## Capability migration
 
@@ -62,7 +67,11 @@ evidence projection that permits each visible claim: readiness steps,
 presentation state, workspace cardinality, private update kind, public timeline
 event, Claim activation/edition state, or Companion connection. Tests assert
 the readiness labels against `ReadinessView`, app states against the shared six
-state contract, and private network claims against `PrivateUpdateKind`.
+state contract, and private network claims against `PrivateUpdateKind`. The Mac
+render harness exercises every readiness chapter and every workbench/app state
+without hardware; the Companion harness renders empty, waiting, building,
+ready-for-phone, installing, accepted, and failed states. Separate policy tests
+prove both surfaces return no workshop animation under Reduce Motion.
 
 Captured fixture images:
 

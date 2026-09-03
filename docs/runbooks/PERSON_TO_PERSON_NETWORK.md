@@ -69,22 +69,29 @@ the audited local set cannot change underneath the migration.
    Write** credential. The application issues deletion only for temporary
    `pending/` objects; the later prefix Bucket Lock is the provider-side guard
    against deleting or overwriting final objects.
-3. Add the four `REGISTRY_R2_*` secrets and `REGISTRY_BLOB_STORE=r2` to the service
-   configuration without enabling writes.
-4. From the exact deployed source, run the local-only audit first:
+3. Add the four `REGISTRY_R2_*` secrets while the service selector remains
+   absent or explicitly `REGISTRY_BLOB_STORE=filesystem`. Do not select R2 yet;
+   Railway variable changes can restart the service, and public reads must not
+   reach an empty bucket.
+4. From the exact deployed source, run the local-only audit first. CLI-uploaded
+   deployments may not contain `.git`, so pass the recorded deployed commit
+   explicitly when `RAILWAY_GIT_COMMIT_SHA` is unavailable:
 
    ```sh
    cd website
-   bun run registry:r2:migrate --dry-run
+   REGISTRY_BLOB_STORE=r2 bun run registry:r2:migrate --dry-run \
+     --source-commit=<40-lowercase-hex-deployed-commit>
    ```
 
    Review `catalogRecordCount`, `catalogReferencedBlobCount`, `blobCount`,
-   `unreferencedBlobCount`, `byteCount`, every digest, and the detected Anky
-   release. Dry-run must make no R2 request and writes no audit file.
+   `unreferencedBlobCount`, `byteCount`, `catalogFingerprint`, every digest,
+   and the detected Anky release/catalog-record fingerprint. Dry-run must make
+   no R2 request and writes no audit file.
 5. Apply once, then retain the resulting JSON evidence:
 
    ```sh
-   bun run registry:r2:migrate --apply
+   REGISTRY_BLOB_STORE=r2 bun run registry:r2:migrate --apply \
+     --source-commit=<40-lowercase-hex-deployed-commit>
    ```
 
    Apply re-audits every local permanent blob, uses conditional/create-only R2
@@ -92,7 +99,8 @@ the audited local set cannot change underneath the migration.
    never deletes the local source, and records evidence under
    `REGISTRY_ROOT/r2-migration-audits/`. A failed item is not catalog promotion
    evidence; fix the concrete fault and rerun idempotently.
-6. Restart/deploy with Registry reads using R2 while writes remain dark. Confirm
+6. Only after a zero-failure audit, set `REGISTRY_BLOB_STORE=r2` and
+   restart/deploy with Registry reads using R2 while writes remain dark. Confirm
    the health/status routes, then verify a known Anky source through the public
    application route from outside the hosting platform:
 

@@ -48,8 +48,11 @@ The stable actors are:
   and distributable source are made;
 - the **intended iPhone**, whose observed reachability, installation, and app
   inventory determine delivery truth;
-- the **keeper**, a projection of the paired Companion and the human authority
-  behind its non-exportable DeviceKey, never an autonomous signer;
+- **Tohseno, the workshop keeper**, a state-derived guide whose presence,
+  posture, and terse language can direct attention but can never sign, approve,
+  or originate product truth;
+- the **Companion human authority**, backed by the paired iPhone and its
+  non-exportable DeviceKey, never an autonomous signer or second factory;
 - **app objects**, each backed by an actual generated Shot or adopted living
   project; and
 - the **network threshold**, which shows only locally known, pending, or
@@ -80,8 +83,9 @@ build.
 
 The scene shows real chapter changes, not internal phases: bring the iPhone
 into the workshop, take a Shot, build, ready to install, installed, or needs
-attention. The six accepted application states remain authoritative beneath
-that language. Pairing and first run are presented as bringing the intended
+attention. Tohseno's visible gesture and one short line derive from that same
+chapter and cannot celebrate before its evidence. The six accepted application
+states remain authoritative beneath that language. Pairing and first run are presented as bringing the intended
 iPhone into the same workshop, with one concrete next action and optional
 evidence detail rather than a celebratory progress checklist.
 

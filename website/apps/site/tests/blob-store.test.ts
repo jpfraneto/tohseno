@@ -120,10 +120,11 @@ describe("Registry blob storage", () => {
 
   test("provider failures stay typed and do not become false not-found responses", async () => {
     const client = new MemoryR2Client();
-    client.failure = Object.assign(new Error("provider detail that must remain private"), {
+    const failure = Object.assign(new Error("provider detail that must remain private"), {
       name: "InternalError",
       $metadata: { httpStatusCode: 500 },
     });
+    client.failures.push(failure, failure, failure);
     const store = r2Store(client);
     const root = await mkdtemp(join(tmpdir(), "tohseno-r2-transient-"));
     roots.push(root);
@@ -133,6 +134,24 @@ describe("Registry blob storage", () => {
     await expect(store.stagePending("d".repeat(32), "source", local, {
       digest: digest(value), byteLength: value.byteLength,
     })).rejects.toMatchObject({ kind: "transient" });
+  });
+
+  test("bounded retries recreate a streaming upload after one transient provider failure", async () => {
+    const client = new MemoryR2Client();
+    client.failures.push(Object.assign(new Error("retry once"), {
+      name: "InternalError", $metadata: { httpStatusCode: 500 },
+    }));
+    const store = r2Store(client);
+    const root = await mkdtemp(join(tmpdir(), "tohseno-r2-stream-retry-"));
+    roots.push(root);
+    const local = join(root, "source.bin");
+    const value = new TextEncoder().encode("fresh stream on retry");
+    const expected = { digest: digest(value), byteLength: value.byteLength };
+    await writeFile(local, value);
+
+    await store.stagePending("f".repeat(32), "source", local, expected);
+    expect(client.puts).toHaveLength(1);
+    expect(await store.promotePending("f".repeat(32), "source", expected)).toBe("created");
   });
 
   test("R2 selection fails closed and derives the one official account endpoint", () => {
@@ -192,14 +211,11 @@ class MemoryR2Client implements R2Client {
   readonly objects = new Map<string, StoredObject>();
   readonly puts: Array<Record<string, unknown>> = [];
   readonly getRanges: Array<string | undefined> = [];
-  failure?: Error;
+  readonly failures: Error[] = [];
 
   async send(command: any): Promise<any> {
-    if (this.failure) {
-      const failure = this.failure;
-      this.failure = undefined;
-      throw failure;
-    }
+    const failure = this.failures.shift();
+    if (failure) throw failure;
     const input = command.input as Record<string, any>;
     switch (command.constructor.name) {
     case "PutObjectCommand": {

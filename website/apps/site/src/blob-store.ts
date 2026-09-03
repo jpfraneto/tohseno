@@ -91,6 +91,7 @@ const LENGTH_METADATA = "tohseno-byte-length";
 const REMOTE_REQUEST_TIMEOUT_MS = 30_000;
 const REMOTE_TRANSFER_MAXIMUM_MS = 10 * 60_000;
 const REMOTE_MINIMUM_BYTES_PER_SECOND = 1024 * 1024;
+const REMOTE_OPERATION_ATTEMPTS = 3;
 
 export function createRegistryBlobStore(config: RegistryConfig): RegistryBlobStore {
   if (config.blobStore === "r2") {
@@ -244,7 +245,9 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
-      maxAttempts: 3,
+      // Stream retries are owned below so every attempt receives a fresh body.
+      // A generic SDK retry cannot replay an already-consumed Node stream.
+      maxAttempts: 1,
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler: new NodeHttpHandler({
@@ -269,19 +272,21 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
     validateCoordinates(stagingID, blobKind, expected);
     await verifyLocalFile(localPath, expected);
     const key = pendingKey(stagingID, blobKind);
-    try {
-      await this.send(new PutObjectCommand({
-        Bucket: this.config.bucket,
-        Key: key,
-        Body: createReadStream(localPath),
-        ContentLength: expected.byteLength,
-        ContentType: CONTENT_TYPE,
-        Metadata: objectMetadata(expected),
-        IfNoneMatch: "*",
-      }), transferTimeout(expected.byteLength));
-    } catch (error) {
-      if (!isPreconditionFailed(error)) throw r2Error(error, "stage pending Registry bytes");
-    }
+    await boundedRetry(async () => {
+      try {
+        await this.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: key,
+          Body: createReadStream(localPath),
+          ContentLength: expected.byteLength,
+          ContentType: CONTENT_TYPE,
+          Metadata: objectMetadata(expected),
+          IfNoneMatch: "*",
+        }), transferTimeout(expected.byteLength));
+      } catch (error) {
+        if (!isPreconditionFailed(error)) throw r2Error(error, "stage pending Registry bytes");
+      }
+    });
     await this.verifyObject(key, expected);
   }
 
@@ -303,33 +308,35 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
     const sourceKey = pendingKey(stagingID, blobKind);
     await this.verifyObject(sourceKey, expected);
     const destinationKey = finalKey(expected.digest);
-    let source;
-    try {
-      source = await this.send(new GetObjectCommand({
-        Bucket: this.config.bucket,
-        Key: sourceKey,
-      }));
-    } catch (error) {
-      throw r2Error(error, "read pending Registry bytes");
-    }
-    if (!source.Body) {
-      throw new RegistryBlobStoreError("integrity", "R2 returned pending metadata without an object body");
-    }
-    let result: "created" | "existing" = "created";
-    try {
-      await this.send(new PutObjectCommand({
-        Bucket: this.config.bucket,
-        Key: destinationKey,
-        Body: source.Body,
-        ContentLength: expected.byteLength,
-        ContentType: CONTENT_TYPE,
-        Metadata: objectMetadata(expected),
-        IfNoneMatch: "*",
-      }), transferTimeout(expected.byteLength));
-    } catch (error) {
-      if (!isPreconditionFailed(error)) throw r2Error(error, "promote Registry bytes");
-      result = "existing";
-    }
+    const result = await boundedRetry(async (): Promise<"created" | "existing"> => {
+      let source;
+      try {
+        source = await this.send(new GetObjectCommand({
+          Bucket: this.config.bucket,
+          Key: sourceKey,
+        }));
+      } catch (error) {
+        throw r2Error(error, "read pending Registry bytes");
+      }
+      if (!source.Body) {
+        throw new RegistryBlobStoreError("integrity", "R2 returned pending metadata without an object body");
+      }
+      try {
+        await this.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: destinationKey,
+          Body: source.Body,
+          ContentLength: expected.byteLength,
+          ContentType: CONTENT_TYPE,
+          Metadata: objectMetadata(expected),
+          IfNoneMatch: "*",
+        }), transferTimeout(expected.byteLength));
+        return "created";
+      } catch (error) {
+        if (isPreconditionFailed(error)) return "existing";
+        throw r2Error(error, "promote Registry bytes");
+      }
+    });
     // ETags are intentionally ignored. Both a newly written object and a
     // concurrent existing object must prove the signed length and SHA-256.
     await this.verifyObject(destinationKey, expected);
@@ -338,15 +345,16 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
 
   async metadata(expected: RegistryBlobLocator): Promise<RegistryBlobMetadata> {
     validateLocator(expected);
-    let output;
-    try {
-      output = await this.send(new HeadObjectCommand({
-        Bucket: this.config.bucket,
-        Key: finalKey(expected.digest),
-      }));
-    } catch (error) {
-      throw r2Error(error, "read Registry blob metadata");
-    }
+    const output = await boundedRetry(async () => {
+      try {
+        return await this.send(new HeadObjectCommand({
+          Bucket: this.config.bucket,
+          Key: finalKey(expected.digest),
+        }));
+      } catch (error) {
+        throw r2Error(error, "read Registry blob metadata");
+      }
+    });
     const byteLength = verifyRemoteMetadata(output, expected);
     return { digest: expected.digest, byteLength, contentType: CONTENT_TYPE };
   }
@@ -358,16 +366,17 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
     validateLocator(expected);
     const metadata = await this.metadata(expected);
     validateRange(range, metadata.byteLength);
-    let output;
-    try {
-      output = await this.send(new GetObjectCommand({
-        Bucket: this.config.bucket,
-        Key: finalKey(expected.digest),
-        Range: range ? `bytes=${range.start}-${range.end}` : undefined,
-      }));
-    } catch (error) {
-      throw r2Error(error, "stream Registry blob");
-    }
+    const output = await boundedRetry(async () => {
+      try {
+        return await this.send(new GetObjectCommand({
+          Bucket: this.config.bucket,
+          Key: finalKey(expected.digest),
+          Range: range ? `bytes=${range.start}-${range.end}` : undefined,
+        }));
+      } catch (error) {
+        throw r2Error(error, "stream Registry blob");
+      }
+    });
     if (!output.Body) {
       throw new RegistryBlobStoreError("integrity", "R2 returned Registry metadata without an object body");
     }
@@ -384,35 +393,39 @@ export class R2RegistryBlobStore implements RegistryBlobStore {
   async removePending(stagingID: string): Promise<void> {
     validateStagingID(stagingID);
     for (const kind of ["source", "icon"] as const) {
-      try {
-        await this.send(new DeleteObjectCommand({
-          Bucket: this.config.bucket,
-          Key: pendingKey(stagingID, kind),
-        }));
-      } catch (error) {
-        throw r2Error(error, "remove pending Registry bytes");
-      }
+      await boundedRetry(async () => {
+        try {
+          await this.send(new DeleteObjectCommand({
+            Bucket: this.config.bucket,
+            Key: pendingKey(stagingID, kind),
+          }));
+        } catch (error) {
+          throw r2Error(error, "remove pending Registry bytes");
+        }
+      });
     }
   }
 
   private async verifyObject(key: string, expected: RegistryBlobDescriptor): Promise<void> {
-    let output;
-    try {
-      output = await this.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }));
-    } catch (error) {
-      throw r2Error(error, "verify Registry bytes");
-    }
-    if (!output.Body) {
-      throw new RegistryBlobStoreError("integrity", "R2 returned Registry metadata without an object body");
-    }
-    verifyRemoteMetadata(output, expected);
-    const observed = await hashBody(
-      output.Body as AsyncIterable<Uint8Array>,
-      transferTimeout(expected.byteLength),
-    );
-    if (observed.byteLength !== expected.byteLength || observed.digest !== expected.digest) {
-      throw new RegistryBlobStoreError("integrity", "R2 Registry bytes differ from their signed digest or length");
-    }
+    await boundedRetry(async () => {
+      let output;
+      try {
+        output = await this.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }));
+      } catch (error) {
+        throw r2Error(error, "verify Registry bytes");
+      }
+      if (!output.Body) {
+        throw new RegistryBlobStoreError("integrity", "R2 returned Registry metadata without an object body");
+      }
+      verifyRemoteMetadata(output, expected);
+      const observed = await hashBody(
+        output.Body as AsyncIterable<Uint8Array>,
+        transferTimeout(expected.byteLength),
+      );
+      if (observed.byteLength !== expected.byteLength || observed.digest !== expected.digest) {
+        throw new RegistryBlobStoreError("integrity", "R2 Registry bytes differ from their signed digest or length");
+      }
+    });
   }
 
   private async send(command: unknown, timeoutMs = REMOTE_REQUEST_TIMEOUT_MS): Promise<any> {
@@ -543,6 +556,22 @@ function within<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
       (error) => { clearTimeout(timeout); reject(error); },
     );
   });
+}
+
+async function boundedRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= REMOTE_OPERATION_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt === REMOTE_OPERATION_ATTEMPTS
+          || !(error instanceof RegistryBlobStoreError)
+          || error.kind !== "transient") {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+    }
+  }
+  throw new RegistryBlobStoreError("transient", "R2 operation exhausted its retry bound");
 }
 
 function objectMetadata(expected: RegistryBlobDescriptor): Record<string, string> {

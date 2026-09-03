@@ -1,5 +1,14 @@
 import Foundation
+import SwiftUI
 import TohsenoCompanionKit
+
+enum PocketWorkshopMotion {
+    static func activity(reduceMotion: Bool, active: Bool) -> Animation? {
+        reduceMotion || !active
+            ? nil
+            : .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+    }
+}
 
 public enum CompanionWorkshopChapter: String, Sendable {
     case takeShot = "take_shot"

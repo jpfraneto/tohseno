@@ -36,6 +36,34 @@ struct PresentationTests {
             try png.write(to: URL(fileURLWithPath: output), options: .atomic)
         }
     }
+
+    @MainActor
+    @Test("Every phone-side app chapter renders from deterministic Mac evidence")
+    func pocketWorkshopChaptersRender() async throws {
+        let states: [ExecutionStatus?] = [
+            nil, .queued, .building, .waitingForDevice, .installing, .accepted, .failed,
+        ]
+        let size = NSSize(width: 390, height: 844)
+        for state in states {
+            let shots = state.map { [shot(version: 3, execution: $0)] } ?? []
+            let subject = await model(StubBackend(shots: shots))
+            let host = NSHostingView(
+                rootView: YourAppsView(
+                    model: subject,
+                    openNetwork: {}, openUpdates: {}, openKeeper: {}
+                )
+                .frame(width: size.width, height: size.height)
+                .preferredColorScheme(.dark)
+                .transaction { $0.disablesAnimations = true }
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let png = try #require(bitmap.representation(using: .png, properties: [:]))
+            #expect(png.count > 10_000)
+        }
+    }
     #endif
 
     @Test("The Release app owns a modern full-screen launch configuration")
@@ -92,11 +120,16 @@ struct PresentationTests {
             ),
             encoding: .utf8
         )
-        for label in ["Workshop", "Network", "Updates", "Keeper", "One Shot", "Take the Shot"] {
+        for label in [
+            "Workshop", "Network", "Updates", "Keeper", "One Shot", "Take the Shot",
+            "Tohseno · keeper of the workshop",
+        ] {
             #expect(source.contains("\"\(label)\""))
         }
         #expect(source.contains("KeeperInboxView"))
         #expect(source.contains("CompanionWorkshopProjection"))
+        #expect(source.contains("workshop.tohseno-keeper"))
+        #expect(source.contains("UIImpactFeedbackGenerator(style: .rigid)"))
         #expect(!source.contains(".tabItem { Label(\"Apps\""))
         #expect(!source.contains(".tabItem { Label(\"Registry\""))
         #expect(!source.contains(".tabItem { Label(\"Profile\""))
@@ -127,6 +160,13 @@ struct PresentationTests {
         #expect(empty.chapter == .takeShot)
         #expect(empty.threshold == .unavailable)
         #expect(empty.unreadUpdates == 2)
+    }
+
+    @Test("Pocket workshop motion becomes static for Reduce Motion")
+    func reducedMotion() {
+        #expect(PocketWorkshopMotion.activity(reduceMotion: true, active: true) == nil)
+        #expect(PocketWorkshopMotion.activity(reduceMotion: false, active: false) == nil)
+        #expect(PocketWorkshopMotion.activity(reduceMotion: false, active: true) != nil)
     }
 
     @Test("The Companion consumes the same deterministic workshop scenario contract")

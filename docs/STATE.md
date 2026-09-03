@@ -8,9 +8,10 @@ something below stops being true, update this file in the same change.
 
 ADR 0039 now makes **One Shot** the visible native identity and the **Living
 Workshop** the primary Mac and Companion shell over the one existing factory.
-The Mac scene presents the factory, current app bench, intended iPhone, Keeper,
-network threshold, app shelf, and creation dock as one coherent place. Companion
-shows the same relationship from the pocket. The old destinations remain
+The Mac scene presents the factory, current app bench, intended iPhone, human
+authority, Tohseno as the state-driven workshop keeper, network threshold, app
+shelf, and creation dock as one coherent place. Companion shows the same
+relationship from the pocket. The old destinations remain
 reachable through spatial objects, a destination bar, the app shelf/list, and
 the existing exact app/public-release views. The six-state presentation model,
 Return/Shift–Return composers, Build/App/Source workspace, pairing, DeviceKey
@@ -31,7 +32,10 @@ Remote writes are create-only and pending/final bytes must pass full SHA-256 and
 length readback before public catalog visibility. Public blob URLs are stable;
 provider outages do not become false `404` responses.
 
-Production has not been cut over. A 2026-09-03 read-only inventory found one
+The backward-compatible website source was deployed to the production service
+on 2026-09-03 while the selector remained filesystem; health, Registry status,
+and Anky HEAD/first-range reads passed afterward. Production has not been cut
+over to R2. A read-only inventory found one
 461,076,480-byte Anky source blob whose local SHA-256 matches its signed catalog
 digest. The service has no R2 variables and the accessible Cloudflare account
 has no dedicated Registry bucket, so no migration apply, selector change,

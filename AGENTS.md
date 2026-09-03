@@ -10,7 +10,15 @@ protocol material, not free-form docs.
    `protocol/SPECIFICATION.md`, `protocol/CONFORMANCE.md`, the schemas, and the
    test vectors define exact byte encodings and validation rules. If any prose
    file disagrees with `protocol/`, `protocol/` wins.
-2. **`docs/adr/`** — accepted architectural decisions. ADR 0035 governs Claim,
+2. **`docs/adr/`** — accepted architectural decisions.
+   ADR 0039 governs the One Shot living workshop projection across the native
+   Mac and Companion products: one Mac factory, intended iPhone, Tohseno as
+   workshop keeper, Companion as the paired human authority, real app objects,
+   and a truthful network threshold. It migrates existing capabilities into one
+   shared scene without creating a second factory, restoring Studio, changing
+   protocol/ABI/Claim/Ship/Update semantics, or treating visual motion as real
+   installation or publication.
+   ADR 0035 governs Claim,
    exactly one Ship followed by Updates, immutable per-Shot Claim Editions, the
    additive non-transferable `TohsenoClaimsV1` receipt, the Discover timeline,
    private Following/Updates, and the Companion circle ritual. Claims has a

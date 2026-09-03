@@ -94,15 +94,16 @@ REGISTRY_ROOT=/absolute/durable/registry \
 REGISTRY_BLOB_STORE=r2 \
 REGISTRY_R2_ACCOUNT_ID=... REGISTRY_R2_BUCKET=... \
 REGISTRY_R2_ACCESS_KEY_ID=... REGISTRY_R2_SECRET_ACCESS_KEY=... \
-bun run registry:r2:migrate --dry-run
+bun run registry:r2:migrate --dry-run --source-commit=<40-lowercase-hex>
 
 # Repeat with --apply only after reviewing the dry-run counts and digests.
-bun run registry:r2:migrate --apply
+bun run registry:r2:migrate --apply --source-commit=<40-lowercase-hex>
 ```
 
 Dry-run reads and hashes every local permanent blob without contacting R2.
 Apply repeats the audit, uploads create-only, verifies R2 by reading every byte
-back, keeps all local bytes, and writes a machine-readable audit under
+back, confirms the catalog fingerprint stayed unchanged, keeps all local
+bytes, and writes a machine-readable audit under
 `REGISTRY_ROOT/r2-migration-audits/`. Cutover and rollback are operator actions;
 see the person-to-person network runbook. Cloudflare's relevant behavior is
 documented in its [AWS SDK example](https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/)

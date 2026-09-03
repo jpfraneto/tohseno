@@ -929,6 +929,8 @@ struct YourAppsView: View {
                 )
             }
 
+            PocketTohsenoKeeper(chapter: projection.chapter)
+
             HStack(spacing: 8) {
                 sceneButton("Network", symbol: "door.left.hand.open", detail: thresholdDetail, action: openNetwork)
                 sceneButton(
@@ -1003,6 +1005,82 @@ struct YourAppsView: View {
 
     private var keeperDetail: String {
         projection.keeperAvailable ? "DeviceKey ready" : "Authority unknown"
+    }
+}
+
+private struct PocketTohsenoKeeper: View {
+    let chapter: CompanionWorkshopChapter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var moving = false
+
+    var body: some View {
+        content
+            .padding(.horizontal, 11)
+            .padding(.vertical, 8)
+            .background {
+                RoundedRectangle(cornerRadius: 12).fill(Tohseno.void.opacity(0.58))
+            }
+            .animation(
+                PocketWorkshopMotion.activity(reduceMotion: reduceMotion, active: isWorking),
+                value: moving
+            )
+            .onAppear { moving = isWorking }
+            .onChange(of: chapter) { _, _ in moving = isWorking }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Tohseno, workshop keeper. \(line)")
+            .accessibilityIdentifier("workshop.tohseno-keeper")
+    }
+
+    private var content: some View {
+        HStack(spacing: 9) {
+            keeperMark
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Tohseno · keeper of the workshop")
+                    .font(.caption.weight(.semibold))
+                Text(line)
+                    .font(.caption2)
+                    .foregroundStyle(Tohseno.ash)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var keeperMark: some View {
+        ZStack(alignment: .bottomTrailing) {
+            TohsenoMark(size: 34)
+                .offset(y: moving && !reduceMotion ? -2 : 1)
+            Image(systemName: gesture)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Tohseno.void)
+                .frame(width: 16, height: 16)
+                .background(Tohseno.orange, in: Circle())
+        }
+    }
+
+    private var isWorking: Bool { chapter == .building || chapter == .installing }
+
+    private var line: String {
+        switch chapter {
+        case .takeShot: "Ready when you are."
+        case .waitingForMac: "Waiting for the Mac."
+        case .building: "Working at the bench."
+        case .readyForPhone: "Waiting beside this iPhone."
+        case .installing: "Watching the real handoff."
+        case .installed: "Your devices agree."
+        case .attention: "Open the app to recover."
+        }
+    }
+
+    private var gesture: String {
+        switch chapter {
+        case .takeShot: "scope"
+        case .waitingForMac: "clock.fill"
+        case .building: "hammer.fill"
+        case .readyForPhone: "arrow.down.to.line.compact"
+        case .installing: "eye.fill"
+        case .installed: "checkmark"
+        case .attention: "exclamationmark"
+        }
     }
 }
 
@@ -1324,6 +1402,9 @@ private struct CreateAppView: View {
                 if let notice = model.notice { NoticeView(text: notice) }
 
                 Button {
+                    #if canImport(UIKit)
+                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                    #endif
                     Task { await model.create() }
                 } label: {
                     if model.busy { ProgressView().tint(Tohseno.void) }

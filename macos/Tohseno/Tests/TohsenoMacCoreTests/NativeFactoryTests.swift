@@ -57,6 +57,58 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
+    func testRequiredMacWorkshopStatesRenderWithoutHardware() async throws {
+        let size = NSSize(width: 1_100, height: 760)
+        let ready = ReadinessView(
+            schema: "tohseno.readiness/1", ready: true, step: "ready",
+            headline: "Ready", detail: "Ready", primaryAction: nil, primaryLabel: nil,
+            deviceName: "Fixture iPhone", companionConnected: true
+        )
+        let workshopScenes: [(String, [AppSummary])] = [
+            ("empty_workshop", []),
+            ("one_installed_app", [workshopApp(.installed)]),
+            ("several_apps", [
+                workshopApp(.waiting), workshopApp(.building), workshopApp(.installed),
+            ]),
+            ("app_building", [workshopApp(.building)]),
+            ("ready_to_install", [workshopApp(.readyForPhone)]),
+            ("verified_installed", [workshopApp(.installed)]),
+            ("build_failure", [workshopApp(.failed)]),
+            ("paired_and_ready", []),
+        ]
+        for (scene, apps) in workshopScenes {
+            let suite = "tohseno-render-\(scene)-\(UUID())"
+            let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { preferences.removePersistentDomain(forName: suite) }
+            let model = TohsenoAppModel(
+                client: FakeFactory(workspaceShots: apps, readinessResponses: [ready]),
+                preferences: preferences
+            )
+            await model.reload()
+            let png = try renderPNG(
+                TohsenoLivingWorkshopFixtureView(model: model), size: size
+            )
+            XCTAssertGreaterThan(png.count, 12_000, scene)
+        }
+
+        for step in [
+            "connect_cable", "trust_mac", "developer_mode",
+            "installing_companion", "pairing_companion",
+        ] {
+            let model = TohsenoAppModel(client: FakeFactory(workspaceShots: []))
+            let readiness = ReadinessView(
+                schema: "tohseno.native-onboarding-view/1", ready: false,
+                step: step, headline: "Fixture", detail: "Fixture",
+                primaryAction: nil, primaryLabel: nil
+            )
+            let png = try renderPNG(
+                TohsenoReadinessFixtureView(model: model, readiness: readiness), size: size
+            )
+            XCTAssertGreaterThan(png.count, 10_000, step)
+        }
+    }
+
+    @MainActor
     func testFirstOpenWelcomeRendersAtTheShippingWindowSize() throws {
         let suite = "tohseno-welcome-render-fixture-\(UUID().uuidString)"
         let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -211,6 +263,14 @@ final class NativeFactoryTests: XCTestCase {
             LivingWorkshopProjection(apps: [], readiness: ready, pairedDevices: [], registry: nil).chapter,
             .takeShot
         )
+    }
+
+    func testWorkshopMotionFailsStaticUnderReduceMotion() {
+        XCTAssertNil(WorkshopMotion.ambient(reduceMotion: true))
+        XCTAssertNil(WorkshopMotion.activity(reduceMotion: true, active: true))
+        XCTAssertNil(WorkshopMotion.activity(reduceMotion: false, active: false))
+        XCTAssertNotNil(WorkshopMotion.ambient(reduceMotion: false))
+        XCTAssertNotNil(WorkshopMotion.activity(reduceMotion: false, active: true))
     }
 
     func testHumanPresentationMatchesRustFixture() throws {
@@ -800,6 +860,7 @@ final class NativeFactoryTests: XCTestCase {
             "creation.starters", "readiness.progress", "readiness.harness",
             "readiness.welcome.begin",
             "workshop.scene", "workshop.app-shelf", "workshop.network-threshold",
+            "workshop.tohseno-keeper",
             "workshop.one-shot", "workshop.shot.intention", "workshop.shot.submit",
             "workshop.command-palette", "workshop.list-fallback",
         ] {
@@ -822,6 +883,7 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(workshop.contains("Mac factory"))
         XCTAssertTrue(workshop.contains("Intended iPhone"))
         XCTAssertTrue(workshop.contains("Keeper"))
+        XCTAssertTrue(workshop.contains("Tohseno, workshop keeper"))
         XCTAssertTrue(workshop.contains("Network threshold"))
         XCTAssertTrue(workshop.contains("Take the Shot"))
         XCTAssertFalse(workshop.contains("Execution pipeline"))
@@ -842,6 +904,22 @@ final class NativeFactoryTests: XCTestCase {
             archived: false, retired: false, sortIndex: 0
         )
     }
+
+    @MainActor
+    private func renderPNG<V: View>(_ view: V, size: NSSize) throws -> Data {
+        let host = NSHostingView(
+            rootView: view
+                .frame(width: size.width, height: size.height)
+                .environment(\.colorScheme, .dark)
+                .transaction { $0.disablesAnimations = true }
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+    }
+
 }
 
 private actor FakeFactory: FactoryServing {

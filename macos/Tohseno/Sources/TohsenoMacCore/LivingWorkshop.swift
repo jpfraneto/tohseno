@@ -1,6 +1,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum WorkshopMotion {
+    static func ambient(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true)
+    }
+
+    static func activity(reduceMotion: Bool, active: Bool) -> Animation? {
+        reduceMotion || !active
+            ? nil
+            : .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+    }
+}
+
 public enum WorkshopChapter: String, CaseIterable, Sendable {
     case bringIPhone = "bring_iphone"
     case takeShot = "take_shot"
@@ -443,7 +455,9 @@ private struct WorkshopStoryStage: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Keeper. \(keeperDetail)")
 
-                Spacer(minLength: 18)
+                TohsenoKeeperActor(chapter: projection.chapter)
+
+                Spacer(minLength: 10)
 
                 Button(action: openNetwork) {
                     WorkshopThresholdView(
@@ -467,10 +481,7 @@ private struct WorkshopStoryStage: View {
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .shadow(color: TohsenoTheme.amber.opacity(0.06), radius: 24)
         .scaleEffect(breathes && !reduceMotion ? 1.002 : 1)
-        .animation(
-            reduceMotion ? nil : .easeInOut(duration: 3.2).repeatForever(autoreverses: true),
-            value: breathes
-        )
+        .animation(WorkshopMotion.ambient(reduceMotion: reduceMotion), value: breathes)
         .onAppear { breathes = true }
     }
 
@@ -526,6 +537,88 @@ private struct WorkshopStoryStage: View {
         case .installing: "Installation is not complete until the exact app is observed on the phone."
         case .installed: "Choose an app to change it, or take another Shot."
         case .needsAttention: "Open the app object for the smallest truthful recovery action."
+        }
+    }
+}
+
+/// Tohseno is an inhabitant of the room, not a source of state. Posture and
+/// gesture are selected exclusively from the same real chapter rendered by the
+/// workbench, so the character cannot celebrate ahead of evidence.
+private struct TohsenoKeeperActor: View {
+    let chapter: WorkshopChapter
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var moving = false
+
+    var body: some View {
+        content
+            .padding(10)
+            .frame(minWidth: 190, maxWidth: 230, minHeight: 72, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 14).fill(TohsenoTheme.void.opacity(0.72))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14).stroke(TohsenoTheme.amber.opacity(0.28))
+            }
+            .animation(
+                WorkshopMotion.activity(reduceMotion: reduceMotion, active: isWorking),
+                value: moving
+            )
+            .onAppear { moving = isWorking }
+            .onChange(of: chapter) { _, _ in moving = isWorking }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Tohseno, workshop keeper. \(line)")
+            .accessibilityIdentifier("workshop.tohseno-keeper")
+    }
+
+    private var content: some View {
+        HStack(spacing: 10) {
+            keeperMark
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tohseno")
+                    .font(.callout.weight(.semibold))
+                Text(line)
+                    .font(.caption2)
+                    .foregroundStyle(TohsenoTheme.silver)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private var keeperMark: some View {
+        ZStack(alignment: .bottomTrailing) {
+            TohsenoLivingMark(size: 42)
+                .offset(y: moving && !reduceMotion ? -2 : 1)
+            Image(systemName: gesture)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(TohsenoTheme.void)
+                .frame(width: 20, height: 20)
+                .background(TohsenoTheme.amber, in: Circle())
+        }
+    }
+
+    private var isWorking: Bool { chapter == .building || chapter == .installing }
+
+    private var line: String {
+        switch chapter {
+        case .bringIPhone: "Bring your iPhone in."
+        case .takeShot: "Ready when you are."
+        case .building: "Working at the bench."
+        case .readyToInstall: "Waiting beside the dock."
+        case .installing: "Watching the real handoff."
+        case .installed: "Verified on your iPhone."
+        case .needsAttention: "Open the app to recover."
+        }
+    }
+
+    private var gesture: String {
+        switch chapter {
+        case .bringIPhone: "hand.wave.fill"
+        case .takeShot: "scope"
+        case .building: "hammer.fill"
+        case .readyToInstall: "arrow.down.to.line.compact"
+        case .installing: "eye.fill"
+        case .installed: "checkmark"
+        case .needsAttention: "exclamationmark"
         }
     }
 }
@@ -593,9 +686,7 @@ private struct WorkshopFlowLine: View {
         }
         .frame(minWidth: 32, idealWidth: 64, maxWidth: 90, minHeight: 10, maxHeight: 10)
         .animation(
-            reduceMotion || !active
-                ? nil
-                : .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
+            WorkshopMotion.activity(reduceMotion: reduceMotion, active: active),
             value: travels
         )
         .onAppear { travels = true }

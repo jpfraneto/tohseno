@@ -11,16 +11,22 @@ export interface RegistryR2MigrationAudit {
   sourceCommit: string;
   observedAt: string;
   bucketFingerprint: `0x${string}`;
+  catalogFingerprint: `0x${string}` | null;
   catalogRecordCount: number;
   catalogReferencedBlobCount: number;
   blobCount: number;
   unreferencedBlobCount: number;
   byteCount: number;
   digests: `0x${string}`[];
-  anky: { releaseDigest: `0x${string}`; sourceDigest: `0x${string}` } | null;
+  anky: {
+    releaseDigest: `0x${string}`;
+    sourceDigest: `0x${string}`;
+    catalogRecordSHA256: `0x${string}`;
+    checkpointSequence: number;
+  } | null;
   failures: Array<{ digest?: string; stage: string; message: string }>;
   passed: boolean;
-  auditPath?: string;
+  auditFilename?: string;
 }
 
 interface MigrationBlob extends RegistryBlobDescriptor {
@@ -32,6 +38,7 @@ interface MigrationPlan {
   blobs: MigrationBlob[];
   referencedBlobs: number;
   anky: RegistryR2MigrationAudit["anky"];
+  catalogFingerprint: `0x${string}` | null;
 }
 
 export async function migrateRegistryBlobs(options: {
@@ -43,7 +50,9 @@ export async function migrateRegistryBlobs(options: {
   bucketFingerprint: `0x${string}`;
 }): Promise<RegistryR2MigrationAudit> {
   const failures: RegistryR2MigrationAudit["failures"] = [];
-  let plan: MigrationPlan = { records: 0, blobs: [], referencedBlobs: 0, anky: null };
+  let plan: MigrationPlan = {
+    records: 0, blobs: [], referencedBlobs: 0, anky: null, catalogFingerprint: null,
+  };
   try {
     plan = await migrationPlan(options.root);
   } catch (error) {
@@ -55,6 +64,7 @@ export async function migrateRegistryBlobs(options: {
     sourceCommit: options.sourceCommit,
     observedAt: options.observedAt,
     bucketFingerprint: options.bucketFingerprint,
+    catalogFingerprint: plan.catalogFingerprint,
     catalogRecordCount: plan.records,
     catalogReferencedBlobCount: plan.referencedBlobs,
     blobCount: plan.blobs.length,
@@ -84,12 +94,25 @@ export async function migrateRegistryBlobs(options: {
       failures.push({ stage: "r2_initialization", message: publicFailure(error) });
     }
   }
+  if (plan.catalogFingerprint) {
+    try {
+      const after = await currentCatalogFingerprint(options.root);
+      if (after !== plan.catalogFingerprint) {
+        failures.push({
+          stage: "catalog_consistency",
+          message: "Registry catalog records changed during the migration",
+        });
+      }
+    } catch (error) {
+      failures.push({ stage: "catalog_consistency", message: publicFailure(error) });
+    }
+  }
   audit.passed = failures.length === 0;
   const auditDirectory = join(options.root, "r2-migration-audits");
   await mkdir(auditDirectory, { recursive: true, mode: 0o700 });
   const safeTimestamp = options.observedAt.replaceAll(":", "-");
-  const auditPath = join(auditDirectory, `${safeTimestamp}.json`);
-  audit.auditPath = auditPath;
+  audit.auditFilename = `${safeTimestamp}.json`;
+  const auditPath = join(auditDirectory, audit.auditFilename);
   await writeFile(auditPath, `${JSON.stringify(audit, null, 2)}\n`, { mode: 0o600, flag: "wx" });
   return audit;
 }
@@ -103,12 +126,14 @@ async function migrationPlan(root: string): Promise<MigrationPlan> {
   const releasesRoot = join(root, "releases");
   const names = (await readdir(releasesRoot)).filter((name) => /^[0-9a-f]{64}\.json$/.test(name)).sort();
   if (names.length > 100_000) throw new Error("catalog contains too many release records");
+  const catalogFingerprint = await catalogFingerprintForNames(releasesRoot, names);
   const blobs = await inventoryLocalBlobs(root);
   const referenced = new Set<string>();
   let anky: RegistryR2MigrationAudit["anky"] = null;
   let ankySequence = 0;
   for (const name of names) {
-    const record = await safeJSON(join(releasesRoot, name));
+    const loaded = await safeJSON(join(releasesRoot, name));
+    const record = loaded.value;
     const releaseDigest = hex32(record.releaseDigest, "release digest");
     if (`${releaseDigest.slice(2)}.json` !== name) throw new Error("release filename differs from its digest");
     const envelope = object(record.envelope, "catalog envelope");
@@ -116,36 +141,54 @@ async function migrationPlan(root: string): Promise<MigrationPlan> {
     const source = object(release.source, "catalog source");
     const sourceDigest = hex32(source.sha256, "source digest");
     const sourceLength = positiveInteger(source.byte_length, "source byte length");
-    requireCatalogBlob(blobs, referenced, sourceDigest, sourceLength);
+    requireCatalogBlob(blobs, referenced, releaseDigest, sourceDigest, sourceLength);
     const display = object(release.display, "catalog display");
     if (display.icon_sha256 !== null && display.icon_sha256 !== undefined) {
       const iconDigest = hex32(display.icon_sha256, "icon digest");
       const icon = blobs.get(iconDigest);
-      if (!icon) throw new Error("catalog icon blob is absent from local storage");
+      if (!icon) {
+        throw new Error(`catalog release ${releaseDigest} icon ${iconDigest} is absent from local storage`);
+      }
       referenced.add(iconDigest);
     }
     if (typeof display.name === "string" && display.name.toLocaleLowerCase("en-US") === "anky") {
       const sequence = positiveInteger(release.checkpoint_sequence, "checkpoint sequence");
       if (sequence >= ankySequence) {
-        anky = { releaseDigest, sourceDigest };
+        anky = {
+          releaseDigest,
+          sourceDigest,
+          catalogRecordSHA256: loaded.sha256,
+          checkpointSequence: sequence,
+        };
         ankySequence = sequence;
       }
     }
   }
   const ordered = [...blobs.values()].sort((left, right) => left.digest.localeCompare(right.digest));
   for (const blob of ordered) await verifyLocalBlob(blob);
-  return { records: names.length, blobs: ordered, referencedBlobs: referenced.size, anky };
+  return {
+    records: names.length,
+    blobs: ordered,
+    referencedBlobs: referenced.size,
+    anky,
+    catalogFingerprint,
+  };
 }
 
 function requireCatalogBlob(
   blobs: Map<string, MigrationBlob>,
   referenced: Set<string>,
+  releaseDigest: `0x${string}`,
   digest: `0x${string}`,
   byteLength: number,
 ): void {
   const existing = blobs.get(digest);
-  if (!existing) throw new Error("catalog source blob is absent from local storage");
-  if (existing.byteLength !== byteLength) throw new Error("catalog source length differs from local storage");
+  if (!existing) {
+    throw new Error(`catalog release ${releaseDigest} source ${digest} is absent from local storage`);
+  }
+  if (existing.byteLength !== byteLength) {
+    throw new Error(`catalog release ${releaseDigest} source ${digest} has the wrong local length`);
+  }
   referenced.add(digest);
 }
 
@@ -209,14 +252,45 @@ async function safeFile(path: string) {
   return details;
 }
 
-async function safeJSON(path: string): Promise<Record<string, unknown>> {
+async function safeJSON(path: string): Promise<{
+  value: Record<string, unknown>;
+  sha256: `0x${string}`;
+}> {
   const details = await safeFile(path);
   if (details.size < 2 || details.size > MAX_RECORD_BYTES) throw new Error("catalog record is outside its size bound");
   const bytes = await readFile(path);
   const final = await safeFile(path);
   if (details.dev !== final.dev || details.ino !== final.ino || details.size !== final.size
       || details.mtimeMs !== final.mtimeMs) throw new Error("catalog record changed while it was read");
-  return object(JSON.parse(bytes.toString("utf8")), "catalog record");
+  return {
+    value: object(JSON.parse(bytes.toString("utf8")), "catalog record"),
+    sha256: `0x${new Bun.CryptoHasher("sha256").update(bytes).digest("hex")}`,
+  };
+}
+
+async function currentCatalogFingerprint(root: string): Promise<`0x${string}`> {
+  const releasesRoot = join(root, "releases");
+  const names = (await readdir(releasesRoot))
+    .filter((name) => /^[0-9a-f]{64}\.json$/.test(name))
+    .sort();
+  if (names.length > 100_000) throw new Error("catalog contains too many release records");
+  return catalogFingerprintForNames(releasesRoot, names);
+}
+
+async function catalogFingerprintForNames(
+  releasesRoot: string,
+  names: string[],
+): Promise<`0x${string}`> {
+  const hasher = new Bun.CryptoHasher("sha256");
+  hasher.update("TOHSENO-REGISTRY-CATALOG-MIGRATION-V1\0");
+  for (const name of names) {
+    const loaded = await safeJSON(join(releasesRoot, name));
+    hasher.update(name);
+    hasher.update("\0");
+    hasher.update(loaded.sha256);
+    hasher.update("\0");
+  }
+  return `0x${hasher.digest("hex")}`;
 }
 
 function object(value: unknown, label: string): Record<string, unknown> {

@@ -540,10 +540,22 @@ describe("public Registry trust bridge", () => {
     expect(ranged.headers.get("content-range")).toBe(`bytes 2-7/${source.byteLength}`);
     expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(source.slice(2, 8));
 
+    const firstByte = await router.fetch(new Request(url, { headers: { range: "bytes=0-0" } }));
+    expect(firstByte.status).toBe(206);
+    expect(firstByte.headers.get("content-length")).toBe("1");
+    expect(firstByte.headers.get("content-range")).toBe(`bytes 0-0/${source.byteLength}`);
+    expect(new Uint8Array(await firstByte.arrayBuffer())).toEqual(source.slice(0, 1));
+
     const invalidRange = await router.fetch(new Request(url, { headers: { range: "bytes=7-2" } }))
       .catch((error: { message: string; status: number }) =>
         new Response(error.message, { status: error.status }));
     expect(invalidRange.status).toBe(416);
+
+    const oversizedRange = await router.fetch(new Request(url, {
+      headers: { range: `bytes=0-${16 * 1024 * 1024}` },
+    })).catch((error: { message: string; status: number }) =>
+      new Response(error.message, { status: error.status }));
+    expect(oversizedRange.status).toBe(416);
 
     const pendingNamespace = await router.fetch(new Request(
       `http://localhost/api/registry/v1/blobs/pending/${"a".repeat(32)}/source`,
@@ -563,6 +575,45 @@ describe("public Registry trust bridge", () => {
       (error: { message: string; status: number }) => new Response(error.message, { status: error.status }),
     );
     expect(missing.status).toBe(404);
+  });
+
+  test("keeps manual-finalize staging retryable across a transient final-store outage", async () => {
+    const { envelope, release, source, config, verifier } = await fixture();
+    const store = new FaultInjectingBlobStore(
+      new FilesystemRegistryBlobStore(join(config.registry.root!, "test-remote-blobs")),
+    );
+    store.promoteFailures = 1;
+    const router = await createRegistryRouter(config, verifier, undefined, undefined, store);
+    const staged = await router.fetch(new Request("http://localhost/api/registry/v1/staging", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ envelope }),
+    }));
+    const reservation = await staged.json() as Record<string, string>;
+    await router.fetch(new Request(`http://localhost${reservation.source_url}`, {
+      method: "PUT", headers: {
+        authorization: `Bearer ${reservation.upload_token}`,
+        "content-length": String(source.byteLength),
+      }, body: source.slice().buffer as ArrayBuffer,
+    }));
+    const finalize = () => router.fetch(new Request(`http://localhost${reservation.finalize_url}`, {
+      method: "POST", headers: {
+        authorization: `Bearer ${reservation.upload_token}`,
+        "content-type": "application/json",
+      }, body: JSON.stringify({ transaction_hash: `0x${"66".repeat(32)}` }),
+    })).catch((error: { message: string; status: number }) =>
+      new Response(error.message, { status: error.status }));
+
+    const unavailable = await finalize();
+    expect(unavailable.status).toBe(503);
+    expect(await stat(join(config.registry.root!, "staging", `${reservation.staging_id}.source`)))
+      .toBeDefined();
+    expect((await router.fetch(new Request("http://localhost/api/registry/v1/shots"))
+      .then((value) => value.json()) as { releases: unknown[] }).releases).toHaveLength(0);
+
+    const complete = await finalize();
+    expect(complete.status).toBe(201);
+    expect((await complete.json() as Record<string, unknown>).release_digest)
+      .toBe(sha256(new TextEncoder().encode(canonicalCatalogJSON(release))));
   });
 
   test("keeps an active publication and its bytes beyond nominal staging expiry", async () => {

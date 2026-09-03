@@ -24,7 +24,9 @@ blob URL changed.
 Every remote write is conditional/create-only. The store verifies declared
 length and SHA-256 before upload, reads the pending object back, promotes it to
 the final content-addressed key, and reads the final object back before the
-catalog can become visible. ETags are ignored as integrity evidence. A relayed
+catalog can become visible. Stream-bearing operations retry at most three times
+with a fresh body on each attempt; integrity conflicts are never retried. ETags
+are ignored as integrity evidence. A relayed
 publication records durable pending completion before its first chain call;
 retries preserve transaction hashes and therefore do not create a second
 Registry or Claims transaction.
@@ -77,17 +79,27 @@ Cloudflare account has no dedicated Tohseno Registry bucket. Therefore no R2
 bucket was created, no credentials were minted, no bytes were migrated, no
 selector was changed, and no Bucket Lock rule was applied.
 
+The backward-compatible source was deployed to the real service with the
+filesystem selector on 2026-09-03 as Railway deployment
+`9f35f2fe-9e55-4544-91b9-311fb276cad3`. Afterward `/healthz` and the Registry
+status route succeeded, Anky `HEAD` returned its signed length/digest, and
+`bytes=0-31` returned `206` with the exact inclusive range and 32 bytes. This
+is deployment/cutover-baseline evidence only; it is not an R2 migration.
+
 ## Migration and rollback
 
 `bun run registry:r2:migrate --dry-run` inventories every canonical permanent
 local blob, independently hashes it, checks all catalog references and declared
 source lengths, counts unreferenced objects, identifies the newest Anky record,
-and makes no R2 call or local audit write.
+fingerprints the exact catalog and Anky record, and makes no R2 call or local
+audit write. An explicit `--source-commit=<40-lowercase-hex>` keeps the evidence
+usable in CLI-uploaded production images that have no `.git` directory.
 
 `bun run registry:r2:migrate --apply` repeats that audit, writes each digest
 create-only through the same blob-store seam, verifies every destination by
-full readback, removes only its temporary pending object, retains every local
-byte, and writes a machine-readable audit under
+full readback, confirms the catalog fingerprint did not change during the
+operation, removes only its temporary pending object, retains every local byte,
+and writes a machine-readable audit under
 `REGISTRY_ROOT/r2-migration-audits/`. Reruns are idempotent and deduplicate by
 final digest.
 
