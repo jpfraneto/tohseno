@@ -1,0 +1,52 @@
+{
+  "schema": "tohseno.npm-publication-observation/1",
+  "observed_at": "2026-09-03T02:35:04Z",
+  "package": "tohseno",
+  "npm_version": "1.2.0",
+  "dist_tag": "latest",
+  "published_at": "2026-09-03T02:34:04.990Z",
+  "cli_runtime_version": "1.2.0",
+  "cli_manifest": "https://tohseno.com/releases/cli-v1.json",
+  "cli_manifest_sha256": "4f1806f680183d34c99991459d68bad8a230923e2c9bd7e68b9247571e308765",
+  "cli_github_release": "https://github.com/jpfraneto/tohseno/releases/tag/npm-v1.2.0",
+  "runtime_source_commit": "bceb8ce00be23621c9eb4f7b286f63f4bfbee839",
+  "runtime_source_state_sha256": "0457e911975c58c03ef1d310f2ce86d2ce92827438ebc0db3e21006f98f73d71",
+  "runtime_artifacts": [
+    {
+      "target": "aarch64-apple-darwin",
+      "byte_length": 13239982,
+      "sha256": "54cc8b76846df5def59ba556fa001a959026670f81cc785571fb15f2479b2fe1"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "byte_length": 14020586,
+      "sha256": "8821b0e66822561270bb7f4aff552a23cb898bfcd19b6f082da5264a39ee34c9"
+    }
+  ],
+  "tarball": {
+    "url": "https://registry.npmjs.org/tohseno/-/tohseno-1.2.0.tgz",
+    "byte_length": 9393,
+    "sha1": "3c6b45f291aed0c384eaf7fbac59df47093ffebe",
+    "sha256": "bd8bdaf990ed2deb445dabfac1545a664743e8041a1f4ff1fe31838f243c111a",
+    "integrity": "sha512-fkSmUR1VTQnZRffCDvs5HQHVb4a2DGCUuncuU+qrOlJnFmj0r0hJ0+BChAD1LQUyQ535PQ4vECnDZHFulxknoA==",
+    "file_count": 13,
+    "unpacked_byte_length": 29920
+  },
+  "website_deployment": {
+    "provider": "Railway",
+    "environment": "production",
+    "deployment_id": "84dad5db-a19d-4557-a984-240ee3ae4310",
+    "status": "SUCCESS",
+    "manifest_round_trip_verified": true
+  },
+  "public_smoke": {
+    "npm_latest_resolved_to_1_2_0": true,
+    "npm_install_had_no_machine_lifecycle_side_effect": true,
+    "no_argument_guide_named_init_then_deploy": true,
+    "live_runtime_download_and_checksum_verification_green": true,
+    "developer_id_signature_verified": true,
+    "installed_runtime_reported_1_2_0": true,
+    "installed_runtime_source_commit_matched": true
+  },
+  "boundary": "This publishes the CLI-only npm launcher and its separately pinned signed command runtime. It does not promote the stable Tohseno.app DMG or fabricate Companion, Claim, recipient-signing, or physical-install evidence."
+}

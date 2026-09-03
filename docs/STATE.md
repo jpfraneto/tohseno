@@ -473,9 +473,11 @@ a time; JSON and non-interactive use do not pause. At first operational use,
 the launcher uses one fixed CLI manifest, refuses redirects and unapproved
 origins, verifies exact size, SHA-256, release layout/checksums, and Apple
 signing policy, and activates the command runtime only in the existing
-user-owned layout. Public npm `latest` remains 1.0.1 until the 1.2.0 CLI
-manifest, signed archives, and npm package are separately published and
-verified.
+user-owned layout. Public npm `latest` is now 1.2.0. Its fixed CLI manifest,
+both architecture-specific Developer ID signed runtime archives, public npm
+tarball, and a fresh isolated npm-to-runtime installation were independently
+round-trip verified. Exact publication evidence is recorded in
+`release/NPM_1_2_0_PUBLICATION.json`.
 
 ## Private Companion channel
 
@@ -614,12 +616,14 @@ acceptance window.
 
 ## Published release
 
-Native **1.0.0** is the current public product release. The signed `v1.0.0`
-GitHub release, native manifest, and public installer pin were published and
-independently checked before activation. The public website and installer
-serve native 1.0.0. npm's independently versioned front door is 1.0.1 and
-delegates to that native release. Publication evidence for the npm patch is in
-`release/NPM_1_0_1_PUBLICATION.json`.
+Native **1.0.0** remains the current stable native product release. The signed
+`v1.0.0` GitHub release, native manifest, and public installer pin were
+published and independently checked before activation. npm's independently
+versioned CLI door is now 1.2.0. It installs only its side-effect-free launcher
+and lazily activates the exact Developer ID signed 1.2.0 command runtime from
+the separate CLI manifest; it does not promote the stable native-app DMG.
+Publication evidence is preserved in `release/NPM_1_0_1_PUBLICATION.json` and
+`release/NPM_1_2_0_PUBLICATION.json`.
 
 Native **1.1.0** remains an unreleased source candidate frozen to exact commit
 `ee16e1e2cef95a2598632bc9444d5011998aebae`; its readiness record remains false
