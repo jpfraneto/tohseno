@@ -315,6 +315,11 @@ const STATIC_FILES: Record<
     type: "application/json; charset=utf-8",
     revalidate: true,
   },
+  "/releases/cli-v1.json": {
+    file: "releases/cli-v1.json",
+    type: "application/json; charset=utf-8",
+    revalidate: true,
+  },
   "/robots.txt": { file: "robots.txt", type: "text/plain; charset=utf-8" },
   "/logo.svg": { file: "logo.svg", type: "image/svg+xml" },
   "/landing-assets/wordmark.svg": {
@@ -426,6 +431,8 @@ function semanticRoute(pathname: string): string {
   if (pathname === "/oneshot.sh") return "installer";
   if (pathname === "/releases/native-v1.json")
     return "native-release-manifest";
+  if (pathname === "/releases/cli-v1.json")
+    return "cli-release-manifest";
   if (pathname === "/whitepaper.pdf") return "whitepaper";
   if (STATIC_FILES[pathname]) return "static-asset";
   if (SHOT_ICON_PATH.test(pathname)) return "shot-icon";

@@ -68,6 +68,9 @@ const oneshotInstallerPath = fileURLToPath(
 const nativeReleaseManifestPath = fileURLToPath(
   new URL("../public/releases/native-v1.json", import.meta.url),
 );
+const cliReleaseManifestPath = fileURLToPath(
+  new URL("../public/releases/cli-v1.json", import.meta.url),
+);
 const openGraphImagePath = fileURLToPath(
   new URL("../public/og.png", import.meta.url),
 );
@@ -450,6 +453,7 @@ describe("public pages", () => {
       ["/manifest.webmanifest", "application/manifest+json"],
       ["/sw.js", "text/javascript"],
       ["/releases/native-v1.json", "application/json"],
+      ["/releases/cli-v1.json", "application/json"],
       ["/robots.txt", "text/plain"],
       ["/og.png", "image/png"],
       ["/og-buy.png", "image/png"],
@@ -569,6 +573,30 @@ describe("public pages", () => {
       expect(artifact.signing.designated_requirement).toContain(
         'certificate leaf[subject.OU] = "84V63LKV45"',
       );
+    }
+  });
+
+  test("serves the exact signed npm CLI runtime manifest", async () => {
+    const application = await testApplication();
+    const expected = JSON.parse(readFileSync(cliReleaseManifestPath, "utf8"));
+    const response = await application.fetch(request("/releases/cli-v1.json"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(
+      "application/json; charset=utf-8",
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect(await response.json()).toEqual(expected);
+    expect(expected.schema).toBe("tohseno.native-release-manifest/1");
+    expect(expected.native_release_version).toBe("1.2.0");
+    expect(expected.minimum_npm_cli_version).toBe("1.2.0");
+    expect(expected.artifacts).toHaveLength(2);
+    for (const artifact of expected.artifacts) {
+      expect(artifact.url).toContain("/releases/download/npm-v1.2.0/");
+      expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(artifact.signing.kind).toBe("apple-developer-id");
+      expect(artifact.signing.team_id).toBe("84V63LKV45");
     }
   });
 
