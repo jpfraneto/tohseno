@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import TohsenoWorkshopKit
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -20,6 +21,7 @@ public enum AppRoute: Hashable, Sendable {
 @MainActor
 @Observable
 public final class TohsenoAppModel {
+    public let workshopRuntime: WorkshopHostRuntime
     public private(set) var workspace: WorkspaceSnapshot?
     public private(set) var defaults: FactoryDefaults?
     public private(set) var readiness: ReadinessView?
@@ -58,7 +60,7 @@ public final class TohsenoAppModel {
     public var evolutions: [String: EvolutionDraft] = [:]
     public var customHarness = CustomHarnessDraft()
     public var localEndpoint = LocalEndpointDraft()
-    public var advancedExpanded = true
+    public var advancedExpanded = false
 
     private let client: any FactoryServing
     private let preferences: UserDefaults
@@ -70,6 +72,10 @@ public final class TohsenoAppModel {
     public init(client: any FactoryServing, preferences: UserDefaults = .standard) {
         self.client = client
         self.preferences = preferences
+        workshopRuntime = WorkshopHostRuntime(
+            authorizer: client,
+            localDeviceName: "This Mac"
+        )
         hasSkippedFirstShot = preferences.bool(forKey: "tohseno.first-shot-skipped")
         followedBuilderIDs = Set(preferences.stringArray(forKey: "tohseno.followed-builders.v1") ?? [])
         restoreRoute()
@@ -77,6 +83,14 @@ public final class TohsenoAppModel {
 
     public var apps: [AppSummary] { workspace?.visibleApps ?? [] }
     public var archivedApps: [AppSummary] { workspace?.archivedApps ?? [] }
+    public var intelligenceProviders: [FactoryHarnessOption] {
+        (defaults?.harnesses ?? []).filter {
+            $0.id != "tohseno-managed"
+                && $0.installed
+                && $0.authentication == .authenticated
+        }
+    }
+    public var intelligenceAvailable: Bool { !intelligenceProviders.isEmpty }
     public var connectedDeviceDescription: String? {
         guard let readiness else { return nil }
         if let product = readiness.deviceProductType, product != readiness.deviceName {
@@ -98,6 +112,9 @@ public final class TohsenoAppModel {
         monitoringTask = Task { [weak self] in
             guard let self else { return }
             await self.reload()
+            self.workshopRuntime.setIntelligenceReady(self.intelligenceAvailable)
+            await self.workshopRuntime.start()
+            await TohsenoWorkshop.current.use(session: self.workshopRuntime)
             self.startReadinessMonitoringIfNeeded()
             while !Task.isCancelled {
                 let stream = await self.client.events()
@@ -125,10 +142,10 @@ public final class TohsenoAppModel {
             self.readiness = try await readiness
             self.workspace = try await workspace
             self.defaults = try await defaults
+            workshopRuntime.setIntelligenceReady(intelligenceAvailable)
             await refreshCompanionDevices()
             await refreshCLIIntegration()
             await refreshAssets()
-            await refreshManaged()
             repairRoute()
             await refreshSelectedAppDetails()
             errorMessage = nil
@@ -231,6 +248,7 @@ public final class TohsenoAppModel {
                         self.companionPairingSession = current
                         if current.state == "paired" {
                             await self.refreshCompanionDevices()
+                            await self.workshopRuntime.start()
                             return
                         }
                         if current.state == "expired" || current.state == "cancelled" { return }
@@ -261,6 +279,16 @@ public final class TohsenoAppModel {
             errorMessage = error.localizedDescription
         }
         await refreshCompanionDevices()
+        await workshopRuntime.start()
+    }
+
+    public func sendWorkshopPulse() async {
+        do {
+            try await workshopRuntime.sendPulse()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     public func refreshAssets() async {
@@ -753,9 +781,9 @@ public final class TohsenoAppModel {
         catch { errorMessage = error.localizedDescription }
     }
 
-    /// Seeds a new evolution from the app's last durable execution route.
-    /// The owner can restore Automatic under Advanced, and managed work still
-    /// requires a fresh estimate, maximum, and consent for every request.
+    /// Seeds a new evolution from the app's last durable local/BYO route.
+    /// Historical managed receipts remain readable, but the unfinished managed
+    /// product is not restored into the current primary experience.
     public func prepareEvolution(for app: AppSummary) async {
         guard evolutions[app.id] == nil else { return }
         do {
@@ -768,12 +796,9 @@ public final class TohsenoAppModel {
                 evolutions[app.id] = EvolutionDraft()
                 return
             }
-            var draft = EvolutionDraft(harness: latest.harnessID, model: latest.model)
-            if latest.harnessID == "tohseno-managed" {
-                draft.managedPrivacy = latest.route.replacingOccurrences(of: "managed-", with: "")
-                draft.managedMaximumMicrousd = nil
-                draft.managedConsent = false
-            }
+            let draft = latest.harnessID == "tohseno-managed"
+                ? EvolutionDraft()
+                : EvolutionDraft(harness: latest.harnessID, model: latest.model)
             evolutions[app.id] = draft
         } catch {
             evolutions[app.id] = EvolutionDraft()

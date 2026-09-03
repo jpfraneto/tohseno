@@ -239,6 +239,10 @@ python3 "$integrity_tool" validate-tree \
   --exclude-dir-name .build \
   --exclude-dir-name .swiftpm
 python3 "$integrity_tool" validate-tree \
+  --root "$build_root/sdk/apple/TohsenoWorkshopKit" \
+  --exclude-dir-name .build \
+  --exclude-dir-name .swiftpm
+python3 "$integrity_tool" validate-tree \
   --root "$build_root/apple-identity" \
   --exclude-dir-name .build \
   --exclude-dir-name .swiftpm \
@@ -267,6 +271,7 @@ mkdir -p \
   "$package/share/studio" \
   "$package/share/apple-identity" \
   "$package/share/sdk/apple/TohsenoCompanionKit" \
+  "$package/share/sdk/apple/TohsenoWorkshopKit" \
   "$package/share/companion/test-vectors" \
   "$package/share/companion/apple/TohsenoCompanion" \
   "$package/share/genesis"
@@ -309,6 +314,13 @@ fi
   tar --exclude .build --exclude .swiftpm -cf - .
 ) | (
   cd "$package/share/sdk/apple/TohsenoCompanionKit"
+  tar -xf -
+)
+(
+  cd "$build_root/sdk/apple/TohsenoWorkshopKit"
+  tar --exclude .build --exclude .swiftpm -cf - .
+) | (
+  cd "$package/share/sdk/apple/TohsenoWorkshopKit"
   tar -xf -
 )
 cp -RP \

@@ -1340,21 +1340,13 @@ private struct CreationView: View {
                         .font(.caption)
                         .foregroundStyle(TohsenoTheme.silver)
                 }
-                if model.defaults?.ready != true, model.managedCatalog?.models.isEmpty == false {
-                    ManagedAccessCard(model: model)
-                }
                 AdvancedRouteDisclosure(
                     model: model,
                     harness: $model.creation.harness,
-                    selectedModel: $model.creation.model,
-                    privacy: $model.creation.managedPrivacy,
-                    maximumMicrousd: $model.creation.managedMaximumMicrousd,
-                    consent: $model.creation.managedConsent,
-                    estimate: model.creationEstimate
+                    selectedModel: $model.creation.model
                 )
-                .task(id: creationEstimateKey) { await model.estimateCreation() }
                 HStack {
-                    RouteCostView(model: model, harness: model.creation.harness, estimate: model.creationEstimate)
+                    RouteCostView(model: model, harness: model.creation.harness)
                     ShotKeyboardHint()
                     Spacer()
                     Button {
@@ -1391,15 +1383,6 @@ private struct CreationView: View {
         .task { intentionFocused = true }
     }
 
-    private var creationEstimateKey: String {
-        [
-            model.creation.harness ?? "automatic",
-            model.creation.model ?? "default",
-            model.creation.managedPrivacy,
-            String(model.creation.intention.utf8.count),
-            String(model.creation.references.reduce(0) { $0 + $1.data.count })
-        ].joined(separator: ":")
-    }
 }
 
 private enum AppWorkspaceTab: String, CaseIterable, Identifiable {
@@ -2147,19 +2130,13 @@ private struct EvolutionComposerSheet: View {
             AdvancedRouteDisclosure(
                 model: model,
                 harness: draft.harness,
-                selectedModel: draft.model,
-                privacy: draft.managedPrivacy,
-                maximumMicrousd: draft.managedMaximumMicrousd,
-                consent: draft.managedConsent,
-                estimate: model.evolutionEstimates[app.id]
+                selectedModel: draft.model
             )
-            .task(id: evolutionEstimateKey) { await model.estimateEvolution(for: app) }
             Spacer(minLength: 0)
             HStack {
                 RouteCostView(
                     model: model,
-                    harness: draft.wrappedValue.harness,
-                    estimate: model.evolutionEstimates[app.id]
+                    harness: draft.wrappedValue.harness
                 )
                 ShotKeyboardHint()
                 Spacer()
@@ -2203,17 +2180,6 @@ private struct EvolutionComposerSheet: View {
         }
     }
 
-    private var evolutionEstimateKey: String {
-        let value = draft.wrappedValue
-        return [
-            value.harness ?? "automatic",
-            value.model ?? "default",
-            value.managedPrivacy,
-            String(value.intention.utf8.count),
-            String(value.references.reduce(0) { $0 + $1.data.count }),
-            app.id
-        ].joined(separator: ":")
-    }
 }
 
 private func progressLanguage(_ state: PresentedState) -> String {
@@ -2252,34 +2218,18 @@ private struct AdvancedRouteDisclosure: View {
     @Bindable var model: TohsenoAppModel
     @Binding var harness: String?
     @Binding var selectedModel: String?
-    @Binding var privacy: String
-    @Binding var maximumMicrousd: UInt64?
-    @Binding var consent: Bool
-    let estimate: ManagedEstimate?
 
     var body: some View {
-        DisclosureGroup("Choose intelligence", isExpanded: $model.advancedExpanded) {
+        DisclosureGroup("Advanced intelligence choice", isExpanded: $model.advancedExpanded) {
             VStack(alignment: .leading, spacing: 12) {
                 Picker("Intelligence", selection: $harness) {
                     Text("Automatic — \(model.defaults?.harnessLabel ?? "best available")").tag(String?.none)
-                    ForEach(model.defaults?.harnesses ?? []) { option in
+                    ForEach((model.defaults?.harnesses ?? []).filter { $0.id != "tohseno-managed" }) { option in
                         Text("\(option.label) — \(availability(option))").tag(Optional(option.id))
-                    }
-                    if model.managedCatalog?.models.isEmpty == false {
-                        Text("Tohseno managed intelligence — uses creation balance")
-                            .tag(Optional("tohseno-managed"))
                     }
                 }
                 .accessibilityIdentifier("advanced.harness")
-                .onChange(of: harness) { _, selection in
-                    consent = false
-                    if selection == "tohseno-managed", selectedModel == nil {
-                        selectedModel = model.managedCatalog?.models.first?.model
-                    }
-                }
-                if harness == "tohseno-managed" {
-                    managedControls
-                } else if let harness, let option = model.defaults?.harnesses.first(where: { $0.id == harness }) {
+                if let harness, let option = model.defaults?.harnesses.first(where: { $0.id == harness }) {
                     Picker("Model", selection: $selectedModel) {
                         ForEach(option.models) { choice in
                             Text(choice.label).tag(Optional(choice.id))
@@ -2295,60 +2245,6 @@ private struct AdvancedRouteDisclosure: View {
         }
     }
 
-    @ViewBuilder private var managedControls: some View {
-        Picker("Managed model", selection: $selectedModel) {
-            ForEach(model.managedCatalog?.models ?? []) { choice in
-                Text(choice.model).tag(Optional(choice.model))
-            }
-        }
-        .accessibilityIdentifier("advanced.managed.model")
-        if let selectedModel,
-           let selected = model.managedCatalog?.models.first(where: { $0.model == selectedModel }) {
-            Picker("Privacy", selection: $privacy) {
-                ForEach(selected.privacyTiers, id: \.self) { tier in
-                    Text(privacyLabel(tier)).tag(tier)
-                }
-            }
-            .onChange(of: privacy) { _, _ in consent = false }
-            .accessibilityIdentifier("advanced.managed.privacy")
-        }
-        Text(model.managedEstimateDescription(estimate))
-            .font(.caption)
-            .foregroundStyle(TohsenoTheme.silver)
-            .accessibilityIdentifier("advanced.managed.estimate")
-        if let estimate {
-            Stepper(
-                "Maximum authorized: \(model.currency(maximumMicrousd ?? estimate.recommendedMaximumMicrousd))",
-                value: Binding(
-                    get: { maximumMicrousd ?? estimate.recommendedMaximumMicrousd },
-                    set: { maximumMicrousd = $0; consent = false }
-                ),
-                in: estimate.highMicrousd...100_000_000,
-                step: 10_000
-            )
-            Toggle(
-                "I approve up to \(model.currency(maximumMicrousd ?? estimate.recommendedMaximumMicrousd)) for this request",
-                isOn: $consent
-            )
-            .accessibilityIdentifier("advanced.managed.consent")
-        }
-        if let balance = model.managedBalance {
-            Text("Spendable creation balance: \(model.signedCurrency(balance.spendableMicrousd))")
-                .font(.caption)
-        }
-        Text("Managed work sends necessary app context through Tohseno and Bankr to the selected upstream provider under this privacy tier. It never activates automatically.")
-            .font(.caption)
-            .foregroundStyle(TohsenoTheme.silver)
-    }
-
-    private func privacyLabel(_ value: String) -> String {
-        switch value {
-        case "zdr": "Zero data retention"
-        case "private": "Private inference"
-        default: "Standard"
-        }
-    }
-
     private func availability(_ option: FactoryHarnessOption) -> String {
         if !option.installed { return "not installed" }
         if option.authentication == .notDetected { return "needs sign-in" }
@@ -2360,38 +2256,12 @@ private struct AdvancedRouteDisclosure: View {
 private struct RouteCostView: View {
     let model: TohsenoAppModel
     let harness: String?
-    let estimate: ManagedEstimate?
 
     var body: some View {
-        Text(harness == "tohseno-managed" ? model.managedEstimateDescription(estimate) : model.costDescription(for: harness))
+        Text(model.costDescription(for: harness))
             .font(.caption)
             .foregroundStyle(TohsenoTheme.silver)
             .accessibilityIdentifier("route.cost")
-    }
-}
-
-private struct ManagedAccessCard: View {
-    let model: TohsenoAppModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("No local intelligence route is ready").font(.headline)
-            Text("You can use Tohseno-managed intelligence with creation balance, or configure your own route in Settings.")
-                .foregroundStyle(TohsenoTheme.silver)
-            if let balance = model.managedBalance {
-                Text("Available balance: \(model.signedCurrency(balance.spendableMicrousd))")
-            }
-            HStack {
-                Button("Use Managed Intelligence") { Task { await model.chooseManagedForCreation() } }
-                if model.managedStatus?.welcomeContactURL != nil {
-                    Button("Message JP for Welcome Compute") { model.requestWelcomeCompute() }
-                }
-            }
-        }
-        .padding(14)
-        .background(TohsenoTheme.carbon)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .accessibilityIdentifier("managed.access")
     }
 }
 

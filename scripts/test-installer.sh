@@ -41,6 +41,8 @@ mkdir -p \
   "$package/share/apple-identity/Sources/TohsenoAppleIdentity" \
   "$package/share/sdk/apple/TohsenoCompanionKit" \
   "$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit" \
+  "$package/share/sdk/apple/TohsenoWorkshopKit" \
+  "$package/share/sdk/apple/TohsenoWorkshopKit/Sources/TohsenoWorkshopKit" \
   "$package/share/companion/test-vectors" "$package/share/protocol/schemas" \
   "$package/share/fascia/apple" "$package/share/genesis" "$fake_bin" \
   "$test_home" "$installer_tmp"
@@ -132,6 +134,10 @@ printf '%s\n' 'license' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/LICENSE"
 printf '%s\n' '// CompanionKit client fixture' \
   >"$package/share/sdk/apple/TohsenoCompanionKit/Sources/TohsenoCompanionKit/Client.swift"
+printf '%s\n' '// swift-tools-version: 6.0' \
+  >"$package/share/sdk/apple/TohsenoWorkshopKit/Package.swift"
+printf '%s\n' '// Workshop runtime fixture' \
+  >"$package/share/sdk/apple/TohsenoWorkshopKit/Sources/TohsenoWorkshopKit/WorkshopRuntime.swift"
 printf '%s\n' '// swift-tools-version: 6.0' \
   >"$package/share/apple-identity/Package.swift"
 printf '%s\n' '// Apple identity fixture' \
@@ -288,6 +294,7 @@ test -x "$first_release/bin/tohseno"
 test -f "$first_release/share/studio/index.html"
 test -f "$first_release/share/apple-identity/Package.swift"
 test -f "$first_release/share/sdk/apple/TohsenoCompanionKit/Package.swift"
+test -f "$first_release/share/sdk/apple/TohsenoWorkshopKit/Package.swift"
 test -f "$first_release/share/companion/test-vectors/companion-v1.json"
 (
   cd "$first_release"

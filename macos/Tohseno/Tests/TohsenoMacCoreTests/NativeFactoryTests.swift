@@ -480,18 +480,62 @@ final class NativeFactoryTests: XCTestCase {
     }
 
     @MainActor
-    func testEvolutionRestoresLastDurableAdvancedSelectionWithoutManagedConsent() async {
+    func testEvolutionDoesNotRestoreUnfinishedManagedRoute() async {
         let factory = FakeFactory(receipt: fixtureReceipt)
         let model = TohsenoAppModel(client: factory)
         await model.reload()
         let app = try! XCTUnwrap(model.apps.first)
         await model.prepareEvolution(for: app)
         let draft = try! XCTUnwrap(model.evolutions[app.id])
-        XCTAssertEqual(draft.harness, "tohseno-managed")
-        XCTAssertEqual(draft.model, "qwen3-coder")
-        XCTAssertEqual(draft.managedPrivacy, "zdr")
+        XCTAssertNil(draft.harness)
+        XCTAssertNil(draft.model)
+        XCTAssertEqual(draft.managedPrivacy, "standard")
         XCTAssertNil(draft.managedMaximumMicrousd)
         XCTAssertFalse(draft.managedConsent)
+    }
+
+    @MainActor
+    func testIntelligenceCapabilityIncludesOnlyUsableMacProviders() async {
+        let usable = fixtureHarness(id: "codex", installed: true, authentication: .authenticated)
+        let signedOut = fixtureHarness(id: "claude", installed: true, authentication: .notDetected)
+        let absent = fixtureHarness(id: "gemini", installed: false, authentication: .unknown)
+        let unfinished = fixtureHarness(
+            id: "tohseno-managed",
+            installed: true,
+            authentication: .authenticated
+        )
+        let model = TohsenoAppModel(
+            client: FakeFactory(harnesses: [usable, signedOut, absent, unfinished])
+        )
+        await model.reload()
+        XCTAssertTrue(model.intelligenceAvailable)
+        XCTAssertEqual(model.intelligenceProviders.map(\.id), ["codex"])
+
+        let unavailable = TohsenoAppModel(client: FakeFactory(harnesses: [signedOut, absent]))
+        await unavailable.reload()
+        XCTAssertFalse(unavailable.intelligenceAvailable)
+        XCTAssertTrue(unavailable.intelligenceProviders.isEmpty)
+    }
+
+    func testIntelligenceUIIsDirectAndDoesNotOfferCredits() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/TohsenoMacCore")
+        let settings = try String(
+            contentsOf: sourceRoot.appendingPathComponent("SettingsView.swift"),
+            encoding: .utf8
+        )
+        let root = try String(
+            contentsOf: sourceRoot.appendingPathComponent("RootView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(settings.contains("Available"))
+        XCTAssertTrue(settings.contains("Needs sign-in"))
+        XCTAssertTrue(settings.contains("Coming soon"))
+        XCTAssertTrue(settings.contains("DisclosureGroup(\"Advanced\""))
+        XCTAssertFalse(settings.contains("Add $"))
+        XCTAssertFalse(root.contains("ManagedAccessCard"))
+        XCTAssertFalse(root.contains("advanced.managed.consent"))
     }
 
     func testManagedDraftRequiresExplicitMaximumConsentAtClientBoundary() async throws {
@@ -869,7 +913,7 @@ final class NativeFactoryTests: XCTestCase {
             "readiness.primary", "create-app.workshop", "creation.intention",
             "adopt-app.workshop", "adopt-app.empty",
             "creation.submit", "evolution.intention", "evolution.submit",
-            "advanced.harness", "advanced.managed.consent", "app.open-on-iphone",
+            "advanced.harness", "workshop.session", "workshop.pulse.send", "app.open-on-iphone",
             "app.workspace-tabs", "app.change", "app.files", "app.build-log",
             "app.preview", "app.iphone-handoff", "app.open-source",
             "registry.workshop", "registry.modes", "registry.search",
@@ -946,17 +990,20 @@ private actor FakeFactory: FactoryServing {
     let receiptValue: ExecutionReceipt?
     var workspaceShots: [AppSummary]?
     var readinessResponses: [ReadinessView]
+    let harnesses: [FactoryHarnessOption]
 
     init(
         createDelay: Duration = .zero,
         receipt: ExecutionReceipt? = nil,
         workspaceShots: [AppSummary]? = nil,
-        readinessResponses: [ReadinessView] = []
+        readinessResponses: [ReadinessView] = [],
+        harnesses: [FactoryHarnessOption] = []
     ) {
         self.createDelay = createDelay
         self.receiptValue = receipt
         self.workspaceShots = workspaceShots
         self.readinessResponses = readinessResponses
+        self.harnesses = harnesses
     }
     func createCallCount() -> Int { createCalls }
     func deployedScreenshotPaths() -> [String] { deployScreenshotPaths }
@@ -969,7 +1016,7 @@ private actor FakeFactory: FactoryServing {
         )
     }
     func factoryDefaults() async throws -> FactoryDefaults {
-        FactoryDefaults(schema: "tohseno.factory-defaults/1", ready: true, harnessID: "fixture", harnessLabel: "Fixture", modelID: "default", modelLabel: "Default", routeID: "local", routeLabel: "Local", harnesses: [])
+        FactoryDefaults(schema: "tohseno.factory-defaults/1", ready: true, harnessID: "fixture", harnessLabel: "Fixture", modelID: "default", modelLabel: "Default", routeID: "local", routeLabel: "Local", harnesses: harnesses)
     }
     func readiness() async throws -> ReadinessView {
         if !readinessResponses.isEmpty {
@@ -1102,6 +1149,29 @@ private actor FakeFactory: FactoryServing {
             archived: false, retired: false, sortIndex: 0
         )
     }
+}
+
+private func fixtureHarness(
+    id: String,
+    installed: Bool,
+    authentication: HarnessAuthentication
+) -> FactoryHarnessOption {
+    FactoryHarnessOption(
+        id: id,
+        label: id.capitalized,
+        installed: installed,
+        selected: false,
+        authentication: authentication,
+        models: [FactoryModelOption(id: "default", label: "Default", isDefault: true)],
+        routes: [FactoryRouteOption(
+            id: "local",
+            label: "Local",
+            billing: "none",
+            available: installed,
+            estimatedAdditionalCostUSD: 0,
+            costEstimation: false
+        )]
+    )
 }
 
 private let fixtureReceipt = ExecutionReceipt(

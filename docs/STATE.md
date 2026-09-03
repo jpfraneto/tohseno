@@ -4,7 +4,46 @@ Written 2026-07-30, amended through 2026-09-03. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
-## Current source evolution: public app media, network activity, and the Living Workshop
+## Current source evolution: the live Workshop Runtime
+
+ADR 0041 implements the local live Session beneath ADR 0039's Living Workshop.
+The Mac advertises one metadata-free Bonjour service only after its
+authenticated native client obtains a short-lived credential from the local
+Workspace Service. Companion accepts it only for the exact persisted Mac
+pairing and answers with a proof signed by its existing DeviceKey. Both sides
+derive an ephemeral key from their existing X25519 pairing keys, the fresh
+challenge, exact Session/workspace/device IDs, and revocation epoch; long-term
+private keys are never sent over the Session or returned by the authorization
+endpoint.
+
+After that mutual handshake, Network.framework carries direction-separated
+ChaChaPoly envelopes with strict versions and monotonic sequences. The Session
+exchanges truthful device/capability snapshots and app-namespaced events only.
+It cannot Claim, Ship, Update, install, publish, pay, revoke, or replace a
+durable Companion command. Disconnects reconnect through a fresh handshake and
+may lose ephemeral events by design.
+
+The shared `sdk/apple/TohsenoWorkshopKit` package provides the typed device,
+capability, optional surface-declaration, resolver, event, and Session API.
+Apps without a Workshop declaration remain ordinary focused apps. Required
+capabilities fail closed when hardware, permission, reachability, or Session
+authorization is absent. Both native products now show the live Session in
+plain language and provide one two-way Workshop Pulse; the phone haptic and
+measured round trip are not authority or physical-install evidence.
+
+The Mac primary path uses installed, authenticated local/BYO intelligence
+automatically. Exact provider/model choice remains Advanced. The incomplete
+managed-credit purchase surface is no longer exposed, and Tohseno Intelligence
+is labeled coming soon. Historical managed receipts remain readable without
+being restored into a new request.
+
+This working source targets `v1.2.0-rc.10`. An unsigned universal Mac app was
+assembled and locally bundle-verified, but no RC10 release artifact or DMG has
+been signed, notarized, stapled, published, activated, deployed, or physically
+accepted. RC9 remains the exact public release-candidate installer described
+below.
+
+## Previous source evolution: public app media, network activity, and the Living Workshop
 
 ADR 0040 now makes the website root a truthful canonical timeline of someone
 Shipping an app, Forking an exact release into a new Shot, or Claiming an exact
@@ -40,8 +79,8 @@ Return/Shift–Return composers, Build/App/Source workspace, pairing, DeviceKey
 approval, Ship/Update/Claim, source verification, recipient Apple signing, and
 intended-device installation boundaries are unchanged.
 
-This source is locally covered by focused Rust, Mac, CompanionKit, and website
-checks. Exact clean commit `a82050c4efc64973f8e5c6a6925cdae0f29d2a24`
+The RC9 source was locally covered by focused Rust, Mac, CompanionKit, and
+website checks. Exact clean commit `a82050c4efc64973f8e5c6a6925cdae0f29d2a24`
 is published as signed, notarized, stapled prerelease `v1.2.0-rc.9`. Its
 53,156,943-byte DMG has SHA-256
 `24ca9eec77ac004292b371af2b2eb96f6830d6e92f55ba142fb24c12b2c38eef`;
@@ -567,6 +606,11 @@ in `release/NPM_1_2_0_PUBLICATION.json`.
 
 ## Private Companion channel
 
+This durable encrypted channel and ADR 0041's local Workshop Session are
+separate. The durable channel remains authoritative for queued commands,
+approvals, receipts, offline delivery, and reconciliation. The Workshop Session
+reuses its pairing identities but retains no command or event after disconnect.
+
 This channel is optional for native readiness, create, evolve, build, generated
 app installation, and local/BYO admission. It is required for the
 builder-network `init`/`deploy` path because Companion holds publication
@@ -766,13 +810,15 @@ by Apple notarization submission `be3cb4d7-16dc-40cb-9a09-2505ad0be7b9`,
 stapled, mounted, Gatekeeper-checked, and published as a 52,314,624-byte
 universal DMG with SHA-256
 `082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de`.
-Both the GitHub origin and tohseno.com round trips matched. RC6 is active only
-on the labeled release-candidate channel for the owner-attended walkthrough.
-Stable 1.2 still requires the production proof in ADR 0035: real first Ship and
-edition, second identity Claim, offline-Mac preparation, recipient-signed
-physical install, later Update preservation, Follow reconciliation, live
-receipt paths, and exactly one Ship. Registry/Claims writes and Claim
-advertising remain dark until that order creates no broken window.
+Both the GitHub origin and tohseno.com round trips matched. RC6 was superseded
+by the later candidates recorded in `release/V1_2_0_READINESS.json`; RC9 is the
+current labeled public candidate.
+Stable 1.2 still requires the remaining production proof in ADR 0035: a second
+identity Claim, canonical Claim receipt, offline-Mac preparation,
+recipient-signed physical install, later Update preservation, Follow
+reconciliation, and live receipt paths. The exact Registry and Claims
+activations recorded for RC9 are live; that does not fabricate any of those
+still-missing human or physical facts.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain
 separately configuration-gated and inactive. Companion relay

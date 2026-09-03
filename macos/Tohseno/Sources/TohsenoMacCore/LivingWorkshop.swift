@@ -1,4 +1,5 @@
 import SwiftUI
+import TohsenoWorkshopKit
 import UniformTypeIdentifiers
 
 enum WorkshopMotion {
@@ -241,8 +242,11 @@ struct LivingWorkshopView: View {
                     VStack(spacing: 18) {
                         WorkshopStoryStage(
                             projection: projection,
+                            runtime: model.workshopRuntime,
+                            intelligenceProviders: model.intelligenceProviders,
                             selectedID: selectedAppID,
                             selectApp: openApp,
+                            sendPulse: { Task { await model.sendWorkshopPulse() } },
                             openNetwork: { model.route = .registry },
                             openKeeper: { model.route = .profile }
                         )
@@ -412,8 +416,11 @@ struct LivingWorkshopView: View {
 
 private struct WorkshopStoryStage: View {
     let projection: LivingWorkshopProjection
+    let runtime: WorkshopHostRuntime
+    let intelligenceProviders: [FactoryHarnessOption]
     let selectedID: String?
     let selectApp: (String) -> Void
+    let sendPulse: () -> Void
     let openNetwork: () -> Void
     let openKeeper: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -424,7 +431,7 @@ private struct WorkshopStoryStage: View {
             HStack(alignment: .center, spacing: 12) {
                 WorkshopActor(
                     title: "Mac factory",
-                    detail: "Source · harness · Xcode",
+                    detail: macDetail,
                     symbol: "macbook",
                     state: .connected
                 )
@@ -441,6 +448,11 @@ private struct WorkshopStoryStage: View {
                     state: projection.phone
                 )
             }
+
+            WorkshopSessionStrip(
+                runtime: runtime,
+                sendPulse: sendPulse
+            )
 
             HStack(spacing: 12) {
                 Button(action: openKeeper) {
@@ -511,12 +523,20 @@ private struct WorkshopStoryStage: View {
     }
 
     private var phoneDetail: String {
-        switch projection.phone {
+        if runtime.connectionState == .connected { return "Live Workshop Session" }
+        return switch projection.phone {
         case .connected: "Observed and privately connected"
         case .nearby: "Known; waiting for connection"
         case .attention: "Setup stopped safely"
         case .unknown: "Not currently observed"
         }
+    }
+
+    private var macDetail: String {
+        guard !intelligenceProviders.isEmpty else {
+            return "Compute ready · intelligence unavailable"
+        }
+        return "Compute · \(intelligenceProviders.map(\.label).joined(separator: " · "))"
     }
 
     private var keeperDetail: String {
@@ -537,6 +557,80 @@ private struct WorkshopStoryStage: View {
         case .installing: "Installation is not complete until the exact app is observed on the phone."
         case .installed: "Choose an app to change it, or take another Shot."
         case .needsAttention: "Open the app object for the smallest truthful recovery action."
+        }
+    }
+}
+
+private struct WorkshopSessionStrip: View {
+    let runtime: WorkshopHostRuntime
+    let sendPulse: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(color)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("LIVE WORKSHOP")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.4)
+                    .foregroundStyle(TohsenoTheme.amber)
+                Text(status)
+                    .font(.callout.weight(.semibold))
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            Spacer()
+            Button("Send pulse to iPhone", action: sendPulse)
+                .disabled(runtime.connectionState != .connected)
+                .accessibilityIdentifier("workshop.pulse.send")
+        }
+        .padding(12)
+        .background(TohsenoTheme.void.opacity(0.7), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(color.opacity(0.28)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Live Workshop. \(status). \(detail)")
+        .accessibilityIdentifier("workshop.session")
+    }
+
+    private var status: String {
+        switch runtime.connectionState {
+        case .connected: "This Mac and \(runtime.peerName ?? "the paired iPhone") are connected"
+        case .discovering: "Waiting for the paired iPhone nearby"
+        case .authenticating: "Checking the paired iPhone"
+        case .reconnecting: "Connection interrupted; reconnecting"
+        case .rejected: "A device was rejected"
+        case .unavailable: "Live Session unavailable"
+        }
+    }
+
+    private var detail: String {
+        if let duration = runtime.lastRoundTrip {
+            return "Last pulse round trip: \(duration.formatted(.number.precision(.fractionLength(3))))s"
+        }
+        if let date = runtime.lastEventAt {
+            return "Last event received \(date.formatted(.relative(presentation: .numeric)))"
+        }
+        return runtime.rejectionReason ?? "Pulse uses the authenticated nearby Session, not the public Registry."
+    }
+
+    private var symbol: String {
+        switch runtime.connectionState {
+        case .connected: "point.3.connected.trianglepath.dotted"
+        case .discovering, .authenticating, .reconnecting: "antenna.radiowaves.left.and.right"
+        case .rejected: "hand.raised.slash"
+        case .unavailable: "wifi.slash"
+        }
+    }
+
+    private var color: Color {
+        switch runtime.connectionState {
+        case .connected: TohsenoTheme.amber
+        case .discovering, .authenticating, .reconnecting: TohsenoTheme.silver
+        case .rejected: .red
+        case .unavailable: TohsenoTheme.ash
         }
     }
 }

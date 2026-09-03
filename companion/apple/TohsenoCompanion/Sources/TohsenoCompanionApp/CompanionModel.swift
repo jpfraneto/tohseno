@@ -1,5 +1,11 @@
 import Foundation
 import TohsenoCompanionKit
+import TohsenoWorkshopKit
+#if os(iOS)
+import AVFoundation
+import CoreMotion
+import UIKit
+#endif
 
 public protocol SoftwareClaimIdentity: Sendable {
     func claimPublicIdentity() async throws -> BuilderDevicePublicIdentity
@@ -43,6 +49,7 @@ private struct PendingSoftwareClaim: Codable, Equatable, Sendable {
 @MainActor
 @Observable
 public final class CompanionModel {
+    public let workshopRuntime: WorkshopClientRuntime
     public enum Screen: Equatable {
         case loading
         case firstRun
@@ -119,6 +126,7 @@ public final class CompanionModel {
     private let builderIdentity: BuilderDeviceIdentity
     private let claimIdentity: any SoftwareClaimIdentity
     private let storage: UserDefaults
+    private var hasStarted = false
     private var profileNonce: UInt64 = 0
     private var aliasNonce: UInt64 = 0
     private var pendingSoftwareClaim: PendingSoftwareClaim?
@@ -137,6 +145,10 @@ public final class CompanionModel {
     ) {
         self.backend = backend
         self.deviceName = deviceName
+        workshopRuntime = WorkshopClientRuntime(
+            authorizer: backend,
+            localDeviceName: deviceName
+        )
         self.network = network
         self.builderIdentity = builderIdentity
         self.claimIdentity = claimIdentity ?? builderIdentity
@@ -144,11 +156,15 @@ public final class CompanionModel {
     }
 
     public func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         restoreClaimMemory()
+        refreshWorkshopCapabilityTruth()
         Task { [backend] in
             for await connection in backend.connectionStates {
                 self.connection = connection
                 if connection == .revoked {
+                    self.workshopRuntime.stop()
                     self.notice = "This iPhone no longer has access to your Mac."
                     self.screen = .firstRun
                 }
@@ -157,6 +173,15 @@ public final class CompanionModel {
         Task { [backend] in
             for await event in backend.events {
                 self.apply(event)
+            }
+        }
+        Task {
+            await workshopRuntime.start()
+            await TohsenoWorkshop.current.use(session: workshopRuntime)
+        }
+        Task {
+            for await event in workshopRuntime.events where event.event.type == "workshop.pulse" {
+                self.receiveWorkshopPulse()
             }
         }
         Task { await refresh() }
@@ -179,6 +204,54 @@ public final class CompanionModel {
 
     static func builderAnnouncementCommandID() -> String {
         "builder_announce_\(UUID().uuidString.lowercased().replacingOccurrences(of: "-", with: ""))"
+    }
+
+    public func sendWorkshopPulse() async {
+        refreshWorkshopCapabilityTruth()
+        do {
+            try await workshopRuntime.sendPulse()
+            notice = nil
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    public func refreshWorkshopCapabilityTruth() {
+#if os(iOS)
+        workshopRuntime.setLocalPermissions(
+            camera: Self.workshopPermission(AVCaptureDevice.authorizationStatus(for: .video)),
+            microphone: Self.workshopPermission(AVCaptureDevice.authorizationStatus(for: .audio)),
+            motion: Self.workshopPermission(CMMotionActivityManager.authorizationStatus())
+        )
+#endif
+    }
+
+#if os(iOS)
+    private static func workshopPermission(_ status: AVAuthorizationStatus) -> WorkshopPermission {
+        switch status {
+        case .authorized: .authorized
+        case .denied: .denied
+        case .restricted: .restricted
+        case .notDetermined: .notRequested
+        @unknown default: .unknown
+        }
+    }
+
+    private static func workshopPermission(_ status: CMAuthorizationStatus) -> WorkshopPermission {
+        switch status {
+        case .authorized: .authorized
+        case .denied: .denied
+        case .restricted: .restricted
+        case .notDetermined: .notRequested
+        @unknown default: .unknown
+        }
+    }
+#endif
+
+    private func receiveWorkshopPulse() {
+#if os(iOS)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+#endif
     }
 
     public func refreshPublicNetwork() async {
@@ -1023,6 +1096,7 @@ public final class CompanionModel {
             recoveryWords = nil
             notice = nil
             await refresh()
+            await workshopRuntime.start()
             screen = .apps
         } catch {
 #if DEBUG

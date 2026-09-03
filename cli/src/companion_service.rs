@@ -4,9 +4,11 @@
 //! private device/capability provenance used by the Local Workspace Service.
 
 use futures_util::StreamExt;
+use hkdf::Hkdf;
 use rand_core::{OsRng, RngCore};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -37,6 +39,7 @@ use tohseno_companion::event::{
     PRODUCT_ENTITLEMENT_SCHEMA,
 };
 use tohseno_companion::icon::IconBlob;
+use tohseno_companion::identity::TransportIdentity;
 use tohseno_companion::journal::ReplayWindow;
 use tohseno_companion::pairing::{
     EncryptedPairingResponse, PairingAcceptance, PairingInvitation, PairingProof,
@@ -95,6 +98,9 @@ const MAX_PROCESSED_COMMAND_RECORDS: usize = 100_000;
 const MAX_RELAY_PAGES_PER_RECONCILIATION: usize = 32;
 const WORKSPACE_PROJECTION_SCHEMA: &str = "tohseno.companion-workspace-projection/1";
 const OFFICIAL_COMPANION_RELAY_ORIGIN: &str = "https://companion.tohseno.com";
+const WORKSHOP_HOST_SCHEMA: &str = "tohseno.workshop-host/1";
+const WORKSHOP_HOST_SIGNATURE_DOMAIN: &[u8] = b"tohseno.workshop.host.v1";
+const WORKSHOP_SESSION_KEY_DOMAIN: &str = "tohseno.workshop.session-key.v1";
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -147,6 +153,33 @@ pub struct DeviceSummary {
     pub last_seen: String,
     pub sync_state: &'static str,
     pub revoked: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct WorkshopHostCredential {
+    pub schema: &'static str,
+    pub workspace_id: String,
+    pub studio_device_id: String,
+    pub session_id: String,
+    pub challenge: String,
+    pub issued_at: String,
+    pub expires_at: String,
+    pub signature: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct WorkshopTrustedPeer {
+    pub device_id: String,
+    pub display_name: String,
+    pub signing_public_key: String,
+    pub session_key: String,
+    pub revocation_epoch: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct WorkshopHostAuthorization {
+    pub credential: WorkshopHostCredential,
+    pub peers: Vec<WorkshopTrustedPeer>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -795,6 +828,85 @@ impl CompanionCoordinator {
             .collect::<Vec<_>>();
         summaries.sort_by(|left, right| left.paired_at.cmp(&right.paired_at));
         Ok(summaries)
+    }
+
+    /// Issue one short-lived Workshop host credential and derive an ephemeral
+    /// Session key for the one unambiguously active paired Companion. Long-term
+    /// agreement secrets stay inside their existing secure stores.
+    pub fn authorize_workshop_host(
+        &self,
+        session_id: &str,
+        challenge: &[u8; 32],
+        now_value: OffsetDateTime,
+    ) -> Result<WorkshopHostAuthorization, BoxError> {
+        if !session_id.starts_with("workshop_")
+            || session_id.len() > 128
+            || !session_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return Err("invalid Workshop Session ID".into());
+        }
+        let issued_at = timestamp(now_value.replace_nanosecond(0)?)?;
+        let expires_at = timestamp((now_value + Duration::seconds(120)).replace_nanosecond(0)?)?;
+        let encoded_challenge = base64url(challenge);
+        let signing_body = workshop_host_signing_body(
+            WORKSHOP_HOST_SCHEMA,
+            &self.workspace.record.workspace_id,
+            &self.workspace.record.studio_device_id,
+            session_id,
+            &encoded_challenge,
+            &issued_at,
+            &expires_at,
+        );
+        let signature = base64url(
+            &self
+                .workspace
+                .identity
+                .sign(WORKSHOP_HOST_SIGNATURE_DOMAIN, &signing_body),
+        );
+        let credential = WorkshopHostCredential {
+            schema: WORKSHOP_HOST_SCHEMA,
+            workspace_id: self.workspace.record.workspace_id.clone(),
+            studio_device_id: self.workspace.record.studio_device_id.clone(),
+            session_id: session_id.into(),
+            challenge: encoded_challenge,
+            issued_at,
+            expires_at,
+            signature,
+        };
+        let active = self
+            .load_devices()?
+            .into_iter()
+            .filter(|record| !record.revoked)
+            .collect::<Vec<_>>();
+        // Multi-target association is not yet authoritative. Ambiguity stays
+        // visibly unavailable rather than choosing a convenient phone.
+        let peers = if let [record] = active.as_slice() {
+            let agreement_public_key = decode_array::<32>(
+                "companion agreement public key",
+                &record.agreement_public_key,
+            )?;
+            let shared = self.workspace.identity.agree(&agreement_public_key)?;
+            let session_key = derive_workshop_session_key(
+                &shared,
+                challenge,
+                session_id,
+                &self.workspace.record.workspace_id,
+                &record.device_id,
+                record.revocation_epoch,
+            )?;
+            vec![WorkshopTrustedPeer {
+                device_id: record.device_id.clone(),
+                display_name: record.display_name.clone(),
+                signing_public_key: record.signing_public_key.clone(),
+                session_key: base64url(&session_key),
+                revocation_epoch: record.revocation_epoch,
+            }]
+        } else {
+            Vec::new()
+        };
+        Ok(WorkshopHostAuthorization { credential, peers })
     }
 
     pub fn rename_device(
@@ -3381,6 +3493,52 @@ fn revision_number(value: &str) -> u64 {
         .max(1)
 }
 
+fn workshop_host_signing_body(
+    schema: &str,
+    workspace_id: &str,
+    studio_device_id: &str,
+    session_id: &str,
+    challenge: &str,
+    issued_at: &str,
+    expires_at: &str,
+) -> Vec<u8> {
+    [
+        schema,
+        workspace_id,
+        studio_device_id,
+        session_id,
+        challenge,
+        issued_at,
+        expires_at,
+    ]
+    .join("\0")
+    .into_bytes()
+}
+
+fn derive_workshop_session_key(
+    shared_secret: &[u8; 32],
+    challenge: &[u8; 32],
+    session_id: &str,
+    workspace_id: &str,
+    companion_device_id: &str,
+    revocation_epoch: u64,
+) -> Result<[u8; 32], BoxError> {
+    let revocation_epoch = revocation_epoch.to_string();
+    let info = [
+        WORKSHOP_SESSION_KEY_DOMAIN,
+        session_id,
+        workspace_id,
+        companion_device_id,
+        &revocation_epoch,
+    ]
+    .join("\0");
+    let mut output = [0_u8; 32];
+    Hkdf::<Sha256>::new(Some(challenge), shared_secret)
+        .expand(info.as_bytes(), &mut output)
+        .map_err(|_| "Workshop Session key derivation failed")?;
+    Ok(output)
+}
+
 fn abbreviate(value: &str) -> String {
     let first = value.chars().take(12).collect::<String>();
     format!("{first}…")
@@ -4408,6 +4566,35 @@ mod tests {
         0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, b'I', b'H', b'D', b'R', 0, 0,
         0, 1, 0, 0, 0, 1,
     ];
+
+    #[test]
+    fn workshop_session_key_derivation_is_domain_separated_and_stable() {
+        let key = derive_workshop_session_key(
+            &[7_u8; 32],
+            &[9_u8; 32],
+            "workshop_fixture",
+            "workspace_fixture",
+            "device_fixture",
+            3,
+        )
+        .unwrap();
+        assert_eq!(
+            base64url(&key),
+            "DgVKhBE1_-3OW6X2_hEnxdM2AtNXxKlm2ZvJa5RYSUg"
+        );
+        assert_ne!(
+            key,
+            derive_workshop_session_key(
+                &[7_u8; 32],
+                &[9_u8; 32],
+                "workshop_fixture",
+                "workspace_fixture",
+                "device_fixture",
+                4,
+            )
+            .unwrap()
+        );
+    }
 
     fn reference_blob(blob_id: &str, origin_name: &str, size: usize) -> ReferenceBlob {
         let mut bytes = vec![0_u8; size.max(TEST_PNG_HEADER.len())];

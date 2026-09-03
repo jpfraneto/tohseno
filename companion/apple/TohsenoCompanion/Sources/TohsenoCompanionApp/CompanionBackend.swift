@@ -1,5 +1,6 @@
 import Foundation
 import TohsenoCompanionKit
+import TohsenoWorkshopKit
 
 /// The narrow slice of `TohsenoCompanionKit` the product surface needs.
 ///
@@ -7,7 +8,7 @@ import TohsenoCompanionKit
 /// the SDK actor below. It exists so the product's behaviour — one tap, no
 /// confirmation, offline waiting, human failure copy — can be tested without
 /// standing up relay, crypto, and Keychain fakes that the SDK already tests.
-public protocol CompanionBackend: Sendable {
+public protocol CompanionBackend: Sendable, WorkshopClientAuthorizing {
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot
     func reconcile() async throws
     func iconBytes(for descriptor: IconDescriptor) async throws -> Data?
@@ -39,6 +40,19 @@ public protocol CompanionBackend: Sendable {
     func startSynchronization() async throws
     var connectionStates: AsyncStream<CompanionConnectionState> { get }
     var events: AsyncStream<WorkspaceEvent> { get }
+}
+
+public extension CompanionBackend {
+    func workshopPairing() async throws -> WorkshopClientPairing {
+        throw WorkshopRuntimeError.unpairedDevice
+    }
+
+    func authorizeWorkshopClient(
+        host _: WorkshopHostCredential,
+        clientNonce _: Data
+    ) async throws -> WorkshopClientAuthorization {
+        throw WorkshopRuntimeError.unpairedDevice
+    }
 }
 
 extension TohsenoCompanionClient: CompanionBackend {

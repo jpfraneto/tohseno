@@ -50,6 +50,22 @@ the normal human authorization path. Apple release signing/notarization,
 physical-device checks, on-chain publication, and service activation remain
 separate evidence; source existence does not imply any of them.
 
+ADR 0041 adds a second, deliberately ephemeral path for nearby interaction:
+
+```text
+authenticated native Mac client
+  -> short-lived host credential from loopback Workspace Service
+  -> Bonjour `_tohseno-ws._tcp` advertisement (no identity metadata)
+  -> paired Companion verifies Mac + signs client proof
+  -> X25519/HKDF Session key + directional ChaChaPoly event channels
+  -> typed capability snapshots and app-namespaced ephemeral events
+```
+
+This Workshop Session is not the durable command path shown below. Disconnects
+may lose its events, and it cannot Claim, Ship, Update, install, publish, pay,
+revoke, or manufacture a receipt. Anything requiring authority, offline
+delivery, or reconciliation still uses the signed encrypted Companion outbox.
+
 ```text
 iPhone Companion
   signed command + encrypted durable outbox
@@ -88,6 +104,35 @@ the existing workspace key, and receives a 15-minute token bound to the current
 service instance and scopes. [`cli/src/native_session.rs`](../cli/src/native_session.rs)
 owns that separate authorization state; browser Origin/CSRF sessions remain a
 different boundary.
+
+### Local Workshop Session
+
+[`sdk/apple/TohsenoWorkshopKit`](../sdk/apple/TohsenoWorkshopKit/) owns the
+shared Swift device/capability model, optional `tohseno.workshop-shot/1`
+surface declaration, handshake validation, encrypted typed envelopes,
+Network.framework host/client runtimes, and tiny `TohsenoWorkshop.current`
+Shot-facing boundary.
+
+The Mac runtime gets a two-minute `tohseno.workshop-host/1` credential from the
+authenticated native endpoint in
+[`workspace_service.rs`](../cli/src/workspace_service.rs). The coordinator in
+[`companion_service.rs`](../cli/src/companion_service.rs) signs with the
+existing workspace identity and derives a Session key only for exactly one
+active paired Companion. The derivation binds the random challenge, Session,
+workspace, intended device, and revocation epoch. Neither long-term private key
+is exported.
+
+CompanionKit validates the credential against its persisted exact pairing,
+signs `tohseno.workshop-client-proof/1` with its existing DeviceKey, and derives
+the same key from its existing agreement key. After mutual authentication,
+both native products exchange encrypted capability snapshots. Hardware,
+permission, reachability, authorization, and availability remain distinct;
+the iPhone reads camera, microphone, and motion permission without prompting.
+
+The Session has no persistent row below because its IDs, keys, capability
+snapshots, sequences, and events exist only in memory. Transport loss starts a
+fresh authenticated Session. Bonjour exposes only the service type, not stable
+device or workspace metadata.
 
 ### Adopted project record and execution
 
@@ -238,6 +283,10 @@ queue it. The SDK returns only after the signed command, encrypted envelope,
 and any encrypted reference payloads have been persisted. Network delivery is
 then best-effort and repeatable.
 
+The same product also hosts `WorkshopClientRuntime` for nearby ephemeral
+interaction. Its live Session status and Workshop Pulse are presented
+separately from durable command connectivity and Companion DeviceKey authority.
+
 ### Local Workspace Service, Studio, and factory
 
 [`cli/src/workspace_service.rs`](../cli/src/workspace_service.rs) is the
@@ -377,6 +426,8 @@ The current product core is:
 
 - `macos/Tohseno/` — primary native Mac projection and packaging.
 - `companion/apple/TohsenoCompanion/` — primary phone request projection.
+- `sdk/apple/TohsenoWorkshopKit/` — ephemeral local Session, typed device and
+  capability truth, and the small Shot-facing API.
 - `sdk/apple/TohsenoCompanionKit/` and `companion/` — Swift/Rust private wire,
   cryptography, state, and conformance vectors.
 - `website/apps/companion-relay/` — content-blind internet mailbox.

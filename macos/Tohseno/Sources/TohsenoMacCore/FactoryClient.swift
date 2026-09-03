@@ -1,4 +1,5 @@
 import Foundation
+import TohsenoWorkshopKit
 
 public enum FactoryClientError: Error, LocalizedError, Equatable, Sendable {
     case invalidConfiguration(String)
@@ -16,7 +17,7 @@ public enum FactoryClientError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
-public protocol FactoryServing: Sendable {
+public protocol FactoryServing: Sendable, WorkshopHostAuthorizing {
     func workspace() async throws -> WorkspaceSnapshot
     func factoryDefaults() async throws -> FactoryDefaults
     func readiness() async throws -> ReadinessView
@@ -55,6 +56,15 @@ public protocol FactoryServing: Sendable {
     func configureCustomHarness(_ draft: CustomHarnessDraft) async throws
     func configureLocalEndpoint(_ draft: LocalEndpointDraft) async throws
     func events() async -> AsyncThrowingStream<Void, Error>
+}
+
+public extension FactoryServing {
+    func authorizeWorkshopHost(
+        sessionID _: WorkshopSessionID,
+        challenge _: Data
+    ) async throws -> WorkshopHostAuthorization {
+        throw WorkshopRuntimeError.transportUnavailable
+    }
 }
 
 public actor LoopbackFactoryClient: FactoryServing {
@@ -413,6 +423,23 @@ public actor LoopbackFactoryClient: FactoryServing {
     public func pairedCompanionDevices() async throws -> [PairedCompanionDevice] {
         let response: CompanionDeviceListResponse = try await request("/api/v1/companion/devices")
         return response.devices
+    }
+
+    public func authorizeWorkshopHost(
+        sessionID: WorkshopSessionID,
+        challenge: Data
+    ) async throws -> WorkshopHostAuthorization {
+        guard challenge.count == 32 else {
+            throw FactoryClientError.invalidConfiguration("The Workshop challenge is invalid.")
+        }
+        return try await request(
+            "/api/v1/workshop/host",
+            method: "POST",
+            body: WorkshopHostBody(
+                sessionID: sessionID.rawValue,
+                challenge: WorkshopBase64URL.encode(challenge)
+            )
+        )
     }
 
     public func createCompanionPairingSession() async throws -> CompanionPairingSession {
@@ -1032,6 +1059,11 @@ public actor LoopbackFactoryClient: FactoryServing {
 }
 
 private struct EmptyBody: Encodable, Sendable {}
+
+private struct WorkshopHostBody: Encodable, Sendable {
+    let sessionID: String
+    let challenge: String
+}
 private struct NetworkFollowBody: Encodable, Sendable {
     let builderID: String
     let followed: Bool

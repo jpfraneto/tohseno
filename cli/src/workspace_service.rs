@@ -51,7 +51,9 @@ use crate::cable_genesis::{
     COMPANION_BUNDLE_IDENTIFIER, COMPANION_INSTALL_FAILURE, COMPANION_LAUNCH_FAILURE,
     COMPANION_PAIRING_FAILURE,
 };
-use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
+use crate::companion_service::{
+    CompanionCoordinator, PairingCompletion, PairingSessionView, WorkshopHostAuthorization,
+};
 use crate::device_readiness::{
     project as project_readiness, ReadinessStore, ReadinessView, VerificationState,
 };
@@ -313,6 +315,13 @@ impl ApiOrigin {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EmptyRequest {}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkshopHostRequest {
+    session_id: String,
+    challenge: String,
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -662,6 +671,7 @@ fn router(state: Arc<WorkspaceState>) -> Router {
         )
         .route("/api/v1/native-session", post(activate_native_session))
         .route("/api/v1/workspace", get(workspace))
+        .route("/api/v1/workshop/host", post(authorize_workshop_host))
         .route(
             "/api/v1/network/follows",
             get(network_follows).put(update_network_follow),
@@ -2851,6 +2861,47 @@ async fn devices(State(state): State<Arc<WorkspaceState>>) -> Result<Json<Value>
         "schema": "tohseno.companion-device-list/1",
         "devices": devices,
     })))
+}
+
+async fn authorize_workshop_host(
+    State(state): State<Arc<WorkspaceState>>,
+    headers: HeaderMap,
+    Json(request): Json<WorkshopHostRequest>,
+) -> Result<Json<WorkshopHostAuthorization>, ApiError> {
+    let authorization = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| ApiError {
+            status: StatusCode::FORBIDDEN,
+            code: "native_session_rejected",
+            message: "Workshop credentials are available only to the authenticated native app"
+                .into(),
+        })?;
+    state
+        .native_sessions
+        .authorize(authorization, &state.runtime.instance_id, "factory.mutate")
+        .map_err(|error| ApiError {
+            status: StatusCode::FORBIDDEN,
+            code: "native_session_rejected",
+            message: error.to_string(),
+        })?;
+    let challenge = URL_SAFE_NO_PAD.decode(request.challenge).map_err(|_| {
+        ApiError::bad(
+            "invalid_workshop_challenge",
+            "Workshop challenge is invalid",
+        )
+    })?;
+    let challenge: [u8; 32] = challenge.try_into().map_err(|_| {
+        ApiError::bad(
+            "invalid_workshop_challenge",
+            "Workshop challenge must contain 32 bytes",
+        )
+    })?;
+    state
+        .companion
+        .authorize_workshop_host(&request.session_id, &challenge, OffsetDateTime::now_utc())
+        .map(Json)
+        .map_err(ApiError::internal)
 }
 
 async fn revoke_device(

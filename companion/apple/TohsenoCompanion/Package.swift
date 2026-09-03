@@ -22,12 +22,14 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../../../sdk/apple/TohsenoCompanionKit"),
+        .package(path: "../../../sdk/apple/TohsenoWorkshopKit"),
     ],
     targets: [
         .target(
             name: "TohsenoCompanionApp",
             dependencies: [
                 .product(name: "TohsenoCompanionKit", package: "TohsenoCompanionKit"),
+                .product(name: "TohsenoWorkshopKit", package: "TohsenoWorkshopKit"),
             ],
             resources: [
                 .process("Resources"),

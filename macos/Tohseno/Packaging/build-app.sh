@@ -64,6 +64,7 @@ cp -R "$repository_root/engine/fixtures/hello-world/." "$release/share/readiness
 mkdir -p "$release/share/sdk/apple" "$release/share/companion/apple" "$release/share/companion/test-vectors"
 cp -R "$repository_root/apple-identity" "$release/share/apple-identity"
 cp -R "$repository_root/sdk/apple/TohsenoCompanionKit" "$release/share/sdk/apple/TohsenoCompanionKit"
+cp -R "$repository_root/sdk/apple/TohsenoWorkshopKit" "$release/share/sdk/apple/TohsenoWorkshopKit"
 cp -R "$repository_root/companion/apple/TohsenoCompanion" "$release/share/companion/apple/TohsenoCompanion"
 cp -R "$repository_root/companion/test-vectors/." "$release/share/companion/test-vectors/"
 find "$release/share/apple-identity" "$release/share/sdk" "$release/share/companion" \

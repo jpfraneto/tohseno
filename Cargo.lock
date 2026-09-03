@@ -2416,6 +2416,7 @@ dependencies = [
  "base64",
  "clap",
  "futures-util",
+ "hkdf",
  "libc",
  "qrcode",
  "rand_core 0.6.4",

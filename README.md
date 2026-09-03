@@ -16,21 +16,24 @@ The generated-app factory and durable iPhone-to-Mac evolution path remain part
 of the same product.
 
 This direction is governed by
+[`ADR 0041`](docs/adr/0041-workshop-runtime.md),
+[`ADR 0040`](docs/adr/0040-public-app-media-and-network-home.md),
+[`ADR 0039`](docs/adr/0039-one-shot-living-workshop.md),
 [`ADR 0038`](docs/adr/0038-npm-cli-init-first.md),
 [`ADR 0035`](docs/adr/0035-claiming-software.md) and
 [`ADR 0034`](docs/adr/0034-person-to-person-native-software.md), building on
 [`ADR 0033`](docs/adr/0033-living-project-connection.md),
 [`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
-[`ADR 0032`](docs/adr/0032-native-companion-onboarding-and-product-presence.md),
-makes a native SwiftUI Mac application the primary product over the same Rust factory.
+[`ADR 0032`](docs/adr/0032-native-companion-onboarding-and-product-presence.md).
+The native SwiftUI Mac application is the primary product over the same Rust factory.
 It removes npm/browser first run, successful-day qualification, and
 subscription gating of local/BYO execution. First setup installs and pairs the
-Tohseno Companion as the real iPhone readiness proof. Public candidate
-`v1.0.2-rc.1` passed clean-Mac download and Gatekeeper but failed product
-acceptance and is disabled. Replacement candidate `v1.0.2-rc.2` is the active
-public prerelease for a second clean-Mac walkthrough. One physical-iPhone birth
-and evolution has passed; that proof predates the ADR 0032 replacement, so
-[`docs/STATE.md`](docs/STATE.md) records the exact remaining boundary.
+Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.9` is the
+current signed, notarized, digest-pinned public prerelease. The working source
+targets RC10 and has produced an unsigned locally verified app bundle, but no
+RC10 release artifact has been signed, notarized, published, or deployed.
+[`docs/STATE.md`](docs/STATE.md) records the exact evidence and remaining human
+and physical boundaries.
 
 The implementation and release state are described in
 [`docs/STATE.md`](docs/STATE.md) and
@@ -44,10 +47,11 @@ Following and a durable high-signal Updates inbox. Claim then durably asks the
 recipient Mac to prepare that exact release; installation remains separate,
 private, recipient-signed physical evidence.
 
-Claims is intentionally inactive in current builds. No Claims address or
-environment toggle is trusted without the separate threshold-signed activation
-and live Registry/runtime checks. The preserved 1.1 candidate and currently
-published installer are not silently relabeled as 1.2.
+Claims is active only under its exact threshold-signed activation and live
+Registry/runtime checks. One real Builder Ship and immutable Claim Edition are
+recorded; the second person's canonical Claim, recipient-local build/signing,
+and intended-iPhone installation remain unobserved and are not inferred from
+source or tests.
 
 ## What we care about
 
@@ -110,17 +114,17 @@ security-sensitive fact independently. Profile changes and global-alias
 requests are signed on Companion. Aliases remain permissioned convenience
 routes and never replace Shot identity.
 
-The creation screen visibly lists detected subscription-backed coding tools,
-including Codex, and advanced settings allow a
-bounded custom executable, or configure an explicitly consented loopback
-OpenAI-compatible endpoint. Optional Tohseno-managed intelligence uses prepaid
-creation balance and always shows the server-priced estimate, privacy tier, and
-hard maximum before source is sent. Local/BYO work has no Tohseno subscription,
-trial, qualification, or creation-balance gate.
+The primary creation and evolution path automatically uses an installed,
+authenticated coding provider already available on the Mac. One Advanced
+disclosure allows an exact detected provider/model choice. Settings reports
+provider availability directly and keeps custom executables and loopback
+OpenAI-compatible endpoints subordinate. Local/BYO work has no Tohseno
+subscription, trial, qualification, or balance gate. Tohseno-hosted
+intelligence is coming soon; the incomplete managed-credits purchase surface is
+not presented as a usable product.
 
-The signed/notarized `v1.0.2-rc.1` DMG is rejected. The signed, notarized, and
-origin-verified `v1.0.2-rc.2` DMG is active only on the public
-release-candidate channel for independent acceptance. Stable activation still
+The signed, notarized, origin-verified `v1.2.0-rc.9` DMG is active only on the
+public release-candidate channel for independent acceptance. Stable activation still
 requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
 `Tohseno.app` remains the native Mac product and the normal website action
@@ -158,6 +162,14 @@ does not receive source code, raw harness output, credentials, or signing
 material. The current transport uses the existing content-blind relay; it
 carries signed end-to-end-encrypted envelopes that the relay cannot read.
 
+When the exact paired devices are nearby, the Mac and Companion can also form a
+separate authenticated local Workshop Session for low-latency capability
+snapshots and ephemeral app events. It uses the existing pairing identities but
+cannot perform or replace durable commands, Claim, Ship, Update, installation,
+publication, payment, or revocation. The small Shot-facing package is
+[`sdk/apple/TohsenoWorkshopKit`](sdk/apple/TohsenoWorkshopKit/); a Shot with no
+Workshop declaration remains an ordinary focused app.
+
 ## Advanced recovery and automation from Terminal
 
 The interactive adoption path is the default. Generated Shot creation and
@@ -190,7 +202,7 @@ This repository contains the whole product:
   lifecycle.
 - [`studio/`](studio/) is the local browser interface.
 - [`companion/`](companion/) and [`sdk/apple/`](sdk/apple/) contain the iPhone
-  Companion and its shared SDK.
+  Companion, durable private SDK, and ephemeral Workshop SDK.
 - [`network/`](network/) defines signed catalog, deterministic source, build
   safety, and public release evidence.
 - [`website/`](website/) serves the public site, Registry/catalog/blob service,
@@ -213,6 +225,7 @@ The most useful first checks are:
 cargo test --locked --workspace --all-targets --all-features
 swift test --package-path macos/Tohseno
 swift test --package-path companion/apple/TohsenoCompanion
+swift test --package-path sdk/apple/TohsenoWorkshopKit
 (cd website && bun run typecheck && bun test)
 ./scripts/test-network-e2e.sh
 ```

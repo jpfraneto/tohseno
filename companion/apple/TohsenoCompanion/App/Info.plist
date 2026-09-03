@@ -43,9 +43,10 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_tohseno._tcp</string>
+		<string>_tohseno-ws._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Connect to the private Tohseno workspace running on your Mac.</string>
+	<string>Connect this iPhone to your nearby Mac Workshop for live app experiences.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Attach screenshots to describe what should change.</string>
 	<key>NSMicrophoneUsageDescription</key>

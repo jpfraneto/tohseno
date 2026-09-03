@@ -3130,7 +3130,7 @@ fn execution_packet(
     };
     let container_flag = project.container_kind.flag();
     format!(
-        "# Tohseno project evolution\n\nProject: {}\nStable project ID: {}\nBundle: {}\nSource root: {}\nXcode container: {} {}\nScheme: {}\nStarting source state: {}\nStarting Git revision: {}\nRequest received: {}\nFollow-up to: {}\nOriginal intention: {}\nAttachments passed separately to the harness: {}\nPre-existing dirty paths: {}\n\n## Known phone/install context\n\n{}\n\n## Relevant recent history\n\n{}\n\n## User request\n\n{}\n\n## Tohseno build after your work\n\nTohseno will run this argument-equivalent Xcode operation after you exit:\n`xcodebuild {} {} -scheme {} -configuration Debug -sdk iphoneos -destination generic/platform=iOS -allowProvisioningUpdates CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES build`\n\n## Required conduct\n\n- Inspect the project before editing.\n- Respect repository instructions and preserve unrelated user changes.\n- Implement only the requested evolution in this existing source tree.\n- Run relevant tests, but do not run Xcode installation; Tohseno owns build and delivery after you exit.\n- Report what changed in your final output.\n- Do not commit, push, publish, deploy, clean, reset, checkout, or discard work.\n- Stop honestly if credentials, permissions, or a material product decision are required.\n\n## Repository instructions\n\n{}\n",
+        "# Tohseno project evolution\n\nProject: {}\nStable project ID: {}\nBundle: {}\nSource root: {}\nXcode container: {} {}\nScheme: {}\nStarting source state: {}\nStarting Git revision: {}\nRequest received: {}\nFollow-up to: {}\nOriginal intention: {}\nAttachments passed separately to the harness: {}\nPre-existing dirty paths: {}\n\n## Known phone/install context\n\n{}\n\n## Relevant recent history\n\n{}\n\n## User request\n\n{}\n\n{}\n\n## Tohseno build after your work\n\nTohseno will run this argument-equivalent Xcode operation after you exit:\n`xcodebuild {} {} -scheme {} -configuration Debug -sdk iphoneos -destination generic/platform=iOS -allowProvisioningUpdates CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES build`\n\n## Required conduct\n\n- Inspect the project before editing.\n- Respect repository instructions and preserve unrelated user changes.\n- Implement only the requested evolution in this existing source tree.\n- Run relevant tests, but do not run Xcode installation; Tohseno owns build and delivery after you exit.\n- Report what changed in your final output.\n- Do not commit, push, publish, deploy, clean, reset, checkout, or discard work.\n- Stop honestly if credentials, permissions, or a material product decision are required.\n\n## Repository instructions\n\n{}\n",
         project.display_name,
         project.project_id,
         project.bundle_identifier,
@@ -3155,6 +3155,7 @@ fn execution_packet(
         installed_context,
         history,
         evolution.user_request,
+        tohseno_engine::genome::WORKSHOP_HARNESS_CONTEXT,
         container_flag,
         project.container_path,
         project.scheme,

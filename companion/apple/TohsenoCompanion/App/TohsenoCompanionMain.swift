@@ -31,6 +31,7 @@ struct TohsenoCompanion: App {
             // Reconciling on foreground is what makes a request sent while the
             // Mac was away deliver itself without another tap.
             guard phase == .active, let model else { return }
+            model.refreshWorkshopCapabilityTruth()
             Task { await model.refresh() }
         }
     }

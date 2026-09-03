@@ -48,14 +48,43 @@ public struct TohsenoSettingsView: View {
             .tabItem { Label("Factory", systemImage: "gearshape.2") }
 
             Form {
-                Section {
-                    Text("Local and bring-your-own routes use the provider configuration you selected. Managed work sends only necessary context through Tohseno and Bankr to the chosen upstream provider. Your generated source remains on this Mac.")
+                Section("Intelligence") {
+                    Text("Tohseno uses intelligence already available on this Mac. Provider sign-in stays with the provider, and local work does not require Tohseno credits.")
                         .foregroundStyle(.secondary)
-                    ForEach(model.defaults?.harnesses ?? []) { option in
-                        LabeledContent(option.label, value: option.installed ? (option.authentication == .notDetected ? "Needs sign-in" : "Available") : "Not installed")
+                    ForEach((model.defaults?.harnesses ?? []).filter {
+                        $0.id != "tohseno-managed" && $0.installed
+                    }) { option in
+                        Label {
+                            LabeledContent(
+                                option.label,
+                                value: option.authentication == .authenticated ? "Available" : "Needs sign-in"
+                            )
+                        } icon: {
+                            Image(systemName: option.authentication == .authenticated
+                                ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(option.authentication == .authenticated
+                                    ? TohsenoTheme.amber : .secondary)
+                        }
+                        .accessibilityIdentifier("intelligence.provider.\(option.id)")
                     }
+                    if !(model.defaults?.harnesses ?? []).contains(where: {
+                        $0.id != "tohseno-managed" && $0.installed
+                    }) {
+                        Label("No supported local intelligence detected", systemImage: "circle")
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("intelligence.unavailable")
+                    }
+                    Label {
+                        LabeledContent("Tohseno Intelligence", value: "Coming soon")
+                    } icon: {
+                        Image(systemName: "circle").foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("intelligence.tohseno-coming-soon")
                 }
-                Section("Custom executable harness") {
+
+                DisclosureGroup("Advanced", isExpanded: $model.advancedExpanded) {
+                    Text("Custom executable")
+                        .font(.headline)
                     TextField("Identifier", text: $model.customHarness.id)
                     TextField("Display name", text: $model.customHarness.label)
                     HStack {
@@ -69,8 +98,10 @@ public struct TohsenoSettingsView: View {
                     Toggle("Prefer this route automatically", isOn: $model.customHarness.preferred)
                     Button("Save Custom Harness") { Task { await model.saveCustomHarness() } }
                         .disabled(model.isSubmitting)
-                }
-                Section("Local OpenAI-compatible endpoint") {
+
+                    Divider()
+                    Text("Local OpenAI-compatible endpoint")
+                        .font(.headline)
                     TextField("Identifier", text: $model.localEndpoint.id)
                     TextField("Display name", text: $model.localEndpoint.label)
                     TextField("Loopback base URL", text: $model.localEndpoint.baseURL)
@@ -90,45 +121,6 @@ public struct TohsenoSettingsView: View {
             }
             .padding(20)
             .tabItem { Label("Intelligence", systemImage: "sparkles") }
-
-            Form {
-                Text("Managed balance is not required for local or bring-your-own intelligence.")
-                    .foregroundStyle(.secondary)
-                if let balance = model.managedBalance {
-                    Section("Creation balance") {
-                        LabeledContent("Spendable", value: model.signedCurrency(balance.spendableMicrousd))
-                        LabeledContent("Paid", value: model.signedCurrency(balance.paidMicrousd))
-                        LabeledContent("Promotional", value: model.signedCurrency(balance.promotionalMicrousd))
-                        if balance.reservedMicrousd > 0 {
-                            LabeledContent("Reserved for work", value: model.signedCurrency(balance.reservedMicrousd))
-                        }
-                        HStack {
-                            Button("Add $10") { Task { await model.buyBalance(packID: "usd_10") } }
-                            Button("Add $25") { Task { await model.buyBalance(packID: "usd_25") } }
-                            Button("Add $50") { Task { await model.buyBalance(packID: "usd_50") } }
-                        }
-                        if model.managedStatus?.welcomeContactURL != nil {
-                            Button("Message JP for Welcome Compute") { model.requestWelcomeCompute() }
-                        }
-                        Button("Refresh Balance") { Task { await model.refreshManaged() } }
-                    }
-                    Section("Recent transactions") {
-                        if balance.transactions.isEmpty {
-                            Text("No balance transactions yet.").foregroundStyle(.secondary)
-                        }
-                        ForEach(balance.transactions.prefix(20)) { entry in
-                            LabeledContent(entry.description, value: model.signedCurrency(entry.amountMicrousd))
-                                .help("\(entry.bucket) · \(entry.createdAt)")
-                        }
-                    }
-                } else {
-                    Text(model.managedMessage ?? "Managed balance is not configured for this release.")
-                        .foregroundStyle(.secondary)
-                    Button("Check Managed Service") { Task { await model.refreshManaged() } }
-                }
-            }
-            .padding(20)
-            .tabItem { Label("Balance", systemImage: "creditcard") }
 
             Form {
                 Button("Open Legacy Browser Studio") { Task { await model.openLegacyStudio() } }

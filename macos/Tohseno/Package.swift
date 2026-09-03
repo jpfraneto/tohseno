@@ -12,8 +12,16 @@ let package = Package(
         .library(name: "TohsenoMacCore", targets: ["TohsenoMacCore"]),
         .executable(name: "TohsenoMacApp", targets: ["TohsenoMacApp"]),
     ],
+    dependencies: [
+        .package(path: "../../sdk/apple/TohsenoWorkshopKit"),
+    ],
     targets: [
-        .target(name: "TohsenoMacCore"),
+        .target(
+            name: "TohsenoMacCore",
+            dependencies: [
+                .product(name: "TohsenoWorkshopKit", package: "TohsenoWorkshopKit"),
+            ]
+        ),
         .executableTarget(
             name: "TohsenoMacApp",
             dependencies: ["TohsenoMacCore"],

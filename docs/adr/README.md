@@ -2,6 +2,14 @@
 
 Accepted ADRs are authoritative architecture decisions beneath `protocol/`.
 
+[ADR 0041](0041-workshop-runtime.md) implements ADR 0039's live local Workshop
+Session between the one Mac factory and intended paired iPhone. It reuses the
+existing Ed25519/X25519 pairing authorities, exposes typed device/capability
+truth and ephemeral encrypted events through a tiny Swift SDK, preserves
+focused apps by default, and cannot perform durable Claim, Ship, Update,
+installation, publication, payment, or revocation actions. It prepares RC10
+source without publishing or deploying an artifact.
+
 [ADR 0040](0040-public-app-media-and-network-home.md) binds the real Xcode app
 icon and up to eight explicitly selected screenshots into catalog release v2,
 renders that immutable media on the app page, and makes `/` a canonical

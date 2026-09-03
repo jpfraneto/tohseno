@@ -20,12 +20,14 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../../../apple-identity"),
+        .package(path: "../TohsenoWorkshopKit"),
     ],
     targets: [
         .target(
             name: "TohsenoCompanionKit",
             dependencies: [
                 .product(name: "TohsenoAppleIdentity", package: "apple-identity"),
+                .product(name: "TohsenoWorkshopKit", package: "TohsenoWorkshopKit"),
             ],
             resources: [
                 .process("Resources"),

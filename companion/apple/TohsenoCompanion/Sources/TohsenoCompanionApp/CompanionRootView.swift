@@ -1,5 +1,6 @@
 import SwiftUI
 import TohsenoCompanionKit
+import TohsenoWorkshopKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -929,6 +930,10 @@ struct YourAppsView: View {
                 )
             }
 
+            PocketWorkshopPulse(runtime: model.workshopRuntime) {
+                Task { await model.sendWorkshopPulse() }
+            }
+
             PocketTohsenoKeeper(chapter: projection.chapter)
 
             HStack(spacing: 8) {
@@ -977,8 +982,9 @@ struct YourAppsView: View {
     }
 
     private var macDetail: String {
-        switch projection.macConnection {
-        case .connected: "Connected"
+        if model.workshopRuntime.connectionState == .connected { return "Nearby · live" }
+        return switch projection.macConnection {
+        case .connected: "Private commands ready"
         case .pairing: "Pairing"
         case .reconnecting: "Reconnecting"
         case .disconnected: "Offline"
@@ -1005,6 +1011,74 @@ struct YourAppsView: View {
 
     private var keeperDetail: String {
         projection.keeperAvailable ? "DeviceKey ready" : "Authority unknown"
+    }
+}
+
+private struct PocketWorkshopPulse: View {
+    let runtime: WorkshopClientRuntime
+    let send: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).foregroundStyle(color)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("WORKSHOP PULSE")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.2)
+                        .foregroundStyle(Tohseno.orange)
+                    Text(status).font(.caption.weight(.semibold))
+                }
+                Spacer()
+                Button("Send to Mac", action: send)
+                    .buttonStyle(.bordered)
+                    .disabled(runtime.connectionState != .connected)
+                    .accessibilityIdentifier("workshop.pulse.send")
+            }
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(Tohseno.ash)
+        }
+        .padding(11)
+        .background(Tohseno.void.opacity(0.62), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(color.opacity(0.25)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Workshop Pulse. \(status). \(detail)")
+        .accessibilityIdentifier("workshop.session")
+    }
+
+    private var status: String {
+        switch runtime.connectionState {
+        case .connected: "Connected to Mac workshop"
+        case .discovering: "Looking for the Mac workshop nearby"
+        case .authenticating: "Checking the paired Mac workshop"
+        case .reconnecting: "Connection interrupted; reconnecting"
+        case .rejected: "This iPhone is not authorized"
+        case .unavailable: "Mac workshop unavailable"
+        }
+    }
+
+    private var detail: String {
+        if let duration = runtime.lastRoundTrip {
+            return "Last round trip: \(duration.formatted(.number.precision(.fractionLength(3))))s"
+        }
+        if runtime.lastEventAt != nil { return "A live event just arrived from the Mac." }
+        return runtime.rejectionReason ?? "Live Session events stay local and never approve public actions."
+    }
+
+    private var symbol: String {
+        runtime.connectionState == .connected
+            ? "point.3.connected.trianglepath.dotted"
+            : (runtime.connectionState == .rejected ? "hand.raised.slash" : "antenna.radiowaves.left.and.right")
+    }
+
+    private var color: Color {
+        switch runtime.connectionState {
+        case .connected: Tohseno.connected
+        case .rejected: Tohseno.failed
+        case .discovering, .authenticating, .reconnecting: Tohseno.warning
+        case .unavailable: Tohseno.ash
+        }
     }
 }
 

@@ -12,6 +12,7 @@ axum = { version = "0.8.6", features = ["json", "query", "tokio"] }
 base64.workspace = true
 clap.workspace = true
 futures-util = "=0.3.31"
+hkdf = "=0.12.4"
 libc = "=0.2.189"
 qrcode = { version = "=0.14.1", default-features = false, features = ["svg"] }
 rand_core = { version = "=0.6.4", features = ["getrandom"] }

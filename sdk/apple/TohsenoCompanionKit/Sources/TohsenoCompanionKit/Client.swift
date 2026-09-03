@@ -1,4 +1,6 @@
+import CryptoKit
 import Foundation
+import TohsenoWorkshopKit
 
 public enum CompanionConnectionState: Equatable, Sendable {
     case disconnected
@@ -131,7 +133,7 @@ public struct CreateShotRequest: Equatable, Sendable {
     }
 }
 
-public actor TohsenoCompanionClient {
+public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
     public nonisolated let connectionState: AsyncStream<CompanionConnectionState>
     public nonisolated let workspaceEvents: AsyncStream<WorkspaceEvent>
 
@@ -208,6 +210,87 @@ public actor TohsenoCompanionClient {
 
     public func publicIdentity() async throws -> CompanionIdentityDescription {
         try await identityManager.publicIdentity()
+    }
+
+    public func workshopPairing() async throws -> WorkshopClientPairing {
+        try await ensureLoaded()
+        try requireActivePairing()
+        guard let pairing = state?.pairing,
+              let studioDeviceID = WorkshopDeviceID(rawValue: pairing.studioDeviceID),
+              let companionDeviceID = WorkshopDeviceID(rawValue: pairing.grant.deviceID)
+        else { throw WorkshopRuntimeError.invalidIdentity }
+        try pairing.grant.verify(
+            trustedStudioSigningKey: Base64URL.decode(
+                pairing.studioSigningPublicKey,
+                expectedBytes: 32
+            ),
+            expectedWorkspaceID: pairing.grant.workspaceID,
+            expectedDeviceID: pairing.grant.deviceID,
+            minimumRevocationEpoch: pairing.grant.revocationEpoch,
+            now: now()
+        )
+        return WorkshopClientPairing(
+            workspaceID: pairing.grant.workspaceID,
+            studioDeviceID: studioDeviceID,
+            studioSigningPublicKey: try Base64URL.decode(
+                pairing.studioSigningPublicKey,
+                expectedBytes: 32
+            ),
+            studioAgreementPublicKey: try Base64URL.decode(
+                pairing.studioAgreementPublicKey,
+                expectedBytes: 32
+            ),
+            companionDeviceID: companionDeviceID,
+            revocationEpoch: pairing.grant.revocationEpoch
+        )
+    }
+
+    public func authorizeWorkshopClient(
+        host: WorkshopHostCredential,
+        clientNonce: Data
+    ) async throws -> WorkshopClientAuthorization {
+        guard clientNonce.count == 32 else { throw WorkshopRuntimeError.invalidCredential }
+        let pairing = try await workshopPairing()
+        try host.verify(
+            studioSigningPublicKey: pairing.studioSigningPublicKey,
+            expectedWorkspaceID: pairing.workspaceID,
+            expectedStudioDeviceID: pairing.studioDeviceID,
+            now: now()
+        )
+        let identity = try await identityManager.identity()
+        let unsigned = WorkshopClientProof(
+            sessionID: host.sessionID,
+            companionDeviceID: pairing.companionDeviceID,
+            revocationEpoch: pairing.revocationEpoch,
+            hostCredentialDigest: WorkshopBase64URL.encode(host.digest()),
+            clientNonce: WorkshopBase64URL.encode(clientNonce),
+            signature: "pending"
+        )
+        let signature = try identity.sign(
+            domain: WorkshopClientProof.signatureDomain,
+            message: unsigned.signingBody()
+        )
+        let proof = WorkshopClientProof(
+            sessionID: unsigned.sessionID,
+            companionDeviceID: unsigned.companionDeviceID,
+            revocationEpoch: unsigned.revocationEpoch,
+            hostCredentialDigest: unsigned.hostCredentialDigest,
+            clientNonce: unsigned.clientNonce,
+            signature: WorkshopBase64URL.encode(signature)
+        )
+        let studioAgreement = try Curve25519.KeyAgreement.PublicKey(
+            rawRepresentation: pairing.studioAgreementPublicKey
+        )
+        let shared = try identity.agreementKey.sharedSecretFromKeyAgreement(with: studioAgreement)
+        let sessionKey = WorkshopSessionCrypto.deriveSessionKey(
+            sharedSecret: shared,
+            challenge: try WorkshopBase64URL.decode(host.challenge, expectedBytes: 32),
+            sessionID: host.sessionID,
+            workspaceID: pairing.workspaceID,
+            companionDeviceID: pairing.companionDeviceID,
+            revocationEpoch: pairing.revocationEpoch
+        )
+        return WorkshopClientAuthorization(proof: proof, sessionKey: sessionKey)
     }
 
     public func pair(with invitationURI: String, displayName: String) async throws {

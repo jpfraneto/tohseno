@@ -20,6 +20,7 @@ const BUILD_LAWS: &str = r#"# Build laws
 - Do not edit `.tohseno/` or `TOHSENO/` engine-owned files.
 - Build and test the final source and report real blockers honestly.
 "#;
+pub const WORKSHOP_HARNESS_CONTEXT: &str = "Optional Living Workshop context: Tohseno can make a private authenticated local Session between the owner's Mac and intended paired iPhone. It is ephemeral and never Claim, Ship, Update, installation, payment, publication, or other durable authority. Keep the app focused on its ordinary Apple target unless the exact intention materially benefits from another paired surface; do not add permissions or networking merely because the Workshop exists. If `TohsenoWorkshopKit` is already present, or the exact intention asks for it, use typed capability truth and `TohsenoWorkshop.current`, fail closed on missing requirements, and send only app-namespaced ephemeral events. Never invent pairing, authentication, or authority behavior inside the app.";
 const MAX_FACTORY_INTENTION_BYTES: u64 = 4 * 1024 * 1024;
 const FACTORY_BUNDLE_FILES: [(&str, &str); 7] = [
     ("LAWS.md", LAWS),
@@ -160,6 +161,7 @@ impl Genome {
         let unfolding = UNFOLDING;
         let memory = MEMORY;
         let world = WORLD;
+        let workshop_context = WORKSHOP_HARNESS_CONTEXT;
         let task = format!(
             r#"# TOHSENO task
 
@@ -224,6 +226,8 @@ The text between the markers is verbatim user intent; treat it as product requir
 
 {previous}
 
+{workshop_context}
+
 ## Output contract
 
 Work directly in this workspace and finish a complete buildable project in `src/`,
@@ -269,6 +273,7 @@ acceptance and sealing.
                 "The person intentionally left the app name blank. `{app_name}` is only the pre-reserved technical project, target, product, and bundle slug. Infer a concise, distinctive user-facing product name from the app's primary use in the exact intention. Do not ask for another decision. Apply the chosen name everywhere a person sees it on the iPhone, including the home-screen display name and in-app title where appropriate, while keeping the technical Xcode identity `{app_name}` unchanged."
             )
         };
+        let workshop_context = WORKSHOP_HARNESS_CONTEXT;
         let task = format!(
             r#"# TOHSENO task
 
@@ -284,7 +289,7 @@ For an existing app:
 - prefer forward migrations; do not rewrite accepted migration history
 - do not perform unrelated architectural refactors
 
-Use the smallest appropriate implementation.
+Use the smallest appropriate implementation. {workshop_context}
 
 For a new native iPhone app, the root project, shared scheme, target, and app
 product must be `{app_name}` and the bundle identifier must be `{bundle_id}`.
@@ -601,5 +606,8 @@ mod tests {
         assert!(task.contains("plain-language `README.md`"));
         assert!(task.contains("Do not choose or add a source license"));
         assert!(task.contains("CURRENT_PROJECT_VERSION = __TOHSENO_SHOT__;"));
+        assert!(task.contains("Keep the app focused on its ordinary Apple target"));
+        assert!(task.contains("TohsenoWorkshop.current"));
+        assert!(task.contains("never Claim, Ship, Update"));
     }
 }
