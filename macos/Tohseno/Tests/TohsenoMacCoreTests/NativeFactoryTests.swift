@@ -633,15 +633,26 @@ final class NativeFactoryTests: XCTestCase {
         struct AcronymFixture: Decodable {
             let clientID: String
             let checkoutURL: String
+            let pairingURI: String
             let additionalCostUSD: Double
             let managedMaximumMicrousd: UInt64
         }
-        let data = Data(#"{"client_id":"com.tohseno.mac","checkout_url":"https://example.com","additional_cost_usd":1.25,"managed_maximum_microusd":5000000}"#.utf8)
+        let data = Data(#"{"client_id":"com.tohseno.mac","checkout_url":"https://example.com","pairing_uri":"tohseno-companion://pair/fixture","additional_cost_usd":1.25,"managed_maximum_microusd":5000000}"#.utf8)
         let decoded = try JSONDecoder.tohseno.decode(AcronymFixture.self, from: data)
         XCTAssertEqual(decoded.clientID, "com.tohseno.mac")
         XCTAssertEqual(decoded.checkoutURL, "https://example.com")
+        XCTAssertEqual(decoded.pairingURI, "tohseno-companion://pair/fixture")
         XCTAssertEqual(decoded.additionalCostUSD, 1.25)
         XCTAssertEqual(decoded.managedMaximumMicrousd, 5_000_000)
+    }
+
+    func testCompanionPairingSessionDecodesPublishedServiceShape() throws {
+        let data = Data(#"{"schema":"tohseno.studio-pairing-session/1","session_id":"pair_fixture","state":"waiting","expires_at":"2099-01-01T00:00:00Z","pairing_uri":"tohseno-companion://pair/fixture","qr_svg":"<svg/>"}"#.utf8)
+        let session = try JSONDecoder.tohseno.decode(CompanionPairingSession.self, from: data)
+        XCTAssertEqual(session.id, "pair_fixture")
+        XCTAssertEqual(session.state, "waiting")
+        XCTAssertEqual(session.pairingURI, "tohseno-companion://pair/fixture")
+        XCTAssertNil(session.deviceName)
     }
 
     func testAdoptedProjectSnapshotDecodesPrivateSourceAndHistory() throws {

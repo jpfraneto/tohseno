@@ -74,9 +74,9 @@ public struct CompanionWorkshopProjection: Equatable, Sendable {
         self.macConnection = macConnection
         self.keeperAvailable = keeperAvailable
         threshold = switch publicEvidenceObserved {
-        case true: .checked
-        case false: .unavailable
-        case nil: .unknown
+        case .some(true): .checked
+        case .some(false): .unavailable
+        case .none: .unknown
         }
         self.unreadUpdates = unreadUpdates
         chapter = Self.chapter(apps: apps, connection: macConnection)

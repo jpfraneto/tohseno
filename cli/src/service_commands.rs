@@ -168,18 +168,18 @@ pub fn install(
         }
         Err(error) => return Err(error.into()),
     }
-    // Bootstrap is idempotent only when the service is not already loaded.
-    // A nonzero response may mean it is already present; kickstart below is
-    // the authoritative start operation.
-    let _ = launchctl.run(&[
+    // Bootstrap may start this RunAtLoad service before kickstart reaches it.
+    // Accept either successful operation; the caller's health check remains
+    // authoritative over whether the launched process actually became ready.
+    let bootstrap = launchctl.run(&[
         "bootstrap".into(),
         paths.domain(),
         paths.launch_agent.display().to_string(),
     ])?;
-    require_launchctl_success(
-        launchctl.run(&["kickstart".into(), "-k".into(), paths.service_target()])?,
-        "start Local Workspace Service",
-    )?;
+    let kickstart = launchctl.run(&["kickstart".into(), "-k".into(), paths.service_target()])?;
+    if !kickstart.status.success() && !bootstrap.status.success() {
+        return Err("launchd could not start the Local Workspace Service".into());
+    }
     Ok(receipt("install", true, paths))
 }
 
@@ -476,17 +476,6 @@ fn write_new(path: &Path, bytes: &[u8], mode: u32) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn require_launchctl_success(
-    output: Output,
-    action: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(format!("launchd could not {action}").into())
-    }
-}
-
 fn xml_escape(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -512,6 +501,19 @@ mod tests {
             self.calls.lock().unwrap().push(arguments.to_vec());
             Ok(Output {
                 status: std::process::ExitStatus::from_raw(0),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    struct KickstartRaceLaunchctl;
+
+    impl Launchctl for KickstartRaceLaunchctl {
+        fn run(&self, arguments: &[String]) -> Result<Output, std::io::Error> {
+            let failed = arguments.first().map(String::as_str) == Some("kickstart");
+            Ok(Output {
+                status: std::process::ExitStatus::from_raw(if failed { 1 << 8 } else { 0 }),
                 stdout: Vec::new(),
                 stderr: Vec::new(),
             })
@@ -555,6 +557,14 @@ mod tests {
         assert!(calls
             .iter()
             .any(|call| call.first().map(String::as_str) == Some("bootout")));
+    }
+
+    #[test]
+    fn install_accepts_run_at_load_winning_the_kickstart_race() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = paths(root.path());
+        install(&paths, &KickstartRaceLaunchctl).unwrap();
+        assert!(paths.launch_agent.is_file());
     }
 
     #[test]

@@ -147,7 +147,7 @@ jobs:
             jq -e \
               '.schema == "tohseno.protocol-info/2"
                and .protocol == "tohseno"
-             and .product_version == "1.2.0"
+             and .product_version == "1.2.1"
                and .release_status == "stable"
                and .contract_generation.generation == "0.8.0"
                and .contract_generation.status == "active"

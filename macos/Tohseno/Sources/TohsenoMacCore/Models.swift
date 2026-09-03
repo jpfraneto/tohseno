@@ -951,6 +951,7 @@ private func tohsenoPropertyName(_ source: String) -> String {
         let suffix = switch word {
         case "id": "ID"
         case "ids": "IDs"
+        case "uri": "URI"
         case "url": "URL"
         case "usd": "USD"
         default: word.prefix(1).uppercased() + word.dropFirst()
