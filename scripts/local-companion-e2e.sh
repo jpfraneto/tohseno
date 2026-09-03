@@ -180,8 +180,8 @@ test -f "$fixture_harness" && test ! -L "$fixture_harness" && test -x "$fixture_
   fail "the deterministic factory harness is unavailable"
 binary_directory="$(CDPATH= cd -- "$(dirname -- "$binary")" && pwd -P)"
 binary="$binary_directory/$(basename -- "$binary")"
-test "$("$binary" --version)" = "tohseno 1.2.0" ||
-  fail "the local companion flow requires a TOHSENO 1.2.0 binary"
+test "$("$binary" --version)" = "tohseno 1.2.1" ||
+  fail "the local companion flow requires a TOHSENO 1.2.1 binary"
 
 install_root="$temporary_root/install"
 data_root="$temporary_root/data"
@@ -293,7 +293,7 @@ RUNTIME_PATH="$runtime_path" HEALTH_PATH="$temporary_root/service-health.json" b
       health.workspace_id !== runtime.workspace_id ||
       health.studio_device_id !== runtime.studio_device_id ||
       health.instance_id !== runtime.instance_id ||
-      health.service_version !== "1.2.0") process.exit(1);
+      health.service_version !== "1.2.1") process.exit(1);
 ' || fail "the Local Workspace Service health identity did not verify"
 
 workspace_secret_reference="$(JSON_PATH="$workspace_record" bun -e '
@@ -414,7 +414,7 @@ STATUS_PATH="$temporary_root/revoked-status.json" \
   const exercise = await Bun.file(process.env.EXERCISE_PATH).json();
   console.log(JSON.stringify({
     schema: "tohseno.local-companion-e2e/1",
-    service_version: "1.2.0",
+    service_version: "1.2.1",
     relay_healthy: true,
     service_healthy: true,
     paired_devices: 1,

@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-01. This is the plain-language
+Written 2026-07-30, amended through 2026-09-02. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -463,27 +463,34 @@ receipts. The local service verifies a release-pinned public key and exact
 installation bind before changing entitlement. Monthly is $9.99 and yearly is
 $99. Billing is configuration-gated and currently inactive.
 
-The repository prepares `packages/cli` 1.2.0 as the dependency-free npm CLI
+The repository prepares `packages/cli` 1.2.1 as the dependency-free npm CLI
 door. A global install writes only the JavaScript launcher: it performs no
 postinstall download, service mutation, Companion setup, or GUI launch. The
 no-argument command shows `cd`, `tohseno init`, then `tohseno deploy`.
 Interactive init explains Xcode adoption, the stable candidate ShotID,
 Companion authority, and one Ship followed by Updates one Enter-gated line at
-a time; JSON and non-interactive use do not pause. At first operational use,
+a time; JSON and non-interactive use do not pause. Before adoption it selects
+only the private intended CoreDevice, verifies the exact
+`com.tohseno.companion` bundle in that iPhone's installed-app inventory, and
+requires completion of the specific one-use private pairing session. Missing
+Companion directs the person to `tohseno companion install`; unreadable
+inventory remains unknown, and remembered state or another phone cannot count.
+At first operational use,
 the launcher uses one fixed CLI manifest, refuses redirects and unapproved
 origins, verifies exact size, SHA-256, release layout/checksums, and Apple
 signing policy, and activates the command runtime only in the existing
-user-owned layout. Public npm `latest` is now 1.2.0. Its fixed CLI manifest,
-both architecture-specific Developer ID signed runtime archives, public npm
-tarball, and a fresh isolated npm-to-runtime installation were independently
-round-trip verified. Exact publication evidence is recorded in
-`release/NPM_1_2_0_PUBLICATION.json`.
+user-owned layout. Public npm `latest` remains 1.2.0 until the 1.2.1 runtime
+archives, manifest, npm tarball, and fresh isolated npm-to-runtime path are
+published and independently verified. The completed 1.2.0 publication evidence
+remains recorded in `release/NPM_1_2_0_PUBLICATION.json`.
 
 ## Private Companion channel
 
-This channel is optional. Native readiness, create, evolve, build, generated
-app installation, and local/BYO admission do not depend on installing or
-pairing it. Existing pairings remain valid.
+This channel is optional for native readiness, create, evolve, build, generated
+app installation, and local/BYO admission. It is required for the
+builder-network `init`/`deploy` path because Companion holds publication
+authority. Existing pairings remain valid only while the intended iPhone still
+contains the exact Companion app and the private pairing remains active.
 
 The Companion is a signed remote interface, not a Builder identity, wallet,
 mobile IDE, source browser, coding harness, public social client, or substitute

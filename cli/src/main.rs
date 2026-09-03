@@ -478,7 +478,7 @@ enum CompanionAdminCommand {
     Status,
     /// Open Studio directly into the pairing surface.
     Pair,
-    /// Build, install, and launch the current Companion on the connected iPhone.
+    /// Install, inventory-verify, launch, and privately pair Companion on the intended iPhone.
     Install,
     /// List paired and revoked companion devices.
     Devices,
@@ -1942,57 +1942,7 @@ async fn companion_admin(
             )?;
         }
         CompanionAdminCommand::Install => {
-            use tohseno_engine::gates::{apple_signing, device};
-            let device = match device::check()? {
-                device::DeviceState::Ready(device) => device,
-                _ => return Err("the connected iPhone is not ready for installation".into()),
-            };
-            let team_id = match apple_signing::check() {
-                apple_signing::AppleSigningState::Ready { team_id, .. } => team_id,
-                apple_signing::AppleSigningState::Missing => {
-                    return Err(
-                        "add your Apple Account in Xcode before installing the Companion".into(),
-                    )
-                }
-            };
-            let paths = service_commands::ServicePaths::discover()?;
-            let installed_project = paths.install_root.join(
-                "current/share/companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj",
-            );
-            #[cfg(debug_assertions)]
-            let project = {
-                let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .parent()
-                    .ok_or("CLI source path has no repository root")?
-                    .join("companion/apple/TohsenoCompanion/App/TohsenoCompanion.xcodeproj");
-                if installed_project.is_file() {
-                    installed_project
-                } else {
-                    source
-                }
-            };
-            #[cfg(not(debug_assertions))]
-            let project = installed_project;
-            cable_genesis::build_and_install_companion(
-                &project,
-                &paths.service_state,
-                &device,
-                &team_id,
-            )
-            .map_err(|error| error.to_string())?;
-            cable_genesis::launch_companion(&paths.service_state, &device)
-                .map_err(|error| error.to_string())?;
-            present_json_or_status(
-                json_output,
-                json!({
-                    "schema": "tohseno.companion-install-receipt/1",
-                    "bundle_identifier": "com.tohseno.companion",
-                    "version": env!("CARGO_PKG_VERSION"),
-                    "launched": true,
-                }),
-                "The current TOHSENO Companion was installed and launched.",
-                bus,
-            )?;
+            install_and_pair_companion(json_output, bus).await?;
         }
         CompanionAdminCommand::Devices => {
             let service = service_client::ServiceClient::ensure_running()
@@ -2035,6 +1985,102 @@ async fn companion_admin(
         }
     }
     Ok(())
+}
+
+async fn install_and_pair_companion(
+    json_output: bool,
+    bus: &EventBus,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let service = service_client::ServiceClient::ensure_running()
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut view: Value = service
+        .post("/api/v1/genesis/actions/begin", &json!({}))
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut step = required_string(&view, "step")?.to_owned();
+    if step == "first_shot" {
+        return present_json_or_status(
+            json_output,
+            companion_connection_receipt(),
+            "Tohseno Companion is installed on the intended iPhone and privately paired.",
+            bus,
+        )
+        .map_err(Into::into);
+    }
+    let action = view
+        .get("primary_action")
+        .and_then(Value::as_str)
+        .filter(|action| matches!(*action, "install_companion" | "retry_companion"))
+        .map(str::to_owned);
+    let Some(action) = action else {
+        return Err(companion_setup_instruction(&view).into());
+    };
+    view = service
+        .post(&format!("/api/v1/genesis/actions/{action}"), &json!({}))
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20 * 60);
+    let mut last_instruction = String::new();
+    loop {
+        step = required_string(&view, "step")?.to_owned();
+        if step == "first_shot" {
+            return present_json_or_status(
+                json_output,
+                companion_connection_receipt(),
+                "Tohseno Companion is installed on the intended iPhone and privately paired.",
+                bus,
+            )
+            .map_err(Into::into);
+        }
+        let instruction = view
+            .get("instruction")
+            .and_then(Value::as_str)
+            .unwrap_or("Checking Tohseno Companion…");
+        if instruction != last_instruction {
+            bus.emit(Event::status(instruction));
+            last_instruction = instruction.into();
+        }
+        let install_state = view.get("companion_install_state").and_then(Value::as_str);
+        if install_state == Some("failed")
+            || view
+                .get("primary_action")
+                .and_then(Value::as_str)
+                .is_some_and(|action| matches!(action, "install_companion" | "retry_companion"))
+        {
+            return Err(companion_setup_instruction(&view).into());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("Companion setup did not finish within 20 minutes. Keep the intended iPhone connected and unlocked, then run `tohseno companion install` again.".into());
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        view = service
+            .get("/api/v1/genesis")
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+}
+
+fn companion_setup_instruction(view: &Value) -> String {
+    let instruction = view
+        .get("instruction")
+        .and_then(Value::as_str)
+        .unwrap_or("Finish setting up Tohseno Companion on the intended iPhone.");
+    match view.get("detail").and_then(Value::as_str) {
+        Some(detail) => format!("{instruction}\n{detail}"),
+        None => instruction.into(),
+    }
+}
+
+fn companion_connection_receipt() -> Value {
+    json!({
+        "schema": "tohseno.companion-connection-receipt/1",
+        "bundle_identifier": cable_genesis::COMPANION_BUNDLE_IDENTIFIER,
+        "version": env!("CARGO_PKG_VERSION"),
+        "installed_app_inventory_verified": true,
+        "private_pairing_verified": true,
+    })
 }
 
 fn present_json_or_status(

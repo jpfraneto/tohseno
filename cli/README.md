@@ -1,4 +1,4 @@
-# TOHSENO CLI 1.2.0
+# TOHSENO CLI 1.2.1
 
 `tohseno` with no arguments is the normal entry point: it ensures the local
 service is available and opens the native Tohseno app.

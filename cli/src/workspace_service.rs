@@ -47,8 +47,9 @@ use uuid::Uuid;
 use crate::cable_genesis::{
     build_and_install_companion_with_progress, companion_build_failure, device_digest,
     launch_companion_bootstrap, project as project_genesis, CableGenesisStore, CableGenesisView,
-    CompanionInstallState, GenesisObservation, COMPANION_BUILD_FAILURE, COMPANION_INSTALL_FAILURE,
-    COMPANION_LAUNCH_FAILURE, COMPANION_PAIRING_FAILURE,
+    CompanionInstallState, GenesisObservation, COMPANION_BUILD_FAILURE,
+    COMPANION_BUNDLE_IDENTIFIER, COMPANION_INSTALL_FAILURE, COMPANION_LAUNCH_FAILURE,
+    COMPANION_PAIRING_FAILURE,
 };
 use crate::companion_service::{CompanionCoordinator, PairingCompletion, PairingSessionView};
 use crate::device_readiness::{
@@ -1932,10 +1933,38 @@ async fn billing_refresh(
     Ok(Json(json!(status)))
 }
 
-fn observe_genesis(state: &WorkspaceState) -> Result<GenesisObservation, ApiError> {
+fn observe_genesis(
+    state: &WorkspaceState,
+    record: &crate::cable_genesis::CableGenesisRecord,
+) -> Result<GenesisObservation, ApiError> {
     use tohseno_engine::gates::{apple_signing, device, toolchain};
     let xcode_ready = toolchain::check() == toolchain::ToolchainState::Ready;
-    let device_state = xcode_ready.then(device::check).and_then(Result::ok);
+    let device_state = xcode_ready
+        .then(device::inventory)
+        .and_then(Result::ok)
+        .map(|state| match state {
+            device::DeviceInventoryState::Ready(mut devices) => {
+                let selected = if let Some(intended) = record.intended_device_digest.as_deref() {
+                    devices
+                        .into_iter()
+                        .find(|candidate| device_digest(&candidate.identifier) == intended)
+                } else if devices.len() == 1 {
+                    devices.pop()
+                } else {
+                    None
+                };
+                selected
+                    .map(device::DeviceState::Ready)
+                    .unwrap_or(device::DeviceState::DeviceUnreachable)
+            }
+            device::DeviceInventoryState::DeviceUnreachable => {
+                device::DeviceState::DeviceUnreachable
+            }
+            device::DeviceInventoryState::TrustRequired => device::DeviceState::TrustRequired,
+            device::DeviceInventoryState::DeveloperModeRequired => {
+                device::DeviceState::DeveloperModeRequired
+            }
+        });
     let cable_visible = match device_state.as_ref() {
         Some(device::DeviceState::DeviceUnreachable) | None => device::cable_visible(),
         Some(_) => true,
@@ -1944,6 +1973,13 @@ fn observe_genesis(state: &WorkspaceState) -> Result<GenesisObservation, ApiErro
         apple_signing::check(),
         apple_signing::AppleSigningState::Ready { .. }
     );
+    let companion_installed = device_state.as_ref().and_then(|device| match device {
+        device::DeviceState::Ready(device) => {
+            tohseno_engine::gates::install::is_bundle_installed(device, COMPANION_BUNDLE_IDENTIFIER)
+                .ok()
+        }
+        _ => None,
+    });
     let paired = state
         .companion
         .devices()
@@ -1955,23 +1991,19 @@ fn observe_genesis(state: &WorkspaceState) -> Result<GenesisObservation, ApiErro
         xcode_ready,
         device: device_state,
         signing_ready,
+        companion_installed,
         paired,
     })
 }
 
 fn current_genesis_view(state: &WorkspaceState) -> Result<CableGenesisView, ApiError> {
-    let observed = observe_genesis(state)?;
-    let mut record = state.genesis.load().map_err(ApiError::internal)?;
-    if observed.paired
-        && matches!(
-            record.companion_install,
-            CompanionInstallState::WaitingForPairing | CompanionInstallState::Installed
-        )
+    let record = state.genesis.load().map_err(ApiError::internal)?;
+    let observed = observe_genesis(state, &record)?;
+    if record.companion_install == CompanionInstallState::Installed
+        && observed.paired
+        && observed.companion_installed == Some(true)
+        && record.intended_device_digest.is_some()
     {
-        record = state
-            .genesis
-            .set_install_state(CompanionInstallState::Installed, None, None, None)
-            .map_err(ApiError::internal)?;
         state
             .entitlement
             .complete_genesis_now()
@@ -2026,8 +2058,11 @@ async fn genesis_action(
         }
         "install_companion" | "retry_companion" => {
             let view = current_genesis_view(&state)?;
-            if view.step != crate::cable_genesis::GenesisStep::InstallCompanion
-                || view.primary_action != Some(action.as_str())
+            if !matches!(
+                view.step,
+                crate::cable_genesis::GenesisStep::InstallCompanion
+                    | crate::cable_genesis::GenesisStep::Pairing
+            ) || view.primary_action != Some(action.as_str())
             {
                 return Err(ApiError::conflict(
                     "genesis_not_ready",
@@ -2044,8 +2079,10 @@ async fn genesis_action(
                     "Tohseno’s private iPhone connection is unavailable. Try again shortly.",
                 ));
             }
-            let device = match tohseno_engine::gates::device::check().map_err(ApiError::internal)? {
-                tohseno_engine::gates::device::DeviceState::Ready(device) => device,
+            let record = state.genesis.load().map_err(ApiError::internal)?;
+            let observed = observe_genesis(&state, &record)?;
+            let device = match observed.device {
+                Some(tohseno_engine::gates::device::DeviceState::Ready(device)) => device,
                 _ => {
                     return Err(ApiError::conflict(
                         "iphone_not_ready",
@@ -2054,18 +2091,14 @@ async fn genesis_action(
                 }
             };
             if action == "retry_companion" {
-                let record = state.genesis.load().map_err(ApiError::internal)?;
-                if record.intended_device_digest.as_deref()
-                    != Some(device_digest(&device.identifier).as_str())
-                {
-                    return Err(ApiError::conflict(
-                        "iphone_changed",
-                        "connect the same iPhone that received Tohseno Companion",
-                    ));
-                }
                 state
                     .genesis
-                    .set_install_state(CompanionInstallState::Launching, None, None, None)
+                    .set_install_state(
+                        CompanionInstallState::Launching,
+                        Some(&device.identifier),
+                        None,
+                        None,
+                    )
                     .map_err(ApiError::internal)?;
                 tokio::spawn(pair_and_launch_companion(
                     state.genesis.clone(),
@@ -2227,11 +2260,26 @@ async fn wait_for_companion_pairing(
         return;
     };
     loop {
-        if companion
-            .devices()
-            .is_ok_and(|devices| devices.iter().any(|device| !device.revoked))
-        {
-            return;
+        match companion.pairing_session(&session_id).await {
+            Ok(session) if session.state == "paired" => {
+                let _ =
+                    genesis.set_install_state(CompanionInstallState::Installed, None, None, None);
+                events.emit(Event::status(
+                    "Companion installation and private pairing verified.",
+                ));
+                return;
+            }
+            Ok(session) if matches!(session.state, "expired" | "cancelled") => {
+                let _ = genesis.set_install_state(
+                    CompanionInstallState::Failed,
+                    None,
+                    None,
+                    Some(COMPANION_PAIRING_FAILURE),
+                );
+                events.emit(Event::status(COMPANION_PAIRING_FAILURE));
+                return;
+            }
+            Ok(_) | Err(_) => {}
         }
         let Ok(record) = genesis.load() else {
             return;

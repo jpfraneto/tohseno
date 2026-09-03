@@ -34,7 +34,7 @@ test("npm pack installs into an isolated prefix without network or native mutati
       const run = spawnSync(executable, args, { encoding: "utf8" });
       assert.equal(run.status, 0, run.stderr);
       assert.match(run.stdout, /TOHSENO|tohseno/);
-      if (args[0] === "--version") assert.equal(run.stdout, "tohseno 1.2.0\n");
+      if (args[0] === "--version") assert.equal(run.stdout, "tohseno 1.2.1\n");
     }
   } finally {
     await rm(temporary, { recursive: true, force: true });

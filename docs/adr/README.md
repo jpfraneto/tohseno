@@ -7,7 +7,9 @@ door for builders with an existing Xcode project. npm installs only the
 dependency-free launcher with no postinstall side effects; interactive
 `tohseno init` teaches the real Xcode, ShotID, Companion, Ship, Update, and
 `deploy` path one Enter-gated line at a time while structured and
-non-interactive use remains unblocked.
+non-interactive use remains unblocked. Adoption begins only after the intended
+iPhone's CoreDevice app inventory contains the exact Companion bundle and its
+specific one-use private pairing has completed.
 
 [ADR 0037](0037-network-mediated-release-trust.md) defines network trust as
 exact-release evidence: additive external identity bindings, content-addressed

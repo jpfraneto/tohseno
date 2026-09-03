@@ -3,6 +3,7 @@ import { createWriteStream } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { NPM_CLI_VERSION } from "./constants.js";
 import { validatedHttpsURL } from "./manifest.js";
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -13,7 +14,7 @@ async function fetchAllowlisted(url, allowedOrigins) {
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const response = await fetch(current, {
       redirect: "manual",
-      headers: { "user-agent": "tohseno-npm/1.2.0" },
+      headers: { "user-agent": `tohseno-npm/${NPM_CLI_VERSION}` },
     });
     if (!REDIRECT_STATUSES.has(response.status)) return response;
     if (redirects === MAX_REDIRECTS) throw new Error("release download has too many redirects");

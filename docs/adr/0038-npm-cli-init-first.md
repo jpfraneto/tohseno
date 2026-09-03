@@ -64,6 +64,20 @@ and exactly one Ship followed by Updates. Only then does the existing adoption
 operation run. Structured `--json` use and non-interactive stdin/stdout never
 pause, so automation remains composable.
 
+Before Xcode adoption begins, `init` asks the existing local genesis service to
+identify the private intended iPhone and read that device's installed-app list
+through CoreDevice's file-based JSON interface. The exact
+`com.tohseno.companion` bundle must be present, the intended-device digest must
+bind that phone, and the specific one-use private pairing session must have
+completed. A remembered local install state, a successful `devicectl install`
+exit code, another reachable phone, or an unrelated prior Companion pairing is
+not sufficient. If the exact bundle is absent, `init` stops before touching the
+Xcode project and tells the person to run `tohseno companion install`; that
+command uses the one existing genesis path to build, sign, install,
+inventory-verify, launch, and privately pair Companion before `init` is retried.
+An unreadable inventory remains unknown and asks the person to keep the phone
+reachable and unlocked; it is never reported as a missing or installed app.
+
 `init` still succeeds only after the real Xcode project is detected and built.
 `deploy` still snapshots and checks the real source, requires the real paired
 Companion to approve the exact action, and prints a public route only after the

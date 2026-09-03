@@ -1,4 +1,4 @@
-# TOHSENO Companion 1.2.0
+# TOHSENO Companion 1.2.1
 
 The iPhone app. It is the human authority and remote control, not a mobile
 factory: the Mac remains the factory, and this app implements no second

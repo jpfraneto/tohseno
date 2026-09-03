@@ -458,10 +458,15 @@ pub async fn init(
     bus: &tohseno_engine::EventBus,
 ) -> Result<(), BoxError> {
     let selected = absolute_existing_path(&path)?;
+    let service = ServiceClient::ensure_running().await.map_err(to_box)?;
+    let genesis: serde_json::Value = service
+        .post("/api/v1/genesis/actions/begin", &json!({}))
+        .await
+        .map_err(to_box)?;
+    require_connected_companion(&genesis)?;
     bus.emit(Event::status(
         "Checking this app with Xcode… The first check can take several minutes while Xcode resolves packages and builds for Simulator.",
     ));
-    let service = ServiceClient::ensure_running().await.map_err(to_box)?;
     let request = AdoptionRequest {
         path: selected.display().to_string(),
         scheme,
@@ -516,6 +521,29 @@ pub async fn init(
         )));
     }
     Ok(())
+}
+
+fn require_connected_companion(view: &serde_json::Value) -> Result<(), BoxError> {
+    let step = view
+        .get("step")
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Local Workspace Service returned invalid Companion readiness")?;
+    if step == "first_shot" {
+        return Ok(());
+    }
+    let instruction = view
+        .get("instruction")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("Finish connecting Tohseno Companion on your intended iPhone.");
+    let detail = view
+        .get("detail")
+        .and_then(serde_json::Value::as_str)
+        .map(|value| format!("\n{value}"))
+        .unwrap_or_default();
+    Err(format!(
+        "Tohseno Companion is required before this Xcode app can be connected.\n{instruction}{detail}\n\nNext: tohseno companion install\nThen run: tohseno init"
+    )
+    .into())
 }
 
 pub async fn receive(
@@ -2664,6 +2692,26 @@ fn to_box(error: Box<dyn std::error::Error + Send + Sync>) -> BoxError {
 #[cfg(test)]
 mod claim_edition_tests {
     use super::*;
+
+    #[test]
+    fn init_requires_the_fully_verified_companion_state() {
+        assert!(require_connected_companion(&json!({
+            "step": "first_shot",
+            "instruction": "Your iPhone and this Mac are connected."
+        }))
+        .is_ok());
+
+        let error = require_connected_companion(&json!({
+            "step": "install_companion",
+            "instruction": "Install Tohseno Companion on your iPhone.",
+            "detail": "The exact bundle was absent from this iPhone's installed-app list."
+        }))
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("installed-app list"));
+        assert!(error.contains("tohseno companion install"));
+        assert!(error.contains("tohseno init"));
+    }
 
     #[test]
     fn exact_first_ship_policy_shapes_are_bounded() {

@@ -86,7 +86,11 @@ tohseno deploy --app-slug your-app
 ```
 
 Interactive `init` explains one step at a time and waits for Enter before
-continuing. It adopts without restructuring or changing Git. `deploy`
+continuing. Before adoption, it checks the intended iPhone's real installed-app
+inventory for the exact Tohseno Companion bundle and requires its private
+pairing. If either is missing, it stops and directs you to
+`tohseno companion install`; it never treats another phone or a remembered
+local state as proof. It then adopts without restructuring or changing Git. `deploy`
 snapshots safe source and waits for exact Companion approval before the first
 Ship or a later Update. The optional slug is signed into the release and remains stable; after
 the exact app's separate Companion-signed alias request and operator review it

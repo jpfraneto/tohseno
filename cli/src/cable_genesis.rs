@@ -27,6 +27,7 @@ const LEGACY_COMPANION_PAIRING_FAILURE: &str =
 pub const COMPANION_LAUNCH_FAILURE: &str = "The Companion was installed but did not launch.";
 pub const COMPANION_INTERRUPTED_FAILURE: &str =
     "The previous iPhone installation was interrupted. Try again.";
+pub const COMPANION_BUNDLE_IDENTIFIER: &str = "com.tohseno.companion";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -110,6 +111,10 @@ pub struct GenesisObservation {
     pub xcode_ready: bool,
     pub device: Option<DeviceState>,
     pub signing_ready: bool,
+    /// `Some` is an exact observation from this device's CoreDevice app
+    /// inventory. `None` means the inventory could not be observed and must
+    /// never be treated as evidence that the Companion is absent or present.
+    pub companion_installed: Option<bool>,
     pub paired: bool,
 }
 
@@ -379,6 +384,70 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
             true,
         );
     }
+    if matches!(
+        record.companion_install,
+        CompanionInstallState::Building
+            | CompanionInstallState::Installing
+            | CompanionInstallState::Launching
+    ) {
+        return match record.companion_install {
+            CompanionInstallState::Building => view(
+                GenesisStep::InstallCompanion,
+                "Building Tohseno Companion for your iPhone…",
+                Some("Xcode is compiling and signing the app. This can take a few minutes. Keep your iPhone connected and unlocked."),
+                None,
+                false,
+                true,
+            ),
+            CompanionInstallState::Installing => view(
+                GenesisStep::InstallCompanion,
+                "Installing Tohseno Companion on your iPhone…",
+                Some("The build finished. Tohseno is copying the Companion to your iPhone. Keep it connected and unlocked."),
+                None,
+                false,
+                true,
+            ),
+            CompanionInstallState::Launching => view(
+                GenesisStep::InstallCompanion,
+                "Opening Tohseno Companion on your iPhone…",
+                Some("Tohseno found the exact Companion bundle in this iPhone's installed-app list and is starting your private connection."),
+                None,
+                false,
+                true,
+            ),
+            _ => unreachable!("active Companion installation state checked above"),
+        };
+    }
+    let Some(companion_installed) = observed.companion_installed else {
+        return view(
+            GenesisStep::InstallCompanion,
+            "Unlock your iPhone so Tohseno can check its installed apps.",
+            Some("Tohseno only calls the Companion installed after the exact com.tohseno.companion bundle appears in this iPhone's CoreDevice app list."),
+            Some("check"),
+            true,
+            true,
+        );
+    };
+    if !companion_installed {
+        return view(
+            GenesisStep::InstallCompanion,
+            "Install Tohseno Companion on your iPhone.",
+            Some("Tohseno checked this iPhone's installed-app list and did not find the exact Companion bundle. Continue to build, sign, install, and open it on this iPhone."),
+            Some("install_companion"),
+            true,
+            false,
+        );
+    }
+    if record.intended_device_digest.is_none() {
+        return view(
+            GenesisStep::Pairing,
+            "Connect Tohseno Companion on this iPhone.",
+            Some("The Companion is installed. Continue to bind this exact iPhone to the private Mac workspace and complete one-use pairing."),
+            Some("retry_companion"),
+            true,
+            false,
+        );
+    }
     match record.companion_install {
         CompanionInstallState::Idle | CompanionInstallState::Failed => {
             let pairing_retry = matches!(
@@ -409,51 +478,20 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
                 if pairing_retry {
                     "Finish connecting Tohseno Companion on your iPhone."
                 } else {
-                    "Install Tohseno Companion on your iPhone."
+                    "Connect Tohseno Companion on your iPhone."
                 },
-                failure.or(Some("When you continue, Xcode will build and sign the Companion, Tohseno will copy it to this iPhone, and then the Companion will open. This usually takes a few minutes.")),
-                Some(if pairing_retry {
-                    "retry_companion"
-                } else {
-                    "install_companion"
-                }),
+                failure.or(Some("Tohseno found the exact Companion bundle in this iPhone's installed-app list. Continue to open it and complete the private pairing.")),
+                Some("retry_companion"),
                 true,
                 false,
             );
         }
-        CompanionInstallState::Building => {
-            return view(
-                GenesisStep::InstallCompanion,
-                "Building Tohseno Companion for your iPhone…",
-                Some("Xcode is compiling and signing the app. This can take a few minutes. Keep your iPhone connected and unlocked."),
-                None,
-                false,
-                true,
-            );
+        CompanionInstallState::Building
+        | CompanionInstallState::Installing
+        | CompanionInstallState::Launching => {
+            unreachable!("active Companion installation state returned above")
         }
-        CompanionInstallState::Installing => {
-            return view(
-                GenesisStep::InstallCompanion,
-                "Installing Tohseno Companion on your iPhone…",
-                Some("The build finished. Tohseno is copying the Companion to your iPhone. Keep it connected and unlocked."),
-                None,
-                false,
-                true,
-            );
-        }
-        CompanionInstallState::Launching => {
-            return view(
-                GenesisStep::InstallCompanion,
-                "Opening Tohseno Companion on your iPhone…",
-                Some("The Companion is installed. Tohseno is launching it and starting your private connection."),
-                None,
-                false,
-                true,
-            );
-        }
-        CompanionInstallState::WaitingForPairing | CompanionInstallState::Installed
-            if !observed.paired =>
-        {
+        CompanionInstallState::WaitingForPairing => {
             return view(
                 GenesisStep::Pairing,
                 "Finish setup in Tohseno Companion on your iPhone.",
@@ -463,7 +501,17 @@ pub fn project(record: &CableGenesisRecord, observed: &GenesisObservation) -> Ca
                 true,
             );
         }
-        CompanionInstallState::WaitingForPairing | CompanionInstallState::Installed => {}
+        CompanionInstallState::Installed if !observed.paired => {
+            return view(
+                GenesisStep::Pairing,
+                "Reconnect Tohseno Companion on your iPhone.",
+                Some("The app is installed on the intended iPhone, but this Mac no longer has a live private Companion pairing."),
+                Some("retry_companion"),
+                true,
+                false,
+            );
+        }
+        CompanionInstallState::Installed => {}
     }
     view(
         GenesisStep::FirstShot,
@@ -506,15 +554,6 @@ fn validate(record: &CableGenesisRecord) -> Result<(), Box<dyn std::error::Error
         return Err("cable genesis record is invalid".into());
     }
     Ok(())
-}
-
-pub fn build_and_install_companion(
-    project: &Path,
-    service_root: &Path,
-    device: &Device,
-    team_id: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    build_and_install_companion_with_progress(project, service_root, device, team_id, || Ok(()))
 }
 
 pub fn build_and_install_companion_with_progress(
@@ -560,7 +599,7 @@ pub fn build_and_install_companion_with_progress(
         .args([
             &format!("DEVELOPMENT_TEAM={team_id}"),
             "CODE_SIGN_STYLE=Automatic",
-            "PRODUCT_BUNDLE_IDENTIFIER=com.tohseno.companion",
+            &format!("PRODUCT_BUNDLE_IDENTIFIER={COMPANION_BUNDLE_IDENTIFIER}"),
             "-allowProvisioningUpdates",
             "-quiet",
             "build",
@@ -611,6 +650,12 @@ pub fn build_and_install_companion_with_progress(
     let _ = fs::remove_file(&json);
     if !installed?.success() {
         return Err("the Companion could not be installed on the connected iPhone".into());
+    }
+    if !tohseno_engine::gates::install::is_bundle_installed(device, COMPANION_BUNDLE_IDENTIFIER)? {
+        return Err(format!(
+            "devicectl returned from installation but {COMPANION_BUNDLE_IDENTIFIER} was absent from the device inventory"
+        )
+        .into());
     }
     Ok(())
 }
@@ -694,32 +739,6 @@ pub fn launch_companion_bootstrap(
     Ok(())
 }
 
-pub fn launch_companion(
-    service_root: &Path,
-    device: &Device,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let json = service_root.join(format!(
-        ".companion-launch-{}.json",
-        Uuid::new_v4().simple()
-    ));
-    let launched = Command::new("xcrun")
-        .args(companion_launch_arguments(
-            &device.identifier,
-            None,
-            true,
-            &json,
-        ))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-    let _ = fs::remove_file(&json);
-    if !launched?.success() {
-        return Err("the Companion was installed but could not be launched".into());
-    }
-    Ok(())
-}
-
 fn companion_launch_arguments(
     device_identifier: &str,
     invitation: Option<&str>,
@@ -748,7 +767,7 @@ fn companion_launch_arguments(
     arguments.push(json_output.as_os_str().to_owned());
     // devicectl treats everything after this positional value as arguments to
     // the launched process, so every devicectl option must precede it.
-    arguments.push("com.tohseno.companion".into());
+    arguments.push(COMPANION_BUNDLE_IDENTIFIER.into());
     arguments
 }
 
@@ -777,6 +796,7 @@ mod tests {
             xcode_ready: true,
             device: Some(ready()),
             signing_ready: true,
+            companion_installed: Some(false),
             paired: false,
         }
     }
@@ -853,15 +873,18 @@ mod tests {
             launching.instruction,
             "Opening Tohseno Companion on your iPhone…"
         );
-        assert!(launching.detail.unwrap().contains("Companion is installed"));
+        assert!(launching.detail.unwrap().contains("installed-app list"));
+        let mut installed = observed();
+        installed.companion_installed = Some(true);
+        record.intended_device_digest = Some(device_digest("core"));
         record.companion_install = CompanionInstallState::Failed;
         record.last_error = Some(COMPANION_INSTALL_FAILURE.into());
         assert_eq!(
-            project(&record, &observed()).detail,
+            project(&record, &installed).detail,
             Some(COMPANION_INSTALL_FAILURE)
         );
         record.last_error = Some(LEGACY_COMPANION_PAIRING_FAILURE.into());
-        let retry = project(&record, &observed());
+        let retry = project(&record, &installed);
         assert_eq!(
             retry.instruction,
             "Finish connecting Tohseno Companion on your iPhone."
@@ -869,16 +892,53 @@ mod tests {
         assert_eq!(retry.detail, Some(COMPANION_PAIRING_FAILURE));
         assert_eq!(retry.primary_action, Some("retry_companion"));
         record.companion_install = CompanionInstallState::WaitingForPairing;
-        let pairing = project(&record, &observed());
+        let pairing = project(&record, &installed);
         assert_eq!(pairing.step, GenesisStep::Pairing);
         assert_eq!(
             pairing.instruction,
             "Finish setup in Tohseno Companion on your iPhone."
         );
         assert_eq!(pairing.primary_action, None);
-        let mut paired = observed();
+        let mut paired = installed;
         paired.paired = true;
+        assert_eq!(project(&record, &paired).step, GenesisStep::Pairing);
+        record.companion_install = CompanionInstallState::Installed;
         assert_eq!(project(&record, &paired).step, GenesisStep::FirstShot);
+    }
+
+    #[test]
+    fn connection_requires_exact_inventory_target_and_private_pairing() {
+        let mut record = CableGenesisRecord {
+            begun: true,
+            companion_install: CompanionInstallState::Installed,
+            intended_device_digest: Some(device_digest("core")),
+            ..CableGenesisRecord::default()
+        };
+        let mut state = observed();
+        state.paired = true;
+
+        let missing = project(&record, &state);
+        assert_eq!(missing.step, GenesisStep::InstallCompanion);
+        assert_eq!(missing.primary_action, Some("install_companion"));
+        assert!(missing.detail.unwrap().contains("did not find"));
+
+        state.companion_installed = None;
+        let unobservable = project(&record, &state);
+        assert_eq!(unobservable.step, GenesisStep::InstallCompanion);
+        assert_eq!(unobservable.primary_action, Some("check"));
+        assert!(unobservable.instruction.contains("Unlock"));
+
+        state.companion_installed = Some(true);
+        state.paired = false;
+        assert_eq!(project(&record, &state).step, GenesisStep::Pairing);
+
+        state.paired = true;
+        assert_eq!(project(&record, &state).step, GenesisStep::FirstShot);
+
+        record.intended_device_digest = None;
+        let unbound = project(&record, &state);
+        assert_eq!(unbound.step, GenesisStep::Pairing);
+        assert_eq!(unbound.primary_action, Some("retry_companion"));
     }
 
     #[test]
@@ -952,7 +1012,7 @@ mod tests {
         reopened
             .set_install_state(
                 CompanionInstallState::WaitingForPairing,
-                None,
+                Some("core"),
                 Some("session_fixture"),
                 None,
             )
@@ -964,7 +1024,9 @@ mod tests {
             record.last_error.as_deref(),
             Some(COMPANION_PAIRING_FAILURE)
         );
-        let view = project(&record, &observed());
+        let mut state = observed();
+        state.companion_installed = Some(true);
+        let view = project(&record, &state);
         assert_eq!(view.primary_action, Some("retry_companion"));
     }
 

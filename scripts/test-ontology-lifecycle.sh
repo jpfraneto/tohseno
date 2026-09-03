@@ -128,9 +128,9 @@ for executable in "$binary" "$identity_helper" "$fixture_harness"; do
   test -f "$executable" && test ! -L "$executable" && test -x "$executable" ||
     fail "a factory lifecycle executable was not built safely"
 done
-test "$("$binary" --version)" = "tohseno 1.2.0" || fail "TOHSENO 1.2.0 was not built"
-test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.2.0" ||
-  fail "the 1.2.0 Apple identity helper was not built"
+test "$("$binary" --version)" = "tohseno 1.2.1" || fail "TOHSENO 1.2.1 was not built"
+test "$("$identity_helper" --version)" = "tohseno-apple-identity 1.2.1" ||
+  fail "the 1.2.1 Apple identity helper was not built"
 
 family="$temporary_root/data"
 machine="$family"

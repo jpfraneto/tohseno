@@ -1,6 +1,6 @@
 {
   "name": "tohseno",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Install the TOHSENO CLI and publish Xcode apps person to person",
   "type": "module",
   "bin": {

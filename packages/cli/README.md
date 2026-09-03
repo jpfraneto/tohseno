@@ -1,7 +1,7 @@
 # TOHSENO CLI for npm
 
-`tohseno@1.2.0` is the dependency-free Node 20+ CLI installer for TOHSENO
-1.2.0 on macOS.
+`tohseno@1.2.1` is the dependency-free Node 20+ CLI installer for TOHSENO
+1.2.1 on macOS.
 
 ```sh
 npm install --global tohseno
@@ -14,6 +14,10 @@ npm installs only the small command launcher. It does not download a runtime,
 start a service, set up Companion, or open a GUI during install. Running
 `tohseno` with no arguments shows the commands above. Interactive `init` then
 explains the real path one line at a time and waits for Enter between steps.
+Before touching the Xcode project, it verifies that the intended iPhone's real
+installed-app inventory contains `com.tohseno.companion` and that its one-use
+private pairing completed. If not, it directs the user to
+`tohseno companion install` and stops.
 
 When a real command first needs the compiled runtime, the launcher downloads
 the exact architecture from a fixed HTTPS manifest, verifies byte length,

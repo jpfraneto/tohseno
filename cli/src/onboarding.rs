@@ -2,8 +2,9 @@ use std::io::{self, BufRead, Write};
 
 const NEXT_STEP: &str = "Press Enter for next step";
 
-const INIT_STEPS: [&str; 5] = [
+const INIT_STEPS: [&str; 6] = [
     "Run this command from the folder that contains the Xcode project you want to publish.",
+    "Before connecting the project, Tohseno checks the intended iPhone's real installed-app list for the exact Companion bundle and checks its private pairing. If either is missing, run `tohseno companion install` first.",
     "Tohseno will ask Xcode to build the iOS app for Simulator. This checks the real project before anything can be published.",
     "Init keeps the source where it is, does not rewrite Git, and reserves one stable candidate ShotID for this app.",
     "When init succeeds, run `tohseno deploy`. Tohseno will inspect and package the current source, then ask your paired Companion to approve the exact release.",
@@ -39,7 +40,7 @@ mod tests {
 
     #[test]
     fn init_walkthrough_advances_once_per_enter() {
-        let mut input = io::Cursor::new("\n\n\n\n\n");
+        let mut input = io::Cursor::new("\n\n\n\n\n\n");
         let mut output = Vec::new();
 
         run_init(&mut input, &mut output).unwrap();
@@ -47,6 +48,8 @@ mod tests {
         let output = String::from_utf8(output).unwrap();
         assert_eq!(output.matches(NEXT_STEP).count(), INIT_STEPS.len());
         assert!(output.contains("run `tohseno deploy`"));
+        assert!(output.contains("real installed-app list"));
+        assert!(output.contains("`tohseno companion install`"));
         assert!(output.contains("one Ship"));
         assert!(output.ends_with("Connecting this Xcode app now…\n"));
     }
