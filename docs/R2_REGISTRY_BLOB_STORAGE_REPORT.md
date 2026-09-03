@@ -79,9 +79,9 @@ Cloudflare account has no dedicated Tohseno Registry bucket. Therefore no R2
 bucket was created, no credentials were minted, no bytes were migrated, no
 selector was changed, and no Bucket Lock rule was applied.
 
-The backward-compatible source was deployed to the real service with the
-filesystem selector on 2026-09-03 as Railway deployment
-`9f35f2fe-9e55-4544-91b9-311fb276cad3`. Afterward `/healthz` and the Registry
+The final backward-compatible source milestone was deployed to the real service
+with the filesystem selector on 2026-09-03 as Railway deployment
+`7ad998ce-62e5-4172-b2d0-1a351e5557eb`. Afterward `/healthz` and the Registry
 status route succeeded, Anky `HEAD` returned its signed length/digest, and
 `bytes=0-31` returned `206` with the exact inclusive range and 32 bytes. This
 is deployment/cutover-baseline evidence only; it is not an R2 migration.
