@@ -1,8 +1,9 @@
 # Evolutionary execution report — 2026-09-03
 
 Repository base inspected: `0d011397a2adde75d476c064876b7a407fa94109` on
-`main`. The implementation is committed separately from pre-existing owner
-working-tree changes; the handoff names its resulting commit.
+`main`. Implementation commit `80a6e02cc9bbb55ad5291ce41ecaa132660a4b7c`
+is pushed to `origin/main`, separately from pre-existing owner working-tree
+changes.
 
 The requested pass is source-complete and locally verified, with one deliberate
 production boundary still owner-attended.

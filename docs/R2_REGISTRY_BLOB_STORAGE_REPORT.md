@@ -66,6 +66,12 @@ catalog release and one permanent local blob:
 The mounted source was streamed through SHA-256 and matched that catalog
 digest. This proves the local migration source, not an R2 copy.
 
+The unchanged public filesystem-backed URL was also checked from outside the
+hosting platform: `HEAD` returned `200` with length `461076480` and the exact
+digest header; `Range: bytes=0-31` returned `206`, an inclusive
+`Content-Range`, and exactly 32 bytes. This is the working pre-cutover baseline,
+not evidence that production uses R2.
+
 The linked production service has no `REGISTRY_R2_*` variables. The accessible
 Cloudflare account has no dedicated Tohseno Registry bucket. Therefore no R2
 bucket was created, no credentials were minted, no bytes were migrated, no
