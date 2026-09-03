@@ -37,11 +37,17 @@ managed-credit purchase surface is no longer exposed, and Tohseno Intelligence
 is labeled coming soon. Historical managed receipts remain readable without
 being restored into a new request.
 
-This working source targets `v1.2.0-rc.10`. An unsigned universal Mac app was
-assembled and locally bundle-verified, but no RC10 release artifact or DMG has
-been signed, notarized, stapled, published, activated, deployed, or physically
-accepted. RC9 remains the exact public release-candidate installer described
-below.
+`v1.2.0-rc.10` is now a public GitHub prerelease built from exact clean commit
+`a87bed012902dd11f78ea3922fa6fed25ed98dac`. Its universal Mac app is Developer
+ID signed with hardened runtime, Apple-notarized under submission
+`7777bf52-9b8f-4514-8c74-3d15998eea81`, stapled, and Gatekeeper-accepted. The
+53,585,271-byte DMG has SHA-256
+`5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686`; a fresh
+download from the public GitHub release matched the retained artifact
+byte-for-byte. The website remains separately pinned to RC9. No clean-Mac,
+physical-iPhone, haptic, or live Workshop Session behavior is claimed for RC10.
+The additive release evidence is recorded in
+`release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
 
 ## Previous source evolution: public app media, network activity, and the Living Workshop
 

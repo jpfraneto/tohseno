@@ -1,0 +1,66 @@
+{
+  "schema": "tohseno.github-release-evidence/1",
+  "release": {
+    "version": "1.2.0-rc.10",
+    "channel": "github-prerelease",
+    "published_at": "2026-09-03T17:59:58Z",
+    "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.10",
+    "asset_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.10/Tohseno-1.2.0-rc.10.dmg",
+    "website_activated": false,
+    "stable_promoted": false
+  },
+  "source": {
+    "repository": "https://github.com/jpfraneto/tohseno",
+    "commit": "a87bed012902dd11f78ea3922fa6fed25ed98dac",
+    "clean_release_worktree": true,
+    "tag_resolves_to_commit": true
+  },
+  "artifact": {
+    "filename": "Tohseno-1.2.0-rc.10.dmg",
+    "bytes": 53585271,
+    "sha256": "5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686",
+    "universal_architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "bundle_identifier": "com.tohseno.mac",
+    "short_version": "1.2.0",
+    "build_number": "10006"
+  },
+  "signature": {
+    "identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
+    "team_identifier": "84V63LKV45",
+    "certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
+    "cdhash": "6bb045af1cf759f3a92cf938bc17d854e0c477fe",
+    "hardened_runtime": true,
+    "timestamped": true
+  },
+  "notarization": {
+    "submission_id": "7777bf52-9b8f-4514-8c74-3d15998eea81",
+    "created_at": "2026-09-03T17:53:56.157Z",
+    "status": "Accepted",
+    "ticket_stapled": true,
+    "ticket_validated": true,
+    "gatekeeper_assessment": "accepted",
+    "gatekeeper_source": "Notarized Developer ID"
+  },
+  "verification": {
+    "dmg_checksum_valid": true,
+    "mounted_bundle_verified": true,
+    "github_asset_state": "uploaded",
+    "github_asset_bytes_match": true,
+    "github_download_sha256_match": true,
+    "website_download_verified_for_rc10": false,
+    "physical_device_observed": false,
+    "clean_mac_observed": false
+  },
+  "environment": {
+    "macos": "26.6.2 (25G83)",
+    "xcode": "26.3 (17C529)",
+    "rustc": "1.88.0"
+  },
+  "authorization": {
+    "owner_instruction": "yeah i know we haven't tested it yet but just ship it. to github, so that i can download it with the .dmg, etc",
+    "recorded_at": "2026-09-03T18:00:49Z"
+  }
+}

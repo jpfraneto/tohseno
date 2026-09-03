@@ -28,10 +28,11 @@ This direction is governed by
 The native SwiftUI Mac application is the primary product over the same Rust factory.
 It removes npm/browser first run, successful-day qualification, and
 subscription gating of local/BYO execution. First setup installs and pairs the
-Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.9` is the
-current signed, notarized, digest-pinned public prerelease. The working source
-targets RC10 and has produced an unsigned locally verified app bundle, but no
-RC10 release artifact has been signed, notarized, published, or deployed.
+Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.10` is the
+current signed, notarized, digest-pinned GitHub prerelease, built from exact
+commit `a87bed012902dd11f78ea3922fa6fed25ed98dac`; its public download was
+verified byte-for-byte. The website remains separately pinned to RC9, and no
+RC10 physical-device behavior has been represented as observed.
 [`docs/STATE.md`](docs/STATE.md) records the exact evidence and remaining human
 and physical boundaries.
 

@@ -1,6 +1,6 @@
 # Evolution 0040 implementation report
 
-Status: RC10 source prepared and locally verified; not released or physically accepted.
+Status: RC10 GitHub prerelease shipped; not website-activated or physically accepted.
 
 ## Baseline and scope
 
@@ -129,8 +129,28 @@ Passing evidence:
 - The deterministic Mac living-workshop render passed at the shipping window
   size and was visually inspected for clipping and state legibility.
 
-These checks establish implementation and local build evidence only. They do
-not establish a signed/notarized release or physical-device behavior.
+These checks established implementation and local build evidence. The later
+owner-authorized GitHub release evidence below establishes the signed and
+notarized artifact; neither category establishes physical-device behavior.
+
+## Owner-authorized GitHub release
+
+- Exact clean source commit: `a87bed012902dd11f78ea3922fa6fed25ed98dac`.
+- Universal app: Developer ID signed with hardened runtime, stapled, and
+  Gatekeeper accepted as `Notarized Developer ID`.
+- Apple notary submission: `7777bf52-9b8f-4514-8c74-3d15998eea81`, accepted.
+- Public prerelease: `v1.2.0-rc.10` at
+  `https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.10`.
+- DMG: 53,585,271 bytes with SHA-256
+  `5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686`.
+- A fresh download from the public GitHub asset URL matched the retained DMG
+  byte-for-byte and its mounted app passed signature, notarization, bundle,
+  architecture, and Gatekeeper verification.
+
+This release did not change the production website pin, which remains RC9. It
+did not claim a clean-Mac launch, intended-iPhone installation, physical
+haptic, or live two-device Workshop Session. Exact machine-readable evidence
+is in `release/V1_2_0_RC10_GITHUB_EVIDENCE.json`.
 
 ## Deliberately not implemented or claimed
 
@@ -140,9 +160,9 @@ not establish a signed/notarized release or physical-device behavior.
 - No general multi-target association, remote relay, background wake system,
   durable event log, managed Tohseno inference provider, credit purchase, or
   protocol/ABI change was added.
-- No RC10 Developer ID signature, notarization, stapling, DMG, digest pin,
-  website activation, deployment, or promotion was performed. RC9 remains the
-  truthful public candidate.
+- No RC10 website activation, stable promotion, or physical acceptance was
+  performed. RC9 remains the truthful website candidate while RC10 is the
+  separately labeled GitHub prerelease.
 - No physical iPhone, haptic, local-network reconnection, intended-device
   selection, or revocation behavior was represented as observed.
 

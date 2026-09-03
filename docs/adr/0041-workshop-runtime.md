@@ -163,10 +163,12 @@ authority-event rejection, capability truth, required-capability failure,
 focused-app fallback, and reconnect state. Native tests retain the existing
 Mac, Companion, distribution, adoption, Claim, and Ship/Update projections.
 
-This source change prepares RC10. Local verification may assemble an unsigned
-app bundle, but it does not sign, notarize, staple, publish, activate, or deploy
-an RC10 release artifact. RC9 remains the exact public installer until
-separately authorized release work produces and verifies new immutable bytes.
+The source change prepared RC10. Subsequent owner-authorized release work built
+exact commit `a87bed012902dd11f78ea3922fa6fed25ed98dac`, signed and notarized the
+universal app, stapled and verified its DMG, and published those immutable bytes
+as the labeled `v1.2.0-rc.10` GitHub prerelease. That operational release does
+not activate RC10 on the website or establish any physical Workshop evidence;
+the website remains separately pinned to RC9.
 
 ## Consequences
 
