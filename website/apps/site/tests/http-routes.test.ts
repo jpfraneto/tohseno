@@ -247,10 +247,20 @@ describe("public pages", () => {
   test("Mac download stays fail-closed until a notarized digest is configured", async () => {
     const unavailable = await testApplication();
     expect((await unavailable.fetch(request("/download/macos"))).status).toBe(503);
+    expect(() => loadConfig({
+      NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
+      MACOS_DOWNLOAD_VERSION: "1.2.0-rc.11",
+    })).toThrow("MACOS_DOWNLOAD_VERSION and MACOS_DOWNLOAD_BUILD_NUMBER must be configured together");
+    expect(() => loadConfig({
+      NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
+      MACOS_DOWNLOAD_VERSION: "next", MACOS_DOWNLOAD_BUILD_NUMBER: "10007",
+    })).toThrow("MACOS_DOWNLOAD_VERSION must be a semantic version or release candidate");
     const configured = await createApplication({ config: loadConfig({
       NODE_ENV: "test", PORT: "3000", BASE_URL: "http://localhost:3000",
       MACOS_DOWNLOAD_ENABLED: "true",
       MACOS_DOWNLOAD_CHANNEL: "release-candidate",
+      MACOS_DOWNLOAD_VERSION: "1.2.0-rc.11",
+      MACOS_DOWNLOAD_BUILD_NUMBER: "10007",
       MACOS_DOWNLOAD_URL: "https://downloads.tohseno.com/Tohseno-1.1.0.dmg",
       MACOS_DOWNLOAD_SHA256: "a".repeat(64),
     }) });
@@ -261,6 +271,7 @@ describe("public pages", () => {
     const metadata = await configured.fetch(request("/api/distribution/v1/macos"));
     expect(await metadata.json()).toEqual({ schema: "tohseno.macos-distribution/1", available: true,
       channel: "release-candidate",
+      version: "1.2.0-rc.11", build_number: 10007,
       url: "https://downloads.tohseno.com/Tohseno-1.1.0.dmg", sha256: "a".repeat(64), minimum_macos_version: "14.0" });
     expect(response.headers.get("x-tohseno-release-channel")).toBe("release-candidate");
   });

@@ -147,7 +147,7 @@ public struct TohsenoSettingsView: View {
                 Section("Privacy and updates") {
                     Link("Read Privacy Explanation", destination: URL(string: "https://tohseno.com/privacy")!)
                     Link("Check for Updates", destination: URL(string: "https://tohseno.com/download/macos")!)
-                    Text("Updates are manual in this release. Tohseno verifies the bundled factory before selecting it; no automatic update feed is active.")
+                    Text("Updates remain manual. Tohseno checks the fail-closed release metadata and opens the verified DMG route; it never downloads or replaces the app automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

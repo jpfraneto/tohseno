@@ -71,6 +71,8 @@ export interface ClaimsConfig {
 export interface DistributionConfig {
   macosEnabled: boolean;
   macosChannel: "release-candidate" | "stable";
+  macosVersion?: string;
+  macosBuildNumber?: number;
   macosUrl?: string;
   macosSha256?: string;
 }
@@ -296,6 +298,16 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     ["release-candidate", "stable"] as const,
     "stable",
   );
+  const macosVersion = env.MACOS_DOWNLOAD_VERSION;
+  const macosBuildNumber = env.MACOS_DOWNLOAD_BUILD_NUMBER === undefined
+    ? undefined
+    : parsePositiveInteger("MACOS_DOWNLOAD_BUILD_NUMBER", env.MACOS_DOWNLOAD_BUILD_NUMBER, 1);
+  if ((macosVersion === undefined) !== (macosBuildNumber === undefined)) {
+    throw new Error("MACOS_DOWNLOAD_VERSION and MACOS_DOWNLOAD_BUILD_NUMBER must be configured together");
+  }
+  if (macosVersion !== undefined && !/^\d+\.\d+\.\d+(?:-rc\.\d+)?$/.test(macosVersion)) {
+    throw new Error("MACOS_DOWNLOAD_VERSION must be a semantic version or release candidate");
+  }
   if (macosEnabled) {
     let url: URL;
     try { url = new URL(env.MACOS_DOWNLOAD_URL ?? ""); }
@@ -466,6 +478,8 @@ export function loadConfig(env: Environment = process.env): AppConfig {
     distribution: {
       macosEnabled,
       macosChannel,
+      macosVersion,
+      macosBuildNumber,
       macosUrl: env.MACOS_DOWNLOAD_URL,
       macosSha256: env.MACOS_DOWNLOAD_SHA256,
     },

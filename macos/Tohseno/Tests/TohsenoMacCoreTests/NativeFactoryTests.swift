@@ -646,6 +646,60 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertEqual(decoded.managedMaximumMicrousd, 5_000_000)
     }
 
+    func testWebsiteUpdateCheckerOffersOnlyAValidHigherBuild() throws {
+        let downloadURL = try XCTUnwrap(URL(string: "https://tohseno.com/download/macos"))
+        let published = Data(#"{"schema":"tohseno.macos-distribution/1","available":true,"channel":"release-candidate","version":"1.2.0-rc.12","build_number":10008,"url":"https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.12/Tohseno-1.2.0-rc.12.dmg","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","minimum_macos_version":"14.0"}"#.utf8)
+        let update = try XCTUnwrap(WebsiteApplicationUpdateChecker.availableUpdate(
+            from: published,
+            currentBuildNumber: 10007,
+            downloadURL: downloadURL
+        ))
+        XCTAssertEqual(update.version, "1.2.0-rc.12")
+        XCTAssertEqual(update.buildNumber, 10008)
+        XCTAssertEqual(update.channel, "release-candidate")
+        XCTAssertEqual(update.downloadURL, downloadURL)
+
+        XCTAssertNil(WebsiteApplicationUpdateChecker.availableUpdate(
+            from: published,
+            currentBuildNumber: 10008,
+            downloadURL: downloadURL
+        ))
+        let unsafe = Data(String(decoding: published, as: UTF8.self)
+            .replacingOccurrences(of: "https://github.com", with: "http://github.com").utf8)
+        XCTAssertNil(WebsiteApplicationUpdateChecker.availableUpdate(
+            from: unsafe,
+            currentBuildNumber: 10007,
+            downloadURL: downloadURL
+        ))
+    }
+
+    @MainActor
+    func testApplicationUpdateBannerRendersAtTheTopOfTheShippingWindow() async throws {
+        let suite = "tohseno-update-banner-fixture-\(UUID().uuidString)"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let update = ApplicationUpdate(
+            version: "1.2.0-rc.12",
+            buildNumber: 10008,
+            channel: "release-candidate",
+            downloadURL: try XCTUnwrap(URL(string: "https://tohseno.com/download/macos"))
+        )
+        let model = TohsenoAppModel(
+            client: UIFixtureFactoryClient(),
+            preferences: preferences,
+            applicationUpdateChecker: FixedApplicationUpdateChecker(update: update)
+        )
+        await model.reload()
+        await model.refreshApplicationUpdate()
+
+        let size = NSSize(width: 1_100, height: 760)
+        let png = try renderPNG(TohsenoRootView(model: model), size: size)
+        XCTAssertGreaterThan(png.count, 20_000)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_UPDATE_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     func testCompanionPairingSessionDecodesPublishedServiceShape() throws {
         let data = Data(#"{"schema":"tohseno.studio-pairing-session/1","session_id":"pair_fixture","state":"waiting","expires_at":"2099-01-01T00:00:00Z","pairing_uri":"tohseno-companion://pair/fixture","qr_svg":"<svg/>"}"#.utf8)
         let session = try JSONDecoder.tohseno.decode(CompanionPairingSession.self, from: data)
@@ -935,6 +989,7 @@ final class NativeFactoryTests: XCTestCase {
             "workshop.tohseno-keeper",
             "workshop.one-shot", "workshop.shot.intention", "workshop.shot.submit",
             "workshop.command-palette", "workshop.list-fallback",
+            "application.update-banner",
         ] {
             XCTAssertTrue(source.contains("accessibilityIdentifier(\"\(identifier)\")"), identifier)
         }
@@ -1183,6 +1238,12 @@ private func fixtureHarness(
             costEstimation: false
         )]
     )
+}
+
+private struct FixedApplicationUpdateChecker: ApplicationUpdateChecking {
+    let update: ApplicationUpdate?
+
+    func availableUpdate() async -> ApplicationUpdate? { update }
 }
 
 private let fixtureReceipt = ExecutionReceipt(

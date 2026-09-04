@@ -50,6 +50,7 @@ public final class TohsenoAppModel {
     public private(set) var pendingAdoptionPath: String?
     public private(set) var pairedCompanionDevices: [PairedCompanionDevice] = []
     public private(set) var companionPairingSession: CompanionPairingSession?
+    public private(set) var availableApplicationUpdate: ApplicationUpdate?
     public private(set) var followedBuilderIDs: Set<String>
     public private(set) var hasSkippedFirstShot: Bool
     public var route: AppRoute = .library {
@@ -63,15 +64,21 @@ public final class TohsenoAppModel {
     public var advancedExpanded = false
 
     private let client: any FactoryServing
+    private let applicationUpdateChecker: any ApplicationUpdateChecking
     private let preferences: UserDefaults
     private var previewVersions: [String: String] = [:]
     private var monitoringTask: Task<Void, Never>?
     private var readinessMonitoringTask: Task<Void, Never>?
     private var pairingMonitoringTask: Task<Void, Never>?
 
-    public init(client: any FactoryServing, preferences: UserDefaults = .standard) {
+    public init(
+        client: any FactoryServing,
+        preferences: UserDefaults = .standard,
+        applicationUpdateChecker: any ApplicationUpdateChecking = WebsiteApplicationUpdateChecker()
+    ) {
         self.client = client
         self.preferences = preferences
+        self.applicationUpdateChecker = applicationUpdateChecker
         workshopRuntime = WorkshopHostRuntime(
             authorizer: client,
             localDeviceName: "This Mac"
@@ -112,6 +119,7 @@ public final class TohsenoAppModel {
         monitoringTask = Task { [weak self] in
             guard let self else { return }
             await self.reload()
+            await self.refreshApplicationUpdate()
             self.workshopRuntime.setIntelligenceReady(self.intelligenceAvailable)
             await self.workshopRuntime.start()
             await TohsenoWorkshop.current.use(session: self.workshopRuntime)
@@ -130,6 +138,10 @@ public final class TohsenoAppModel {
                 }
             }
         }
+    }
+
+    public func refreshApplicationUpdate() async {
+        availableApplicationUpdate = await applicationUpdateChecker.availableUpdate()
     }
 
     public func reload() async {

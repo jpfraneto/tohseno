@@ -37,6 +37,14 @@ managed-credit purchase surface is no longer exposed, and Tohseno Intelligence
 is labeled coming soon. Historical managed receipts remain readable without
 being restored into a new request.
 
+Current source also checks the fail-closed macOS distribution metadata once at
+startup. When that endpoint names a valid HTTPS artifact with a build number
+higher than the installed `CFBundleVersion`, the native app shows a compact top
+banner naming the exact release and linking to the manual verified DMG route.
+It never downloads, replaces, or relaunches the app automatically. Public RC11
+predates this source change, so the banner begins with the next notarized native
+candidate and can announce candidates after that one.
+
 `v1.2.0-rc.11` is now a public GitHub prerelease built from exact clean commit
 `82aa020ceadce8f578552b0b9b647c818185944f`. Its universal Mac app is Developer
 ID signed with hardened runtime, Apple-notarized under submission

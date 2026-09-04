@@ -32,6 +32,11 @@ public struct TohsenoRootView: View {
                 factory
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let update = model.availableApplicationUpdate {
+                ApplicationUpdateBanner(update: update)
+            }
+        }
         .background(TohsenoTheme.void)
         .foregroundStyle(TohsenoTheme.bone)
         .tint(TohsenoTheme.amber)
@@ -121,6 +126,36 @@ public struct TohsenoRootView: View {
         case .installed: "checkmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"
         }
+    }
+}
+
+private struct ApplicationUpdateBanner: View {
+    let update: ApplicationUpdate
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.title3)
+                .foregroundStyle(TohsenoTheme.amber)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tohseno \(update.version) is available")
+                    .font(.callout.weight(.semibold))
+                Text(update.channel == "release-candidate" ? "Release candidate · manual update" : "Stable release · manual update")
+                    .font(.caption)
+                    .foregroundStyle(TohsenoTheme.silver)
+            }
+            Spacer()
+            Link("Update", destination: update.downloadURL)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 18)
+        .frame(minHeight: 48)
+        .background(TohsenoTheme.carbon)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(TohsenoTheme.amber.opacity(0.55)).frame(height: 1)
+        }
+        .accessibilityIdentifier("application.update-banner")
     }
 }
 
