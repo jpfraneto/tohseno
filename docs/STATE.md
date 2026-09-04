@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-03. This is the plain-language
+Written 2026-07-30, amended through 2026-09-04. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -37,30 +37,37 @@ managed-credit purchase surface is no longer exposed, and Tohseno Intelligence
 is labeled coming soon. Historical managed receipts remain readable without
 being restored into a new request.
 
-`v1.2.0-rc.10` is now a public GitHub prerelease built from exact clean commit
-`a87bed012902dd11f78ea3922fa6fed25ed98dac`. Its universal Mac app is Developer
+`v1.2.0-rc.11` is now a public GitHub prerelease built from exact clean commit
+`82aa020ceadce8f578552b0b9b647c818185944f`. Its universal Mac app is Developer
 ID signed with hardened runtime, Apple-notarized under submission
-`7777bf52-9b8f-4514-8c74-3d15998eea81`, stapled, and Gatekeeper-accepted. The
-53,585,271-byte DMG has SHA-256
-`5f111f3a2d6eb96ae69c034fc3fa9766536a84d80808c4506303be39b9e43686`; a fresh
-download from the public GitHub release matched the retained artifact
-byte-for-byte. Production deployment `9c650c3c-1858-47ea-9d69-6ec710d88be6`
-now serves RC10 on the visibly labeled release-candidate channel. Its live API,
-redirect URL, channel, and digest were verified, and a complete download through
-`tohseno.com/download/macos` again matched the 53,585,271-byte artifact and
-SHA-256. No clean-Mac, physical-iPhone, haptic, or live Workshop Session
-behavior is claimed for RC10. The additive release evidence is recorded in
-`release/V1_2_0_RC10_GITHUB_EVIDENCE.json` and
-`release/V1_2_0_RC10_WEBSITE_EVIDENCE.json`.
+`e9cdaddc-6d88-462f-bdc5-11d90a501186`, stapled, and Gatekeeper-accepted. The
+53,589,041-byte DMG has SHA-256
+`bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35`; fresh
+downloads from both GitHub and `tohseno.com/download/macos` matched the retained
+artifact byte-for-byte. Production deployment
+`0e361a36-da6a-41e3-aed5-68e956fe62fb` serves RC11 on the visibly labeled
+release-candidate channel. No clean-Mac, physical-iPhone, Connect Companion
+button, haptic, or live Workshop Session behavior is claimed for RC11. The
+additive release evidence is recorded in
+`release/V1_2_0_RC11_GITHUB_EVIDENCE.json` and
+`release/V1_2_0_RC11_WEBSITE_EVIDENCE.json`.
 
-The automatic CI run for the tagged source completed with two known failures.
-Its CLI smoke check still expected product version `1.2.0` while this source's
-CLI truthfully reports `1.2.1`. Its GitHub macOS toolchain also rejected a
-`Bool?` switch in Companion as non-exhaustive; the same Companion package tests
-and Simulator build had passed locally under Xcode 26.3. The run was not
-restarted. These failures do not alter the byte, signature, notarization, or
-Gatekeeper evidence for the Mac DMG, but older-toolchain Companion compatibility
-remains unverified and is not claimed.
+RC10 is rejected. Owner-attended first-open use exposed two blockers: the
+service installer treated a redundant launchd `kickstart` race as failure even
+after successful `bootstrap`, and the Mac decoder did not map `pairing_uri` to
+its `pairingURI` property. Production first disabled the RC10 download under
+deployment `c336d161-3d35-4bd1-8716-0bfbe3db3a65`; only after RC11 passed
+notarization and origin verification was the candidate route re-enabled.
+
+The automatic CI run for the exact RC11 source passed Rust formatting, Clippy,
+tests, examples, documentation, contracts, Apple identity, Fascia,
+CompanionKit, Companion, native Mac, and Simulator jobs. Its only failure was a
+second stale workflow grep that expected the CLI banner `tohseno 1.2.0` even
+though the package truthfully reports `tohseno 1.2.1`. Post-source commit
+`c0ea1ba` corrected that assertion without changing the app; its Rust, Apple,
+and contract jobs passed before a separate static-surface step failed. Neither
+CI run is represented as fully green, and no CI result is substituted for the
+signed, notarized, mounted, origin-verified release artifact.
 
 ## Previous source evolution: public app media, network activity, and the Living Workshop
 
@@ -133,8 +140,8 @@ Cloudflare Bucket Lock rule `registry-final-objects` is enabled indefinitely for
 only `sha256/`; staging keys under `pending/` and the rest of the bucket remain
 outside that lock.
 
-Production deployment `9c650c3c-1858-47ea-9d69-6ec710d88be6` now serves the
-network timeline and pins the exact RC10 URL and digest on the visibly labeled
+Production deployment `0e361a36-da6a-41e3-aed5-68e956fe62fb` now serves the
+network timeline and pins the exact RC11 URL and digest on the visibly labeled
 release-candidate channel. Health, Registry rendering, the installer metadata,
 the redirect headers, and the complete public download were observed on the
 live service.
@@ -694,7 +701,7 @@ iPhone, iPad, Windows, Android, Linux, ChromeOS, and unknown systems. The
 fallback without JavaScript remains **Download for Mac**. The route remains
 fail-closed until the operator configures the immutable notarized DMG URL,
 exact SHA-256, and release channel. It currently serves the exact verified
-`v1.2.0-rc.10` bytes on the labeled release-candidate channel; stable `v1.2.0`
+`v1.2.0-rc.11` bytes on the labeled release-candidate channel; stable `v1.2.0`
 remains unpublished.
 The website does not collect an intention or create a Shot. The
 retained `/oneshot.sh` is a legacy/claim transport and no longer appears on the
@@ -830,13 +837,13 @@ stapled, mounted, Gatekeeper-checked, and published as a 52,314,624-byte
 universal DMG with SHA-256
 `082c9d1c8e44574cdb48132753e243c372ab21b675674527c0391589af7df2de`.
 Both the GitHub origin and tohseno.com round trips matched. RC6 was superseded
-by the later candidates recorded in `release/V1_2_0_READINESS.json`; RC10 is
+by the later candidates recorded in `release/V1_2_0_READINESS.json`; RC11 is
 the current labeled public candidate.
 Stable 1.2 still requires the remaining production proof in ADR 0035: a second
 identity Claim, canonical Claim receipt, offline-Mac preparation,
 recipient-signed physical install, later Update preservation, Follow
 reconciliation, and live receipt paths. The exact Registry and Claims
-activations retained across RC10 are live; that does not fabricate any of those
+activations retained across RC11 are live; that does not fabricate any of those
 still-missing human or physical facts.
 
 Legacy recurring billing and the new managed Stripe/Bankr service remain

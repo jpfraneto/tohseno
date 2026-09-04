@@ -28,12 +28,14 @@ This direction is governed by
 The native SwiftUI Mac application is the primary product over the same Rust factory.
 It removes npm/browser first run, successful-day qualification, and
 subscription gating of local/BYO execution. First setup installs and pairs the
-Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.10` is the
+Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.11` is the
 current signed, notarized, digest-pinned GitHub prerelease, built from exact
-commit `a87bed012902dd11f78ea3922fa6fed25ed98dac`; its public download was
+commit `82aa020ceadce8f578552b0b9b647c818185944f`; its public download was
 verified byte-for-byte. The production website's visibly labeled
-release-candidate download now serves those same exact RC10 bytes. No RC10
-physical-device behavior has been represented as observed.
+release-candidate download now serves those same exact RC11 bytes. RC10 was
+rejected after real first-open use exposed a launchd startup race and invalid
+pairing-response decoding. No RC11 physical-device behavior has been
+represented as observed.
 [`docs/STATE.md`](docs/STATE.md) records the exact evidence and remaining human
 and physical boundaries.
 
@@ -125,7 +127,7 @@ subscription, trial, qualification, or balance gate. Tohseno-hosted
 intelligence is coming soon; the incomplete managed-credits purchase surface is
 not presented as a usable product.
 
-The signed, notarized, origin-verified `v1.2.0-rc.10` DMG is active only on the
+The signed, notarized, origin-verified `v1.2.0-rc.11` DMG is active only on the
 public release-candidate channel for independent acceptance. Stable activation still
 requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).

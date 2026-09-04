@@ -1,0 +1,59 @@
+{
+  "schema": "tohseno.website-download-activation-evidence/1",
+  "version": "1.2.0-rc.11",
+  "channel": "release-candidate",
+  "authorization": {
+    "authorized_by": "repository owner",
+    "authorization_form": "can you please resume and finish the work you were doing?",
+    "context": "The owner resumed the RC11 fix-and-publish work after RC10 failed during real first-open Companion setup.",
+    "recorded_at": "2026-09-04T18:05:59Z"
+  },
+  "source_release": {
+    "tag": "v1.2.0-rc.11",
+    "commit": "82aa020ceadce8f578552b0b9b647c818185944f",
+    "github_evidence": "release/V1_2_0_RC11_GITHUB_EVIDENCE.json"
+  },
+  "artifact": {
+    "url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.11/Tohseno-1.2.0-rc.11.dmg",
+    "bytes": 53589041,
+    "sha256": "bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35"
+  },
+  "rejected_predecessor_shutdown": {
+    "version": "1.2.0-rc.10",
+    "deployment_id": "c336d161-3d35-4bd1-8716-0bfbe3db3a65",
+    "status": "SUCCESS",
+    "observed_http_status": 503,
+    "observed_error": "The signed and notarized Mac download is not published yet."
+  },
+  "deployment": {
+    "provider": "Railway",
+    "project": "tohseno-production",
+    "environment": "production",
+    "service": "tohseno",
+    "deployment_id": "0e361a36-da6a-41e3-aed5-68e956fe62fb",
+    "status": "SUCCESS"
+  },
+  "live_verification": {
+    "verified_at": "2026-09-04T18:05:59Z",
+    "health_url": "https://tohseno.com/healthz",
+    "health_status": "ok",
+    "distribution_api": "https://tohseno.com/api/distribution/v1/macos",
+    "distribution_available": true,
+    "minimum_macos_version": "14.0",
+    "download_route": "https://tohseno.com/download/macos",
+    "download_status": 307,
+    "redirect_url_match": true,
+    "release_channel_header": "release-candidate",
+    "sha256_header_match": true,
+    "complete_download_bytes": 53589041,
+    "complete_download_sha256": "bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35",
+    "complete_download_match": true
+  },
+  "claims": {
+    "stable_promoted": false,
+    "clean_mac_observed": false,
+    "physical_iphone_observed": false,
+    "connect_companion_button_observed": false,
+    "workshop_session_observed": false
+  }
+}

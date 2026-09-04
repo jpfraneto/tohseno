@@ -1,0 +1,94 @@
+{
+  "schema": "tohseno.github-release-evidence/1",
+  "captured_at": "2026-09-04T18:05:59Z",
+  "scope": "RC11 GitHub publication and immutable origin verification",
+  "later_evidence": "release/V1_2_0_RC11_WEBSITE_EVIDENCE.json",
+  "release": {
+    "version": "1.2.0-rc.11",
+    "channel": "github-prerelease",
+    "published_at": "2026-09-04T18:01:47Z",
+    "release_url": "https://github.com/jpfraneto/tohseno/releases/tag/v1.2.0-rc.11",
+    "asset_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.11/Tohseno-1.2.0-rc.11.dmg",
+    "website_activated": true,
+    "stable_promoted": false
+  },
+  "source": {
+    "repository": "https://github.com/jpfraneto/tohseno",
+    "commit": "82aa020ceadce8f578552b0b9b647c818185944f",
+    "clean_release_worktree": true,
+    "tag_resolves_to_commit": true
+  },
+  "artifact": {
+    "filename": "Tohseno-1.2.0-rc.11.dmg",
+    "bytes": 53589041,
+    "sha256": "bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35",
+    "universal_architectures": [
+      "arm64",
+      "x86_64"
+    ],
+    "bundle_identifier": "com.tohseno.mac",
+    "short_version": "1.2.0",
+    "build_number": "10007"
+  },
+  "signature": {
+    "identity": "Developer ID Application: Anky, Inc. (84V63LKV45)",
+    "team_identifier": "84V63LKV45",
+    "certificate_sha256": "167ed402c73821c1945d326ffa16c11d76658df8e5928a3b78266dcded47c5ae",
+    "cdhash": "2b2cc17c6a58046a30294f653b1d9c0375e7b8a7",
+    "hardened_runtime": true,
+    "timestamped": true
+  },
+  "notarization": {
+    "submission_id": "e9cdaddc-6d88-462f-bdc5-11d90a501186",
+    "created_at": "2026-09-04T17:58:05.372Z",
+    "status": "Accepted",
+    "ticket_stapled": true,
+    "ticket_validated": true,
+    "gatekeeper_assessment": "accepted",
+    "gatekeeper_source": "Notarized Developer ID",
+    "abandoned_submission_id": "c5feeb42-354f-45b3-a034-931537f106fd",
+    "abandoned_submission_observation": "Apple first reported this exact signed bundle In Progress, then removed the submission from authenticated history without a result or log. The unchanged signed bundle was submitted once more and accepted."
+  },
+  "verification": {
+    "dmg_checksum_valid": true,
+    "mounted_bundle_verified": true,
+    "github_asset_state": "uploaded",
+    "github_asset_bytes_match": true,
+    "github_download_sha256_match": true,
+    "installed_application_build": "10007",
+    "installed_application_gatekeeper_accepted": true,
+    "installed_factory_version": "1.2.1",
+    "installed_factory_healthy_after_real_startup": true,
+    "connect_companion_button_observed": false,
+    "physical_device_observed": false,
+    "clean_mac_observed": false
+  },
+  "continuous_integration": {
+    "source_run_url": "https://github.com/jpfraneto/tohseno/actions/runs/33796275731",
+    "source_run_status": "failure",
+    "passing_source_surfaces": [
+      "Rust formatting, Clippy, tests, examples, and documentation",
+      "contract build, fuzz, invariant, and generated-artifact checks",
+      "Apple identity, Fascia, CompanionKit, Companion, native Mac, and Simulator builds and tests"
+    ],
+    "known_source_failure": {
+      "step": "Candidate CLI smoke",
+      "classification": "stale workflow banner assertion",
+      "evidence": "The protocol assertion already expected product version 1.2.1, but a second grep still expected the CLI banner to be 1.2.0. The binary truthfully printed tohseno 1.2.1."
+    },
+    "workflow_assertion_fix_commit": "c0ea1ba01a6b61d392b3e05dc77cd7e00ed3c6f3",
+    "workflow_fix_run_url": "https://github.com/jpfraneto/tohseno/actions/runs/33798207822",
+    "workflow_fix_run_status": "failure_after_rust_apple_and_contract_jobs_passed; static_surface_step_failed",
+    "release_artifact_checks_remain_valid": true
+  },
+  "rejected_predecessor": {
+    "tag": "v1.2.0-rc.10",
+    "reason": "Owner-attended first-open use produced a false launchd startup failure and Connect Companion could not decode the factory's valid pairing_uri response.",
+    "public_download_disabled_before_rc11_activation": true,
+    "stable_promoted": false
+  },
+  "authorization": {
+    "owner_instruction": "can you please resume and finish the work you were doing?",
+    "recorded_at": "2026-09-04T18:05:59Z"
+  }
+}
