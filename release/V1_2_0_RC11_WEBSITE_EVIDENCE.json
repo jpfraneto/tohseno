@@ -2,6 +2,7 @@
   "schema": "tohseno.website-download-activation-evidence/1",
   "version": "1.2.0-rc.11",
   "channel": "release-candidate",
+  "later_update_feed_evidence": "release/V1_2_0_UPDATE_FEED_EVIDENCE.json",
   "authorization": {
     "authorized_by": "repository owner",
     "authorization_form": "can you please resume and finish the work you were doing?",

@@ -43,7 +43,11 @@ higher than the installed `CFBundleVersion`, the native app shows a compact top
 banner naming the exact release and linking to the manual verified DMG route.
 It never downloads, replaces, or relaunches the app automatically. Public RC11
 predates this source change, so the banner begins with the next notarized native
-candidate and can announce candidates after that one.
+candidate and can announce candidates after that one. Production deployment
+`83c14eae-9f74-408c-97b7-0495c3fcf1fc` now truthfully exposes RC11 as version
+`1.2.0-rc.11`, build `10007`, without changing its immutable URL or digest. The
+observed source, test, render, deployment, and live-response evidence is recorded
+in `release/V1_2_0_UPDATE_FEED_EVIDENCE.json`.
 
 `v1.2.0-rc.11` is now a public GitHub prerelease built from exact clean commit
 `82aa020ceadce8f578552b0b9b647c818185944f`. Its universal Mac app is Developer
@@ -53,7 +57,7 @@ ID signed with hardened runtime, Apple-notarized under submission
 `bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35`; fresh
 downloads from both GitHub and `tohseno.com/download/macos` matched the retained
 artifact byte-for-byte. Production deployment
-`0e361a36-da6a-41e3-aed5-68e956fe62fb` serves RC11 on the visibly labeled
+`83c14eae-9f74-408c-97b7-0495c3fcf1fc` serves RC11 on the visibly labeled
 release-candidate channel. No clean-Mac, physical-iPhone, Connect Companion
 button, haptic, or live Workshop Session behavior is claimed for RC11. The
 additive release evidence is recorded in
@@ -148,7 +152,7 @@ Cloudflare Bucket Lock rule `registry-final-objects` is enabled indefinitely for
 only `sha256/`; staging keys under `pending/` and the rest of the bucket remain
 outside that lock.
 
-Production deployment `0e361a36-da6a-41e3-aed5-68e956fe62fb` now serves the
+Production deployment `83c14eae-9f74-408c-97b7-0495c3fcf1fc` now serves the
 network timeline and pins the exact RC11 URL and digest on the visibly labeled
 release-candidate channel. Health, Registry rendering, the installer metadata,
 the redirect headers, and the complete public download were observed on the

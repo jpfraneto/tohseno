@@ -1,0 +1,47 @@
+{
+  "schema": "tohseno.macos-update-feed-evidence/1",
+  "captured_at": "2026-09-04T19:07:49Z",
+  "source": {
+    "commit": "169aeaac6ff8f80307080e55225c985a8320c663",
+    "clean_deployment_worktree": true,
+    "native_behavior": "A startup check shows a top manual Update banner only when validated website metadata names a higher build number.",
+    "automatic_install": false
+  },
+  "verification": {
+    "macos_tests": 43,
+    "macos_failures": 0,
+    "website_tests": 154,
+    "website_failures": 0,
+    "website_typecheck": "passed",
+    "visual_fixture": "1100x760 update-banner render inspected",
+    "invalid_or_non_https_metadata_rejected": true,
+    "same_or_older_build_suppressed": true
+  },
+  "deployment": {
+    "provider": "Railway",
+    "environment": "production",
+    "service": "tohseno",
+    "deployment_id": "83c14eae-9f74-408c-97b7-0495c3fcf1fc",
+    "status": "SUCCESS",
+    "failed_predecessor_deployment_id": "3931c6fe-0ab1-48c2-97bf-6d676a752b1c",
+    "failed_predecessor_reason": "The repository root was uploaded instead of website/ as the archive root, so Railpack detected Rust and found no start command. The prior healthy deployment remained live."
+  },
+  "live_distribution": {
+    "url": "https://tohseno.com/api/distribution/v1/macos",
+    "schema": "tohseno.macos-distribution/1",
+    "available": true,
+    "channel": "release-candidate",
+    "version": "1.2.0-rc.11",
+    "build_number": 10007,
+    "artifact_url": "https://github.com/jpfraneto/tohseno/releases/download/v1.2.0-rc.11/Tohseno-1.2.0-rc.11.dmg",
+    "sha256": "bac1ea3222c1ebbad82ced592ba33ef465eba2995f6413acd14edd5d8c8c5c35",
+    "download_redirect_status": 307,
+    "download_headers_match": true,
+    "health_status": "ok"
+  },
+  "release_boundary": {
+    "installed_rc11_contains_banner": false,
+    "first_native_candidate_with_banner": "next notarized candidate after RC11",
+    "stable_promotion": false
+  }
+}
