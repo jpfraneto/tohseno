@@ -10,6 +10,7 @@ import TohsenoWorkshopKit
 /// standing up relay, crypto, and Keychain fakes that the SDK already tests.
 public protocol CompanionBackend: Sendable, WorkshopClientAuthorizing {
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot
+    func requestWorkspaceSnapshot(commandID: String) async throws -> CommandReceipt
     func reconcile() async throws
     func iconBytes(for descriptor: IconDescriptor) async throws -> Data?
     func requestShotCreation(_ request: CreateShotRequest) async throws -> CommandReceipt

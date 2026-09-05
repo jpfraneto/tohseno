@@ -27,6 +27,21 @@ shared recovery gap and the direct-agent delivery gap visible as unfinished work
 
 ## Local native development loop
 
+ADR 0042 replaces the Companion pocket-workshop home with one Your Shots list
+and a floating Shots / Tohseno creation / Discover bar. Updates and Profile move
+to the top menu. The list uses the existing Mac workspace's generated and
+adopted records, including network-derived projects, rather than separate
+origin-specific shelves. Missing snapshots display a synchronization state;
+first missing-snapshot recovery and manual refresh use the existing signed
+snapshot request instead of implying the person has no apps.
+
+The Companion change passed 42 focused package tests, including missing-snapshot
+recovery, and an iPhone-sized rendered fixture was inspected. Its Debug device
+build passed signing verification, updated in place, and launched on the intended
+wired iPhone 15. Fresh Mac contact and an updated workspace projection containing
+ayunoando, Anky and is-like-social were observed afterward. The actual phone's
+post-update list rendering remains an owner visual check.
+
 `bash scripts/dev-macos.sh` now builds and opens an incrementally compiled,
 locally signed Mac UI over the exact currently installed factory payload. Its
 window title identifies the local source/time, and the installed app remains

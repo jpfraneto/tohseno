@@ -11,18 +11,13 @@ import SwiftUI
 struct PresentationTests {
     #if canImport(AppKit)
     @MainActor
-    @Test("The pocket workshop renders at an iPhone-sized fixture")
+    @Test("The Shots home renders at an iPhone-sized fixture")
     func pocketWorkshopRenders() async throws {
         let backend = StubBackend(shots: [shot(version: 3)])
         let subject = await model(backend)
         let size = NSSize(width: 390, height: 844)
         let host = NSHostingView(
-            rootView: YourAppsView(
-                model: subject,
-                openNetwork: {},
-                openUpdates: {},
-                openKeeper: {}
-            )
+            rootView: CompanionNavigation(model: subject)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
         )
@@ -48,10 +43,7 @@ struct PresentationTests {
             let shots = state.map { [shot(version: 3, execution: $0)] } ?? []
             let subject = await model(StubBackend(shots: shots))
             let host = NSHostingView(
-                rootView: YourAppsView(
-                    model: subject,
-                    openNetwork: {}, openUpdates: {}, openKeeper: {}
-                )
+                rootView: YourAppsView(model: subject)
                 .frame(width: size.width, height: size.height)
                 .preferredColorScheme(.dark)
                 .transaction { $0.disablesAnimations = true }
@@ -108,7 +100,7 @@ struct PresentationTests {
         #expect(source.contains("case .entitlementDecision, .trialEnded, .apps, .create, .app:"))
     }
 
-    @Test("The pocket workshop preserves every former top-level capability")
+    @Test("The simple navigation preserves creation, discovery, updates and profile")
     func workshopCapabilityMigration() throws {
         let package = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -121,15 +113,14 @@ struct PresentationTests {
             encoding: .utf8
         )
         for label in [
-            "Workshop", "Network", "Updates", "Keeper", "One Shot", "Take the Shot",
-            "Tohseno · keeper of the workshop",
+            "Shots", "Discover", "Updates", "Profile & connection", "Take a Shot", "Take the Shot",
         ] {
             #expect(source.contains("\"\(label)\""))
         }
         #expect(source.contains("KeeperInboxView"))
-        #expect(source.contains("CompanionWorkshopProjection"))
-        #expect(source.contains("workshop.tohseno-keeper"))
-        #expect(source.contains("UIImpactFeedbackGenerator(style: .rigid)"))
+        #expect(source.contains("BuilderProfileView"))
+        #expect(source.contains("navigation.take-a-shot"))
+        #expect(!source.contains("POCKET WORKSHOP"))
         #expect(!source.contains(".tabItem { Label(\"Apps\""))
         #expect(!source.contains(".tabItem { Label(\"Registry\""))
         #expect(!source.contains(".tabItem { Label(\"Profile\""))

@@ -65,6 +65,8 @@ public final class CompanionModel {
     /// showing first-run setup or an empty app grid on every launch.
     public private(set) var screen: Screen = .loading
     public private(set) var apps: [ShotSummary] = []
+    public private(set) var hasWorkspaceSnapshot = false
+    private var requestedMissingSnapshot = false
     public private(set) var icons: [String: Data] = [:]
     public private(set) var connection: CompanionConnectionState = .disconnected
     /// Signed commands still waiting to reach the Mac.
@@ -640,6 +642,9 @@ public final class CompanionModel {
         syncing = true
         defer { syncing = false }
         do {
+            if reportFailure {
+                _ = try await backend.requestWorkspaceSnapshot(commandID: UUID().uuidString.lowercased())
+            }
             try await backend.reconcile()
             // A process relaunch restores the persisted pairing before this
             // model exists. Rejoin the live encrypted event stream after the
@@ -661,6 +666,7 @@ public final class CompanionModel {
     private func load() async {
         do {
             let workspace = try await backend.synchronizedWorkspace()
+            hasWorkspaceSnapshot = true
             adopt(workspace.shots)
             switch screen {
             case .loading, .firstRun:
@@ -671,6 +677,16 @@ public final class CompanionModel {
             try await loadIcons()
         } catch TohsenoCompanionError.notPaired {
             screen = .firstRun
+        } catch TohsenoCompanionError.workspaceUnavailable {
+            if !requestedMissingSnapshot {
+                do {
+                    _ = try await backend.requestWorkspaceSnapshot(commandID: UUID().uuidString.lowercased())
+                    requestedMissingSnapshot = true
+                } catch {
+                    notice = "Waiting to sync your Shots with your Mac."
+                }
+            }
+            if case .loading = screen { screen = .apps }
         } catch {
             // A missing snapshot means nothing has synchronized yet.
             if case .loading = screen { screen = .apps }
@@ -706,6 +722,8 @@ public final class CompanionModel {
     func apply(_ event: WorkspaceEvent) {
         switch event.payload {
         case let .workspaceSnapshot(snapshot):
+            hasWorkspaceSnapshot = true
+            requestedMissingSnapshot = false
             adopt(snapshot.shots)
         case let .productEntitlement(projection):
             entitlement = projection

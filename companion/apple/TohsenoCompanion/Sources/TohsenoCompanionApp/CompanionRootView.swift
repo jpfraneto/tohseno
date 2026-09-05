@@ -198,54 +198,101 @@ private enum CompanionRoute: Hashable {
 }
 
 private enum CompanionTab: Hashable {
-    case workshop, network, updates, keeper
+    case shots, discover
 }
 
-private struct CompanionNavigation: View {
+struct CompanionNavigation: View {
     @Bindable var model: CompanionModel
-    @State private var selectedTab: CompanionTab = .workshop
+    @State private var selectedTab: CompanionTab = .shots
+    @State private var showsProfile = false
+    @State private var showsUpdates = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            NavigationStack(path: appPath) {
-                YourAppsView(
-                    model: model,
-                    openNetwork: { selectedTab = .network },
-                    openUpdates: { selectedTab = .updates },
-                    openKeeper: { selectedTab = .keeper }
-                )
-                    .companionRootNavigationBar()
-                    .navigationDestination(for: CompanionRoute.self) { route in
-                        switch route {
-                        case let .app(shotID):
-                            if let shot = model.app(shotID) {
-                                AppView(model: model, shot: shot)
-                                    .companionDestinationNavigationBar()
-                            }
-                        case .create:
-                            CreateAppView(model: model)
-                                .companionDestinationNavigationBar()
-                        }
-                    }
-            }
-            .tabItem { Label("Workshop", systemImage: "hammer") }
-            .tag(CompanionTab.workshop)
-
-            PublicRegistryView(model: model)
-                .tabItem { Label("Network", systemImage: "door.left.hand.open") }
-                .tag(CompanionTab.network)
-
-            KeeperInboxView(model: model)
-                .tabItem {
-                    Label("Updates", systemImage: "tray.full.fill")
+        VStack(spacing: 0) {
+            HStack {
+                WordmarkView()
+                Spacer()
+                Menu {
+                    Button("Updates", systemImage: "tray") { showsUpdates = true }
+                    Button("Profile & connection", systemImage: "person.crop.circle") { showsProfile = true }
+                } label: {
+                    Image(systemName: "person.crop.circle")
+                        .font(.title2)
+                        .frame(width: 44, height: 44)
+                        .foregroundStyle(Tohseno.bone)
                 }
-                .badge(model.privateUpdates.filter { $0.readAt == nil }.count)
-                .tag(CompanionTab.updates)
+                .accessibilityLabel("Profile and updates")
+            }
+            .padding(.horizontal, 24)
 
-            BuilderProfileView(model: model)
-                .tabItem { Label("Keeper", systemImage: "hand.raised.fill") }
-                .tag(CompanionTab.keeper)
+            Group {
+                switch selectedTab {
+                case .shots:
+                    NavigationStack(path: appPath) {
+                        YourAppsView(model: model)
+                            .companionRootNavigationBar()
+                            .navigationDestination(for: CompanionRoute.self) { route in
+                                switch route {
+                                case let .app(shotID):
+                                    if let shot = model.app(shotID) {
+                                        AppView(model: model, shot: shot)
+                                            .companionDestinationNavigationBar()
+                                    }
+                                case .create:
+                                    CreateAppView(model: model)
+                                        .companionDestinationNavigationBar()
+                                }
+                            }
+                    }
+                case .discover:
+                    PublicRegistryView(model: model)
+                }
+            }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack(spacing: 24) {
+                tabButton("Shots", symbol: "square.stack", tab: .shots)
+                Button {
+                    selectedTab = .shots
+                    model.openCreate()
+                } label: {
+                    TohsenoMark(size: 40)
+                        .frame(width: 66, height: 66)
+                        .background(Tohseno.void, in: Circle())
+                        .overlay(Circle().strokeBorder(Tohseno.orange, lineWidth: 1.5))
+                        .shadow(color: Tohseno.orange.opacity(0.3), radius: 14, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Take a Shot")
+                .accessibilityIdentifier("navigation.take-a-shot")
+                tabButton("Discover", symbol: "safari", tab: .discover)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Tohseno.iron.opacity(0.7)))
+            .padding(.horizontal, 28)
+            .padding(.bottom, 8)
+        }
+        .sheet(isPresented: $showsProfile) {
+            BuilderProfileView(model: model)
+        }
+        .sheet(isPresented: $showsUpdates) {
+            KeeperInboxView(model: model)
+        }
+    }
+
+    private func tabButton(_ title: String, symbol: String, tab: CompanionTab) -> some View {
+        Button { selectedTab = tab } label: {
+            VStack(spacing: 5) {
+                Image(systemName: symbol).font(.system(size: 21, weight: .medium))
+                Text(title).font(.caption.weight(.medium))
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .foregroundStyle(selectedTab == tab ? Tohseno.bone : Tohseno.ash)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
     }
 
     private var appPath: Binding<[CompanionRoute]> {
@@ -797,220 +844,77 @@ private struct CompanionLoadingView: View {
 
 struct YourAppsView: View {
     @Bindable var model: CompanionModel
-    let openNetwork: () -> Void
-    let openUpdates: () -> Void
-    let openKeeper: () -> Void
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 82, maximum: 104), spacing: 12, alignment: .top)
-    ]
-
-    private var projection: CompanionWorkshopProjection {
-        let apps = model.apps.map { shot in
-            let presentation = model.presentation(for: shot)
-            return CompanionWorkshopApp(
-                id: shot.shotID,
-                name: shot.displayName,
-                state: presentation.state,
-                headline: presentation.headline
-            )
-        }
-        let publicEvidenceObserved: Bool? = if model.networkNotice != nil {
-            false
-        } else if !model.publicApps.isEmpty || !model.publicTimeline.isEmpty {
-            true
-        } else {
-            nil
-        }
-        return CompanionWorkshopProjection(
-            apps: apps,
-            macConnection: model.connection,
-            keeperAvailable: model.builderDevice != nil,
-            publicEvidenceObserved: publicEvidenceObserved,
-            unreadUpdates: model.privateUpdates.filter { $0.readAt == nil }.count
-        )
-    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            CompanionHeader(connection: model.connection, syncing: model.syncing) {
-                await model.syncNow()
-            }
-
-            ScrollView {
-                VStack(spacing: 18) {
-                    companionWorkshopScene
-
-                    HStack {
-                        Text("APP SHELF")
-                            .font(.caption.weight(.bold))
-                            .tracking(1.5)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Your Shots")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(Tohseno.bone)
+                    HStack(spacing: 7) {
+                        Circle()
+                            .fill(model.connection == .connected ? Tohseno.connected : Tohseno.ash)
+                            .frame(width: 6, height: 6)
+                        Text(model.connection == .connected ? "Mac reachable" : "Waiting for your Mac")
+                            .font(.caption)
                             .foregroundStyle(Tohseno.ash)
-                        Spacer()
-                        Button {
-                            model.openCreate()
-                        } label: {
-                            Label("One Shot", systemImage: "scope")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("workshop.one-shot")
                     }
+                }
 
-                    if model.apps.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "sparkles.rectangle.stack")
-                                .font(.system(size: 28, weight: .light))
-                                .foregroundStyle(Tohseno.orange)
-                            Text("Your first app will take shape here.")
-                                .font(.headline)
-                            Text("Take a Shot here, or adopt an existing iPhone app in the Mac workshop.")
-                                .font(.subheadline)
-                                .foregroundStyle(Tohseno.ash)
-                                .multilineTextAlignment(.center)
+                if model.apps.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(model.hasWorkspaceSnapshot ? "Make something yours." : "Getting your Shots…")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(Tohseno.bone)
+                        Text(model.hasWorkspaceSnapshot
+                             ? "Tap the Tohseno button to start. Apps connected on your Mac appear here too."
+                             : "Waiting for your Mac’s app list. Your existing apps haven’t been removed.")
+                            .foregroundStyle(Tohseno.ash)
+                        if !model.hasWorkspaceSnapshot {
+                            Button("Sync with Mac") { Task { await model.syncNow() } }
+                                .disabled(model.syncing)
                         }
-                        .padding(24)
-                        .frame(maxWidth: .infinity)
-                        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 18))
-                        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Tohseno.iron))
-                    } else {
-                    LazyVGrid(columns: columns, alignment: .center, spacing: 24) {
+                    }
+                    .padding(.vertical, 40)
+                } else {
+                    LazyVStack(spacing: 8) {
                         ForEach(model.apps, id: \.shotID) { shot in
                             Button { model.open(shot) } label: {
-                                AppTile(
-                                    shot: shot,
-                                    icon: model.icon(for: shot),
-                                    presentation: model.presentation(for: shot)
-                                )
+                                HStack(spacing: 16) {
+                                    IconView(name: shot.displayName, bytes: model.icon(for: shot), size: 56)
+                                    VStack(alignment: .leading, spacing: 5) {
+                                        Text(shot.displayName)
+                                            .font(.headline)
+                                            .foregroundStyle(Tohseno.bone)
+                                        Text(shot.kind == .adoptedProject && shot.execution == nil
+                                             ? "Connected source" : model.presentation(for: shot).headline)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Tohseno.ash)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Tohseno.ash)
+                                }
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 20))
+                                .contentShape(RoundedRectangle(cornerRadius: 20))
                             }
                             .buttonStyle(AppRowButtonStyle())
                         }
                     }
-                    }
-
-                    if let notice = model.notice {
-                        NoticeView(text: notice)
-                    }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                if let notice = model.notice { NoticeView(text: notice) }
             }
-            .refreshable { await model.syncNow() }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
         }
-        .accessibilityIdentifier("workshop.scene")
-    }
-
-    private var companionWorkshopScene: some View {
-        VStack(spacing: 14) {
-            VStack(spacing: 4) {
-                Text("POCKET WORKSHOP")
-                    .font(.caption2.weight(.bold))
-                    .tracking(2)
-                    .foregroundStyle(Tohseno.orange)
-                Text(projection.chapter.title)
-                    .font(.title3.weight(.semibold))
-                    .multilineTextAlignment(.center)
-            }
-
-            HStack(spacing: 8) {
-                PocketActor(
-                    title: "Mac factory",
-                    detail: macDetail,
-                    symbol: "macbook",
-                    color: connectionColor
-                )
-                Image(systemName: model.connection == .connected ? "arrow.right" : "ellipsis")
-                    .foregroundStyle(model.connection == .connected ? Tohseno.orange : Tohseno.ash)
-                    .accessibilityHidden(true)
-                PocketActor(
-                    title: "This iPhone",
-                    detail: "Keeper · remote",
-                    symbol: "iphone.gen3",
-                    color: projection.keeperAvailable ? Tohseno.orange : Tohseno.ash
-                )
-            }
-
-            PocketWorkshopPulse(runtime: model.workshopRuntime) {
-                Task { await model.sendWorkshopPulse() }
-            }
-
-            PocketTohsenoKeeper(chapter: projection.chapter)
-
-            HStack(spacing: 8) {
-                sceneButton("Network", symbol: "door.left.hand.open", detail: thresholdDetail, action: openNetwork)
-                sceneButton(
-                    "Updates",
-                    symbol: "tray.full",
-                    detail: projection.unreadUpdates == 0 ? "Inbox quiet" : "\(projection.unreadUpdates) unread",
-                    action: openUpdates
-                )
-                sceneButton("Keeper", symbol: "hand.raised", detail: keeperDetail, action: openKeeper)
-            }
-        }
-        .padding(16)
-        .background(
-            LinearGradient(
-                colors: [Tohseno.orange.opacity(0.16), Tohseno.carbon],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 20)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Tohseno.orange.opacity(0.2)))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Pocket workshop. \(projection.chapter.title).")
-        .accessibilityIdentifier("workshop.stage")
-    }
-
-    private func sceneButton(
-        _ title: String,
-        symbol: String,
-        detail: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                Text(title).font(.caption.weight(.semibold))
-                Text(detail).font(.caption2).foregroundStyle(Tohseno.ash).lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 9)
-            .background(Tohseno.void.opacity(0.62), in: RoundedRectangle(cornerRadius: 11))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var macDetail: String {
-        if model.workshopRuntime.connectionState == .connected { return "Nearby · live" }
-        return switch projection.macConnection {
-        case .connected: "Private commands ready"
-        case .pairing: "Pairing"
-        case .reconnecting: "Reconnecting"
-        case .disconnected: "Offline"
-        case .revoked: "Access removed"
-        }
-    }
-
-    private var connectionColor: Color {
-        switch projection.macConnection {
-        case .connected: Tohseno.connected
-        case .pairing, .reconnecting: Tohseno.warning
-        case .disconnected: Tohseno.ash
-        case .revoked: Tohseno.failed
-        }
-    }
-
-    private var thresholdDetail: String {
-        switch projection.threshold {
-        case .unknown: "Not checked"
-        case .checked: "Evidence checked"
-        case .unavailable: "Unavailable"
-        }
-    }
-
-    private var keeperDetail: String {
-        projection.keeperAvailable ? "DeviceKey ready" : "Authority unknown"
+        .refreshable { await model.syncNow() }
+        .accessibilityIdentifier("shots.list")
     }
 }
 

@@ -20,6 +20,8 @@ actor StubBackend: CompanionBackend {
     private(set) var privateUpdateReadRequests: [(String, Bool)] = []
     private(set) var reconciles = 0
     private(set) var synchronizations = 0
+    private(set) var snapshotRequests = 0
+    var missingWorkspace = false
     private(set) var pairedInvitations: [String] = []
     private var failure: TohsenoCompanionError?
     private var pairingFailure: TohsenoCompanionError?
@@ -38,11 +40,17 @@ actor StubBackend: CompanionBackend {
     func set(shots: [ShotSummary]) { self.shots = shots }
     func set(unacknowledged: Int) { self.unacknowledged = unacknowledged }
     func set(reachable: Bool) { self.reachable = reachable }
+    func set(missingWorkspace: Bool) { self.missingWorkspace = missingWorkspace }
+    func requestWorkspaceSnapshot(commandID: String) async throws -> CommandReceipt {
+        snapshotRequests += 1
+        return CommandReceipt(commandID: commandID, state: .received)
+    }
     func rejectNext(with error: TohsenoCompanionError) { failure = error }
     func rejectNextPairing(with error: TohsenoCompanionError) { pairingFailure = error }
 
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot {
-        WorkspaceSnapshot(
+        if missingWorkspace { throw TohsenoCompanionError.workspaceUnavailable }
+        return WorkspaceSnapshot(
             workspaceID: "workspace_fixture",
             snapshotVersion: 1,
             generatedAt: "2026-08-18T00:00:00Z",
@@ -593,6 +601,24 @@ struct CompanionFlowTests {
         let subject = await model(StubBackend(shots: [shot(version: 4), retired, recording]))
         #expect(subject.apps.map(\.displayName) == ["anky"])
         #expect(subject.screen == .apps)
+    }
+
+    @MainActor
+    @Test("A missing app list requests a snapshot without claiming the workspace is empty")
+    func missingAppList() async {
+        let backend = StubBackend()
+        await backend.set(missingWorkspace: true)
+        let subject = await model(backend)
+        #expect(!subject.hasWorkspaceSnapshot)
+        #expect(await backend.snapshotRequests == 1)
+        await subject.refresh()
+        #expect(await backend.snapshotRequests == 1)
+        await backend.set(missingWorkspace: false)
+        await backend.set(shots: [shot(version: 4)])
+        await subject.syncNow()
+        #expect(subject.hasWorkspaceSnapshot)
+        #expect(subject.apps.map(\.displayName) == ["anky"])
+        #expect(await backend.snapshotRequests == 2)
     }
 
     @MainActor
