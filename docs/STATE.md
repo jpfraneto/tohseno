@@ -4,6 +4,18 @@ Written 2026-07-30, amended through 2026-09-04. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
+## Agent skill
+
+`skills/tohseno` now provides portable agent instructions for working from an
+existing coding conversation: direct native source work, Xcode adoption,
+discovery, existing factory commands, and Companion-approved publication. It
+adds no fee or managed-inference requirement and changes no runtime authority.
+The command guidance distinguishes generated factory evolution from adopted
+projects and names the remaining CLI gap: delivering externally edited local
+source through the existing build/sign/install path without another harness
+invocation. Installing the skill does not implement that missing entrypoint or
+establish physical delivery evidence.
+
 ## Current source evolution: the live Workshop Runtime
 
 ADR 0041 implements the local live Session beneath ADR 0039's Living Workshop.
