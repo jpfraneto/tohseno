@@ -25,6 +25,24 @@ recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
 
+## Local native development loop
+
+`bash scripts/dev-macos.sh` now builds and opens an incrementally compiled,
+locally signed Mac UI over the exact currently installed factory payload. Its
+window title identifies the local source/time, and the installed app remains
+available with its in-memory drafts. This loop does not rebuild Rust or activate
+a public artifact. The operating instructions, including physical Companion
+updates through Xcode and CoreDevice, are in
+`docs/runbooks/local-native-development.md`.
+
+On 2026-09-04 the local Mac preview compiled, passed signature verification and
+launched while the existing service remained healthy. Desktop UI inspection was
+unavailable, so its visible behavior is not accepted evidence. Companion built
+with the existing app/team identity and updated in place on the digest-matched,
+wired iPhone 15; the installed inventory reported version 1.2.1, build 5. iOS
+refused launch because the phone was locked. Post-update Companion pairing and
+live Session behavior remain owner-observed checks, not installation inference.
+
 ## Current source evolution: the live Workshop Runtime
 
 ADR 0041 implements the local live Session beneath ADR 0039's Living Workshop.

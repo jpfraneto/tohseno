@@ -22,7 +22,7 @@ struct TohsenoMacApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Tohseno", id: "factory") {
+        WindowGroup(localWindowTitle, id: "factory") {
             TohsenoRootView(model: model)
                 .frame(minWidth: 860, minHeight: 620)
                 .onOpenURL { url in
@@ -52,6 +52,13 @@ struct TohsenoMacApp: App {
         Settings {
             TohsenoSettingsView(model: model)
         }
+    }
+
+    private var localWindowTitle: String {
+        guard let build = Bundle.main.object(forInfoDictionaryKey: "TohsenoLocalBuild") as? String else {
+            return "Tohseno"
+        }
+        return "Tohseno · Local \(build)"
     }
 }
 
