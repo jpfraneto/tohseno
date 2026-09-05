@@ -804,7 +804,7 @@ struct CompanionFlowTests {
         await subject.refresh()
         let waiting = subject.presentation(for: try #require(subject.apps.first))
         #expect(waiting.state == .waiting)
-        #expect(waiting.headline == "Waiting…")
+        #expect(waiting.headline == "Waiting to build on Mac")
     }
 
     @MainActor

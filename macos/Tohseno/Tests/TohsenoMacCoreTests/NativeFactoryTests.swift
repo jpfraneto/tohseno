@@ -5,6 +5,14 @@ import XCTest
 @testable import TohsenoMacCore
 
 final class NativeFactoryTests: XCTestCase {
+    func testSourceAdoptionIsNotAnInstallationReport() {
+        var imported = workshopApp(.installed)
+        imported.sourceState = "source_fixture"
+        XCTAssertTrue(imported.deliveryUnconfirmed)
+        XCTAssertEqual(imported.deliveryHeadline, "Source on Mac · installation unconfirmed")
+        XCTAssertFalse(workshopApp(.installed).deliveryUnconfirmed)
+    }
+
     @MainActor
     func testNativeBuildWorkspaceRendersAtTheShippingWindowSize() async throws {
         let suite = "tohseno-render-fixture-\(UUID().uuidString)"

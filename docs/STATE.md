@@ -27,6 +27,17 @@ shared recovery gap and the direct-agent delivery gap visible as unfinished work
 
 ## Local native development loop
 
+Native delivery copy now separates a saved device build, installation in
+progress, and a last-confirmed installation. Companion app details place this
+report before the evolution composer, explain automatic reachable-phone
+handoff, and offer a read-only refresh. Source-only imports are explicitly
+installation-unconfirmed rather than assumed installed; the Mac offers source
+opening for Xcode delivery. This does not add the missing standalone local-source
+build command or expose network-import delivery records in Companion snapshots.
+Those remain necessary for a complete one-button, live delivery experience for
+every app origin. Accepted execution reports are historical, not current iPhone
+inventory evidence.
+
 The website home now explains Tohseno as a personal Mac/iPhone workshop
 connected to a wider network of developers and their apps: “Your apps. Woven
 together.” It retains real canonical activity and the gated Mac download, with

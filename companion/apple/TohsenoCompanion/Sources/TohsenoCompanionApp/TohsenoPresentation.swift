@@ -42,38 +42,48 @@ public struct TohsenoPresentation: Equatable, Sendable {
     public let state: TohsenoPresentedState
     public let headline: String
     public let detail: String?
+    public let isWorking: Bool
 
-    public init(state: TohsenoPresentedState, headline: String, detail: String? = nil) {
+    public init(state: TohsenoPresentedState, headline: String, detail: String? = nil, isWorking: Bool? = nil) {
         self.state = state
         self.headline = headline
         self.detail = detail
+        self.isWorking = isWorking ?? state.inFlight
     }
 
     /// Derive the presentation for one app in the synchronized snapshot.
     public static func of(_ shot: ShotSummary) -> Self {
+        if shot.execution == nil, shot.kind != .factoryShot {
+            return Self(
+                state: .waiting,
+                headline: "Source on Mac · installation unconfirmed",
+                detail: "This app is in your workshop. This snapshot does not confirm a device build or installation on this iPhone.",
+                isWorking: false
+            )
+        }
         let state = shot.execution.map { TohsenoPresentedState.from($0.state) }
-            ?? (shot.kind == .adoptedProject || shot.latestVersionID != nil ? .installed : .waiting)
+            ?? (shot.latestVersionID != nil ? .installed : .waiting)
         return forState(state, appName: shot.displayName)
     }
 
     public static func forState(_ state: TohsenoPresentedState, appName: String) -> Self {
         switch state {
         case .waiting:
-            Self(state: state, headline: "Waiting…")
+            Self(state: state, headline: "Waiting to build on Mac", detail: "Your Mac has not reported a completed build yet.")
         case .building:
-            Self(state: state, headline: "Building \(appName)…")
+            Self(state: state, headline: "Building \(appName)…", detail: "Your Mac is preparing the app. Installation follows when the paired iPhone is reachable.")
         case .readyForPhone:
             Self(
                 state: state,
-                headline: "\(appName) is ready.",
-                detail: "Connect this iPhone to your Mac to install the update."
+                headline: "Built on Mac · ready to install",
+                detail: "The build is saved. Keep this iPhone unlocked and reachable by your Mac over USB or Xcode Wi-Fi; installation resumes automatically."
             )
         case .installing:
-            Self(state: state, headline: "Installing \(appName)…")
+            Self(state: state, headline: "Installing on iPhone…", detail: "Keep the paired iPhone connected and unlocked until installation finishes.")
         case .installed:
-            Self(state: state, headline: "\(appName) updated ✓")
+            Self(state: state, headline: "Installed on iPhone · last confirmed", detail: "Your Mac confirmed this version was installed. Open it from the iPhone’s Home Screen or App Library. Removing it later is not reflected automatically here.")
         case .failed:
-            Self(state: state, headline: "Couldn’t build \(appName).", detail: "Try again.")
+            Self(state: state, headline: "Needs attention on Mac", detail: "The latest attempt did not finish. Open this app on your Mac to see what stopped and continue. An older installed version may still be on your iPhone.")
         }
     }
 

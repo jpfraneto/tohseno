@@ -1041,7 +1041,7 @@ public final class CompanionModel {
 
     public var canEvolve: Bool {
         guard case let .app(shotID) = screen, let shot = app(shotID) else { return false }
-        guard !presentation(for: shot).state.inFlight else { return false }
+        guard !presentation(for: shot).isWorking else { return false }
         return !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (shot.kind == .adoptedProject
                 ? shot.sourceState != nil

@@ -1501,7 +1501,7 @@ private struct AppDetailView: View {
                 Text(app.displayName)
                     .font(.title2.weight(.semibold))
                     .lineLimit(1)
-                Label(app.presentation.headline, systemImage: stateSymbol(app.presentation.state))
+                Label(app.deliveryHeadline, systemImage: app.deliveryUnconfirmed ? "folder" : stateSymbol(app.presentation.state))
                     .font(.caption)
                     .foregroundStyle(app.presentation.state == .failed ? .red : .secondary)
                     .lineLimit(1)
@@ -1828,7 +1828,7 @@ private struct AppWorkspaceView: View {
             }
             GroupBox {
                 VStack(alignment: .leading, spacing: 18) {
-                    LabeledContent("Status", value: app.presentation.headline)
+                    LabeledContent("Status", value: app.deliveryHeadline)
                     if let ordinal = app.latestVersionOrdinal {
                         LabeledContent("Accepted version", value: "\(ordinal)")
                     }
@@ -1888,7 +1888,7 @@ private struct AppWorkspaceView: View {
                 Label("Public app page", systemImage: "photo.on.rectangle.angled")
             }
             HStack {
-                if app.presentation.state == .installed {
+                if app.presentation.state == .installed && !app.deliveryUnconfirmed {
                     Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("app.open-on-iphone")
@@ -2071,7 +2071,11 @@ private struct DeviceHandoffCard: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            if app.presentation.state == .installed {
+            if app.deliveryUnconfirmed {
+                Button("Open source to build in Xcode") { Task { await model.openSource(for: app) } }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("app.open-source-to-build")
+            } else if app.presentation.state == .installed {
                 Button("Open on iPhone") { Task { await model.openOnPhone(for: app) } }
                     .buttonStyle(.borderedProminent)
                     .frame(maxWidth: .infinity)
@@ -2087,7 +2091,8 @@ private struct DeviceHandoffCard: View {
     }
 
     private var title: String {
-        switch app.presentation.state {
+        if app.deliveryUnconfirmed { return "Installation not confirmed" }
+        return switch app.presentation.state {
         case .waiting, .building, .readyForPhone: "Make your iPhone reachable"
         case .installing: "Installing on your iPhone"
         case .installed: "Your app is on your iPhone"
@@ -2096,7 +2101,10 @@ private struct DeviceHandoffCard: View {
     }
 
     private var detail: String {
-        switch app.presentation.state {
+        if app.deliveryUnconfirmed {
+            return "The source is connected, but this report does not confirm a device build or installation. Open the project in Xcode, select your paired iPhone, then Run. A build-only action from Tohseno is not available for this local source yet."
+        }
+        return switch app.presentation.state {
         case .waiting, .building: "Keep the paired iPhone nearby, unlocked, and on the same Wi-Fi. USB remains available when Xcode needs it."
         case .readyForPhone: "The verified build is saved. Installation begins when the paired iPhone is reachable over Wi-Fi or USB."
         case .installing: "Keep the iPhone unlocked until the app opens."
@@ -2106,7 +2114,8 @@ private struct DeviceHandoffCard: View {
     }
 
     private var symbol: String {
-        switch app.presentation.state {
+        if app.deliveryUnconfirmed { return "folder" }
+        return switch app.presentation.state {
         case .installing: "arrow.down.to.line.compact"
         case .installed: "checkmark.circle.fill"
         case .failed: "exclamationmark.triangle.fill"

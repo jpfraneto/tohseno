@@ -119,9 +119,16 @@ returns, so the app can be closed immediately.
 | --- | --- |
 | Mac reachable, factory free | `Building Anky…` |
 | Mac unreachable | `Waiting for your Mac…` |
-| Mac reachable, factory busy | `Waiting…` |
-| Verified but no cable | `Anky is ready.` / `Connect this iPhone to your Mac to install the update.` |
-| Accepted | `Anky updated ✓` |
+| Mac reachable, factory busy | `Waiting to build on Mac` |
+| Device build retained | `Built on Mac · ready to install`, with unlocked USB/Xcode Wi-Fi instructions |
+| Accepted | `Installed on iPhone · last confirmed`, explicitly a historical report |
+| Imported source without execution evidence | `Source on Mac · installation unconfirmed`, no activity spinner |
+
+App details put delivery ahead of evolution, explain the next physical action,
+and offer a read-only status refresh. Imported unchanged source still lacks a
+phone-requested build-only entrypoint; the UI explains that limitation rather
+than disguising an evolution as a build. A failed attempt does not imply an
+older installed app was removed.
 
 `Waiting for your Mac…` is derived from `unacknowledgedCommandCount()`, not
 guessed from connection state: the phone is authoritative for its outbox until

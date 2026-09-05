@@ -73,6 +73,12 @@ public struct AppSummary: Codable, Equatable, Identifiable, Sendable {
     public let sortIndex: UInt64
 
     public var id: String { shotID }
+
+    /// Source adoption alone is not a device build or installation receipt.
+    public var deliveryUnconfirmed: Bool { sourceState != nil && execution == nil }
+    public var deliveryHeadline: String {
+        deliveryUnconfirmed ? "Source on Mac · installation unconfirmed" : presentation.headline
+    }
 }
 
 public struct WorkspaceSnapshot: Codable, Equatable, Sendable {

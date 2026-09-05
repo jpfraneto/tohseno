@@ -1041,8 +1041,7 @@ struct YourAppsView: View {
                                         Text(shot.displayName)
                                             .font(.headline)
                                             .foregroundStyle(Tohseno.bone)
-                                        Text(shot.kind == .adoptedProject && shot.execution == nil
-                                             ? "Connected source" : model.presentation(for: shot).headline)
+                                        Text(model.presentation(for: shot).headline)
                                             .font(.subheadline)
                                             .foregroundStyle(Tohseno.ash)
                                             .lineLimit(2)
@@ -1401,16 +1400,44 @@ struct IconView: View {
 struct AppView: View {
     @Bindable var model: CompanionModel
     let shot: ShotSummary
+    @State private var showDeliveryHelp = false
+
+    private var currentShot: ShotSummary { model.app(shot.shotID) ?? shot }
+    private var sourceOnly: Bool { currentShot.kind != .factoryShot && currentShot.execution == nil }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                let presentation = model.presentation(for: shot)
+                let presentation = model.presentation(for: currentShot)
                 StateView(presentation: presentation)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    if sourceOnly {
+                        Button("How to build & install") { showDeliveryHelp.toggle() }
+                            .buttonStyle(PrimaryButtonStyle(enabled: true))
+                        if showDeliveryHelp {
+                            Text("Open this project with your agent on the Mac and ask it to build for your paired iPhone. This version of Tohseno cannot yet request a build of unchanged local source from the phone. To change the app as well, use Evolve App below; that sends a coding, build and installation request.")
+                                .font(.subheadline)
+                                .foregroundStyle(Tohseno.ash)
+                        }
+                    }
+                    Button(model.syncing ? "Checking your Mac…" : "Refresh delivery status") {
+                        Task { await model.syncNow() }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Tohseno.orange)
+                    .padding(.vertical, 8)
+                    .disabled(model.syncing)
+                    Text(model.connection == .connected
+                         ? "Last reported by your Mac. Refresh checks for a newer report; it does not start another build."
+                         : "Your Mac is not currently reachable. This is its last saved report, not a live device check.")
+                        .font(.caption)
+                        .foregroundStyle(Tohseno.ash)
+                }
 
                 composer
 
-                if let history = shot.recentEvolutions, !history.isEmpty {
+                if let history = currentShot.recentEvolutions, !history.isEmpty {
                     EvolutionHistoryView(history: history)
                 }
 
@@ -1569,7 +1596,7 @@ struct StateView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if presentation.state.inFlight {
+            if presentation.isWorking {
                 ProgressView()
                     .tint(Tohseno.orange)
             }

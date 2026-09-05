@@ -11,6 +11,27 @@ import SwiftUI
 struct PresentationTests {
     #if canImport(AppKit)
     @MainActor
+    @Test("App delivery precedes evolution at phone size")
+    func deliveryPageRenders() async throws {
+        let app = shot(version: 3, execution: .waitingForDevice)
+        let subject = await model(StubBackend(shots: [app]))
+        subject.open(app)
+        let host = NSHostingView(rootView:
+            AppView(model: subject, shot: app)
+                .frame(width: 390, height: 844)
+                .preferredColorScheme(.dark)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try #require(bitmap.representation(using: .png, properties: [:]))
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_DELIVERY_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
+    @MainActor
     @Test("The public app page renders with its developer and safe-area Claim action")
     func publicAppPageRenders() async throws {
         let subject = await model(StubBackend())
@@ -242,7 +263,7 @@ struct PresentationTests {
     @Test("An app with no execution reads from its accepted version")
     func settledApps() {
         #expect(TohsenoPresentation.of(shot(version: 3)).state == .installed)
-        #expect(TohsenoPresentation.of(shot(version: 3)).headline == "anky updated ✓")
+        #expect(TohsenoPresentation.of(shot(version: 3)).headline == "Installed on iPhone · last confirmed")
         #expect(TohsenoPresentation.of(shot(version: nil)).state == .waiting)
         let adopted = ShotSummary(
             shotID: "project_fixture",
@@ -253,15 +274,17 @@ struct PresentationTests {
             sortIndex: 0,
             supportedCompanionActions: [.workspaceRead, .shotEvolve]
         )
-        #expect(TohsenoPresentation.of(adopted).state == .installed)
+        #expect(TohsenoPresentation.of(adopted).state != .installed)
+        #expect(!TohsenoPresentation.of(adopted).isWorking)
+        #expect(TohsenoPresentation.of(adopted).headline.contains("unconfirmed"))
     }
 
     @Test("Waiting for the cable asks for the cable and claims nothing")
     func waitingForDevice() {
         let ready = TohsenoPresentation.of(shot(version: 2, execution: .waitingForDevice))
         #expect(ready.state == .readyForPhone)
-        #expect(ready.headline == "anky is ready.")
-        #expect(ready.detail == "Connect this iPhone to your Mac to install the update.")
+        #expect(ready.headline == "Built on Mac · ready to install")
+        #expect(ready.detail?.contains("installation resumes automatically") == true)
         #expect(!ready.state.inFlight)
     }
 
@@ -283,6 +306,22 @@ struct PresentationTests {
             #expect(presentation.state == .building)
             #expect(presentation.headline == "Building anky…")
         }
+    }
+
+    @Test("A failed update does not assert the previous app is absent")
+    func failedUpdatePreservesUncertainty() {
+        let failed = TohsenoPresentation.of(shot(version: 3, execution: .failed))
+        #expect(failed.headline == "Needs attention on Mac")
+        #expect(failed.detail?.contains("older installed version") == true)
+        #expect(!failed.isWorking)
+    }
+
+    @Test("Installation reports are historical, not live inventory checks")
+    func installedReportIsHistorical() {
+        let installed = TohsenoPresentation.of(shot(version: 3, execution: .accepted))
+        #expect(installed.headline.contains("last confirmed"))
+        #expect(installed.detail?.contains("not reflected automatically") == true)
+        #expect(!installed.isWorking)
     }
 }
 
