@@ -46,7 +46,7 @@ public struct CompanionRootView: View {
             }
         }
         .sheet(item: $model.linkedPublicRelease) { app in
-            PublicReleaseDetailView(model: model, app: app)
+                NavigationStack { PublicReleaseDetailView(model: model, app: app) }
         }
     }
 }
@@ -206,9 +206,11 @@ struct CompanionNavigation: View {
     @State private var selectedTab: CompanionTab = .shots
     @State private var showsProfile = false
     @State private var showsUpdates = false
+    @State private var viewingPublicApp = false
 
     var body: some View {
         VStack(spacing: 0) {
+            if !viewingPublicApp || selectedTab == .shots {
             HStack {
                 WordmarkView()
                 Spacer()
@@ -224,6 +226,7 @@ struct CompanionNavigation: View {
                 .accessibilityLabel("Profile and updates")
             }
             .padding(.horizontal, 24)
+            }
 
             Group {
                 switch selectedTab {
@@ -245,11 +248,12 @@ struct CompanionNavigation: View {
                             }
                     }
                 case .discover:
-                    PublicRegistryView(model: model)
+                    PublicRegistryView(model: model, viewingApp: $viewingPublicApp)
                 }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !viewingPublicApp || selectedTab == .shots {
             HStack(spacing: 24) {
                 tabButton("Shots", symbol: "square.stack", tab: .shots)
                 Button {
@@ -273,6 +277,7 @@ struct CompanionNavigation: View {
             .overlay(Capsule().strokeBorder(Tohseno.iron.opacity(0.7)))
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
+            }
         }
         .sheet(isPresented: $showsProfile) {
             BuilderProfileView(model: model)
@@ -324,6 +329,8 @@ struct CompanionNavigation: View {
 
 private struct PublicRegistryView: View {
     @Bindable var model: CompanionModel
+    @Binding var viewingApp: Bool
+    @State private var path: [String] = []
     @State private var mode = Mode.discover
     @State private var search = ""
 
@@ -334,7 +341,7 @@ private struct PublicRegistryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 Picker("Registry mode", selection: $mode) {
                     ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
@@ -353,7 +360,7 @@ private struct PublicRegistryView: View {
                 } else {
                     List(visibleEvents) { event in
                         if let app = model.publicApps.first(where: { $0.release.shotID == event.shotID }) {
-                            NavigationLink { PublicReleaseDetailView(model: model, app: app) } label: {
+                            NavigationLink(value: app.id) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(app.release.display.name).font(.headline)
                 Text(event.kind == "shot.updated" ? "updated" :
@@ -370,8 +377,15 @@ private struct PublicRegistryView: View {
                     .refreshable { await model.refreshPublicNetwork() }
                 }
             }
-            .navigationTitle("Network threshold")
+            .navigationTitle("Discover")
+            .navigationDestination(for: String.self) { releaseID in
+                if let app = model.publicApps.first(where: { $0.id == releaseID }) {
+                    PublicReleaseDetailView(model: model, app: app)
+                }
+            }
         }
+        .onChange(of: path) { _, value in viewingApp = !value.isEmpty }
+        .onDisappear { viewingApp = false }
     }
 
     private var visibleEvents: [PublicTimelineEvent] {
@@ -425,83 +439,197 @@ private struct KeeperInboxView: View {
     }
 }
 
-private struct PublicReleaseDetailView: View {
+struct PublicReleaseDetailView: View {
     @Bindable var model: CompanionModel
     let app: PublicAppRelease
     @State private var showingClaim = false
+    @State private var developer: BuilderProfile?
+
+    private var developerName: String {
+        developer?.displayName ?? app.release.display.builderHandle.map { "@\($0)" }
+            ?? "Developer · \(app.release.builderID.suffix(6))"
+    }
+
+    private var claimed: Bool {
+        model.claimStates[app.release.shotID]?.hasPrefix("Claimed") == true
+    }
+
+    private var closed: Bool {
+        model.claimEditions[app.release.shotID]?.closed == true
+    }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Text(app.release.display.name).font(.largeTitle.weight(.bold))
-                    Text(app.release.display.description).foregroundStyle(Tohseno.ash)
-                }
-                Section("Signed release") {
-                    LabeledContent("Builder", value: "…\(app.release.builderID.suffix(18))")
-                    Button(model.followedBuilderIDs.contains(app.release.builderID) ? "Following" : "Follow Builder") {
-                        model.toggleFollow(builderID: app.release.builderID)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                PublicAppArtwork(app: app, size: 132)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 20)
+                    .padding(.bottom, 8)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(app.release.display.name)
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(Tohseno.bone)
+                    NavigationLink {
+                        PublicDeveloperView(model: model, builderID: app.release.builderID,
+                                            initialName: developerName)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(Tohseno.orange)
+                            Text(developerName).font(.subheadline.weight(.medium))
+                            Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                        }
+                        .foregroundStyle(Tohseno.bone)
+                        .padding(.vertical, 6)
                     }
-                    LabeledContent("Checkpoint", value: "#\(app.release.checkpointSequence)")
-                    LabeledContent("Source", value: "Available")
-                    LabeledContent("Fork", value: app.release.permissions.forkAllowed ? "Allowed" : "Not allowed")
-                    Text("Your Mac verifies the exact release and fresh chain state before Claim, Install, or Fork.")
-                        .font(.caption).foregroundStyle(Tohseno.ash)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("release.developer")
                 }
-                Section {
-                    if model.claimsActive {
-                        if let edition = model.claimEditions[app.release.shotID] {
-                            Text(editionLabel(edition)).font(.headline)
-                            Text("\(edition.totalClaims) claimed").foregroundStyle(Tohseno.ash)
-                        }
-                        if let state = model.claimStates[app.release.shotID], state.hasPrefix("Claimed") {
-                            Label(state, systemImage: "circle.circle.fill")
-                                .font(.title3.weight(.semibold)).foregroundStyle(Tohseno.orange)
-                        } else {
-                            Button {
-                                showingClaim = true
-                            } label: {
-                                Label(model.busy ? "Claiming…" : "Claim", systemImage: "circle")
-                            }
-                            .disabled(model.busy || model.claimEditions[app.release.shotID]?.closed == true)
-                        }
-                    } else {
-                        Button {
-                            Task { await model.requestNetworkRelease(app, action: .install) }
-                        } label: {
-                            Label(model.busy ? "Queuing…" : "Install", systemImage: "iphone.and.arrow.forward")
-                        }
-                        .disabled(model.busy)
-                        if app.release.permissions.forkAllowed {
-                            Button {
-                                Task { await model.requestNetworkRelease(app, action: .fork) }
-                            } label: {
-                                Label("Fork", systemImage: "arrow.triangle.branch")
-                            }
-                            .disabled(model.busy)
-                        }
-                    }
-                }
-                if let notice = model.networkNotice {
-                    Section("Status") { Text(notice).foregroundStyle(Tohseno.ash) }
+
+                if !app.release.display.description.isEmpty {
+                    Text(app.release.display.description)
+                        .font(.body)
+                        .foregroundStyle(Tohseno.bone.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .navigationTitle("Registry")
-            .task { await model.refreshClaimState(for: app) }
-            .sheet(isPresented: $showingClaim) {
-                ClaimGestureView(model: model, app: app)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
+        }
+        .background(Tohseno.void)
+        .navigationTitle("")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 10) {
+                Text(claimExplanation)
+                    .font(.caption)
+                    .foregroundStyle(Tohseno.bone.opacity(0.7))
+                    .multilineTextAlignment(.center)
+                Button {
+                    showingClaim = true
+                } label: {
+                    Text(claimed ? "Claimed" : closed ? "Claim closed" : "Claim")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle(enabled: !claimed && !closed))
+                .disabled(claimed || closed)
+                .accessibilityIdentifier("release.claim")
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 16)
+            .background(Tohseno.void)
+        }
+        .task {
+            async let profile = try? model.publicDeveloperProfile(builderID: app.release.builderID)
+            await model.refreshClaimState(for: app)
+            developer = await profile
+        }
+        .sheet(isPresented: $showingClaim) {
+            ClaimGestureView(model: model, app: app)
         }
     }
 
-    private func editionLabel(_ edition: PublicClaimEdition) -> String {
-        guard let policy = edition.policy else { return "Claim Edition unavailable" }
-        if edition.closed { return "Closed" }
-        switch policy.kind {
-        case "open": return "Open Edition · ∞"
-        case "limited": return "\(edition.totalClaims) / \(policy.maxClaims ?? "?") claimed"
-        case "timed": return "Open until its fixed horizon"
-        default: return "\(edition.totalClaims) / \(policy.maxClaims ?? "?") · fixed horizon"
+    private var claimExplanation: String {
+        if claimed { return "This app is in your claimed collection." }
+        if closed { return "The developer’s Claim Edition has closed." }
+        if !model.claimsActive { return "Claims aren’t available in this version of Companion yet." }
+        return "Claim this release. Your Mac prepares it for your iPhone."
+    }
+}
+
+private struct PublicAppArtwork: View {
+    let app: PublicAppRelease
+    var size: CGFloat = 64
+
+    var body: some View {
+        Group {
+            if let value = app.iconURL,
+               let url = URL(string: value, relativeTo: PublicNetworkClient.production.origin) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image.resizable().scaledToFit()
+                    } else { placeholder }
+                }
+            } else { placeholder }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.23))
+        .accessibilityHidden(true)
+    }
+
+    private var placeholder: some View {
+        RoundedRectangle(cornerRadius: size * 0.23)
+            .fill(Tohseno.carbon)
+            .overlay(Text(String(app.release.display.name.prefix(1)))
+                .font(.system(size: size * 0.42, weight: .semibold))
+                .foregroundStyle(Tohseno.orange))
+    }
+}
+
+private struct PublicDeveloperView: View {
+    @Bindable var model: CompanionModel
+    let builderID: String
+    let initialName: String
+    @State private var profile: BuilderProfile?
+    @State private var profileUnavailable = false
+
+    private var apps: [PublicAppRelease] {
+        model.publicApps.filter { $0.release.builderID == builderID }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 64, weight: .light))
+                    .foregroundStyle(Tohseno.orange)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(profile?.displayName ?? initialName)
+                        .font(.largeTitle.weight(.bold))
+                    if let handle = profile?.handle {
+                        Text("@\(handle)").foregroundStyle(Tohseno.ash)
+                    }
+                    Text("An independent workshop.").foregroundStyle(Tohseno.ash)
+                }
+                Button(model.followedBuilderIDs.contains(builderID) ? "Following" : "Follow") {
+                    model.toggleFollow(builderID: builderID)
+                }
+                .buttonStyle(.bordered)
+                if profileUnavailable {
+                    Text("Profile details couldn’t load. Their available apps are below.")
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                Text("Apps").font(.title2.weight(.bold))
+                ForEach(apps) { app in
+                    NavigationLink {
+                        PublicReleaseDetailView(model: model, app: app)
+                    } label: {
+                        HStack(spacing: 14) {
+                            PublicAppArtwork(app: app, size: 56)
+                            Text(app.release.display.name)
+                                .font(.headline).foregroundStyle(Tohseno.bone)
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(Tohseno.ash)
+                        }
+                        .padding(14)
+                        .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 18))
+                    }
+                    .buttonStyle(.plain)
+                }
+                if apps.isEmpty {
+                    Text("No published apps are available here yet.").foregroundStyle(Tohseno.ash)
+                }
+            }
+            .padding(24)
+        }
+        .background(Tohseno.void)
+        .foregroundStyle(Tohseno.bone)
+        .navigationTitle("Workshop")
+        .task {
+            do { profile = try await model.publicDeveloperProfile(builderID: builderID) }
+            catch { profileUnavailable = true }
         }
     }
 }
@@ -519,7 +647,11 @@ private struct ClaimGestureView: View {
         NavigationStack {
             VStack(spacing: 28) {
                 Spacer()
-                if !disclosureSeen {
+                if !model.claimsActive {
+                    Text("Claims aren’t available yet.").font(.title2.weight(.semibold))
+                    Text("This version of Companion can’t authorize Claims. You can still explore the app and its developer.")
+                        .foregroundStyle(Tohseno.ash).multilineTextAlignment(.center)
+                } else if !disclosureSeen {
                     VStack(spacing: 18) {
                         Image(systemName: "globe.americas.fill").font(.largeTitle).foregroundStyle(Tohseno.orange)
                         Text("Claims are public on Robinhood Chain.").font(.title2.weight(.semibold))
@@ -531,7 +663,7 @@ private struct ClaimGestureView: View {
                     .padding(30)
                 } else {
                     Text(model.claimStates[app.release.shotID] == "Claiming…"
-                         ? "Claiming…" : "Draw a circle around it.")
+                         ? "Claiming…" : model.busy ? "Finishing another request…" : "Draw a circle around it.")
                         .font(.title2.weight(.semibold))
                     GeometryReader { geometry in
                         ZStack {
@@ -575,6 +707,14 @@ private struct ClaimGestureView: View {
             .background(CompanionBackground())
             .navigationTitle(app.release.display.name)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .onChange(of: model.claimStates[app.release.shotID]) { _, state in
+                if state?.hasPrefix("Claimed") == true { dismiss() }
+                if state == "Claim unavailable" {
+                    settledPoints = []
+                    rawPoints = []
+                    message = model.networkNotice ?? "Couldn’t complete your Claim. Try again."
+                }
+            }
         }
     }
 
@@ -602,6 +742,11 @@ private struct ClaimGestureView: View {
     }
 
     private func submit(_ mark: ClaimMark) {
+        guard !model.busy else {
+            message = "Another request is finishing. Try again in a moment."
+            rawPoints = []
+            return
+        }
         settledPoints = mark.normalizedPoints
         rawPoints = []
         message = nil

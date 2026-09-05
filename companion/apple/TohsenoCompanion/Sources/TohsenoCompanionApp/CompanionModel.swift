@@ -316,6 +316,10 @@ public final class CompanionModel {
         }
     }
 
+    public func publicDeveloperProfile(builderID: String) async throws -> BuilderProfile? {
+        try await network.builderProfile(builderID: builderID)
+    }
+
     public func claim(_ app: PublicAppRelease, mark: ClaimMark) async {
         guard !busy, pendingSoftwareClaim == nil else { return }
         busy = true

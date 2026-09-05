@@ -11,6 +11,26 @@ import SwiftUI
 struct PresentationTests {
     #if canImport(AppKit)
     @MainActor
+    @Test("The public app page renders with its developer and safe-area Claim action")
+    func publicAppPageRenders() async throws {
+        let subject = await model(StubBackend())
+        let app = try claimablePublicApp()
+        let host = NSHostingView(rootView:
+            NavigationStack { PublicReleaseDetailView(model: subject, app: app) }
+                .frame(width: 390, height: 844)
+                .preferredColorScheme(.dark)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let png = try #require(bitmap.representation(using: .png, properties: [:]))
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_RELEASE_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
+    @MainActor
     @Test("The Shots home renders at an iPhone-sized fixture")
     func pocketWorkshopRenders() async throws {
         let backend = StubBackend(shots: [shot(version: 3)])

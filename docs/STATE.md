@@ -42,6 +42,19 @@ wired iPhone 15. Fresh Mac contact and an updated workspace projection containin
 ayunoando, Anky and is-like-social were observed afterward. The actual phone's
 post-update list rendering remains an owner visual check.
 
+The public Companion app page now uses a single navigation stack with a fixed
+safe-area Claim action, app artwork/name/description and a developer link. The
+link opens the existing public profile and the developer's available apps;
+Follow lives there. Home navigation is hidden while visiting a public app.
+The Claim entrypoint no longer disables itself for unrelated model work, and
+failed circle submissions reset for retry with an explanation. Disclosure,
+human authorization and canonical post-Claim preparation remain unchanged.
+The page passed the 43-test Companion suite, its phone-sized fixture was
+visually inspected, and the final device build passed signature verification,
+installed in place and launched on the intended iPhone. The public Claims
+status endpoint reported its activation, contract code and funded relayer
+enabled during this check. No human Claim was performed by these UI checks.
+
 `bash scripts/dev-macos.sh` now builds and opens an incrementally compiled,
 locally signed Mac UI over the exact currently installed factory payload. Its
 window title identifies the local source/time, and the installed app remains

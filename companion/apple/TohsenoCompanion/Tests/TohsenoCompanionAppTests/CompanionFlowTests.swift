@@ -347,7 +347,7 @@ actor StubClaimsHTTP {
     }
 }
 
-private func claimablePublicApp() throws -> PublicAppRelease {
+func claimablePublicApp() throws -> PublicAppRelease {
     let data = try JSONSerialization.data(withJSONObject: [
         "release_digest": StubClaimsHTTP.releaseDigest,
         "route": "/s/\(StubClaimsHTTP.shotID)",

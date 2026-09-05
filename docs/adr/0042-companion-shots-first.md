@@ -17,6 +17,14 @@ itself is not evidence of a locally prepared or installed app.
 
 A floating bottom bar contains Shots, a central Tohseno-logo Take a Shot button,
 and Discover. Updates and Profile remain available through a small top menu.
+While visiting a public app, the home chrome gives way to its artwork, name,
+description and a tappable developer identity. That identity opens the developer's
+profile and available published apps, with Follow on the profile. Claim is the
+app page's only primary action, pinned to its bottom safe area. It opens the
+existing disclosure and circle approval; no alternate Install/Fork action or
+hidden authority bypass substitutes for a Claim. Closed editions and unavailable
+clients remain explicitly explained. Release controls and raw checkpoint details
+are not the browsing experience.
 Missing synchronization is distinct from a verified empty workspace. An
 explicit refresh requests the existing signed full workspace snapshot.
 
