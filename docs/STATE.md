@@ -27,6 +27,18 @@ shared recovery gap and the direct-agent delivery gap visible as unfinished work
 
 ## Local native development loop
 
+The website home now explains Tohseno as a personal Mac/iPhone workshop
+connected to a wider network of developers and their apps: “Your apps. Woven
+together.” It retains real canonical activity and the gated Mac download, with
+permissioned app handoffs and recipient-local signing explained in plain language.
+This is a presentation change, not new automatic app interoperability.
+
+After Claim, the Companion app page now offers Build on my Mac, including when
+opened from the claimed collection. It reuses `claim_install_<tokenID>` from
+automatic post-Claim preparation and pins the receipt's release digest rather
+than the currently browsed Update. Offline queuing and retry remain explicit;
+the button's acknowledgement is not represented as a successful build or install.
+
 ADR 0042 replaces the Companion pocket-workshop home with one Your Shots list
 and a floating Shots / Tohseno creation / Discover bar. Updates and Profile move
 to the top menu. The list uses the existing Mac workspace's generated and

@@ -18,6 +18,48 @@
   padding-bottom: clamp(82px, 10vw, 132px);
 }
 
+.weave-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr);
+  gap: clamp(36px, 6vw, 88px);
+  align-items: center;
+  padding-bottom: clamp(70px, 10vw, 140px);
+}
+.weave-intro h1 {
+  font-size: clamp(56px, 6.8vw, 96px);
+  letter-spacing: -.075em;
+  line-height: .98;
+  margin: 22px 0 30px;
+}
+.weave-intro .lead { font-size: clamp(21px, 2.2vw, 29px); line-height: 1.35; letter-spacing: -.025em; max-width: 590px; }
+.weave-explanation { color: var(--muted); font-size: 17px; line-height: 1.7; max-width: 500px; }
+.weave-platform { font-size: 12px; color: var(--muted); margin-top: 20px; }
+.weave-map { background: #11110f; color: var(--cream); padding: clamp(24px, 3vw, 42px); border-radius: 28px; }
+.weave-map .eyebrow { color: #eaa17d; font-size: 10px; letter-spacing: .14em; }
+.weave-map h2 { font-size: clamp(27px, 3vw, 39px); line-height: 1.08; letter-spacing: -.04em; margin: 15px 0 22px; }
+.weave-apps { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin-bottom: 24px; }
+.weave-apps li { border: 1px solid #45443e; border-radius: 8px; padding: 9px 12px; font-size: 12px; }
+.weave-devices { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; font-size: 14px; }
+.weave-devices small { display: block; color: #aaa69b; font-size: 11px; line-height: 1.5; margin-top: 5px; }
+.weave-connection { display: flex; align-items: center; gap: 16px; margin: 26px 0; }
+.weave-connection span { flex: 1; height: 1px; background: #925036; }
+.weave-connection img { width: 42px; height: 42px; object-fit: contain; }
+.weave-world p:not(.eyebrow) { font-size: 14px; line-height: 1.65; color: #c1bdb3; }
+.weave-world a { display: inline-block; margin-top: 10px; color: #ff9762; font-size: 14px; }
+.weave-principles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 42px; border-top: 1px solid var(--line); padding: 40px 0 100px; }
+.weave-number { color: var(--orange); font-size: 12px; }
+.weave-principles h2 { font-size: 25px; letter-spacing: -.04em; margin: 20px 0 12px; }
+.weave-principles p { color: var(--muted); font-size: 15px; line-height: 1.75; }
+.weave-footnote { margin-top: 64px; border-top: 1px solid var(--line); padding-top: 24px; font-size: 13px; line-height: 1.7; color: var(--muted); max-width: 740px; }
+.weave-footnote a { color: var(--ink); }
+@media (max-width: 800px) {
+  .weave-hero { grid-template-columns: 1fr; }
+  .weave-intro h1 { font-size: clamp(54px, 11vw, 82px); }
+  .weave-principles { grid-template-columns: 1fr; gap: 16px; padding-bottom: 64px; }
+  .weave-principles article { max-width: 560px; }
+  .activity-heading { align-items: start; flex-direction: column; }
+}
+
 .home-activity-hero {
   max-width: 980px;
   padding: clamp(30px, 4vw, 54px) 0 clamp(64px, 9vw, 118px);

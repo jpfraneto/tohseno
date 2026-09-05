@@ -15,6 +15,7 @@ actor StubBackend: CompanionBackend {
     private(set) var creations: [CreateShotRequest] = []
     private(set) var builderAnnouncements: [BuilderDeviceAnnouncement] = []
     private(set) var networkRequests: [(NetworkReleaseAction, String, String)] = []
+    private(set) var networkCommandIDs: [String] = []
     private(set) var followRequests: [(String, Bool)] = []
     private(set) var privateUpdateRequests: [PrivateUpdateItem] = []
     private(set) var privateUpdateReadRequests: [(String, Bool)] = []
@@ -135,6 +136,7 @@ actor StubBackend: CompanionBackend {
         commandID: String
     ) async throws -> CommandReceipt {
         networkRequests.append((action, shotID, releaseDigest))
+        networkCommandIDs.append(commandID)
         if !reachable { unacknowledged += 1 }
         return CommandReceipt(commandID: commandID, state: .received, resultID: releaseDigest)
     }
@@ -452,6 +454,18 @@ struct CompanionFlowTests {
         #expect(await http.statusCount == 1)
         let persisted = try #require(storage.data(forKey: "tohseno.claimed-software.v1"))
         #expect(try JSONDecoder().decode([ClaimedSoftwareEncounter].self, from: persisted).count == 1)
+
+        let newerPage = PublicAppRelease(
+            releaseDigest: "0x" + String(repeating: "f", count: 64),
+            route: app.route, release: app.release, sourceURL: app.sourceURL, iconURL: app.iconURL
+        )
+        let feedback = await subject.buildClaimedRelease(newerPage)
+        #expect(feedback.contains("Queued for your Mac"))
+        let retried = await backend.networkRequests
+        #expect(retried.count == 2)
+        #expect(retried[1].2 == StubClaimsHTTP.releaseDigest)
+        #expect(await backend.networkCommandIDs == ["claim_install_1", "claim_install_1"])
+        #expect(await http.submitCount == 1, "Build never creates another Claim")
     }
 
     @MainActor

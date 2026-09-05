@@ -91,11 +91,11 @@ describe("public pages", () => {
   test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("Software moving<br>through people.");
-    expect(body).toContain("Ship. Fork. Claim.");
-    expect(body).toContain("Claim is not installation");
-    expect(body).toContain("The public timeline is readable. New writes remain gated");
-    expect(body).toContain("No demo Ship, Fork, or Claim is invented");
+    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
+    expect(body).toContain("Made by someone.<br>Found by you.");
+    expect(body).toContain("Installation follows on your Mac");
+    expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
+    expect(body).toContain("Published apps and real activity appear here");
     expect(body).toContain('href="/registry"');
     expect(body).toContain('href="/download/macos"');
     expect(body).toContain('href="/" aria-current="page"');
@@ -117,11 +117,11 @@ describe("public pages", () => {
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("Software moving<br>through people.");
+    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
     expect(body).toContain("Shipping and claiming use Companion approval.");
-    expect(body).toContain("LIVE, CANONICAL ACTIVITY");
-    expect(body).toContain("No demo Ship, Fork, or Claim is invented");
-    expect(body).toContain('<a class="primary" href="/registry">Explore the Registry</a>');
+    expect(body).toContain("ACROSS THE NETWORK");
+    expect(body).toContain("Published apps and real activity appear here");
+    expect(body).toContain('<a class="primary" href="/registry">Explore apps</a>');
     expect(body).toContain("<footer");
     expect(body).not.toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
@@ -132,7 +132,7 @@ describe("public pages", () => {
     expect(body).toContain('href="/privacy"');
     expect((await application.fetch(request("/docs"))).status).toBe(308);
     expect((await application.fetch(request("/privacy"))).status).toBe(200);
-    expect(body).toContain("<title>Software moving through people — Tohseno</title>");
+    expect(body).toContain("<title>Your apps, woven together — Tohseno</title>");
     expect(response.headers.get("Content-Security-Policy")).toContain(
       "default-src 'self'",
     );
@@ -145,8 +145,8 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(body).toContain("Software moving<br>through people.");
-    expect(body).toContain("The public timeline is readable. New writes remain gated");
+    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
+    expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
     expect(body).toContain('href="/download/macos"');
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
     expect(body).toContain('href="/registry"');
@@ -194,7 +194,7 @@ describe("public pages", () => {
       // The independently governed purchase route is covered by buy.test.ts.
       if (path === "/buy") continue;
       const target = await application.fetch(request(path));
-      expect(target.status).toBe(path === "/download/macos" ? 503 : 200);
+      expect(target.status).toBe(path === "/download/macos" ? 503 : path === "/docs" ? 308 : 200);
     }
     expect(body).not.toContain('href="#"');
     const landingScript = readFileSync(landingScriptPath, "utf8");

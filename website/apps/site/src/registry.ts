@@ -1898,20 +1898,44 @@ function homeHTML(
     const builder = String(release.builder_id);
     const verb = item.kind === "fork" ? "forked an app into a new Shot." : "shipped an app.";
     return `<article class="network-event home-event">${icon}<p class="eyebrow">${item.kind === "fork" ? "FORKED" : "SHIPPED"}</p><h2><a href="${escapeHTML(String(item.record.route))}">${escapeHTML(String(display.name))}</a></h2><p class="event-action">Someone ${verb}</p><a class="builder-link" href="/@${escapeHTML(builder)}">${escapeHTML(String(display.builder_handle ?? compactBuilder(builder)))}</a><time datetime="${escapeHTML(item.occurredAt)}">${escapeHTML(item.occurredAt)}</time></article>`;
-  }).join("") : `<section class="empty"><div class="empty-copy"><p class="eyebrow">THE NETWORK IS QUIET</p><h2>The next real event appears here.</h2><p>No demo Ship, Fork, or Claim is invented to fill the timeline.</p></div></section>`;
+  }).join("") : `<section class="empty"><div class="empty-copy"><p class="eyebrow">ROOM FOR SOMETHING NEW</p><h2>The next story could be yours.</h2><p>Published apps and real activity appear here as people share their work.</p></div></section>`;
   const status = writesEnabled
     ? "Shipping and claiming use Companion approval."
-    : "The public timeline is readable. New writes remain gated until their exact releases activate.";
-  return page("Software moving through people", `
-    <section class="home-activity-hero">
-      <p class="eyebrow">THE TOHSENO NETWORK</p>
-      <h1>Software moving<br>through people.</h1>
-      <p class="lead">People Ship apps, Fork exact releases, and Claim encounters. Claim is not installation: it opens the exact release in Companion, where the person authorizes the public receipt and their Mac later prepares its own verified build.</p>
-      <div class="actions"><a class="primary" href="/registry">Explore the Registry</a><a href="/download/macos">Get Tohseno for Mac</a></div>
-      <p class="home-status"><span class="live-dot" aria-hidden="true"></span>${status}</p>
+    : "Explore published apps. New publishing and Claims are not available yet.";
+  return page("Your apps, woven together", `
+    <section class="weave-hero">
+      <div class="weave-intro">
+        <p class="eyebrow">YOUR APPLE SOFTWARE, CONNECTED</p>
+        <h1>Your apps.<br><em>Woven together.</em></h1>
+        <p class="lead">One workshop for the apps you make, the apps you make your own, and the people who make them.</p>
+        <p class="weave-explanation">Tohseno connects your Mac and iPhone into a personal software workshop—and opens a door to everyone else’s.</p>
+        <div class="actions"><a class="primary" href="/registry">Explore apps</a><a href="/download/macos">Get Tohseno for Mac</a></div>
+        <p class="weave-platform">Made for Mac + iPhone. Built with your own agent and Xcode.</p>
+      </div>
+      <div class="weave-map" aria-label="How Tohseno connects your workshop to the network">
+        <div class="weave-local">
+          <p class="eyebrow">01 / YOUR WORKSHOP</p>
+          <h2>All your Shots.<br>One place.</h2>
+          <ul class="weave-apps"><li>Apps you build</li><li>Projects you bring</li><li>Apps you make your own</li></ul>
+          <div class="weave-devices"><span>Your Mac <small>builds & keeps the source</small></span><span>Your iPhone <small>runs the app</small></span></div>
+        </div>
+        <div class="weave-connection"><span></span><img src="/tohseno-logo.png" alt="Tohseno"><span></span></div>
+        <div class="weave-world">
+          <p class="eyebrow">02 / A WORLD OF WORKSHOPS</p>
+          <h2>Meet the people.<br>Try what they make.</h2>
+          <p>Discover an app. Visit its developer. Claim a release. Bring it into your workshop.</p>
+          <a href="/registry">Step inside the network <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
     </section>
-    <section class="activity-heading"><p class="eyebrow">LIVE, CANONICAL ACTIVITY</p><h2>Ship. Fork. Claim.</h2></section>
+    <section class="weave-principles" aria-label="Software that belongs in your life">
+      <article><span class="weave-number">01</span><h2>Start with a thought.</h2><p>Talk to the agent you already use. Build a native iPhone app, or connect an existing Xcode project. Keep its source on your Mac.</p></article>
+      <article><span class="weave-number">02</span><h2>Keep the thread.</h2><p>Use it on your phone. Ask for a change. Keep working on the same app. Connect apps through explicit, permissioned handoffs—not a shared login that follows you everywhere.</p></article>
+      <article><span class="weave-number">03</span><h2>Open your workshop.</h2><p>Share an app when you’re ready. Explore another developer’s work, claim a release, or fork it into something of your own.</p></article>
+    </section>
+    <section class="activity-heading"><div><p class="eyebrow">ACROSS THE NETWORK</p><h2>Made by someone.<br>Found by you.</h2></div><a href="/registry">Explore all apps ↗</a></section>
     <section class="timeline-feed home-timeline" aria-label="Tohseno network activity">${cards}</section>
+    <section class="weave-footnote"><p>${status}</p><p>A Claim is a public connection to an exact release. Installation follows on your Mac: verified source, your Apple signing identity, your intended iPhone. Apps share only what you choose.</p><a href="/docs">How Tohseno works ↗</a></section>
   `, "home");
 }
 
@@ -2114,7 +2138,7 @@ function page(title: string, body: string, current: "home" | "registry" = "regis
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f4ee">
-  <meta name="description" content="Discover native Apple software moving person to person on Tohseno.">
+  <meta name="description" content="${current === "home" ? "Tohseno connects your Mac and iPhone into a personal software workshop—and opens a door to everyone else’s. Build, discover, and make native apps your own." : "Discover native Apple software moving person to person on Tohseno."}">
   <link rel="icon" href="/tohseno-logo.png" type="image/png">
   <link rel="preload" href="/landing-assets/network.png" as="image" type="image/png">
   <link rel="stylesheet" href="/landing.css">
@@ -2126,9 +2150,9 @@ function page(title: string, body: string, current: "home" | "registry" = "regis
   <header class="site-header page-shell">
     <a class="wordmark" href="/" aria-label="Tohseno home"><img src="/landing-assets/wordmark.svg" alt="Tohseno"></a>
     <nav class="site-nav" aria-label="Primary">
-      <a href="/"${current === "home" ? ' aria-current="page"' : ""}>Network</a>
-      <a href="/registry"${current === "registry" ? ' aria-current="page"' : ""}>Registry</a>
-      <a class="nav-action" href="/buy">$TOHSENO</a>
+      <a href="/"${current === "home" ? ' aria-current="page"' : ""}>Tohseno</a>
+      <a href="/registry"${current === "registry" ? ' aria-current="page"' : ""}>Discover</a>
+      <a class="nav-action" href="/docs">How it works</a>
     </nav>
   </header>
   <main class="registry-main page-shell" id="main">${body}</main>

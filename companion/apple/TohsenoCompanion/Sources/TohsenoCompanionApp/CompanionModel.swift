@@ -93,6 +93,7 @@ public final class CompanionModel {
     public private(set) var profileNotice: String?
     public private(set) var claimEditions: [String: PublicClaimEdition] = [:]
     public private(set) var claimStates: [String: String] = [:]
+    private var observedClaimReceipts: [String: PublicSoftwareClaim] = [:]
     public private(set) var claimedSoftware: [ClaimedSoftwareEncounter] = []
     public private(set) var privateUpdates: [PrivateUpdateItem] = []
     public var claimsActive: Bool { network.claims.active }
@@ -308,6 +309,7 @@ public final class CompanionModel {
             async let existing = network.softwareClaim(shotID: app.release.shotID, claimant: claimant)
             claimEditions[app.release.shotID] = try await edition
             if let receipt = try await existing {
+                observedClaimReceipts[app.release.shotID] = receipt
                 claimStates[app.release.shotID] = "Claimed #\(receipt.claimNumber)"
             }
         } catch {
@@ -318,6 +320,29 @@ public final class CompanionModel {
 
     public func publicDeveloperProfile(builderID: String) async throws -> BuilderProfile? {
         try await network.builderProfile(builderID: builderID)
+    }
+
+    /// Reuses the automatic post-Claim command identity, including on retries.
+    /// The receipt pins the release even when this page shows a newer Update.
+    public func buildClaimedRelease(_ app: PublicAppRelease) async -> String {
+        guard let receipt = claimedSoftware.first(where: {
+            $0.claim.shotID == app.release.shotID
+        })?.claim ?? observedClaimReceipts[app.release.shotID] else {
+            return "Couldn’t find your Claim receipt. Refresh this app and try again."
+        }
+        do {
+            _ = try await backend.requestNetworkRelease(
+                action: .install, shotID: receipt.shotID,
+                releaseDigest: receipt.releaseDigest,
+                commandID: "claim_install_\(receipt.tokenID)"
+            )
+            unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
+            return connection == .connected
+                ? "Sent to your Mac. Open Your Shots to follow its progress."
+                : "Queued for your Mac. It will prepare your claimed release when connected."
+        } catch {
+            return "Couldn’t confirm the request. Try again; your Claim is safe."
+        }
     }
 
     public func claim(_ app: PublicAppRelease, mark: ClaimMark) async {

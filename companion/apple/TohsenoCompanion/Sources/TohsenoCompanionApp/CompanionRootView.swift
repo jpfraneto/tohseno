@@ -444,6 +444,8 @@ struct PublicReleaseDetailView: View {
     let app: PublicAppRelease
     @State private var showingClaim = false
     @State private var developer: BuilderProfile?
+    @State private var requestingBuild = false
+    @State private var buildMessage: String?
 
     private var developerName: String {
         developer?.displayName ?? app.release.display.builderHandle.map { "@\($0)" }
@@ -502,18 +504,25 @@ struct PublicReleaseDetailView: View {
         .navigationTitle("")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
-                Text(claimExplanation)
+                Text(buildMessage ?? claimExplanation)
                     .font(.caption)
                     .foregroundStyle(Tohseno.bone.opacity(0.7))
                     .multilineTextAlignment(.center)
                 Button {
-                    showingClaim = true
+                    if claimed {
+                        requestingBuild = true
+                        Task {
+                            buildMessage = await model.buildClaimedRelease(app)
+                            requestingBuild = false
+                        }
+                    } else { showingClaim = true }
                 } label: {
-                    Text(claimed ? "Claimed" : closed ? "Claim closed" : "Claim")
+                    Text(claimed ? (requestingBuild ? "Sending to your Mac…" : "Build on my Mac")
+                         : closed ? "Claim closed" : "Claim")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PrimaryButtonStyle(enabled: !claimed && !closed))
-                .disabled(claimed || closed)
+                .buttonStyle(PrimaryButtonStyle(enabled: !requestingBuild && (claimed || !closed)))
+                .disabled(requestingBuild || (!claimed && closed))
                 .accessibilityIdentifier("release.claim")
             }
             .padding(.horizontal, 24)
@@ -532,7 +541,7 @@ struct PublicReleaseDetailView: View {
     }
 
     private var claimExplanation: String {
-        if claimed { return "This app is in your claimed collection." }
+        if claimed { return "Claimed. Build the release you claimed with your own Mac and Apple identity." }
         if closed { return "The developer’s Claim Edition has closed." }
         if !model.claimsActive { return "Claims aren’t available in this version of Companion yet." }
         return "Claim this release. Your Mac prepares it for your iPhone."
@@ -781,7 +790,7 @@ private struct BuilderProfileView: View {
                     Section("Claimed") {
                         ForEach(model.claimedSoftware) { encounter in
                             NavigationLink {
-                                ClaimReceiptView(encounter: encounter)
+                                PublicReleaseDetailView(model: model, app: encounter.app)
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(encounter.app.release.display.name).font(.headline)
