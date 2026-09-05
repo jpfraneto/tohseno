@@ -14,6 +14,11 @@ Never blanket-ignore that directory or manually rewrite its protocol records.
 
 ## Your iPhone Companion
 
+Companion recovery entropy is stored in its own non-synchronizing,
+WhenUnlockedThisDeviceOnly Keychain item. Its BIP-39 phrase restores Companion
+identity, not the non-exportable Builder DeviceKey or a revoked Mac capability;
+restoration requires a new pairing. Generated apps must never receive it.
+
 Pairing establishes the private Mac/phone association. Durable requests cross
 signed, encrypted, idempotent mailboxes through a content-blind relay. The
 Builder DeviceKey remains non-exportable on the phone. Public source release
@@ -29,6 +34,11 @@ publication evidence. Use `tohseno companion status`, `devices`, and
 `relay-status` for supported inspection; avoid printing private capabilities.
 
 ## Apple signing and the destination
+
+Each generated app also has an independent InstallationIdentity and explicit,
+audience-scoped continuity. The requested new-app recovery default and its
+implementation boundary are defined in [app-experience.md](app-experience.md).
+Neither a common Builder nor a recovery phrase grants automatic cross-app access.
 
 Apple identity is separate from the Tohseno Builder identity. Xcode signs the
 local app using the owner's Apple setup. Trust, Developer Mode, account prompts,

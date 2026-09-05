@@ -16,6 +16,15 @@ source through the existing build/sign/install path without another harness
 invocation. Installing the skill does not implement that missing entrypoint or
 establish physical delivery evidence.
 
+The skill now treats per-installation identity, app-owned seed-phrase recovery,
+consentful continuity, and a polished first-use/update experience as default
+requirements for new apps unless the user explicitly opts out. This records the
+owner's requested product behavior, not a shipped recovery capability: current
+Fascia has device-bound installation keys and continuity, but no app seed-phrase
+recovery API. The skill requires defined recovery semantics and a verified
+restore path, forbids importing Companion/Builder secrets, and keeps both this
+shared recovery gap and the direct-agent delivery gap visible as unfinished work.
+
 ## Current source evolution: the live Workshop Runtime
 
 ADR 0041 implements the local live Session beneath ADR 0039's Living Workshop.
