@@ -1,0 +1,27 @@
+:root {
+  --tohseno-cream: #F7F4EE;
+  --tohseno-cream-2: #EFE9DE;
+  --tohseno-ink: #131313;
+  --tohseno-muted: #6B675F;
+  --tohseno-line: #DED7CC;
+  --tohseno-orange: #F04A13;
+  --tohseno-orange-hot: #FF4B0A;
+  --tohseno-dark: #0B0B0B;
+  --tohseno-dark-2: #161616;
+  --tohseno-live: #61A93B;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --shadow-card: 0 12px 36px rgba(20, 14, 8, .06);
+  --shadow-float: 0 18px 48px rgba(20, 14, 8, .12);
+  --page-max: 1240px;
+}
+
+body {
+  background: var(--tohseno-cream);
+  color: var(--tohseno-ink);
+  font-family: var(--font-sans);
+}

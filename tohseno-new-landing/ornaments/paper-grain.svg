@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" fill="none">
+
+<rect width="256" height="256" fill="#F7F4EE"/>
+<filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="4" seed="8"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .06"/></feComponentTransfer></filter>
+<rect width="256" height="256" filter="url(#n)" opacity=".5"/>
+
+</svg>

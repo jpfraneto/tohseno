@@ -1,0 +1,52 @@
+{
+  "direction": "Permissionless distribution for Apple software; friendly to the Apple ecosystem; network/activity first.",
+  "colors": {
+    "cream": "#F7F4EE",
+    "cream_2": "#EFE9DE",
+    "ink": "#131313",
+    "muted": "#6B675F",
+    "line": "#DED7CC",
+    "orange": "#F04A13",
+    "orange_hot": "#FF4B0A",
+    "dark": "#0B0B0B",
+    "dark_2": "#161616",
+    "green": "#61A93B"
+  },
+  "hero": {
+    "light_composite": "mascot/hero-light-composite.png",
+    "dark_workshop": "mascot/hero-dark-workshop-composite.png",
+    "portrait": "mascot/mascot-portrait-800.png",
+    "orbit_overlay": "ornaments/network-orbits.svg"
+  },
+  "brand": [
+    "brand/tohseno-mark.svg",
+    "brand/tohseno-wordmark.svg",
+    "brand/tohseno-wordmark-on-dark.svg",
+    "brand/favicon.svg"
+  ],
+  "app_icons": [
+    "app-icons/anky.svg",
+    "app-icons/cucharita.svg",
+    "app-icons/insulin.svg",
+    "app-icons/one.svg",
+    "app-icons/marpha.svg"
+  ],
+  "flow_icons": [
+    "flow-icons/build-mac.svg",
+    "flow-icons/publish.svg",
+    "flow-icons/share.svg",
+    "flow-icons/verify-install.svg"
+  ],
+  "protocol_icons": [
+    "protocol-icons/builder-authority.svg",
+    "protocol-icons/shot-registry.svg",
+    "protocol-icons/claims.svg"
+  ],
+  "system_icons": [
+    "system-icons/mac.svg",
+    "system-icons/iphone.svg",
+    "system-icons/xcode.svg",
+    "system-icons/apple-account.svg",
+    "system-icons/source.svg"
+  ]
+}
