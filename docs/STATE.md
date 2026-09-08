@@ -42,6 +42,18 @@ received the owner's saved screen-recording app intention. A bare diagnostic
 CLI then failed before creating a Shot because its Apple identity helper was
 not bundled; that failure and the exact intention remain in the command journal.
 This is evidence of receipt, not of a completed build or phone installation.
+A complete owner-local factory bundle from commit `654dd98`, retaining the
+installed resources and Apple identity helper, was then Developer-ID signed,
+manifest-verified and selected through the native installer. The normal
+LaunchAgent is healthy on that runtime. The recovered intention was retried
+through the CLI (not represented as a second phone-origin acceptance test) and
+created Shot `0x40338292c167ed5ec7b3f5547af3d4c00b8b6380df32ea95a9fbd9f600be63d8`,
+execution `98792815bbc9108a04a9fd706e23f0c4`, under
+`~/Desktop/Tohseno/allows-record-screen`, running Claude Code. The CLI reported
+an idempotency conflict after the first admission had already started; the
+running journal receipt was inspected and no further creation was submitted.
+That CLI retry-response defect remains to investigate. Build completion,
+Companion display of this app and physical installation are not yet accepted.
 
 Dictation now keeps completed utterances across recognition resets after pauses,
 while revising the current partial utterance and preserving existing draft
