@@ -1447,14 +1447,14 @@ struct AppView: View {
 
     var body: some View {
         Group {
-            if observingWork || currentShot.execution?.state.isTerminal == false {
+            if observingWork || (currentShot.execution != nil && currentShot.execution?.state != .accepted) {
                 LiveAppActivityView(model: model, shot: currentShot)
             } else {
                 IntentComposerView(model: model, heading: "What do you want to change?",
                                    placeholder: "Write or speak your feedback…")
             }
         }
-            .onAppear { observingWork = currentShot.execution?.state.isTerminal == false }
+            .onAppear { observingWork = currentShot.execution != nil && currentShot.execution?.state != .accepted }
             .onChange(of: currentShot.execution?.state) { _, state in
                 if state?.isTerminal == false { observingWork = true }
             }

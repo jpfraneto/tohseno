@@ -59,6 +59,15 @@ run passed 257 engine cases and exposed the existing small-task line limit,
 which was preserved by shortening the added identity instruction. Its focused
 regression and the product-name validation regression then passed. Physical
 acceptance of the updated activity view remains separate from these checks.
+The owner-local signed factory from `ed0b5a9` was selected by the native
+installer, the updated Companion installed/launched, and the service reported
+fresh paired-phone contact. Its persisted outbound projection contains the
+Talkthrough name, 21 activity entries and 13 changed files. The run then ended:
+Claude Code reported its session limit; no app build was accepted. A bounded
+classifier now turns that known provider message into plain activity text,
+without exposing arbitrary harness output. Failed attempts open their activity
+view by default too. The candidate's name and original SVG/PNG icon were saved
+in its source after the stopped run; they do not constitute build acceptance.
 
 ## Companion synchronization recovery and continuous dictation
 

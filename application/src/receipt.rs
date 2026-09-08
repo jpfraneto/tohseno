@@ -266,7 +266,7 @@ pub fn load_execution_activity(
         });
     let events = read_events(&repository, &execution_id)?;
     let first = events.len().saturating_sub(MAXIMUM_ACTIVITY_ENTRIES);
-    let entries = events[first..]
+    let mut entries: Vec<ExecutionActivityEntry> = events[first..]
         .iter()
         .map(|event| ExecutionActivityEntry {
             sequence: event.sequence,
@@ -275,6 +275,18 @@ pub fn load_execution_activity(
             message: event.report.clone(),
         })
         .collect();
+    if completion.as_ref().is_some_and(|record| !record.landed) {
+        let path = execution_directory(&repository, &execution_id).join("harness.log");
+        if let Ok(bytes) =
+            tohseno_engine::safe_file::read_bounded_regular_file(&path, 8 * 1024 * 1024)
+        {
+            if let Some(message) = reported_harness_blocker(&execution.harness, &bytes) {
+                if let Some(last) = entries.last_mut() {
+                    last.message = message.into();
+                }
+            }
+        }
+    }
     let mut files = completion
         .as_ref()
         .map(|record| record.files_changed.clone())
@@ -292,6 +304,13 @@ pub fn load_execution_activity(
         files,
         entries,
     }))
+}
+
+fn reported_harness_blocker(harness: &str, bytes: &[u8]) -> Option<&'static str> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let latest_attempt = text.rsplit("SHOT IN FLIGHT").next()?;
+    (harness == "claude-code" && latest_attempt.contains("You've hit your session limit"))
+        .then_some("Claude Code reported its session limit. Your source changes are saved; the app build is not complete.")
 }
 
 fn resolve_app_name(
@@ -464,6 +483,20 @@ fn outcome_label(outcome: &tohseno_engine::shot_execution::ExecutionOutcome) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_limit_is_reported_without_exposing_raw_harness_output() {
+        let quota = b"SHOT IN FLIGHT\nYou've hit your session limit - private account detail";
+        assert_eq!(reported_harness_blocker("claude-code", quota), Some("Claude Code reported its session limit. Your source changes are saved; the app build is not complete."));
+        assert_eq!(reported_harness_blocker("codex", quota), None);
+        assert_eq!(
+            reported_harness_blocker(
+                "claude-code",
+                b"You've hit your session limit\nSHOT IN FLIGHT\nAnother failure"
+            ),
+            None
+        );
+    }
 
     #[test]
     fn the_prepared_document_yields_only_the_human_words() {
