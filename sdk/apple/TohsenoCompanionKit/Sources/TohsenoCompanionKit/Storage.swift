@@ -334,13 +334,14 @@ struct CompanionPersistentState: Codable, Equatable, Sendable {
     var pairing: CompanionPairingRecord?
     var workspace: WorkspaceSnapshot?
     var outbox: [PendingCompanionCommand] = []
+    var workshopRequests: [WorkshopRequest] = []
     var referenceOutbox: [PendingReferenceChunk] = []
     var replay = CompanionReplayProtection.State()
     /// Bounded icon cache encrypted together with companion state.
     var iconBlobs: [String: CompanionIconBlob] = [:]
 
     private enum CodingKeys: String, CodingKey {
-        case schema, pairing, workspace, outbox, replay
+        case schema, pairing, workspace, outbox, replay, workshopRequests
         case referenceOutbox = "reference_outbox"
         case iconBlobs = "icon_blobs"
     }
@@ -373,6 +374,10 @@ struct CompanionPersistentState: Codable, Equatable, Sendable {
             [PendingReferenceChunk].self,
             forKey: .referenceOutbox
         ) ?? []
+        workshopRequests = try container.decodeIfPresent([WorkshopRequest].self, forKey: .workshopRequests) ?? []
+        for pending in outbox {
+            rememberRequest(commandID: pending.command.commandID, payload: pending.command.payload, createdAt: pending.command.createdAt)
+        }
         replay = try container.decodeIfPresent(CompanionReplayProtection.State.self, forKey: .replay) ?? .init()
         iconBlobs = try container.decodeIfPresent([String: CompanionIconBlob].self, forKey: .iconBlobs) ?? [:]
     }

@@ -847,7 +847,7 @@ private struct BuilderProfileView: View {
                     Section("Profile status") { Text(status).foregroundStyle(Tohseno.ash) }
                 }
                 Section("Private connection") {
-                    Label(model.connection == .connected ? "Mac connected" : "Mac currently offline",
+                    Label(model.connection == .connected ? "Private relay connected" : "Private relay disconnected",
                           systemImage: model.connection == .connected ? "checkmark.circle.fill" : "desktopcomputer")
                     Text("Pairing capabilities and private intentions never enter your public profile.")
                         .font(.caption).foregroundStyle(Tohseno.ash)
@@ -1010,10 +1010,21 @@ struct YourAppsView: View {
                         Circle()
                             .fill(model.connection == .connected ? Tohseno.connected : Tohseno.ash)
                             .frame(width: 6, height: 6)
-                        Text(model.connection == .connected ? "Mac reachable" : "Waiting for your Mac")
+                        Text(model.connection == .connected ? "Private relay connected" : "Reconnecting to private relay")
                             .font(.caption)
                             .foregroundStyle(Tohseno.ash)
                     }
+                }
+
+                if let timestamp = model.lastMacReportAt {
+                    HStack(spacing: 4) {
+                        Text("Last Mac report")
+                        WorkshopTimestamp(timestamp: timestamp)
+                    }
+                        .font(.caption).foregroundStyle(Tohseno.ash)
+                }
+                if !model.workshopRequests.isEmpty {
+                    WorkshopRequestsView(model: model, requests: model.workshopRequests)
                 }
 
                 if model.apps.isEmpty {
@@ -1276,10 +1287,10 @@ private struct CompanionHeader: View {
 
     private var connectionText: String {
         switch connection {
-        case .connected: "Mac connected"
+        case .connected: "Private relay connected"
         case .pairing: "Connecting…"
         case .reconnecting: "Reconnecting…"
-        case .disconnected: "Mac offline"
+        case .disconnected: "Private relay disconnected"
         case .revoked: "Access removed"
         }
     }
@@ -1421,7 +1432,7 @@ struct AppView: View {
                                 .foregroundStyle(Tohseno.ash)
                         }
                     }
-                    Button(model.syncing ? "Checking your Mac…" : "Refresh delivery status") {
+                    Button(model.syncing ? "Checking your Mac…" : "Refresh work & delivery") {
                         Task { await model.syncNow() }
                     }
                     .buttonStyle(.plain)
@@ -1430,10 +1441,12 @@ struct AppView: View {
                     .disabled(model.syncing)
                     Text(model.connection == .connected
                          ? "Last reported by your Mac. Refresh checks for a newer report; it does not start another build."
-                         : "Your Mac is not currently reachable. This is its last saved report, not a live device check.")
+                         : "The private relay is disconnected. This is your Mac’s last saved report.")
                         .font(.caption)
                         .foregroundStyle(Tohseno.ash)
                 }
+
+                WorkshopRequestsView(model: model, requests: model.requests(for: currentShot.shotID))
 
                 composer
 
@@ -1468,7 +1481,7 @@ struct AppView: View {
 
             ScreenshotPicker(attachments: $model.attachments)
 
-            Text("Opening this app never starts a build. Evolve App sends one request.")
+            Text("Sends this change to the coding harness on your Mac. Follow its progress in Workshop activity.")
                 .font(.system(size: 12))
                 .foregroundStyle(Tohseno.ash)
 
@@ -1485,6 +1498,71 @@ struct AppView: View {
             .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))
             .disabled(!model.canEvolve)
             .padding(.top, 6)
+        }
+    }
+}
+
+struct WorkshopRequestsView: View {
+    @Bindable var model: CompanionModel
+    let requests: [WorkshopRequest]
+    @State private var showsAll = false
+
+    var body: some View {
+        if !requests.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Workshop activity").font(.headline).foregroundStyle(Tohseno.bone)
+                ForEach(Array(requests.prefix(showsAll ? requests.count : 3))) { request in
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(request.intention).font(.subheadline).textSelection(.enabled)
+                            if request.awaitingMac {
+                                Text("Keep Companion open and online until your Mac accepts this request. After that, you can close it while the Mac works.")
+                                    .font(.caption).foregroundStyle(Tohseno.ash)
+                            }
+                            ForEach(request.activity) { entry in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(entry.message).font(.subheadline)
+                                    WorkshopTimestamp(timestamp: entry.occurredAt).font(.caption2).foregroundStyle(Tohseno.ash)
+                                }
+                            }
+                            if let code = request.receipt?.rejectionCode {
+                                Text(CompanionModel.humanRejection(code)).font(.subheadline)
+                            }
+                            if let shotID = request.shotID, let shot = model.app(shotID), model.screen != .app(shotID) {
+                                Button("Open \(shot.displayName)") { model.open(shot) }
+                            }
+                            Text("Work runs on your paired Mac. This log contains its reported progress; detailed coding and Xcode output stays in the Mac workshop.")
+                                .font(.caption).foregroundStyle(Tohseno.ash)
+                            Text("Request \(request.commandID)").font(.caption2.monospaced()).textSelection(.enabled)
+                        }.padding(.top, 10)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(request.shotID.flatMap { model.app($0)?.displayName } ?? request.title)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(Tohseno.bone)
+                            Text(request.intention).font(.caption).lineLimit(2).foregroundStyle(Tohseno.ash)
+                            Text(request.activity.last?.message ?? "Waiting for your Mac")
+                                .font(.caption).foregroundStyle(request.isFinished ? Tohseno.ash : Tohseno.orange)
+                        }
+                    }
+                    .padding(14)
+                    .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14))
+                }
+                if requests.count > 3 {
+                    Button(showsAll ? "Show recent requests" : "Show all \(requests.count) requests") { showsAll.toggle() }
+                        .font(.subheadline)
+                }
+            }
+        }
+    }
+}
+
+private struct WorkshopTimestamp: View {
+    let timestamp: String
+    var body: some View {
+        if let date = ISO8601DateFormatter().date(from: timestamp) {
+            Text(date, format: .dateTime.month(.abbreviated).day().hour().minute().second())
+        } else {
+            Text(timestamp)
         }
     }
 }
@@ -1537,7 +1615,7 @@ private struct CreateAppView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("ONE SHOT")
                         .font(.caption.weight(.bold)).tracking(1.8).foregroundStyle(Tohseno.orange)
-                    Text("One intention enters the Mac factory. Nothing Ships without your separate approval.")
+                    Text("Describe the app. Your Mac’s coding harness will create and build it. Follow the request in Workshop activity.")
                         .font(.subheadline).foregroundStyle(Tohseno.ash)
                 }
                 nameField

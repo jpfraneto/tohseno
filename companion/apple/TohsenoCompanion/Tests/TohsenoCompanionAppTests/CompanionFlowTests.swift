@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import TohsenoCompanionKit
+@testable import TohsenoCompanionKit
 @testable import TohsenoCompanionApp
 
 /// A stand-in for the Mac. The SDK's own tests cover pairing, envelopes,
@@ -10,6 +10,8 @@ actor StubBackend: CompanionBackend {
     var iconData: [String: Data]
     var unacknowledged = 0
     var reachable = true
+    var requestHistory: [WorkshopRequest] = []
+    func workshopRequestHistory() async throws -> [WorkshopRequest] { requestHistory.reversed() }
     private(set) var submissions: [EvolutionRequest] = []
     private(set) var projectSubmissions: [ProjectEvolutionRequest] = []
     private(set) var creations: [CreateShotRequest] = []
@@ -84,6 +86,11 @@ actor StubBackend: CompanionBackend {
             throw failure
         }
         submissions.append(request)
+        requestHistory.append(WorkshopRequest(commandID: request.commandID,
+            payload: .shotEvolveRequest(shotID: request.shotID, baseExpressionID: request.baseExpressionID,
+                baseVersionID: request.baseVersionID, baseVersionOrdinal: request.baseVersionOrdinal,
+                intention: request.intention, selectedFeedbackActionCommitments: [], references: []),
+            createdAt: "2026-09-08T12:00:00Z")!)
         // The SDK persists the signed command before it tries the relay, so an
         // unreachable Mac is not an error — it is an unacknowledged command.
         if !reachable { unacknowledged += 1 }
@@ -96,6 +103,10 @@ actor StubBackend: CompanionBackend {
             throw failure
         }
         projectSubmissions.append(request)
+        requestHistory.append(WorkshopRequest(commandID: request.commandID,
+            payload: .projectEvolveRequest(projectID: request.projectID, baseSourceState: request.baseSourceState,
+                intention: request.intention, references: [], followUpTo: nil),
+            createdAt: "2026-09-08T12:00:00Z")!)
         if !reachable { unacknowledged += 1 }
         return CommandReceipt(commandID: request.commandID, state: .received)
     }
@@ -106,6 +117,9 @@ actor StubBackend: CompanionBackend {
             throw failure
         }
         creations.append(request)
+        requestHistory.append(WorkshopRequest(commandID: request.commandID,
+            payload: .shotCreateRequest(suggestedName: request.suggestedName, intention: request.intention, references: []),
+            createdAt: "2026-09-08T12:00:00Z")!)
         if !reachable { unacknowledged += 1 }
         return CommandReceipt(commandID: request.commandID, state: .received)
     }
@@ -575,6 +589,8 @@ struct CompanionFlowTests {
 
         let creations = await backend.creations
         #expect(creations.count == 1)
+        #expect(subject.workshopRequests.count == 1)
+        #expect(subject.workshopRequests.first?.awaitingMac == true)
         #expect(creations[0].suggestedName == "tiny-timer")
         #expect(creations[0].intention == "A tiny timer with one large start button.")
         #expect(subject.screen == .apps)
@@ -804,7 +820,7 @@ struct CompanionFlowTests {
         await subject.refresh()
         let waiting = subject.presentation(for: try #require(subject.apps.first))
         #expect(waiting.state == .waiting)
-        #expect(waiting.headline == "Waiting to build on Mac")
+        #expect(waiting.headline == "Waiting for your Mac…", "An execution without this command’s acknowledgement cannot stand in for its work")
     }
 
     @MainActor
@@ -826,7 +842,7 @@ struct CompanionFlowTests {
             CompanionModel.humanRejection("device_revoked")
                 == "This iPhone no longer has access to your Mac."
         )
-        #expect(CompanionModel.humanRejection(nil) == "Your Mac couldn’t accept that request.")
+        #expect(CompanionModel.humanRejection(nil).contains("unknown_reason"))
     }
 
     @MainActor

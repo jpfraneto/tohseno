@@ -446,6 +446,12 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
         return state?.outbox.count ?? 0
     }
 
+    public func workshopRequestHistory() async throws -> [WorkshopRequest] {
+        try await ensureLoaded()
+        try requireActivePairing()
+        return (state?.workshopRequests ?? []).reversed()
+    }
+
     /// Return locally cached exact bytes for a workspace icon descriptor.
     /// The cache is populated only by authenticated encrypted `icon.blob`
     /// events and is itself encrypted with the companion storage key.
@@ -935,6 +941,7 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
             expectedBytes: 32
         )
         let priorPairing = pairing
+        let priorRequests = state?.workshopRequests ?? []
         var pendingChunks: [PendingReferenceChunk] = []
         var storedPayloadIDs: [String] = []
         do {
@@ -1018,8 +1025,10 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
                 envelope: envelope,
                 uploaded: false
             ))
+            state?.rememberRequest(commandID: commandID, payload: payload, createdAt: createdAt)
             try await persist(identity: identity)
         } catch {
+            state?.workshopRequests = priorRequests
             state?.pairing = priorPairing
             state?.referenceOutbox.removeAll { $0.commandID == commandID }
             state?.outbox.removeAll { $0.command.commandID == commandID }
@@ -1216,11 +1225,13 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
                   snapshot.deviceCapabilityState.deviceID == ownDeviceID else {
                 throw TohsenoCompanionError.invalidEncoding("snapshot recipient differs")
             }
+            state?.updateRequests(from: event)
             state?.workspace = snapshot
             try pruneIconCache(for: snapshot)
             return []
         }
 
+        state?.updateRequests(from: event)
         var retiredPayloadIDs: [String] = []
         switch event.payload {
         case let .commandAcknowledged(receipt), let .commandRejected(receipt):
@@ -1383,7 +1394,7 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
         }
         try await payloadStore.retainOnly(ids: retained)
         if state?.pairing?.revoked == true { connectionContinuation.yield(.revoked) }
-        else if state?.pairing != nil { connectionContinuation.yield(.connected) }
+        else if state?.pairing != nil { connectionContinuation.yield(.reconnecting) }
     }
 
     private func persist(identity: CompanionIdentity) async throws {
@@ -1526,7 +1537,7 @@ public actor TohsenoCompanionClient: WorkshopClientAuthorizing {
     }
 }
 
-private extension WorkspaceSnapshot {
+extension WorkspaceSnapshot {
     func with(nextCursor: UInt64) -> Self {
         Self(
             workspaceID: workspaceID, snapshotVersion: snapshotVersion, generatedAt: generatedAt,
@@ -1585,12 +1596,13 @@ private extension ShotSummary {
     ) -> Self {
         Self(
             shotID: shotID, displayName: displayName, bundleIdentifier: bundleIdentifier,
-            kind: kind, icon: icon, iconRevision: iconRevision,
+            kind: kind, sourceState: sourceState, icon: icon, iconRevision: iconRevision,
             expressionID: expressionID ?? self.expressionID,
             latestVersionID: versionID ?? latestVersionID,
             latestVersionOrdinal: versionOrdinal ?? latestVersionOrdinal,
             latestVersionCreatedAt: versionCreatedAt ?? latestVersionCreatedAt,
-            execution: execution ?? self.execution, archived: archived ?? self.archived,
+            execution: execution ?? self.execution, recentEvolutions: recentEvolutions,
+            archived: archived ?? self.archived,
             retired: retired, sortIndex: sortIndex,
             supportedCompanionActions: supportedCompanionActions
         )

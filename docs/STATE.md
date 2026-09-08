@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-04. This is the plain-language
+Written 2026-07-30, amended through 2026-09-08. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -24,6 +24,43 @@ Fascia has device-bound installation keys and continuity, but no app seed-phrase
 recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
+
+## Companion request visibility
+
+Companion now retains recent create/evolve requests in its existing encrypted
+SDK state, alongside the durable outbox. The Shots home and selected app show
+the intention, exact command identity, Mac acknowledgement, timestamped coding,
+build and delivery reports, and rejection/failure history. A new Shot remains
+visible as a request before the Mac assigns its app identity. Progress binds to
+the acknowledgement's exact execution ID; an older build on the same app cannot
+stand in for the new request. The projection retains up to 200 recent requests
+and preserves unacknowledged outbox work. Pending requests from older client
+state are recovered; already-acknowledged historical requests cannot be invented.
+Detailed harness/Xcode output remains on the Mac; the phone log contains the
+existing authenticated semantic execution reports, not a raw terminal stream.
+
+Incremental SDK updates now preserve adopted-project source state and recent
+evolution history. Previously those fields were dropped when an execution or
+version projection rebuilt an app summary, potentially disabling further
+adopted-project evolution on the phone. Saved pairing no longer emits a false
+connected state before reconciliation. Connection labels distinguish relay
+connectivity from dated Mac reports. The person keeps Companion foregrounded
+until Mac acceptance; an accepted request runs independently on the Mac.
+
+The changed source passes the 29-test CompanionKit suite and 46-test Companion
+suite, including encrypted request restoration, exact execution correlation,
+rejection retention and adopted-project metadata preservation. A phone-sized
+render was inspected. The final Debug device build passed signature verification
+under the existing Companion app/team identity and updated in place on the
+setup-digest-matched iPhone 15. CoreDevice inventory confirmed Companion 1.2.1,
+build 5. iOS refused launch because the phone was locked. Post-update pairing,
+request submission and a real phone-origin build remain owner-attended checks;
+installation and tests do not establish those facts.
+
+On this owner's Mac, a local login LaunchAgent now runs `caffeinate -s` to keep
+the workshop awake on AC power. It does not override battery sleep, lid closure,
+logout or shutdown. The existing factory service and public release pins are
+unchanged. See the local development runbook for the operating and removal steps.
 
 ## Local native development loop
 

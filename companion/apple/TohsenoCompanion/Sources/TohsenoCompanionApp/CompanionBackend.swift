@@ -9,6 +9,7 @@ import TohsenoWorkshopKit
 /// confirmation, offline waiting, human failure copy — can be tested without
 /// standing up relay, crypto, and Keychain fakes that the SDK already tests.
 public protocol CompanionBackend: Sendable, WorkshopClientAuthorizing {
+    func workshopRequestHistory() async throws -> [WorkshopRequest]
     func synchronizedWorkspace() async throws -> WorkspaceSnapshot
     func requestWorkspaceSnapshot(commandID: String) async throws -> CommandReceipt
     func reconcile() async throws

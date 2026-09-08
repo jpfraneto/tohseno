@@ -92,7 +92,7 @@ public struct TohsenoPresentation: Equatable, Sendable {
         Self(
             state: .waiting,
             headline: "Waiting for your Mac…",
-            detail: "You can close Tohseno. This request is saved and sends itself."
+            detail: "Saved on this iPhone. Keep Companion open and online until your Mac accepts it; after that, the Mac works independently."
         )
     }
 }

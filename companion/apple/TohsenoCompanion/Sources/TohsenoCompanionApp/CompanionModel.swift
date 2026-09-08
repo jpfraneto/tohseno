@@ -119,9 +119,9 @@ public final class CompanionModel {
     public var appName = ""
     public var attachments: [CompanionReferenceBlob] = []
 
-    /// Apps this phone has just sent a request for, before the Mac's snapshot
-    /// catches up. Cleared as soon as the Mac reports an execution.
-    private var justSent: Set<String> = []
+    /// Durable owner-private command and execution reports restored by the SDK.
+    public private(set) var workshopRequests: [WorkshopRequest] = []
+    public private(set) var lastMacReportAt: String?
     private var pendingCableInvitation: String?
     private let backend: any CompanionBackend
     private let deviceName: String
@@ -696,6 +696,7 @@ public final class CompanionModel {
         do {
             let workspace = try await backend.synchronizedWorkspace()
             hasWorkspaceSnapshot = true
+            lastMacReportAt = max(lastMacReportAt ?? "", workspace.generatedAt)
             adopt(workspace.shots)
             switch screen {
             case .loading, .firstRun:
@@ -720,7 +721,16 @@ public final class CompanionModel {
             // A missing snapshot means nothing has synchronized yet.
             if case .loading = screen { screen = .apps }
         }
+        await loadRequests()
         unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
+    }
+
+    private func loadRequests() async {
+        if let requests = try? await backend.workshopRequestHistory() { workshopRequests = requests }
+    }
+
+    public func requests(for shotID: String) -> [WorkshopRequest] {
+        workshopRequests.filter { $0.shotID == shotID }
     }
 
     private func loadIcons() async throws {
@@ -743,12 +753,11 @@ public final class CompanionModel {
                     ? left.displayName < right.displayName
                     : left.sortIndex < right.sortIndex
             }
-        for shot in apps where shot.execution != nil {
-            justSent.remove(shot.shotID)
-        }
     }
 
     func apply(_ event: WorkspaceEvent) {
+        lastMacReportAt = max(lastMacReportAt ?? "", event.emittedAt)
+        Task { await self.loadRequests() }
         switch event.payload {
         case let .workspaceSnapshot(snapshot):
             hasWorkspaceSnapshot = true
@@ -769,7 +778,6 @@ public final class CompanionModel {
             icons[blob.blobID] = blob.bytes
         case let .commandRejected(receipt):
             notice = Self.humanRejection(receipt.rejectionCode)
-            if let shotID = receipt.shotID { justSent.remove(shotID) }
         case .commandAcknowledged:
             Task { self.unacknowledged = (try? await self.backend.unacknowledgedCommandCount()) ?? 0 }
         case let .publicationApprovalRequested(request):
@@ -799,8 +807,8 @@ public final class CompanionModel {
                     kind: .evolutionFinished,
                     subjectID: execution.shotID,
                     evidenceID: execution.executionID,
-                    title: "Evolution finished",
-                    detail: "Your app is ready on your Mac.",
+                    title: "App work completed",
+                    detail: "Open the app’s delivery report for its last confirmed installation status.",
                     occurredAt: event.emittedAt
                 ))
                 await self.load()
@@ -966,10 +974,14 @@ public final class CompanionModel {
             "This app is already being changed. Wait for it to finish, then send the next request."
         case "device_revoked", "device_not_paired", "capability_rejected":
             "This iPhone no longer has access to your Mac."
-        case "unknown_shot":
+        case "unknown_shot", "unknown_project":
             "That app is no longer on your Mac."
+        case "invalid_shot_name":
+            "Use letters, numbers and hyphens for the optional app name."
+        case "reference_blob_missing", "reference_blob_invalid":
+            "Your Mac could not receive the attached images. Review the request and send it again."
         default:
-            "Your Mac couldn’t accept that request."
+            "Your Mac couldn’t accept that request (\(code ?? "unknown_reason")). Open the workshop on your Mac for details."
         }
     }
 
@@ -1022,6 +1034,7 @@ public final class CompanionModel {
             attachments = []
             notice = nil
             unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
+            await loadRequests()
             screen = .apps
         } catch let error as TohsenoCompanionError {
             notice = Self.humanFailure(error)
@@ -1055,8 +1068,8 @@ public final class CompanionModel {
     ///
     /// One tap. No confirmation, no version picker, no separate feedback step.
     /// The SDK persists the signed command and its images before this returns,
-    /// so the person can close TOHSENO immediately — a Mac that is offline or
-    /// busy receives it later without another tap.
+    /// so the request survives closing TOHSENO. Keep the phone foregrounded
+    /// until Mac acknowledgement; after admission, the Mac works independently.
     public func evolve() async {
         guard case let .app(shotID) = screen, let shot = app(shotID), canEvolve else { return }
         busy = true
@@ -1088,7 +1101,7 @@ public final class CompanionModel {
             intent = ""
             attachments = []
             notice = nil
-            justSent.insert(shot.shotID)
+            await loadRequests()
             unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
         } catch let error as TohsenoCompanionError {
             notice = Self.humanFailure(error)
@@ -1114,10 +1127,12 @@ public final class CompanionModel {
     public func presentation(for shot: ShotSummary) -> TohsenoPresentation {
         // Nothing this phone wrote has reached the Mac, so nothing about the
         // build can be claimed yet.
-        if justSent.contains(shot.shotID) {
-            return unacknowledged > 0
-                ? .waitingForMac(appName: shot.displayName)
-                : TohsenoPresentation.forState(.building, appName: shot.displayName)
+        if let request = requests(for: shot.shotID).first, !request.isFinished {
+            if request.awaitingMac { return .waitingForMac(appName: shot.displayName) }
+            if request.execution == nil {
+                return TohsenoPresentation(state: .waiting, headline: "Accepted by your Mac",
+                    detail: "Waiting for this request’s first work report.")
+            }
         }
         return TohsenoPresentation.of(shot)
     }

@@ -268,6 +268,10 @@ final class ClientTests: XCTestCase {
             now: { clock.value() }
         )
         try await relaunched.reconcile()
+        let restoredRequests = try await relaunched.workshopRequestHistory()
+        XCTAssertEqual(restoredRequests.map(\.commandID), ["command_creation", "command_evolution"])
+        XCTAssertTrue(restoredRequests.allSatisfy(\.awaitingMac))
+        XCTAssertEqual(restoredRequests.first?.intention, "Create from the exact reference.")
         let restoredIcon = try await relaunched.iconBlob(for: descriptor)
         XCTAssertEqual(restoredIcon, iconBlob)
         let reconnectedUploadCount = await relay.uploadCount()

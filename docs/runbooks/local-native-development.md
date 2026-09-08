@@ -59,3 +59,40 @@ state; an install command alone does not prove those survived or work.
 Reuse DerivedData for subsequent changes. Build and relaunch the affected client
 after a coherent edit, rather than on every keystroke. There is no automatic
 filesystem watcher or SwiftUI hot reload in this workflow.
+
+## Phone-to-Mac work and continuous availability
+
+On the owner's Mac, `~/Library/LaunchAgents/com.tohseno.workshop-awake.plist`
+runs `/usr/bin/caffeinate -s` through the logged-in user's launchd session. This
+is local operating configuration, not a new factory or public release. Connect
+the Mac to power, leave the lid open and the user logged in, and retain internet
+access. The display may sleep. Battery operation, closing the lid, logout and
+shutdown are not continuous workshop availability.
+
+Inspect or remove that local wake assertion with:
+
+```sh
+launchctl print gui/$(id -u)/com.tohseno.workshop-awake
+pmset -g assertions
+# To disable it for this login session:
+launchctl bootout gui/$(id -u)/com.tohseno.workshop-awake
+# Remove the plist too if it should not return at the next login.
+```
+
+In Companion, create a Shot with the central button or open an app and use
+Evolve App. Keep Companion open until Workshop activity reports that the Mac
+accepted the request. The request is saved locally before submission; closing
+before acknowledgement preserves it but foreground reconciliation may be
+required to deliver it. Once accepted, the Mac continues independently. Expand
+the request to see its intention, timestamped Mac reports and exact command ID.
+Relay connectivity is not proof that the Mac is awake. Last Mac report is dated.
+
+The phone log projects existing signed execution events. Detailed harness/Xcode
+output stays on the Mac. An intended iPhone can submit remotely over the relay;
+actual installation still requires that exact device to be reachable through
+Apple's supported USB/Xcode Wi-Fi path and to satisfy its unlock/Trust rules.
+
+Real acceptance is a phone-origin request, acknowledgement from this Mac,
+observed harness/source changes and a build result, followed by exact intended
+phone delivery when reachable. Do not replace that check with a CLI-origin
+request, a Simulator, or a rendered request-history fixture.

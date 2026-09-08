@@ -56,6 +56,9 @@ struct PresentationTests {
     func pocketWorkshopRenders() async throws {
         let backend = StubBackend(shots: [shot(version: 3)])
         let subject = await model(backend)
+        subject.openCreate()
+        subject.intent = "A quiet breathing timer with one start button."
+        await subject.create()
         let size = NSSize(width: 390, height: 844)
         let host = NSHostingView(
             rootView: CompanionNavigation(model: subject)
@@ -293,7 +296,7 @@ struct PresentationTests {
         let waiting = TohsenoPresentation.waitingForMac(appName: "anky")
         #expect(waiting.state == .waiting)
         #expect(waiting.headline == "Waiting for your Mac…")
-        #expect(waiting.detail?.contains("close Tohseno") == true)
+        #expect(waiting.detail?.contains("Keep Companion open") == true)
     }
 
     @Test("Internal phases collapse into one human sentence")
