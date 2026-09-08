@@ -25,6 +25,35 @@ recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
 
+## Companion composer and dictation feedback
+
+The phone creation and evolution screens now open as focused notepads: a short
+heading, compact image picker beside it, a large editor with dictation, and an
+orange send action in the top-right navigation bar. Creation no longer exposes
+the optional name; the existing unnamed-intent path derives the product name.
+Both composers hide the home navigation and profile chrome. Existing app status,
+request logs and change history remain in the secondary Activity sheet.
+Discover formats each canonical event's publication/update timestamp in the
+phone's local date and time.
+
+Owner use on 2026-09-08 produced a physical Companion crash immediately after
+speech permission. The crash report identifies a Swift executor assertion in
+`IntentDictationController.speechPermission`: Apple's permission callback ran
+on a background queue while its closure inherited MainActor isolation. The
+permission, audio-tap and recognition callback factories now explicitly run
+outside MainActor; only transcript/UI updates hop back to it. Recording startup
+is guarded against repeated taps and cancelled sessions. Leaving the composer,
+submitting, or backgrounding an active recording stops capture. Partial speech
+results populate the same editor, with a listening state and larger text.
+
+A failed first private-sync request previously prevented the foreground retry
+loop from starting. That loop now starts before the initial reconciliation;
+connection failures have specific, non-secret explanations and a retry action.
+This source passes 48 Companion tests, its two phone-sized composer renders were
+inspected, and the signed Debug build was installed and launched on the intended
+iPhone. Post-change physical dictation and live relay acceptance remain separate
+owner-observed checks.
+
 ## Companion request visibility
 
 Companion now retains recent create/evolve requests in its existing encrypted
@@ -65,9 +94,9 @@ unchanged. See the local development runbook for the operating and removal steps
 ## Local native development loop
 
 Native delivery copy now separates a saved device build, installation in
-progress, and a last-confirmed installation. Companion app details place this
-report before the evolution composer, explain automatic reachable-phone
-handoff, and offer a read-only refresh. Source-only imports are explicitly
+progress, and a last-confirmed installation. Companion app details retain this
+report in Activity beside the focused evolution composer and offer a read-only
+refresh. Source-only imports are explicitly
 installation-unconfirmed rather than assumed installed; the Mac offers source
 opening for Xcode delivery. This does not add the missing standalone local-source
 build command or expose network-import delivery records in Companion snapshots.

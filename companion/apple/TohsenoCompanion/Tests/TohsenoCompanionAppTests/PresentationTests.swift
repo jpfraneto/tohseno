@@ -11,7 +11,7 @@ import SwiftUI
 struct PresentationTests {
     #if canImport(AppKit)
     @MainActor
-    @Test("App delivery precedes evolution at phone size")
+    @Test("The evolution notepad renders at phone size")
     func deliveryPageRenders() async throws {
         let app = shot(version: 3, execution: .waitingForDevice)
         let subject = await model(StubBackend(shots: [app]))
@@ -27,6 +27,23 @@ struct PresentationTests {
         host.cacheDisplay(in: host.bounds, to: bitmap)
         let png = try #require(bitmap.representation(using: .png, properties: [:]))
         if let output = ProcessInfo.processInfo.environment["TOHSENO_DELIVERY_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
+    @MainActor
+    @Test("The creation notepad renders at phone size")
+    func creationNotepadRenders() async throws {
+        let subject = await model(StubBackend())
+        subject.openCreate()
+        let host = NSHostingView(rootView: CreateAppView(model: subject)
+            .frame(width: 390, height: 844).preferredColorScheme(.dark))
+        host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
+        host.layoutSubtreeIfNeeded()
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_CREATE_FIXTURE_PNG"] {
+            let png = try #require(bitmap.representation(using: .png, properties: [:]))
             try png.write(to: URL(fileURLWithPath: output), options: .atomic)
         }
     }

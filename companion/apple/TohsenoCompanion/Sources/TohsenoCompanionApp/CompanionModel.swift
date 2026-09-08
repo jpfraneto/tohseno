@@ -69,6 +69,7 @@ public final class CompanionModel {
     private var requestedMissingSnapshot = false
     public private(set) var icons: [String: Data] = [:]
     public private(set) var connection: CompanionConnectionState = .disconnected
+    public private(set) var connectionNotice: String?
     /// Signed commands still waiting to reach the Mac.
     public private(set) var unacknowledged = 0
     /// A human sentence about the last thing that went wrong, or nil.
@@ -166,6 +167,7 @@ public final class CompanionModel {
         Task { [backend] in
             for await connection in backend.connectionStates {
                 self.connection = connection
+                if connection == .connected { self.connectionNotice = nil }
                 if connection == .revoked {
                     self.workshopRuntime.stop()
                     self.notice = "This iPhone no longer has access to your Mac."
@@ -671,25 +673,42 @@ public final class CompanionModel {
         syncing = true
         defer { syncing = false }
         do {
+            // Start retries even if this first network request fails.
+            try await backend.startSynchronization()
             if reportFailure {
                 _ = try await backend.requestWorkspaceSnapshot(commandID: UUID().uuidString.lowercased())
             }
             try await backend.reconcile()
-            // A process relaunch restores the persisted pairing before this
-            // model exists. Rejoin the live encrypted event stream after the
-            // first successful reconciliation so reopening the Companion is
-            // the same connected state as completing a fresh pairing.
-            try await backend.startSynchronization()
+            connectionNotice = nil
             if reportFailure { notice = nil }
         } catch TohsenoCompanionError.notPaired {
             screen = .firstRun
             return
         } catch {
-            // Offline is not an error the person needs to read. The durable
-            // outbox keeps the request; `unacknowledged` says the honest thing.
+            connectionNotice = Self.syncFailure(error)
+#if DEBUG
+            NSLog("TOHSENO synchronization: %@", Self.syncFailure(error))
+#endif
             if reportFailure { notice = "Couldn’t sync with your Mac." }
         }
         await load()
+    }
+
+    static func syncFailure(_ error: Error) -> String {
+        guard let error = error as? TohsenoCompanionError else {
+            return "Private sync stopped. Retrying while Companion is open."
+        }
+        return switch error {
+        case .transportUnavailable: "Can’t reach the private relay. Check your internet connection; retrying automatically."
+        case let .relayFailure(status): "Private relay returned HTTP \(status). Retrying automatically."
+        case .relayNotAllowed: "This pairing uses a different relay. Reconnect Companion from your Mac."
+        case .envelopeExpired: "A saved Mac message has expired. Private sync needs attention on your Mac."
+        case .replayDetected: "A repeated Mac message blocked private sync. Open the workshop on your Mac."
+        case .invalidEncoding: "A Mac report could not be read. Update both Companion and the Mac workshop."
+        case .invalidEnvelope, .cryptographicFailure: "A Mac message could not be verified. Reconnect Companion from your Mac."
+        case .capabilityRevoked, .capabilityDenied, .notPaired: "Reconnect this iPhone from your Mac workshop."
+        default: "Private sync needs attention. Pull down to retry."
+        }
     }
 
     private func load() async {

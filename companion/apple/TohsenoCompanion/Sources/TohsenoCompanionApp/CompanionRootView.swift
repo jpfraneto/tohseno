@@ -210,7 +210,7 @@ struct CompanionNavigation: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !viewingPublicApp || selectedTab == .shots {
+            if showsHomeChrome {
             HStack {
                 WordmarkView()
                 Spacer()
@@ -253,7 +253,7 @@ struct CompanionNavigation: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !viewingPublicApp || selectedTab == .shots {
+            if showsHomeChrome {
             HStack(spacing: 24) {
                 tabButton("Shots", symbol: "square.stack", tab: .shots)
                 Button {
@@ -285,6 +285,10 @@ struct CompanionNavigation: View {
         .sheet(isPresented: $showsUpdates) {
             KeeperInboxView(model: model)
         }
+    }
+
+    private var showsHomeChrome: Bool {
+        selectedTab == .shots ? model.screen == .apps : !viewingPublicApp
     }
 
     private func tabButton(_ title: String, symbol: String, tab: CompanionTab) -> some View {
@@ -367,7 +371,7 @@ private struct PublicRegistryView: View {
                     event.kind == "shot.forked" ? "was born as a fork" :
                     event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Tohseno")
                                     .font(.subheadline).foregroundStyle(Tohseno.ash)
-                                Text(event.occurredAt)
+                                WorkshopTimestamp(timestamp: event.occurredAt)
                                 .font(.caption).foregroundStyle(Tohseno.orange)
                             }
                             .padding(.vertical, 6)
@@ -1016,6 +1020,10 @@ struct YourAppsView: View {
                     }
                 }
 
+                if let issue = model.connectionNotice {
+                    Text(issue).font(.caption).foregroundStyle(Tohseno.orange)
+                    Button("Retry connection") { Task { await model.syncNow() } }.disabled(model.syncing)
+                }
                 if let timestamp = model.lastMacReportAt {
                     HStack(spacing: 4) {
                         Text("Last Mac report")
@@ -1411,94 +1419,98 @@ struct IconView: View {
 struct AppView: View {
     @Bindable var model: CompanionModel
     let shot: ShotSummary
-    @State private var showDeliveryHelp = false
-
+    @State private var showsActivity = false
     private var currentShot: ShotSummary { model.app(shot.shotID) ?? shot }
-    private var sourceOnly: Bool { currentShot.kind != .factoryShot && currentShot.execution == nil }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                let presentation = model.presentation(for: currentShot)
-                StateView(presentation: presentation)
+        IntentComposerView(model: model, heading: "What do you want to change?",
+                           placeholder: "Write or speak your feedback…")
+            .companionInlineNavigationTitle(shot.displayName)
+            .toolbar {
+                ToolbarItem(placement: .secondaryAction) {
+                    Button("Activity", systemImage: "clock.arrow.circlepath") { showsActivity = true }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    ComposerSendButton(title: "Evolve App", enabled: model.canEvolve, busy: model.busy) {
+                        Task { await model.evolve() }
+                    }
+                }
+            }
+            .sheet(isPresented: $showsActivity) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            StateView(presentation: model.presentation(for: currentShot))
+                            WorkshopRequestsView(model: model, requests: model.requests(for: shot.shotID))
+                            if let history = currentShot.recentEvolutions, !history.isEmpty {
+                                EvolutionHistoryView(history: history)
+                            }
+                            Button("Refresh work & delivery") { Task { await model.syncNow() } }
+                                .disabled(model.syncing)
+                        }.padding(20)
+                    }
+                    .navigationTitle("Activity")
+                    .toolbar { ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { showsActivity = false }
+                    } }
+                }
+            }
+    }
+}
 
-                VStack(alignment: .leading, spacing: 12) {
-                    if sourceOnly {
-                        Button("How to build & install") { showDeliveryHelp.toggle() }
-                            .buttonStyle(PrimaryButtonStyle(enabled: true))
-                        if showDeliveryHelp {
-                            Text("Open this project with your agent on the Mac and ask it to build for your paired iPhone. This version of Tohseno cannot yet request a build of unchanged local source from the phone. To change the app as well, use Evolve App below; that sends a coding, build and installation request.")
-                                .font(.subheadline)
-                                .foregroundStyle(Tohseno.ash)
+private struct IntentComposerView: View {
+    @Bindable var model: CompanionModel
+    let heading: String
+    let placeholder: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(heading).font(.title2.weight(.semibold)).foregroundStyle(Tohseno.bone)
+                Spacer(minLength: 0)
+                ScreenshotPicker(attachments: $model.attachments, compact: true)
+            }
+            if !model.attachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(model.attachments, id: \.blobID) { blob in
+                            AttachmentThumbnail(blob: blob) {
+                                model.attachments.removeAll { $0.blobID == blob.blobID }
+                            }
                         }
                     }
-                    Button(model.syncing ? "Checking your Mac…" : "Refresh work & delivery") {
-                        Task { await model.syncNow() }
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Tohseno.orange)
-                    .padding(.vertical, 8)
-                    .disabled(model.syncing)
-                    Text(model.connection == .connected
-                         ? "Last reported by your Mac. Refresh checks for a newer report; it does not start another build."
-                         : "The private relay is disconnected. This is your Mac’s last saved report.")
-                        .font(.caption)
-                        .foregroundStyle(Tohseno.ash)
-                }
-
-                WorkshopRequestsView(model: model, requests: model.requests(for: currentShot.shotID))
-
-                composer
-
-                if let history = currentShot.recentEvolutions, !history.isEmpty {
-                    EvolutionHistoryView(history: history)
-                }
-
-                if let notice = model.notice {
-                    NoticeView(text: notice)
-                }
+                }.fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 36)
+            IntentEditor(text: $model.intent, placeholder: placeholder, minimumHeight: 180, submissionInProgress: model.busy)
+                .frame(maxHeight: .infinity)
+            if let notice = model.notice { NoticeView(text: notice) }
         }
-        .companionInlineNavigationTitle(shot.displayName)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 16)
+        .background(Tohseno.void)
         .scrollDismissesKeyboard(.interactively)
-        .refreshable { await model.syncNow() }
     }
+}
 
-    private var composer: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("What should become different?")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Tohseno.bone)
+private struct ComposerSendButton: View {
+    let title: String
+    let enabled: Bool
+    let busy: Bool
+    let action: () -> Void
 
-            IntentEditor(
-                text: $model.intent,
-                placeholder: "Describe the change you want…",
-                minimumHeight: 170
-            )
-
-            ScreenshotPicker(attachments: $model.attachments)
-
-            Text("Sends this change to the coding harness on your Mac. Follow its progress in Workshop activity.")
-                .font(.system(size: 12))
-                .foregroundStyle(Tohseno.ash)
-
-            Button {
-                Task { await model.evolve() }
-            } label: {
-                if model.busy {
-                    ProgressView()
-                        .tint(Tohseno.void)
-                } else {
-                    Text("Evolve App")
-                }
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if busy { ProgressView().tint(Tohseno.void) }
+                Text(title).font(.subheadline.weight(.semibold))
             }
-            .buttonStyle(PrimaryButtonStyle(enabled: model.canEvolve))
-            .disabled(!model.canEvolve)
-            .padding(.top, 6)
+            .foregroundStyle(Tohseno.void)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(Tohseno.orange.opacity(enabled ? 1 : 0.55), in: Capsule())
         }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 }
 
@@ -1606,66 +1618,20 @@ private struct EvolutionHistoryView: View {
     }
 }
 
-private struct CreateAppView: View {
+struct CreateAppView: View {
     @Bindable var model: CompanionModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("ONE SHOT")
-                        .font(.caption.weight(.bold)).tracking(1.8).foregroundStyle(Tohseno.orange)
-                    Text("Describe the app. Your Mac’s coding harness will create and build it. Follow the request in Workshop activity.")
-                        .font(.subheadline).foregroundStyle(Tohseno.ash)
+        IntentComposerView(model: model, heading: "What do you want to create?",
+                           placeholder: "Write or speak your idea…")
+            .companionInlineNavigationTitle("")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    ComposerSendButton(title: "Take the Shot", enabled: model.canCreate, busy: model.busy) {
+                        Task { await model.create() }
+                    }
                 }
-                nameField
-                    .font(.system(size: 18, weight: .semibold))
-                    .padding(14)
-                    .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Tohseno.iron))
-
-                Text("What should exist on your iPhone?")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Tohseno.bone)
-
-                IntentEditor(
-                    text: $model.intent,
-                    placeholder: "Describe one app in ordinary words…",
-                    minimumHeight: 190
-                )
-
-                ScreenshotPicker(attachments: $model.attachments)
-
-                if let notice = model.notice { NoticeView(text: notice) }
-
-                Button {
-                    #if canImport(UIKit)
-                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-                    #endif
-                    Task { await model.create() }
-                } label: {
-                    if model.busy { ProgressView().tint(Tohseno.void) }
-                    else { Text("Take the Shot") }
-                }
-                .buttonStyle(PrimaryButtonStyle(enabled: model.canCreate))
-                .disabled(!model.canCreate)
             }
-            .padding(20)
-            .padding(.bottom, 24)
-        }
-        .companionInlineNavigationTitle("One Shot")
-        .scrollDismissesKeyboard(.interactively)
-    }
-
-    @ViewBuilder
-    private var nameField: some View {
-#if os(iOS)
-        TextField("Optional app name", text: $model.appName)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-#else
-        TextField("Optional app name", text: $model.appName)
-#endif
     }
 }
 

@@ -8,8 +8,12 @@ import PhotosUI
 /// Optional image references, kept visually secondary to the intention.
 struct ScreenshotPicker: View {
     @Binding var attachments: [CompanionReferenceBlob]
+    var compact = false
 
     var body: some View {
+        if compact {
+            picker
+        } else {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 picker
@@ -19,6 +23,7 @@ struct ScreenshotPicker: View {
                     }
                 }
             }
+        }
         }
     }
 
@@ -32,7 +37,7 @@ struct ScreenshotPicker: View {
             maxSelectionCount: CompanionAttachments.maximumCount,
             matching: .images
         ) {
-            ScreenshotPickerLabel(hasAttachments: hasAttachments)
+            ScreenshotPickerLabel(hasAttachments: hasAttachments, compact: compact)
         }
         .onChange(of: selection) { _, items in
             Task { await adopt(items) }
@@ -51,7 +56,7 @@ struct ScreenshotPicker: View {
     }
 #else
     private var picker: some View {
-        ScreenshotPickerLabel(hasAttachments: !attachments.isEmpty)
+        ScreenshotPickerLabel(hasAttachments: !attachments.isEmpty, compact: compact)
     }
 #endif
 
@@ -59,17 +64,19 @@ struct ScreenshotPicker: View {
 
 private struct ScreenshotPickerLabel: View {
     let hasAttachments: Bool
+    var compact = false
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "photo.badge.plus")
                 .font(.system(size: 17, weight: .medium))
-            Text(hasAttachments ? "Add more" : "Add images")
-                .font(.system(size: 15, weight: .medium))
+            if !compact { Text(hasAttachments ? "Add more" : "Add images")
+                .font(.system(size: 15, weight: .medium)) }
         }
+        .accessibilityLabel("Add images")
         .foregroundStyle(Tohseno.bone)
-        .padding(.horizontal, 14)
-        .frame(height: 56)
+        .padding(.horizontal, compact ? 10 : 14)
+        .frame(height: compact ? 44 : 56)
         .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -78,7 +85,7 @@ private struct ScreenshotPickerLabel: View {
     }
 }
 
-private struct AttachmentThumbnail: View {
+struct AttachmentThumbnail: View {
     let blob: CompanionReferenceBlob
     let remove: () -> Void
 

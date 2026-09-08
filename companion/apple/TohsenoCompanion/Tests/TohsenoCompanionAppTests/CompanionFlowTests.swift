@@ -918,6 +918,21 @@ struct CompanionFlowTests {
     }
 
     @MainActor
+    @Test("A failed first sync still starts automatic reconnection")
+    func offlineLaunchStartsRetries() async {
+        let backend = StubBackend(shots: [shot(version: 1)])
+        await backend.set(reachable: false)
+        let subject = CompanionModel(backend: backend, deviceName: "Test iPhone")
+        await subject.refresh()
+        #expect(await backend.synchronizations == 1)
+        #expect(subject.connectionNotice?.contains("retrying automatically") == true)
+        #expect(subject.screen == .apps)
+        await backend.set(reachable: true)
+        await subject.refresh()
+        #expect(subject.connectionNotice == nil)
+    }
+
+    @MainActor
     @Test("A paired Companion reconnects its live channel after relaunch")
     func relaunchReconnects() async {
         let backend = StubBackend(shots: [shot(version: 1)])
