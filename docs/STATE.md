@@ -25,6 +25,31 @@ recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
 
+## Companion synchronization recovery and continuous dictation
+
+An authenticated command that reuses an existing command ID with different
+signed contents now receives a terminal `command_id_conflict` rejection. The
+original immutable command record is preserved; the conflicting envelope gets
+its own durable rejection before its relay cursor advances. This prevents an
+old refused message from blocking later phone requests. Private creation still
+requires no separate Mac approval. Synchronization failures now emit bounded,
+content-free diagnostic status when their category changes. A slow Keychain
+read is described as waiting, not proof that a visible permission dialog exists.
+
+Real local observation on September 8 found this conflict blocking the paired
+phone since September 5. The corrected service resumed phone contact and
+received the owner's saved screen-recording app intention. A bare diagnostic
+CLI then failed before creating a Shot because its Apple identity helper was
+not bundled; that failure and the exact intention remain in the command journal.
+This is evidence of receipt, not of a completed build or phone installation.
+
+Dictation now keeps completed utterances across recognition resets after pauses,
+while revising the current partial utterance and preserving existing draft
+formatting. The Companion suite passes 58 tests, including multi-utterance and
+cumulative-result regressions; the service's 20 Companion tests pass, including
+preservation of original records after conflicts. The dictation device build
+was installed in place; long-form physical dictation remains owner acceptance.
+
 ## Companion drafts and notifications
 
 Unsent creation and app-feedback text now saves on each edit, including partial

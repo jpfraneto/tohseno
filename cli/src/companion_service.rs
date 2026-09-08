@@ -1154,9 +1154,20 @@ impl CompanionCoordinator {
         {
             return Ok(rejection(&command.body.command_id, "capability_rejected"));
         }
-        if let Some(existing) = processed_command_result_at(&self.service_root, &command)? {
-            self.cleanup_processed_command_references(&existing)?;
-            return Ok(existing.receipt);
+        match processed_command_result_at(&self.service_root, &command) {
+            Ok(Some(existing)) => {
+                self.cleanup_processed_command_references(&existing)?;
+                return Ok(existing.receipt);
+            }
+            Ok(None) => {}
+            Err(error) if error.is::<CommandIdentityConflict>() => {
+                // Authorization above still applies. Refuse this exact signed
+                // command without replacing the original command record. The
+                // caller durably records this envelope's rejection, publishes
+                // it, and only then advances the mailbox cursor.
+                return Ok(rejection(&command.body.command_id, "command_id_conflict"));
+            }
+            Err(error) => return Err(error),
         }
         {
             let _publication = self
@@ -2896,6 +2907,59 @@ fn require_status(
     }
 }
 
+/// Operational diagnostics must never include a URL, bearer, or message body.
+pub fn synchronization_failure(error: &(dyn std::error::Error + 'static)) -> String {
+    if let Some(error) = error.downcast_ref::<reqwest::Error>() {
+        return if error.is_timeout() {
+            "relay request timed out"
+        } else if error.is_connect() {
+            "relay connection failed"
+        } else {
+            "relay transport failed"
+        }
+        .into();
+    }
+    if let Some(error) = error.downcast_ref::<serde_json::Error>() {
+        return format!(
+            "relay JSON {:?} error at line {} column {}",
+            error.classify(),
+            error.line(),
+            error.column()
+        );
+    }
+    if let Some(error) = error.downcast_ref::<tohseno_companion::CompanionError>() {
+        return match error {
+            tohseno_companion::CompanionError::Canonical(_) => "message JSON failed".into(),
+            tohseno_companion::CompanionError::Crypto(_) => "message cryptography failed".into(),
+            tohseno_companion::CompanionError::Replay(_) => "message replay rejected".into(),
+            tohseno_companion::CompanionError::Invalid(reason) => {
+                if reason == "envelope has expired" {
+                    reason.clone()
+                } else {
+                    "message validation failed".into()
+                }
+            }
+        };
+    }
+    let description = error.to_string();
+    for operation in [
+        "acknowledge mailbox",
+        "upload envelope",
+        "check relay health",
+    ] {
+        let expected = format!("Companion Relay could not {operation}");
+        if description == expected {
+            return expected;
+        }
+    }
+    match description.as_str() {
+        "Companion Relay rejected mailbox reconciliation"
+        | "Companion Relay acknowledged a different cursor" => description,
+        "companion command ID was reused with different signed bytes" => description,
+        _ => "private synchronization failed".into(),
+    }
+}
+
 fn validate_relay_path_id(value: &str) -> Result<(), BoxError> {
     if value.len() != 32
         || !value
@@ -3667,6 +3731,17 @@ fn command_reference_blob_ids(command: &CompanionCommand) -> Vec<String> {
     }
 }
 
+#[derive(Debug)]
+struct CommandIdentityConflict;
+
+impl std::fmt::Display for CommandIdentityConflict {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("companion command ID was reused with different signed bytes")
+    }
+}
+
+impl std::error::Error for CommandIdentityConflict {}
+
 fn processed_command_digest(command: &CompanionCommand) -> Result<String, BoxError> {
     Ok(base64url(&command.payload_digest()?))
 }
@@ -3711,7 +3786,7 @@ fn processed_command_result_at(
         || record.origin_device_id != command.body.author_device_id
         || record.reference_blob_ids != command_reference_blob_ids(command)
     {
-        return Err("companion command ID was reused with different signed bytes".into());
+        return Err(CommandIdentityConflict.into());
     }
     Ok(Some(record))
 }
@@ -5065,12 +5140,51 @@ mod tests {
             &rejection("command_conflict", "fixture_rejection"),
         )
         .unwrap();
-        let mut changed = command;
+        let mut changed = command.clone();
         let CommandPayload::ShotCreateRequest { intention, .. } = &mut changed.body.payload else {
             panic!("fixture command is not a creation request");
         };
         *intention = "Different signed bytes under the same command ID.".into();
-        assert!(processed_command_result_at(root.path(), &changed).is_err());
+        assert!(processed_command_result_at(root.path(), &changed)
+            .unwrap_err()
+            .is::<CommandIdentityConflict>());
+        let original = processed_command_result_at(root.path(), &command)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            original.receipt.rejection_code.as_deref(),
+            Some("fixture_rejection")
+        );
+        // A conflicting envelope can receive its own durable terminal outcome
+        // without overwriting the original command or blocking later commands.
+        let envelope = tohseno_companion::vectors::deterministic_vectors()
+            .unwrap()
+            .envelope
+            .envelope;
+        let refused =
+            ProcessedEnvelope::Command(rejection("command_conflict", "command_id_conflict"));
+        record_admitted_envelope_at(root.path(), &envelope, &refused).unwrap();
+        assert_eq!(
+            admitted_envelope_result_at(root.path(), &envelope).unwrap(),
+            Some(refused)
+        );
+        assert_eq!(
+            processed_command_result_at(root.path(), &command)
+                .unwrap()
+                .unwrap()
+                .receipt,
+            original.receipt
+        );
+        let next = command_with_reference("command_after_conflict", "device_fixture", &blob);
+        assert!(processed_command_result_at(root.path(), &next)
+            .unwrap()
+            .is_none());
+        record_processed_command_at(
+            root.path(),
+            &next,
+            &rejection("command_after_conflict", "fixture_rejection"),
+        )
+        .unwrap();
     }
 
     #[test]

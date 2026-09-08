@@ -96,3 +96,15 @@ Real acceptance is a phone-origin request, acknowledgement from this Mac,
 observed harness/source changes and a build result, followed by exact intended
 phone delivery when reachable. Do not replace that check with a CLI-origin
 request, a Simulator, or a rendered request-history fixture.
+
+A Rust service change needs a complete local factory bundle, not a bare
+`target/debug/tohseno service run`: Apple identity discovery expects its bundled
+helper beside the executable. For a local-only test, retain the installed
+FactoryRelease resources and identity helper, replace both the bundled factory
+CLI and native session helper with the compiled CLI, record the exact source
+commit and base manifest digest, regenerate the file manifest after signing,
+and sign/verify the containing app with the existing Developer ID. Open that
+app so the existing native installer selects the complete release and restores
+the normal LaunchAgent. This is a local build, not a notarized distribution or
+public installer activation. Do not replace or fabricate the private command
+journal when recovering a failed request.

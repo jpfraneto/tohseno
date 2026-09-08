@@ -1099,6 +1099,8 @@ public final class CompanionModel {
         switch code {
         case "stale_base_version", "stale_project_source_state":
             "This app changed while your request was waiting. Review it and try again."
+        case "command_id_conflict":
+            "An older request reused the same identifier. Your text is kept in activity; send it as a new request if needed."
         case "project_busy":
             "This app is already being changed. Wait for it to finish, then send the next request."
         case "device_revoked", "device_not_paired", "capability_rejected":

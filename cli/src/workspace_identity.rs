@@ -26,7 +26,7 @@ const KEYCHAIN_NOTICE_DELAY: Duration = Duration::from_secs(3);
 /// Repeated so a long unanswered dialog stays visibly the cause, rather than
 /// one line scrolled past at startup.
 const KEYCHAIN_NOTICE_INTERVAL: Duration = Duration::from_secs(30);
-pub const KEYCHAIN_NOTICE: &str = "macOS is asking permission to read the TOHSENO workspace key. Answer the Keychain dialog with Always Allow; the service cannot start until it is answered.";
+pub const KEYCHAIN_NOTICE: &str = "Waiting for access to the TOHSENO workspace key. If macOS shows a Keychain dialog, approve it to continue.";
 
 pub trait SecretStore: Send + Sync {
     fn put(&self, reference: &str, value: &[u8]) -> Result<(), String>;

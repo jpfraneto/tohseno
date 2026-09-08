@@ -580,6 +580,7 @@ pub async fn run_with(
         let mut last_workspace_digest = None;
         let mut last_living_project_digest = None;
         let mut last_fingerprint = None;
+        let mut last_sync_failure = None;
         let mut ticks_since_full_pass = WORKSPACE_SNAPSHOT_BACKSTOP_TICKS;
         loop {
             interval.tick().await;
@@ -592,7 +593,18 @@ pub async fn run_with(
             {
                 reconciliation_events.emit(Event::status("Companion pairing state changed."));
             }
-            let _ = reconciliation_companion.reconcile_relay_once().await;
+            let failure = reconciliation_companion
+                .reconcile_relay_once()
+                .await
+                .err()
+                .map(|error| crate::companion_service::synchronization_failure(error.as_ref()));
+            if failure != last_sync_failure {
+                reconciliation_events.emit(Event::status(match &failure {
+                    Some(reason) => format!("Companion sync: {reason}. Retrying automatically."),
+                    None => "Companion sync recovered.".into(),
+                }));
+                last_sync_failure = failure;
+            }
             let _ = reconciliation_companion.publish_workspace_changes().await;
             let _ = crate::network_commands::resume_publications_once(
                 &reconciliation_service_root,

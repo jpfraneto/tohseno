@@ -16,6 +16,7 @@ private final class IntentDictationController {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var generation = UUID()
+    private var transcript = DictationTranscript(initialText: "")
 
     func toggle(currentText: String, update: @escaping @MainActor (String) -> Void) {
         if isListening || isStarting {
@@ -65,7 +66,7 @@ private final class IntentDictationController {
             isStarting = false
             return
         }
-        let initialText = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        transcript = DictationTranscript(initialText: currentText)
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
@@ -87,12 +88,13 @@ private final class IntentDictationController {
             try audioEngine.start()
             isStarting = false
             isListening = true
-            recognitionTask = Self.recognize(recognizer, request: request) { [weak self] spoken, final, failed in
+            recognitionTask = Self.recognize(recognizer, request: request) { [weak self] spoken, completed, startTime, endTime, final, failed in
                 Task { @MainActor in
                     guard let self, self.generation == run else { return }
                     if let spoken {
-                        let separator = initialText.isEmpty || spoken.isEmpty ? "" : " "
-                        update(initialText + separator + spoken)
+                        update(self.transcript.receive(
+                            spoken, completed: completed, startTime: startTime, endTime: endTime
+                        ))
                     }
                     if failed { self.message = "Dictation stopped. Your text is saved; tap the microphone to continue." }
                     if final || failed { self.stop() }
@@ -112,10 +114,16 @@ private final class IntentDictationController {
 
     nonisolated private static func recognize(
         _ recognizer: SFSpeechRecognizer, request: SFSpeechAudioBufferRecognitionRequest,
-        update: @escaping @Sendable (String?, Bool, Bool) -> Void
+        update: @escaping @Sendable (String?, Bool, TimeInterval?, TimeInterval?, Bool, Bool) -> Void
     ) -> SFSpeechRecognitionTask {
         recognizer.recognitionTask(with: request) { result, error in
-            update(result?.bestTranscription.formattedString, result?.isFinal ?? false, error != nil)
+            let transcription = result?.bestTranscription
+            let last = transcription?.segments.last
+            update(
+                transcription?.formattedString, result?.speechRecognitionMetadata != nil,
+                transcription?.segments.first?.timestamp,
+                last.map { $0.timestamp + $0.duration }, result?.isFinal ?? false, error != nil
+            )
         }
     }
 
