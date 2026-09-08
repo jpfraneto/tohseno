@@ -68,6 +68,12 @@ classifier now turns that known provider message into plain activity text,
 without exposing arbitrary harness output. Failed attempts open their activity
 view by default too. The candidate's name and original SVG/PNG icon were saved
 in its source after the stopped run; they do not constitute build acceptance.
+The final `62bf3fa` local Mac runtime is selected and healthy; its outbound
+report now explicitly states Claude's session limit. The preceding Companion
+update with the cleaner home/live feed installed successfully. Installation of
+the final stopped-build navigation adjustment failed on the intended phone:
+CoreDevice reported 480,240 bytes available against 10,624,577 bytes required.
+No phone data was deleted. That final adjustment awaits owner-freed storage.
 
 ## Companion synchronization recovery and continuous dictation
 
