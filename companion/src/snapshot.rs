@@ -71,6 +71,23 @@ impl IconDescriptor {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ExecutionActivity {
+    pub entries: Vec<ActivityEntry>,
+    pub files: Vec<String>,
+    pub file_count: u64,
+    pub total_tokens: Option<u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActivityEntry {
+    pub sequence: u64,
+    pub timestamp: String,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExecutionSummary {
     pub execution_id: String,
     pub shot_id: String,
@@ -78,6 +95,8 @@ pub struct ExecutionSummary {
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<ExecutionActivity>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -114,6 +133,19 @@ impl ExecutionSummary {
         validate_identifier("execution ID", &self.execution_id)?;
         validate_identifier("execution Shot ID", &self.shot_id)?;
         parse_timestamp(&self.updated_at)?;
+        if let Some(activity) = &self.activity {
+            require(
+                activity.entries.len() <= 60 && activity.files.len() <= 40,
+                "activity exceeds bounds",
+            )?;
+            for entry in &activity.entries {
+                parse_timestamp(&entry.timestamp)?;
+                validate_text("activity message", &entry.message, 2048)?;
+            }
+            for path in &activity.files {
+                validate_text("activity file", path, 512)?;
+            }
+        }
         if let Some(code) = &self.failure_code {
             validate_identifier("privacy-safe failure code", code)?;
         }

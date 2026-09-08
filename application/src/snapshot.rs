@@ -179,14 +179,16 @@ pub fn build_workspace_snapshot(
         } else {
             vec![SupportedCompanionAction::Read]
         };
+        let display_name = discover_product_name(&engine.ledger().working_tree(&app.name))
+            .unwrap_or_else(|| app.name.clone());
         let presentation = Presentation::for_app(
-            &app.name,
+            &display_name,
             execution.as_ref().map(|summary| summary.state.as_str()),
             latest_version_id.is_some(),
         );
         shots.push(ShotSummary {
             shot_id: stable_id,
-            display_name: app.name,
+            display_name,
             bundle_identifier: (kind == ShotKind::FactoryShot).then_some(app.bundle_id),
             kind,
             source_state: None,
@@ -458,6 +460,19 @@ pub(crate) fn recording_id(workspace_id: &str, name: &str) -> String {
     )
 }
 
+fn discover_product_name(root: &std::path::Path) -> Option<String> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct ProductIdentity {
+        name: String,
+    }
+    let bytes = read_bounded_regular_file(&root.join("APP_IDENTITY.json"), 4096).ok()?;
+    let identity: ProductIdentity = serde_json::from_slice(&bytes).ok()?;
+    let name = identity.name.trim();
+    (!name.is_empty() && name.chars().count() <= 80 && !name.chars().any(char::is_control))
+        .then(|| name.to_owned())
+}
+
 fn discover_icon(
     engine: &Engine,
     app_name: &str,
@@ -588,6 +603,22 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn product_identity_is_bounded_and_does_not_rename_technical_source() {
+        let root = tempfile::tempdir().unwrap();
+        assert_eq!(discover_product_name(root.path()), None);
+        let path = root.path().join("APP_IDENTITY.json");
+        fs::write(&path, r#"{"name":"Reelnote"}"#).unwrap();
+        assert_eq!(
+            discover_product_name(root.path()).as_deref(),
+            Some("Reelnote")
+        );
+        fs::write(&path, r#"{"name":"bad\nname"}"#).unwrap();
+        assert_eq!(discover_product_name(root.path()), None);
+        fs::write(&path, r#"{"name":"Reelnote","unexpected":true}"#).unwrap();
+        assert_eq!(discover_product_name(root.path()), None);
+    }
 
     #[test]
     fn recording_ids_are_private_opaque_and_stable() {

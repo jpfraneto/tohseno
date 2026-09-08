@@ -25,6 +25,41 @@ recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
 
+## Companion app list and live work
+
+The Companion home now leads with the app list. A small connection dot sits
+beside the notification bell; the redundant heading, connection prose and
+last-report timestamp are removed. Requests that have not reached the Mac stay
+visible until acknowledged. Completed/failed request history is accessible
+from the bell, so a recovered creation does not leave its original failure
+above the active app forever. No request records are discarded by this change.
+
+An active app opens directly to live work instead of the feedback composer.
+The existing authenticated encrypted workspace projection now carries bounded
+semantic execution reports, changed-file paths/counts and available token usage.
+Reports belong to the exact execution; timestamps render locally. The view
+stays open on completion and offers Give feedback. Waiting for a device explains
+cable or local Wi-Fi and unlock requirements. Activity is observed Mac evidence,
+not simulated progress, a raw harness transcript, or a claim of installation.
+The additive optional activity field preserves older message bytes; deploy the
+updated Companion before a Mac that emits the field to that paired device.
+
+New-app harness instructions require a proper product name in root
+`APP_IDENTITY.json`, a distinctive `AppIcon.svg`, and its opaque 1024px PNG
+render as the first implementation work in the same harness invocation. The
+workshop reads the bounded name file without renaming technical project or
+bundle identities, and discovers the PNG using the existing icon projection.
+The running recording app's agent chose Talkthrough in its source; that name
+was exposed through this metadata file while its existing run continued.
+
+Local evidence: Companion UI tests and phone-size activity renders pass; SDK
+legacy/activity decoding and activity bounds pass, alongside existing crypto
+and client tests. Private Rust Companion/service tests pass; the broader library
+run passed 257 engine cases and exposed the existing small-task line limit,
+which was preserved by shortening the added identity instruction. Its focused
+regression and the product-name validation regression then passed. Physical
+acceptance of the updated activity view remains separate from these checks.
+
 ## Companion synchronization recovery and continuous dictation
 
 An authenticated command that reuses an existing command ID with different

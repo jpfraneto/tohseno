@@ -301,7 +301,7 @@ directories to the application target; bundle `TOHSENO/fascia.json` and
 
 ## Product naming
 
-{naming}
+{naming} For a new app, make identity your first implementation step: write `APP_IDENTITY.json` at the repository root with exactly `{{"name":"Chosen Product Name"}}`, then create an original `AppIcon.svg` inspired by the intention. Give it a distinctive silhouette and deliberate palette; no Tohseno logo, generic initial, or placeholder. Render that design to an opaque 1024 x 1024 `AppIcon.png` and use it in the asset catalog. The workshop shows these files while you code. Keep technical identities stable; preserve existing apps' name and icon unless asked to change them. Do this within this run, without another planning or model invocation.
 
 Write a short, plain-language `README.md` for the person who owns this app and
 for a developer who may encounter its source later. Explain what the app does

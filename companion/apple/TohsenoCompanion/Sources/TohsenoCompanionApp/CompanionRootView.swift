@@ -214,6 +214,10 @@ struct CompanionNavigation: View {
             HStack {
                 WordmarkView()
                 Spacer()
+                Circle()
+                    .fill(model.connection == .connected ? Tohseno.connected : Tohseno.warning)
+                    .frame(width: 8, height: 8)
+                    .accessibilityLabel(model.connection == .connected ? "Private relay connected" : "Private relay reconnecting")
                 Button { showsUpdates = true } label: {
                     Image(systemName: "bell")
                         .font(.title2).frame(width: 44, height: 44)
@@ -419,6 +423,7 @@ private struct PublicRegistryView: View {
 private struct KeeperInboxView: View {
     @Bindable var model: CompanionModel
     @State private var showsRead = false
+    @State private var showsHistory = false
     private var notifications: [PrivateUpdateItem] {
         model.privateUpdates.filter { showsRead || $0.readAt == nil }
     }
@@ -454,7 +459,19 @@ private struct KeeperInboxView: View {
                 }
             }
             .navigationTitle("Notifications")
+            .sheet(isPresented: $showsHistory) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if let issue = model.connectionNotice { Text(issue).foregroundStyle(Tohseno.orange) }
+                            WorkshopRequestsView(model: model, requests: model.workshopRequests)
+                        }.padding(24)
+                    }.navigationTitle("Request history")
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showsHistory = false } } }
+                }
+            }
             .toolbar {
+                ToolbarItem(placement: .secondaryAction) { Button("Request history") { showsHistory = true } }
                 ToolbarItem(placement: .primaryAction) {
                     Button(showsRead ? "Unread only" : "Show all") { showsRead.toggle() }
                 }
@@ -1027,40 +1044,14 @@ struct YourAppsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Your Shots")
-                        .font(.largeTitle.weight(.bold))
-                        .foregroundStyle(Tohseno.bone)
-                    HStack(spacing: 7) {
-                        Circle()
-                            .fill(model.connection == .connected ? Tohseno.connected : Tohseno.ash)
-                            .frame(width: 6, height: 6)
-                        Text(model.connection == .connected ? "Private relay connected" : "Reconnecting to private relay")
-                            .font(.caption)
-                            .foregroundStyle(Tohseno.ash)
-                    }
-                }
-
-                if let issue = model.connectionNotice {
-                    Text(issue).font(.caption).foregroundStyle(Tohseno.orange)
-                    Button("Retry connection") { Task { await model.syncNow() } }.disabled(model.syncing)
-                }
-                if let timestamp = model.lastMacReportAt {
-                    HStack(spacing: 4) {
-                        Text("Last Mac report")
-                        WorkshopTimestamp(timestamp: timestamp)
-                    }
-                        .font(.caption).foregroundStyle(Tohseno.ash)
-                }
                 if model.hasDraft(for: "create") {
                     Button("Continue your Shot draft", systemImage: "square.and.pencil") { model.openCreate() }
                         .buttonStyle(.plain)
                         .foregroundStyle(Tohseno.orange)
                 }
-                if !model.workshopRequests.isEmpty {
-                    WorkshopRequestsView(model: model, requests: model.workshopRequests)
-                }
 
+                let pending = model.workshopRequests.filter { $0.awaitingMac && $0.shotID == nil }
+                if !pending.isEmpty { WorkshopRequestsView(model: model, requests: pending) }
                 if model.apps.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(model.hasWorkspaceSnapshot ? "Make something yours." : "Getting your Shots…")
@@ -1451,19 +1442,34 @@ struct AppView: View {
     @Bindable var model: CompanionModel
     let shot: ShotSummary
     @State private var showsActivity = false
+    @State private var observingWork = false
     private var currentShot: ShotSummary { model.app(shot.shotID) ?? shot }
 
     var body: some View {
-        IntentComposerView(model: model, heading: "What do you want to change?",
-                           placeholder: "Write or speak your feedback…")
-            .companionInlineNavigationTitle(shot.displayName)
+        Group {
+            if observingWork || currentShot.execution?.state.isTerminal == false {
+                LiveAppActivityView(model: model, shot: currentShot)
+            } else {
+                IntentComposerView(model: model, heading: "What do you want to change?",
+                                   placeholder: "Write or speak your feedback…")
+            }
+        }
+            .onAppear { observingWork = currentShot.execution?.state.isTerminal == false }
+            .onChange(of: currentShot.execution?.state) { _, state in
+                if state?.isTerminal == false { observingWork = true }
+            }
+            .companionInlineNavigationTitle(currentShot.displayName)
             .toolbar {
                 ToolbarItem(placement: .secondaryAction) {
                     Button("Activity", systemImage: "clock.arrow.circlepath") { showsActivity = true }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    ComposerSendButton(title: "Evolve App", enabled: model.canEvolve, busy: model.busy) {
-                        Task { await model.evolve() }
+                    if observingWork && currentShot.execution?.state.isTerminal == true {
+                        Button("Give feedback") { observingWork = false }.tint(Tohseno.orange)
+                    } else if currentShot.execution?.state.isTerminal != false {
+                        ComposerSendButton(title: "Evolve App", enabled: model.canEvolve, busy: model.busy) {
+                            Task { await model.evolve() }
+                        }
                     }
                 }
             }
@@ -1471,7 +1477,7 @@ struct AppView: View {
                 NavigationStack {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            StateView(presentation: model.presentation(for: currentShot))
+                            LiveAppActivityView(model: model, shot: currentShot)
                             WorkshopRequestsView(model: model, requests: model.requests(for: shot.shotID))
                             if let history = currentShot.recentEvolutions, !history.isEmpty {
                                 EvolutionHistoryView(history: history)

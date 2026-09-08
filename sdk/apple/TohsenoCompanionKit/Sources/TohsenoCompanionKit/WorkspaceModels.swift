@@ -82,12 +82,31 @@ public struct IconDescriptor: Codable, Equatable, Sendable {
     }
 }
 
+public struct ExecutionActivity: Codable, Equatable, Sendable {
+    public let entries: [ExecutionActivityEntry]
+    public let files: [String]
+    public let fileCount: UInt64
+    public let totalTokens: UInt64?
+    enum CodingKeys: String, CodingKey {
+        case entries, files
+        case fileCount = "file_count", totalTokens = "total_tokens"
+    }
+}
+
+public struct ExecutionActivityEntry: Codable, Equatable, Sendable, Identifiable {
+    public let sequence: UInt64
+    public let timestamp: String
+    public let message: String
+    public var id: UInt64 { sequence }
+}
+
 public struct ExecutionSummary: Codable, Equatable, Sendable {
     public let executionID: String
     public let shotID: String
     public let state: ExecutionStatus
     public let updatedAt: String
     public let failureCode: String?
+    public let activity: ExecutionActivity?
 
     enum CodingKeys: String, CodingKey {
         case executionID = "execution_id"
@@ -95,6 +114,7 @@ public struct ExecutionSummary: Codable, Equatable, Sendable {
         case state
         case updatedAt = "updated_at"
         case failureCode = "failure_code"
+        case activity
     }
 
     public init(
@@ -102,31 +122,43 @@ public struct ExecutionSummary: Codable, Equatable, Sendable {
         shotID: String,
         state: ExecutionStatus,
         updatedAt: String,
-        failureCode: String? = nil
+        failureCode: String? = nil,
+        activity: ExecutionActivity? = nil
     ) {
         self.executionID = executionID
         self.shotID = shotID
         self.state = state
         self.updatedAt = updatedAt
         self.failureCode = failureCode
+        self.activity = activity
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         var expected: Set<String> = ["execution_id", "shot_id", "state", "updated_at"]
         if container.contains(.failureCode) { expected.insert("failure_code") }
+        if container.contains(.activity) { expected.insert("activity") }
         try requireExactKeys(decoder, expected)
         executionID = try container.decode(String.self, forKey: .executionID)
         shotID = try container.decode(String.self, forKey: .shotID)
         state = try container.decode(ExecutionStatus.self, forKey: .state)
         updatedAt = try container.decode(String.self, forKey: .updatedAt)
         failureCode = try container.decodeIfPresent(String.self, forKey: .failureCode)
+        activity = try container.decodeIfPresent(ExecutionActivity.self, forKey: .activity)
     }
 
     public func validate() throws {
         try requireIdentifier(executionID, field: "execution_id")
         try requireIdentifier(shotID, field: "shot_id")
         _ = try CompanionTimestamp.parse(updatedAt)
+        if let activity {
+            guard activity.entries.count <= 60, activity.files.count <= 40,
+                  activity.entries.allSatisfy({ !$0.message.isEmpty && $0.message.utf8.count <= 2048 }),
+                  activity.files.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 512 }) else {
+                throw TohsenoCompanionError.invalidEncoding("activity exceeds bounds")
+            }
+            for entry in activity.entries { _ = try CompanionTimestamp.parse(entry.timestamp) }
+        }
         if let failureCode { try requireIdentifier(failureCode, field: "failure_code") }
         guard state == .failed || failureCode == nil else {
             throw TohsenoCompanionError.invalidEncoding("only failed executions have a failure code")

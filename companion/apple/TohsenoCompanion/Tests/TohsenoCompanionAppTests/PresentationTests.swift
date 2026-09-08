@@ -11,9 +11,21 @@ import SwiftUI
 struct PresentationTests {
     #if canImport(AppKit)
     @MainActor
-    @Test("The evolution notepad renders at phone size")
+    @Test("An active app opens its live work at phone size")
     func deliveryPageRenders() async throws {
-        let app = shot(version: 3, execution: .waitingForDevice)
+        let base = shot(version: 3, execution: .building)
+        var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(base)) as? [String: Any])
+        var execution = try #require(object["execution"] as? [String: Any])
+        execution["activity"] = [
+            "entries": [
+                ["sequence": 1, "timestamp": "2026-09-08T15:00:00Z", "message": "Your Mac started coding the app."],
+                ["sequence": 2, "timestamp": "2026-09-08T15:01:00Z", "message": "Created recording controls and the video library."],
+                ["sequence": 3, "timestamp": "2026-09-08T15:02:00Z", "message": "Xcode is building the iPhone app."]
+            ],
+            "files": ["Recorder.swift", "VideoLibrary.swift"], "file_count": 2, "total_tokens": 8432
+        ]
+        object["execution"] = execution
+        let app = try JSONDecoder().decode(ShotSummary.self, from: JSONSerialization.data(withJSONObject: object))
         let subject = await model(StubBackend(shots: [app]))
         subject.open(app)
         let host = NSHostingView(rootView:

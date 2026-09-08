@@ -401,6 +401,7 @@ mod tests {
             state,
             updated_at: "2026-08-15T12:00:00Z".into(),
             failure_code: None,
+            activity: None,
         }
     }
 

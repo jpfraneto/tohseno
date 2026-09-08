@@ -1736,7 +1736,62 @@ impl CompanionCoordinator {
     ) -> Result<ConvertedWorkspace, BoxError> {
         let mut local = self.application.workspace_snapshot().await?;
         self.living_projects.merge_workspace(&mut local)?;
-        convert_snapshot(local, record)
+        let mut converted = convert_snapshot(local, record)?;
+        let mut activity_bytes_left = 512 * 1024_usize;
+        for shot in &mut converted.snapshot.shots {
+            if let Some(execution) = &mut shot.execution {
+                if let Ok(Some(activity)) = self.application.execution_activity(&shot.shot_id) {
+                    if activity.execution_id == execution.execution_id {
+                        execution.activity = Some(tohseno_companion::snapshot::ExecutionActivity {
+                            entries: activity
+                                .entries
+                                .into_iter()
+                                .rev()
+                                .take(60)
+                                .collect::<Vec<_>>()
+                                .into_iter()
+                                .rev()
+                                .filter_map(|entry| {
+                                    Some(tohseno_companion::snapshot::ActivityEntry {
+                                        sequence: entry.sequence,
+                                        timestamp: timestamp(
+                                            OffsetDateTime::parse(&entry.timestamp, &Rfc3339)
+                                                .ok()?,
+                                        )
+                                        .ok()?,
+                                        message: entry.message.chars().take(512).collect(),
+                                    })
+                                })
+                                .collect(),
+                            files: activity
+                                .files
+                                .into_iter()
+                                .take(40)
+                                .map(|file| file.path.chars().take(128).collect())
+                                .collect(),
+                            file_count: activity.file_count as u64,
+                            total_tokens: activity.total_tokens,
+                        });
+                        let encoded_bytes = serde_json::to_vec(&execution.activity)?.len();
+                        if encoded_bytes > activity_bytes_left {
+                            execution.activity = None;
+                        } else {
+                            activity_bytes_left -= encoded_bytes;
+                        }
+                        if let Some(active) = converted
+                            .snapshot
+                            .active_executions
+                            .iter_mut()
+                            .find(|active| active.execution_id == execution.execution_id)
+                        {
+                            *active = execution.clone();
+                        }
+                    }
+                }
+            }
+        }
+        converted.snapshot.validate()?;
+        Ok(converted)
     }
 
     /// Publish a complete authoritative snapshot as an ordinary encrypted
@@ -3370,6 +3425,7 @@ fn convert_execution(
         // form, so normalize only at this private transport boundary.
         updated_at: timestamp(OffsetDateTime::parse(&value.updated_at, &Rfc3339)?)?,
         failure_code: (state == ExecutionStatus::Failed).then(|| "execution_failed".into()),
+        activity: None,
     })
 }
 
@@ -4753,6 +4809,7 @@ mod tests {
             state,
             updated_at: "2026-08-16T00:00:00Z".into(),
             failure_code: None,
+            activity: None,
         }
     }
 
