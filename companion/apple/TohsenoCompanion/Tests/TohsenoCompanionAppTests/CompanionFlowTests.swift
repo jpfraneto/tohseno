@@ -9,6 +9,10 @@ actor StubBackend: CompanionBackend {
     var shots: [ShotSummary]
     var iconData: [String: Data]
     var unacknowledged = 0
+    private var pausesCreation = false
+    private var creationContinuation: CheckedContinuation<Void, Never>?
+    func pauseCreation() { pausesCreation = true }
+    func resumeCreation() { creationContinuation?.resume(); creationContinuation = nil; pausesCreation = false }
     var reachable = true
     var requestHistory: [WorkshopRequest] = []
     func workshopRequestHistory() async throws -> [WorkshopRequest] { requestHistory.reversed() }
@@ -117,6 +121,7 @@ actor StubBackend: CompanionBackend {
             throw failure
         }
         creations.append(request)
+        if pausesCreation { await withCheckedContinuation { creationContinuation = $0 } }
         requestHistory.append(WorkshopRequest(commandID: request.commandID,
             payload: .shotCreateRequest(suggestedName: request.suggestedName, intention: request.intention, references: []),
             createdAt: "2026-09-08T12:00:00Z")!)

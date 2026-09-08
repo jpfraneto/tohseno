@@ -25,6 +25,35 @@ recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
 
+## Companion drafts and notifications
+
+Unsent creation and app-feedback text now saves on each edit, including partial
+dictation. Drafts are scoped to the paired workspace and the creation composer
+or exact app. Original image assets are stored once, separately from the atomic
+draft index, under iOS complete file protection and excluded from device backup.
+Navigating away or reopening Companion restores the draft when that composer is
+opened; the Shots home provides a continue-draft shortcut and app draft labels.
+Save/restore failures are visible and unreadable saved drafts are not overwritten.
+An app's base state is retained with its draft. If the app advances, the text is
+preserved and the person reviews it before explicitly using the current app state.
+
+Only the exact content transferred to the durable command outbox is cleared.
+A failed submission retains its draft, and a send that finishes after navigation
+or further typing cannot clear a different or newer draft. These are local phone
+drafts, not Shots, commands, publications or cross-device synchronization.
+
+Separate bell and profile buttons replace the home dropdown. The bell carries
+the unread notification count and opens unread private Updates, with a Show all
+option for read history. Read state is cached per workspace across relaunches and
+uses the existing signed preference command when changed. No public notification
+feed or new authority is introduced. The Companion suite now has 55 passing
+tests, including file/image restoration, workspace separation, moved-base review,
+submission/navigation races and notification-count persistence. The home render
+was inspected. The final Debug device build passed signature verification,
+updated in place on the intended iPhone 15, was verified in CoreDevice's app
+inventory, and launched successfully. Physical draft-entry/relaunch and inbox
+interaction remain owner-observed acceptance, not claims made by these tests.
+
 ## Companion composer and dictation feedback
 
 The phone creation and evolution screens now open as focused notepads: a short

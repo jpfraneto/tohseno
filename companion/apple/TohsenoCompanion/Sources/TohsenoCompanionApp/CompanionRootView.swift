@@ -214,16 +214,28 @@ struct CompanionNavigation: View {
             HStack {
                 WordmarkView()
                 Spacer()
-                Menu {
-                    Button("Updates", systemImage: "tray") { showsUpdates = true }
-                    Button("Profile & connection", systemImage: "person.crop.circle") { showsProfile = true }
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                        .font(.title2)
-                        .frame(width: 44, height: 44)
+                Button { showsUpdates = true } label: {
+                    Image(systemName: "bell")
+                        .font(.title2).frame(width: 44, height: 44)
                         .foregroundStyle(Tohseno.bone)
+                        .overlay(alignment: .topTrailing) {
+                            if model.unreadNotificationCount > 0 {
+                                Text(model.unreadNotificationCount > 99 ? "99+" : "\(model.unreadNotificationCount)")
+                                    .font(.caption2.bold()).foregroundStyle(Tohseno.void)
+                                    .padding(4).background(Tohseno.orange, in: Capsule())
+                            }
+                        }
                 }
-                .accessibilityLabel("Profile and updates")
+                .accessibilityLabel("Notifications, \(model.unreadNotificationCount) unread")
+                .accessibilityIdentifier("navigation.notifications")
+                .buttonStyle(.plain)
+                Button { showsProfile = true } label: {
+                    Image(systemName: "person.crop.circle")
+                        .font(.title2).frame(width: 44, height: 44).foregroundStyle(Tohseno.bone)
+                }
+                .accessibilityLabel("Profile and connection")
+                .accessibilityIdentifier("navigation.profile")
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 24)
             }
@@ -406,18 +418,22 @@ private struct PublicRegistryView: View {
 
 private struct KeeperInboxView: View {
     @Bindable var model: CompanionModel
+    @State private var showsRead = false
+    private var notifications: [PrivateUpdateItem] {
+        model.privateUpdates.filter { showsRead || $0.readAt == nil }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if model.privateUpdates.isEmpty {
+                if notifications.isEmpty {
                     ContentUnavailableView(
                         "Nothing needs you",
                         systemImage: "checkmark.circle",
                         description: Text("Claims, preparations, and app changes that need human attention appear here.")
                     )
                 } else {
-                    List(model.privateUpdates) { update in
+                    List(notifications) { update in
                         Button {
                             model.setPrivateUpdateRead(update)
                         } label: {
@@ -437,7 +453,12 @@ private struct KeeperInboxView: View {
                     }
                 }
             }
-            .navigationTitle("Keeper inbox")
+            .navigationTitle("Notifications")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(showsRead ? "Unread only" : "Show all") { showsRead.toggle() }
+                }
+            }
         }
         .accessibilityIdentifier("workshop.keeper-inbox")
     }
@@ -1031,6 +1052,11 @@ struct YourAppsView: View {
                     }
                         .font(.caption).foregroundStyle(Tohseno.ash)
                 }
+                if model.hasDraft(for: "create") {
+                    Button("Continue your Shot draft", systemImage: "square.and.pencil") { model.openCreate() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Tohseno.orange)
+                }
                 if !model.workshopRequests.isEmpty {
                     WorkshopRequestsView(model: model, requests: model.workshopRequests)
                 }
@@ -1057,7 +1083,12 @@ struct YourAppsView: View {
                                 HStack(spacing: 16) {
                                     IconView(name: shot.displayName, bytes: model.icon(for: shot), size: 56)
                                     VStack(alignment: .leading, spacing: 5) {
-                                        Text(shot.displayName)
+                                        HStack {
+                                            Text(shot.displayName)
+                                            if model.hasDraft(for: shot.shotID) {
+                                                Text("Draft").font(.caption).foregroundStyle(Tohseno.orange)
+                                            }
+                                        }
                                             .font(.headline)
                                             .foregroundStyle(Tohseno.bone)
                                         Text(model.presentation(for: shot).headline)
@@ -1481,8 +1512,14 @@ private struct IntentComposerView: View {
                     }
                 }.fixedSize(horizontal: false, vertical: true)
             }
+            if model.draftNeedsReview {
+                Text("This app changed since you wrote this draft. Review your feedback before sending.")
+                    .font(.caption).foregroundStyle(Tohseno.orange)
+                Button("Use current app state") { model.useCurrentDraftBase() }
+            }
             IntentEditor(text: $model.intent, placeholder: placeholder, minimumHeight: 180, submissionInProgress: model.busy)
                 .frame(maxHeight: .infinity)
+            if let error = model.draftSaveError { NoticeView(text: error) }
             if let notice = model.notice { NoticeView(text: notice) }
         }
         .padding(.horizontal, 20)

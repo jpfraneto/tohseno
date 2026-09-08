@@ -96,7 +96,14 @@ public final class CompanionModel {
     public private(set) var claimStates: [String: String] = [:]
     private var observedClaimReceipts: [String: PublicSoftwareClaim] = [:]
     public private(set) var claimedSoftware: [ClaimedSoftwareEncounter] = []
-    public private(set) var privateUpdates: [PrivateUpdateItem] = []
+    public private(set) var privateUpdates: [PrivateUpdateItem] = [] {
+        didSet {
+            if let scope = notificationWorkspaceID, let data = try? JSONEncoder().encode(privateUpdates) {
+                storage.set(data, forKey: "tohseno.notifications." + scope)
+            }
+        }
+    }
+    private var notificationWorkspaceID: String?
     public var claimsActive: Bool { network.claims.active }
     public var aliasEligibleApps: [PublicAppRelease] {
         guard let builderID else { return [] }
@@ -116,9 +123,104 @@ public final class CompanionModel {
     }
 
     /// The one text box. Nothing else is composed on the phone.
-    public var intent = ""
-    public var appName = ""
-    public var attachments: [CompanionReferenceBlob] = []
+    public var intent = "" { didSet { saveDraft() } }
+    public var appName = "" { didSet { saveDraft() } }
+    public var attachments: [CompanionReferenceBlob] = [] { didSet { saveDraft() } }
+
+    @ObservationIgnored var draftStorage: (any ComposerDraftStorage)? = MemoryComposerDraftStorage()
+    private var draftWorkspaceID: String?
+    private var draftRevision = 0
+    private var activeDraftKey: String?
+    private var draftBase: ShotSummary?
+    private var restoringDraft = false
+    private var draftLoadFailed = false
+    public private(set) var draftSaveError: String?
+    public var unreadNotificationCount: Int { privateUpdates.filter { $0.readAt == nil }.count }
+
+    public func hasDraft(for target: String) -> Bool {
+        _ = draftRevision
+        return draftStorage?.contains((draftWorkspaceID ?? "local") + "/" + target) == true
+    }
+
+    private func restoreNotifications(workspaceID: String) {
+        guard notificationWorkspaceID != workspaceID else { return }
+        let data = storage.data(forKey: "tohseno.notifications." + workspaceID)
+        notificationWorkspaceID = workspaceID
+        privateUpdates = data.flatMap { try? JSONDecoder().decode([PrivateUpdateItem].self, from: $0) } ?? []
+    }
+
+    public var draftNeedsReview: Bool {
+        guard case let .app(id) = screen, let current = app(id), let base = draftBase,
+              !intent.isEmpty || !attachments.isEmpty else { return false }
+        return current.sourceState != base.sourceState || current.expressionID != base.expressionID
+            || current.latestVersionID != base.latestVersionID
+            || current.latestVersionOrdinal != base.latestVersionOrdinal
+    }
+
+    public func useCurrentDraftBase() {
+        guard case let .app(id) = screen else { return }
+        draftBase = app(id)
+        saveDraft()
+    }
+
+    private func saveDraft() {
+        guard !restoringDraft, !draftLoadFailed, let key = activeDraftKey else { return }
+        do {
+            guard let draftStorage else { throw TohsenoCompanionError.unsafeStorage }
+            try draftStorage.save(key: key, intention: intent, name: appName, base: draftBase, images: attachments)
+            draftRevision += 1
+            draftSaveError = nil
+        } catch {
+            draftSaveError = "Your latest edits couldn’t be saved on this iPhone. Keep this screen open and try again."
+        }
+    }
+
+    private func restoreDraft(target: String, base: ShotSummary?) {
+        saveDraft()
+        restoringDraft = true
+        draftLoadFailed = false
+        defer { restoringDraft = false }
+        activeDraftKey = (draftWorkspaceID ?? "local") + "/" + target
+        draftBase = base
+        intent = ""
+        appName = ""
+        attachments = []
+        do {
+            guard let draftStorage else { throw TohsenoCompanionError.unsafeStorage }
+            if let (draft, images) = try draftStorage.draft(for: activeDraftKey!) {
+                intent = draft.intention
+                appName = draft.name
+                attachments = images
+                draftBase = draft.base ?? base
+            }
+            draftSaveError = nil
+        } catch {
+            draftLoadFailed = true
+            draftSaveError = "This draft couldn’t be restored. Its saved files have been preserved."
+        }
+    }
+
+    @discardableResult
+    private func clearSubmittedDraft(key: String?, text: String, name: String, images: [CompanionReferenceBlob]) -> Bool {
+        guard let key else { return false }
+        do {
+            if let (saved, savedImages) = try draftStorage?.draft(for: key),
+               saved.intention == text, saved.name == name, savedImages == images {
+                try draftStorage?.remove(key: key)
+                draftRevision += 1
+            }
+        } catch { draftSaveError = "The request was sent, but its saved draft couldn’t be cleared." }
+        // A send can finish after navigation or further typing. Clear only
+        // the exact submitted content, never the newly active draft.
+        guard activeDraftKey == key, intent == text, appName == name, attachments == images else { return false }
+        restoringDraft = true
+        intent = ""
+        appName = ""
+        attachments = []
+        restoringDraft = false
+        if case let .app(id) = screen { draftBase = app(id) }
+        return true
+    }
 
     /// Durable owner-private command and execution reports restored by the SDK.
     public private(set) var workshopRequests: [WorkshopRequest] = []
@@ -157,6 +259,10 @@ public final class CompanionModel {
         self.builderIdentity = builderIdentity
         self.claimIdentity = claimIdentity ?? builderIdentity
         self.storage = storage
+#if os(iOS)
+        draftStorage = try? FileComposerDraftStorage(directory: URL.applicationSupportDirectory
+            .appending(path: "TOHSENO/drafts", directoryHint: .isDirectory))
+#endif
     }
 
     public func start() {
@@ -714,6 +820,8 @@ public final class CompanionModel {
     private func load() async {
         do {
             let workspace = try await backend.synchronizedWorkspace()
+            draftWorkspaceID = workspace.workspaceID
+            restoreNotifications(workspaceID: workspace.workspaceID)
             hasWorkspaceSnapshot = true
             lastMacReportAt = max(lastMacReportAt ?? "", workspace.generatedAt)
             adopt(workspace.shots)
@@ -779,6 +887,8 @@ public final class CompanionModel {
         Task { await self.loadRequests() }
         switch event.payload {
         case let .workspaceSnapshot(snapshot):
+            draftWorkspaceID = snapshot.workspaceID
+            restoreNotifications(workspaceID: snapshot.workspaceID)
             hasWorkspaceSnapshot = true
             requestedMissingSnapshot = false
             adopt(snapshot.shots)
@@ -1007,24 +1117,25 @@ public final class CompanionModel {
     // MARK: - The one action
 
     public func open(_ shot: ShotSummary) {
-        intent = ""
-        attachments = []
+        restoreDraft(target: shot.shotID, base: shot)
         notice = nil
         screen = .app(shot.shotID)
     }
 
     public func openCreate() {
-        appName = ""
-        intent = ""
-        attachments = []
+        restoreDraft(target: "create", base: nil)
         notice = nil
         screen = .create
     }
 
     public func openApps() {
+        saveDraft()
+        activeDraftKey = nil
+        restoringDraft = true
         appName = ""
         intent = ""
         attachments = []
+        restoringDraft = false
         screen = .apps
     }
 
@@ -1039,6 +1150,10 @@ public final class CompanionModel {
 
     public func create() async {
         guard case .create = screen, canCreate else { return }
+        let submittedKey = activeDraftKey
+        let submittedText = intent
+        let submittedName = appName
+        let submittedImages = attachments
         busy = true
         defer { busy = false }
         let name = appName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1048,13 +1163,13 @@ public final class CompanionModel {
                 intention: intent,
                 references: attachments
             ))
-            appName = ""
-            intent = ""
-            attachments = []
+            if clearSubmittedDraft(key: submittedKey, text: submittedText, name: submittedName, images: submittedImages) {
+                activeDraftKey = nil
+                screen = .apps
+            }
             notice = nil
             unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged
             await loadRequests()
-            screen = .apps
         } catch let error as TohsenoCompanionError {
             notice = Self.humanFailure(error)
         } catch {
@@ -1073,7 +1188,7 @@ public final class CompanionModel {
 
     public var canEvolve: Bool {
         guard case let .app(shotID) = screen, let shot = app(shotID) else { return false }
-        guard !presentation(for: shot).isWorking else { return false }
+        guard !presentation(for: shot).isWorking, !draftNeedsReview else { return false }
         return !intent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (shot.kind == .adoptedProject
                 ? shot.sourceState != nil
@@ -1091,6 +1206,10 @@ public final class CompanionModel {
     /// until Mac acknowledgement; after admission, the Mac works independently.
     public func evolve() async {
         guard case let .app(shotID) = screen, let shot = app(shotID), canEvolve else { return }
+        let submittedKey = activeDraftKey
+        let submittedText = intent
+        let submittedName = appName
+        let submittedImages = attachments
         busy = true
         defer { busy = false }
         do {
@@ -1117,8 +1236,7 @@ public final class CompanionModel {
             } else {
                 return
             }
-            intent = ""
-            attachments = []
+            clearSubmittedDraft(key: submittedKey, text: submittedText, name: submittedName, images: submittedImages)
             notice = nil
             await loadRequests()
             unacknowledged = (try? await backend.unacknowledgedCommandCount()) ?? unacknowledged

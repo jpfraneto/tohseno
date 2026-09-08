@@ -72,10 +72,22 @@ struct PresentationTests {
     @Test("The Shots home renders at an iPhone-sized fixture")
     func pocketWorkshopRenders() async throws {
         let backend = StubBackend(shots: [shot(version: 3)])
-        let subject = await model(backend)
+        let suite = "tohseno.render.\(UUID().uuidString)"
+        let storage = try #require(UserDefaults(suiteName: suite))
+        defer { storage.removePersistentDomain(forName: suite) }
+        let subject = CompanionModel(backend: backend, deviceName: "Fixture iPhone", storage: storage)
+        await subject.refresh()
         subject.openCreate()
         subject.intent = "A quiet breathing timer with one start button."
         await subject.create()
+        subject.openCreate()
+        subject.intent = "An idea I’m still writing"
+        subject.openApps()
+        let update = PrivateUpdateItem(kind: .evolutionFinished, subjectID: "shot_fixture", evidenceID: "execution_fixture",
+            title: "App work completed", detail: "Open its delivery report.", occurredAt: "2026-09-08T12:00:00Z")
+        subject.apply(WorkspaceEvent(eventID: "event_fixture_notification", workspaceID: "workspace_fixture", cursor: 12,
+            emittedAt: "2026-09-08T12:00:00Z",
+            payload: .privateUpdates(PrivateUpdateProjection(items: [update], updatedAt: "2026-09-08T12:00:00Z"))))
         let size = NSSize(width: 390, height: 844)
         let host = NSHostingView(
             rootView: CompanionNavigation(model: subject)
@@ -174,7 +186,7 @@ struct PresentationTests {
             encoding: .utf8
         )
         for label in [
-            "Shots", "Discover", "Updates", "Profile & connection", "Take a Shot", "Take the Shot",
+            "Shots", "Discover", "Notifications", "Profile and connection", "Take a Shot", "Take the Shot",
         ] {
             #expect(source.contains("\"\(label)\""))
         }
