@@ -31,3 +31,19 @@ subsidy enforcement, and the native funding-address/copy interface remain work
 in progress. No price, deposit address, or payment success is invented here.
 
 Production and native artifact evidence will be appended after verification.
+
+The visual source is committed on `main` at `9bd350d`; `d3fb225` adds versioned
+homepage assets after a real CDN negative-cache observation. Railway deployment
+`c0aa1ff8-5fa4-4d7e-8ae2-b6ba911fc8f0` served the Menlo homepage and one real
+Anky card. Health, canonical app detail and Registry responses were fetched;
+the two non-landing pages retain Tohseno styling. The versioned hero bytes
+matched the supplied asset at SHA-256
+`b246f403e06084356dab09056ec4f818e1a00eedee4779b1174531f7055d821e`.
+The asset-cache fix deployment is `a7d17621-e026-4e02-b1b5-b3bdb0151fc1`.
+
+A universal Mac bundle was assembled from the native source at `9bd350d` and
+passed the unsigned package-integrity check. Packaging metadata was set to
+version 1.2.1, build 10008, with `TohsenoSourceCommit=9bd350d`. Its Developer ID
+signature verified, and notarization submission
+`8d6475e2-ac03-4804-b807-ebd2c9877809` was submitted. Submission alone is not
+notarization acceptance or public artifact activation.
