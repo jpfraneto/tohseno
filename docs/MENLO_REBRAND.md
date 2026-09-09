@@ -54,3 +54,19 @@ read failures do not grant gas. The same job may continue, but later uploads
 stop with a clear funding-required explanation while the paid path is absent.
 Four subsidy tests plus 15 Registry trust tests pass. This is implemented/local
 evidence until the corresponding production deployment is recorded.
+
+The app notarization and the separate DMG notarization both completed Accepted.
+DMG submission: `1229529b-2eb9-476b-8339-8e4048fac653`. Both tickets were stapled
+and validated, and Gatekeeper accepted the app and disk image. Mounting the
+finished DMG verified the enclosed signed app, Menlo display name, build 10008,
+and native source stamp. The GitHub prerelease `v1.2.1-rc.1` is published with
+`Menlo-1.2.1-rc.1.dmg`. Its downloaded origin bytes match SHA-256
+`94a2a9a6ac0d6765a8127a169a1c7037df4822a55a310bc6fdbf2d0ad5002dd7`.
+This remains a release candidate; no clean-Mac or physical-iPhone acceptance
+has been inferred from these checks.
+
+Railway deployment `a7d17621-e026-4e02-b1b5-b3bdb0151fc1` succeeded and served
+the versioned asset URLs. Subsidy deployment
+`680f948c-1287-4730-b521-1501eb4d80b3` also succeeded. All 134 website tests
+passed, including subsidy and Registry checks. No second-upload transaction
+was attempted with a real Companion, and the paid-wallet path remains absent.
