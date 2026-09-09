@@ -31,7 +31,7 @@ struct PresentationTests {
         let host = NSHostingView(rootView:
             AppView(model: subject, shot: app)
                 .frame(width: 390, height: 844)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
         )
         host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
         host.layoutSubtreeIfNeeded()
@@ -49,7 +49,7 @@ struct PresentationTests {
         let subject = await model(StubBackend())
         subject.openCreate()
         let host = NSHostingView(rootView: CreateAppView(model: subject)
-            .frame(width: 390, height: 844).preferredColorScheme(.dark))
+            .frame(width: 390, height: 844).preferredColorScheme(.light))
         host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
         host.layoutSubtreeIfNeeded()
         let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
@@ -68,7 +68,7 @@ struct PresentationTests {
         let host = NSHostingView(rootView:
             NavigationStack { PublicReleaseDetailView(model: subject, app: app) }
                 .frame(width: 390, height: 844)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
         )
         host.frame = NSRect(x: 0, y: 0, width: 390, height: 844)
         host.layoutSubtreeIfNeeded()
@@ -104,7 +104,7 @@ struct PresentationTests {
         let host = NSHostingView(
             rootView: CompanionNavigation(model: subject)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(.light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -130,7 +130,7 @@ struct PresentationTests {
             let host = NSHostingView(
                 rootView: YourAppsView(model: subject)
                 .frame(width: size.width, height: size.height)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.light)
                 .transaction { $0.disablesAnimations = true }
             )
             host.frame = NSRect(origin: .zero, size: size)

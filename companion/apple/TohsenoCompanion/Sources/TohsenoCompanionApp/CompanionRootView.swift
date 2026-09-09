@@ -30,7 +30,7 @@ public struct CompanionRootView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .tint(Tohseno.orange)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .task { model.start() }
         .onOpenURL { url in
             Task { await model.handleIncomingURL(url) }
@@ -122,7 +122,7 @@ private struct PublicationApprovalView: View {
                             if editionKind == .timed || editionKind == .limitedTimed {
                                 DatePicker("Claims close", selection: $closesAt, in: Date().addingTimeInterval(60)...)
                             }
-                            Text("One Claim per Tohseno identity. Updates never reset this edition.")
+                            Text("One Claim per Menlo identity. Updates never reset this edition.")
                                 .font(.caption).foregroundStyle(Tohseno.ash)
                         }
                     }
@@ -140,7 +140,7 @@ private struct PublicationApprovalView: View {
                         policyError = "Choose an exact valid Claim Edition before shipping."
                     }
                 } label: {
-                    Text(model.busy ? "Approving…" : "Ship to Tohseno")
+                    Text(model.busy ? "Approving…" : "Ship to Menlo")
                         .frame(maxWidth: .infinity).padding(.vertical, 8)
                 }
                 .buttonStyle(.borderedProminent).disabled(model.busy)
@@ -184,9 +184,9 @@ private struct PublicationApprovalView: View {
 
     private func policyLabel(_ policy: ClaimEditionPolicySummary) -> String {
         switch policy.kind {
-        case .open: "Open Edition · one per Tohseno identity"
+        case .open: "Open Edition · one per Menlo identity"
         case .limited: "Limited Edition · first \(policy.maxClaims) identities"
-        case .timed: "Until date · one per Tohseno identity"
+        case .timed: "Until date · one per Menlo identity"
         case .limitedTimed: "Limited Edition · first \(policy.maxClaims) · until date"
         }
     }
@@ -289,12 +289,14 @@ struct CompanionNavigation: View {
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 10)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(Tohseno.iron.opacity(0.7)))
+            .background(Tohseno.carbon, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Tohseno.iron))
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
             }
         }
+        .background(Tohseno.void.ignoresSafeArea())
+        .preferredColorScheme(.light)
         .sheet(isPresented: $showsProfile) {
             BuilderProfileView(model: model)
         }
@@ -385,7 +387,7 @@ private struct PublicRegistryView: View {
                                 Text(app.release.display.name).font(.headline)
                 Text(event.kind == "shot.updated" ? "updated" :
                     event.kind == "shot.forked" ? "was born as a fork" :
-                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Tohseno")
+                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Menlo")
                                     .font(.subheadline).foregroundStyle(Tohseno.ash)
                                 WorkshopTimestamp(timestamp: event.occurredAt)
                                 .font(.caption).foregroundStyle(Tohseno.orange)
@@ -706,7 +708,7 @@ private struct ClaimGestureView: View {
                     VStack(spacing: 18) {
                         Image(systemName: "globe.americas.fill").font(.largeTitle).foregroundStyle(Tohseno.orange)
                         Text("Claims are public on Robinhood Chain.").font(.title2.weight(.semibold))
-                        Text("Your Tohseno address will be associated with this app.")
+                        Text("Your Menlo address will be associated with this app.")
                             .foregroundStyle(Tohseno.ash).multilineTextAlignment(.center)
                         Button("I Understand") { disclosureSeen = true }
                             .buttonStyle(.borderedProminent)
@@ -825,7 +827,7 @@ private struct BuilderProfileView: View {
                 }
                 Section("Public work") {
                     LabeledContent("Published apps", value: "\(model.publicApps.count)")
-                    Text("Your BuilderID becomes public only when you explicitly approve Ship to Tohseno.")
+                    Text("Your BuilderID becomes public only when you explicitly approve Ship to Menlo.")
                         .font(.caption).foregroundStyle(Tohseno.ash)
                 }
                 if !model.claimedSoftware.isEmpty {
@@ -922,7 +924,7 @@ private struct ClaimReceiptView: View {
             }
             Section("Technical details") {
                 LabeledContent("Token", value: encounter.claim.tokenID)
-                LabeledContent("Tohseno address", value: encounter.claim.claimant)
+                LabeledContent("Menlo address", value: encounter.claim.claimant)
                 if let transaction = encounter.claim.transactionHash {
                     LabeledContent("Transaction", value: transaction)
                 }
@@ -1058,7 +1060,7 @@ struct YourAppsView: View {
                             .font(.title2.weight(.semibold))
                             .foregroundStyle(Tohseno.bone)
                         Text(model.hasWorkspaceSnapshot
-                             ? "Tap the Tohseno button to start. Apps connected on your Mac appear here too."
+                             ? "Tap the Menlo button to start. Apps connected on your Mac appear here too."
                              : "Waiting for your Mac’s app list. Your existing apps haven’t been removed.")
                             .foregroundStyle(Tohseno.ash)
                         if !model.hasWorkspaceSnapshot {
@@ -1207,7 +1209,7 @@ private struct PocketTohsenoKeeper: View {
         HStack(spacing: 9) {
             keeperMark
             VStack(alignment: .leading, spacing: 1) {
-                Text("Tohseno · keeper of the workshop")
+                Text("Menlo · keeper of the workshop")
                     .font(.caption.weight(.semibold))
                 Text(line)
                     .font(.caption2)

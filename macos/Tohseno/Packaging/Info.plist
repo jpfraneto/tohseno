@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleDisplayName</key><string>Tohseno</string>
+  <key>CFBundleDisplayName</key><string>Menlo</string>
   <key>CFBundleExecutable</key><string>TohsenoMacApp</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>com.tohseno.mac</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>CFBundleName</key><string>Tohseno</string>
+  <key>CFBundleName</key><string>Menlo</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleURLTypes</key>
   <array>

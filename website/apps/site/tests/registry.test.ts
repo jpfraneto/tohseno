@@ -386,7 +386,7 @@ describe("public Registry trust bridge", () => {
     expect(home).toContain("SHIPPED");
     expect(home).toContain("CLAIMED");
     expect(home).toContain("Someone claimed this exact release.");
-    expect(home).toContain("Installation follows on your Mac");
+    expect(home).toContain("build and sign it on their Mac");
     expect(home).not.toContain("SHOT.UPDATED");
   });
 

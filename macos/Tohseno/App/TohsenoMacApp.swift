@@ -37,7 +37,7 @@ struct TohsenoMacApp: App {
                     .keyboardShortcut("n", modifiers: .command)
             }
             CommandGroup(after: .help) {
-                Link("Tohseno Help", destination: URL(string: "https://tohseno.com/docs")!)
+                Link("Menlo Help", destination: URL(string: "https://tohseno.com/docs")!)
                 Link("Check for Updates…", destination: URL(string: "https://tohseno.com/download/macos")!)
             }
         }
@@ -46,7 +46,7 @@ struct TohsenoMacApp: App {
             TohsenoMenuBarView(model: model)
         } label: {
             Image(nsImage: menuBarIcon())
-                .accessibilityLabel("Tohseno")
+                .accessibilityLabel("Menlo")
         }
 
         Settings {
@@ -56,9 +56,9 @@ struct TohsenoMacApp: App {
 
     private var localWindowTitle: String {
         guard let build = Bundle.main.object(forInfoDictionaryKey: "TohsenoLocalBuild") as? String else {
-            return "Tohseno"
+            return "Menlo"
         }
-        return "Tohseno · Local \(build)"
+        return "Menlo · Local \(build)"
     }
 }
 
@@ -81,13 +81,13 @@ private struct TohsenoMenuBarView: View {
                 .disabled(true)
         }
         Divider()
-        Button("Open Tohseno") {
+        Button("Open Menlo") {
             openWindow(id: "factory")
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
         SettingsLink { Text("Settings…") }
         Divider()
-        Button("Quit Tohseno") { NSApplication.shared.terminate(nil) }
+        Button("Quit Menlo") { NSApplication.shared.terminate(nil) }
             .keyboardShortcut("q")
     }
 }
@@ -97,7 +97,7 @@ private func menuBarIcon() -> NSImage {
     let bundled = Bundle.main.url(forResource: "TohsenoLogo", withExtension: "svg")
         .flatMap(NSImage.init(contentsOf:))
     let image = bundled
-        ?? NSImage(systemSymbolName: "circle.hexagongrid.fill", accessibilityDescription: "Tohseno")
+        ?? NSImage(systemSymbolName: "circle.hexagongrid.fill", accessibilityDescription: "Menlo")
         ?? NSImage(size: NSSize(width: 18, height: 18))
     image.size = NSSize(width: 18, height: 18)
     image.isTemplate = true

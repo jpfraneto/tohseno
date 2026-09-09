@@ -67,7 +67,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: TohsenoBuildWorkspaceFixtureView(model: model)
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -92,7 +92,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: TohsenoLivingWorkshopFixtureView(model: model)
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -170,7 +170,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: TohsenoWelcomeFixtureView(model: model)
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -196,7 +196,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: TohsenoRegistryFixtureView(model: model)
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -229,7 +229,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: TohsenoReadinessFixtureView(model: model, readiness: readiness)
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
         )
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
@@ -450,8 +450,8 @@ final class NativeFactoryTests: XCTestCase {
         let source = try String(contentsOf: root, encoding: .utf8)
 
         for phrase in [
-            "WELCOME TO TOHSENO",
-            "TAKE A SHOT",
+            "WELCOME TO MENLO",
+            "Your app. Out in the world.",
             "This is where your ideas transform into apps.",
             "Your intention",
             "Your Mac",
@@ -903,12 +903,12 @@ final class NativeFactoryTests: XCTestCase {
         XCTAssertTrue(source.contains("Keep an iPhone app connected"))
         XCTAssertTrue(source.contains("Adopt Existing App"))
         XCTAssertTrue(source.contains("Create a First App"))
-        XCTAssertTrue(source.contains("Choose how Tohseno thinks"))
+        XCTAssertTrue(source.contains("Choose how Menlo thinks"))
         XCTAssertTrue(source.contains("This is where your ideas transform into apps."))
         XCTAssertFalse(source.contains("Describe the app that should exist…"))
     }
 
-    func testConsumerBundleAndMenuBarUseTohsenoBranding() throws {
+    func testConsumerBundleAndMenuBarUseMenloBranding() throws {
         let package = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -916,8 +916,8 @@ final class NativeFactoryTests: XCTestCase {
         let info = try XCTUnwrap(
             PropertyListSerialization.propertyList(from: infoData, format: nil) as? [String: Any]
         )
-        XCTAssertEqual(info["CFBundleDisplayName"] as? String, "Tohseno")
-        XCTAssertEqual(info["CFBundleName"] as? String, "Tohseno")
+        XCTAssertEqual(info["CFBundleDisplayName"] as? String, "Menlo")
+        XCTAssertEqual(info["CFBundleName"] as? String, "Menlo")
 
         let app = try String(
             contentsOf: package.appendingPathComponent("App/TohsenoMacApp.swift"),
@@ -930,7 +930,7 @@ final class NativeFactoryTests: XCTestCase {
             contentsOf: package.appendingPathComponent("Packaging/build-app.sh"),
             encoding: .utf8
         )
-        XCTAssertTrue(build.contains("public/logo.svg"))
+        XCTAssertTrue(build.contains("brand/menlo/mark.svg"))
         XCTAssertTrue(build.contains("Resources/TohsenoLogo.svg"))
     }
 
@@ -1086,7 +1086,7 @@ final class NativeFactoryTests: XCTestCase {
         let host = NSHostingView(
             rootView: view
                 .frame(width: size.width, height: size.height)
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, .light)
                 .transaction { $0.disablesAnimations = true }
         )
         host.frame = NSRect(origin: .zero, size: size)

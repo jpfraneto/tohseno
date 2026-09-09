@@ -49,7 +49,7 @@ public struct TohsenoSettingsView: View {
 
             Form {
                 Section("Intelligence") {
-                    Text("Tohseno uses intelligence already available on this Mac. Provider sign-in stays with the provider, and local work does not require Tohseno credits.")
+                    Text("Menlo uses intelligence already available on this Mac. Provider sign-in stays with the provider, and local work does not require Menlo credits.")
                         .foregroundStyle(.secondary)
                     ForEach((model.defaults?.harnesses ?? []).filter {
                         $0.id != "tohseno-managed" && $0.installed
@@ -75,7 +75,7 @@ public struct TohsenoSettingsView: View {
                             .accessibilityIdentifier("intelligence.unavailable")
                     }
                     Label {
-                        LabeledContent("Tohseno Intelligence", value: "Coming soon")
+                        LabeledContent("Menlo Intelligence", value: "Coming soon")
                     } icon: {
                         Image(systemName: "circle").foregroundStyle(.secondary)
                     }
@@ -147,7 +147,7 @@ public struct TohsenoSettingsView: View {
                 Section("Privacy and updates") {
                     Link("Read Privacy Explanation", destination: URL(string: "https://tohseno.com/privacy")!)
                     Link("Check for Updates", destination: URL(string: "https://tohseno.com/download/macos")!)
-                    Text("Updates remain manual. Tohseno checks the fail-closed release metadata and opens the verified DMG route; it never downloads or replaces the app automatically.")
+                    Text("Updates remain manual. Menlo checks the fail-closed release metadata and opens the verified DMG route; it never downloads or replaces the app automatically.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -223,7 +223,7 @@ struct CompanionPairingCard: View {
                         .frame(width: 150, height: 150)
                         .accessibilityLabel("Companion pairing QR code")
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Open Tohseno Companion and scan this code.")
+                        Text("Open Menlo Companion and scan this code.")
                         Text("This one-use invitation expires at \(session.expiresAt).")
                             .font(.caption)
                             .foregroundStyle(.secondary)

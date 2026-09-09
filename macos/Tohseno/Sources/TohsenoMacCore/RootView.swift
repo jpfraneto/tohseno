@@ -17,7 +17,7 @@ public struct TohsenoRootView: View {
                 VStack(spacing: 18) {
                     TohsenoLivingMark(size: 54)
                     VStack(spacing: 6) {
-                        Text("Opening Tohseno")
+                        Text("Opening Menlo")
                             .font(.title2.weight(.semibold))
                         Text("Your workshop is waking up on this Mac.")
                             .foregroundStyle(TohsenoTheme.silver)
@@ -38,10 +38,11 @@ public struct TohsenoRootView: View {
             }
         }
         .background(TohsenoTheme.void)
+        .preferredColorScheme(.light)
         .foregroundStyle(TohsenoTheme.bone)
         .tint(TohsenoTheme.amber)
         .task { model.start() }
-        .alert("Tohseno", isPresented: errorBinding) {
+        .alert("Menlo", isPresented: errorBinding) {
             Button("OK") { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "Something stopped safely.")
@@ -59,7 +60,7 @@ public struct TohsenoRootView: View {
             }
             Button("Cancel", role: .cancel) { model.cancelSchemeChoice() }
         } message: {
-            Text("Tohseno found more than one iOS app scheme. Choose the one installed on your iPhone.")
+            Text("Menlo found more than one iOS app scheme. Choose the one installed on your iPhone.")
         }
     }
 
@@ -106,7 +107,7 @@ public struct TohsenoRootView: View {
         #if canImport(AppKit)
         let panel = NSOpenPanel()
         panel.title = "Adopt an iPhone app"
-        panel.message = "Choose one Xcode project or workspace. Tohseno will inspect it without restructuring it."
+        panel.message = "Choose one Xcode project or workspace. Menlo will inspect it without restructuring it."
         panel.prompt = "Adopt"
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
@@ -196,7 +197,7 @@ public struct TohsenoWelcomeFixtureView: View {
                 ready: false,
                 step: "welcome",
                 headline: "Bring your iPhone close",
-                detail: "Tohseno will check each local connection before it builds anything.",
+                detail: "Menlo will check each local connection before it builds anything.",
                 primaryAction: "begin",
                 primaryLabel: "Begin"
             ),
@@ -363,7 +364,7 @@ private struct LibraryEmptyView: View {
         ContentUnavailableView {
             Label("Keep an iPhone app connected", systemImage: "iphone.and.arrow.forward")
         } description: {
-            Text("Tohseno connects the app you use on your iPhone to the source and coding harness on this Mac.")
+            Text("Menlo connects the app you use on your iPhone to the source and coding harness on this Mac.")
         } actions: {
             Button("Adopt Existing App", action: adopt)
                 .buttonStyle(PrimaryActionStyle())
@@ -487,7 +488,7 @@ private struct RegistryView: View {
                 Text(app?.release.display.name ?? compact(event.shotID)).font(.title2.weight(.semibold))
                 Text(event.kind == "shot.updated" ? "updated" :
                     event.kind == "shot.forked" ? "was born as a fork" :
-                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Tohseno")
+                    event.kind == "claim.edition_closed" ? "Claim Edition closed" : "entered Menlo")
                     .foregroundStyle(TohsenoTheme.silver)
                 Text(app?.release.display.description ?? "Signed native software")
                     .font(.subheadline).foregroundStyle(TohsenoTheme.silver).lineLimit(2)
@@ -730,13 +731,13 @@ private struct ProfileView: View {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Profile").font(.largeTitle.bold())
-                    Text("Your public Builder identity is controlled by the Secure Enclave key on Tohseno Companion.")
+                    Text("Your public Builder identity is controlled by the Secure Enclave key on Menlo Companion.")
                         .foregroundStyle(TohsenoTheme.silver)
                 }
                 VStack(alignment: .leading, spacing: 14) {
                     Label(
                         model.pairedCompanionDevices.isEmpty
-                            ? "Connect Tohseno Companion to become a Builder"
+                            ? "Connect Menlo Companion to become a Builder"
                             : "Builder authority lives on your iPhone",
                         systemImage: model.pairedCompanionDevices.isEmpty
                             ? "iphone.gen3.slash" : "iphone.gen3.badge.play"
@@ -851,12 +852,12 @@ private struct TohsenoWelcomeSequence: View {
                 TohsenoLivingMark(size: 82, animated: motionEnabled)
 
                 VStack(spacing: 9) {
-                    Text("WELCOME TO TOHSENO")
+                    Text("WELCOME TO MENLO")
                         .font(.caption.weight(.semibold))
                         .tracking(3.4)
                         .foregroundStyle(TohsenoTheme.amber)
-                    Text("TAKE A SHOT")
-                        .font(.system(size: 44, weight: .semibold, design: .rounded))
+                    Text("Your app. Out in the world.")
+                        .font(.system(size: 44, weight: .regular, design: .serif))
                         .tracking(0.8)
                     Text("This is where your ideas transform into apps.")
                         .font(.title3)
@@ -890,7 +891,7 @@ private struct TohsenoWelcomeSequence: View {
                         .buttonStyle(PrimaryActionStyle())
                         .accessibilityIdentifier("readiness.welcome.begin")
 
-                    Text("You’ll connect your iPhone next. Keep it nearby and unlocked. Tohseno asks for a cable only when Apple requires first pairing.")
+                    Text("You’ll connect your iPhone next. Keep it nearby and unlocked. Menlo asks for a cable only when Apple requires first pairing.")
                         .font(.caption)
                         .foregroundStyle(TohsenoTheme.silver.opacity(0.72))
                         .multilineTextAlignment(.center)
@@ -1056,7 +1057,7 @@ private struct ReadinessSetupContent: View {
                     HStack(spacing: 12) {
                         if readiness.companionInstallState == "failed" {
                             Link(
-                                "Check for a Tohseno update",
+                                "Check for a Menlo update",
                                 destination: URL(string: "https://tohseno.com/download/macos")!
                             )
                             .buttonStyle(.bordered)
@@ -1124,7 +1125,7 @@ private struct SetupContextBanner: View {
     private var purpose: String {
         switch readiness.step {
         case "connect_cable":
-            "This one-time cable step lets Apple pair this Mac and iPhone. After pairing, Tohseno also uses Xcode-supported Wi-Fi delivery when available."
+            "This one-time cable step lets Apple pair this Mac and iPhone. After pairing, Menlo also uses Xcode-supported Wi-Fi delivery when available."
         case "trust_mac":
             "Trust lets your two devices work together directly, without sending your project elsewhere."
         case "install_xcode":
@@ -1132,15 +1133,15 @@ private struct SetupContextBanner: View {
         case "developer_mode":
             "Developer Mode lets your iPhone run personal apps built and signed on this Mac."
         case "add_apple_account":
-            "Your Apple Account lets Xcode sign the app as yours. Tohseno never sees your password."
+            "Your Apple Account lets Xcode sign the app as yours. Menlo never sees your password."
         case "install_companion", "building_companion":
             "Companion is the private bridge that receives apps from your Mac and keeps them connected."
         case "installing_companion", "launching_companion":
             "The private bridge is moving onto your iPhone now."
         case "pairing_companion":
-            "Your iPhone is proving that it belongs to this local Tohseno workspace."
+            "Your iPhone is proving that it belongs to this local Menlo workspace."
         default:
-            "First, Tohseno will connect your Mac workshop to your iPhone."
+            "First, Menlo will connect your Mac workshop to your iPhone."
         }
     }
 }
@@ -1284,8 +1285,8 @@ private struct HarnessReadinessScreen: View {
         VStack(spacing: 22) {
             TohsenoLivingMark(size: 58)
             VStack(spacing: 10) {
-                Text("Choose how Tohseno thinks").font(.largeTitle.weight(.semibold))
-                Text("To turn your words into an app, Tohseno works with a coding assistant you already use. Choose one below; its sign-in stays with that tool.")
+                Text("Choose how Menlo thinks").font(.largeTitle.weight(.semibold))
+                Text("To turn your words into an app, Menlo works with a coding assistant you already use. Choose one below; its sign-in stays with that tool.")
                     .foregroundStyle(TohsenoTheme.silver)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 560)
@@ -1310,7 +1311,7 @@ private struct HarnessReadinessScreen: View {
                     .buttonStyle(PrimaryActionStyle())
                 Button("Look Again") { Task { await model.reload() } }
             }
-            Text("For Codex, install and sign in with Codex itself. Tohseno never asks for your coding-provider password, API key, or Apple password here.")
+            Text("For Codex, install and sign in with Codex itself. Menlo never asks for your coding-provider password, API key, or Apple password here.")
                 .font(.caption)
                 .foregroundStyle(TohsenoTheme.ash)
                 .multilineTextAlignment(.center)
@@ -2125,7 +2126,7 @@ private struct DeviceHandoffCard: View {
 
     private var detail: String {
         if app.deliveryUnconfirmed {
-            return "The source is connected, but this report does not confirm a device build or installation. Open the project in Xcode, select your paired iPhone, then Run. A build-only action from Tohseno is not available for this local source yet."
+            return "The source is connected, but this report does not confirm a device build or installation. Open the project in Xcode, select your paired iPhone, then Run. A build-only action from Menlo is not available for this local source yet."
         }
         return switch app.presentation.state {
         case .waiting, .building: "Keep the paired iPhone nearby, unlocked, and on the same Wi-Fi. USB remains available when Xcode needs it."
@@ -2303,7 +2304,7 @@ private struct AdvancedRouteDisclosure: View {
                         }
                     }
                     .accessibilityIdentifier("advanced.model")
-                    Text("Tohseno will use this exact selection for this request and will not substitute another route during recovery.")
+                    Text("Menlo will use this exact selection for this request and will not substitute another route during recovery.")
                         .font(.caption)
                         .foregroundStyle(TohsenoTheme.silver)
                 }

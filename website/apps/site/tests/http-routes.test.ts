@@ -91,14 +91,14 @@ describe("public pages", () => {
   test("introduces the network while keeping every public path dark until launch", async () => {
     const application = await testApplication();
     const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
-    expect(body).toContain("Made by someone.<br>Found by you.");
-    expect(body).toContain("Installation follows on your Mac");
+    expect(body).toContain("Your app.<br>In someone else’s hands.");
+    expect(body).toContain("Apps from the network");
+    expect(body).toContain("build and sign it on their Mac");
     expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
     expect(body).toContain("Published apps and real activity appear here");
     expect(body).toContain('href="/registry"');
     expect(body).toContain('href="/download/macos"');
-    expect(body).toContain('href="/" aria-current="page"');
+    expect(body).toContain('href="/" aria-label="Menlo home"');
     expect(body).toContain("<footer");
     const registry = await (await application.fetch(request("/registry"))).text();
     expect(registry).toContain('class="registry-page"');
@@ -117,22 +117,22 @@ describe("public pages", () => {
     const response = await application.fetch(request("/"));
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
+    expect(body).toContain("Your app.<br>In someone else’s hands.");
     expect(body).toContain("Shipping and claiming use Companion approval.");
-    expect(body).toContain("ACROSS THE NETWORK");
+    expect(body).toContain("Recent network activity");
     expect(body).toContain("Published apps and real activity appear here");
-    expect(body).toContain('<a class="primary" href="/registry">Explore apps</a>');
+    expect(body).toContain('<a href="/registry">Explore apps</a>');
     expect(body).toContain("<footer");
-    expect(body).not.toContain("npm i -g tohseno");
+    expect(body).toContain("npm i -g tohseno");
     expect(body).not.toContain(INSTALL_COMMAND);
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain('src="/landing-assets/wordmark.svg"');
+    expect(body).toContain('src="/menlo/menlo-mark.svg"');
     expect(body).not.toContain('href="#"');
     expect(body).toContain('href="/privacy"');
     expect((await application.fetch(request("/docs"))).status).toBe(308);
     expect((await application.fetch(request("/privacy"))).status).toBe(200);
-    expect(body).toContain("<title>Your apps, woven together — Tohseno</title>");
+    expect(body).toContain("<title>Menlo — Permissionless iOS app distribution</title>");
     expect(response.headers.get("Content-Security-Policy")).toContain(
       "default-src 'self'",
     );
@@ -145,7 +145,7 @@ describe("public pages", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
 
-    expect(body).toContain("Your apps.<br><em>Woven together.</em>");
+    expect(body).toContain("Your app.<br>In someone else’s hands.");
     expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
     expect(body).toContain('href="/download/macos"');
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);

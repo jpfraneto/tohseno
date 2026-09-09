@@ -1,0 +1,41 @@
+/* Landing-only tokens. Never promote this selector to :root. */
+.menlo-landing {
+  --ml-paper: #f6f3ea;
+  --ml-surface: #fffdf7;
+  --ml-ink: #242820;
+  --ml-muted: #616457;
+  --ml-line: #d6d5c9;
+  --ml-green: #315b3b;
+  --ml-green-soft: #e1e8d8;
+  --ml-orange: #cb714b;
+  --ml-yellow: #d8b955;
+  --ml-blue: #63848d;
+  --ml-violet: #81769a;
+  --ml-display: Georgia, "Times New Roman", serif;
+  --ml-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ml-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ml-space-1: 4px; --ml-space-2: 8px; --ml-space-3: 12px;
+  --ml-space-4: 16px; --ml-space-5: 24px; --ml-space-6: 32px;
+  --ml-space-7: 48px; --ml-space-8: 64px; --ml-space-9: 96px;
+  --ml-radius-control: 6px; --ml-radius-card: 12px;
+  color: var(--ml-ink); background: var(--ml-paper);
+  font-family: var(--ml-ui); line-height: 1.6;
+}
+.menlo-landing *, .menlo-landing *::before, .menlo-landing *::after { box-sizing: border-box; }
+.menlo-landing .ml-container { width: min(100% - 96px, 1200px); margin-inline: auto; }
+.menlo-landing .ml-display { font-family: var(--ml-display); font-weight: 400; letter-spacing: -.045em; line-height: 1.03; }
+.menlo-landing .ml-h1 { font-size: clamp(48px, 6.2vw, 88px); margin: 20px 0 24px; }
+.menlo-landing .ml-h2 { font-size: clamp(32px, 3.3vw, 48px); }
+.menlo-landing .ml-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .16em; }
+.menlo-landing .ml-body { font-size: 18px; line-height: 1.6; max-width: 58ch; }
+.menlo-landing .ml-muted { color: var(--ml-muted); }
+.menlo-landing .ml-code { font-family: var(--ml-mono); overflow-wrap: anywhere; white-space: pre-wrap; }
+.menlo-landing .ml-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 18px; border: 1px solid var(--ml-ink); border-radius: var(--ml-radius-control); background: var(--ml-ink); color: var(--ml-paper); font: inherit; text-decoration: none; cursor: pointer; }
+.menlo-landing .ml-button:hover { background: var(--ml-green); }
+.menlo-landing .ml-card { border: 1px solid var(--ml-line); border-radius: var(--ml-radius-card); background: var(--ml-surface); padding: 24px; }
+.menlo-landing .ml-hero-art { display: block; width: 100%; height: auto; mix-blend-mode: multiply; }
+.menlo-landing :focus-visible { outline: 2px solid var(--ml-green); outline-offset: 3px; }
+@media (max-width: 1023px) { .menlo-landing .ml-container { width: calc(100% - 64px); } }
+@media (max-width: 599px) { .menlo-landing .ml-container { width: calc(100% - 40px); } .menlo-landing .ml-h1 { font-size: clamp(43px, 12.3vw, 54px); } }
+@media (prefers-reduced-motion: reduce) { .menlo-landing *, .menlo-landing *::before, .menlo-landing *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+

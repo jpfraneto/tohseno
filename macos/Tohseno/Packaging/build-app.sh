@@ -44,7 +44,7 @@ mkdir -p "$contents/MacOS" "$contents/Helpers" "$contents/Resources" \
   "$release/bin" "$release/share/billing" "$release/share/protocol" \
   "$release/share/fascia" "$release/share/readiness/apple" "$release/share/studio"
 cp "$package_root/Packaging/Info.plist" "$contents/Info.plist"
-cp "$repository_root/website/apps/site/public/logo.svg" "$contents/Resources/TohsenoLogo.svg"
+cp "$repository_root/brand/menlo/mark.svg" "$contents/Resources/TohsenoLogo.svg"
 cp "$swift_bin" "$contents/MacOS/TohsenoMacApp"
 lipo -create \
   "$repository_root/target/aarch64-apple-darwin/release/tohseno" \
@@ -80,7 +80,7 @@ mkdir "$iconset"
 for specification in '16 16x16' '32 16x16@2x' '32 32x32' '64 32x32@2x' '128 128x128' '256 128x128@2x' '256 256x256' '512 256x256@2x' '512 512x512' '1024 512x512@2x'; do
   pixels="${specification%% *}"
   name="${specification#* }"
-  sips -z "$pixels" "$pixels" "$repository_root/brand/logos/tohseno-app-icon-1024.png" \
+  sips -z "$pixels" "$pixels" "$repository_root/brand/menlo/app-icon-1024.png" \
     --out "$iconset/icon_${name}.png" >/dev/null
 done
 iconutil -c icns "$iconset" -o "$contents/Resources/AppIcon.icns"

@@ -1,3 +1,4 @@
+import { menloHome } from "./menlo-home.ts";
 import { lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { p256 } from "@noble/curves/p256";
@@ -866,6 +867,7 @@ export async function createRegistryRouter(
     handles: (pathname) => pathname.startsWith("/api/registry/v1/"),
     fetch: fetchRoute,
     renderHome: async () => {
+      try {
       const all = (await discoverable(await allRecords(directories.releases))).sort(newestFirst);
       const events = (await timelineEvents(all, claims))
         .filter((event) => event.kind === "shot.shipped" || event.kind === "shot.forked");
@@ -874,6 +876,9 @@ export async function createRegistryRouter(
           normalizeHex32(releaseOf(record).shot_id)))
         : [];
       return homeHTML(all.map(publicRecord), events, claimEvents, publicLaunch);
+      } catch {
+        return menloHome(`<div class="ml-empty"><p>We couldn’t load the apps right now. You can still explore the network.</p><a href="/registry">Explore all apps ↗</a></div>`, "", "Network activity is temporarily unavailable.");
+      }
     },
     renderRegistry: async (rawQuery) => {
       const query = rawQuery?.trim().toLocaleLowerCase("en-US");
@@ -1886,7 +1891,7 @@ function homeHTML(
   }
   activity.sort((left, right) => left.block < right.block ? 1 : left.block > right.block ? -1
     : right.transactionIndex - left.transactionIndex || right.logIndex - left.logIndex);
-  const cards = activity.length ? activity.slice(0, 100).map((item) => {
+  const cards = activity.length ? activity.slice(0, 3).map((item) => {
     const release = object(item.record.release, "release");
     const display = object(release.display, "display");
     const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256
@@ -1902,41 +1907,21 @@ function homeHTML(
   const status = writesEnabled
     ? "Shipping and claiming use Companion approval."
     : "Explore published apps. New publishing and Claims are not available yet.";
-  return page("Your apps, woven together", `
-    <section class="weave-hero">
-      <div class="weave-intro">
-        <p class="eyebrow">YOUR APPLE SOFTWARE, CONNECTED</p>
-        <h1>Your apps.<br><em>Woven together.</em></h1>
-        <p class="lead">One workshop for the apps you make, the apps you make your own, and the people who make them.</p>
-        <p class="weave-explanation">Tohseno connects your Mac and iPhone into a personal software workshop—and opens a door to everyone else’s.</p>
-        <div class="actions"><a class="primary" href="/registry">Explore apps</a><a href="/download/macos">Get Tohseno for Mac</a></div>
-        <p class="weave-platform">Made for Mac + iPhone. Built with your own agent and Xcode.</p>
-      </div>
-      <div class="weave-map" aria-label="How Tohseno connects your workshop to the network">
-        <div class="weave-local">
-          <p class="eyebrow">01 / YOUR WORKSHOP</p>
-          <h2>All your Shots.<br>One place.</h2>
-          <ul class="weave-apps"><li>Apps you build</li><li>Projects you bring</li><li>Apps you make your own</li></ul>
-          <div class="weave-devices"><span>Your Mac <small>builds & keeps the source</small></span><span>Your iPhone <small>runs the app</small></span></div>
-        </div>
-        <div class="weave-connection"><span></span><img src="/tohseno-logo.png" alt="Tohseno"><span></span></div>
-        <div class="weave-world">
-          <p class="eyebrow">02 / A WORLD OF WORKSHOPS</p>
-          <h2>Meet the people.<br>Try what they make.</h2>
-          <p>Discover an app. Visit its developer. Claim a release. Bring it into your workshop.</p>
-          <a href="/registry">Step inside the network <span aria-hidden="true">↗</span></a>
-        </div>
-      </div>
-    </section>
-    <section class="weave-principles" aria-label="Software that belongs in your life">
-      <article><span class="weave-number">01</span><h2>Start with a thought.</h2><p>Talk to the agent you already use. Build a native iPhone app, or connect an existing Xcode project. Keep its source on your Mac.</p></article>
-      <article><span class="weave-number">02</span><h2>Keep the thread.</h2><p>Use it on your phone. Ask for a change. Keep working on the same app. Connect apps through explicit, permissioned handoffs—not a shared login that follows you everywhere.</p></article>
-      <article><span class="weave-number">03</span><h2>Open your workshop.</h2><p>Share an app when you’re ready. Explore another developer’s work, claim a release, or fork it into something of your own.</p></article>
-    </section>
-    <section class="activity-heading"><div><p class="eyebrow">ACROSS THE NETWORK</p><h2>Made by someone.<br>Found by you.</h2></div><a href="/registry">Explore all apps ↗</a></section>
-    <section class="timeline-feed home-timeline" aria-label="Tohseno network activity">${cards}</section>
-    <section class="weave-footnote"><p>${status}</p><p>A Claim is a public connection to an exact release. Installation follows on your Mac: verified source, your Apple signing identity, your intended iPhone. Apps share only what you choose.</p><a href="/docs">How Tohseno works ↗</a></section>
-  `, "home");
+  const seen = new Set<string>();
+  const apps = records.filter((record) => {
+    const id = String(object(record.release, "release").shot_id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  }).slice(0, 3).map((record) => {
+    const release = object(record.release, "release");
+    const display = object(release.display, "display");
+    const icon = release.schema === RELEASE_SCHEMA && display.icon_sha256
+      ? `/api/registry/v1/media/${escapeHTML(String(display.icon_sha256))}` : "/menlo/app.svg";
+    return `<a class="ml-app" href="${escapeHTML(String(record.route))}"><img data-app-icon src="${icon}" width="64" height="64" alt="" loading="lazy"><h3>${escapeHTML(String(display.name))}</h3>${display.description ? `<p>${escapeHTML(String(display.description))}</p>` : ""}${display.builder_handle ? `<p class="ml-author">@${escapeHTML(String(display.builder_handle))}</p>` : ""}<span>View app ↗</span></a>`;
+  }).join("") || `<div class="ml-empty"><p>See what other makers are sharing.</p><a href="/registry">Explore all apps ↗</a></div>`;
+  return menloHome(apps, cards, status);
+
 }
 
 function registryHTML(

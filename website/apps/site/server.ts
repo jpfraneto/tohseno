@@ -690,6 +690,12 @@ export async function createApplication(
       return headResponse(json({ status: "ok", service: "tohseno" }), method);
     }
 
+    if (/^\/menlo\/(?:home\.(?:css|js)|tokens\.css|hero-sharing\.png|(?:menlo-mark|spectrum-rule|favicon|app)\.svg)$/.test(pathname)) {
+      return headResponse(withSecurityHeaders(new Response(Bun.file(join(PUBLIC_DIRECTORY, pathname.slice(1))), {
+        headers: { "Cache-Control": "public, max-age=0, must-revalidate" },
+      })), method);
+    }
+
     const staticFile = STATIC_FILES[pathname];
     if (staticFile) {
       const response = new Response(

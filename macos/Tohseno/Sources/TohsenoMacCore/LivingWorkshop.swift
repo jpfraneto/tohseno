@@ -326,7 +326,7 @@ struct LivingWorkshopView: View {
         HStack(spacing: 14) {
             TohsenoLivingMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text("TOHSENO · ONE SHOT")
+                Text("MENLO · APP WORKSHOP")
                     .font(.caption2.weight(.semibold))
                     .tracking(2.2)
                     .foregroundStyle(TohsenoTheme.amber)
@@ -668,8 +668,8 @@ private struct TohsenoKeeperActor: View {
         HStack(spacing: 10) {
             keeperMark
             VStack(alignment: .leading, spacing: 2) {
-                Text("Tohseno")
-                    .font(.callout.weight(.semibold))
+                Text("menlo")
+                    .font(.system(size: 26, weight: .semibold, design: .serif))
                 Text(line)
                     .font(.caption2)
                     .foregroundStyle(TohsenoTheme.silver)
@@ -986,7 +986,7 @@ private struct OneShotDock: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 14)
-        .background(.ultraThinMaterial)
+        .background(TohsenoTheme.carbon)
         .overlay(alignment: .top) { Rectangle().fill(TohsenoTheme.amber.opacity(0.28)).frame(height: 1) }
         .accessibilityIdentifier("workshop.one-shot")
     }
