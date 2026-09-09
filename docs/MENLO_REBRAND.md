@@ -70,3 +70,18 @@ the versioned asset URLs. Subsidy deployment
 `680f948c-1287-4730-b521-1501eb4d80b3` also succeeded. All 134 website tests
 passed, including subsidy and Registry checks. No second-upload transaction
 was attempted with a real Companion, and the paid-wallet path remains absent.
+
+Production download activation was observed after deployment
+`9da19cfe-0c94-4257-93a9-408093172440`: `/api/distribution/v1/macos` reports
+version `1.2.1-rc.1`, build `10008`, the release-candidate channel and the exact
+GitHub artifact URL/digest above. A fresh download through
+`https://tohseno.com/download/macos` matched that same SHA-256. The final
+homepage response contained the Menlo title, versioned hero and command, plus
+one canonical app card; `/healthz` returned healthy. The deployed CSS and
+JavaScript also matched local bytes.
+
+Completion remains open: selecting/implementing paid-wallet custody and
+funding, displaying its real address with Copy in the native apps, responsive
+browser acceptance (no browser connected), and physical native acceptance.
+Do not treat the published visual candidate or the subsidy cap as completion
+of the full paid-upload request.
