@@ -127,7 +127,7 @@ describe("public pages", () => {
     expect(body).not.toContain(INSTALL_COMMAND);
     expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
     expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain('src="/menlo/menlo-mark.svg"');
+    expect(body).toContain('src="/menlo/menlo-mark.svg?v=1"');
     expect(body).not.toContain('href="#"');
     expect(body).toContain('href="/privacy"');
     expect((await application.fetch(request("/docs"))).status).toBe(308);
