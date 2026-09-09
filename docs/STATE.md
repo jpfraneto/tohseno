@@ -1,6 +1,6 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-08. This is the plain-language
+Written 2026-07-30, amended through 2026-09-09. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
@@ -24,6 +24,33 @@ Fascia has device-bound installation keys and continuity, but no app seed-phrase
 recovery API. The skill requires defined recovery semantics and a verified
 restore path, forbids importing Companion/Builder secrets, and keeps both this
 shared recovery gap and the direct-agent delivery gap visible as unfinished work.
+
+## Mac build failure visibility
+
+Commit `5176e4b` brings the recorded failure to the top of the Mac Build tab,
+above the progress steps, changed files and log. The known Claude session-limit
+report becomes **Claude usage limit reached**, with an explanation that source
+changes are saved but the build is incomplete, guidance to check Claude for the
+reset time, and a **Show details** button. Other completed failures show their
+last semantic report; missing evidence is described as unavailable. Reports
+must match the app's current execution and be complete, so stale attempts cannot
+supply the explanation. The UI consumes the existing safe activity projection,
+not private harness logs.
+
+The focused native regression passes for usage limits, other failures, missing
+and stale evidence, incomplete activity, and non-failed app states. Its rendered
+failure screen was visually inspected. A Developer-ID-signed local UI build
+from `5176e4b` was opened over the unchanged, active `62bf3fa` factory payload.
+That launch stopped at the cable-connection screen before the workshop, so the
+new notice has not yet been observed on Talkthrough's live selected-app screen.
+The existing app window and factory state were preserved; no public installer
+release was activated.
+
+Talkthrough's September 8 execution stopped after about 25 minutes when Claude
+Code reported its session limit. Its 13 changed source files remain on disk;
+there is no accepted app build or physical installation from that attempt.
+A real retry operation and prominent retry button remain unfinished. An
+embedded interactive terminal was discussed but has not been implemented.
 
 ## Companion app list and live work
 
