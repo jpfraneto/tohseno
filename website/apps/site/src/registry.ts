@@ -1,3 +1,4 @@
+import { reserveUploadSubsidy } from "./upload-subsidy.ts";
 import { menloHome } from "./menlo-home.ts";
 import { lstat, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -1127,6 +1128,19 @@ function createRelayer(config: AppConfig): ConstrainedRelayer {
       const builder = normalizeBuilder(release.builder_id);
       if (`eip155:4663:${predicted.toLowerCase()}` !== builder) {
         throw new HttpError(422, "BuilderID is not the active factory prediction for this DeviceKey");
+      }
+
+      if (!job.registryTransactionHash) {
+        // Scan authoritative records without the display feed's cap or
+        // unavailable-directory fallback: missing evidence cannot grant gas.
+        let previousUpload = false;
+        for (const name of await readdir(join(config.registry.root!, "releases"))) {
+          if (!/^[0-9a-f]{64}\.json$/.test(name)) continue;
+          const record = await readJSON<CatalogRecord>(join(config.registry.root!, "releases", name));
+          if (!record || record.schema !== RECORD_SCHEMA) throw new HttpError(503, "Upload history is unavailable.");
+          if (normalizeBuilder(releaseOf(record).builder_id) === builder) { previousUpload = true; break; }
+        }
+        await reserveUploadSubsidy(config.registry.root!, predicted.toLowerCase(), job.jobID, previousUpload);
       }
 
       const code = await publicClient.getCode({ address: predicted });

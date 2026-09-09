@@ -22,12 +22,11 @@ These are fixture renders, not physical installation evidence. Browser discovery
 returned no available browser, so the specified responsive screenshots and
 browser keyboard/clipboard walkthrough remain unverified.
 
-Upload funding is not implemented by this visual change. Inspection confirmed
+Paid upload funding is not implemented yet. Inspection confirmed
 that the current Registry relayer pays transaction gas, while BuilderAccount
 has neither a payable receive function nor a spending entrypoint. Its address
 must not be presented as an ETH funding wallet. The owner has been asked for
-any existing funding design. A usable funding mechanism, exact one-upload
-subsidy enforcement, and the native funding-address/copy interface remain work
+any existing funding design. A usable funding mechanism and the native funding-address/copy interface remain work
 in progress. No price, deposit address, or payment success is invented here.
 
 Production and native artifact evidence will be appended after verification.
@@ -47,3 +46,11 @@ version 1.2.1, build 10008, with `TohsenoSourceCommit=9bd350d`. Its Developer ID
 signature verified, and notarization submission
 `8d6475e2-ac03-4804-b807-ebd2c9877809` was submitted. Submission alone is not
 notarization acceptance or public artifact activation.
+
+The server now reserves one upload subsidy per verified Builder address before
+any relayer gas spend. An exclusive, synced reservation survives retries and
+concurrent jobs. Existing catalog uploads count against the allowance; history
+read failures do not grant gas. The same job may continue, but later uploads
+stop with a clear funding-required explanation while the paid path is absent.
+Four subsidy tests plus 15 Registry trust tests pass. This is implemented/local
+evidence until the corresponding production deployment is recorded.
