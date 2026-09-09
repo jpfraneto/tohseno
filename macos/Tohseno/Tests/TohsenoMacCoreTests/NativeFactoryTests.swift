@@ -5,6 +5,47 @@ import XCTest
 @testable import TohsenoMacCore
 
 final class NativeFactoryTests: XCTestCase {
+    @MainActor
+    func testFailureNoticeExplainsQuotaAndRejectsStaleEvidence() async throws {
+        let base = workshopApp(.failed)
+        let app = AppSummary(
+            shotID: base.shotID, displayName: "Talkthrough", bundleIdentifier: base.bundleIdentifier,
+            icon: base.icon, expressionID: nil, latestVersionID: nil, latestVersionOrdinal: nil,
+            latestVersionCreatedAt: nil,
+            execution: ExecutionSummary(executionID: "failed_execution", shotID: base.shotID,
+                state: "failed", versionOrdinal: 1, startedAt: "", elapsedSeconds: 1491, updatedAt: ""),
+            presentation: base.presentation, archived: false, retired: false, sortIndex: 0
+        )
+        func activity(id: String = "failed_execution", complete: Bool = true, message: String) -> ExecutionActivity {
+            ExecutionActivity(schema: "tohseno.execution-activity/1", executionID: id,
+                complete: complete, totalTokens: nil, fileCount: 13, filesTruncated: false, files: [],
+                entries: [ExecutionActivityEntry(sequence: 21, timestamp: "", phase: "failed", message: message)])
+        }
+        let quota = "Claude Code reported its session limit. Your source changes are saved; the app build is not complete."
+        let notice = try XCTUnwrap(BuildFailureNotice(app: app, activity: activity(message: quota)))
+        XCTAssertEqual(notice.title, "Claude usage limit reached")
+        XCTAssertTrue(notice.message.contains("source changes are saved"))
+        XCTAssertTrue(notice.guidance.contains("when your limit resets"))
+        XCTAssertEqual(BuildFailureNotice(app: app, activity: activity(message: "Xcode could not build the app."))?.message,
+            "Xcode could not build the app.")
+        XCTAssertEqual(BuildFailureNotice(app: app, activity: nil)?.title, "Build stopped")
+        XCTAssertEqual(BuildFailureNotice(app: app, activity: activity(id: "old_execution", message: quota))?.title, "Build stopped")
+        XCTAssertEqual(BuildFailureNotice(app: app, activity: activity(complete: false, message: quota))?.title, "Build stopped")
+        XCTAssertNil(BuildFailureNotice(app: workshopApp(.building), activity: activity(message: quota)))
+        XCTAssertNil(BuildFailureNotice(app: workshopApp(.installed), activity: activity(message: quota)))
+
+        let suite = "tohseno-failure-notice-\(UUID())"
+        let preferences = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let model = TohsenoAppModel(client: FakeFactory(workspaceShots: [app], activity: activity(message: quota)), preferences: preferences)
+        await model.reload()
+        await model.prepareEvolution(for: app)
+        let png = try renderPNG(TohsenoBuildWorkspaceFixtureView(model: model), size: NSSize(width: 1100, height: 760))
+        if let output = ProcessInfo.processInfo.environment["TOHSENO_FAILURE_FIXTURE_PNG"] {
+            try png.write(to: URL(fileURLWithPath: output), options: .atomic)
+        }
+    }
+
     func testSourceAdoptionIsNotAnInstallationReport() {
         var imported = workshopApp(.installed)
         imported.sourceState = "source_fixture"
@@ -1062,6 +1103,7 @@ private actor FakeFactory: FactoryServing {
     private(set) var deployScreenshotPaths: [String] = []
     let createDelay: Duration
     let receiptValue: ExecutionReceipt?
+    let activityValue: ExecutionActivity?
     var workspaceShots: [AppSummary]?
     var readinessResponses: [ReadinessView]
     let harnesses: [FactoryHarnessOption]
@@ -1071,10 +1113,12 @@ private actor FakeFactory: FactoryServing {
         receipt: ExecutionReceipt? = nil,
         workspaceShots: [AppSummary]? = nil,
         readinessResponses: [ReadinessView] = [],
-        harnesses: [FactoryHarnessOption] = []
+        harnesses: [FactoryHarnessOption] = [],
+        activity: ExecutionActivity? = nil
     ) {
         self.createDelay = createDelay
         self.receiptValue = receipt
+        self.activityValue = activity
         self.workspaceShots = workspaceShots
         self.readinessResponses = readinessResponses
         self.harnesses = harnesses
@@ -1200,7 +1244,7 @@ private actor FakeFactory: FactoryServing {
     }
     func evolve(_ app: AppSummary, draft: EvolutionDraft, commandID: String) async throws -> CommandReceipt { try await create(CreationDraft(intention: draft.intention), commandID: commandID) }
     func receipt(for appID: String) async throws -> ExecutionReceipt? { receiptValue }
-    func activity(for appID: String) async throws -> ExecutionActivity? { nil }
+    func activity(for appID: String) async throws -> ExecutionActivity? { activityValue }
     func icon(for appID: String) async throws -> Data? { nil }
     func preview(for appID: String) async throws -> Data? { nil }
     func openOnPhone(for appID: String) async throws {}

@@ -898,6 +898,33 @@ public struct ExecutionActivity: Codable, Equatable, Sendable {
     public let entries: [ExecutionActivityEntry]
 }
 
+/// Promotes the service's safe terminal report; never reads private harness logs.
+struct BuildFailureNotice: Equatable {
+    let title: String
+    let message: String
+    let guidance: String
+
+    init?(app: AppSummary, activity: ExecutionActivity?) {
+        guard app.presentation.state == .failed else { return nil }
+        let report = activity.flatMap { activity -> String? in
+            guard activity.complete, activity.executionID == app.execution?.executionID else { return nil }
+            return activity.entries.last?.message
+        }
+        if report == "Claude Code reported its session limit. Your source changes are saved; the app build is not complete." {
+            title = "Claude usage limit reached"
+            message = "Claude Code stopped because it reached your session usage limit. Your source changes are saved, but the app build is not complete."
+            guidance = "Check Claude for when your limit resets before trying again."
+        } else {
+            title = "Build stopped"
+            let trimmed = report?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            message = trimmed.isEmpty
+                ? "The build stopped, but a specific cause is not available yet."
+                : trimmed
+            guidance = "Show details to review the recorded failure."
+        }
+    }
+}
+
 public struct ExecutionActivityFile: Codable, Equatable, Identifiable, Sendable {
     public let status: String
     public let path: String

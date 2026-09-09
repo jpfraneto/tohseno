@@ -1445,7 +1445,7 @@ private struct AppDetailView: View {
                     Group {
                         switch tab {
                         case .build:
-                            BuildWorkspaceView(model: model, app: app)
+                            BuildWorkspaceView(model: model, app: app, details: showDetails)
                         case .app:
                             AppWorkspaceView(
                                 model: model,
@@ -1550,6 +1550,7 @@ private struct AppDetailView: View {
 private struct BuildWorkspaceView: View {
     let model: TohsenoAppModel
     let app: AppSummary
+    let details: () -> Void
 
     private var activity: ExecutionActivity? { model.activities[app.id] }
     private var files: [ExecutionActivityFile] { activity?.files ?? [] }
@@ -1559,8 +1560,30 @@ private struct BuildWorkspaceView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Build")
                     .font(.largeTitle.bold())
-                Text(app.presentation.detail ?? progressLanguage(app.presentation.state))
-                    .foregroundStyle(.secondary)
+                if app.presentation.state != .failed {
+                    Text(app.presentation.detail ?? progressLanguage(app.presentation.state))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let failure = BuildFailureNotice(app: app, activity: activity) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label(failure.title, systemImage: "exclamationmark.triangle.fill")
+                        .font(.title2.bold())
+                        .foregroundStyle(.orange)
+                    Text(failure.message)
+                        .textSelection(.enabled)
+                    Text(failure.guidance)
+                        .foregroundStyle(.secondary)
+                    Button("Show details", action: details)
+                        .controlSize(.large)
+                        .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.orange.opacity(0.4)))
+                .accessibilityIdentifier("app.build-failure")
             }
 
             GroupBox {
