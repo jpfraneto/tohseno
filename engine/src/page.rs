@@ -383,14 +383,7 @@ fn collect_icon_candidates(
         // Skip their roots before inspecting entries (including cache symlinks).
         if matches!(
             entry.file_name().to_str(),
-            Some(
-                ".git"
-                    | ".build"
-                    | ".swiftpm"
-                    | "DerivedData"
-                    | "build"
-                    | "xcuserdata"
-            )
+            Some(".git" | ".build" | ".swiftpm" | "DerivedData" | "build" | "xcuserdata")
         ) {
             continue;
         }
