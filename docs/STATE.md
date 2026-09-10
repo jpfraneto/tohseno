@@ -59,6 +59,22 @@ Swift's `.build` dependency cache and rejecting a cached symlink. Icon discovery
 now skips build/cache directories, matching the existing source snapshot
 boundary, while retaining symlink rejection for actual source and artwork.
 
+The current local candidate is `dist/developer-handoff-12c88b7/Tohseno.app`,
+build `10011`, from clean source
+`12c88b7007ce88826a99128fc5407d3c92d40efc`. Both factory architectures were
+rebuilt with the icon fix. Developer ID, notarization (submission
+`f53cfbe2-57c2-4a06-aec8-3a4eaf1d0251`), stapled-ticket validation, Gatekeeper,
+and the factory manifest passed. Finder launch loaded the workshop; the active
+factory manifest matches this candidate and the local service reports healthy.
+The intended iPhone is observed and privately connected, but no new app
+installation has been attempted or accepted.
+
+Anky's real publication dry run with this factory source passed: 956 files,
+the same source-artifact digest as its current public release, and an included
+app icon. It requested no approval and uploaded nothing. Exact-source receive
+remains at the named Mac-review boundary before downloaded build execution.
+The public download still contains the earlier release candidate.
+
 ## Menlo rebrand and upload subsidy
 
 Menlo is the current product name. The production homepage focuses on
