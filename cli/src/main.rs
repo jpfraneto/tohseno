@@ -116,8 +116,17 @@ enum Command {
         #[arg(long, value_name = "SCHEME")]
         scheme: Option<String>,
     },
-    /// Prepare, approve on Companion, and publish the current app.
+    /// Publish an existing Xcode app and get a shareable link.
     Deploy {
+        /// Xcode project, workspace, or containing folder. Defaults to this directory.
+        #[arg(value_name = "PATH", conflicts_with = "project_id")]
+        path: Option<PathBuf>,
+        /// Choose the app scheme when the project has several app targets.
+        #[arg(long, value_name = "SCHEME", conflicts_with = "project_id")]
+        scheme: Option<String>,
+        /// Return after preparing approval; publication continues in the background.
+        #[arg(long)]
+        no_wait: bool,
         /// Inspect and package without requesting approval or publishing.
         #[arg(long)]
         dry_run: bool,
@@ -761,6 +770,9 @@ async fn dispatch(
         }
         Command::Init { path, scheme } => network_commands::init(path, scheme, json, bus).await?,
         Command::Deploy {
+            path,
+            scheme,
+            no_wait,
             dry_run,
             project_id,
             claim_edition,
@@ -771,6 +783,9 @@ async fn dispatch(
         } => {
             network_commands::deploy(
                 network_commands::DeployOptions {
+                    path: path.as_deref(),
+                    scheme: scheme.as_deref(),
+                    no_wait,
                     dry_run,
                     project_id: project_id.as_deref(),
                     claim_edition: claim_edition.map(ClaimEditionArgument::as_str),
@@ -3005,6 +3020,27 @@ mod tests {
         assert!(evolve_help.contains("--feedback-action"));
         assert!(Cli::try_parse_from(["tohseno", "init", "/tmp/App.xcodeproj"]).is_ok());
         assert!(Cli::try_parse_from(["tohseno", "deploy", "--dry-run"]).is_ok());
+        let deploy = Cli::try_parse_from([
+            "tohseno",
+            "deploy",
+            "/tmp/App.xcodeproj",
+            "--scheme",
+            "App",
+            "--no-wait",
+        ])
+        .unwrap();
+        assert!(
+            matches!(deploy.command, Command::Deploy { path: Some(path), scheme: Some(scheme), no_wait: true, .. }
+            if path == PathBuf::from("/tmp/App.xcodeproj") && scheme == "App")
+        );
+        assert!(Cli::try_parse_from([
+            "tohseno",
+            "deploy",
+            "/tmp/App.xcodeproj",
+            "--project-id",
+            "project_other"
+        ])
+        .is_err());
         assert!(Cli::try_parse_from([
             "tohseno",
             "deploy",

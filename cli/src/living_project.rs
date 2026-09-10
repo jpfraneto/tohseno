@@ -171,7 +171,8 @@ pub struct LivingProjectRecord {
     pub signing_team: Option<String>,
     pub product_name: String,
     pub wrapper_name: String,
-    pub harness: ProjectHarness,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness: Option<ProjectHarness>,
     pub original_intention: Option<String>,
     pub instructions: Vec<RepositoryInstruction>,
     pub git: Option<GitObservation>,
@@ -848,13 +849,20 @@ impl LivingProjectService {
                 && project.scheme == scheme
                 && project.bundle_identifier == bundle_identifier
         }) {
-            if request.network_origin.is_some() && request.network_origin != existing.network_origin
-            {
+            if !same_network_import(
+                request.network_origin.as_ref(),
+                existing.network_origin.as_ref(),
+            ) {
                 return Err(
                     "this source root is already bound to a different network release".into(),
                 );
             }
-            if existing.candidate_shot_id.is_none() {
+            if existing.candidate_shot_id.is_none()
+                && !existing
+                    .network_origin
+                    .as_ref()
+                    .is_some_and(|origin| origin.kind == NetworkImportKind::Install)
+            {
                 existing.candidate_shot_id = Some(
                     tohseno_protocol::digest::ShotId::random()
                         .to_string()
@@ -880,11 +888,17 @@ impl LivingProjectService {
                 ),
             });
         }
-        let selection = crate::living_project::selection_for_request(
-            &self.application,
-            request.harness.as_deref(),
-            request.model.as_deref(),
-        )?;
+        // Connecting existing source performs no inference. Resolve a coding
+        // agent only if explicitly selected here or when an evolution is requested.
+        let harness = if request.harness.is_some() || request.model.is_some() {
+            Some(project_harness(selection_for_request(
+                &self.application,
+                request.harness.as_deref(),
+                request.model.as_deref(),
+            )?))
+        } else {
+            None
+        };
         let project_id = format!("project_{}", Uuid::new_v4().simple());
         let created = now();
         let git = observe_git(&source_root)?;
@@ -910,11 +924,7 @@ impl LivingProjectService {
             product_name: nonempty_setting(&settings, "PRODUCT_NAME")
                 .unwrap_or_else(|| "App".into()),
             wrapper_name,
-            harness: ProjectHarness {
-                harness: selection.harness,
-                model: selection.model,
-                route: selection.route,
-            },
+            harness,
             original_intention: None,
             instructions,
             git,
@@ -1178,6 +1188,10 @@ impl LivingProjectService {
         if evolutions.len() >= MAX_EVOLUTIONS_PER_PROJECT {
             return Err("project evolution history reached its local safety limit".into());
         }
+        let harness = match project.harness.clone() {
+            Some(harness) => harness,
+            None => project_harness(selection_for_request(&self.application, None, None)?),
+        };
         let evolution_id = format!("evolution_{}", Uuid::new_v4().simple());
         let originating_device_id = request.originating_device_id.clone();
         let directory = self.evolution_data_directory(&request.project_id, &evolution_id)?;
@@ -1214,7 +1228,7 @@ impl LivingProjectService {
                 .as_ref()
                 .map(|value| value.dirty_paths.clone())
                 .unwrap_or_default(),
-            harness: project.harness.clone(),
+            harness,
             status: EvolutionStatus::Queued,
             events: vec![EvolutionEvent {
                 sequence: 1,
@@ -1385,9 +1399,9 @@ impl LivingProjectService {
             .map(|name| directory.join("attachments").join(name))
             .collect::<Vec<_>>();
         let selection = HarnessSelection {
-            harness: project.harness.harness.clone(),
-            model: project.harness.model.clone(),
-            route: project.harness.route.clone(),
+            harness: evolution.harness.harness.clone(),
+            model: evolution.harness.model.clone(),
+            route: evolution.harness.route.clone(),
             adapter: None,
         };
         let harness = build_evolution_command(&selection, &packet, &image_paths)
@@ -2229,6 +2243,31 @@ impl LivingProjectService {
     }
 }
 
+fn same_network_import(
+    requested: Option<&NetworkProjectOrigin>,
+    existing: Option<&NetworkProjectOrigin>,
+) -> bool {
+    match (requested, existing) {
+        (None, _) => true,
+        (Some(left), Some(right)) => {
+            left.kind == right.kind
+                && left.parent_shot_id == right.parent_shot_id
+                && left.parent_release_digest == right.parent_release_digest
+                && left.source_artifact_sha256 == right.source_artifact_sha256
+                && left.builder_id == right.builder_id
+        }
+        (Some(_), None) => false,
+    }
+}
+
+fn project_harness(selection: HarnessSelection) -> ProjectHarness {
+    ProjectHarness {
+        harness: selection.harness,
+        model: selection.model,
+        route: selection.route,
+    }
+}
+
 fn selection_for_request(
     application: &ShotApplicationService,
     harness: Option<&str>,
@@ -2242,7 +2281,7 @@ fn selection_for_request(
     let defaults = application.factory_defaults();
     let harness = defaults
         .harness_id
-        .ok_or("connect an authenticated coding harness before adopting a project")?;
+        .ok_or("Connect a coding agent in Settings before requesting AI changes. Publishing and installing existing source do not require one.")?;
     let model = model
         .map(str::to_owned)
         .or(defaults.model_id)
@@ -3664,6 +3703,83 @@ fn ensure_private_directory(path: &Path) -> Result<(), BoxError> {
 mod tests {
     use super::*;
 
+    #[test]
+    #[cfg(target_os = "macos")]
+    #[ignore = "runs real unsigned Xcode builds in an isolated project and service store"]
+    fn xcode_adoption_without_agent_and_exact_receive_retry() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let source = root.join("Source");
+        let container = source.join("HelloWorld.xcodeproj");
+        fs::create_dir_all(&container).unwrap();
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../engine/fixtures/hello-world");
+        fs::copy(
+            fixture.join("HelloWorldApp.swift"),
+            source.join("HelloWorldApp.swift"),
+        )
+        .unwrap();
+        fs::copy(
+            fixture.join("HelloWorld.xcodeproj/project.pbxproj"),
+            container.join("project.pbxproj"),
+        )
+        .unwrap();
+        let ledger = tohseno_engine::Ledger::at_homes(root.join("family"), root.join("machine"));
+        ledger.initialize().unwrap();
+        let events = tohseno_engine::EventBus::default();
+        let service_root = root.join("service");
+        let application = ShotApplicationService::new(
+            tohseno_engine::Engine::at(ledger, events.clone(), tohseno_engine::Config::default()),
+            tohseno_application::CommandJournal::open(&service_root).unwrap(),
+            events,
+            "workspace_fixture",
+        );
+        let living = LivingProjectService::open(
+            &service_root,
+            application,
+            CableGenesisStore::open(&service_root).unwrap(),
+        )
+        .unwrap();
+        let origin = NetworkProjectOrigin {
+            kind: NetworkImportKind::Install,
+            parent_shot_id: format!("0x{}", "11".repeat(32)),
+            parent_release_digest: format!("0x{}", "22".repeat(32)),
+            source_artifact_sha256: format!("0x{}", "33".repeat(32)),
+            builder_id: format!("eip155:4663:0x{}", "44".repeat(20)),
+            verified_at: "2026-09-10T00:00:00Z".into(),
+        };
+        let mut request = AdoptionRequest {
+            path: container.display().to_string(),
+            scheme: None,
+            harness: None,
+            model: None,
+            network_origin: Some(origin),
+        };
+        let first = living.adoption(request.clone()).unwrap().project.unwrap();
+        assert_eq!(first.build.status, "buildable", "{:?}", first.build.summary);
+        assert!(first.harness.is_none());
+        assert!(first.candidate_shot_id.is_none());
+        request.network_origin.as_mut().unwrap().verified_at = "2026-09-10T00:01:00Z".into();
+        let second = living.adoption(request.clone()).unwrap().project.unwrap();
+        assert_eq!(first.project_id, second.project_id);
+        assert_eq!(first.network_origin, second.network_origin);
+        assert!(second.candidate_shot_id.is_none());
+        assert_eq!(second.build.status, "buildable");
+        request.network_origin.as_mut().unwrap().kind = NetworkImportKind::Fork;
+        assert!(living
+            .adoption(request)
+            .unwrap_err()
+            .to_string()
+            .contains("different network release"));
+        assert_eq!(
+            fs::read(source.join("HelloWorldApp.swift")).unwrap(),
+            fs::read(fixture.join("HelloWorldApp.swift")).unwrap()
+        );
+        assert_eq!(
+            fs::read(container.join("project.pbxproj")).unwrap(),
+            fs::read(fixture.join("HelloWorld.xcodeproj/project.pbxproj")).unwrap()
+        );
+    }
+
     fn physical_device(identifier: &str, transport: &str) -> Device {
         Device {
             identifier: identifier.into(),
@@ -3888,11 +4004,11 @@ mod tests {
             signing_team: Some("ABCDE12345".into()),
             product_name: "Fixture".into(),
             wrapper_name: "Fixture.app".into(),
-            harness: ProjectHarness {
+            harness: Some(ProjectHarness {
                 harness: "codex".into(),
                 model: "default".into(),
                 route: "local".into(),
-            },
+            }),
             original_intention: None,
             instructions: Vec::new(),
             git: None,
@@ -3925,6 +4041,11 @@ mod tests {
         validate_project(&reopened).unwrap();
         assert_eq!(reopened, record);
         assert!(reopened.installations[0].verified);
+        let mut without_agent = serde_json::to_value(&record).unwrap();
+        without_agent.as_object_mut().unwrap().remove("harness");
+        let without_agent: LivingProjectRecord = serde_json::from_value(without_agent).unwrap();
+        validate_project(&without_agent).unwrap();
+        assert!(without_agent.harness.is_none());
 
         let parent_shot = format!("0x{}", "22".repeat(32));
         let parent_release = format!("0x{}", "33".repeat(32));
@@ -3937,6 +4058,28 @@ mod tests {
             verified_at: "2026-08-30T00:00:00Z".into(),
         };
         let mut fork = record.clone();
+        let mut reverified = origin.clone();
+        reverified.verified_at = "2026-09-10T00:00:00Z".into();
+        assert!(same_network_import(Some(&reverified), Some(&origin)));
+        for field in [
+            "kind",
+            "parent_shot_id",
+            "parent_release_digest",
+            "source_artifact_sha256",
+            "builder_id",
+        ] {
+            let mut different = serde_json::to_value(&reverified).unwrap();
+            different[field] = match field {
+                "kind" => json!("install"),
+                "builder_id" => json!(format!("eip155:4663:0x{}", "77".repeat(20))),
+                _ => json!(format!("0x{}", "77".repeat(32))),
+            };
+            let different: NetworkProjectOrigin = serde_json::from_value(different).unwrap();
+            assert!(
+                !same_network_import(Some(&different), Some(&origin)),
+                "{field}"
+            );
+        }
         fork.candidate_shot_id = Some("66".repeat(32));
         fork.network_origin = Some(origin.clone());
         validate_project(&fork).unwrap();

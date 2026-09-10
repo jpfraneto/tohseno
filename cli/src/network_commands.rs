@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use time::format_description::well_known::Rfc3339;
@@ -484,10 +484,7 @@ pub async fn init(
         .post("/api/v1/genesis/actions/begin", &json!({}))
         .await
         .map_err(to_box)?;
-    require_connected_companion(&genesis)?;
-    bus.emit(Event::status(
-        "Checking this app with Xcode… The first check can take several minutes while Xcode resolves packages and builds for Simulator.",
-    ));
+    require_connected_companion(&genesis, "tohseno init")?;
     let request = AdoptionRequest {
         path: selected.display().to_string(),
         scheme,
@@ -495,30 +492,7 @@ pub async fn init(
         model: None,
         network_origin: None,
     };
-    let adoption =
-        service.post_with_timeout("/api/v1/projects/adopt", &request, ADOPTION_REQUEST_TIMEOUT);
-    tokio::pin!(adoption);
-    let started = Instant::now();
-    let mut progress = tokio::time::interval(ADOPTION_PROGRESS_INTERVAL);
-    progress.tick().await;
-    let result: AdoptionResult = loop {
-        tokio::select! {
-            result = &mut adoption => break result.map_err(to_box)?,
-            _ = progress.tick() => {
-                bus.emit(Event::status(format!(
-                    "Xcode is still building the app for Simulator… {} seconds elapsed. Keep this Terminal open.",
-                    started.elapsed().as_secs()
-                )));
-            }
-        }
-    };
-    if result.status == "needs_scheme" {
-        let choices = result.scheme_candidates.join(", ");
-        return Err(format!("Choose the app scheme with --scheme. Available: {choices}").into());
-    }
-    let project = result
-        .project
-        .ok_or("Xcode project adoption returned no project")?;
+    let project = adopt_with_progress(&service, &request, bus).await?;
     let shot_id = project
         .candidate_shot_id
         .as_deref()
@@ -535,16 +509,62 @@ pub async fn init(
         );
     } else {
         bus.emit(Event::result(format!(
-            "{} is connected. Candidate Shot {}…{}\nReady. Next: tohseno deploy",
+            "{} is connected.\nReady. Next: tohseno deploy",
             project.display_name,
-            &shot_id[..8],
-            &shot_id[shot_id.len() - 8..]
         )));
     }
     Ok(())
 }
 
-fn require_connected_companion(view: &serde_json::Value) -> Result<(), BoxError> {
+async fn xcode_request<T: Serialize, R: serde::de::DeserializeOwned>(
+    service: &ServiceClient,
+    path: &str,
+    request: &T,
+    description: &str,
+    bus: &tohseno_engine::EventBus,
+) -> Result<R, BoxError> {
+    bus.emit(Event::status(description));
+    let operation = service.post_with_timeout(path, request, ADOPTION_REQUEST_TIMEOUT);
+    tokio::pin!(operation);
+    let started = Instant::now();
+    let mut progress = tokio::time::interval(ADOPTION_PROGRESS_INTERVAL);
+    progress.tick().await;
+    loop {
+        tokio::select! {
+            result = &mut operation => return result.map_err(to_box),
+            _ = progress.tick() => {
+                bus.emit(Event::status(format!(
+                    "{description} {} seconds elapsed. Keep this Terminal open.",
+                    started.elapsed().as_secs()
+                )));
+            }
+        }
+    }
+}
+
+async fn adopt_with_progress(
+    service: &ServiceClient,
+    request: &AdoptionRequest,
+    bus: &tohseno_engine::EventBus,
+) -> Result<LivingProjectRecord, BoxError> {
+    let result: AdoptionResult = xcode_request(
+        service,
+        "/api/v1/projects/adopt",
+        request,
+        "Checking this app with Xcode… The first Simulator build can take several minutes.",
+        bus,
+    )
+    .await?;
+    if result.status == "needs_scheme" {
+        let choices = result.scheme_candidates.join(", ");
+        return Err(format!("Choose the app scheme with --scheme. Available: {choices}").into());
+    }
+    result
+        .project
+        .ok_or_else(|| "Xcode project adoption returned no project".into())
+}
+
+fn require_connected_companion(view: &serde_json::Value, retry: &str) -> Result<(), BoxError> {
     let step = view
         .get("step")
         .and_then(serde_json::Value::as_str)
@@ -562,7 +582,7 @@ fn require_connected_companion(view: &serde_json::Value) -> Result<(), BoxError>
         .map(|value| format!("\n{value}"))
         .unwrap_or_default();
     Err(format!(
-        "Tohseno Companion is required before this Xcode app can be connected.\n{instruction}{detail}\n\nNext: tohseno companion install\nThen run: tohseno init"
+        "Connect Companion on your intended iPhone once to approve publication.\n{instruction}{detail}\n\nNext: tohseno companion install\nThen run: {retry}"
     )
     .into())
 }
@@ -694,40 +714,37 @@ pub async fn receive(
     }
     let service = ServiceClient::ensure_running().await.map_err(to_box)?;
     let imported_at = canonical_now()?;
-    let adoption: AdoptionResult = service
-        .post(
-            "/api/v1/projects/adopt",
-            &AdoptionRequest {
-                path: container.display().to_string(),
-                scheme: Some(evidence.signed_manifest.release.build.scheme.clone()),
-                harness: None,
-                model: None,
-                network_origin: Some(NetworkProjectOrigin {
-                    kind: match kind {
-                        ReceiveKind::Install => NetworkImportKind::Install,
-                        ReceiveKind::Fork => NetworkImportKind::Fork,
-                    },
-                    parent_shot_id: shot_id.clone(),
-                    parent_release_digest: release_digest.clone(),
-                    source_artifact_sha256: expected_source.sha256.to_string(),
-                    builder_id: evidence.signed_manifest.release.builder_id.to_string(),
-                    verified_at: imported_at,
-                }),
-            },
-        )
-        .await
-        .map_err(to_box)?;
-    let project = adoption
-        .project
-        .ok_or("the verified network source could not be connected to this Mac")?;
+    let project = adopt_with_progress(
+        &service,
+        &AdoptionRequest {
+            path: container.display().to_string(),
+            scheme: Some(evidence.signed_manifest.release.build.scheme.clone()),
+            harness: None,
+            model: None,
+            network_origin: Some(NetworkProjectOrigin {
+                kind: match kind {
+                    ReceiveKind::Install => NetworkImportKind::Install,
+                    ReceiveKind::Fork => NetworkImportKind::Fork,
+                },
+                parent_shot_id: shot_id.clone(),
+                parent_release_digest: release_digest.clone(),
+                source_artifact_sha256: expected_source.sha256.to_string(),
+                builder_id: evidence.signed_manifest.release.builder_id.to_string(),
+                verified_at: imported_at,
+            }),
+        },
+        bus,
+    )
+    .await?;
     let project = if kind == ReceiveKind::Install {
-        let result: serde_json::Value = service
-            .post(
-                &format!("/api/v1/projects/{}/network-install", project.project_id),
-                &json!({ "mac_review_approved": mac_review_approved }),
-            )
-            .await
-            .map_err(to_box)?;
+        let result: serde_json::Value = xcode_request(
+            &service,
+            &format!("/api/v1/projects/{}/network-install", project.project_id),
+            &json!({ "mac_review_approved": mac_review_approved }),
+            "Building and signing for your iPhone…",
+            bus,
+        )
+        .await?;
         serde_json::from_value::<LivingProjectRecord>(
             result
                 .get("project")
@@ -742,6 +759,14 @@ pub async fn receive(
         .as_ref()
         .map(|delivery| delivery.status.clone())
         .unwrap_or_else(|| "verified_source".into());
+    let outcome = receive_outcome(
+        kind,
+        &installation_status,
+        project
+            .network_delivery
+            .as_ref()
+            .and_then(|delivery| delivery.failure.as_deref()),
+    );
     let result = NetworkReceiveResult {
         schema: "tohseno.network-receive-result/1".into(),
         action: match kind {
@@ -760,24 +785,35 @@ pub async fn receive(
     if json_output {
         println!("{}", serde_json::to_string(&result)?);
     } else {
-        let outcome = match (kind, result.installation_status.as_str()) {
-            (ReceiveKind::Install, "installed") => "Installed on your iPhone.",
-            (ReceiveKind::Install, _) => {
-                "Ready for your iPhone. Make the paired phone reachable and unlock it to finish installation."
-            }
-            (ReceiveKind::Fork, _) => {
-                "Fork ready. It has a new local Shot identity and can be evolved or shipped."
-            }
-        };
         bus.emit(Event::result(format!(
             "✓ Builder verified\n✓ Registry receipt verified\n✓ Source verified\n{outcome}\n{}",
             result.source_path
         )));
     }
+    if kind == ReceiveKind::Install && result.installation_status == "failed" {
+        return Err(outcome.into());
+    }
     Ok(())
 }
 
+fn receive_outcome(kind: ReceiveKind, status: &str, failure: Option<&str>) -> String {
+    if kind == ReceiveKind::Fork {
+        return "Your own version is ready in the source folder. Changes stay private until you publish.".into();
+    }
+    match status {
+        "installed" => "Installed on your iPhone.".into(),
+        "ready_for_iphone" => "Built and signed. Unlock your paired iPhone and make it reachable; Tohseno will retry installation using the saved build.".into(),
+        "failed" => format!("Xcode could not build this app for your iPhone. Source and build logs were kept.\n{}", failure.unwrap_or("Open the app in Tohseno to inspect the build failure.")),
+        "requires_mac_review" => format!("Review the downloaded source on your Mac before building: {}", failure.unwrap_or("this app contains executable build steps")),
+        "building" => "Xcode is building the app. Installation is not complete.".into(),
+        _ => "Source verified. The app has not been built and installed yet. Open it in Tohseno to continue.".into(),
+    }
+}
+
 pub struct DeployOptions<'a> {
+    pub path: Option<&'a Path>,
+    pub scheme: Option<&'a str>,
+    pub no_wait: bool,
     pub dry_run: bool,
     pub project_id: Option<&'a str>,
     pub claim_edition: Option<&'a str>,
@@ -793,6 +829,9 @@ pub async fn deploy(
     bus: &tohseno_engine::EventBus,
 ) -> Result<(), BoxError> {
     let DeployOptions {
+        path,
+        scheme,
+        no_wait,
         dry_run,
         project_id,
         claim_edition,
@@ -807,14 +846,55 @@ pub async fn deploy(
     let service = ServiceClient::ensure_running().await.map_err(to_box)?;
     let projects: ProjectList = service.get("/api/v1/projects").await.map_err(to_box)?;
     validate_project_list(&projects)?;
+    let selected = absolute_existing_path(path.unwrap_or(Path::new(".")))?;
     let project = match project_id {
         Some(id) => projects
             .projects
             .iter()
             .find(|project| project.project_id == id)
+            .cloned()
             .ok_or("The selected project is not connected to this Mac")?,
-        None => select_current_project(&projects.projects)?,
+        None => match select_project_at(&projects.projects, &selected, scheme)? {
+            Some(project) => project.clone(),
+            None => {
+                let genesis: serde_json::Value = service
+                    .post("/api/v1/genesis/actions/begin", &json!({}))
+                    .await
+                    .map_err(to_box)?;
+                require_connected_companion(&genesis, "the same tohseno deploy command")?;
+                adopt_with_progress(
+                    &service,
+                    &AdoptionRequest {
+                        path: selected.display().to_string(),
+                        scheme: scheme.map(str::to_owned),
+                        harness: None,
+                        model: None,
+                        network_origin: None,
+                    },
+                    bus,
+                )
+                .await?
+            }
+        },
     };
+    let project = &project;
+    let wait = !json_output && !no_wait && std::io::stdin().is_terminal();
+    let service_paths = ServicePaths::discover()?;
+    if !dry_run {
+        if let Some((directory, pending)) =
+            pending_publication(&service_paths.service_state, &project.project_id)?
+        {
+            bus.emit(Event::status("Resuming the existing publication of the previously prepared source. Later local edits are not part of this approval."));
+            if json_output {
+                println!("{}", serde_json::to_string(&pending)?);
+            } else if wait {
+                wait_for_publication(&directory, &pending, bus).await?;
+            } else {
+                bus.emit(Event::result("Publication is pending. Approve it in Companion, then run 'tohseno status' for the share link."));
+            }
+            return Ok(());
+        }
+    }
     let is_ship = project.latest_publication.is_none();
     let claim_flags_supplied =
         claim_edition.is_some() || max_claims.is_some() || closes_at.is_some();
@@ -1019,7 +1099,130 @@ pub async fn deploy(
         }
     }
     drop(temporary_guard);
+    if !dry_run && wait {
+        wait_for_publication(&directory, &preparation, bus).await?;
+    }
     Ok(())
+}
+
+fn pending_publication(
+    service_root: &Path,
+    project_id: &str,
+) -> Result<Option<(PathBuf, PublicationPreparation)>, BoxError> {
+    let root = service_root.join("network-publications-v1");
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let mut pending = Vec::new();
+    for entry in entries.take(10_001) {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let directory = entry.path();
+        if directory.join("completed.json").exists()
+            || directory.join("failure.json").exists()
+            || !directory.join("approval-request.json").is_file()
+        {
+            continue;
+        }
+        let preparation: PublicationPreparation =
+            read_private_json(&directory.join("preparation.json"), 2 * 1024 * 1024)?;
+        if preparation.project_id == project_id {
+            pending.push((directory, preparation));
+        }
+    }
+    pending.sort_by(|left, right| left.1.created_at.cmp(&right.1.created_at));
+    if pending.len() > 1 {
+        return Err("This app already has multiple pending publications. Resolve them in Companion before publishing again.".into());
+    }
+    Ok(pending.pop())
+}
+
+async fn wait_for_publication(
+    directory: &Path,
+    preparation: &PublicationPreparation,
+    bus: &tohseno_engine::EventBus,
+) -> Result<(), BoxError> {
+    let deadline = Instant::now() + Duration::from_secs(10 * 60);
+    let mut previous = String::new();
+    loop {
+        if directory.join("completed.json").exists() {
+            let completed: serde_json::Value =
+                read_private_json(&directory.join("completed.json"), 64 * 1024)?;
+            let expected_url = format!(
+                "{}/s/{}",
+                preparation.registry_origin,
+                preparation.shot_id.trim_start_matches("0x")
+            );
+            let url = completed_publication_url(
+                &completed,
+                &preparation.job_id,
+                &expected_url,
+                preparation
+                    .approval_request
+                    .as_ref()
+                    .map(|request| request.catalog_digest.as_str()),
+            )?;
+            let verb = if preparation.publication_kind == "ship" {
+                "Shipped"
+            } else {
+                "Updated"
+            };
+            bus.emit(Event::result(format!("{verb}. Share this link:\n{url}")));
+            return Ok(());
+        }
+        if directory.join("failure.json").exists() {
+            let failure: serde_json::Value =
+                read_private_json(&directory.join("failure.json"), 64 * 1024)?;
+            return Err(format!(
+                "Publication stopped: {}. Prepared source and approval were kept.",
+                failure
+                    .get("reason")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("open Tohseno to inspect the failure")
+            )
+            .into());
+        }
+        let status = if directory.join("remote-state.json").exists() {
+            "Publishing approved source and verifying the public link…"
+        } else if directory.join("approval.json").exists() {
+            "Approval received. Preparing the public upload…"
+        } else {
+            "Open Companion on your iPhone and approve this publication. Keep this Terminal open to receive the share link."
+        };
+        if status != previous {
+            bus.emit(Event::status(status));
+            previous = status.into();
+        }
+        if Instant::now() >= deadline {
+            return Err("Publication is still pending after ten minutes. The request was kept; run 'tohseno deploy' to resume waiting, or 'tohseno status' to check for its link.".into());
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}
+
+fn completed_publication_url<'a>(
+    completed: &'a serde_json::Value,
+    job_id: &str,
+    expected_url: &str,
+    expected_release: Option<&str>,
+) -> Result<&'a str, BoxError> {
+    if completed.get("schema").and_then(|value| value.as_str())
+        != Some("tohseno.publication-completed/1")
+        || completed.get("job_id").and_then(|value| value.as_str()) != Some(job_id)
+        || expected_release.is_none()
+        || completed
+            .get("release_digest")
+            .and_then(|value| value.as_str())
+            != expected_release
+        || completed.get("public_url").and_then(|value| value.as_str()) != Some(expected_url)
+    {
+        return Err("Publication completion does not match this exact approved app. Run 'tohseno status' to inspect it.".into());
+    }
+    Ok(completed["public_url"].as_str().expect("validated URL"))
 }
 
 fn prepare_public_screenshots(
@@ -2800,21 +3003,42 @@ fn select_current_project(
     projects: &[LivingProjectRecord],
 ) -> Result<&LivingProjectRecord, BoxError> {
     let current = std::env::current_dir()?.canonicalize()?;
+    select_project_at(projects, &current, None)?.ok_or_else(|| {
+        "Run 'tohseno deploy' inside your Xcode app, or pass its project path.".into()
+    })
+}
+
+fn select_project_at<'a>(
+    projects: &'a [LivingProjectRecord],
+    selected: &Path,
+    scheme: Option<&str>,
+) -> Result<Option<&'a LivingProjectRecord>, BoxError> {
+    let exact_container = matches!(
+        selected.extension().and_then(|value| value.to_str()),
+        Some("xcodeproj" | "xcworkspace")
+    );
     let mut matches = projects
         .iter()
         .filter(|project| {
+            if scheme.is_some_and(|scheme| scheme != project.scheme) {
+                return false;
+            }
+            if exact_container {
+                return Path::new(&project.container_path)
+                    .canonicalize()
+                    .is_ok_and(|container| container == selected);
+            }
             Path::new(&project.source_path)
                 .canonicalize()
-                .is_ok_and(|source| current.starts_with(&source) || source.starts_with(&current))
+                .is_ok_and(|source| selected.starts_with(&source))
         })
         .collect::<Vec<_>>();
     matches.sort_by_key(|project| std::cmp::Reverse(project.source_path.len()));
     match matches.as_slice() {
-        [project, ..] => Ok(project),
-        [] if projects.len() == 1 => Ok(&projects[0]),
-        [] => {
-            Err("Run this command inside an initialized Xcode app, or run 'tohseno init'.".into())
-        }
+        [project] => Ok(Some(project)),
+        [first, second, ..] if first.source_path != second.source_path && first.source_path.len() > second.source_path.len() => Ok(Some(first)),
+        [] => Ok(None),
+        _ => Err("More than one connected app matches this location. Pass its .xcodeproj or .xcworkspace path and choose --scheme.".into()),
     }
 }
 
@@ -2874,6 +3098,135 @@ fn to_box(error: Box<dyn std::error::Error + Send + Sync>) -> BoxError {
 mod claim_edition_tests {
     use super::*;
 
+    fn connected_project(root: &Path, name: &str) -> LivingProjectRecord {
+        let source = root.join(name);
+        fs::create_dir_all(source.join(format!("{name}.xcodeproj"))).unwrap();
+        serde_json::from_value(json!({
+            "schema": "tohseno.private-living-project/1", "revision": 1,
+            "project_id": format!("project_{name}"), "display_name": name,
+            "source_path": source, "container_path": source.join(format!("{name}.xcodeproj")),
+            "container_kind": "project", "scheme": name, "bundle_identifier": "org.example.app",
+            "deployment_target": "16.0", "signing_team": null, "product_name": name,
+            "wrapper_name": format!("{name}.app"), "original_intention": null,
+            "instructions": [], "git": null, "current_source_state": "fixture",
+            "candidate_shot_id": "11".repeat(32), "build": {
+                "status": "buildable", "checked_at": null, "configuration": null,
+                "sdk": null, "artifact_path": null, "failure_category": null, "summary": null
+            }, "installations": [], "latest_evolution_id": null,
+            "latest_evolution_status": null, "last_successful_connection": null,
+            "last_successful_installation": null, "recovery": null,
+            "created_at": "2026-09-10T00:00:00Z", "updated_at": "2026-09-10T00:00:00Z"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn deploy_never_substitutes_an_unrelated_or_ambiguous_project() {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().canonicalize().unwrap();
+        let first = connected_project(&root, "First");
+        let unrelated = root.join("NewApp");
+        fs::create_dir(&unrelated).unwrap();
+        assert!(select_project_at(&[first.clone()], &unrelated, None)
+            .unwrap()
+            .is_none());
+        assert!(select_project_at(&[first.clone()], &root, None)
+            .unwrap()
+            .is_none());
+        let child = Path::new(&first.source_path).join("Sources");
+        fs::create_dir(&child).unwrap();
+        let projects = [first.clone()];
+        assert_eq!(
+            select_project_at(&projects, &child, None)
+                .unwrap()
+                .unwrap()
+                .project_id,
+            first.project_id
+        );
+        let mut alternate = first.clone();
+        alternate.scheme = "OtherTarget".into();
+        let projects = [first.clone(), alternate];
+        assert!(select_project_at(&projects, Path::new(&first.source_path), None).is_err());
+        assert_eq!(
+            select_project_at(
+                &projects,
+                Path::new(&first.container_path),
+                Some("OtherTarget")
+            )
+            .unwrap()
+            .unwrap()
+            .scheme,
+            "OtherTarget"
+        );
+        assert!(select_project_at(
+            &projects,
+            Path::new(&first.container_path),
+            Some("NewScheme")
+        )
+        .unwrap()
+        .is_none());
+    }
+
+    #[test]
+    fn failed_or_unbuilt_receives_never_report_ready_or_installed() {
+        let failed = receive_outcome(
+            ReceiveKind::Install,
+            "failed",
+            Some("Provisioning profile is missing"),
+        );
+        assert!(failed.contains("Provisioning profile is missing"));
+        assert!(!failed.contains("Ready for"));
+        assert!(!failed.contains("Installed on"));
+        assert!(
+            receive_outcome(ReceiveKind::Install, "verified_source", None)
+                .contains("not been built")
+        );
+        assert!(
+            receive_outcome(ReceiveKind::Install, "ready_for_iphone", None).contains("saved build")
+        );
+    }
+
+    #[test]
+    fn share_link_requires_completion_of_this_exact_publication() {
+        let url = format!("https://tohseno.com/s/{}", "11".repeat(32));
+        let release = format!("0x{}", "22".repeat(32));
+        let completed = json!({
+            "schema": "tohseno.publication-completed/1", "job_id": "publication_fixture",
+            "public_url": url, "release_digest": release,
+        });
+        assert_eq!(
+            completed_publication_url(&completed, "publication_fixture", &url, Some(&release))
+                .unwrap(),
+            url
+        );
+        assert!(
+            completed_publication_url(&completed, "publication_other", &url, Some(&release))
+                .is_err()
+        );
+        assert!(completed_publication_url(&completed, "publication_fixture", &url, None).is_err());
+        assert!(completed_publication_url(
+            &completed,
+            "publication_fixture",
+            "https://tohseno.com/other",
+            Some(&release)
+        )
+        .is_err());
+        assert!(completed_publication_url(
+            &completed,
+            "publication_fixture",
+            &url,
+            Some(&format!("0x{}", "33".repeat(32)))
+        )
+        .is_err());
+        assert!(completed_publication_url(
+            &json!({"status": "waiting_for_companion"}),
+            "publication_fixture",
+            &url,
+            Some(&release)
+        )
+        .is_err());
+    }
+
     #[test]
     fn public_screenshot_preparation_binds_type_order_and_unique_bytes() {
         let temporary = tempfile::tempdir().unwrap();
@@ -2896,17 +3249,23 @@ mod claim_edition_tests {
 
     #[test]
     fn init_requires_the_fully_verified_companion_state() {
-        assert!(require_connected_companion(&json!({
-            "step": "first_shot",
-            "instruction": "Your iPhone and this Mac are connected."
-        }))
+        assert!(require_connected_companion(
+            &json!({
+                "step": "first_shot",
+                "instruction": "Your iPhone and this Mac are connected."
+            }),
+            "tohseno init"
+        )
         .is_ok());
 
-        let error = require_connected_companion(&json!({
-            "step": "install_companion",
-            "instruction": "Install Tohseno Companion on your iPhone.",
-            "detail": "The exact bundle was absent from this iPhone's installed-app list."
-        }))
+        let error = require_connected_companion(
+            &json!({
+                "step": "install_companion",
+                "instruction": "Install Tohseno Companion on your iPhone.",
+                "detail": "The exact bundle was absent from this iPhone's installed-app list."
+            }),
+            "tohseno init",
+        )
         .unwrap_err()
         .to_string();
         assert!(error.contains("installed-app list"));

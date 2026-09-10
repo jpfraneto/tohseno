@@ -1,8 +1,33 @@
 # State of this repository
 
-Written 2026-07-30, amended through 2026-09-09. This is the plain-language
+Written 2026-07-30, amended through 2026-09-10. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
+
+## Developer handoff simplification
+
+Current source accepts `tohseno deploy [path] [--scheme name]` directly from an
+existing Xcode app. It uses the existing adoption path when needed and never
+substitutes an unrelated saved project. Ambiguous containers/schemes still
+require a choice. Interactive deployment waits for Companion approval and the
+verified canonical share link; repeating the command resumes a pending
+publication of the already prepared source. JSON and `--no-wait` preserve the
+background-command behavior. `init` remains available for private adoption.
+
+Adoption no longer requires choosing a coding agent. Existing records retain
+their agent selection; new records can omit it, and an AI evolution resolves
+the agent when requested. Network receive now gives Xcode the existing bounded
+long-operation timeout with progress, reports build failures truthfully, and
+permits re-verifying the same imported release without inventing a child Shot
+or treating the new verification time as a different release.
+
+Targeted CLI checks and real unsigned Xcode fixture adoption/retry passed in
+an isolated source directory and service store. These changes are not yet in
+the public download. No new publication, Claim, or physical installation is
+claimed. The remaining real Anky handoff must exercise its declared Mac-review
+requirements (scripts, packages, extensions, App Groups, and iCloud), local
+signing and intended-device installation. The paid upload/Update path below
+also remains unfinished. Publication, Claim and signing authority are unchanged.
 
 ## Menlo rebrand and upload subsidy
 
