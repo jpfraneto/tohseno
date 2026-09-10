@@ -85,3 +85,19 @@ funding, displaying its real address with Copy in the native apps, responsive
 browser acceptance (no browser connected), and physical native acceptance.
 Do not treat the published visual candidate or the subsidy cap as completion
 of the full paid-upload request.
+
+## Public documentation follow-up
+
+Commit `f72986f` updates the standalone docs to Menlo: product branding and
+palette, distribution-first introduction, actual CLI/setup instructions,
+current candidate and live service status, and the explicit distinction
+between the deployed subsidy cap and unfinished paid-wallet UI. It also
+updates README and the leading STATE snapshot; frozen protocol files and
+technical identifiers are unchanged.
+
+Astro check reported zero errors or warnings. Build and the verifier passed
+for all 40 guide pages, internal links, Pagefind, sitemap and AI-readable feeds.
+Cloudflare Pages production deployment `8a205d2f` completed for `tohseno-docs`.
+Fresh requests to `docs.tohseno.com` verified the Menlo homepage, current-status
+page, setup instructions and `llms.txt`. This is live response evidence, not a
+claim of browser screenshot or physical-device acceptance.
