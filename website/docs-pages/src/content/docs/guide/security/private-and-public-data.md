@@ -30,7 +30,7 @@ migration evidence do not move to R2.
 
 ## A public Claim contains
 
-Claim deliberately exposes the relationship between one Tohseno account and one Shot at an exact release/checkpoint, plus a canonical Claim-mark commitment, per-Shot claim number and global non-transferable token ID.
+Claim deliberately exposes the relationship between one Menlo account and one Shot at an exact release/checkpoint, plus a canonical Claim-mark commitment, per-Shot claim number and global non-transferable token ID.
 
 It does not publish the physical phone, Mac, source path, Apple identity, install fact, private prompt, device name, raw gesture points, timing, pressure, motion, or behavioral inference. Public profile pages do not automatically aggregate every Claim even though canonical receipts are directly queryable.
 

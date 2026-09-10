@@ -1,6 +1,6 @@
 ---
 title: Release and activation
-description: The distinct ceremonies for a Mac artifact, public website pin, contract generation, Registry activation, and Claims activation.
+description: The integrity requirements for a public artifact and the separate authority behind network activation.
 ---
 
 Source completeness is not release evidence.
@@ -9,7 +9,7 @@ Source completeness is not release evidence.
 
 A distributable candidate requires:
 
-1. exact clean source commit and successful required verification matrix;
+1. exact source commit and verification appropriate to the changed surface and release requirements;
 2. universal application/factory payload assembled from that source;
 3. exact Developer ID signature and hardened-runtime verification;
 4. Apple notarization accepted and ticket stapled;
@@ -31,7 +31,7 @@ Committed activation records are immutable. A defect requires a successor genera
 
 `TohsenoClaimsV1` is additive and separately activated. Its activation binds its exact chain address, runtime hash, expected active ShotRegistry, source/generation facts and deployment evidence. Activation is necessary but not sufficient for public Claims.
 
-Claims remain dark until constrained production writes, released matching clients, website/read models, canonical indexing, and owner-attended two-identity physical acceptance all agree. A deployed contract, signed activation, local test, simulator gesture, pending transaction, or database row cannot substitute for those facts.
+Service availability must be read from the current deployment, not inferred from this procedural guide. The [current status](/guide/reference/current-status/) page records the enabled production services and the still-unobserved two-person physical path. Changes must preserve constrained writes, exact activation/runtime checks, and the separate human acceptance requirements. A deployed contract, signed activation, local test, simulator gesture, pending transaction, or database row cannot substitute for those facts.
 
 ## Repository guard
 

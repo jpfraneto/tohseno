@@ -1,9 +1,9 @@
 ---
-title: Tohseno for Mac
+title: Menlo for Mac
 description: The native product surface over the one persistent local factory.
 ---
 
-`Tohseno.app` is the primary consumer surface. It is a native SwiftUI application over the one existing Rust service and factory—not a second implementation of the build system.
+Menlo for Mac is the primary consumer surface; the bundle retains the technical filename `Tohseno.app`. The interface uses the Menlo paper, ink, serif wordmark, and forest-green identity. It is a native SwiftUI application over the one existing Rust service and factory—not a second implementation of the build system.
 
 ## The Living Workshop
 

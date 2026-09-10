@@ -22,9 +22,15 @@ Zero supply means unlimited; zero closing time means never. The edition cannot b
 
 Every later accepted public release is an **Update** and emits `shot.updated`. It advances the public checkpoint but does not create another Ship or edition. The same developer command can end with `Shipped.` for the first release and `Updated.` later.
 
+## Upload funding
+
+Menlo sponsors one upload per Builder. The same publication job can retry using its reservation; a new upload, including an Update, requires ETH funding. Existing catalog uploads count toward the allowance. Paid-wallet setup and the address/Copy interface are still unavailable, so later uploads currently stop before Menlo spends additional Registry gas.
+
+This is an upload subsidy limit, not a Claim price or a change to the immutable Claim Edition. See [current status](/guide/reference/current-status/) for availability.
+
 ## Claim is one exact encounter
 
-A Claim says one Tohseno smart-account identity encountered one Shot at an exact release and public checkpoint. It includes a Claim-mark commitment, is gas-sponsored through a constrained relayer, and—only after canonical execution—produces a non-transferable `TohsenoClaimsV1` ERC-721 receipt. One account can Claim a Shot once.
+A Claim says one Menlo smart-account identity encountered one Shot at an exact release and public checkpoint. It includes a Claim-mark commitment, is gas-sponsored through a constrained relayer, and—only after canonical execution—produces a non-transferable `TohsenoClaimsV1` ERC-721 receipt. One account can Claim a Shot once.
 
 A Claim is not a purchase, license, unique-human proof, transferable asset, Shot ownership, Builder authority, or Apple installation evidence.
 

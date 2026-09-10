@@ -3,7 +3,7 @@ title: Apple build and delivery
 description: Simulator probes, physical builds, code signing, CoreDevice selection, installation, and final verification.
 ---
 
-Apple's security boundary remains intact. Tohseno automates around it; it does not remove it.
+Apple's security boundary remains intact. Menlo automates around it; it does not remove it.
 
 ## Adoption probe
 
@@ -11,7 +11,7 @@ An adopted project first receives a real unsigned Simulator build for the select
 
 ## Physical candidate
 
-After source work succeeds, Tohseno runs a real signed `iphoneos` `xcodebuild`, locates the resulting `.app`, and verifies the code signature with `codesign`. Build and signing failures have separate recorded categories.
+After source work succeeds, Menlo runs a real signed `iphoneos` `xcodebuild`, locates the resulting `.app`, and verifies the code signature with `codesign`. Build and signing failures have separate recorded categories.
 
 For generated Shots, deterministic gates also cover the source-tree and Fascia commitments, required target membership, declared capabilities, bundle identity, build number, dependencies, storage/network declarations, and embedded provenance.
 
@@ -31,7 +31,7 @@ These are Apple-controlled actions. Apple credentials are entered only in Xcode.
 
 ## Installation truth
 
-Tohseno invokes:
+Menlo invokes:
 
 ```text
 xcrun devicectl device install app …
@@ -47,6 +47,6 @@ The exact bundle must appear in the intended device inventory before status is *
 
 ## Recipient builds from the network
 
-A recipient independently verifies the public release, safely extracts source, and builds using their own Xcode development team. Tohseno may derive a stable recipient-local bundle namespace through build-setting overrides when the original identifier cannot be registered; it does not silently rewrite downloaded source. Unsupported capabilities fail with an exact reason.
+A recipient independently verifies the public release, safely extracts source, and builds using their own Xcode development team. Menlo may derive a stable recipient-local bundle namespace through build-setting overrides when the original identifier cannot be registered; it does not silently rewrite downloaded source. Unsupported capabilities fail with an exact reason.
 
 Provisioning expiration remains visible. Refresh rebuilds and signs the same verified release with no AI call and no new Registry checkpoint.

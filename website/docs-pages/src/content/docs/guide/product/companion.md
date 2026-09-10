@@ -1,7 +1,9 @@
 ---
-title: Tohseno Companion
+title: Menlo Companion
 description: The iPhone product, private remote control, and holder of human authorization.
 ---
+
+Menlo Companion uses the same paper, ink, and green identity as the Mac. Its bundle identifier and private pairing identity are unchanged. The new Mac candidate includes its source; a distributed payload does not prove it has been installed on a particular phone.
 
 Companion presents its two roles as the pocket side of the same Living
 Workshop. The Mac factory is visibly remote, this iPhone is the keeper, app

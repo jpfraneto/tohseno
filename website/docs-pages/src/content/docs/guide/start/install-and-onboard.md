@@ -1,40 +1,52 @@
 ---
-title: Install and onboard
-description: Install the verified Mac release, prepare Xcode and the phone, then pair Companion.
+title: Set up and share an app
+description: Install the existing Tohseno tools, pair Menlo Companion, and publish an exact iOS source release.
 ---
 
-## 1. Use the published Mac download
+## 1. Start on your Mac
 
-Open [tohseno.com](https://tohseno.com) on the Mac. Use the download only when the site presents an activated release or explicitly labeled release candidate. The site is required to point to one immutable HTTPS DMG and exact SHA-256 digest.
+You need macOS 14 or later, full Xcode, an Apple signing identity, and an intended iPhone. For an existing Xcode project, install the CLI:
 
-Open the DMG, drag **Tohseno** to **Applications**, and open it from there. Do not disable Gatekeeper or substitute an unverified copy. If the route is unavailable, the relevant release gate is closed.
+```sh
+npm i -g tohseno
+cd ExistingApp
+tohseno init
+```
 
-## 2. Let the readiness screen tell the truth
+Menlo is the product name; the package and commands still use `tohseno`. The install has no postinstall download or GUI launch. `init` checks the intended iPhone for the real Companion and its private pairing before adopting the project. It does not restructure your repository.
 
-Tohseno checks the concrete prerequisites and shows the smallest next action:
+## 2. Install and pair Companion
 
-- finish Xcode installation or accept its license;
-- add an Apple Account inside Xcode;
-- install or authenticate a supported coding agent;
-- connect and unlock exactly one iPhone;
-- tap **Trust This Computer** on the phone;
-- enable **Settings → Privacy & Security → Developer Mode**;
-- disconnect extra iPhones when selection is ambiguous.
+If Companion is missing, follow the CLI's instruction:
 
-It must not paint a ready state over a missing tool, missing identity, locked phone, or multiple-device ambiguity.
+```sh
+tohseno companion install
+```
 
-## 3. Install the real Companion
+The Mac builds and signs the actual Companion for your intended iPhone. Keep it unlocked, complete Trust and Developer Mode in Apple's UI, and use a cable when Apple requires initial pairing. Later cable and supported local-network reachability are observed transports to the same intended phone; another visible phone is not substituted.
 
-The primary onboarding path builds, signs, installs, and launches the actual Tohseno Companion on the connected iPhone. It does not substitute the disposable compatibility readiness app. If Apple needs a manual account or trust action, complete it in Apple's UI and return.
+Scan the Mac's one-use pairing QR in Companion. Pairing completes only after the Mac accepts the phone's proof and publishes an authenticated workspace snapshot. A QR scan or reachable relay alone is not pairing. Apple credentials belong in Xcode; Menlo does not collect your Apple password.
 
-## 4. Pair
+## 3. Publish your source
 
-The Mac displays a one-use QR invitation valid for two minutes. In Companion, scan it. The phone proves possession of its signing and agreement keys; the Mac grants scoped authority and publishes an authenticated encrypted workspace snapshot. Pairing is complete only after both sides have that proof.
+From the adopted project:
 
-Phone keys live in iOS Keychain. The Mac workspace identity lives in macOS Keychain. The invitation, a QR scan, or relay reachability alone is not pairing.
+```sh
+tohseno deploy
+```
 
-## 5. Confirm presence
+Review and approve the exact public source on Companion. First publication is **Ship**; later public releases are **Updates**. The returned canonical app link is the distribution destination. An optional `--app-slug your-app` does not bypass the separate approval process for a short global alias.
 
-Tohseno remains available as a normal Mac app and a menu-bar item. Settings can list, rename, revoke, or begin pairing additional personal Companion devices.
+Menlo sponsors one upload per Builder. Later uploads require ETH funding, but the paid-wallet setup is not ready yet; those uploads currently stop with a funding-required message. See [current status](/guide/reference/current-status/).
 
-Next: [create a new app](/guide/start/create-an-app/) or [adopt an existing app](/guide/start/adopt-an-app/).
+## Prefer the Mac application?
+
+[Download Menlo for Mac](https://tohseno.com/download/macos). The production door serves an explicitly labeled release candidate pinned to an immutable HTTPS artifact and exact SHA-256. Open the DMG, drag the included app into **Applications**, then open it through Finder. The bundle retains its technical `Tohseno.app` filename while the interface is Menlo.
+
+The native readiness screen walks through Xcode, Apple signing, the intended iPhone, Companion installation, and pairing. Complete any Apple-controlled action in Apple's own UI. Do not disable Gatekeeper or substitute an unverified artifact.
+
+## Receive an app
+
+Explore [the Registry](https://tohseno.com/registry) and open an exact release in Companion. A canonical Claim can queue that release for your Mac; installation remains separate. Your Mac verifies the exact source, builds with Xcode, signs with your own Apple identity, and installs on your intended phone.
+
+Next: [Ship, Claim, and Update](/guide/product/ship-claim-update/) or [the Mac workshop](/guide/product/mac-app/).

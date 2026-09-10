@@ -5,10 +5,11 @@ export default defineConfig({
   site: "https://docs.tohseno.com",
   integrations: [
     starlight({
-      title: "Tohseno",
+      title: "Menlo",
       description:
-        "Learn how Tohseno connects an iPhone app to its source, history, builder, and exact path back to the phone.",
-      favicon: "/favicon.png",
+        "Permissionless iOS app distribution: publish source, share a link, and build and sign on your own Mac.",
+      favicon: "/menlo-mark.svg",
+      logo: { src: "./public/menlo-mark.svg", alt: "", replacesTitle: false },
       customCss: ["./src/styles/starlight.css"],
       components: {
         PageTitle: "./src/components/PageTitle.astro",
@@ -20,7 +21,7 @@ export default defineConfig({
       social: [
         {
           icon: "github",
-          label: "Tohseno on GitHub",
+          label: "Menlo on GitHub",
           href: "https://github.com/jpfraneto/tohseno",
         },
       ],
@@ -31,19 +32,19 @@ export default defineConfig({
             rel: "alternate",
             type: "text/plain",
             href: "/llms.txt",
-            title: "Tohseno documentation for AI agents",
+            title: "Menlo documentation for AI agents",
           },
         },
         {
           tag: "meta",
           attrs: {
             property: "og:image",
-            content: "https://tohseno.com/og.png",
+            content: "https://tohseno.com/menlo/hero-sharing.png?v=1",
           },
         },
         {
           tag: "meta",
-          attrs: { name: "theme-color", content: "#f2efe7" },
+          attrs: { name: "theme-color", content: "#f6f3ea" },
         },
       ],
       lastUpdated: true,
@@ -58,7 +59,7 @@ export default defineConfig({
           ],
         },
         {
-          label: "Make & evolve",
+          label: "Build & evolve",
           items: [
             "guide/start/create-an-app",
             "guide/start/adopt-an-app",

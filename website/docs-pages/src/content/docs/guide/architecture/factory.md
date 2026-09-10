@@ -43,4 +43,4 @@ On startup:
 - a verified candidate waiting for a phone resumes deterministic delivery;
 - admitted pre-running commands replay from durable exact inputs.
 
-If a whole-Mac restart leaves an in-flight harness with no live runner, the execution fails closed. Tohseno does not rerun intelligence over unknown partial source mutation. The owner can inspect and submit a new explicit request.
+If a whole-Mac restart leaves an in-flight harness with no live runner, the execution fails closed. Menlo does not rerun intelligence over unknown partial source mutation. The owner can inspect and submit a new explicit request.

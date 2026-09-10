@@ -4,6 +4,32 @@ Written 2026-07-30, amended through 2026-09-09. This is the plain-language
 answer to “what is going on here” for someone returning after time away. When
 something below stops being true, update this file in the same change.
 
+## Menlo rebrand and upload subsidy
+
+Menlo is the current product name. The production homepage focuses on
+permissionless iOS source distribution. The Mac and Companion appearance use
+the supplied Menlo identity; CLI names, protocol bytes, contracts, bundle
+identifiers, private pairing and Apple signing authority retain their identities.
+
+The production Mac download is `1.2.1-rc.1`, build `10008`, from native source
+`9bd350d221b9cb04e632d9d40045d83adc87a3de`. App and DMG signatures, notarization,
+stapling, Gatekeeper and the public download-byte match were verified. It is
+still a release candidate; clean-Mac and physical-iPhone acceptance of that
+candidate remain unobserved. This supersedes older current-download references
+below; they remain records of their earlier release work.
+
+The constrained Registry relayer now reserves one sponsored upload per Builder.
+Retries of the same publication job share that reservation; later uploads,
+including Updates, require ETH funding. The paid-wallet mechanism and native
+funding-address Copy interface are unfinished, so further uploads currently
+stop before additional sponsored Registry gas is spent. BuilderAccount is an
+identity/signature contract, not a receivable or spendable ETH wallet.
+
+The production Registry and Claims status endpoints report their relayers
+available/enabled. This does not establish the still-unobserved second-person
+Claim, build, sign, install and Update path. Exact rollout evidence is in
+[`MENLO_REBRAND.md`](MENLO_REBRAND.md).
+
 ## Agent skill
 
 `skills/tohseno` now provides portable agent instructions for working from an

@@ -45,9 +45,9 @@ const docs = await Promise.all(
 );
 
 const llmsIndex = [
-  "# Tohseno documentation",
+  "# Menlo documentation",
   "",
-  "> Tohseno connects a native iPhone app to its source, accepted history, and next change.",
+  "> Menlo is a permissionless network for sharing iOS app source, building on your own Mac, and signing for your iPhone. The CLI and protocol still use Tohseno.",
   "",
   "This index is generated from the same public Markdown used by the human-readable site.",
   "For a single model-ready corpus, use https://docs.tohseno.com/llms-full.txt.",

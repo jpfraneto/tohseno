@@ -3,7 +3,7 @@ title: Architecture overview
 description: Components, responsibilities, and the boundaries between private execution and public witnessing.
 ---
 
-Tohseno is one product made from several narrow components. Each owns one kind of truth.
+Menlo is one product made from several narrow components. Each owns one kind of truth.
 
 ## Runtime components
 
@@ -13,7 +13,7 @@ Tohseno is one product made from several narrow components. Each owns one kind o
 | Local Workspace Service | Authenticate local clients, own journals, recover and reconcile work | Bind publicly or treat UI memory as authority |
 | Application service | Admission, idempotency, factory lease, detached execution | Invent protocol history |
 | Engine | Source lifecycle, bounded harness, deterministic gates, accepted history | Treat an agent result as accepted by itself |
-| Tohseno Companion | Private remote requests and human authorization | Hand DeviceKey secrets to Mac/server |
+| Menlo Companion | Private remote requests and human authorization | Hand DeviceKey secrets to Mac/server |
 | Companion relay | Durable opaque mailbox transport | Decrypt or authorize commands |
 | Registry service | Signed catalog, indexes, constrained transaction jobs | Become chain authority or a generic wallet |
 | Protocol crate | Exact bytes, records, digests, signatures, reducers, conformance types | Depend on UI, Apple, RPC, harness, or global filesystem policy |
@@ -43,4 +43,4 @@ request persisted
   → accepted history and durable receipts
 ```
 
-Every arrow is a separate failure and recovery boundary. This is why Tohseno can say where work stopped without rewriting the meaning of success.
+Every arrow is a separate failure and recovery boundary. This is why Menlo can say where work stopped without rewriting the meaning of success.

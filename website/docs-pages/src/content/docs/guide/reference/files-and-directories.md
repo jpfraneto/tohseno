@@ -12,7 +12,7 @@ description: A reference for owner-visible apps, app-local records, service stat
 | `<app>/.tohseno/TASK.md` | Private exact task packet for one harness execution |
 | `<app>/.tohseno/executions/<execution-id>/` | Prepared identity, events, logs, completion and private receipt |
 | `~/Developer/Tohseno/` | Default visible source for verified network imports/forks |
-| existing project path | Adopted source; Tohseno does not add or move repository files |
+| existing project path | Adopted source; Menlo does not add or move repository files |
 
 `.tohseno/` is never blanket-ignored. Exact private and transient children are ignored explicitly. Source-tree commitments exclude the directory under their separate hashing law.
 

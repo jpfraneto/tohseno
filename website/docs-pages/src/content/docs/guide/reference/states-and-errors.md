@@ -47,3 +47,7 @@ Private commands move through durable received, validated, accepted/prepared, ru
 - **Operations:** relay capacity/retention, durable-store version/corruption, provider reservation, relayer disabled.
 
 Errors preserve the exact last durable fact and should name one smallest next action without exposing private content.
+
+## Upload funding required
+
+After one sponsored upload, another upload stops before additional sponsored Registry gas is spent. The current message explains that ETH funding is required and funding setup is unavailable. Paid-wallet setup and its real address/Copy interface are unfinished; sending ETH to a BuilderAccount identity does not resolve this condition. See [current status](/guide/reference/current-status/).

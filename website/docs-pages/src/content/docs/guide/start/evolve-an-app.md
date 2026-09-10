@@ -15,7 +15,7 @@ The signed Companion payload binds the stable project or Shot identity, current 
 
 ## Exact-base behavior
 
-The base is selected by the product when you open or submit the composer. You do not choose a Version number. If another accepted change advances the app before admission, the request is rejected as stale. Tohseno never silently rebases it onto different source.
+The base is selected by the product when you open or submit the composer. You do not choose a Version number. If another accepted change advances the app before admission, the request is rejected as stale. Menlo never silently rebases it onto different source.
 
 ## Bounded implementation
 
@@ -25,7 +25,7 @@ The transition permits one implementation invocation and at most one targeted re
 
 ## Acceptance
 
-After the harness exits successfully, Tohseno still requires a real Xcode build and signature verification. For a physical delivery, it installs through `xcrun devicectl`, then queries the phone's application inventory for the exact bundle identifier. Only that final observation is **Installed**.
+After the harness exits successfully, Menlo still requires a real Xcode build and signature verification. For a physical delivery, it installs through `xcrun devicectl`, then queries the phone's application inventory for the exact bundle identifier. Only that final observation is **Installed**.
 
 If the verified artifact is waiting for an unlocked, trusted, unique phone, status is **Ready to install**. Reconnecting the phone resumes from the artifact instead of rewriting the app.
 

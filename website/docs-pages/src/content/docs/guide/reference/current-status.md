@@ -1,58 +1,53 @@
 ---
 title: Current status
-description: A dated separation of implemented source, active public evidence, release-candidate availability, disabled writes, and remaining physical gates.
+description: What is deployed as Menlo, what the upload subsidy covers, and what remains unfinished.
 ---
 
-> Snapshot: 2026-08-31. `docs/STATE.md` and `release/V1_2_0_READINESS.json` are the live repository authorities and may advance after this page.
+> Checked September 9, 2026 against production responses and the recorded release evidence. Live availability may change; use the linked status endpoints for the current response.
 
-## Product direction
+## Menlo is deployed
 
-The current source line is claimable person-to-person native software: adopt or create on the Mac, evolve through the paired Companion, deliberately Ship inspectable source, witness it through active generation 0.8, optionally Claim one exact encounter through the additive Claims contract, and build/sign/install locally for the recipient.
+The [public website](https://tohseno.com) uses the Menlo identity and explains permissionless iOS source distribution. It displays real verified Registry entries. The Mac and Companion have the new paper, ink, and forest-green appearance; the public Mac candidate includes the updated Companion source. CLI commands, bundle identifiers, protocol names, and existing domains retain Tohseno identifiers.
 
-## Native release
+## Mac download
 
-`v1.2.0-rc.1` is an explicitly labeled release candidate built from clean source commit `122f121732497e7a2f60e7daeb1b57882ebf9964`. Its immutable DMG was Developer ID signed, Apple-notarized, stapled, mounted and Gatekeeper-verified, published as a GitHub prerelease, and activated on the website candidate channel.
+[Download Menlo for Mac](https://tohseno.com/download/macos). Production serves **1.2.1-rc.1**, build **10008**, on the explicitly labeled release-candidate channel.
 
-DMG SHA-256:
+The universal app was built from native source commit `9bd350d221b9cb04e632d9d40045d83adc87a3de`. App and DMG were Developer ID signed, notarized, stapled, and accepted by Gatekeeper. The public website download matched the published artifact byte-for-byte:
 
 ```text
-7b98f99ddb004de7c8e031f7eb44216f0470f56a8333b63b6913d4c66154b212
+94a2a9a6ac0d6765a8127a169a1c7037df4822a55a310bc6fdbf2d0ad5002dd7
 ```
 
-The **stable 1.2.0 download is not activated**. Clean-Mac product acceptance and physical iPhone acceptance for RC1 are not complete, so stable promotion is false.
+[Live download metadata](https://tohseno.com/api/distribution/v1/macos) · [Release and artifact](https://github.com/jpfraneto/tohseno/releases/tag/v1.2.1-rc.1)
 
-## Registry generation
+This is not a stable promotion or a claim of clean-Mac or physical-iPhone acceptance of the new candidate.
 
-Generation 0.8.0 is the client-trusted active contract generation under a pinned 2-of-3 release-authority policy and signed activation. Registry reads in the dark production deployment are healthy.
+## Public network
 
-The production Registry relayer and production public Registry channel are disabled. Source implementation and active generation do not by themselves make public Ship/Update writes available.
+Production [Registry status](https://tohseno.com/api/registry/v1/status) reports generation **0.8.0**, chain ID **4663**, and the constrained Registry relayer available. One real public app card was observed during the Menlo deployment check.
 
-## Claims
+Production [Claims status](https://tohseno.com/api/registry/v1/claims/status) reports activation and contract code verified, indexing enabled, and its relayer enabled and funded. This replaces the old August snapshot that reported disabled writes. Those service responses do not prove a recipient's physical Claim, local build, or installation.
 
-The additive `TohsenoClaimsV1` contract is deployed at:
+Claim semantics and the deployed `TohsenoClaimsV1` address remain unchanged:
 
 ```text
 0x5012703d48d99224ac0035d58bc373de9e8b1934
 ```
 
-Its signed activation and runtime/Registry binding verify in the dark deployment. The Claims index is enabled and has zero records in the captured readiness evidence.
+## Upload subsidy and ETH funding
 
-**Production Claims writes and the Claims relayer are disabled.** The product must not advertise a live Claim flow or report a simulated/pending result as Claimed.
+**One upload per Builder is sponsored.** The reservation is durable and exclusive; concurrent publication jobs cannot each receive a free upload. Retries of the same job reuse its reservation. Existing catalog uploads count toward the allowance. The reservation is not an unlimited free retry across newly created jobs.
 
-## Remaining activation evidence
+Later uploads, including Updates, require ETH funding. **The paid-wallet setup and funding-address Copy interface are not implemented yet.** Those uploads currently stop before additional sponsored Registry gas is spent and report that funding setup is unavailable.
 
-Stable/public writes remain blocked until owner-attended acceptance proves the complete ordinary path:
+The BuilderAccount identity contract cannot receive or spend ETH. No funding address is advertised while a usable wallet mechanism is absent. This upload limit does not change Claim fees, Claim editions, private local creation, or local/BYO execution.
 
-- one real production Ship and immutable edition;
-- a second identity's physical Companion Claim and canonical receipt;
-- Claim while the recipient Mac is offline, then exact-release preparation;
-- recipient-local Apple signing and physical iPhone installation;
-- a later Update preserving the existing Claim and edition;
-- private Follow reconciliation;
-- live receipt/metadata website paths;
-- exactly one Ship in the public timeline;
-- clean-Mac product acceptance.
+## Remaining evidence
 
-No local test, simulator, operator row, pending transaction, deployed bytecode, or source-complete feature substitutes for that evidence.
+- Paid-wallet funding, a real address with Copy in the native apps, and a paid second upload.
+- Browser verification of the new responsive surfaces; no browser was connected during the initial rebrand checks.
+- Clean-Mac acceptance of the exact new candidate and physical Companion/iPhone acceptance.
+- A second person's complete receive, verify, build, sign, install, and subsequent Update path.
 
-[Read the exact readiness record](https://github.com/jpfraneto/tohseno/blob/main/release/V1_2_0_READINESS.json).
+Local tests and fixture renders support implementation claims; they do not substitute for those observations. See the [Menlo evidence record](https://github.com/jpfraneto/tohseno/blob/main/docs/MENLO_REBRAND.md) and [repository state](https://github.com/jpfraneto/tohseno/blob/main/docs/STATE.md).

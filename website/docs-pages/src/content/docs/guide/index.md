@@ -1,13 +1,17 @@
 ---
-title: Tohseno documentation
+title: Menlo documentation
 description: Choose the shortest path into the product, then inspect the machinery only when you need it.
 ---
 
-The documentation is arranged around the thing you are trying to do, not the shape of the repository.
+Menlo is a permissionless distribution network for iOS apps. These pages cover sharing source, receiving exact releases, and building and signing on your own Mac.
+
+The product is now Menlo; the existing `tohseno` commands, technical identifiers, and URLs retain their names.
 
 ## Choose a path
 
-- **New to Tohseno:** [what Tohseno is](/guide/start/what-is-tohseno/) → [requirements](/guide/start/requirements/) → [install and onboard](/guide/start/install-and-onboard/)
+- **Share an existing app:** [setup and publish](/guide/start/install-and-onboard/) → [Ship, Claim, and Update](/guide/product/ship-claim-update/)
+- **Receive software:** [discover apps](/guide/product/registry/) → [receive an exact release](/guide/product/ship-claim-update/)
+- **New to Menlo:** [what Menlo is](/guide/start/what-is-tohseno/) → [requirements](/guide/start/requirements/) → [install and onboard](/guide/start/install-and-onboard/)
 - **Make something small:** [create an app](/guide/start/create-an-app/)
 - **Bring an existing app:** [adopt an Xcode project](/guide/start/adopt-an-app/)
 - **Change what is already in your hand:** [evolve an app](/guide/start/evolve-an-app/)

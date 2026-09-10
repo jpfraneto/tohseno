@@ -1,42 +1,37 @@
 ---
-title: Tohseno documentation
-description: Make, install, understand, and evolve native iPhone apps without losing the thread back to their source.
+title: Menlo documentation
+description: Permissionless iOS app distribution. Publish source, share a link, and build and sign for your own iPhone.
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-Tohseno turns a plain-language intention into a native iPhone app, checks it with Apple’s tools, and keeps the app connected to the exact source that can change it again.
+Your app. In someone else’s hands. **Menlo is a permissionless distribution network for iOS apps.** Publish your source, share your app’s page, and let another person verify, build, and sign it on their Mac for their iPhone.
+
+Menlo runs on Tohseno. The tools, CLI commands, protocol identifiers, and existing URLs still use that name.
 
 ## Start where you are
 
 <CardGrid>
-  <LinkCard
-    title="I have an idea"
-    description="Install Tohseno, write one small intention, and carry the result to your iPhone."
-    href="/guide/start/install-and-onboard/"
-  />
-  <LinkCard
-    title="I have an app"
-    description="Connect an existing Xcode project without moving or rewriting its repository."
-    href="/guide/start/adopt-an-app/"
-  />
-  <LinkCard
-    title="I want to change an app"
-    description="Describe one real friction and evolve the exact accepted version."
-    href="/guide/start/evolve-an-app/"
-  />
+  <LinkCard title="Share an app you’ve built" description="Set up your Xcode project, approve its source in Companion, and share a public link." href="/guide/start/install-and-onboard/" />
+  <LinkCard title="Receive someone’s app" description="Find an exact release, receive through Companion, then build and sign on your own Mac." href="/guide/product/ship-claim-update/" />
+  <LinkCard title="Build or change an app" description="Create something small or evolve an app already connected to your workshop." href="/guide/start/evolve-an-app/" />
 </CardGrid>
 
-## The thread Tohseno keeps
+## From your repo to their iPhone
 
 ```text
-your intention → source on the Mac → Xcode checks → app on the iPhone
-       ↑                                                    │
-       └────────────────── the next honest change ──────────┘
+publish source → approve in Companion → share the app’s link
+        → recipient verifies source → Xcode build → their signature → their iPhone
 ```
 
-The characters you meet in these pages each hold one part of that story: the Mac keeps the workshop local, the coding agent writes, Xcode inspects, Companion carries your intent, and the iPhone is where the result has to become real.
+You need a Mac, Xcode, your own Apple signing identity, and an intended iPhone. Companion holds the Builder’s signing authority. Receiving a release does not skip Apple provisioning, Trust, Developer Mode, or local installation checks.
 
-If you only want to use the product, stay in **Start here** and **Make & evolve**. The deeper architecture, protocol, and operations sections are there when you need to inspect the machinery.
+## One sponsored upload
 
-[Learn what Tohseno is →](/guide/start/what-is-tohseno/)
+Menlo sponsors **one upload per Builder**. Retries of the same publication job share that reservation. Later uploads, including Updates, require ETH funding. The cap is deployed, but the paid-wallet setup and address/Copy interface are **not available yet**; later uploads currently stop with a funding-required message.
+
+[Check current availability](/guide/reference/current-status/) before publishing. [Download Menlo for Mac](https://tohseno.com/download/macos) or [explore real apps](https://tohseno.com/registry).
+
+## Keep learning
+
+Start with **Start here** and **Share** for distribution. **Build & evolve** covers the local workshop. Architecture, protocol, and operations explain the machinery and its authority boundaries.

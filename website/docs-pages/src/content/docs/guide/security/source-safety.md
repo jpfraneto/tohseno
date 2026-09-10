@@ -1,6 +1,6 @@
 ---
 title: Source and build safety
-description: How Tohseno snapshots, scans, classifies, extracts, and builds source from another person.
+description: How Menlo snapshots, scans, classifies, extracts, and builds source from another person.
 ---
 
 Public source is executable input. Inspectable does not mean safe.
@@ -16,7 +16,7 @@ Rejected inputs include:
 - normalized or Apple-case collisions;
 - oversized files, path counts or total trees;
 - VCS internals, build output, DerivedData, caches and user data;
-- environment files, logs and private Tohseno state;
+- environment files, logs and private Menlo state;
 - Apple signing/provisioning material and known secret paths;
 - high-confidence detected secrets.
 

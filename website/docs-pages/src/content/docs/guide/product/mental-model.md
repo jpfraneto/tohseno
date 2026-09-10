@@ -1,6 +1,6 @@
 ---
 title: Product mental model
-description: The few product concepts a Tohseno user needs, and the technical concepts intentionally kept behind them.
+description: The few product concepts a Menlo user needs, and the technical concepts intentionally kept behind them.
 ---
 
 The normal product is deliberately smaller than the machine underneath it.
@@ -20,7 +20,7 @@ The normal product is deliberately smaller than the machine underneath it.
 | Installed | The exact bundle was observed in the physical phone's inventory after installation. |
 | Ship | Make the first public release of one Shot. This happens once. |
 | Update | Make a later public release of the same Shot. |
-| Claim | Publicly record one Tohseno identity's encounter with one exact Shot release. |
+| Claim | Publicly record one Menlo identity's encounter with one exact Shot release. |
 
 The core abstraction is **App → Intent → App on your iPhone**. The Living
 Workshop makes that relationship spatial without changing it. The person writes
@@ -29,7 +29,7 @@ work.
 
 ## The machinery behind the surface
 
-Internally, Tohseno uses Commands, Expressions, Evolutions, Versions, Shots, Genomes, DeviceKeys, BuilderAccounts, checkpoints, receipts, and conformance reports. Those are necessary for durability and verification. They do not belong in the normal creation screen.
+Internally, Menlo uses Commands, Expressions, Evolutions, Versions, Shots, Genomes, DeviceKeys, BuilderAccounts, checkpoints, receipts, and conformance reports. Those are necessary for durability and verification. They do not belong in the normal creation screen.
 
 The old Studio execution dashboard, phase renderer, Feedback and Marketing forms, and manual exact-Version controls were deleted intentionally. Details and diagnostics may expose bounded technical facts, but the normal path does not ask a person to operate the engine.
 

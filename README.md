@@ -1,61 +1,37 @@
-# Tohseno
+# Menlo
 
-Tohseno is a person-to-person native software network. A builder publishes an
-exact, signed, buildable iPhone project; another person's Mac verifies it,
-builds it with Xcode, signs it with that recipient's Apple identity, and
-installs it on their iPhone.
+Menlo is a permissionless distribution network for iOS apps. A builder publishes
+exact source and shares an app link; another person's Mac verifies the release,
+builds it with Xcode, signs with that recipient's Apple identity, and installs
+it on their intended iPhone. The direct path does not require App Store
+submission, but it preserves Apple's provisioning, Trust, Developer Mode and
+operating-system security requirements.
 
-This skips App Store submission and review for the direct person-to-person
-path. It does not skip Xcode, code signing, provisioning, Trust, Developer
-Mode, or Apple's operating-system security boundary.
+Menlo runs on Tohseno. The `tohseno` CLI, package names, bundle identifiers,
+protocol encodings and existing domains retain their names. Companion holds
+the non-exportable Builder DeviceKey and approves public actions. The Mac is
+the one local factory; generation 0.8 remains the active public Registry witness.
 
-The Mac is the factory. The iPhone Companion holds the non-exportable Builder
-DeviceKey and approves public actions. The generation-0.8 Robinhood Chain
-ShotRegistry plus the signed off-chain catalog are the shared public witness.
-The generated-app factory and durable iPhone-to-Mac evolution path remain part
-of the same product.
+The production website and Mac/Companion appearance use Menlo. The current
+[Mac download](https://tohseno.com/download/macos) is **1.2.1-rc.1**, build
+**10008**, from native source `9bd350d221b9cb04e632d9d40045d83adc87a3de`.
+Its app and DMG were signed, notarized, stapled and Gatekeeper-verified; bytes
+downloaded through the production route matched the immutable published digest.
+It remains a release candidate, with clean-Mac and physical-iPhone acceptance
+of this exact candidate unobserved.
 
-This direction is governed by
-[`ADR 0041`](docs/adr/0041-workshop-runtime.md),
-[`ADR 0040`](docs/adr/0040-public-app-media-and-network-home.md),
-[`ADR 0039`](docs/adr/0039-one-shot-living-workshop.md),
-[`ADR 0038`](docs/adr/0038-npm-cli-init-first.md),
-[`ADR 0035`](docs/adr/0035-claiming-software.md) and
-[`ADR 0034`](docs/adr/0034-person-to-person-native-software.md), building on
-[`ADR 0033`](docs/adr/0033-living-project-connection.md),
-[`ADR 0025`](docs/adr/0025-native-macos-app-factory-managed-balance.md) and
-[`ADR 0032`](docs/adr/0032-native-companion-onboarding-and-product-presence.md).
-The native SwiftUI Mac application is the primary product over the same Rust factory.
-It removes npm/browser first run, successful-day qualification, and
-subscription gating of local/BYO execution. First setup installs and pairs the
-Tohseno Companion as the real iPhone readiness proof. `v1.2.0-rc.11` is the
-current signed, notarized, digest-pinned GitHub prerelease, built from exact
-commit `82aa020ceadce8f578552b0b9b647c818185944f`; its public download was
-verified byte-for-byte. The production website's visibly labeled
-release-candidate download now serves those same exact RC11 bytes. RC10 was
-rejected after real first-open use exposed a launchd startup race and invalid
-pairing-response decoding. No RC11 physical-device behavior has been
-represented as observed.
-[`docs/STATE.md`](docs/STATE.md) records the exact evidence and remaining human
-and physical boundaries.
+**One upload per Builder is sponsored.** Retries of the same publication job
+reuse its reservation. Later uploads, including Updates, require ETH funding.
+The cap is deployed; paid-wallet setup and its address/Copy interface remain
+unfinished, so subsequent uploads currently stop with a funding-required
+message. This does not impose a fee on private local/BYO execution or change
+Claim semantics. The existing BuilderAccount is not an ETH deposit wallet.
 
-The implementation and release state are described in
-[`docs/STATE.md`](docs/STATE.md) and
-[`docs/LIVING_CONNECTION.md`](docs/LIVING_CONNECTION.md).
-
-The current 1.2 source adds Claim: a Companion-authorized, public,
-non-transferable receipt for encountering one exact Shot release. Every Shot
-ships once, later releases are Updates, and first Ship opens one immutable
-Claim Edition. Registry is a canonical Discover timeline with private local
-Following and a durable high-signal Updates inbox. Claim then durably asks the
-recipient Mac to prepare that exact release; installation remains separate,
-private, recipient-signed physical evidence.
-
-Claims is active only under its exact threshold-signed activation and live
-Registry/runtime checks. One real Builder Ship and immutable Claim Edition are
-recorded; the second person's canonical Claim, recipient-local build/signing,
-and intended-iPhone installation remain unobserved and are not inferred from
-source or tests.
+Start with the [Menlo documentation](https://docs.tohseno.com/). Exact rollout
+evidence is in [`docs/MENLO_REBRAND.md`](docs/MENLO_REBRAND.md), the current
+snapshot is [`docs/STATE.md`](docs/STATE.md), and the repository authority
+hierarchy is [`AGENTS.md`](AGENTS.md). Frozen protocol bytes remain governed by
+`protocol/`; accepted architectural decisions remain in `docs/adr/`.
 
 ## What we care about
 
@@ -127,11 +103,11 @@ subscription, trial, qualification, or balance gate. Tohseno-hosted
 intelligence is coming soon; the incomplete managed-credits purchase surface is
 not presented as a usable product.
 
-The signed, notarized, origin-verified `v1.2.0-rc.11` DMG is active only on the
+The signed, notarized, origin-verified `v1.2.1-rc.1` DMG is active only on the
 public release-candidate channel for independent acceptance. Stable activation still
 requires the evidence in
 [`docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md`](docs/runbooks/NATIVE_MACOS_DISTRIBUTION.md).
-`Tohseno.app` remains the native Mac product and the normal website action
+Menlo retains the technical `Tohseno.app` bundle name, and the website action
 downloads its signed, notarized DMG directly. On a
 Mac the page labels it **Download for this Mac**; while acceptance is pending,
 its detail also says **Release candidate**. On another system it states the

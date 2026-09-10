@@ -35,7 +35,7 @@ const guides = {
     name: "Orbit",
     role: "coding-agent guide",
     image: "/crew/orbit.webp",
-    voice: "An agent can write the first pass. Tohseno's checks decide what becomes real.",
+    voice: "An agent can write the first pass. Menlo's checks decide what becomes real.",
   },
   ione: {
     name: "Ione",
@@ -81,7 +81,7 @@ function guideForPath(pathname: string): Guide {
 const { entry } = Astro.locals.starlightRoute;
 const guide = guideForPath(path);
 const title = entry.data.title;
-const description = String(entry.data.description ?? "A practical part of the Tohseno story.");
+const description = String(entry.data.description ?? "A practical part of the Menlo story.");
 ---
 
 <h1 id="_top">{title}</h1>
@@ -125,7 +125,7 @@ const description = String(entry.data.description ?? "A practical part of the To
 
       const pageText = article.innerText.replace(/\n{3,}/g, "\n\n").trim().slice(0, 14000);
       const prompt = [
-        "Answer this question using the Tohseno documentation page below.",
+        "Answer this question using the Menlo documentation page below.",
         "If the page does not support a claim, say what is missing instead of guessing.",
         "",
         `Question: ${question}`,

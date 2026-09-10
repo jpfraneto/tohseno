@@ -3,6 +3,9 @@ title: Source of truth
 description: The authority hierarchy and direct repository sources behind these explanatory docs.
 ---
 
+The September 2026 product name is Menlo. Existing Tohseno protocol, CLI, bundle, and storage identifiers retain their names. The owner’s rebrand instruction changes product presentation and the upload subsidy policy; it does not rewrite frozen protocol bytes. [Current status](/guide/reference/current-status/) and the [Menlo evidence record](https://github.com/jpfraneto/tohseno/blob/main/docs/MENLO_REBRAND.md) describe that rollout.
+
+
 This site is a guide. The repository carries the authority.
 
 ## 1. Normative protocol

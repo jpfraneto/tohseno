@@ -1,15 +1,15 @@
 ---
 title: Adopt an existing app
-description: Connect a real Xcode project to Tohseno without rewriting its repository.
+description: Connect a real Xcode project to Menlo without rewriting its repository.
 ---
 
-Adoption is Tohseno's primary entry point.
+Adoption is Menlo's primary entry point.
 
 ## Choose one Xcode container
 
-Select **Adopt Existing App**, then choose an exact `.xcodeproj` or `.xcworkspace`. Tohseno lists schemes and probes application build settings with `xcodebuild`. If it cannot choose one app scheme without ambiguity, it asks you.
+Select **Adopt Existing App**, then choose an exact `.xcodeproj` or `.xcworkspace`. Menlo lists schemes and probes application build settings with `xcodebuild`. If it cannot choose one app scheme without ambiguity, it asks you.
 
-## What Tohseno records
+## What Menlo records
 
 The private adopted-project record includes:
 
@@ -18,7 +18,7 @@ The private adopted-project record includes:
 - container, source root, and scheme;
 - iOS deployment target and non-secret signing-team setting;
 - Git revision and paths already dirty at adoption;
-- bounded repository instructions such as `AGENTS.md`, `CLAUDE.md`, `MASTER_PROMPT.md`, README, and existing Tohseno metadata;
+- bounded repository instructions such as `AGENTS.md`, `CLAUDE.md`, `MASTER_PROMPT.md`, README, and existing Menlo metadata;
 - a real unsigned Simulator build result;
 - whether the exact bundle is already installed when exactly one phone is reachable.
 

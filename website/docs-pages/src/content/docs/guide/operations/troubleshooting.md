@@ -49,7 +49,7 @@ Another accepted change advanced the exact base. The refusal is correct. Reopen 
 
 ## Source is partially changed after failure
 
-For adopted repositories, Tohseno intentionally has no general rollback because pre-existing owner work may be present. Inspect the recorded baseline and changed-file observation. Decide manually what to keep. Avoid destructive Git commands.
+For adopted repositories, Menlo intentionally has no general rollback because pre-existing owner work may be present. Inspect the recorded baseline and changed-file observation. Decide manually what to keep. Avoid destructive Git commands.
 
 ## Public Install, Fork, Ship, or Claim fails
 

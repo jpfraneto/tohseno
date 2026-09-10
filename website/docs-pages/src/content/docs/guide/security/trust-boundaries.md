@@ -33,7 +33,7 @@ BuilderAccount establishes live public action authority. ShotRegistry witnesses 
 
 ## Apple
 
-Xcode, certificates, provisioning, Trust, Developer Mode, CoreDevice and iOS installation remain an external security boundary. A Tohseno Claim or Registry receipt cannot replace them.
+Xcode, certificates, provisioning, Trust, Developer Mode, CoreDevice and iOS installation remain an external security boundary. A Menlo Claim or Registry receipt cannot replace them.
 
 ## Website handoff
 

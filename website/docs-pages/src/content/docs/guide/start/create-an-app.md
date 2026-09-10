@@ -22,7 +22,7 @@ Avoid broad requests such as “make a wellness app.” The factory can implemen
 
 ## Add references only when they carry information
 
-You may pick or drop up to eight PNG or JPEG images. Tohseno copies and validates the exact bytes before execution. Use references for layout, visual tone, or the current incorrect state. Do not put passwords, credentials, private keys, provisioning profiles, or unrelated personal images in a reference.
+You may pick or drop up to eight PNG or JPEG images. Menlo copies and validates the exact bytes before execution. Use references for layout, visual tone, or the current incorrect state. Do not put passwords, credentials, private keys, provisioning profiles, or unrelated personal images in a reference.
 
 ## Name or let the implementation choose
 

@@ -9,7 +9,7 @@ The network moves native software as inspectable source plus narrow public evide
 
 `tohseno init [path]` non-destructively prepares an ordinary Xcode project as a public candidate with a stable random ShotID. `tohseno deploy` is the explicit Ship/Update command. Private creation and evolution do not publish automatically.
 
-The Mac creates a deterministic sanitized snapshot in a temporary owner-only directory. It excludes VCS internals, build output, DerivedData, user data, caches, environment files, private Tohseno state, pairing/log state, Apple signing material, and known secrets. `.gitignore` is not used as the security boundary.
+The Mac creates a deterministic sanitized snapshot in a temporary owner-only directory. It excludes VCS internals, build output, DerivedData, user data, caches, environment files, private Menlo state, pairing/log state, Apple signing material, and known secrets. `.gitignore` is not used as the security boundary.
 
 ## Companion approval
 

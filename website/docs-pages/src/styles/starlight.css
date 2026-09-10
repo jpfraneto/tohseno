@@ -1,38 +1,32 @@
-@font-face {
-  font-family: "Fraunces";
-  src: url("/fonts/fraunces-latin.woff2") format("woff2");
-  font-display: swap;
-}
-
 :root {
   --sl-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   --sl-font-system-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  --sl-color-accent-low: #3d2118;
-  --sl-color-accent: #ff6b3d;
-  --sl-color-accent-high: #ffd9ca;
-  --sl-color-white: #fffdf9;
-  --sl-color-gray-1: #f1ede6;
-  --sl-color-gray-2: #cbc4b9;
-  --sl-color-gray-3: #918a80;
-  --sl-color-gray-4: #625e57;
-  --sl-color-gray-5: #383632;
-  --sl-color-gray-6: #23221f;
-  --sl-color-black: #181715;
+  --sl-color-accent-low: #203728;
+  --sl-color-accent: #89b18a;
+  --sl-color-accent-high: #dcead7;
+  --sl-color-white: #fffdf7;
+  --sl-color-gray-1: #f6f3ea;
+  --sl-color-gray-2: #d6d5c9;
+  --sl-color-gray-3: #a6aa9c;
+  --sl-color-gray-4: #737866;
+  --sl-color-gray-5: #34392f;
+  --sl-color-gray-6: #242820;
+  --sl-color-black: #181c16;
 }
 
 :root[data-theme="light"] {
-  --sl-color-accent-low: #ffe8df;
-  --sl-color-accent: #b93816;
-  --sl-color-accent-high: #6b1e0b;
-  --sl-color-white: #1d1b18;
-  --sl-color-gray-1: #3b3833;
-  --sl-color-gray-2: #5e5952;
-  --sl-color-gray-3: #7b746b;
-  --sl-color-gray-4: #aaa298;
-  --sl-color-gray-5: #d8d2c9;
-  --sl-color-gray-6: #ebe7e0;
-  --sl-color-gray-7: #f7f5f0;
-  --sl-color-black: #fffefa;
+  --sl-color-accent-low: #e1e8d8;
+  --sl-color-accent: #315b3b;
+  --sl-color-accent-high: #24472d;
+  --sl-color-white: #242820;
+  --sl-color-gray-1: #34392f;
+  --sl-color-gray-2: #616457;
+  --sl-color-gray-3: #737866;
+  --sl-color-gray-4: #a6aa9c;
+  --sl-color-gray-5: #d6d5c9;
+  --sl-color-gray-6: #ecebe1;
+  --sl-color-gray-7: #fffdf7;
+  --sl-color-black: #f6f3ea;
 }
 
 body {
@@ -42,7 +36,7 @@ body {
 h1,
 h2,
 h3 {
-  font-family: "Fraunces", Georgia, serif;
+  font-family: Georgia, "Times New Roman", serif;
   letter-spacing: -0.025em;
 }
 
@@ -71,3 +65,9 @@ h3 {
     max-width: calc(100vw - 2rem);
   }
 }
+
+.site-title { font-family: Georgia, "Times New Roman", serif; letter-spacing: -0.04em; font-size: 2rem; text-transform: lowercase; color: var(--sl-color-white); }
+.site-title img { width: 2rem; height: 2rem; }
+:root:not([data-theme="light"]) .site-title img { filter: invert(1); }
+:focus-visible { outline: 2px solid var(--sl-color-accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

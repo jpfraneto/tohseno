@@ -1,6 +1,6 @@
 ---
 title: Fail-closed rules
-description: Conditions that stop Tohseno instead of guessing, bypassing, or manufacturing success.
+description: Conditions that stop Menlo instead of guessing, bypassing, or manufacturing success.
 ---
 
 | Condition | Required behavior |
