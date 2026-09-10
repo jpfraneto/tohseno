@@ -643,24 +643,7 @@ pub async fn receive(
     let expected_source = &evidence.signed_manifest.release.source;
     let materialized = !target.exists();
     if !materialized {
-        let metadata = fs::symlink_metadata(&target)?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err("the existing network source destination is unsafe".into());
-        }
-        let artifact = tempfile::NamedTempFile::new()?;
-        let observed = create_deterministic_snapshot(&target, artifact.path())?;
-        if observed.artifact_sha256 != expected_source.sha256
-            || observed.artifact_byte_length != expected_source.byte_length
-            || observed.source_tree_sha256 != expected_source.source_tree_sha256
-            || observed.file_count != expected_source.file_count
-            || observed.source_byte_length != expected_source.uncompressed_byte_length
-        {
-            return Err(format!(
-                "{} already exists and differs from the exact network release; choose a new folder with --into",
-                target.display()
-            )
-            .into());
-        }
+        verify_existing_network_source(&target, expected_source)?;
     } else {
         fs::create_dir(&target)?;
         let extraction =
@@ -792,6 +775,29 @@ pub async fn receive(
     }
     if kind == ReceiveKind::Install && result.installation_status == "failed" {
         return Err(outcome.into());
+    }
+    Ok(())
+}
+
+fn verify_existing_network_source(
+    target: &Path,
+    expected: &SourceArtifact,
+) -> Result<(), BoxError> {
+    let metadata = fs::symlink_metadata(target)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("the existing network source destination is unsafe".into());
+    }
+    // Snapshot creation deliberately never overwrites a file. Reserve a private
+    // directory, not a NamedTempFile which already occupies the output path.
+    let temporary = tempfile::tempdir()?;
+    let observed = create_deterministic_snapshot(target, &temporary.path().join("source.tar"))?;
+    if observed.artifact_sha256 != expected.sha256
+        || observed.artifact_byte_length != expected.byte_length
+        || observed.source_tree_sha256 != expected.source_tree_sha256
+        || observed.file_count != expected.file_count
+        || observed.source_byte_length != expected.uncompressed_byte_length
+    {
+        return Err(format!("{} already exists and differs from the exact network release; choose a new folder with --into", target.display()).into());
     }
     Ok(())
 }
@@ -3183,6 +3189,35 @@ mod claim_edition_tests {
         );
         assert!(
             receive_outcome(ReceiveKind::Install, "ready_for_iphone", None).contains("saved build")
+        );
+    }
+
+    #[test]
+    fn existing_download_can_be_reverified_but_local_edits_are_preserved_and_rejected() {
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("Source");
+        fs::create_dir(&source).unwrap();
+        fs::write(source.join("App.swift"), "import SwiftUI\n").unwrap();
+        let snapshot =
+            create_deterministic_snapshot(&source, &temporary.path().join("original.tar")).unwrap();
+        let expected = SourceArtifact {
+            format: SourceArtifactFormat::DeterministicTar,
+            sha256: snapshot.artifact_sha256,
+            byte_length: snapshot.artifact_byte_length,
+            source_tree_sha256: snapshot.source_tree_sha256,
+            file_count: snapshot.file_count,
+            uncompressed_byte_length: snapshot.source_byte_length,
+        };
+        verify_existing_network_source(&source, &expected).unwrap();
+        verify_existing_network_source(&source, &expected).unwrap();
+        fs::write(source.join("App.swift"), "import Changed\n").unwrap();
+        assert!(verify_existing_network_source(&source, &expected)
+            .unwrap_err()
+            .to_string()
+            .contains("differs from the exact network release"));
+        assert_eq!(
+            fs::read_to_string(source.join("App.swift")).unwrap(),
+            "import Changed\n"
         );
     }
 

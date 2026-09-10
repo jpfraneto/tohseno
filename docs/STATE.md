@@ -29,6 +29,13 @@ requirements (scripts, packages, extensions, App Groups, and iCloud), local
 signing and intended-device installation. The paid upload/Update path below
 also remains unfinished. Publication, Claim and signing authority are unchanged.
 
+The live exact-release Anky receive command then reproduced a second retry
+blocker: verification of an existing download passed a pre-created temporary
+file to a snapshot writer that deliberately refuses overwrites. The caller now
+uses a fresh path inside a private temporary directory. A regression check
+re-verifies unchanged source twice and rejects a local edit without overwriting
+it. The snapshot writer's safety rules remain intact.
+
 ## Menlo rebrand and upload subsidy
 
 Menlo is the current product name. The production homepage focuses on
