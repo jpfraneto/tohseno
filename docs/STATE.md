@@ -36,6 +36,21 @@ uses a fresh path inside a private temporary directory. A regression check
 re-verifies unchanged source twice and rejects a local edit without overwriting
 it. The snapshot writer's safety rules remain intact.
 
+The corrected command then verified the live Anky release
+`0xbfedc96908c631e6cb65bade0e7ee3d3002e0afb08d82a797d435f50211a0744`
+and the existing source download, stopping at its explicit Mac-review gate.
+No downloaded build code was approved or executed. The local Mac candidate at
+`dist/developer-handoff-ready/Tohseno.app`, build `10010`, contains clean native
+source `7dd380db793d6448039f2a50119bc4c398cb4200`. Both factory architectures
+were rebuilt; unchanged native UI, Apple helper, and bundled source were reused
+from the prior candidate after checking the source diff. Developer ID,
+notarization (submission `13a3f5da-f849-4fd4-84aa-47811bed7975`), stapled-ticket
+validation, Gatekeeper, and the factory manifest passed. Ticket attachment
+needed a fresh copy after macOS refused a write to the first copy; no rebuild
+or replacement notarization was needed. Desktop inspection timed out, so no
+native startup or physical acceptance is claimed. Public download activation
+is unchanged.
+
 ## Menlo rebrand and upload subsidy
 
 Menlo is the current product name. The production homepage focuses on
