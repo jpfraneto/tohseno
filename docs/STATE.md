@@ -47,9 +47,17 @@ from the prior candidate after checking the source diff. Developer ID,
 notarization (submission `13a3f5da-f849-4fd4-84aa-47811bed7975`), stapled-ticket
 validation, Gatekeeper, and the factory manifest passed. Ticket attachment
 needed a fresh copy after macOS refused a write to the first copy; no rebuild
-or replacement notarization was needed. Desktop inspection timed out, so no
-native startup or physical acceptance is claimed. Public download activation
+or replacement notarization was needed. Finder launch subsequently succeeded.
+Startup encountered launchd/Keychain delays with older app copies also running;
+after closing those copies, the service became healthy and the corrected
+factory manifest matched the active installation. The workshop loaded the
+existing apps. No physical acceptance is claimed. Public download activation
 is unchanged.
+
+Anky's publishing dry run on that factory then exposed icon discovery entering
+Swift's `.build` dependency cache and rejecting a cached symlink. Icon discovery
+now skips build/cache directories, matching the existing source snapshot
+boundary, while retaining symlink rejection for actual source and artwork.
 
 ## Menlo rebrand and upload subsidy
 

@@ -379,6 +379,21 @@ fn collect_icon_candidates(
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
         let path = entry.path();
+        // Build products and dependency checkouts are not the app's artwork.
+        // Skip their roots before inspecting entries (including cache symlinks).
+        if matches!(
+            entry.file_name().to_str(),
+            Some(
+                ".git"
+                    | ".build"
+                    | ".swiftpm"
+                    | "DerivedData"
+                    | "build"
+                    | "xcuserdata"
+            )
+        ) {
+            continue;
+        }
         let file_type = entry.file_type()?;
         if file_type.is_symlink() {
             return Err(PageError::UnsafePath(path.display().to_string()));
@@ -1043,6 +1058,48 @@ mod tests {
         .unwrap();
 
         assert_eq!(select_app_icon(temporary.path()).unwrap(), Some(large));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn public_icon_selection_ignores_build_caches_but_rejects_source_symlinks() {
+        use std::os::unix::fs::symlink;
+        let temporary = tempfile::tempdir().unwrap();
+        let icon_set = temporary
+            .path()
+            .join("App/Assets.xcassets/AppIcon.appiconset");
+        fs::create_dir_all(&icon_set).unwrap();
+        fs::write(icon_set.join("icon.png"), FALLBACK_ICON).unwrap();
+        for cache in [
+            ".git",
+            ".build",
+            ".swiftpm",
+            "DerivedData",
+            "build",
+            "xcuserdata",
+        ] {
+            let cached_icon = temporary.path().join(cache).join("Dependency.appiconset");
+            fs::create_dir_all(&cached_icon).unwrap();
+            symlink(
+                "/unavailable/dependency.swift",
+                cached_icon.join("linked-source.swift"),
+            )
+            .unwrap();
+            fs::write(cached_icon.join("wrong-icon.png"), b"not app artwork").unwrap();
+        }
+        assert_eq!(
+            select_app_icon(temporary.path()).unwrap(),
+            Some(FALLBACK_ICON.to_vec())
+        );
+        symlink(
+            "/unavailable/source.swift",
+            temporary.path().join("App/linked-source.swift"),
+        )
+        .unwrap();
+        assert!(matches!(
+            select_app_icon(temporary.path()),
+            Err(PageError::UnsafePath(_))
+        ));
     }
 
     #[test]
