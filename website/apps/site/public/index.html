@@ -2,179 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f4ee">
-  <meta name="description" content="Tohseno is the permissionless distribution network for Apple software. Build on Mac. Publish a verifiable release. Share it person to person.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="the permissionless p2p network for distributing apple apps">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="{{BRAND}}">
-  <meta property="og:title" content="Software for Apple devices. Distributed by anyone.">
-  <meta property="og:description" content="The permissionless distribution network for Apple software.">
+  <meta property="og:title" content="Tohseno">
+  <meta property="og:description" content="the permissionless p2p network for distributing apple apps">
   <meta property="og:url" content="{{CANONICAL_ORIGIN}}/">
-  <meta property="og:image" content="{{OG_IMAGE_URL}}">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Tohseno — software for Apple devices, distributed by anyone.">
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Software for Apple devices. Distributed by anyone.">
-  <meta name="twitter:description" content="The permissionless distribution network for Apple software.">
+  <meta name="twitter:card" content="summary">
   <link rel="canonical" href="{{CANONICAL_ORIGIN}}/">
-  <link rel="preload" href="/landing-assets/mascot.png" as="image" type="image/png">
-  <link rel="icon" href="/tohseno-logo.png" type="image/png">
-  <link rel="stylesheet" href="/landing.css?v={{LANDING_STYLE_REVISION}}">
-  <title>Tohseno — Permissionless Distribution for Apple Software</title>
+  <link rel="stylesheet" href="/home.css">
+  <title>Tohseno</title>
 </head>
-<body class="network-home is-prelaunch" data-download-channel="{{DOWNLOAD_CHANNEL}}">
-  <a class="skip-link" href="#main">Skip to the main content</a>
-
-  <header class="site-header page-shell">
-    <a class="wordmark" href="#main" aria-label="Tohseno home">
-      <img src="/landing-assets/wordmark.svg" alt="Tohseno">
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="#network">Why Tohseno</a>
-      <a href="#how-it-works">How it works</a>
-      <a href="#apple">Built for Apple</a>
-      <a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source</a>
-      <a href="/buy">$TOHSENO</a>
-    </nav>
-  </header>
-
-  <main id="main">
-    <section class="hero page-shell">
-      <div class="hero-copy">
-        <p class="eyebrow">Permissionless distribution for Apple software</p>
-        <h1>Software for Apple devices. <em>Distributed by anyone.</em></h1>
-        <p class="hero-summary">Build on Mac. Publish to Tohseno. Other people discover, verify, sign, and install on their own Apple devices.</p>
-        <div class="hero-actions">
-          <a class="button button--dark" href="#network">See how it moves <span aria-hidden="true">→</span></a>
-          <a class="button button--ghost" href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Read the source <span aria-hidden="true">↗</span></a>
-        </div>
-        <p class="release-note">The Mac release and public network are being verified. Public downloads are still closed.</p>
-      </div>
-
-      <div class="hero-visual" aria-label="Tohseno, the network's workshop mascot">
-        <span class="orbit orbit--one" aria-hidden="true"></span>
-        <span class="orbit orbit--two" aria-hidden="true"></span>
-        <img src="/landing-assets/mascot.png" alt="The Tohseno wooden workshop mascot holding a wrench">
-        <span class="signal signal--mac">Built on Mac</span>
-        <span class="signal signal--link">One public link</span>
-        <span class="signal signal--you">Signed by you</span>
-      </div>
-    </section>
-
-    <section class="network-pulse page-shell" aria-label="The Tohseno distribution path">
-      <p><span class="live-dot" aria-hidden="true"></span> Network state: preparing first public releases</p>
-      <ul>
-        <li>Exact source</li>
-        <li>Public provenance</li>
-        <li>Your Apple signature</li>
-        <li>Your device</li>
-      </ul>
-    </section>
-
-    <section class="network-manifesto" id="network">
-      <div class="page-shell manifesto-inner">
-        <p class="eyebrow">The distribution model</p>
-        <div class="manifesto-heading">
-          <h2>A link is the channel.<br><em>People are the network.</em></h2>
-          <p>Software used to travel on disks, then through stores. Tohseno makes the person-to-person link a distribution primitive for native Apple software.</p>
-        </div>
-        <div class="people-loop" aria-label="Software moving between people">
-          <article><span>01</span><strong>Someone builds.</strong><p>Source and authority stay with its maker.</p></article>
-          <i aria-hidden="true">→</i>
-          <article><span>02</span><strong>Someone shares.</strong><p>One link carries the exact release and proof.</p></article>
-          <i aria-hidden="true">→</i>
-          <article><span>03</span><strong>Someone else signs.</strong><p>The recipient makes an independent local build.</p></article>
-        </div>
-        <p class="manifesto-line">Not a new App Store. <strong>A new path between Apple customers.</strong></p>
-      </div>
-    </section>
-
-    <section class="community-section page-shell">
-      <div class="community-copy">
-        <p class="eyebrow">Software moves through people</p>
-        <h2>Make software.<br>Move it through your circle.</h2>
-        <p>Creators keep their source and release authority. Recipients get verifiable provenance and sign with their own Apple identity. Distribution becomes a relationship, not a gate.</p>
-        <div class="community-principles">
-          <span>Built by a person</span>
-          <span>Carried by a link</span>
-          <span>Verified by its recipient</span>
-        </div>
-      </div>
-      <div class="community-image">
-        <img src="/landing-assets/network.png" alt="The Tohseno mascot connecting a Mac and iPhone through the network">
-      </div>
-    </section>
-
-    <section class="apple-section" id="apple">
-      <div class="page-shell apple-inner">
-        <div class="apple-copy">
-          <p class="eyebrow">Built for the Apple ecosystem</p>
-          <h2>A friend of Apple.<br>A network for its customers.</h2>
-          <p>Apple built the devices, operating systems, developer tools, code signing, and security model. Tohseno adds an open distribution network between the people who make Apple software and the people who want to run it.</p>
-        </div>
-        <div class="apple-tools" aria-label="What each participant uses">
-          <div><img src="/landing-assets/mac.svg" alt=""><span>Mac</span></div>
-          <div><img src="/landing-assets/xcode.svg" alt=""><span>Xcode</span></div>
-          <div><img src="/landing-assets/iphone.svg" alt=""><span>iPhone</span></div>
-          <div><img src="/landing-assets/apple-account.svg" alt=""><span>Apple Account</span></div>
-        </div>
-        <div class="apple-contrast">
-          <p><strong>The App Store</strong><span>Apple’s curated marketplace.</span></p>
-          <p><strong>Tohseno</strong><span>An open distribution network.</span></p>
-        </div>
-      </div>
-    </section>
-
-    <section class="how-section page-shell" id="how-it-works">
-      <div class="section-heading">
-        <div><p class="eyebrow">How it works</p><h2>Build. Publish. Share. Verify.</h2></div>
-        <p>Tohseno moves source and verifiable proof—not a binary signed by a stranger.</p>
-      </div>
-      <ol class="step-grid">
-        <li><img src="/landing-assets/build-mac.svg" alt=""><span>01</span><strong>Build on Mac</strong><p>Create or connect an Xcode project.</p></li>
-        <li><img src="/landing-assets/publish.svg" alt=""><span>02</span><strong>Publish a Shot</strong><p>Approve the exact public release in Companion.</p></li>
-        <li><img src="/landing-assets/share.svg" alt=""><span>03</span><strong>Share one link</strong><p>Anyone can retrieve the exact source and proof.</p></li>
-        <li><img src="/landing-assets/verify-install.svg" alt=""><span>04</span><strong>Verify and install</strong><p>Recipients build and sign for their own devices.</p></li>
-      </ol>
-      <p class="requirements">Requires macOS 14+, Xcode, an iPhone, and an Apple Account. Builders also use Tohseno Companion.</p>
-    </section>
-
-    <section class="protocol-section page-shell" id="protocol">
-      <div class="protocol-intro">
-        <p class="eyebrow">Public by design</p>
-        <h2>Every public release leaves a receipt.</h2>
-        <p>Builder identity, release lineage, and exact Claim receipts are independently verifiable.</p>
-      </div>
-      <div class="protocol-grid">
-        <a href="https://robinhoodchain.blockscout.com/address/0xb1bd208cd2af98e701f43d06aaa889d3a594df65" target="_blank" rel="noopener noreferrer">
-          <img src="/landing-assets/builder-authority.svg" alt=""><span>Builder authority</span><strong>Who released it?</strong><p>Companion signs the exact release with the Builder’s private device authority.</p><code>0xb1bd…df65 ↗</code>
-        </a>
-        <a href="https://robinhoodchain.blockscout.com/address/0x3fe6508ba2660bc575080024f402c192a2e035a0" target="_blank" rel="noopener noreferrer">
-          <img src="/landing-assets/shot-registry.svg" alt=""><span>Shot Registry</span><strong>What changed?</strong><p>Each Shot has one Ship, then append-only Updates with exact checkpoints.</p><code>0x3fe6…35a0 ↗</code>
-        </a>
-        <a href="https://robinhoodchain.blockscout.com/address/0x5012703d48d99224ac0035d58bc373de9e8b1934" target="_blank" rel="noopener noreferrer">
-          <img src="/landing-assets/claims.svg" alt=""><span>Claims</span><strong>Who received it?</strong><p>The receipt contract is deployed. Claim writes remain gated until the Claim release activates.</p><code>0x5012…1934 ↗</code>
-        </a>
-      </div>
-      <div class="protocol-status"><span><i aria-hidden="true"></i> Robinhood Chain mainnet</span><span>Chain ID 4663</span><span>Registry generation 0.8.0</span></div>
-    </section>
-
-    <section class="closing-section page-shell">
-      <div>
-        <p class="eyebrow">Join the network</p>
-        <h2>Build something.<br>Ship it to someone.</h2>
-        <p>Public shipping is still closed while the exact release path is verified.</p>
-        <a class="button button--light" href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Explore the source <span aria-hidden="true">↗</span></a>
-      </div>
-      <img src="/landing-assets/mascot.png" alt="The Tohseno mascot holding a wrench">
-    </section>
+<body>
+  <main>
+    <p>hi, this is jp. founder of tohseno</p>
+    <p>the permissionless p2p network for distributing apple apps</p>
+    <p>“bypass the app store and be part of a community of feedback people that want to see you win”</p>
+    <p>to install, run this</p>
+    <p><code>npm i -g tohseno</code></p>
+    <p>and then on a ios app xcode project folder run</p>
+    <p><code>tohseno init</code></p>
+    <p><code>tohseno deploy</code></p>
+    <p>and then DM the link that you will get so that i can run it and give you practical feedback</p>
+    <p><a href="https://x.com/messages/compose?recipient_id=1430539235480719367" title="DM @jpfraneto on X">[DM JP]</a> or <a href="mailto:jp@anky.app">[EMAIL JP]</a></p>
   </main>
-
-  <footer class="site-footer page-shell">
-    <img src="/landing-assets/wordmark.svg" alt="Tohseno">
-    <p>Permissionless distribution for Apple software.</p>
-    <nav aria-label="Footer"><a href="{{REPOSITORY_URL}}" target="_blank" rel="noopener noreferrer">Source</a><a href="/privacy">Privacy</a><a href="/buy">$TOHSENO</a></nav>
-  </footer>
 </body>
 </html>

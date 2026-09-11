@@ -252,6 +252,11 @@ const STATIC_FILES: Record<
   { file: string; type: string; revalidate?: boolean }
 > = {
   "/styles.css": { file: "styles.css", type: "text/css; charset=utf-8" },
+  "/home.css": {
+    file: "home.css",
+    type: "text/css; charset=utf-8",
+    revalidate: true,
+  },
   "/landing.css": {
     file: "landing.css",
     type: "text/css; charset=utf-8",
@@ -555,16 +560,8 @@ export async function createApplication(
       DOWNLOAD_CHANNEL: config.distribution.macosChannel,
       ...extra,
     });
-  const networkLaunchEnabled = config.registry.enabled
-    && config.registry.relayerEnabled
-    && config.distribution.macosEnabled;
-  const landingFile = networkLaunchEnabled
-    ? "index-network.html"
-    : config.distribution.macosEnabled
-      ? "index-candidate.html"
-      : "index.html";
   const [landingPage, buyPage, privacyPage] = await Promise.all([
-    renderPage(landingFile),
+    renderPage("index.html"),
     renderPage("buy.html", {
       BUY_ASSET_REVISION: buyAssetRevision,
       BUY_OG_IMAGE_URL: `${config.baseUrl}/og-buy.png?v=${buyOgVersion}`,
@@ -610,7 +607,7 @@ export async function createApplication(
         || pathname.startsWith("/claims/") || isGlobalAliasPath(pathname)) {
       if (method !== "GET" && method !== "HEAD") return methodNotAllowed();
       let content: string | undefined;
-      if (pathname === "/") content = await registry.renderHome();
+      if (pathname === "/") content = landingPage;
       else if (pathname === "/registry") content = await registry.renderRegistry(url.searchParams.get("q") ?? undefined);
       else if (/^\/claims\/[1-9]\d*$/.test(pathname)) content = await claims.renderReceipt(pathname.slice(8));
       else if (/^\/s\/[0-9a-f]{64}$/.test(pathname)) content = await registry.renderShot(`0x${pathname.slice(3)}`);

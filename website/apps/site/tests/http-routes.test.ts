@@ -88,18 +88,23 @@ const landingStylePath = fileURLToPath(
 const INSTALL_COMMAND = "curl -fsSL https://tohseno.com/oneshot.sh | bash";
 
 describe("public pages", () => {
-  test("introduces the network while keeping every public path dark until launch", async () => {
+  test("serves the founder’s plain-text landing page and retains the Registry", async () => {
     const application = await testApplication();
-    const body = await (await application.fetch(request("/"))).text();
-    expect(body).toContain("Your app.<br>In someone else’s hands.");
-    expect(body).toContain("Apps from the network");
-    expect(body).toContain("build and sign it on their Mac");
-    expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
-    expect(body).toContain("Published apps and real activity appear here");
-    expect(body).toContain('href="/registry"');
-    expect(body).toContain('href="/download/macos"');
-    expect(body).toContain('href="/" aria-label="Menlo home"');
-    expect(body).toContain("<footer");
+    const response = await application.fetch(request("/"));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("hi, this is jp. founder of tohseno");
+    expect(body).toContain("the permissionless p2p network for distributing apple apps");
+    expect(body).toContain("npm i -g tohseno");
+    expect(body).toContain("tohseno init");
+    expect(body).toContain("tohseno deploy");
+    expect(body).toContain("practical feedback");
+    expect(body).toContain("<title>Tohseno</title>");
+    expect(body).toContain('href="/home.css"');
+    expect(body).toContain('href="https://x.com/messages/compose?recipient_id=1430539235480719367"');
+    expect(body).toContain('href="mailto:jp@anky.app"');
+    expect(body).not.toMatch(/<(?:script|img|nav|button|form|footer)\b/);
+    expect(body).not.toMatch(/\{\{[A-Z0-9_]+\}\}/);
     const registry = await (await application.fetch(request("/registry"))).text();
     expect(registry).toContain('class="registry-page"');
     expect(registry).toContain('href="/registry.css"');
@@ -111,46 +116,27 @@ describe("public pages", () => {
     expect(registry).not.toContain("The network is ready.");
   });
 
-  test("serves the canonical activity timeline after launch", async () => {
+  test("keeps the same landing page after launch", async () => {
     const launched = await launchedApplication();
-    const { application } = launched;
-    const response = await application.fetch(request("/"));
-    expect(response.status).toBe(200);
-    const body = await response.text();
-    expect(body).toContain("Your app.<br>In someone else’s hands.");
-    expect(body).toContain("Shipping and claiming use Companion approval.");
-    expect(body).toContain("Recent network activity");
-    expect(body).toContain("Published apps and real activity appear here");
-    expect(body).toContain('<a href="/registry">Explore apps</a>');
-    expect(body).toContain("<footer");
-    expect(body).toContain("npm i -g tohseno");
-    expect(body).not.toContain(INSTALL_COMMAND);
-    expect(body).not.toContain("curl -fsSL https://tohseno.com/install | sh");
-    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain('src="/menlo/menlo-mark.svg?v=1"');
-    expect(body).not.toContain('href="#"');
-    expect(body).toContain('href="/privacy"');
-    expect((await application.fetch(request("/docs"))).status).toBe(308);
-    expect((await application.fetch(request("/privacy"))).status).toBe(200);
-    expect(body).toContain("<title>Menlo — Permissionless iOS app distribution</title>");
-    expect(response.headers.get("Content-Security-Policy")).toContain(
-      "default-src 'self'",
-    );
-    launched.cleanup();
+    try {
+      const application = await testApplication();
+      const response = await launched.application.fetch(request("/"));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(await (await application.fetch(request("/"))).text());
+      expect(response.headers.get("Content-Security-Policy")).toContain("default-src 'self'");
+      expect((await launched.application.fetch(request("/docs"))).status).toBe(308);
+      expect((await launched.application.fetch(request("/privacy"))).status).toBe(200);
+    } finally {
+      launched.cleanup();
+    }
   });
 
-  test("keeps the canonical timeline while a release-candidate download is available", async () => {
-    const application = await candidateApplication();
-    const response = await application.fetch(request("/"));
+  test("keeps the same landing page while a release-candidate download is available", async () => {
+    const candidate = await candidateApplication();
+    const application = await testApplication();
+    const response = await candidate.fetch(request("/"));
     expect(response.status).toBe(200);
-    const body = await response.text();
-
-    expect(body).toContain("Your app.<br>In someone else’s hands.");
-    expect(body).toContain("Explore published apps. New publishing and Claims are not available yet.");
-    expect(body).toContain('href="/download/macos"');
-    expect(body.match(/href="\/download\/macos"/g)).toHaveLength(1);
-    expect(body).toContain('href="/registry"');
-    expect(body).toContain("<footer");
+    expect(await response.text()).toBe(await (await application.fetch(request("/"))).text());
   });
 
   test("hands documentation to the standalone site and serves privacy", async () => {
@@ -344,6 +330,7 @@ describe("public pages", () => {
     const application = await testApplication();
     const expectations: Array<[string, string]> = [
       ["/styles.css", "text/css"],
+      ["/home.css", "text/css"],
       ["/landing.css", "text/css"],
       ["/registry.css", "text/css"],
       ["/landing.js", "text/javascript"],

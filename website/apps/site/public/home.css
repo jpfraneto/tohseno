@@ -1,0 +1,16 @@
+body {
+  max-width: 42rem;
+  margin: 24px;
+  background: white;
+  color: black;
+  font: 18px/1.5 Georgia, serif;
+}
+
+p {
+  margin: 0 0 24px;
+}
+
+a,
+a:visited {
+  color: #0000ee;
+}
